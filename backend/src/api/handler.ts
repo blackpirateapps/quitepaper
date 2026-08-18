@@ -38,6 +38,18 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // Public client configuration for Firebase Auth
+    if ((pathname === '/api/v1/config' || pathname === '/config') && method === 'GET') {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          firebaseApiKey: process.env.FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || '',
+          firebaseProjectId: process.env.FIREBASE_PROJECT_ID || '',
+        },
+      };
+    }
+
     // Protected endpoints require Firebase Auth token
     const authContext = await requireFirebaseAuth(authHeader, db);
     const userId = authContext.user.id;

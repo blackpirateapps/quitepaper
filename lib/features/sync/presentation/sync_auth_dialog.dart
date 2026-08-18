@@ -19,12 +19,24 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
   final _firebasePasswordController = TextEditingController();
   final _encryptionPasswordController = TextEditingController();
   final _recoveryKeyController = TextEditingController();
+  final _serverUrlController = TextEditingController();
+  final _apiKeyController = TextEditingController();
 
   bool _isSignUp = false;
   bool _isRecovering = false;
   bool _isLoading = false;
+  bool _showAdvancedSettings = false;
   String? _errorMessage;
   String? _generatedRecoveryKey;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = ref.read(authServiceProvider);
+    if (auth.apiKey.isNotEmpty) {
+      _apiKeyController.text = auth.apiKey;
+    }
+  }
 
   @override
   void dispose() {
@@ -32,6 +44,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
     _firebasePasswordController.dispose();
     _encryptionPasswordController.dispose();
     _recoveryKeyController.dispose();
+    _serverUrlController.dispose();
+    _apiKeyController.dispose();
     super.dispose();
   }
 
@@ -61,6 +75,25 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       final crypto = ref.read(cryptoServiceProvider);
       final api = ref.read(syncApiClientProvider);
       final engine = ref.read(syncEngineProvider);
+
+      if (_apiKeyController.text.trim().isNotEmpty) {
+        auth.setApiKey(_apiKeyController.text.trim());
+      }
+
+      if (auth.apiKey.isEmpty) {
+        final serverUrl = _serverUrlController.text.trim();
+        await auth.fetchConfigFromBackend(serverUrl);
+      }
+
+      if (auth.apiKey.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _showAdvancedSettings = true;
+          _errorMessage =
+              'Firebase API key not found. Please enter your Firebase Web API Key in Server Settings below or set FIREBASE_API_KEY in Vercel.';
+        });
+        return;
+      }
 
       if (_isSignUp) {
         // Sign up with Firebase
@@ -93,7 +126,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
 
         // Set new password
         if (encPassword.isNotEmpty) {
-          final updatedKey = await keyManager.changePassword(newPassword: encPassword);
+          final updatedKey =
+              await keyManager.changePassword(newPassword: encPassword);
           await api.putKeys(updatedKey);
         }
       } else {
@@ -152,7 +186,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           children: [
             Text(
               'Save this recovery key in a safe place. If you forget your Quiet Paper encryption password, this key is the only way to recover your notes.',
-              style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+              style:
+                  AppTypography.bodySmall.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.md),
             Container(
@@ -200,12 +235,14 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                     : _isRecovering
                         ? 'Recover Account'
                         : 'Sign In to Sync',
-                style: AppTypography.headline.copyWith(color: colors.textPrimary),
+                style:
+                    AppTypography.headline.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'End-to-end encrypted notes with zero-knowledge cloud backup.',
-                style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+                style: AppTypography.bodySmall
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.lg),
               TextField(
@@ -245,6 +282,53 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                     border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
                   ),
                 ),
+              const SizedBox(height: AppSpacing.sm),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _showAdvancedSettings = !_showAdvancedSettings;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showAdvancedSettings
+                            ? Icons.arrow_drop_down
+                            : Icons.arrow_right,
+                        size: 18,
+                        color: colors.textTertiary,
+                      ),
+                      Text(
+                        'Server & Firebase API Settings',
+                        style: AppTypography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_showAdvancedSettings) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _serverUrlController,
+                  decoration: InputDecoration(
+                    labelText: 'Sync Server URL (Optional)',
+                    hintText: 'https://your-project.vercel.app',
+                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _apiKeyController,
+                  decoration: InputDecoration(
+                    labelText: 'Firebase Web API Key',
+                    hintText: 'AIzaSy...',
+                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
+                  ),
+                ),
+              ],
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.md),
                 Text(
@@ -266,7 +350,9 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                               _errorMessage = null;
                             });
                           },
-                    child: Text(_isSignUp ? 'Have an account? Sign In' : 'New? Create Account'),
+                    child: Text(_isSignUp
+                        ? 'Have an account? Sign In'
+                        : 'New? Create Account'),
                   ),
                   if (!_isSignUp)
                     TextButton(
@@ -278,7 +364,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                                 _errorMessage = null;
                               });
                             },
-                      child: Text(_isRecovering ? 'Use Password' : 'Use Recovery Key'),
+                      child: Text(
+                          _isRecovering ? 'Use Password' : 'Use Recovery Key'),
                     ),
                 ],
               ),

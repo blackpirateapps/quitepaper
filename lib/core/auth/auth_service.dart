@@ -48,6 +48,9 @@ class AuthUser {
 abstract class AuthService {
   AuthUser? get currentUser;
   Stream<AuthUser?> get authStateChanges;
+  String get apiKey;
+  void setApiKey(String key);
+  Future<void> fetchConfigFromBackend(String backendUrl);
 
   Future<AuthUser> signInWithEmailAndPassword(String email, String password);
   Future<AuthUser> signUpWithEmailAndPassword(String email, String password);
@@ -61,11 +64,37 @@ class FirebaseAuthService implements AuthService {
   FirebaseAuthService({
     String? apiKey,
     http.Client? httpClient,
-  })  : _apiKey = apiKey ?? const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: ''),
+  })  : _apiKey = apiKey ??
+            const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: ''),
         _client = httpClient ?? http.Client();
 
-  final String _apiKey;
+  String _apiKey;
   final http.Client _client;
+
+  @override
+  String get apiKey => _apiKey;
+
+  @override
+  void setApiKey(String key) {
+    _apiKey = key.trim();
+  }
+
+  @override
+  Future<void> fetchConfigFromBackend(String backendUrl) async {
+    if (backendUrl.trim().isEmpty) return;
+    try {
+      final sanitized = backendUrl.replaceAll(RegExp(r'/+$'), '');
+      final url = Uri.parse('$sanitized/api/v1/config');
+      final res = await _client.get(url).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final fetchedKey = data['firebaseApiKey'] as String?;
+        if (fetchedKey != null && fetchedKey.trim().isNotEmpty) {
+          _apiKey = fetchedKey.trim();
+        }
+      }
+    } catch (_) {}
+  }
 
   AuthUser? _currentUser;
   final _authStateController = StreamController<AuthUser?>.broadcast();
@@ -76,7 +105,8 @@ class FirebaseAuthService implements AuthService {
   @override
   Stream<AuthUser?> get authStateChanges => _authStateController.stream;
 
-  static const _authBaseUrl = 'https://identitytoolkit.googleapis.com/v1/accounts';
+  static const _authBaseUrl =
+      'https://identitytoolkit.googleapis.com/v1/accounts';
 
   @override
   Future<AuthUser> signInWithEmailAndPassword(String email, String password) async {
@@ -227,6 +257,18 @@ class FirebaseAuthService implements AuthService {
 class MockAuthService implements AuthService {
   AuthUser? _currentUser;
   final _controller = StreamController<AuthUser?>.broadcast();
+  String _mockApiKey = 'mock-api-key';
+
+  @override
+  String get apiKey => _mockApiKey;
+
+  @override
+  void setApiKey(String key) {
+    _mockApiKey = key;
+  }
+
+  @override
+  Future<void> fetchConfigFromBackend(String backendUrl) async {}
 
   @override
   AuthUser? get currentUser => _currentUser;
