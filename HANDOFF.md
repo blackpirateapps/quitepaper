@@ -172,7 +172,7 @@ The repository contains both the Flutter client and the TypeScript/Vercel server
 ### Backend Tests (Vitest)
 ```bash
 cd backend
-npm test          # Runs 13 tests (auth, keys, sync, conflict detection, crypto-blindness)
+npm test          # Runs 14 tests (auth, keys, sync, conflict detection, crypto-blindness, key rotation verification)
 npm run build     # Runs TypeScript compiler (tsc)
 ```
 
@@ -193,7 +193,20 @@ flutter test      # 70 tests covering crypto, sync engine, multi-device flow, UI
 
 ---
 
-## 6. Security Guarantees & Verification Checklist
+## 6. Release & CI/CD Workflows
+
+### Multi-Architecture GitHub Release Workflow (`.github/workflows/release.yml`)
+- **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional tag/title/draft/prerelease flags, or automatically on git tag push (`v*`).
+- **Builds**:
+  - `quiet-paper-<version>-arm64-v8a.apk` (Modern 64-bit Android)
+  - `quiet-paper-<version>-armeabi-v7a.apk` (32-bit legacy Android)
+  - `quiet-paper-<version>-x86_64.apk` (x86_64 Chromebooks / Emulators)
+  - `quiet-paper-<version>-universal.apk` (Universal FAT binary)
+- Automatically attaches all 4 APK binaries as release assets to the GitHub Release.
+
+---
+
+## 7. Security Guarantees & Verification Checklist
 
 - [x] Plaintext titles, bodies, and tags never reach network requests or server storage.
 - [x] Database table `notes` has no `title`, `body`, or `tags` columns.
@@ -202,3 +215,7 @@ flutter test      # 70 tests covering crypto, sync engine, multi-device flow, UI
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
 - [x] Conflict detection returns structured `SYNC_CONFLICT` on stale `baseRevision`.
+- [x] Atomic login: If encryption password is wrong, Firebase session is immediately terminated and app stays logged out.
+- [x] Password rotation verification: Changing encryption passwords requires verifying ownership with current password or recovery key, and backend enforces cryptographic proof (`key_auth_commitment`).
+- [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
+
