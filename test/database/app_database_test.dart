@@ -562,4 +562,62 @@ Ignore `#inline_code_tag` and ```#code_block```.
       expect(TagParser.isValidTag(''), isFalse);
     });
   });
+
+  group('Note Model Auto-Title & Snippet Tests', () {
+    test('uses custom title when provided', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: '1',
+        title: 'Explicit Title',
+        content: 'Some body content',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Explicit Title');
+      expect(note.hasCustomTitle, isTrue);
+      expect(note.previewSnippet, 'Some body content');
+    });
+
+    test('extracts first line as title when title is empty', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: '2',
+        title: '',
+        content: 'Meeting notes with team\nDiscussed architecture and next steps.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Meeting notes with team');
+      expect(note.hasCustomTitle, isFalse);
+      expect(note.previewSnippet, 'Discussed architecture and next steps.');
+    });
+
+    test('truncates first line to first few words when first line is long', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: '3',
+        title: '',
+        content:
+            'This is an exceptionally long first sentence that has far too many words to be a clean concise note title without truncation.\nSecond line here.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(
+          note.displayTitle, 'This is an exceptionally long first...');
+      expect(note.previewSnippet, 'Second line here.');
+    });
+
+    test('returns Untitled when title and content are empty', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: '4',
+        title: '',
+        content: '',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Untitled');
+      expect(note.previewSnippet, '');
+    });
+  });
 }

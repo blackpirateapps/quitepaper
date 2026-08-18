@@ -32,6 +32,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
 
+  bool _shouldAutoFocusTablet = false;
+
   void _exitMultiSelect() {
     setState(() {
       _isMultiSelecting = false;
@@ -502,7 +504,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       key: ValueKey(activeNote!.id),
                       child: EditorScreen(
                         note: activeNote!,
-                        autoFocusBody: false,
+                        autoFocusBody: _shouldAutoFocusTablet &&
+                            _selectedNoteIdForTablet == activeNote!.id,
                       ),
                     )
                   : Center(
@@ -556,31 +559,88 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         final isSelected = isTablet && _selectedNoteIdForTablet == note.id;
         final isItemMultiSelected = _selectedNoteIds.contains(note.id);
 
-        return Dismissible(
-          key: ValueKey('dismiss_${note.id}'),
-          direction: destination == AppDestination.trash
-              ? DismissDirection.startToEnd
-              : DismissDirection.endToStart,
-          background: Container(
-            color: destination == AppDestination.trash
-                ? context.appColors.success
-                : context.appColors.error,
-            alignment: destination == AppDestination.trash
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
+        DismissDirection dismissDirection;
+        Widget? background;
+        Widget? secondaryBackground;
+
+        if (destination == AppDestination.trash) {
+          dismissDirection = DismissDirection.startToEnd;
+          background = Container(
+            color: context.appColors.success,
+            alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Icon(
-              destination == AppDestination.trash
-                  ? Icons.restore_rounded
-                  : Icons.delete_outline_rounded,
+            child: const Icon(
+              Icons.restore_rounded,
               color: Colors.white,
             ),
-          ),
-          onDismissed: (_) {
+          );
+        } else if (destination == AppDestination.archive) {
+          dismissDirection = DismissDirection.horizontal;
+          background = Container(
+            color: context.appColors.tagBackground,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Icon(
+              Icons.unarchive_outlined,
+              color: context.appColors.textPrimary,
+            ),
+          );
+          secondaryBackground = Container(
+            color: context.appColors.error,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+            ),
+          );
+        } else {
+          // All Notes / Pinned / Tag:
+          // Swipe right (startToEnd) -> Archive
+          // Swipe left (endToStart) -> Move to Trash
+          dismissDirection = DismissDirection.horizontal;
+          background = Container(
+            color: context.appColors.tagBackground,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Icon(
+              Icons.archive_outlined,
+              color: context.appColors.accent,
+            ),
+          );
+          secondaryBackground = Container(
+            color: context.appColors.error,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+            ),
+          );
+        }
+
+        return Dismissible(
+          key: ValueKey('dismiss_${note.id}'),
+          direction: dismissDirection,
+          background: background,
+          secondaryBackground: secondaryBackground,
+          onDismissed: (direction) {
             if (destination == AppDestination.trash) {
               _restoreNoteWithUndo(note);
+            } else if (destination == AppDestination.archive) {
+              if (direction == DismissDirection.startToEnd) {
+                _unarchiveNoteWithUndo(note);
+              } else {
+                _trashNoteWithUndo(note);
+              }
             } else {
-              _trashNoteWithUndo(note);
+              if (direction == DismissDirection.startToEnd) {
+                // Swiped to right side -> Archive
+                _archiveNoteWithUndo(note);
+              } else {
+                // Swiped to left side -> Trash
+                _trashNoteWithUndo(note);
+              }
             }
           },
           child: NoteListTile(
@@ -593,6 +653,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               if (isTablet) {
                 setState(() {
                   _selectedNoteIdForTablet = note.id;
+                  _shouldAutoFocusTablet = false;
                 });
               } else {
                 _openNote(context, note);
@@ -695,6 +756,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     setState(() {
       _selectedNoteIdForTablet = newNote.id;
+      _shouldAutoFocusTablet = true;
     });
   }
 

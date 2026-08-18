@@ -149,109 +149,131 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           child: Column(
             children: [
               Expanded(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: AppSpacing.maxContentWidth,
-                    ),
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (!editorState.isPreviewMode) {
+                      if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
+                        if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
+                          _titleFocusNode.requestFocus();
+                        } else {
+                          _contentFocusNode.requestFocus();
+                        }
+                      }
+                    }
+                  },
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.maxContentWidth,
                       ),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (editorState.isPreviewMode) ...[
-                            // Rendered Markdown preview mode
-                            if (note.title.trim().isNotEmpty) ...[
-                              Text(
-                                note.title,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.md,
+                        ),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (editorState.isPreviewMode) ...[
+                              // Rendered Markdown preview mode
+                              if (note.title.trim().isNotEmpty) ...[
+                                Text(
+                                  note.title,
+                                  style: AppTypography.editorTitle.copyWith(
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 24.0),
+                              ],
+                              if (note.tags.isNotEmpty) ...[
+                                TagEditorBar(
+                                  tags: note.tags,
+                                  onAddTag: editorNotifier.addTag,
+                                  onRemoveTag: editorNotifier.removeTag,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                              ],
+                              QuietMarkdownPreview(
+                                markdownData: note.content,
+                              ),
+                            ] else ...[
+                              // Document Title input
+                              TextField(
+                                controller: _titleController,
+                                focusNode: _titleFocusNode,
+                                cursorColor: colors.accent,
                                 style: AppTypography.editorTitle.copyWith(
                                   color: colors.textPrimary,
                                 ),
-                              ),
-                              const SizedBox(height: 24.0),
-                            ],
-                            if (note.tags.isNotEmpty) ...[
-                              TagEditorBar(
-                                tags: note.tags,
-                                onAddTag: editorNotifier.addTag,
-                                onRemoveTag: editorNotifier.removeTag,
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                            ],
-                            QuietMarkdownPreview(
-                              markdownData: note.content,
-                            ),
-                          ] else ...[
-                            // Document Title input
-                            TextField(
-                              controller: _titleController,
-                              focusNode: _titleFocusNode,
-                              cursorColor: colors.accent,
-                              style: AppTypography.editorTitle.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Title',
-                                hintStyle: AppTypography.editorTitle.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.4),
+                                decoration: InputDecoration(
+                                  hintText: 'Title',
+                                  hintStyle: AppTypography.editorTitle.copyWith(
+                                    color: colors.textTertiary.withValues(alpha: 0.4),
+                                  ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
                                 ),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
+                                textCapitalization: TextCapitalization.sentences,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) {
+                                  _contentFocusNode.requestFocus();
+                                },
                               ),
-                              textCapitalization: TextCapitalization.sentences,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) {
-                                _contentFocusNode.requestFocus();
-                              },
-                            ),
-                            const SizedBox(height: 20.0),
+                              const SizedBox(height: 20.0),
 
-                            // Tags bar (displayed seamlessly if tags exist)
-                            if (note.tags.isNotEmpty) ...[
-                              TagEditorBar(
-                                tags: note.tags,
-                                onAddTag: editorNotifier.addTag,
-                                onRemoveTag: editorNotifier.removeTag,
-                              ),
-                              const SizedBox(height: 12.0),
-                            ],
-
-                            // Body markdown editor
-                            TextField(
-                              controller: _contentController,
-                              focusNode: _contentFocusNode,
-                              cursorColor: colors.accent,
-                              style: AppTypography.editorBody.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Start writing...',
-                                hintStyle: AppTypography.editorBody.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.4),
+                              // Tags bar (displayed seamlessly if tags exist)
+                              if (note.tags.isNotEmpty) ...[
+                                TagEditorBar(
+                                  tags: note.tags,
+                                  onAddTag: editorNotifier.addTag,
+                                  onRemoveTag: editorNotifier.removeTag,
                                 ),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
+                                const SizedBox(height: 12.0),
+                              ],
+
+                              // Body markdown editor
+                              TextField(
+                                controller: _contentController,
+                                focusNode: _contentFocusNode,
+                                cursorColor: colors.accent,
+                                style: AppTypography.editorBody.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Start writing...',
+                                  hintStyle: AppTypography.editorBody.copyWith(
+                                    color: colors.textTertiary.withValues(alpha: 0.4),
+                                  ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                textCapitalization: TextCapitalization.sentences,
                               ),
-                              maxLines: null,
-                              keyboardType: TextInputType.multiline,
-                              textCapitalization: TextCapitalization.sentences,
-                            ),
-                            // Generous bottom scroll area for comfortable typing above keyboard
-                            const SizedBox(height: 280),
+                              // Generous bottom scroll area for comfortable typing above keyboard
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  if (!_contentFocusNode.hasFocus) {
+                                    _contentFocusNode.requestFocus();
+                                  }
+                                },
+                                child: const SizedBox(height: 280),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),

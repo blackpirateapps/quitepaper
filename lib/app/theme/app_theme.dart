@@ -100,6 +100,8 @@ abstract final class AppTheme {
         ),
         textStyle: AppTypography.caption.copyWith(color: colors.background),
         waitDuration: const Duration(milliseconds: 500),
+        showDuration: const Duration(milliseconds: 1500),
+        triggerMode: TooltipTriggerMode.longPress,
       ),
     );
   }
@@ -199,6 +201,8 @@ abstract final class AppTheme {
         ),
         textStyle: AppTypography.caption.copyWith(color: colors.background),
         waitDuration: const Duration(milliseconds: 500),
+        showDuration: const Duration(milliseconds: 1500),
+        triggerMode: TooltipTriggerMode.longPress,
       ),
     );
   }

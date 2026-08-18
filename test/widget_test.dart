@@ -558,4 +558,41 @@ void main() {
 
     await finishTest(tester);
   });
+
+  testWidgets('Swiping note to the right archives the note with undo snackbar',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'swipe-arch',
+      title: 'Swipe Note',
+      content: 'Swipe right to archive test',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Swipe Note'), findsOneWidget);
+
+    // Swipe right (start to end)
+    await tester.drag(find.text('Swipe Note'), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    // Note should be archived and removed from active list
+    expect(find.text('Swipe Note'), findsNothing);
+    expect(find.text('Note archived'), findsOneWidget);
+
+    // Tap Undo
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Swipe Note'), findsOneWidget);
+
+    await finishTest(tester);
+  });
 }

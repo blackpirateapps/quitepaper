@@ -40,9 +40,22 @@ class Note {
       final firstLine = trimmedContent.split('\n').first.trim();
       final cleanFirstLine = firstLine
           .replaceAll(RegExp(r'^#+\s*'), '')
+          .replaceAll(RegExp(r'^>\s*'), '')
+          .replaceAll(RegExp(r'^[-*+]\s+'), '')
+          .replaceAll(RegExp(r'^\d+\.\s+'), '')
           .replaceAll(RegExp(r'[*_~`]'), '')
           .trim();
       if (cleanFirstLine.isNotEmpty) {
+        final words = cleanFirstLine
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
+        if (words.length > 6) {
+          return '${words.take(6).join(' ')}...';
+        }
+        if (cleanFirstLine.length > 40) {
+          return '${cleanFirstLine.substring(0, 37).trim()}...';
+        }
         return cleanFirstLine;
       }
     }
@@ -60,7 +73,11 @@ class Note {
     final lines = trimmed.split('\n');
     final cleanLines = <String>[];
 
-    for (final line in lines) {
+    // If title was empty and first line was used as display title, start preview from 2nd line
+    final startIndex = (title.trim().isEmpty && lines.length > 1) ? 1 : 0;
+
+    for (var i = startIndex; i < lines.length; i++) {
+      final line = lines[i];
       final clean = line
           .replaceAll(RegExp(r'^#+\s*'), '')
           .replaceAll(RegExp(r'^>\s*'), '')
