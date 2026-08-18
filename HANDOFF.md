@@ -275,6 +275,21 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - **Fix**: Implemented `isTabletEditor ? widget.onClose?.call() : if (Navigator.canPop()) Navigator.pop()`.
 - **Auto-Dismissing SnackBars**: Added `ScaffoldMessenger.of(context).clearSnackBars()`, `behavior: SnackBarBehavior.floating`, and `dismissDirection: DismissDirection.horizontal` to prevent lingering undo banners.
 
+---
+
+## 11. Markdown Highlight (`==text==`), Dynamic Tag Filter Bar & Version 1.2.0
+
+### Markdown Highlight Syntax (`==text==`)
+- **Syntax Extension**: Implemented `HighlightSyntax` extending `md.InlineSyntax(r'==([^=\n\r]+)==')` to parse `==highlighted text==` into `<mark>` AST nodes.
+- **Visual Builder**: Implemented `HighlightElementBuilder` registered on `QuietMarkdownPreview` to render highlights with a soft, warm amber/accent background tint (`colors.accent.withValues(alpha: 0.22)`), subtle rounded corners, and semi-bold typography matching Bear's clean editorial aesthetic.
+
+### Dynamic Tags Filter Bar Positioning & Auto-Scroll
+- **Active Tag Priority**: In `TagsFilterBar`, whenever a tag filter is active (`selectedTagFilterProvider != null`), the selected tag is dynamically moved from its position in the list to index 1 (immediately next to the "All" pill).
+- **Auto-Scroll to View**: Converted `TagsFilterBar` to `ConsumerStatefulWidget` listening to `selectedTagFilterProvider`. When a user selects a tag from the sidebar or tag browser sheet that was previously off-screen in the horizontal bar, the list automatically animates its scroll position to `0.0`, bringing "All" and the active tag into full view.
+- **Toggling & Reset**: Tapping the active tag chip deselects it and smoothly restores the default list order.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -282,5 +297,6 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - [x] Atomic login: If encryption password is wrong, Firebase session is immediately terminated and app stays logged out.
 - [x] Password rotation verification: Changing encryption passwords requires verifying ownership with current password or recovery key, and backend enforces cryptographic proof (`key_auth_commitment`).
 - [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
+
 
 

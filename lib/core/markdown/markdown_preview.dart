@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
@@ -9,6 +10,7 @@ import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import 'markdown_chunker.dart';
+import 'markdown_highlight.dart';
 
 class QuietMarkdownPreview extends StatefulWidget {
   const QuietMarkdownPreview({
@@ -178,6 +180,11 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
           vertical: AppSpacing.md,
         );
 
+    final inlineSyntaxes = [HighlightSyntax()];
+    final builders = <String, MarkdownElementBuilder>{
+      'mark': HighlightElementBuilder(colors),
+    };
+
     Widget content;
     if (widget.shrinkWrap) {
       if (_chunks.isEmpty) {
@@ -190,6 +197,9 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
               data: '*No content*',
               selectable: false,
               styleSheet: customStyleSheet,
+              inlineSyntaxes: inlineSyntaxes,
+              builders: builders,
+              extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
             ),
           ],
@@ -205,6 +215,9 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
                 data: chunk,
                 selectable: false,
                 styleSheet: customStyleSheet,
+                inlineSyntaxes: inlineSyntaxes,
+                builders: builders,
+                extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
               ),
             ),
@@ -234,6 +247,9 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
                 data: '*No content*',
                 selectable: false,
                 styleSheet: customStyleSheet,
+                inlineSyntaxes: inlineSyntaxes,
+                builders: builders,
+                extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
               );
             }
@@ -241,6 +257,9 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
               data: _chunks[bodyIndex],
               selectable: false,
               styleSheet: customStyleSheet,
+              inlineSyntaxes: inlineSyntaxes,
+              builders: builders,
+              extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
             );
           }

@@ -245,6 +245,26 @@ source: https://untrusted-site.org/very/long/path/with/parameters?token=xyz
       expect(find.text('https://untrusted-site.org/very/long/path/with/parameters?token=xyz'), findsWidgets);
       expect(find.text('Trust links from untrusted-site.org in the future'), findsOneWidget);
     });
+
+    testWidgets('renders ==highlighted text== using HighlightSyntax and custom styling',
+        (tester) async {
+      const markdown = 'Here is some ==highlighted text== inside a paragraph.';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: markdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Ensure == delimiters are not rendered as literal text
+      expect(find.textContaining('==highlighted text=='), findsNothing);
+      // Ensure the text content inside highlight is rendered
+      expect(find.text('highlighted text'), findsOneWidget);
+      expect(find.textContaining('Here is some'), findsOneWidget);
+    });
   });
 }
 

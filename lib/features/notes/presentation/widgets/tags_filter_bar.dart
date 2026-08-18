@@ -4,14 +4,46 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/tag_parser.dart';
 import '../../application/notes_provider.dart';
 
-class TagsFilterBar extends ConsumerWidget {
+class TagsFilterBar extends ConsumerStatefulWidget {
   const TagsFilterBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TagsFilterBar> createState() => _TagsFilterBarState();
+}
+
+class _TagsFilterBarState extends ConsumerState<TagsFilterBar> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToStart() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<String?>(selectedTagFilterProvider, (prev, next) {
+      if (prev != next) {
+        _scrollToStart();
+      }
+    });
+
     final tagsAsync = ref.watch(allTagsStreamProvider);
     final selectedFilter = ref.watch(selectedTagFilterProvider);
 
@@ -19,10 +51,24 @@ class TagsFilterBar extends ConsumerWidget {
       data: (tags) {
         if (tags.isEmpty) return const SizedBox.shrink();
 
+        // If a tag is active, reorder the list so the active tag is placed right next to "All"
+        final List<TagWithCount> displayTags = List.of(tags);
+        if (selectedFilter != null) {
+          final normalizedSelected = TagParser.normalizeTag(selectedFilter);
+          final selectedIdx = displayTags.indexWhere(
+            (t) => TagParser.normalizeTag(t.tag.name) == normalizedSelected,
+          );
+          if (selectedIdx > 0) {
+            final selectedItem = displayTags.removeAt(selectedIdx);
+            displayTags.insert(0, selectedItem);
+          }
+        }
+
         return Container(
           height: 38,
           margin: const EdgeInsets.only(bottom: AppSpacing.xs),
           child: ListView(
+            controller: _scrollController,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             children: [
@@ -35,7 +81,7 @@ class TagsFilterBar extends ConsumerWidget {
                 },
               ),
               const SizedBox(width: AppSpacing.sm),
-              ...tags.map((tagWithCount) {
+              ...displayTags.map((tagWithCount) {
                 final isSelected = selectedFilter != null &&
                     TagParser.normalizeTag(selectedFilter) ==
                         TagParser.normalizeTag(tagWithCount.tag.name);
