@@ -122,7 +122,13 @@ The repository contains both the Flutter client and the TypeScript/Vercel server
 │       ├── editor/                         # Digital sheet editor, live auto-titling, markdown preview
 │       ├── search/presentation/            # Fast 100% offline debounced search with highlight matching
 │       ├── sync/presentation/              # Sync auth dialog, password change & recovery key UI
-│       └── settings/presentation/          # Theme selection, sample loader & sync management
+│       ├── settings/presentation/          # Theme selection, sample loader, import & sync management
+│       └── import/                         # Recursive Markdown folder import
+│           ├── domain/markdown_import_item.dart
+│           ├── application/markdown_frontmatter_parser.dart
+│           ├── application/markdown_import_scanner.dart
+│           ├── application/markdown_import_service.dart
+│           └── presentation/               # Import preview screen, item cards & tag dialog
 │
 └── test/
     ├── crypto/
@@ -131,6 +137,7 @@ The repository contains both the Flutter client and the TypeScript/Vercel server
     │   └── sync_engine_test.dart           # Multi-device sync, recovery, offline search & password rotation tests
     ├── database/
     │   └── app_database_test.dart          # Database CRUD, search, tags, migrations, invariants
+    ├── import/                             # Unit & Widget tests for frontmatter, scanning, import service & UI
     ├── markdown/                           # Chunker & Markdown preview virtualized tests
     ├── utils/                              # Date formatting tests
     └── widget_test.dart                    # Full UI integration journeys
@@ -188,12 +195,24 @@ flutter analyze   # Zero errors / zero warnings
 
 ### Full Flutter Test Suite
 ```bash
-flutter test      # 70 tests covering crypto, sync engine, multi-device flow, UI & editor
+flutter test      # 82 tests covering crypto, sync engine, multi-device flow, UI, editor & markdown import
 ```
 
 ---
 
-## 6. Release & CI/CD Workflows
+## 6. Markdown Folder Import Specification
+
+Quiet Paper features a recursive local Markdown folder importer:
+- **Directory Traversal**: Recursively scans user-selected folders to arbitrary subfolder depths for `.md` and `.markdown` files.
+- **Frontmatter & Title Parsing**: Extracts YAML frontmatter (`--- ... ---`). If `title` is defined in frontmatter, it takes precedence; otherwise defaults to filename without extension. Strips frontmatter headers cleanly from note content.
+- **Hierarchical Subfolder Tagging**: Automatically converts subfolder directory names into normalized tags (e.g. `Articles/Wikipedia/Topic.md` -> tags `articles`, `wikipedia`).
+- **Tag Merging**: Combines subfolder tags, frontmatter `tags` / `tag` / `categories`, and inline `#hashtags` found in the document body.
+- **File Metadata & Timestamp Preservation**: Reads local file properties (`stat.modified`, `stat.changed`) so imported notes preserve original creation and modification timestamps rather than defaulting to the import time.
+- **Interactive Import Screen**: Displays all discovered files with relative paths, sizes, dates, content previews, and tag chips. Users can check/uncheck individual items, select/deselect all, add or delete tags per-item, batch-tag selected notes, and edit titles before committing the import.
+
+---
+
+## 7. Release & CI/CD Workflows
 
 ### Multi-Architecture GitHub Release Workflow (`.github/workflows/release.yml`)
 - **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional tag/title/draft/prerelease flags, or automatically on git tag push (`v*`).
@@ -206,7 +225,7 @@ flutter test      # 70 tests covering crypto, sync engine, multi-device flow, UI
 
 ---
 
-## 7. Security Guarantees & Verification Checklist
+## 8. Security Guarantees & Verification Checklist
 
 - [x] Plaintext titles, bodies, and tags never reach network requests or server storage.
 - [x] Database table `notes` has no `title`, `body`, or `tags` columns.

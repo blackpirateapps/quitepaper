@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import '../../../core/sync/sync_models.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../import/presentation/markdown_import_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
 import '../../sync/presentation/change_encryption_password_dialog.dart';
@@ -221,6 +223,75 @@ class SettingsScreen extends ConsumerWidget {
                       ref
                           .read(themeModeProvider.notifier)
                           .setThemeMode(ThemeMode.dark);
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            // Section: Import
+            Text(
+              'Import',
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: AppRadii.borderMd,
+                border: Border.all(color: colors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Import Markdown Folder',
+                    style: AppTypography.title.copyWith(
+                      color: colors.textPrimary,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Select a folder to scan and import all Markdown (.md) documents recursively, including frontmatter, file creation/modification dates, and subfolder tags.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  QuietButton(
+                    label: 'Choose folder to import',
+                    icon: Icons.folder_open_rounded,
+                    variant: QuietButtonVariant.secondary,
+                    onPressed: () async {
+                      try {
+                        final folderPath = await FilePicker.getDirectoryPath();
+                        if (folderPath != null && context.mounted) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => MarkdownImportScreen(
+                                initialFolderPath: folderPath,
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error choosing folder: $e'),
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      }
                     },
                   ),
                 ],

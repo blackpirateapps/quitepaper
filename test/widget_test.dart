@@ -446,6 +446,25 @@ void main() {
     await finishTest(tester);
   });
 
+  testWidgets('Settings screen displays import markdown section', (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Tap Settings icon
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Import Markdown Folder'), findsOneWidget);
+    expect(find.text('Choose folder to import'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
   testWidgets('Pinning and unpinning notes from context sheet',
       (tester) async {
     setPhoneSize(tester);
