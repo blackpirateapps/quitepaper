@@ -780,7 +780,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Version 1.2.0 • Offline-first • End-to-End Encrypted Sync',
+                    'Version 1.3.0 • Offline-first • End-to-End Encrypted Sync',
                     style: AppTypography.bodySmall.copyWith(
                       color: colors.textTertiary,
                     ),
