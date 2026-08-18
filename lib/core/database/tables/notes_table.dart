@@ -14,6 +14,9 @@ class NotesTable extends Table {
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   BoolColumn get isTrashed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get deletedAt => dateTime().nullable()();
+  IntColumn get serverRevision => integer().withDefault(const Constant(0))();
+  BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get syncedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

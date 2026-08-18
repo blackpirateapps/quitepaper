@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/sync/sync_models.dart';
+import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
+import '../../sync/presentation/change_encryption_password_dialog.dart';
+import '../../sync/presentation/sync_auth_dialog.dart';
 import '../application/settings_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -17,6 +22,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final currentTheme = ref.watch(themeModeProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final syncState = ref.watch(syncStateProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -43,6 +50,129 @@ class SettingsScreen extends ConsumerWidget {
             vertical: AppSpacing.md,
           ),
           children: [
+            // Section: Cloud Sync & Encryption
+            Text(
+              'Cloud Sync & Encryption',
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: AppRadii.borderMd,
+                border: Border.all(color: colors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (currentUser == null) ...[
+                    Text(
+                      'End-to-End Encrypted Cloud Sync',
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Quiet Paper keeps notes offline on device. Sign in and set an encryption password to sync securely across devices with zero-knowledge encryption.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    QuietButton(
+                      label: 'Set up Encrypted Sync',
+                      icon: Icons.cloud_sync_outlined,
+                      variant: QuietButtonVariant.primary,
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => const SyncAuthDialog(),
+                        );
+                      },
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.account_circle_outlined,
+                          size: 24,
+                          color: colors.accent,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentUser.email,
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                _formatSyncStatus(syncState),
+                                style: AppTypography.caption.copyWith(
+                                  color: syncState.status == SyncStatus.syncError
+                                      ? colors.error
+                                      : colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        QuietButton(
+                          label: 'Sync Now',
+                          icon: Icons.sync_rounded,
+                          variant: QuietButtonVariant.secondary,
+                          onPressed: () {
+                            ref.read(syncEngineProvider).syncNow();
+                          },
+                        ),
+                        QuietButton(
+                          label: 'Change Password',
+                          icon: Icons.lock_reset_rounded,
+                          variant: QuietButtonVariant.secondary,
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) =>
+                                  const ChangeEncryptionPasswordDialog(),
+                            );
+                          },
+                        ),
+                        QuietButton(
+                          label: 'Sign Out',
+                          icon: Icons.logout_rounded,
+                          variant: QuietButtonVariant.destructive,
+                          onPressed: () async {
+                            await ref.read(authServiceProvider).signOut();
+                            await ref.read(keyManagerProvider).clearLocalKeys();
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
             // Section: Appearance
             Text(
               'Appearance',
@@ -186,7 +316,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Version 1.0.0 • Offline-first • Markdown notes',
+                    'Version 1.0.0 • Offline-first • End-to-End Encrypted Sync',
                     style: AppTypography.bodySmall.copyWith(
                       color: colors.textTertiary,
                     ),
@@ -198,6 +328,29 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _formatSyncStatus(SyncState state) {
+    switch (state.status) {
+      case SyncStatus.syncing:
+        return 'Syncing changes...';
+      case SyncStatus.synced:
+        if (state.lastSyncedAt != null) {
+          final time = DateFormat.jm().format(state.lastSyncedAt!);
+          return 'All notes synced at $time';
+        }
+        return 'All notes synced';
+      case SyncStatus.pendingSync:
+        return 'Unlock encryption password to sync';
+      case SyncStatus.offline:
+        return 'Offline • Changes saved locally';
+      case SyncStatus.conflict:
+        return 'Conflict detected • Preserved locally';
+      case SyncStatus.syncError:
+        return state.errorMessage ?? 'Sync error occurred';
+      case SyncStatus.localOnly:
+        return 'Local storage only';
+    }
   }
 }
 

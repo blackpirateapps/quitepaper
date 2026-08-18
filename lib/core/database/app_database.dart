@@ -4,6 +4,8 @@ import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
 import 'tables/note_tags_table.dart';
 import 'tables/notes_table.dart';
+import 'tables/sync_metadata_table.dart';
+import 'tables/sync_queue_table.dart';
 import 'tables/tags_table.dart';
 
 part 'app_database.g.dart';
@@ -30,7 +32,13 @@ class TagWithCount {
   final int noteCount;
 }
 
-@DriftDatabase(tables: [NotesTable, TagsTable, NoteTagsTable])
+@DriftDatabase(tables: [
+  NotesTable,
+  TagsTable,
+  NoteTagsTable,
+  SyncMetadataTable,
+  SyncQueueTable,
+])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? conn.openConnection());
@@ -38,7 +46,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -51,6 +59,13 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(notesTable, notesTable.isTrashed);
             await m.addColumn(notesTable, notesTable.deletedAt);
           }
+          if (from < 3) {
+            await m.addColumn(notesTable, notesTable.serverRevision);
+            await m.addColumn(notesTable, notesTable.isDirty);
+            await m.addColumn(notesTable, notesTable.syncedAt);
+            await m.createTable(syncMetadataTable);
+            await m.createTable(syncQueueTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -59,6 +74,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS notes_deleted_idx ON notes (is_trashed, deleted_at);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS notes_dirty_idx ON notes (is_dirty);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
@@ -194,6 +212,9 @@ class AppDatabase extends _$AppDatabase {
     bool isTrashed = false,
     DateTime? deletedAt,
     List<String>? tags,
+    int serverRevision = 0,
+    bool isDirty = true,
+    DateTime? syncedAt,
   }) async {
     await transaction(() async {
       await into(notesTable).insertOnConflictUpdate(
@@ -207,6 +228,9 @@ class AppDatabase extends _$AppDatabase {
           isArchived: Value(isArchived),
           isTrashed: Value(isTrashed),
           deletedAt: Value(deletedAt),
+          serverRevision: Value(serverRevision),
+          isDirty: Value(isDirty),
+          syncedAt: Value(syncedAt),
         ),
       );
 
@@ -221,6 +245,7 @@ class AppDatabase extends _$AppDatabase {
     await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
       NotesTableCompanion(
         isPinned: Value(isPinned),
+        isDirty: const Value(true),
       ),
     );
   }
@@ -232,6 +257,7 @@ class AppDatabase extends _$AppDatabase {
         isArchived: const Value(true),
         isTrashed: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -244,6 +270,7 @@ class AppDatabase extends _$AppDatabase {
         isArchived: const Value(false),
         isTrashed: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -256,6 +283,8 @@ class AppDatabase extends _$AppDatabase {
         isTrashed: const Value(true),
         isArchived: const Value(false),
         deletedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -267,17 +296,20 @@ class AppDatabase extends _$AppDatabase {
         isTrashed: const Value(false),
         isArchived: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
   }
 
-  /// Permanent hard deletion of a single note (cascades note_tags via foreign key)
+  /// Permanent hard deletion of a single note
   Future<void> deletePermanently(String noteId) async {
     await transaction(() async {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
       await _cleanupOrphanedTags();
+      // Record permanent delete in sync queue so server registers deletion
+      await enqueueSyncOperation(noteId, 'delete');
     });
   }
 
@@ -293,6 +325,9 @@ class AppDatabase extends _$AppDatabase {
         await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
         await _cleanupOrphanedTags();
+        for (final id in trashedIds) {
+          await enqueueSyncOperation(id, 'delete');
+        }
       }
     });
   }
@@ -305,6 +340,7 @@ class AppDatabase extends _$AppDatabase {
         isArchived: const Value(true),
         isTrashed: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -318,6 +354,7 @@ class AppDatabase extends _$AppDatabase {
         isArchived: const Value(false),
         isTrashed: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -331,6 +368,8 @@ class AppDatabase extends _$AppDatabase {
         isTrashed: const Value(true),
         isArchived: const Value(false),
         deletedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -343,6 +382,7 @@ class AppDatabase extends _$AppDatabase {
         isTrashed: const Value(false),
         isArchived: const Value(false),
         deletedAt: const Value(null),
+        isDirty: const Value(true),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -355,12 +395,91 @@ class AppDatabase extends _$AppDatabase {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
       await _cleanupOrphanedTags();
+      for (final id in noteIds) {
+        await enqueueSyncOperation(id, 'delete');
+      }
     });
   }
 
-  /// Legacy helper for deleting a note (can route to deletePermanently or trashNote)
+  /// Legacy helper for deleting a note
   Future<void> deleteNote(String noteId) async {
     await deletePermanently(noteId);
+  }
+
+  // ==========================================
+  // SYNC OPERATIONS & QUERIES
+  // ==========================================
+
+  /// Get all local notes marked dirty for pushing
+  Future<List<NoteWithTags>> getDirtyNotes() async {
+    final dirtyEntities = await (select(notesTable)
+          ..where((n) => n.isDirty.equals(true)))
+        .get();
+    if (dirtyEntities.isEmpty) return [];
+
+    final ids = dirtyEntities.map((n) => n.id).toList();
+    final tagsMap = await _getTagsForNoteIds(ids);
+
+    return dirtyEntities.map((n) {
+      return NoteWithTags(note: n, tags: tagsMap[n.id] ?? []);
+    }).toList();
+  }
+
+  /// Mark note as synced with given server revision
+  Future<void> markNoteSynced({
+    required String noteId,
+    required int serverRevision,
+    required DateTime syncedAt,
+  }) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        serverRevision: Value(serverRevision),
+        isDirty: const Value(false),
+        syncedAt: Value(syncedAt),
+      ),
+    );
+  }
+
+  /// Gets a sync metadata value by key
+  Future<String?> getSyncMetadata(String key) async {
+    final row = await (select(syncMetadataTable)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  /// Sets a sync metadata value
+  Future<void> setSyncMetadata(String key, String value) async {
+    await into(syncMetadataTable).insertOnConflictUpdate(
+      SyncMetadataTableCompanion.insert(
+        key: key,
+        value: value,
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  /// Enqueue sync operation (e.g. permanent deletion tombstone)
+  Future<void> enqueueSyncOperation(String noteId, String operation) async {
+    const uuid = Uuid();
+    await into(syncQueueTable).insert(
+      SyncQueueTableCompanion.insert(
+        id: uuid.v4(),
+        noteId: noteId,
+        operation: operation,
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  /// Get all pending sync queue entries
+  Future<List<SyncQueueEntity>> getPendingSyncQueue() async {
+    return (select(syncQueueTable)..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
+  }
+
+  /// Remove processed sync queue entries
+  Future<void> removeSyncQueueEntries(List<String> queueIds) async {
+    if (queueIds.isEmpty) return;
+    await (delete(syncQueueTable)..where((t) => t.id.isIn(queueIds))).go();
   }
 
   // ==========================================
@@ -426,7 +545,6 @@ class AppDatabase extends _$AppDatabase {
       ),
     ]);
 
-    // Only count active notes in tags
     query.where(notesTable.isArchived.equals(false) & notesTable.isTrashed.equals(false));
     query.groupBy([tagsTable.id, tagsTable.name]);
     query.addColumns([noteTagsTable.noteId.count()]);
@@ -497,7 +615,6 @@ class AppDatabase extends _$AppDatabase {
         .toSet()
         .toList();
 
-    // Clear existing relations
     await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
 
     if (normalized.isEmpty) {
@@ -506,7 +623,6 @@ class AppDatabase extends _$AppDatabase {
     }
 
     for (final tagName in normalized) {
-      // Find or create tag
       var tag = await (select(tagsTable)..where((t) => t.name.equals(tagName)))
           .getSingleOrNull();
 
@@ -521,7 +637,6 @@ class AppDatabase extends _$AppDatabase {
         tag = TagEntity(id: newTagId, name: tagName);
       }
 
-      // Link note to tag
       await into(noteTagsTable).insertOnConflictUpdate(
         NoteTagsTableCompanion.insert(
           noteId: noteId,
