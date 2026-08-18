@@ -165,11 +165,14 @@ Navigation is modeled by `AppDestination`:
 
 ## 5. Editor Features & Usability Enhancements
 
-### Auto-Titling & Truncation
-- If a note has no explicit title entered:
-  - The first line of content is automatically used as the display title.
-  - If the first line is long (more than 6 words or 40 characters), it is truncated cleanly with `...` (e.g. `This is an exceptionally long first...`).
-  - In note list cards, the preview snippet skips the first line to prevent title duplication.
+### Dynamic Auto-Titling in Editor & Lists
+- **Live Editor Auto-Fill**: As the user types into the note body textarea without typing in the title field, the Title text field in the editor is automatically filled with the first line of content in real-time.
+- **Smart Truncation**: If the first line is long (more than 6 words or 40 characters), it is truncated cleanly with `...` (e.g. `This is an exceptionally long first...`).
+- **User Customization Priority**: If the user clicks into the Title field and explicitly enters a custom title, manual user input takes full priority. If the title is cleared, automatic first-line derivation resumes.
+- **List Card Preview Snippet**: Note list cards display the auto-derived title and start the snippet preview from subsequent content lines to avoid repeating the title.
+
+### Safe Navigation & Tablet Close Handling
+- **Route-Aware Leading Action**: On mobile/pushed routes, `EditorScreen` displays `←` to pop back to the list. On tablet split-view (where `EditorScreen` is embedded), it provides a clean close button (`✕`) that deselects the note into the placeholder state rather than popping the root app route and causing a black screen.
 
 ### Tap Anywhere to Focus
 - Tapping anywhere in the editor sheet (including empty canvas and bottom typing space) automatically focuses the body text field and summons the software keyboard.

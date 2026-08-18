@@ -34,37 +34,43 @@ class Note {
     if (title.trim().isNotEmpty) {
       return title.trim();
     }
-    if (content.isEmpty) return 'Untitled';
+    final derived = deriveTitle(content);
+    return derived.isNotEmpty ? derived : 'Untitled';
+  }
+
+  /// Derives a clean concise title from note content
+  static String deriveTitle(String content) {
+    if (content.isEmpty) return '';
 
     // Take at most first 300 characters to find first line quickly
     final sample = content.length > 300 ? content.substring(0, 300) : content;
     final trimmed = sample.trim();
-    if (trimmed.isNotEmpty) {
-      final newlineIdx = trimmed.indexOf('\n');
-      final firstLine =
-          newlineIdx != -1 ? trimmed.substring(0, newlineIdx).trim() : trimmed;
-      final cleanFirstLine = firstLine
-          .replaceAll(RegExp(r'^#+\s*'), '')
-          .replaceAll(RegExp(r'^>\s*'), '')
-          .replaceAll(RegExp(r'^[-*+]\s+'), '')
-          .replaceAll(RegExp(r'^\d+\.\s+'), '')
-          .replaceAll(RegExp(r'[*_~`]'), '')
-          .trim();
-      if (cleanFirstLine.isNotEmpty) {
-        final words = cleanFirstLine
-            .split(RegExp(r'\s+'))
-            .where((w) => w.isNotEmpty)
-            .toList();
-        if (words.length > 6) {
-          return '${words.take(6).join(' ')}...';
-        }
-        if (cleanFirstLine.length > 40) {
-          return '${cleanFirstLine.substring(0, 37).trim()}...';
-        }
-        return cleanFirstLine;
+    if (trimmed.isEmpty) return '';
+
+    final newlineIdx = trimmed.indexOf('\n');
+    final firstLine =
+        newlineIdx != -1 ? trimmed.substring(0, newlineIdx).trim() : trimmed;
+    final cleanFirstLine = firstLine
+        .replaceAll(RegExp(r'^#+\s*'), '')
+        .replaceAll(RegExp(r'^>\s*'), '')
+        .replaceAll(RegExp(r'^[-*+]\s+'), '')
+        .replaceAll(RegExp(r'^\d+\.\s+'), '')
+        .replaceAll(RegExp(r'[*_~`]'), '')
+        .trim();
+    if (cleanFirstLine.isNotEmpty) {
+      final words = cleanFirstLine
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .toList();
+      if (words.length > 6) {
+        return '${words.take(6).join(' ')}...';
       }
+      if (cleanFirstLine.length > 40) {
+        return '${cleanFirstLine.substring(0, 37).trim()}...';
+      }
+      return cleanFirstLine;
     }
-    return 'Untitled';
+    return '';
   }
 
   /// Whether the title is considered empty (for subtle placeholder styling)

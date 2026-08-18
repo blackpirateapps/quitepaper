@@ -651,4 +651,90 @@ void main() {
 
     await finishTest(tester);
   });
+
+  testWidgets(
+      'Title field in editor automatically fills from body first line and respects manual title edits',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Create a new note
+    await tester.tap(find.text('Create note'));
+    await tester.pumpAndSettle();
+
+    final titleFinder = find.byType(TextField).first;
+    final bodyFinder = find.byType(TextField).last;
+
+    // Initially title is empty
+    expect((tester.widget(titleFinder) as TextField).controller!.text, '');
+
+    // Type in body
+    await tester.enterText(bodyFinder, 'Grocery list for the weekend\nApples and milk');
+    await tester.pump();
+
+    // Title field is automatically filled
+    expect((tester.widget(titleFinder) as TextField).controller!.text,
+        'Grocery list for the weekend');
+
+    // Manually edit title
+    await tester.enterText(titleFinder, 'Custom Grocery Title');
+    await tester.pump();
+
+    // Type more in body
+    await tester.enterText(
+        bodyFinder, 'Different first line\nApples, milk, and bread');
+    await tester.pump();
+
+    // Title remains the custom title
+    expect((tester.widget(titleFinder) as TextField).controller!.text,
+        'Custom Grocery Title');
+
+    // Exit back
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Custom Grocery Title'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Tablet layout close button deselects active note cleanly',
+      (tester) async {
+    tester.view.physicalSize = const Size(2400, 1600);
+    tester.view.devicePixelRatio = 2.0;
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'tab-close',
+      title: 'Tablet Note',
+      content: 'Testing tablet close button',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Tap note in middle pane
+    await tester.tap(find.text('Tablet Note'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EditorScreen), findsOneWidget);
+
+    // Tap close button in editor
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    // Note is deselected and placeholder is shown
+    expect(find.text('Select or create a note'), findsOneWidget);
+    expect(find.byType(SidebarView), findsOneWidget);
+
+    await finishTest(tester);
+  });
 }

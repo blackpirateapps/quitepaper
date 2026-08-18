@@ -90,11 +90,20 @@ class EditorNotifier extends StateNotifier<EditorState> {
       return;
     }
 
+    // If title is empty, derive title from content
+    var titleToSave = state.note.title.trim();
+    if (titleToSave.isEmpty) {
+      titleToSave = Note.deriveTitle(state.note.content);
+    }
+
     // Extract tags during debounced save and merge with explicit tags
     final extractedTags =
-        TagParser.extractTags('${state.note.title}\n${state.note.content}');
+        TagParser.extractTags('$titleToSave\n${state.note.content}');
     final combinedTags = {...state.note.tags, ...extractedTags}.toList();
-    final noteToSave = state.note.copyWith(tags: combinedTags);
+    final noteToSave = state.note.copyWith(
+      title: titleToSave,
+      tags: combinedTags,
+    );
 
     state = state.copyWith(note: noteToSave, isSaving: true);
 

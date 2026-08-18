@@ -18,10 +18,12 @@ class EditorScreen extends ConsumerStatefulWidget {
     super.key,
     required this.note,
     this.autoFocusBody = false,
+    this.onClose,
   });
 
   final Note note;
   final bool autoFocusBody;
+  final VoidCallback? onClose;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -35,12 +37,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final FocusNode _contentFocusNode;
   late final ScrollController _scrollController;
 
+  bool _isTitleManuallySet = false;
+  String _lastAutoDerivedTitle = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _titleController = TextEditingController(text: widget.note.title);
+    _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
+    _lastAutoDerivedTitle = widget.note.title.isEmpty
+        ? Note.deriveTitle(widget.note.content)
+        : '';
+    final initialTitle = widget.note.title.isNotEmpty
+        ? widget.note.title
+        : _lastAutoDerivedTitle;
+
+    _titleController = TextEditingController(text: initialTitle);
     _contentController = TextEditingController(text: widget.note.content);
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
@@ -55,7 +68,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (widget.autoFocusBody) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          if (widget.note.title.isEmpty) {
+          if (_titleController.text.isEmpty) {
             _titleFocusNode.requestFocus();
           } else {
             _contentFocusNode.requestFocus();
@@ -69,12 +82,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void didUpdateWidget(EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.note.id != widget.note.id) {
-      _titleController.text = widget.note.title;
+      _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
+      _lastAutoDerivedTitle = widget.note.title.isEmpty
+          ? Note.deriveTitle(widget.note.content)
+          : '';
+      final newTitle = widget.note.title.isNotEmpty
+          ? widget.note.title
+          : _lastAutoDerivedTitle;
+
+      _titleController.text = newTitle;
       _contentController.text = widget.note.content;
       if (widget.autoFocusBody) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            if (widget.note.title.isEmpty) {
+            if (_titleController.text.isEmpty) {
               _titleFocusNode.requestFocus();
             } else {
               _contentFocusNode.requestFocus();
@@ -101,15 +122,38 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _onTitleChanged() {
+    final currentTitle = _titleController.text;
+    if (_titleFocusNode.hasFocus) {
+      // User is actively editing the title field directly
+      if (currentTitle != _lastAutoDerivedTitle) {
+        _isTitleManuallySet = currentTitle.trim().isNotEmpty;
+      }
+      if (currentTitle.trim().isEmpty) {
+        _isTitleManuallySet = false;
+      }
+    }
     ref
         .read(editorProviderFamily(widget.note).notifier)
-        .updateTitle(_titleController.text);
+        .updateTitle(currentTitle);
   }
 
   void _onContentChanged() {
+    final newContent = _contentController.text;
     ref
         .read(editorProviderFamily(widget.note).notifier)
-        .updateContent(_contentController.text);
+        .updateContent(newContent);
+
+    // If user has not manually set a custom title, automatically fill title field from 1st line
+    if (!_isTitleManuallySet) {
+      final autoTitle = Note.deriveTitle(newContent);
+      if (_titleController.text != autoTitle) {
+        _lastAutoDerivedTitle = autoTitle;
+        _titleController.text = autoTitle;
+        ref
+            .read(editorProviderFamily(widget.note).notifier)
+            .updateTitle(autoTitle);
+      }
+    }
   }
 
   @override
@@ -135,6 +179,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final colors = context.appColors;
     final note = editorState.note;
 
+    final canPop = Navigator.of(context).canPop();
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
@@ -148,13 +194,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           backgroundColor: colors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: QuietIconButton(
-            icon: Icons.arrow_back_rounded,
-            tooltip: 'Back',
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
+          leading: widget.onClose != null
+              ? QuietIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Close note',
+                  onPressed: () {
+                    editorNotifier.handleExitCleanup();
+                    widget.onClose?.call();
+                  },
+                )
+              : (canPop
+                  ? QuietIconButton(
+                      icon: Icons.arrow_back_rounded,
+                      tooltip: 'Back',
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    )
+                  : null),
           actions: [
             QuietIconButton(
               icon: Icons.more_horiz_rounded,

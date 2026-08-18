@@ -506,6 +506,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         note: activeNote!,
                         autoFocusBody: _shouldAutoFocusTablet &&
                             _selectedNoteIdForTablet == activeNote!.id,
+                        onClose: () {
+                          setState(() {
+                            _selectedNoteIdForTablet = null;
+                          });
+                        },
                       ),
                     )
                   : Center(
