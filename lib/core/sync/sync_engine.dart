@@ -192,7 +192,7 @@ class SyncEngine {
         for (final change in pullResponse.changes) {
           if (change.isDeleted) {
             // Note was deleted on another device
-            await database.deletePermanently(change.id);
+            await database.deletePermanently(change.id, enqueueSync: false);
           } else {
             // Decrypt note content
             try {

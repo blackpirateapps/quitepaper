@@ -31,13 +31,36 @@ export const noteChangeSchema = z.object({
   pinned: z.boolean().default(false),
   folderId: z.string().max(128).optional().nullable(),
   sortOrder: z.number().optional().nullable(),
-  contentCiphertext: z.string().min(1).max(10 * 1024 * 1024), // 10MB limit
-  contentNonce: z.string().min(12).max(256),
+  contentCiphertext: z.string().max(10 * 1024 * 1024).default(''),
+  contentNonce: z.string().max(256).default(''),
   contentVersion: z.number().int().min(1).default(1),
   encryptionKeyVersion: z.number().int().min(1).default(1),
   baseRevision: z.number().int().min(0).optional().nullable(),
   isDeleted: z.boolean().optional().default(false),
   deletedAt: z.string().datetime({ offset: true }).or(z.string()).optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (!data.isDeleted && !data.deletedAt) {
+    if (!data.contentCiphertext || data.contentCiphertext.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: 1,
+        type: 'string',
+        inclusive: true,
+        message: 'String must contain at least 1 character(s)',
+        path: ['contentCiphertext'],
+      });
+    }
+    if (!data.contentNonce || data.contentNonce.length < 12) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: 12,
+        type: 'string',
+        inclusive: true,
+        message: 'String must contain at least 12 character(s)',
+        path: ['contentNonce'],
+      });
+    }
+  }
 });
 
 export const pushSyncSchema = z.object({

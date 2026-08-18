@@ -293,4 +293,59 @@ void main() {
     expect(noteOnB!.note.title, 'Persistent note');
     expect(noteOnB.note.content, 'Ciphertext will not change.');
   });
+
+  test('Note deletion sync: pushes deletion tombstone and pulls without re-enqueuing', () async {
+    const userEmail = 'dan@test.local';
+    const password = 'password';
+
+    // Device A sets up
+    await authA.signUpWithEmailAndPassword(userEmail, password);
+    final wrappedKey = await keyManagerA.setupNewKeys(
+      password: password,
+      kdfParameters: testKdf,
+    );
+    await sharedApi.putKeys(wrappedKey);
+
+    // Device A creates note
+    final now = DateTime.now();
+    await dbA.saveNote(
+      id: 'note-delete-test',
+      title: 'To Be Deleted',
+      content: 'Goodbye',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isDirty: true,
+    );
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+
+    // Device B sets up and pulls note
+    await authB.signInWithEmailAndPassword(userEmail, password);
+    await keyManagerB.unlockWithPassword(
+      password: password,
+      remoteWrappedKey: wrappedKey,
+    );
+    await engineB.syncNow();
+    expect(await dbB.getNoteWithTags('note-delete-test'), isNotNull);
+
+    // Device A permanently deletes note
+    await dbA.deletePermanently('note-delete-test');
+    final pendingA = await dbA.getPendingSyncQueue();
+    expect(pendingA.length, 1);
+    expect(pendingA.first.operation, 'delete');
+
+    // Device A pushes delete
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+    expect((await dbA.getPendingSyncQueue()).isEmpty, true);
+
+    // Device B pulls delete
+    await engineB.syncNow();
+    expect(await dbB.getNoteWithTags('note-delete-test'), isNull);
+
+    // Verify Device B did NOT re-enqueue deletion into its sync queue
+    final pendingB = await dbB.getPendingSyncQueue();
+    expect(pendingB.isEmpty, true);
+  });
 }

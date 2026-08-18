@@ -134,4 +134,73 @@ describe('Backend Sync Engine & Revision Tracking Tests', () => {
     expect(tabletPull.body.changes.length).toBe(1);
     expect(tabletPull.body.changes[0].contentCiphertext).toBe('encrypted-note-from-phone');
   });
+
+  it('Allows pushing deletion tombstones with empty contentCiphertext and contentNonce', async () => {
+    const noteId = '66666666-6666-6666-6666-666666666666';
+
+    const deleteRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/sync/push',
+      headers: { authorization: 'Bearer mock:user-del' },
+      body: {
+        changes: [{
+          id: noteId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          archived: false,
+          trashed: true,
+          pinned: false,
+          contentCiphertext: '',
+          contentNonce: '',
+          contentVersion: 1,
+          encryptionKeyVersion: 1,
+          isDeleted: true,
+          deletedAt: new Date().toISOString(),
+        }],
+      },
+    });
+
+    expect(deleteRes.statusCode).toBe(200);
+    expect(deleteRes.body.results.length).toBe(1);
+    expect(deleteRes.body.results[0].id).toBe(noteId);
+
+    const pullRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/sync/pull',
+      headers: { authorization: 'Bearer mock:user-del' },
+      body: { cursor: 0 },
+    });
+
+    expect(pullRes.statusCode).toBe(200);
+    expect(pullRes.body.changes.length).toBe(1);
+    expect(pullRes.body.changes[0].changeType).toBe('delete');
+  });
+
+  it('Rejects active notes with missing or empty contentCiphertext or contentNonce', async () => {
+    const noteId = '77777777-7777-7777-7777-777777777777';
+
+    const failRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/sync/push',
+      headers: { authorization: 'Bearer mock:user-fail' },
+      body: {
+        changes: [{
+          id: noteId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          archived: false,
+          trashed: false,
+          pinned: false,
+          contentCiphertext: '',
+          contentNonce: '',
+          contentVersion: 1,
+          encryptionKeyVersion: 1,
+          isDeleted: false,
+        }],
+      },
+    });
+
+    expect(failRes.statusCode).toBe(400);
+    expect(failRes.body.error.code).toBe('BAD_REQUEST');
+  });
 });

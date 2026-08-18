@@ -303,18 +303,20 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Permanent hard deletion of a single note
-  Future<void> deletePermanently(String noteId) async {
+  Future<void> deletePermanently(String noteId, {bool enqueueSync = true}) async {
     await transaction(() async {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
       await _cleanupOrphanedTags();
       // Record permanent delete in sync queue so server registers deletion
-      await enqueueSyncOperation(noteId, 'delete');
+      if (enqueueSync) {
+        await enqueueSyncOperation(noteId, 'delete');
+      }
     });
   }
 
   /// Empty all notes currently in Trash
-  Future<void> emptyTrash() async {
+  Future<void> emptyTrash({bool enqueueSync = true}) async {
     await transaction(() async {
       final trashedNotes = await (select(notesTable)
             ..where((n) => n.isTrashed.equals(true)))
@@ -325,8 +327,10 @@ class AppDatabase extends _$AppDatabase {
         await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
         await _cleanupOrphanedTags();
-        for (final id in trashedIds) {
-          await enqueueSyncOperation(id, 'delete');
+        if (enqueueSync) {
+          for (final id in trashedIds) {
+            await enqueueSyncOperation(id, 'delete');
+          }
         }
       }
     });
@@ -389,21 +393,23 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Batch permanent deletion
-  Future<void> deletePermanentlyBatch(List<String> noteIds) async {
+  Future<void> deletePermanentlyBatch(List<String> noteIds, {bool enqueueSync = true}) async {
     if (noteIds.isEmpty) return;
     await transaction(() async {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
       await _cleanupOrphanedTags();
-      for (final id in noteIds) {
-        await enqueueSyncOperation(id, 'delete');
+      if (enqueueSync) {
+        for (final id in noteIds) {
+          await enqueueSyncOperation(id, 'delete');
+        }
       }
     });
   }
 
   /// Legacy helper for deleting a note
-  Future<void> deleteNote(String noteId) async {
-    await deletePermanently(noteId);
+  Future<void> deleteNote(String noteId, {bool enqueueSync = true}) async {
+    await deletePermanently(noteId, enqueueSync: enqueueSync);
   }
 
   // ==========================================

@@ -290,6 +290,26 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 
 ---
 
+## 12. Sync Push Deletion Tombstone Validation & New Device Sync Fix
+
+### Problem
+- On a fresh device installation or during normal usage, when empty drafts are discarded or notes are permanently deleted before sync, deletion tombstones with empty ciphertext and nonce (`contentCiphertext: ''`, `contentNonce: ''`, `isDeleted: true`) are enqueued in `sync_queue`.
+- When triggering sync, the backend Zod validation schema `noteChangeSchema` previously enforced strict non-empty string length constraints (`.min(1)` for `contentCiphertext` and `.min(12)` for `contentNonce`), failing with HTTP `400 BAD_REQUEST: Invalid sync push body: String must contain at least 1 character(s)` on `changes.0.contentCiphertext` and `changes.0.contentNonce`.
+- Additionally, when pulling deleted notes from the server, `SyncEngine` invoked `AppDatabase.deletePermanently()`, which unintentionally re-enqueued the deleted note IDs back into the local `sync_queue` for subsequent push.
+
+### Solution
+1. **Conditional Backend Validation (`backend/src/validation/schemas.ts`)**:
+   - Refactored `noteChangeSchema` to default `contentCiphertext` and `contentNonce` to empty strings and apply `superRefine`.
+   - Active notes continue to strictly enforce `.min(1)` for ciphertext and `.min(12)` for nonce.
+   - Deleted notes (`isDeleted === true` or `deletedAt != null`) are permitted to send empty strings for ciphertext and nonce.
+2. **Pull Queue Loop Prevention (`lib/core/database/app_database.dart` & `sync_engine.dart`)**:
+   - Added `{bool enqueueSync = true}` optional parameter to `deletePermanently()`, `emptyTrash()`, `deletePermanentlyBatch()`, and `deleteNote()`.
+   - `SyncEngine` passes `enqueueSync: false` when applying pulled deletions so incoming remote deletions are deleted locally without being re-enqueued for push.
+3. **Defensive Model Deserialization (`lib/core/sync/sync_models.dart`)**:
+   - Updated `NoteSyncPayload.fromJson` and `PullChangeItem.fromJson` to use null-coalescing (`as String? ?? ''`) for ciphertext and nonce fields.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -297,6 +317,8 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - [x] Atomic login: If encryption password is wrong, Firebase session is immediately terminated and app stays logged out.
 - [x] Password rotation verification: Changing encryption passwords requires verifying ownership with current password or recovery key, and backend enforces cryptographic proof (`key_auth_commitment`).
 - [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
+- [x] Deletion tombstones with empty ciphertexts sync cleanly without schema validation errors.
+
 
 
 
