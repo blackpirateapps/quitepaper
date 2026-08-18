@@ -56,6 +56,7 @@ abstract class AuthService {
   Future<AuthUser> signUpWithEmailAndPassword(String email, String password);
   Future<void> signOut();
   Future<void> sendPasswordResetEmail(String email);
+  Future<void> sendEmailVerification([String? idToken]);
   Future<String?> getIdToken({bool forceRefresh = false});
 }
 
@@ -215,6 +216,24 @@ class FirebaseAuthService implements AuthService {
   }
 
   @override
+  Future<void> sendEmailVerification([String? idToken]) async {
+    final token = idToken ?? _currentUser?.idToken;
+    if (token == null || token.isEmpty || _apiKey.isEmpty) return;
+
+    try {
+      final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
+      await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'requestType': 'VERIFY_EMAIL',
+          'idToken': token,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  @override
   Future<String?> getIdToken({bool forceRefresh = false}) async {
     if (_currentUser == null) return null;
 
@@ -306,6 +325,11 @@ class MockAuthService implements AuthService {
 
   @override
   Future<void> sendPasswordResetEmail(String email) async {
+    // Mock success
+  }
+
+  @override
+  Future<void> sendEmailVerification([String? idToken]) async {
     // Mock success
   }
 
