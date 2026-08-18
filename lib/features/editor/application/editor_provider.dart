@@ -10,7 +10,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   EditorNotifier({
     required Note initialNote,
     required this.repository,
-  })  : _debouncer = Debouncer(duration: const Duration(milliseconds: 600)),
+  })  : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
         super(EditorState(note: initialNote));
 
   final NotesRepository repository;
@@ -87,6 +87,14 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   Future<void> saveNow() async {
     if (!mounted) return;
+
+    // If completely empty, skip save
+    if (state.note.title.trim().isEmpty &&
+        state.note.content.trim().isEmpty &&
+        state.note.tags.isEmpty) {
+      return;
+    }
+
     state = state.copyWith(isSaving: true);
 
     try {
@@ -105,6 +113,18 @@ class EditorNotifier extends StateNotifier<EditorState> {
     }
   }
 
+  /// Cleans up note if empty upon exit
+  Future<void> handleExitCleanup() async {
+    _debouncer.cancel();
+    if (state.note.title.trim().isEmpty &&
+        state.note.content.trim().isEmpty &&
+        state.note.tags.isEmpty) {
+      await repository.deleteNote(state.note.id);
+    } else {
+      await saveNow();
+    }
+  }
+
   Future<void> deleteNote() async {
     _debouncer.cancel();
     await repository.deleteNote(state.note.id);
@@ -113,7 +133,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
   @override
   void dispose() {
     // Flush any pending save before destroying editor notifier
-    if (state.isDirty) {
+    if (state.isDirty &&
+        (state.note.title.trim().isNotEmpty ||
+            state.note.content.trim().isNotEmpty)) {
       repository.saveNote(state.note);
     }
     _debouncer.dispose();

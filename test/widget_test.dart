@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/app.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/widgets/quiet_fab.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
@@ -81,6 +82,78 @@ void main() {
     expect(find.text('Notes'), findsOneWidget);
     expect(find.text('First Thoughts'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Empty note is discarded on exit without cluttering note list', (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No notes yet'), findsOneWidget);
+
+    // Tap FAB
+    await tester.tap(find.byType(QuietFab));
+    await tester.pumpAndSettle();
+
+    // Do not type anything, simply press back
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    // Should return to empty state without creating a blank draft
+    expect(find.text('No notes yet'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Reopening note preserves content and state', (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'reopen-1',
+      title: 'Persistent Title',
+      content: 'Paragraph 1\n\nParagraph 2 with **bold**',
+      createdAt: now,
+      updatedAt: now,
+      tags: const ['saved'],
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Open note
+    await tester.tap(find.text('Persistent Title'));
+    await tester.pumpAndSettle();
+
+    // Verify content loaded in text fields
+    expect(find.text('Persistent Title'), findsOneWidget);
+    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**'), findsOneWidget);
+
+    // Modify content
+    await tester.enterText(
+        find.byType(TextField).last, 'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3');
+    await tester.pump(const Duration(milliseconds: 800));
+
+    // Leave
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    // Reopen and check updated content
+    await tester.tap(find.text('Persistent Title'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'), findsOneWidget);
+
+    // Back to main
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
 
     await finishTest(tester);
   });
@@ -204,7 +277,7 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Markdown preview mode toggles cleanly in Editor', (tester) async {
+  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor', (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -237,17 +310,26 @@ void main() {
     // In edit mode: text fields are visible
     expect(find.byType(TextField), findsNWidgets(2));
 
-    // Tap preview toggle icon
-    await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
+    // Tap overflow menu
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Markdown preview'), findsOneWidget);
+    await tester.tap(find.text('Markdown preview'));
     await tester.pumpAndSettle();
 
     // TextFields are gone, rendered preview is shown
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Heading One'), findsOneWidget);
 
-    // Tap toggle back
-    await tester.tap(find.byIcon(Icons.edit_outlined));
+    // Tap overflow menu to switch back to edit
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     await tester.pumpAndSettle();
+
+    expect(find.text('Switch to edit'), findsOneWidget);
+    await tester.tap(find.text('Switch to edit'));
+    await tester.pumpAndSettle();
+
     expect(find.byType(TextField), findsNWidgets(2));
 
     await finishTest(tester);

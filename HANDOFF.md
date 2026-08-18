@@ -9,10 +9,15 @@ Welcome to **Quiet Paper**! This document provides an architectural overview, co
 Quiet Paper is an offline-first Android notes application inspired by the calm, distraction-free writing experience of Bear Notes.
 
 ### Key Philosophy
-- **Content First**: The note content is canonical. Controls disappear when writing.
-- **Warm Editorial Aesthetic**: Soft paper tones (`#F7F6F2` Light / `#1D1C1A` Dark), deliberate typography, minimal elevation, and no loud Material 3 cards.
+- **Content First**: The note content is canonical. The interface gets out of the user's way while writing.
+- **Warm Editorial Aesthetic**: Soft paper tones (`#F7F6F2` Light / `#1D1C1A` Dark), deliberate typography, minimal elevation, zero noisy Material cards or busy toolbars.
 - **Offline-First**: Local persistence with SQLite via Drift. Fast, resilient, and private.
-- **Frictionless Writing**: Immediate autosave (debounced 600ms), automatic tag extraction, smooth markdown formatting toolbar, and rendered preview toggle.
+- **Exceptional Writing Flow**: 
+  - Restrained app bar (`←` ... `⋯`).
+  - Document-style borderless title (30sp) & spacious body (18sp, 1.6 line height).
+  - Invisible, reliable autosave (700ms debounce, focus change, app lifecycle, exit flush).
+  - Smart empty-draft disposal on exit.
+  - Quiet, keyboard-aware Markdown formatting toolbar with cycling headings and selection preservation.
 
 ---
 
@@ -43,7 +48,7 @@ lib/
 │   │       ├── tags_table.dart             # Tags table schema
 │   │       └── note_tags_table.dart        # Note-Tag many-to-many junction schema
 │   ├── markdown/
-│   │   ├── markdown_helper.dart            # Text manipulation utilities (wrap, toggle prefix, links)
+│   │   ├── markdown_helper.dart            # Text manipulation utilities (heading cycling, wrap, links)
 │   │   └── markdown_preview.dart           # Custom-styled Markdown viewer
 │   ├── utils/
 │   │   ├── date_formatter.dart             # Relative time & Date grouping ("Today", "Yesterday", etc.)
@@ -76,7 +81,7 @@ lib/
 │   ├── editor/
 │   │   ├── application/
 │   │   │   ├── editor_state.dart           # Editor state (dirty, saving, preview mode)
-│   │   │   └── editor_provider.dart        # EditorNotifier with debounced autosave
+│   │   │   └── editor_provider.dart        # EditorNotifier with debounced autosave & exit cleanup
 │   │   └── presentation/
 │   │       ├── editor_screen.dart          # Distraction-free editor screen
 │   │       └── widgets/
@@ -125,9 +130,11 @@ final colors = context.appColors;
 // colors.background, colors.surface, colors.accent, colors.textPrimary, etc.
 ```
 
-### Note Autosave
-- When the user edits title or body, `EditorNotifier` updates in-memory state immediately, sets `isDirty: true`, and invokes `_debouncer.run(saveNow)`.
-- When navigating back or closing the editor, `saveNow()` or `dispose()` ensures pending changes are persisted without data loss.
+### Invisible, Multi-Stage Autosave
+- **Debounced Keystrokes**: 700ms after the last edit, SQLite write is triggered quietly without noisy "Saved" popups.
+- **Focus Blur**: When switching focus between title, body, or external controls, pending changes are persisted.
+- **App Lifecycle Changes**: `WidgetsBindingObserver` listens for `paused` / `inactive` / `detached` states to flush changes when app is backgrounded.
+- **Exit Flush & Empty Cleanup**: When leaving the editor (`handleExitCleanup()`), if both title and content are blank, the draft is cleaned up so empty entries do not clutter the notes list.
 
 ### Tag Parsing
 - Tags can be typed naturally with `#tag` or `#nested/tag` anywhere in the note.
@@ -172,12 +179,3 @@ The repository includes a GitHub Actions workflow at [`.github/workflows/build_a
 - Runs `flutter analyze` and `flutter test`.
 - Compiles the release Android APK (`flutter build apk --release`).
 - Uploads the release artifact as `quiet-paper-release-apk`.
-
----
-
-## 7. Roadmap & Recommendations for Future Iterations
-
-1. **Tag Hierarchy Navigation**: Expand support for nested sub-tags (e.g. browsing `#work/project` as folders).
-2. **Export / Import**: Add single or batch Markdown file export and import.
-3. **Bluetooth Keyboard Shortcuts**: Key bindings (`Ctrl+B`, `Ctrl+I`, `Ctrl+S`, `Ctrl+N`) for hardware keyboards on Android tablets/desktops.
-4. **Encrypted Backup**: Optional local backup archive with encryption.

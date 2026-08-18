@@ -9,14 +9,19 @@ class FormattingToolbar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onTagPressed,
+    this.focusNode,
   });
 
   final TextEditingController controller;
   final VoidCallback onTagPressed;
+  final FocusNode? focusNode;
 
   void _applyFormat(TextEditingValue Function(TextEditingValue) action) {
     final updated = action(controller.value);
     controller.value = updated;
+    if (focusNode != null && !focusNode!.hasFocus) {
+      focusNode!.requestFocus();
+    }
   }
 
   @override
@@ -24,7 +29,7 @@ class FormattingToolbar extends StatelessWidget {
     final colors = context.appColors;
 
     return Container(
-      height: 48,
+      height: 44,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
@@ -76,14 +81,9 @@ class FormattingToolbar extends StatelessWidget {
           ),
           _ToolbarButton(
             label: 'H',
-            tooltip: 'Heading (# / ## / ###)',
+            tooltip: 'Cycle heading (# / ## / ###)',
             isBold: true,
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.toggleLinePrefix(
-                value: v,
-                prefix: '# ',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownHelper.cycleHeading),
           ),
           _ToolbarButton(
             label: '•',
@@ -140,7 +140,7 @@ class FormattingToolbar extends StatelessWidget {
           ),
           _ToolbarButton(
             label: '#',
-            tooltip: 'Add tag (#tag)',
+            tooltip: 'Add tag',
             isBold: true,
             onPressed: onTagPressed,
           ),

@@ -27,7 +27,8 @@ class EditorScreen extends ConsumerStatefulWidget {
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends ConsumerState<EditorScreen> {
+class _EditorScreenState extends ConsumerState<EditorScreen>
+    with WidgetsBindingObserver {
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   late final FocusNode _titleFocusNode;
@@ -36,6 +37,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _titleController = TextEditingController(text: widget.note.title);
     _contentController = TextEditingController(text: widget.note.content);
     _titleFocusNode = FocusNode();
@@ -43,6 +46,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     _titleController.addListener(_onTitleChanged);
     _contentController.addListener(_onContentChanged);
+
+    _titleFocusNode.addListener(_onFocusChanged);
+    _contentFocusNode.addListener(_onFocusChanged);
 
     if (widget.autoFocusBody) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -54,6 +60,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           }
         }
       });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      ref.read(editorProviderFamily(widget.note).notifier).saveNow();
+    }
+  }
+
+  void _onFocusChanged() {
+    if (!_titleFocusNode.hasFocus && !_contentFocusNode.hasFocus) {
+      ref.read(editorProviderFamily(widget.note).notifier).saveNow();
     }
   }
 
@@ -71,8 +92,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _titleController.removeListener(_onTitleChanged);
     _contentController.removeListener(_onContentChanged);
+    _titleFocusNode.removeListener(_onFocusChanged);
+    _contentFocusNode.removeListener(_onFocusChanged);
     _titleController.dispose();
     _contentController.dispose();
     _titleFocusNode.dispose();
@@ -92,7 +116,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
-          editorNotifier.saveNow();
+          editorNotifier.handleExitCleanup();
         }
       },
       child: Scaffold(
@@ -104,54 +128,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             icon: Icons.arrow_back_rounded,
             tooltip: 'Back',
             onPressed: () {
-              editorNotifier.saveNow();
+              editorNotifier.handleExitCleanup();
               Navigator.of(context).pop();
             },
           ),
           actions: [
-            // Subtle autosave status indicator
-            if (editorState.isSaving)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: Center(
-                  child: Text(
-                    'Saving...',
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textTertiary,
-                    ),
-                  ),
-                ),
-              ),
-
-            // Markdown preview toggle
-            QuietIconButton(
-              icon: editorState.isPreviewMode
-                  ? Icons.edit_outlined
-                  : Icons.remove_red_eye_outlined,
-              tooltip: editorState.isPreviewMode
-                  ? 'Switch to edit'
-                  : 'Markdown preview',
-              isActive: editorState.isPreviewMode,
-              onPressed: editorNotifier.togglePreviewMode,
-            ),
-
-            // Pin / unpin action
-            QuietIconButton(
-              icon: note.isPinned
-                  ? Icons.push_pin_rounded
-                  : Icons.push_pin_outlined,
-              tooltip: note.isPinned ? 'Unpin' : 'Pin',
-              isActive: note.isPinned,
-              onPressed: editorNotifier.togglePinned,
-            ),
-
-            // More options menu
+            // Restrained overflow menu
             QuietIconButton(
               icon: Icons.more_horiz_rounded,
               tooltip: 'More options',
               onPressed: () => _showOverflowMenu(context, note, editorNotifier),
             ),
-            const SizedBox(width: AppSpacing.xs),
+            const SizedBox(width: AppSpacing.sm),
           ],
         ),
         body: SafeArea(
@@ -161,12 +149,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
-                      maxWidth: AppSpacing.maxEditorWidth,
+                      maxWidth: AppSpacing.maxContentWidth,
                     ),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
+                        vertical: AppSpacing.sm,
                       ),
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
@@ -181,7 +169,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                                   color: colors.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: 24.0),
                             ],
                             if (note.tags.isNotEmpty) ...[
                               TagEditorBar(
@@ -195,7 +183,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                               markdownData: note.content,
                             ),
                           ] else ...[
-                            // Title input
+                            // Document Title input
                             TextField(
                               controller: _titleController,
                               focusNode: _titleFocusNode,
@@ -205,9 +193,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Title',
                                 hintStyle: AppTypography.editorTitle.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.6),
+                                  color: colors.textTertiary.withValues(alpha: 0.5),
                                 ),
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
                               ),
                               textCapitalization: TextCapitalization.sentences,
                               textInputAction: TextInputAction.next,
@@ -215,7 +207,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                                 _contentFocusNode.requestFocus();
                               },
                             ),
-                            const SizedBox(height: AppSpacing.xs),
+                            const SizedBox(height: 16.0),
 
                             // Tags bar
                             TagEditorBar(
@@ -223,7 +215,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                               onAddTag: editorNotifier.addTag,
                               onRemoveTag: editorNotifier.removeTag,
                             ),
-                            const SizedBox(height: AppSpacing.sm),
+                            const SizedBox(height: 16.0),
 
                             // Body markdown editor
                             TextField(
@@ -235,15 +227,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Start writing...',
                                 hintStyle: AppTypography.editorBody.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.6),
+                                  color: colors.textTertiary.withValues(alpha: 0.5),
                                 ),
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
                               ),
                               maxLines: null,
                               keyboardType: TextInputType.multiline,
                               textCapitalization: TextCapitalization.sentences,
                             ),
-                            const SizedBox(height: 120),
+                            // Generous bottom scroll padding
+                            const SizedBox(height: 280),
                           ],
                         ],
                       ),
@@ -256,6 +253,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               if (!editorState.isPreviewMode)
                 FormattingToolbar(
                   controller: _contentController,
+                  focusNode: _contentFocusNode,
                   onTagPressed: () {
                     // Insert # at current selection
                     final val = _contentController.value;
@@ -267,6 +265,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                       text: newText,
                       selection: TextSelection.collapsed(offset: start + 1),
                     );
+                    if (!_contentFocusNode.hasFocus) {
+                      _contentFocusNode.requestFocus();
+                    }
                   },
                 ),
             ],
@@ -282,6 +283,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     EditorNotifier notifier,
   ) {
     final colors = context.appColors;
+    final isPreview = ref.read(editorProviderFamily(widget.note)).isPreviewMode;
 
     showModalBottomSheet(
       context: context,
@@ -296,6 +298,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ListTile(
+                  leading: Icon(
+                    isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,
+                    color: colors.textSecondary,
+                  ),
+                  title: Text(
+                    isPreview ? 'Switch to edit' : 'Markdown preview',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    notifier.togglePreviewMode();
+                  },
+                ),
                 ListTile(
                   leading: Icon(
                     note.isPinned
