@@ -1,0 +1,199 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/quiet_icon_button.dart';
+import '../../editor/presentation/editor_screen.dart';
+import '../../notes/application/notes_provider.dart';
+import '../../notes/domain/note_model.dart';
+import '../../notes/presentation/widgets/note_list_tile.dart';
+
+class SearchScreen extends ConsumerStatefulWidget {
+  const SearchScreen({super.key, this.initialQuery = ''});
+
+  final String initialQuery;
+
+  @override
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.initialQuery);
+    _searchFocusNode = FocusNode();
+
+    if (widget.initialQuery.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(searchQueryProvider.notifier).state = widget.initialQuery;
+        }
+      });
+    }
+
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    ref.read(searchQueryProvider.notifier).state = _searchController.text;
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final query = ref.watch(searchQueryProvider);
+    final searchResultsAsync = ref.watch(searchNotesStreamProvider);
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.background,
+        elevation: 0,
+        leading: QuietIconButton(
+          icon: Icons.arrow_back_rounded,
+          tooltip: 'Back',
+          onPressed: () {
+            ref.read(searchQueryProvider.notifier).state = '';
+            Navigator.of(context).pop();
+          },
+        ),
+        title: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          autofocus: widget.initialQuery.isEmpty,
+          style: AppTypography.headline.copyWith(
+            color: colors.textPrimary,
+            fontSize: 18,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search notes and tags...',
+            hintStyle: AppTypography.headline.copyWith(
+              color: colors.textTertiary,
+              fontSize: 18,
+            ),
+            border: InputBorder.none,
+          ),
+        ),
+        actions: [
+          if (_searchController.text.isNotEmpty)
+            QuietIconButton(
+              icon: Icons.clear_rounded,
+              tooltip: 'Clear search',
+              onPressed: () {
+                _searchController.clear();
+              },
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: query.trim().isEmpty
+            ? _buildInitialState(colors)
+            : searchResultsAsync.when(
+                data: (notes) {
+                  if (notes.isEmpty) {
+                    return _buildEmptyResultsState(colors, query);
+                  }
+                  return ListView.builder(
+                    itemCount: notes.length,
+                    itemBuilder: (context, index) {
+                      final note = notes[index];
+                      return NoteListTile(
+                        note: note,
+                        onTap: () => _openNote(context, note),
+                        onTogglePin: () {
+                          ref
+                              .read(notesRepositoryProvider)
+                              .setPinned(note.id, !note.isPinned);
+                        },
+                        onDelete: () {
+                          ref.read(notesRepositoryProvider).deleteNote(note.id);
+                        },
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(
+                  child: CircularProgressIndicator.adaptive(),
+                ),
+                error: (err, _) => Center(
+                  child: Text(
+                    'Error searching notes: $err',
+                    style: AppTypography.body.copyWith(color: colors.error),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildInitialState(AppColors colors) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_rounded,
+            size: 40,
+            color: colors.textTertiary.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Type to search title, body, or tags',
+            style: AppTypography.body.copyWith(
+              color: colors.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyResultsState(AppColors colors, String query) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'No matches found',
+              style: AppTypography.title.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'No notes match "$query"',
+              style: AppTypography.body.copyWith(
+                color: colors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openNote(BuildContext context, Note note) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditorScreen(note: note),
+      ),
+    );
+  }
+}
