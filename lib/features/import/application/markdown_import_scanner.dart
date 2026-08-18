@@ -5,11 +5,15 @@ import 'package:path/path.dart' as p;
 import '../../../core/utils/tag_parser.dart';
 import '../domain/markdown_import_item.dart';
 import 'markdown_frontmatter_parser.dart';
+import 'storage_permission_helper.dart';
 
 abstract final class MarkdownImportScanner {
   /// Recursively scans [folderPath] for markdown files (.md and .markdown),
   /// extracts titles, subfolder tags, file properties, and prepares import items.
   static Future<List<MarkdownImportItem>> scanFolder(String folderPath) async {
+    // Ensure storage permissions on Android
+    await StoragePermissionHelper.requestStoragePermission();
+
     final rootDir = Directory(folderPath);
     if (!await rootDir.exists()) {
       return [];
@@ -17,23 +21,28 @@ abstract final class MarkdownImportScanner {
 
     final items = <MarkdownImportItem>[];
 
-    await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
+    try {
+      await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+        if (entity is! File) continue;
 
-      final lowerPath = entity.path.toLowerCase();
-      if (!lowerPath.endsWith('.md') && !lowerPath.endsWith('.markdown')) {
-        continue;
-      }
-
-      try {
-        final item = await processFile(entity, folderPath);
-        if (item != null) {
-          items.add(item);
+        final lowerPath = entity.path.toLowerCase();
+        if (!lowerPath.endsWith('.md') && !lowerPath.endsWith('.markdown')) {
+          continue;
         }
-      } catch (e) {
-        // Skip unreadable files gracefully
-        continue;
+
+        try {
+          final item = await processFile(entity, folderPath);
+          if (item != null) {
+            items.add(item);
+          }
+        } catch (e) {
+          // Skip unreadable files gracefully
+          continue;
+        }
       }
+    } catch (e) {
+      // Permission or I/O error during recursive listing
+      return items;
     }
 
     items.sort((a, b) => a.relativePath.toLowerCase().compareTo(b.relativePath.toLowerCase()));
@@ -85,7 +94,7 @@ abstract final class MarkdownImportScanner {
           ? parsed.title!.trim()
           : fileNameTitle;
 
-      final inBodyTags = TagParser.extractTags(parsed.body);
+      final inBodyTags = TagParser.extractTags(rawContent);
       final combinedTags = <String>{};
       for (final tag in parsed.tags) {
         combinedTags.add(tag);
@@ -99,7 +108,7 @@ abstract final class MarkdownImportScanner {
           filePath: filePath,
           relativePath: relativePath,
           title: title,
-          content: parsed.body,
+          content: rawContent, // Preserve entire markdown content as-is
           tags: combinedTags.toList(),
           createdAt: parsed.createdAt ?? createdAt,
           updatedAt: parsed.updatedAt ?? updatedAt,
@@ -133,8 +142,8 @@ abstract final class MarkdownImportScanner {
         ? parsed.title!.trim()
         : fileNameTitle;
 
-    // 5. In-body tags
-    final inBodyTags = TagParser.extractTags(parsed.body);
+    // 5. In-body tags (from full raw content)
+    final inBodyTags = TagParser.extractTags(rawContent);
 
     // 6. Merge tags (subfolders + frontmatter + in-body)
     final combinedTags = <String>{};
@@ -161,7 +170,7 @@ abstract final class MarkdownImportScanner {
       filePath: file.path,
       relativePath: relativePath,
       title: title,
-      content: parsed.body,
+      content: rawContent, // Preserve entire markdown content including frontmatter as-is
       tags: combinedTags.toList(),
       createdAt: createdAt,
       updatedAt: updatedAt,

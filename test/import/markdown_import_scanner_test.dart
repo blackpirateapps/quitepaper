@@ -59,6 +59,8 @@ Some content with #deep-learning
       // Check nested wiki note
       final wikiItem = items.firstWhere((i) => i.relativePath.contains('Articles'));
       expect(wikiItem.title, equals('Custom Frontmatter Title'));
+      expect(wikiItem.content, contains('---'));
+      expect(wikiItem.content, contains('title: "Custom Frontmatter Title"'));
       // Subfolder tags: 'articles', 'wikipedia'; frontmatter tags: 'ai', 'ml'; in-body: 'deep-learning'
       expect(
         wikiItem.tags,

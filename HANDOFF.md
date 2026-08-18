@@ -204,10 +204,12 @@ flutter test      # 82 tests covering crypto, sync engine, multi-device flow, UI
 
 Quiet Paper features a recursive local Markdown folder importer:
 - **Directory Traversal**: Recursively scans user-selected folders to arbitrary subfolder depths for `.md` and `.markdown` files.
-- **Frontmatter & Title Parsing**: Extracts YAML frontmatter (`--- ... ---`). If `title` is defined in frontmatter, it takes precedence; otherwise defaults to filename without extension. Strips frontmatter headers cleanly from note content.
+- **Permissions**: Requests storage permissions on Android (including `MANAGE_EXTERNAL_STORAGE` on Android 11+ and legacy storage permissions on Android 10 and below) to ensure full recursive folder access.
+- **Frontmatter & Title Parsing**: Extracts YAML frontmatter (`--- ... ---`) metadata (title, tags, creation and modification dates). If `title` is defined in frontmatter, it takes precedence; otherwise defaults to filename without extension.
+- **Verbatim Content Preservation**: The entire markdown document content (including frontmatter) is preserved as-is in the note body without stripping.
 - **Hierarchical Subfolder Tagging**: Automatically converts subfolder directory names into normalized tags (e.g. `Articles/Wikipedia/Topic.md` -> tags `articles`, `wikipedia`).
 - **Tag Merging**: Combines subfolder tags, frontmatter `tags` / `tag` / `categories`, and inline `#hashtags` found in the document body.
-- **File Metadata & Timestamp Preservation**: Reads local file properties (`stat.modified`, `stat.changed`) so imported notes preserve original creation and modification timestamps rather than defaulting to the import time.
+- **File Metadata & Timestamp Preservation**: Prioritizes frontmatter creation and update timestamps (supporting ISO8601, numeric epoch timestamps, slash formats, and diverse date patterns) and falls back accurately to local file properties (`stat.modified`, `stat.changed`) so imported notes retain their original dates.
 - **Interactive Import Screen**: Displays all discovered files with relative paths, sizes, dates, content previews, and tag chips. Users can check/uncheck individual items, select/deselect all, add or delete tags per-item, batch-tag selected notes, and edit titles before committing the import.
 
 ---

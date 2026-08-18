@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import '../../../core/utils/tag_parser.dart';
 
 class ParsedMarkdown {
@@ -21,7 +22,8 @@ abstract final class MarkdownFrontmatterParser {
     r'^\s*---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)\r?\n?',
   );
 
-  /// Parses markdown text, extracting YAML frontmatter metadata and body content.
+  /// Parses markdown text, extracting YAML frontmatter metadata.
+  /// Note: The original full [rawContent] is preserved in [ParsedMarkdown.body].
   static ParsedMarkdown parse(String rawContent) {
     if (rawContent.isEmpty) {
       return const ParsedMarkdown(body: '');
@@ -29,11 +31,10 @@ abstract final class MarkdownFrontmatterParser {
 
     final match = _frontmatterRegex.firstMatch(rawContent);
     if (match == null) {
-      return ParsedMarkdown(body: rawContent.trim());
+      return ParsedMarkdown(body: rawContent);
     }
 
     final frontmatterBlock = match.group(1) ?? '';
-    final body = rawContent.substring(match.end).trim();
 
     String? title;
     final tags = <String>{};
@@ -53,7 +54,7 @@ abstract final class MarkdownFrontmatterParser {
       // Handle multiline YAML lists (e.g. "  - item")
       if (trimmed.startsWith('- ') && currentListKey != null) {
         final itemValue = _stripQuotes(trimmed.substring(2).trim());
-        if (currentListKey == 'tags' || currentListKey == 'tag' || currentListKey == 'categories' || currentListKey == 'category') {
+        if (_isTagKey(currentListKey)) {
           final normalized = _sanitizeTag(itemValue);
           if (TagParser.isValidTag(normalized)) {
             tags.add(normalized);
@@ -68,7 +69,7 @@ abstract final class MarkdownFrontmatterParser {
         continue;
       }
 
-      final key = trimmed.substring(0, colonIndex).trim().toLowerCase();
+      final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
       final val = trimmed.substring(colonIndex + 1).trim();
 
       if (val.isEmpty) {
@@ -84,15 +85,15 @@ abstract final class MarkdownFrontmatterParser {
         if (cleanVal.isNotEmpty) {
           title = cleanVal;
         }
-      } else if (key == 'tags' || key == 'tag' || key == 'categories' || key == 'category') {
+      } else if (_isTagKey(key)) {
         final parsedTags = _parseTagsValue(val);
         tags.addAll(parsedTags);
-      } else if (key == 'date' || key == 'created' || key == 'created_at' || key == 'createdat') {
+      } else if (_isCreatedDateKey(key)) {
         final dt = _parseDateTime(cleanVal);
         if (dt != null) {
           createdAt = dt;
         }
-      } else if (key == 'updated' || key == 'updated_at' || key == 'updatedat' || key == 'modified' || key == 'modified_at') {
+      } else if (_isUpdatedDateKey(key)) {
         final dt = _parseDateTime(cleanVal);
         if (dt != null) {
           updatedAt = dt;
@@ -100,13 +101,56 @@ abstract final class MarkdownFrontmatterParser {
       }
     }
 
+    // If only createdAt was set, default updatedAt to createdAt
+    if (createdAt != null && updatedAt == null) {
+      updatedAt = createdAt;
+    } else if (updatedAt != null && createdAt == null) {
+      createdAt = updatedAt;
+    }
+
     return ParsedMarkdown(
       title: title,
       tags: tags.toList(),
       createdAt: createdAt,
       updatedAt: updatedAt,
-      body: body,
+      body: rawContent, // Preserve full content as-is (do not strip frontmatter)
     );
+  }
+
+  static bool _isTagKey(String key) {
+    return key == 'tags' ||
+        key == 'tag' ||
+        key == 'categories' ||
+        key == 'category' ||
+        key == 'keywords';
+  }
+
+  static bool _isCreatedDateKey(String key) {
+    return key == 'date' ||
+        key == 'created' ||
+        key == 'created_at' ||
+        key == 'createdat' ||
+        key == 'created_date' ||
+        key == 'createddate' ||
+        key == 'creation_date' ||
+        key == 'creationdate' ||
+        key == 'publish_date' ||
+        key == 'publishdate' ||
+        key == 'pubdate';
+  }
+
+  static bool _isUpdatedDateKey(String key) {
+    return key == 'updated' ||
+        key == 'updated_at' ||
+        key == 'updatedat' ||
+        key == 'updated_date' ||
+        key == 'updateddate' ||
+        key == 'modified' ||
+        key == 'modified_at' ||
+        key == 'modifiedat' ||
+        key == 'lastmod' ||
+        key == 'last_modified' ||
+        key == 'lastmodified';
   }
 
   static List<String> _parseTagsValue(String val) {
@@ -146,20 +190,54 @@ abstract final class MarkdownFrontmatterParser {
 
   static String _sanitizeTag(String input) {
     var tag = TagParser.normalizeTag(input);
-    // Replace internal spaces with hyphens
     tag = tag.replaceAll(RegExp(r'\s+'), '-');
     return tag;
   }
 
-  static DateTime? _parseDateTime(String dateStr) {
+  static DateTime? _parseDateTime(String input) {
+    var dateStr = _stripQuotes(input.trim());
     if (dateStr.isEmpty) return null;
+
+    // Check if it's a numeric timestamp (epoch seconds or millis)
+    final numVal = int.tryParse(dateStr);
+    if (numVal != null) {
+      if (dateStr.length == 10) {
+        return DateTime.fromMillisecondsSinceEpoch(numVal * 1000);
+      } else if (dateStr.length == 13) {
+        return DateTime.fromMillisecondsSinceEpoch(numVal);
+      }
+    }
+
+    // Try ISO8601 parsing directly
     final tryIso = DateTime.tryParse(dateStr);
     if (tryIso != null) return tryIso;
 
-    // Try slash format: YYYY/MM/DD or YYYY/MM/DD HH:mm:ss
-    final slashFormatted = dateStr.replaceAll('/', '-');
-    final trySlash = DateTime.tryParse(slashFormatted);
-    if (trySlash != null) return trySlash;
+    // Try replacing '/' or '.' with '-'
+    final normalized = dateStr.replaceAll('/', '-').replaceAll('.', '-');
+    final tryNorm = DateTime.tryParse(normalized);
+    if (tryNorm != null) return tryNorm;
+
+    // Try common date patterns
+    final datePatterns = [
+      'yyyy-MM-dd HH:mm:ss',
+      'yyyy-MM-dd HH:mm',
+      'yyyy-MM-dd',
+      'MM/dd/yyyy HH:mm:ss',
+      'MM/dd/yyyy',
+      'dd-MM-yyyy HH:mm:ss',
+      'dd-MM-yyyy',
+      'dd/MM/yyyy',
+      'MMMM d, yyyy',
+      'MMM d, yyyy',
+      'd MMMM yyyy',
+      'd MMM yyyy',
+    ];
+
+    for (final pattern in datePatterns) {
+      try {
+        return DateFormat(pattern).parseLoose(dateStr);
+      } catch (_) {}
+    }
 
     return null;
   }
