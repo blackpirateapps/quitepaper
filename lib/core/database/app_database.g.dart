@@ -77,6 +77,47 @@ class $NotesTableTable extends NotesTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isTrashedMeta = const VerificationMeta(
+    'isTrashed',
+  );
+  @override
+  late final GeneratedColumn<bool> isTrashed = GeneratedColumn<bool>(
+    'is_trashed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_trashed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -85,6 +126,9 @@ class $NotesTableTable extends NotesTable
     createdAt,
     updatedAt,
     isPinned,
+    isArchived,
+    isTrashed,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -137,6 +181,24 @@ class $NotesTableTable extends NotesTable
         isPinned.isAcceptableOrUnknown(data['is_pinned']!, _isPinnedMeta),
       );
     }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('is_trashed')) {
+      context.handle(
+        _isTrashedMeta,
+        isTrashed.isAcceptableOrUnknown(data['is_trashed']!, _isTrashedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -170,6 +232,18 @@ class $NotesTableTable extends NotesTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_pinned'],
       )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      isTrashed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_trashed'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -186,6 +260,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isPinned;
+  final bool isArchived;
+  final bool isTrashed;
+  final DateTime? deletedAt;
   const NoteEntity({
     required this.id,
     required this.title,
@@ -193,6 +270,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     required this.createdAt,
     required this.updatedAt,
     required this.isPinned,
+    required this.isArchived,
+    required this.isTrashed,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -203,6 +283,11 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['is_pinned'] = Variable<bool>(isPinned);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['is_trashed'] = Variable<bool>(isTrashed);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -214,6 +299,11 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isPinned: Value(isPinned),
+      isArchived: Value(isArchived),
+      isTrashed: Value(isTrashed),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -229,6 +319,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isPinned: serializer.fromJson<bool>(json['isPinned']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      isTrashed: serializer.fromJson<bool>(json['isTrashed']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -241,6 +334,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isPinned': serializer.toJson<bool>(isPinned),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'isTrashed': serializer.toJson<bool>(isTrashed),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -251,6 +347,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isPinned,
+    bool? isArchived,
+    bool? isTrashed,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => NoteEntity(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -258,6 +357,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     isPinned: isPinned ?? this.isPinned,
+    isArchived: isArchived ?? this.isArchived,
+    isTrashed: isTrashed ?? this.isTrashed,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   NoteEntity copyWithCompanion(NotesTableCompanion data) {
     return NoteEntity(
@@ -267,6 +369,11 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       isPinned: data.isPinned.present ? data.isPinned.value : this.isPinned,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      isTrashed: data.isTrashed.present ? data.isTrashed.value : this.isTrashed,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -278,14 +385,26 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           ..write('content: $content, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('isPinned: $isPinned')
+          ..write('isPinned: $isPinned, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('isTrashed: $isTrashed, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, title, content, createdAt, updatedAt, isPinned);
+  int get hashCode => Object.hash(
+    id,
+    title,
+    content,
+    createdAt,
+    updatedAt,
+    isPinned,
+    isArchived,
+    isTrashed,
+    deletedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -295,7 +414,10 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           other.content == this.content &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.isPinned == this.isPinned);
+          other.isPinned == this.isPinned &&
+          other.isArchived == this.isArchived &&
+          other.isTrashed == this.isTrashed &&
+          other.deletedAt == this.deletedAt);
 }
 
 class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
@@ -305,6 +427,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isPinned;
+  final Value<bool> isArchived;
+  final Value<bool> isTrashed;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const NotesTableCompanion({
     this.id = const Value.absent(),
@@ -313,6 +438,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isPinned = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.isTrashed = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NotesTableCompanion.insert({
@@ -322,6 +450,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     required DateTime createdAt,
     required DateTime updatedAt,
     this.isPinned = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.isTrashed = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -333,6 +464,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isPinned,
+    Expression<bool>? isArchived,
+    Expression<bool>? isTrashed,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -342,6 +476,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isPinned != null) 'is_pinned': isPinned,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (isTrashed != null) 'is_trashed': isTrashed,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -353,6 +490,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<bool>? isPinned,
+    Value<bool>? isArchived,
+    Value<bool>? isTrashed,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return NotesTableCompanion(
@@ -362,6 +502,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isPinned: isPinned ?? this.isPinned,
+      isArchived: isArchived ?? this.isArchived,
+      isTrashed: isTrashed ?? this.isTrashed,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -387,6 +530,15 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     if (isPinned.present) {
       map['is_pinned'] = Variable<bool>(isPinned.value);
     }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (isTrashed.present) {
+      map['is_trashed'] = Variable<bool>(isTrashed.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -402,6 +554,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isPinned: $isPinned, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('isTrashed: $isTrashed, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -868,6 +1023,9 @@ typedef $$NotesTableTableCreateCompanionBuilder =
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<bool> isPinned,
+      Value<bool> isArchived,
+      Value<bool> isTrashed,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$NotesTableTableUpdateCompanionBuilder =
@@ -878,6 +1036,9 @@ typedef $$NotesTableTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<bool> isPinned,
+      Value<bool> isArchived,
+      Value<bool> isTrashed,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -940,6 +1101,21 @@ class $$NotesTableTableFilterComposer
 
   ColumnFilters<bool> get isPinned => $composableBuilder(
     column: $table.isPinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTrashed => $composableBuilder(
+    column: $table.isTrashed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1007,6 +1183,21 @@ class $$NotesTableTableOrderingComposer
     column: $table.isPinned,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isTrashed => $composableBuilder(
+    column: $table.isTrashed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$NotesTableTableAnnotationComposer
@@ -1035,6 +1226,17 @@ class $$NotesTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isPinned =>
       $composableBuilder(column: $table.isPinned, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isTrashed =>
+      $composableBuilder(column: $table.isTrashed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   Expression<T> noteTagsTableRefs<T extends Object>(
     Expression<T> Function($$NoteTagsTableTableAnnotationComposer a) f,
@@ -1096,6 +1298,9 @@ class $$NotesTableTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> isPinned = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<bool> isTrashed = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion(
                 id: id,
@@ -1104,6 +1309,9 @@ class $$NotesTableTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isPinned: isPinned,
+                isArchived: isArchived,
+                isTrashed: isTrashed,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1114,6 +1322,9 @@ class $$NotesTableTableTableManager
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<bool> isPinned = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<bool> isTrashed = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion.insert(
                 id: id,
@@ -1122,6 +1333,9 @@ class $$NotesTableTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isPinned: isPinned,
+                isArchived: isArchived,
+                isTrashed: isTrashed,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -4,6 +4,14 @@ import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
 
+enum AppDestination {
+  allNotes,
+  pinned,
+  archive,
+  trash,
+  tag,
+}
+
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(db.close);
@@ -15,39 +23,106 @@ final notesRepositoryProvider = Provider<NotesRepository>((ref) {
   return DriftNotesRepository(db);
 });
 
-/// Currently selected tag filter on the main notes list (null = all notes)
+/// Currently selected top-level destination in the sidebar / navigation
+final currentDestinationProvider = StateProvider<AppDestination>((ref) => AppDestination.allNotes);
+
+/// Currently selected tag filter on notes list (null = no tag filter)
 final selectedTagFilterProvider = StateProvider<String?>((ref) => null);
 
 /// Search query provider
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-/// Stream of all notes matching selected tag filter
+/// Stream of notes matching the current destination and tag filter
 final filteredNotesStreamProvider = StreamProvider<List<Note>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
+  final destination = ref.watch(currentDestinationProvider);
   final tagFilter = ref.watch(selectedTagFilterProvider);
-  return repository.watchNotes(filterTag: tagFilter);
+
+  switch (destination) {
+    case AppDestination.allNotes:
+      return repository.watchNotes(
+        isArchived: false,
+        isTrashed: false,
+        filterTag: tagFilter,
+      );
+    case AppDestination.pinned:
+      return repository.watchNotes(
+        isArchived: false,
+        isTrashed: false,
+        isPinned: true,
+        filterTag: tagFilter,
+      );
+    case AppDestination.archive:
+      return repository.watchNotes(
+        isArchived: true,
+        isTrashed: false,
+        filterTag: tagFilter,
+      );
+    case AppDestination.trash:
+      return repository.watchNotes(
+        isTrashed: true,
+        filterTag: tagFilter,
+      );
+    case AppDestination.tag:
+      return repository.watchNotes(
+        isArchived: false,
+        isTrashed: false,
+        filterTag: tagFilter,
+      );
+  }
 });
 
 /// Stream of grouped notes (separated by Pinned, Today, Yesterday, etc.)
 final groupedNotesStreamProvider = Provider<AsyncValue<List<NoteGroup>>>((ref) {
   final notesAsync = ref.watch(filteredNotesStreamProvider);
-  return notesAsync.whenData((notes) => NoteGroup.groupByDate(notes));
+  final destination = ref.watch(currentDestinationProvider);
+
+  return notesAsync.whenData((notes) {
+    final separatePinned = destination == AppDestination.allNotes;
+    return NoteGroup.groupByDate(notes, separatePinned: separatePinned);
+  });
 });
 
-/// Stream of all tags with note count
+/// Stream of all tags with active note count
 final allTagsStreamProvider = StreamProvider<List<TagWithCount>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
   return repository.watchTags();
 });
 
-/// Stream of search results
+/// Stream counts for sidebar badge indicators
+final activeNotesCountProvider = StreamProvider<int>((ref) {
+  final repository = ref.watch(notesRepositoryProvider);
+  return repository.watchActiveNotesCount();
+});
+
+final pinnedNotesCountProvider = StreamProvider<int>((ref) {
+  final repository = ref.watch(notesRepositoryProvider);
+  return repository.watchPinnedNotesCount();
+});
+
+final archivedNotesCountProvider = StreamProvider<int>((ref) {
+  final repository = ref.watch(notesRepositoryProvider);
+  return repository.watchArchivedNotesCount();
+});
+
+final trashedNotesCountProvider = StreamProvider<int>((ref) {
+  final repository = ref.watch(notesRepositoryProvider);
+  return repository.watchTrashedNotesCount();
+});
+
+/// Stream of search results (searches active notes by default, or all non-trashed)
 final searchNotesStreamProvider = StreamProvider<List<Note>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
   final query = ref.watch(searchQueryProvider);
   if (query.trim().isEmpty) {
     return const Stream.empty();
   }
-  return repository.watchNotes(searchQuery: query.trim());
+  // Default search looks through active notes
+  return repository.watchNotes(
+    isArchived: false,
+    isTrashed: false,
+    searchQuery: query.trim(),
+  );
 });
 
 /// Provider for a single note by id

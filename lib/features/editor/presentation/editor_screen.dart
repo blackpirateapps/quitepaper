@@ -306,56 +306,264 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  leading: Icon(
-                    isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,
-                    color: colors.textSecondary,
+                if (!note.isTrashed) ...[
+                  ListTile(
+                    leading: Icon(
+                      isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      isPreview ? 'Switch to edit' : 'Markdown preview',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      notifier.togglePreviewMode();
+                    },
                   ),
-                  title: Text(
-                    isPreview ? 'Switch to edit' : 'Markdown preview',
-                    style: AppTypography.bodyMedium.copyWith(
+                ],
+                if (note.isTrashed) ...[
+                  // Trash actions: Restore, Delete Permanently
+                  ListTile(
+                    leading: Icon(
+                      Icons.restore_rounded,
                       color: colors.textPrimary,
                     ),
+                    title: Text(
+                      'Restore note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await notifier.restoreNote();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note restored'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
                   ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    notifier.togglePreviewMode();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    note.isPinned
-                        ? Icons.push_pin_outlined
-                        : Icons.push_pin_rounded,
-                    color: colors.textSecondary,
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_forever_rounded,
+                      color: colors.error,
+                    ),
+                    title: Text(
+                      'Delete permanently',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dCtx) => AlertDialog(
+                          backgroundColor: colors.surface,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.all(AppRadii.rLg),
+                          ),
+                          title: Text(
+                            'Delete permanently?',
+                            style: AppTypography.headline.copyWith(
+                              color: colors.textPrimary,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          content: Text(
+                            'This note will be permanently deleted.\nThis action cannot be undone.',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.4,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(dCtx).pop(false),
+                              child: Text(
+                                'Cancel',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(dCtx).pop(true),
+                              child: Text(
+                                'Delete Permanently',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: colors.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await notifier.deletePermanently();
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Note permanently deleted'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      }
+                    },
                   ),
-                  title: Text(
-                    note.isPinned ? 'Unpin note' : 'Pin note',
-                    style: AppTypography.bodyMedium.copyWith(
+                ] else if (note.isArchived) ...[
+                  // Archive actions: Unarchive, Move to Trash
+                  ListTile(
+                    leading: Icon(
+                      Icons.unarchive_outlined,
                       color: colors.textPrimary,
                     ),
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    notifier.togglePinned();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.tag_rounded,
-                    color: colors.textSecondary,
-                  ),
-                  title: Text(
-                    'Add tag',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: colors.textPrimary,
+                    title: Text(
+                      'Unarchive note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
                     ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await notifier.unarchiveNote();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note unarchived'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
                   ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    TagEditorBar.showAddTagDialog(context, notifier.addTag);
-                  },
-                ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_outline_rounded,
+                      color: colors.error,
+                    ),
+                    title: Text(
+                      'Move to Trash',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await notifier.trashNote();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note moved to Trash'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ] else ...[
+                  // Active note actions: Pin/Unpin, Archive, Move to Trash
+                  ListTile(
+                    leading: Icon(
+                      note.isPinned
+                          ? Icons.push_pin_outlined
+                          : Icons.push_pin_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      note.isPinned ? 'Unpin note' : 'Pin note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      notifier.togglePinned();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.archive_outlined,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Archive note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await notifier.archiveNote();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note archived'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_outline_rounded,
+                      color: colors.error,
+                    ),
+                    title: Text(
+                      'Move to Trash',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await notifier.trashNote();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note moved to Trash'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+                if (!note.isTrashed) ...[
+                  ListTile(
+                    leading: Icon(
+                      Icons.tag_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Add tag',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      TagEditorBar.showAddTagDialog(context, notifier.addTag);
+                    },
+                  ),
+                ],
                 ListTile(
                   leading: Icon(
                     Icons.info_outline_rounded,
@@ -399,31 +607,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         duration: Duration(seconds: 2),
                       ),
                     );
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.delete_outline_rounded,
-                    color: colors.error,
-                  ),
-                  title: Text(
-                    'Delete note',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: colors.error,
-                    ),
-                  ),
-                  onTap: () async {
-                    Navigator.of(ctx).pop();
-                    await notifier.deleteNote();
-                    if (context.mounted) {
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note deleted'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    }
                   },
                 ),
               ],

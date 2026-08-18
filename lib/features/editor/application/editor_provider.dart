@@ -119,15 +119,79 @@ class EditorNotifier extends StateNotifier<EditorState> {
     if (state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
-      await repository.deleteNote(state.note.id);
+      await repository.deletePermanently(state.note.id);
     } else {
       await saveNow();
     }
   }
 
-  Future<void> deleteNote() async {
+  Future<void> archiveNote() async {
     _debouncer.cancel();
-    await repository.deleteNote(state.note.id);
+    await saveNow();
+    await repository.archiveNote(state.note.id);
+    if (mounted) {
+      state = state.copyWith(
+        note: state.note.copyWith(
+          isArchived: true,
+          isTrashed: false,
+          isPinned: false,
+          deletedAt: null,
+        ),
+      );
+    }
+  }
+
+  Future<void> unarchiveNote() async {
+    _debouncer.cancel();
+    await saveNow();
+    await repository.unarchiveNote(state.note.id);
+    if (mounted) {
+      state = state.copyWith(
+        note: state.note.copyWith(
+          isArchived: false,
+          isTrashed: false,
+          deletedAt: null,
+        ),
+      );
+    }
+  }
+
+  Future<void> trashNote() async {
+    _debouncer.cancel();
+    await saveNow();
+    await repository.trashNote(state.note.id);
+    if (mounted) {
+      state = state.copyWith(
+        note: state.note.copyWith(
+          isTrashed: true,
+          isArchived: false,
+          deletedAt: DateTime.now(),
+        ),
+      );
+    }
+  }
+
+  Future<void> restoreNote() async {
+    _debouncer.cancel();
+    await repository.restoreFromTrash(state.note.id);
+    if (mounted) {
+      state = state.copyWith(
+        note: state.note.copyWith(
+          isTrashed: false,
+          isArchived: false,
+          deletedAt: null,
+        ),
+      );
+    }
+  }
+
+  Future<void> deletePermanently() async {
+    _debouncer.cancel();
+    await repository.deletePermanently(state.note.id);
+  }
+
+  Future<void> deleteNote() async {
+    await trashNote();
   }
 
   @override

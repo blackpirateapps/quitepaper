@@ -9,6 +9,9 @@ class Note {
     required this.createdAt,
     required this.updatedAt,
     this.isPinned = false,
+    this.isArchived = false,
+    this.isTrashed = false,
+    this.deletedAt,
     this.tags = const [],
   });
 
@@ -18,7 +21,13 @@ class Note {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isPinned;
+  final bool isArchived;
+  final bool isTrashed;
+  final DateTime? deletedAt;
   final List<String> tags;
+
+  /// Whether the note is active (not archived and not trashed)
+  bool get isActive => !isArchived && !isTrashed;
 
   /// Returns display title or 'Untitled' if title is empty
   String get displayTitle {
@@ -85,6 +94,9 @@ class Note {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isPinned,
+    bool? isArchived,
+    bool? isTrashed,
+    DateTime? deletedAt,
     List<String>? tags,
   }) {
     return Note(
@@ -94,6 +106,9 @@ class Note {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isPinned: isPinned ?? this.isPinned,
+      isArchived: isArchived ?? this.isArchived,
+      isTrashed: isTrashed ?? this.isTrashed,
+      deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
     );
   }
@@ -109,6 +124,9 @@ class Note {
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt &&
           isPinned == other.isPinned &&
+          isArchived == other.isArchived &&
+          isTrashed == other.isTrashed &&
+          deletedAt == other.deletedAt &&
           listEquals(tags, other.tags);
 
   @override
@@ -119,5 +137,8 @@ class Note {
       createdAt.hashCode ^
       updatedAt.hashCode ^
       isPinned.hashCode ^
+      isArchived.hashCode ^
+      isTrashed.hashCode ^
+      deletedAt.hashCode ^
       tags.hashCode;
 }

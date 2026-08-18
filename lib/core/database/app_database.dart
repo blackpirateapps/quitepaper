@@ -38,12 +38,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(notesTable, notesTable.isArchived);
+            await m.addColumn(notesTable, notesTable.isTrashed);
+            await m.addColumn(notesTable, notesTable.deletedAt);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -51,12 +58,24 @@ class AppDatabase extends _$AppDatabase {
       );
 
   // ==========================================
-  // NOTE OPERATIONS
+  // NOTE OPERATIONS & STREAM QUERIES
   // ==========================================
 
-  /// Watches all notes sorted by pinned first, then updated_at descending, with tags attached.
-  Stream<List<NoteWithTags>> watchNotes({String? filterTag, String? searchQuery}) {
+  /// Watches notes filtered by lifecycle state (active, archived, or trashed), optional tag, and optional search query.
+  Stream<List<NoteWithTags>> watchNotes({
+    bool isArchived = false,
+    bool isTrashed = false,
+    bool? isPinned,
+    String? filterTag,
+    String? searchQuery,
+  }) {
     final notesQuery = select(notesTable);
+
+    notesQuery.where((n) => n.isArchived.equals(isArchived) & n.isTrashed.equals(isTrashed));
+
+    if (isPinned != null) {
+      notesQuery.where((n) => n.isPinned.equals(isPinned));
+    }
 
     if (filterTag != null && filterTag.trim().isNotEmpty) {
       final normalizedTag = TagParser.normalizeTag(filterTag);
@@ -102,10 +121,21 @@ class AppDatabase extends _$AppDatabase {
       });
     }
 
-    notesQuery.orderBy([
-      (n) => OrderingTerm(expression: n.isPinned, mode: OrderingMode.desc),
-      (n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc),
-    ]);
+    if (isTrashed) {
+      notesQuery.orderBy([
+        (n) => OrderingTerm(expression: n.deletedAt, mode: OrderingMode.desc),
+        (n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc),
+      ]);
+    } else if (isArchived) {
+      notesQuery.orderBy([
+        (n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc),
+      ]);
+    } else {
+      notesQuery.orderBy([
+        (n) => OrderingTerm(expression: n.isPinned, mode: OrderingMode.desc),
+        (n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc),
+      ]);
+    }
 
     return notesQuery.watch().asyncMap((notesList) async {
       if (notesList.isEmpty) return [];
@@ -151,6 +181,9 @@ class AppDatabase extends _$AppDatabase {
     required DateTime createdAt,
     required DateTime updatedAt,
     required bool isPinned,
+    bool isArchived = false,
+    bool isTrashed = false,
+    DateTime? deletedAt,
     List<String>? tags,
   }) async {
     await transaction(() async {
@@ -162,6 +195,9 @@ class AppDatabase extends _$AppDatabase {
           createdAt: createdAt,
           updatedAt: updatedAt,
           isPinned: Value(isPinned),
+          isArchived: Value(isArchived),
+          isTrashed: Value(isTrashed),
+          deletedAt: Value(deletedAt),
         ),
       );
 
@@ -180,8 +216,55 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// Delete note by ID (cascades note_tags via foreign key)
-  Future<void> deleteNote(String noteId) async {
+  /// Archive note: archived = true, trashed = false
+  Future<void> archiveNote(String noteId) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        isArchived: const Value(true),
+        isTrashed: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Unarchive note: archived = false, trashed = false
+  Future<void> unarchiveNote(String noteId) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        isArchived: const Value(false),
+        isTrashed: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Move note to Trash: trashed = true, archived = false, records deletedAt
+  Future<void> trashNote(String noteId) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        isTrashed: const Value(true),
+        isArchived: const Value(false),
+        deletedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Restore note from Trash: trashed = false, archived = false, deletedAt = null
+  Future<void> restoreFromTrash(String noteId) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        isTrashed: const Value(false),
+        isArchived: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Permanent hard deletion of a single note (cascades note_tags via foreign key)
+  Future<void> deletePermanently(String noteId) async {
     await transaction(() async {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
@@ -189,22 +272,159 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Empty all notes currently in Trash
+  Future<void> emptyTrash() async {
+    await transaction(() async {
+      final trashedNotes = await (select(notesTable)
+            ..where((n) => n.isTrashed.equals(true)))
+          .get();
+      final trashedIds = trashedNotes.map((n) => n.id).toList();
+
+      if (trashedIds.isNotEmpty) {
+        await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
+        await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
+        await _cleanupOrphanedTags();
+      }
+    });
+  }
+
+  /// Batch archive
+  Future<void> archiveNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+      NotesTableCompanion(
+        isArchived: const Value(true),
+        isTrashed: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Batch unarchive
+  Future<void> unarchiveNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+      NotesTableCompanion(
+        isArchived: const Value(false),
+        isTrashed: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Batch trash
+  Future<void> trashNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+      NotesTableCompanion(
+        isTrashed: const Value(true),
+        isArchived: const Value(false),
+        deletedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Batch restore
+  Future<void> restoreNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+      NotesTableCompanion(
+        isTrashed: const Value(false),
+        isArchived: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Batch permanent deletion
+  Future<void> deletePermanentlyBatch(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    await transaction(() async {
+      await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
+      await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
+      await _cleanupOrphanedTags();
+    });
+  }
+
+  /// Legacy helper for deleting a note (can route to deletePermanently or trashNote)
+  Future<void> deleteNote(String noteId) async {
+    await deletePermanently(noteId);
+  }
+
+  // ==========================================
+  // COUNT QUERIES (REACTIVE STREAMS)
+  // ==========================================
+
+  /// Stream count of active notes (All Notes)
+  Stream<int> watchActiveNotesCount() {
+    final countExp = notesTable.id.count();
+    final query = selectOnly(notesTable)
+      ..where(notesTable.isArchived.equals(false) & notesTable.isTrashed.equals(false))
+      ..addColumns([countExp]);
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
+  /// Stream count of pinned active notes
+  Stream<int> watchPinnedNotesCount() {
+    final countExp = notesTable.id.count();
+    final query = selectOnly(notesTable)
+      ..where(notesTable.isPinned.equals(true) &
+          notesTable.isArchived.equals(false) &
+          notesTable.isTrashed.equals(false))
+      ..addColumns([countExp]);
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
+  /// Stream count of archived notes
+  Stream<int> watchArchivedNotesCount() {
+    final countExp = notesTable.id.count();
+    final query = selectOnly(notesTable)
+      ..where(notesTable.isArchived.equals(true) & notesTable.isTrashed.equals(false))
+      ..addColumns([countExp]);
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
+  /// Stream count of trashed notes
+  Stream<int> watchTrashedNotesCount() {
+    final countExp = notesTable.id.count();
+    final query = selectOnly(notesTable)
+      ..where(notesTable.isTrashed.equals(true))
+      ..addColumns([countExp]);
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
   // ==========================================
   // TAG OPERATIONS
   // ==========================================
 
-  /// Watches all tags with note count
+  /// Watches all tags with active note count (excluding archived and trashed notes)
   Stream<List<TagWithCount>> watchAllTagsWithCount() {
     final query = select(tagsTable).join([
       innerJoin(
         noteTagsTable,
         noteTagsTable.tagId.equalsExp(tagsTable.id),
       ),
+      innerJoin(
+        notesTable,
+        notesTable.id.equalsExp(noteTagsTable.noteId),
+      ),
     ]);
 
+    // Only count active notes in tags
+    query.where(notesTable.isArchived.equals(false) & notesTable.isTrashed.equals(false));
     query.groupBy([tagsTable.id, tagsTable.name]);
     query.addColumns([noteTagsTable.noteId.count()]);
-    query.orderBy([OrderingTerm.asc(tagsTable.name)]);
+    query.orderBy([
+      OrderingTerm.desc(noteTagsTable.noteId.count()),
+      OrderingTerm.asc(tagsTable.name),
+    ]);
 
     return query.watch().map((rows) {
       return rows.map((row) {

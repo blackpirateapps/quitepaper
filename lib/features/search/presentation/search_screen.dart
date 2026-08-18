@@ -118,8 +118,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               .read(notesRepositoryProvider)
                               .setPinned(note.id, !note.isPinned);
                         },
+                        onArchive: () {
+                          final repo = ref.read(notesRepositoryProvider);
+                          repo.archiveNote(note.id);
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Note archived'),
+                              action: SnackBarAction(
+                                label: 'Undo',
+                                onPressed: () => repo.unarchiveNote(note.id),
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        },
+                        onTrash: () {
+                          final repo = ref.read(notesRepositoryProvider);
+                          repo.trashNote(note.id);
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Note moved to Trash'),
+                              action: SnackBarAction(
+                                label: 'Undo',
+                                onPressed: () => repo.restoreFromTrash(note.id),
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        },
                         onDelete: () {
-                          ref.read(notesRepositoryProvider).deleteNote(note.id);
+                          final repo = ref.read(notesRepositoryProvider);
+                          repo.trashNote(note.id);
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Note moved to Trash'),
+                              action: SnackBarAction(
+                                label: 'Undo',
+                                onPressed: () => repo.restoreFromTrash(note.id),
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
                         },
                       );
                     },

@@ -9,6 +9,7 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -48,7 +49,8 @@ void main() {
     );
   }
 
-  testWidgets('Quiet Paper phone layout: empty state and note creation flow', (tester) async {
+  testWidgets('Quiet Paper phone layout: empty state and note creation flow',
+      (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -86,7 +88,8 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Empty note is discarded on exit without cluttering note list', (tester) async {
+  testWidgets('Empty note is discarded on exit without cluttering note list',
+      (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -137,8 +140,8 @@ void main() {
     expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**'), findsOneWidget);
 
     // Modify content
-    await tester.enterText(
-        find.byType(TextField).last, 'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3');
+    await tester.enterText(find.byType(TextField).last,
+        'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3');
     await tester.pump(const Duration(milliseconds: 800));
 
     // Leave
@@ -149,11 +152,196 @@ void main() {
     await tester.tap(find.text('Persistent Title'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'), findsOneWidget);
+    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'),
+        findsOneWidget);
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Sidebar drawer navigation to Archive, Trash, Pinned',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Open drawer
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    // Verify Sidebar contents
+    expect(find.byType(SidebarView), findsOneWidget);
+    expect(find.text('Quiet Paper'), findsOneWidget);
+    expect(find.text('LIBRARY'), findsOneWidget);
+    expect(find.text('All Notes'), findsOneWidget);
+    expect(find.text('Pinned'), findsOneWidget);
+    expect(find.text('Archive'), findsOneWidget);
+    expect(find.text('Trash'), findsOneWidget);
+
+    // Navigate to Archive
+    await tester.tap(find.text('Archive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archive'), findsWidgets);
+    expect(find.text('Archive is empty'), findsOneWidget);
+    expect(find.text('Archived notes will appear here.'), findsOneWidget);
+
+    // Open drawer again and navigate to Trash
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Trash'), findsWidgets);
+    expect(find.text('Trash is empty'), findsOneWidget);
+    expect(
+        find.text(
+            'Notes stay here until you delete them\npermanently.'),
+        findsOneWidget);
+
+    // Open drawer again and navigate back to All Notes
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('All Notes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notes'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Archive and Unarchive note flow with Undo', (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'arch-flow',
+      title: 'Note to Archive',
+      content: 'Archiving flow test',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note to Archive'), findsOneWidget);
+
+    // Long press note to open context menu
+    await tester.longPress(find.text('Note to Archive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archive note'), findsOneWidget);
+    await tester.tap(find.text('Archive note'));
+    await tester.pumpAndSettle();
+
+    // Disappeared from All Notes, SnackBar appeared
+    expect(find.text('Note to Archive'), findsNothing);
+    expect(find.text('Note archived'), findsOneWidget);
+
+    // Open drawer and navigate to Archive
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Archive'));
+    await tester.pumpAndSettle();
+
+    // Note is now in Archive
+    expect(find.text('Note to Archive'), findsOneWidget);
+
+    // Long press note in Archive -> Unarchive
+    await tester.longPress(find.text('Note to Archive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unarchive note'), findsOneWidget);
+    await tester.tap(find.text('Unarchive note'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note to Archive'), findsNothing);
+
+    // Back to All Notes
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('All Notes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note to Archive'), findsOneWidget);
+
+    await finishTest(tester);
+  });
+
+  testWidgets('Move to Trash, Restore, and Permanent Deletion flows',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'trash-flow',
+      title: 'Note for Trash',
+      content: 'Trash and permanent deletion test',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note for Trash'), findsOneWidget);
+
+    // Long press -> Move to Trash
+    await tester.longPress(find.text('Note for Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Move to Trash'), findsOneWidget);
+    await tester.tap(find.text('Move to Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note for Trash'), findsNothing);
+    expect(find.text('Note moved to Trash'), findsOneWidget);
+
+    // Navigate to Trash
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note for Trash'), findsOneWidget);
+
+    // Long press in Trash -> Delete permanently
+    await tester.longPress(find.text('Note for Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete permanently'), findsOneWidget);
+    await tester.tap(find.text('Delete permanently'));
+    await tester.pumpAndSettle();
+
+    // Confirmation dialog
+    expect(find.text('Delete permanently?'), findsOneWidget);
+    expect(
+        find.text(
+            'This note will be permanently deleted.\nThis action cannot be undone.'),
+        findsOneWidget);
+
+    // Confirm deletion
+    await tester.tap(find.text('Delete Permanently'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note for Trash'), findsNothing);
+    expect(find.text('Trash is empty'), findsOneWidget);
 
     await finishTest(tester);
   });
@@ -242,7 +430,8 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Pinning and unpinning notes from context sheet', (tester) async {
+  testWidgets('Pinning and unpinning notes from context sheet',
+      (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -277,7 +466,8 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor', (tester) async {
+  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor',
+      (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -335,7 +525,8 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Tablet layout displays split view with active note editor', (tester) async {
+  testWidgets('Tablet layout displays split view with active note editor',
+      (tester) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 2.0;
 
@@ -353,10 +544,11 @@ void main() {
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Sidebar has "Notes" and "Tablet Note"
+    // Sidebar and note list are visible
+    expect(find.byType(SidebarView), findsOneWidget);
     expect(find.text('Tablet Note'), findsOneWidget);
 
-    // Tap note in sidebar to open in detail view
+    // Tap note in middle pane to open in detail view
     await tester.tap(find.text('Tablet Note'));
     await tester.pumpAndSettle();
 
