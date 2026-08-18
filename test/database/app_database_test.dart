@@ -607,6 +607,20 @@ Ignore `#inline_code_tag` and ```#code_block```.
       expect(note.previewSnippet, 'Second line here.');
     });
 
+    test('handles huge text without newlines without hanging', () {
+      final now = DateTime.now();
+      final hugeContent = 'word ' * 5000;
+      final note = Note(
+        id: 'huge-1',
+        title: '',
+        content: hugeContent,
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'word word word word word word...');
+      expect(note.previewSnippet, isNotEmpty);
+    });
+
     test('returns Untitled when title and content are empty', () {
       final now = DateTime.now();
       final note = Note(

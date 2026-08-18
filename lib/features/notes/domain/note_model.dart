@@ -34,10 +34,15 @@ class Note {
     if (title.trim().isNotEmpty) {
       return title.trim();
     }
-    // Check if the first line of content can be a preview title
-    final trimmedContent = content.trim();
-    if (trimmedContent.isNotEmpty) {
-      final firstLine = trimmedContent.split('\n').first.trim();
+    if (content.isEmpty) return 'Untitled';
+
+    // Take at most first 300 characters to find first line quickly
+    final sample = content.length > 300 ? content.substring(0, 300) : content;
+    final trimmed = sample.trim();
+    if (trimmed.isNotEmpty) {
+      final newlineIdx = trimmed.indexOf('\n');
+      final firstLine =
+          newlineIdx != -1 ? trimmed.substring(0, newlineIdx).trim() : trimmed;
       final cleanFirstLine = firstLine
           .replaceAll(RegExp(r'^#+\s*'), '')
           .replaceAll(RegExp(r'^>\s*'), '')
@@ -67,7 +72,11 @@ class Note {
 
   /// Returns a clean one or two line snippet of the note content (omitting headers / markers)
   String get previewSnippet {
-    final trimmed = content.trim();
+    if (content.isEmpty) return '';
+
+    // Take at most first 600 characters for snippet preview to ensure instant rendering
+    final sample = content.length > 600 ? content.substring(0, 600) : content;
+    final trimmed = sample.trim();
     if (trimmed.isEmpty) return '';
 
     final lines = trimmed.split('\n');

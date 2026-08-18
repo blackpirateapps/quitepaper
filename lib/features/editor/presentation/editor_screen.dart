@@ -66,6 +66,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   @override
+  void didUpdateWidget(EditorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.note.id != widget.note.id) {
+      _titleController.text = widget.note.title;
+      _contentController.text = widget.note.content;
+      if (widget.autoFocusBody) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            if (widget.note.title.isEmpty) {
+              _titleFocusNode.requestFocus();
+            } else {
+              _contentFocusNode.requestFocus();
+            }
+          }
+        });
+      }
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -132,7 +152,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             icon: Icons.arrow_back_rounded,
             tooltip: 'Back',
             onPressed: () {
-              editorNotifier.handleExitCleanup();
               Navigator.of(context).pop();
             },
           ),
@@ -317,17 +336,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 if (!note.isTrashed) ...[
                   ListTile(
                     leading: Icon(
@@ -634,8 +655,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 }

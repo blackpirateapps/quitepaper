@@ -30,13 +30,8 @@ class EditorNotifier extends StateNotifier<EditorState> {
   void updateContent(String newContent) {
     if (newContent == state.note.content) return;
 
-    // Detect tags from new text and merge with existing tags
-    final extractedTags = TagParser.extractTags('${state.note.title}\n$newContent');
-    final combinedTags = {...state.note.tags, ...extractedTags}.toList();
-
     final updated = state.note.copyWith(
       content: newContent,
-      tags: combinedTags,
       updatedAt: DateTime.now(),
     );
     state = state.copyWith(note: updated, isDirty: true);
@@ -95,10 +90,16 @@ class EditorNotifier extends StateNotifier<EditorState> {
       return;
     }
 
-    state = state.copyWith(isSaving: true);
+    // Extract tags during debounced save and merge with explicit tags
+    final extractedTags =
+        TagParser.extractTags('${state.note.title}\n${state.note.content}');
+    final combinedTags = {...state.note.tags, ...extractedTags}.toList();
+    final noteToSave = state.note.copyWith(tags: combinedTags);
+
+    state = state.copyWith(note: noteToSave, isSaving: true);
 
     try {
-      await repository.saveNote(state.note);
+      await repository.saveNote(noteToSave);
       if (mounted) {
         state = state.copyWith(
           isDirty: false,

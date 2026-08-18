@@ -71,20 +71,9 @@ class QuietMarkdownPreview extends StatelessWidget {
       tablePadding: const EdgeInsets.all(AppSpacing.sm),
     );
 
-    if (selectable) {
-      return Markdown(
-        data: markdownData.isEmpty ? '*No content*' : markdownData,
-        selectable: true,
-        styleSheet: customStyleSheet,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-      );
-    }
-
     return MarkdownBody(
-      data: markdownData.isEmpty ? '*No content*' : markdownData,
-      selectable: false,
+      data: markdownData.trim().isEmpty ? '*No content*' : markdownData,
+      selectable: selectable,
       styleSheet: customStyleSheet,
     );
   }

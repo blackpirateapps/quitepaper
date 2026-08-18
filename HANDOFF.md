@@ -179,6 +179,13 @@ Navigation is modeled by `AppDestination`:
 - `TooltipThemeData` configured with explicit `waitDuration: 500ms`, `showDuration: 1500ms`, and `triggerMode: TooltipTriggerMode.longPress`.
 - Floating SnackBars dismiss cleanly after 3 seconds with immediate `hideCurrentSnackBar()` before displaying subsequent actions.
 
+### High-Performance Large Text Handling & Markdown Preview
+- **Constant-Time Bounded Preview Extraction**: `Note.displayTitle` and `Note.previewSnippet` process bounded character samples (300/600 characters max) rather than scanning multi-megabyte texts, ensuring $O(1)$ instant note list rendering with zero jank even for single-line paragraphs.
+- **Asynchronous Tag Extraction**: Content changes update text immediately; tag extraction and normalization run asynchronously during the 700ms debounced save cycle, preserving 60/120 FPS typing performance.
+- **Linear Tag Parsing**: `TagParser` uses a linear line-by-line scanner to strip code blocks, eliminating catastrophic regex backtracking on long code fences.
+- **Non-Scrollable MarkdownBody**: `QuietMarkdownPreview` utilizes `MarkdownBody` with built-in text selection inside `SingleChildScrollView`, preventing nested scrollable layout exceptions and crashes on long documents.
+- **Clean Single Exit Cleanup**: Navigating back via app bar arrow pops the route cleanly while letting `PopScope` flush pending autosaves without duplicate race conditions.
+
 ---
 
 ## 6. CI/CD & Android Keystore Signing

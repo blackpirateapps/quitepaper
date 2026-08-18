@@ -1,22 +1,18 @@
 abstract final class TagParser {
-  /// Regular expression to match hashtags.
+  /// Regular expression to match hashtags without catastrophic backtracking.
   /// Matches `#tag`, `#nested/tag`, `#tag_1`, `#tag-name`.
-  /// Ensures it does NOT match Markdown headers (e.g. `# Header` has space) or inside code blocks/URLs.
-  /// Must be preceded by start of line, whitespace, or opening punctuation (like `(`, `[`, `{`).
+  /// Ensures it does NOT match Markdown headers (which have space after `#`).
   static final RegExp _tagRegex = RegExp(
-    r'(?:^|[\s(\[{])#([a-zA-Z0-9_\-/]+)(?=[)\],.!?\s]|$)',
+    r'''(?:^|[\s(\[{<"'`])#([a-zA-Z0-9_\-/]+)(?=[)\],.!?\s>"'`:]|$)''',
     multiLine: true,
   );
 
   /// Extracts unique normalized tag names from markdown text.
   static List<String> extractTags(String text) {
-    if (text.isEmpty) return const [];
+    if (text.isEmpty || !text.contains('#')) return const [];
 
-    // Filter out code blocks before extracting tags
-    final textWithoutCodeBlocks = text.replaceAll(RegExp(r'```[\s\S]*?```'), '');
-    final textWithoutInlineCode = textWithoutCodeBlocks.replaceAll(RegExp(r'`[^`]*`'), '');
-
-    final matches = _tagRegex.allMatches(textWithoutInlineCode);
+    final cleanText = _stripCodeBlocks(text);
+    final matches = _tagRegex.allMatches(cleanText);
     final tags = <String>{};
 
     for (final match in matches) {
@@ -31,6 +27,34 @@ abstract final class TagParser {
 
     final sorted = tags.toList()..sort();
     return sorted;
+  }
+
+  /// Fast line-by-line strip of code blocks and inline code without regex backtracking
+  static String _stripCodeBlocks(String text) {
+    if (!text.contains('`')) return text;
+
+    final buffer = StringBuffer();
+    final lines = text.split('\n');
+    var inCodeBlock = false;
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
+      if (inCodeBlock) continue;
+
+      if (line.contains('`')) {
+        // Strip inline backticks cleanly
+        final strippedLine = line.replaceAll(RegExp(r'`[^`\n]*`'), ' ');
+        buffer.writeln(strippedLine);
+      } else {
+        buffer.writeln(line);
+      }
+    }
+
+    return buffer.toString();
   }
 
   /// Normalizes a tag string: strips leading `#`, trims whitespace, converts to lowercase.

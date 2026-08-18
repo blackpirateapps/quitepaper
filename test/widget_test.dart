@@ -595,4 +595,60 @@ void main() {
 
     await finishTest(tester);
   });
+
+  testWidgets(
+      'Creating note, pasting long text with no title, and exiting works cleanly',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Tap create note
+    await tester.tap(find.text('Create note'));
+    await tester.pumpAndSettle();
+
+    // Paste long text in body with no title
+    const longText =
+        'This is the very first line of a massive document that discusses software engineering, offline architecture, and databases.\n\nParagraph 2 with lots of words and detail.\n\nParagraph 3.';
+    await tester.enterText(find.byType(TextField).last, longText);
+    await tester.pump(const Duration(milliseconds: 800));
+
+    // Tap back button
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    // Back on note list, note exists with auto-title
+    expect(find.text('Notes'), findsOneWidget);
+    expect(
+        find.text(
+            'This is the very first line...'),
+        findsOneWidget);
+
+    // Reopen the note
+    await tester.tap(find.text('This is the very first line...'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(longText), findsOneWidget);
+
+    // Toggle markdown preview
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Markdown preview'));
+    await tester.pumpAndSettle();
+
+    // Markdown preview renders without layout exception
+    expect(find.byType(TextField), findsNothing);
+
+    // Exit back
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notes'), findsOneWidget);
+
+    await finishTest(tester);
+  });
 }
