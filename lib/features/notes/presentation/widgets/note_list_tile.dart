@@ -47,9 +47,9 @@ class NoteListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final formattedTime = note.isTrashed
-        ? 'Moved to Trash · ${DateFormatter.formatNoteTileTime(note.deletedAt ?? note.updatedAt)}'
-        : DateFormatter.formatNoteTileTime(note.updatedAt);
+    final formattedTime = DateFormatter.formatNoteTileTime(
+      note.isTrashed ? (note.deletedAt ?? note.updatedAt) : note.updatedAt,
+    );
     final preview = note.previewSnippet;
 
     return Material(
@@ -173,6 +173,18 @@ class NoteListTile extends StatelessWidget {
                             onTap: onTagTap != null ? () => onTagTap!(tag) : null,
                           );
                         }).toList(),
+                      ),
+                    ],
+
+                    // Trashed indicator
+                    if (note.isTrashed) ...[
+                      const SizedBox(height: 6.0),
+                      Text(
+                        'Moved to Trash · ${DateFormatter.getGroupBucket(note.deletedAt ?? note.updatedAt)}',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 11.5,
+                        ),
                       ),
                     ],
                   ],

@@ -192,6 +192,10 @@ Navigation is modeled by `AppDestination`:
 - **Linear Tag Parsing**: `TagParser` uses a linear line-by-line scanner to strip code blocks, eliminating catastrophic regex backtracking on long code fences.
 - **Lazy Virtualized Chunk Rendering**: `MarkdownChunker` splits long documents into semantic chunks (preserving code fences, tables, blockquotes, and lists). `QuietMarkdownPreview` utilizes `ListView.builder` to transform and render only the visible chunks in the viewport just-in-time, keeping memory $O(1)$ bounded and scrolling buttery smooth at 60/120 FPS even for 100,000+ line documents.
 
+### Note List Tile Header Layout & Hit-Test Resiliency
+- **Fix for Note Tile Overflow and Hit-Test**: In `NoteListTile`, `formattedTime` previously attempted to embed `'Moved to Trash · <Time>'` inside the top title row. On standard mobile viewport constraints (312dp content width), this long string consumed all available horizontal flex space and caused a 1px `RenderFlex` overflow, collapsing the title's `Expanded` widget to 0 width and failing `WidgetController.longPress()` hit testing during tests.
+- **Dedicated Trashed Subtitle**: `formattedTime` in the top header is now standardized to use `DateFormatter.formatNoteTileTime(...)` (e.g. `"2:05 PM"`, `"Yesterday"`) across all destinations, while `"Moved to Trash · <Bucket>"` is placed in its dedicated metadata footer below tags/preview per design specification (`sidebar.md`).
+
 ---
 
 ## 6. CI/CD & Automated Testing
