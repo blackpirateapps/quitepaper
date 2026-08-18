@@ -149,7 +149,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           child: Column(
             children: [
               Expanded(
-                child: Center(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxWidth: AppSpacing.maxContentWidth,
@@ -158,7 +159,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.sm,
+                        vertical: AppSpacing.md,
                       ),
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
