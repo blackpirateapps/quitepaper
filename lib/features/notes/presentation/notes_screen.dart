@@ -5,6 +5,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_fab.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
@@ -388,122 +389,169 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
+    final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
+    final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
+
     return Scaffold(
       backgroundColor: colors.background,
       body: SafeArea(
         child: Row(
           children: [
-            // 1. Left Persistent Navigation Sidebar (280dp)
-            SizedBox(
-              width: 280,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: colors.divider, width: 1),
+            // 1. Left Navigation Sidebar (280dp, collapsible)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeInOutCubic,
+              width: isNavSidebarVisible ? 280.0 : 0.0,
+              child: ClipRect(
+                child: OverflowBox(
+                  minWidth: 280.0,
+                  maxWidth: 280.0,
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: colors.divider, width: 1),
+                      ),
+                    ),
+                    child: const SidebarView(isCollapsible: true),
                   ),
                 ),
-                child: const SidebarView(),
               ),
             ),
 
-            // 2. Middle Note List Pane (320dp)
-            SizedBox(
-              width: 320,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: colors.divider, width: 1),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Middle Pane Top bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.sm,
+            // 2. Middle Note List Pane (320dp, collapsible)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeInOutCubic,
+              width: isNoteListVisible ? 320.0 : 0.0,
+              child: ClipRect(
+                child: OverflowBox(
+                  minWidth: 320.0,
+                  maxWidth: 320.0,
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: colors.divider, width: 1),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: AppTypography.title.copyWith(
-                                color: colors.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                    ),
+                    child: Column(
+                      children: [
+                        // Middle Pane Top bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.sm,
+                          ),
+                          child: Row(
+                            children: [
+                              QuietIconButton(
+                                icon: isNavSidebarVisible
+                                    ? Icons.menu_open_rounded
+                                    : Icons.view_sidebar_outlined,
+                                tooltip: isNavSidebarVisible
+                                    ? 'Hide navigation'
+                                    : 'Show navigation',
+                                onPressed: () {
+                                  ref
+                                      .read(isNavSidebarVisibleProvider.notifier)
+                                      .state = !isNavSidebarVisible;
+                                },
+                              ),
+                              const SizedBox(width: 4.0),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: AppTypography.title.copyWith(
+                                    color: colors.textPrimary,
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                              QuietIconButton(
+                                icon: Icons.search_rounded,
+                                tooltip: 'Search notes',
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SearchScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              if (destination == AppDestination.trash) ...[
+                                QuietIconButton(
+                                  icon: Icons.delete_sweep_outlined,
+                                  tooltip: 'Empty trash',
+                                  onPressed: () => _confirmEmptyTrash(context),
+                                ),
+                              ],
+                              QuietIconButton(
+                                icon: Icons.add_rounded,
+                                tooltip: 'New note',
+                                isActive: true,
+                                onPressed: () => _createAndOpenNoteTablet(),
+                              ),
+                              if (activeNote != null)
+                                QuietIconButton(
+                                  icon: Icons.fullscreen_rounded,
+                                  tooltip: 'Hide note list',
+                                  onPressed: () {
+                                    ref
+                                        .read(isNoteListVisibleProvider.notifier)
+                                        .state = false;
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (destination == AppDestination.allNotes ||
+                            destination == AppDestination.tag) ...[
+                          const TagsFilterBar(),
+                        ],
+                        Divider(color: colors.divider, height: 1),
+                        Expanded(
+                          child: groupedNotesAsync.when(
+                            data: (groups) {
+                              if (groups.isEmpty) {
+                                return NoteEmptyState(
+                                  onCreateNote: () => _createAndOpenNoteTablet(),
+                                  destination: destination,
+                                  tagFilter: selectedTag,
+                                );
+                              }
+
+                              return ListView.builder(
+                                itemCount: _calculateTotalItemCount(groups),
+                                itemBuilder: (context, index) {
+                                  return _buildGroupedItem(
+                                    context,
+                                    groups,
+                                    index,
+                                    isTablet: true,
+                                  );
+                                },
+                              );
+                            },
+                            loading: () => const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            ),
+                            error: (err, _) => Center(
+                              child: Text(
+                                'Error: $err',
+                                style: AppTypography.body.copyWith(
+                                  color: colors.error,
+                                ),
                               ),
                             ),
                           ),
-                          QuietIconButton(
-                            icon: Icons.search_rounded,
-                            tooltip: 'Search notes',
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const SearchScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          if (destination == AppDestination.trash) ...[
-                            QuietIconButton(
-                              icon: Icons.delete_sweep_outlined,
-                              tooltip: 'Empty trash',
-                              onPressed: () => _confirmEmptyTrash(context),
-                            ),
-                          ],
-                          QuietIconButton(
-                            icon: Icons.add_rounded,
-                            tooltip: 'New note',
-                            isActive: true,
-                            onPressed: () => _createAndOpenNoteTablet(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (destination == AppDestination.allNotes ||
-                        destination == AppDestination.tag) ...[
-                      const TagsFilterBar(),
-                    ],
-                    Divider(color: colors.divider, height: 1),
-                    Expanded(
-                      child: groupedNotesAsync.when(
-                        data: (groups) {
-                          if (groups.isEmpty) {
-                            return NoteEmptyState(
-                              onCreateNote: () => _createAndOpenNoteTablet(),
-                              destination: destination,
-                              tagFilter: selectedTag,
-                            );
-                          }
-
-                          return ListView.builder(
-                            itemCount: _calculateTotalItemCount(groups),
-                            itemBuilder: (context, index) {
-                              return _buildGroupedItem(
-                                context,
-                                groups,
-                                index,
-                                isTablet: true,
-                              );
-                            },
-                          );
-                        },
-                        loading: () => const Center(
-                          child: CircularProgressIndicator.adaptive(),
                         ),
-                        error: (err, _) => Center(
-                          child: Text(
-                            'Error: $err',
-                            style: AppTypography.body.copyWith(
-                              color: colors.error,
-                            ),
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -553,6 +601,22 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 color: colors.textTertiary,
                               ),
                             ),
+                            if (!isNoteListVisible || !isNavSidebarVisible) ...[
+                              const SizedBox(height: AppSpacing.lg),
+                              QuietButton(
+                                label: 'Show note list',
+                                icon: Icons.view_sidebar_outlined,
+                                variant: QuietButtonVariant.secondary,
+                                onPressed: () {
+                                  ref
+                                      .read(isNoteListVisibleProvider.notifier)
+                                      .state = true;
+                                  ref
+                                      .read(isNavSidebarVisibleProvider.notifier)
+                                      .state = true;
+                                },
+                              ),
+                            ],
                           ],
                         ),
                       ),

@@ -130,3 +130,9 @@ final noteDetailStreamProvider = StreamProvider.family<Note?, String>((ref, id) 
   final repository = ref.watch(notesRepositoryProvider);
   return repository.watchNoteById(id);
 });
+
+/// Whether the left navigation sidebar is visible on large/tablet screens
+final isNavSidebarVisibleProvider = StateProvider<bool>((ref) => true);
+
+/// Whether the middle note list pane is visible on large/tablet screens
+final isNoteListVisibleProvider = StateProvider<bool>((ref) => true);

@@ -7,6 +7,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/markdown/markdown_preview.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../application/editor_provider.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -188,6 +189,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final canPop = Navigator.of(context).canPop();
 
+    final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
+    final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
+    final isTabletEditor = widget.onClose != null;
+    final showSidebarRestore = isTabletEditor && (!isNavSidebarVisible || !isNoteListVisible);
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
@@ -201,14 +207,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           backgroundColor: colors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: widget.onClose != null
-              ? QuietIconButton(
-                  icon: Icons.close_rounded,
-                  tooltip: 'Close note',
-                  onPressed: () {
-                    editorNotifier.handleExitCleanup();
-                    widget.onClose?.call();
-                  },
+          leadingWidth: showSidebarRestore ? 96.0 : null,
+          leading: isTabletEditor
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showSidebarRestore)
+                      QuietIconButton(
+                        icon: Icons.view_sidebar_outlined,
+                        tooltip: 'Show sidebars',
+                        onPressed: () {
+                          ref.read(isNavSidebarVisibleProvider.notifier).state =
+                              true;
+                          ref.read(isNoteListVisibleProvider.notifier).state =
+                              true;
+                        },
+                      ),
+                    QuietIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: 'Close note',
+                      onPressed: () {
+                        editorNotifier.handleExitCleanup();
+                        widget.onClose?.call();
+                      },
+                    ),
+                  ],
                 )
               : (canPop
                   ? QuietIconButton(
@@ -220,6 +243,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     )
                   : null),
           actions: [
+            if (isTabletEditor)
+              QuietIconButton(
+                icon: (!isNavSidebarVisible && !isNoteListVisible)
+                    ? Icons.fullscreen_exit_rounded
+                    : Icons.fullscreen_rounded,
+                tooltip: (!isNavSidebarVisible && !isNoteListVisible)
+                    ? 'Exit focus mode'
+                    : 'Focus mode (hide sidebars)',
+                onPressed: () {
+                  final currentlyCollapsed =
+                      !isNavSidebarVisible && !isNoteListVisible;
+                  ref.read(isNavSidebarVisibleProvider.notifier).state =
+                      currentlyCollapsed;
+                  ref.read(isNoteListVisibleProvider.notifier).state =
+                      currentlyCollapsed;
+                },
+              ),
             if (!note.isTrashed)
               QuietIconButton(
                 icon: editorState.isPreviewMode

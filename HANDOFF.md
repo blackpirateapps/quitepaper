@@ -195,6 +195,12 @@ Navigation is modeled by `AppDestination`:
 - **Linear Tag Parsing**: `TagParser` uses a linear line-by-line scanner to strip code blocks, eliminating catastrophic regex backtracking on long code fences.
 - **Lazy Virtualized Chunk Rendering**: `MarkdownChunker` splits long documents into semantic chunks (preserving code fences, tables, blockquotes, and lists). `QuietMarkdownPreview` utilizes `ListView.builder` to transform and render only the visible chunks in the viewport just-in-time, keeping memory $O(1)$ bounded and scrolling buttery smooth at 60/120 FPS even for 100,000+ line documents.
 
+### Collapsible Multi-Pane Tablet & Desktop Sidebars (Focus Mode)
+- **Collapsible Navigation Sidebar**: The left 280dp navigation pane can be collapsed/hidden on tablet/desktop layouts via the collapse button (`Icons.menu_open_rounded`) in the sidebar header or from the middle pane's top bar (`Icons.view_sidebar_outlined`).
+- **Collapsible Middle Note List & Full-Screen Focus Mode**: The 320dp note list pane can be collapsed into distraction-free full-screen writing mode via the focus button (`Icons.fullscreen_rounded`) in the note list or editor header.
+- **Smooth, Zero-Jank Animation**: Sidebars animate between expanded width and 0dp over 240ms with `Curves.easeInOutCubic`, utilizing `AnimatedContainer`, `ClipRect`, and `OverflowBox` to prevent content reflow and layout overflow exceptions during animation.
+- **Instant Restore Controls**: When either or both sidebars are collapsed, a dedicated sidebar restore action (`Icons.view_sidebar_outlined`) appears in the Editor `AppBar.leading` and empty state placeholder to un-collapse sidebars with a single tap.
+
 ### Note List Tile Header Layout & Hit-Test Resiliency
 - **Fix for Note Tile Overflow and Hit-Test**: In `NoteListTile`, `formattedTime` previously attempted to embed `'Moved to Trash · <Time>'` inside the top title row. On standard mobile viewport constraints (312dp content width), this long string consumed all available horizontal flex space and caused a 1px `RenderFlex` overflow, collapsing the title's `Expanded` widget to 0 width and failing `WidgetController.longPress()` hit testing during tests.
 - **Dedicated Trashed Subtitle**: `formattedTime` in the top header is now standardized to use `DateFormatter.formatNoteTileTime(...)` (e.g. `"2:05 PM"`, `"Yesterday"`) across all destinations, while `"Moved to Trash · <Bucket>"` is placed in its dedicated metadata footer below tags/preview per design specification (`sidebar.md`).

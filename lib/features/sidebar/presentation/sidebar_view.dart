@@ -4,6 +4,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
@@ -14,10 +15,14 @@ class SidebarView extends ConsumerWidget {
   const SidebarView({
     super.key,
     this.onItemSelected,
+    this.isCollapsible = false,
   });
 
   /// Optional callback when a destination or item is selected (e.g. to close drawer on mobile)
   final VoidCallback? onItemSelected;
+
+  /// Whether to display a collapse button (on tablet/desktop split view)
+  final bool isCollapsible;
 
   static const int _maxVisibleTags = 7;
 
@@ -44,20 +49,33 @@ class SidebarView extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.md,
-                AppSpacing.md,
+                AppSpacing.sm,
                 AppSpacing.xs,
               ),
               child: Row(
                 children: [
-                  Text(
-                    'Quiet Paper',
-                    style: AppTypography.title.copyWith(
-                      color: colors.textPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
+                  Expanded(
+                    child: Text(
+                      'Quiet Paper',
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
+                  if (isCollapsible)
+                    QuietIconButton(
+                      icon: Icons.menu_open_rounded,
+                      tooltip: 'Hide navigation sidebar',
+                      onPressed: () {
+                        ref.read(isNavSidebarVisibleProvider.notifier).state =
+                            false;
+                      },
+                    ),
                 ],
               ),
             ),

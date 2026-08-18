@@ -570,7 +570,60 @@ void main() {
 
     // Editor is visible on right pane simultaneously with sidebar
     expect(find.byType(EditorScreen), findsOneWidget);
-    expect(find.text('Tablet Note'), findsWidgets);
+    await finishTest(tester);
+  });
+
+  testWidgets('Tablet layout allows collapsing and restoring both sidebars',
+      (tester) async {
+    tester.view.physicalSize = const Size(2400, 1600);
+    tester.view.devicePixelRatio = 2.0;
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'tab-collapse',
+      title: 'Collapsible Note',
+      content: 'Focus mode and sidebar collapse test',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // Tap note in middle pane to open
+    await tester.tap(find.text('Collapsible Note'));
+    await tester.pumpAndSettle();
+
+    // 1. Collapse Navigation Sidebar via its collapse button in header
+    expect(find.byIcon(Icons.menu_open_rounded), findsWidgets);
+    await tester.tap(find.byIcon(Icons.menu_open_rounded).first);
+    await tester.pumpAndSettle();
+
+    // Navigation sidebar width animated to 0
+    final navContainers = tester.widgetList<AnimatedContainer>(
+      find.byType(AnimatedContainer),
+    );
+    expect(navContainers.first.constraints?.maxWidth, 0.0);
+
+    // 2. Collapse Note List Sidebar via Focus mode icon in Editor
+    await tester.tap(find.byTooltip('Focus mode (hide sidebars)'));
+    await tester.pumpAndSettle();
+
+    // Both sidebars are collapsed (focus mode active)
+    expect(find.byTooltip('Exit focus mode'), findsOneWidget);
+    expect(find.byTooltip('Show sidebars'), findsOneWidget);
+
+    // 3. Restore sidebars via sidebar restore button in Editor
+    await tester.tap(find.byTooltip('Show sidebars'));
+    await tester.pumpAndSettle();
+
+    // Both sidebars restored
+    final restoredNavContainers = tester.widgetList<AnimatedContainer>(
+      find.byType(AnimatedContainer),
+    );
+    expect(restoredNavContainers.first.constraints?.maxWidth, 280.0);
 
     await finishTest(tester);
   });
