@@ -1,4 +1,4 @@
-package com.blackpirateapps.quitepaper
+package com.blackpiratex.quietpaper
 
 import io.flutter.embedding.android.FlutterActivity
 
