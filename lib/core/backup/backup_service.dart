@@ -16,7 +16,7 @@ class BackupService {
     required this.cryptoService,
     required this.sharedPreferences,
     FlutterSecureStorage? secureStorage,
-    this.appVersion = '1.2.0',
+    this.appVersion = '1.3.1',
   }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   final AppDatabase database;
@@ -169,35 +169,16 @@ class BackupService {
     );
   }
 
-  /// Writes a `.qpbackup` file into the target directory (optionally encrypted)
-  Future<File> createBackupFile({
-    required String directoryPath,
-    String? customFileName,
+  /// Generates the serialized String content (either formatted JSON or Argon2id encrypted envelope JSON)
+  Future<String> generateBackupString({
     String? password,
     bool includeTrash = true,
     bool includeArchived = true,
-    bool isAutoBackup = false,
   }) async {
     final payload = await generateBackupPayload(
       includeTrash: includeTrash,
       includeArchived: includeArchived,
     );
-
-    final now = DateTime.now();
-    final dateStr = DateFormat('yyyy-MM-dd_HHmmss').format(now);
-    final prefix = isAutoBackup ? 'quietpaper_autobackup' : 'quietpaper_backup';
-    final fileName = customFileName != null && customFileName.isNotEmpty
-        ? (customFileName.endsWith('.qpbackup')
-            ? customFileName
-            : '$customFileName.qpbackup')
-        : '${prefix}_$dateStr.qpbackup';
-
-    final targetDir = Directory(directoryPath);
-    if (!await targetDir.exists()) {
-      await targetDir.create(recursive: true);
-    }
-
-    final targetFile = File('${targetDir.path}/$fileName');
 
     if (password != null && password.trim().isNotEmpty) {
       // Encrypted backup with Argon2id + XChaCha20-Poly1305
@@ -242,13 +223,58 @@ class BackupService {
         manifestSummary: encryptedManifest,
       );
 
-      await targetFile.writeAsString(jsonEncode(envelope.toJson()), flush: true);
+      return jsonEncode(envelope.toJson());
     } else {
       // Unencrypted backup
-      final jsonString = const JsonEncoder.withIndent('  ').convert(payload.toJson());
-      await targetFile.writeAsString(jsonString, flush: true);
+      return const JsonEncoder.withIndent('  ').convert(payload.toJson());
+    }
+  }
+
+  /// Generates raw UTF-8 bytes of the backup content for SAF / file picker saving
+  Future<Uint8List> generateBackupBytes({
+    String? password,
+    bool includeTrash = true,
+    bool includeArchived = true,
+  }) async {
+    final str = await generateBackupString(
+      password: password,
+      includeTrash: includeTrash,
+      includeArchived: includeArchived,
+    );
+    return Uint8List.fromList(utf8.encode(str));
+  }
+
+  /// Writes a `.qpbackup` file into the target directory (optionally encrypted)
+  Future<File> createBackupFile({
+    required String directoryPath,
+    String? customFileName,
+    String? password,
+    bool includeTrash = true,
+    bool includeArchived = true,
+    bool isAutoBackup = false,
+  }) async {
+    final now = DateTime.now();
+    final dateStr = DateFormat('yyyy-MM-dd_HHmmss').format(now);
+    final prefix = isAutoBackup ? 'quietpaper_autobackup' : 'quietpaper_backup';
+    final fileName = customFileName != null && customFileName.isNotEmpty
+        ? (customFileName.endsWith('.qpbackup')
+            ? customFileName
+            : '$customFileName.qpbackup')
+        : '${prefix}_$dateStr.qpbackup';
+
+    final targetDir = Directory(directoryPath);
+    if (!await targetDir.exists()) {
+      await targetDir.create(recursive: true);
     }
 
+    final targetFile = File('${targetDir.path}/$fileName');
+    final content = await generateBackupString(
+      password: password,
+      includeTrash: includeTrash,
+      includeArchived: includeArchived,
+    );
+
+    await targetFile.writeAsString(content, flush: true);
     return targetFile;
   }
 

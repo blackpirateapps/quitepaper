@@ -376,6 +376,20 @@ Prior to this fix, users found themselves logged out whenever the app was update
 
 ---
 
+## 16. Scoped Storage-Safe Local Backup File Creation
+
+### Problem & Root Cause
+On Android 10+ (and especially Android 11+ / API 30+ Scoped Storage), calling `FilePicker.platform.getDirectoryPath()` and then attempting to create a new file directly via POSIX `File('/storage/emulated/0/...').writeAsString()` threw `PathAccessException: Cannot open file ... (OS Error: Operation not permitted, errno = 1)` because direct filesystem write access outside app-private directories is restricted by modern Android Scoped Storage policies.
+
+### Solution
+- **Native Storage Access Framework (SAF) File Saving**:
+  - `BackupService.generateBackupBytes()` now renders the full unencrypted or Argon2id-encrypted `.qpbackup` binary in memory.
+  - `CreateBackupDialog` invokes `FilePicker.platform.saveFile(...)` passing the pre-rendered payload bytes, default filename (`quietpaper_backup_YYYY-MM-DD_HHMMSS.qpbackup`), and extension filter (`qpbackup`).
+  - On Android, `FilePicker` utilizes Android's native `ACTION_CREATE_DOCUMENT` Storage Access Framework, allowing the user to select any storage location (Downloads, Documents, External SD, Google Drive) while the system ContentResolver streams bytes directly with zero permission errors.
+  - On Desktop/iOS platforms, `saveFile` writes the file natively or returns the verified destination path.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -387,6 +401,8 @@ Prior to this fix, users found themselves logged out whenever the app was update
 - [x] GitHub Releases update engine automatically detects architecture-specific APKs, handles 30-day snooze, and triggers in-app package installation.
 - [x] Local backup engine creates and restores `.qpbackup` snapshots with optional Argon2id encryption, conflict strategies, and daily rolling auto-backups with retention pruning.
 - [x] User auth sessions and unlocked master keys are securely persisted in Android Keystore / iOS Keychain across app updates and process restarts.
+- [x] Local backup file creation utilizes Android Storage Access Framework (SAF) to write `.qpbackup` files safely on modern Android Scoped Storage without permission exceptions.
+
 
 
 

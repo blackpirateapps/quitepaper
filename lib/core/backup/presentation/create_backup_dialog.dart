@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -99,40 +101,54 @@ class _CreateBackupDialogState extends ConsumerState<CreateBackupDialog> {
       }
     }
 
-    // Pick target folder
-    String? targetFolder;
-    try {
-      targetFolder = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Select Backup Destination Folder',
-      );
-    } catch (e) {
-      setState(() {
-        _errorText = 'Unable to open folder picker: $e';
-      });
-      return;
-    }
-
-    if (targetFolder == null) {
-      return;
-    }
-
     setState(() {
       _isCreating = true;
     });
 
     try {
       final service = ref.read(backupServiceProvider);
-      final file = await service.createBackupFile(
-        directoryPath: targetFolder,
+      final backupBytes = await service.generateBackupBytes(
         password: _isEncrypted ? _passwordController.text : null,
       );
 
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd_HHmmss').format(now);
+      final defaultFileName = 'quietpaper_backup_$dateStr.qpbackup';
+
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Quiet Paper Backup',
+        fileName: defaultFileName,
+        type: FileType.custom,
+        allowedExtensions: ['qpbackup'],
+        bytes: backupBytes,
+      );
+
+      if (savedPath == null) {
+        // User cancelled file picker
+        if (mounted) {
+          setState(() {
+            _isCreating = false;
+          });
+        }
+        return;
+      }
+
+      // On platforms where saveFile returns path without auto-writing bytes
+      if (savedPath.isNotEmpty) {
+        final f = File(savedPath);
+        if (!await f.exists() || (await f.length()) == 0) {
+          try {
+            await f.writeAsBytes(backupBytes, flush: true);
+          } catch (_) {}
+        }
+      }
+
       if (mounted) {
         Navigator.of(context).pop();
-        final fileName = file.uri.pathSegments.last;
+        final fileName = savedPath.split(RegExp(r'[/\\]')).last;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Backup created: $fileName'),
+            content: Text('Backup saved: $fileName'),
             duration: const Duration(seconds: 4),
           ),
         );
