@@ -6,20 +6,36 @@ let initialized = false;
 
 export function initFirebaseAdmin(): admin.app.App {
   if (!initialized && admin.apps.length === 0) {
-    if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-        }),
-      });
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+
+    if (privateKey && clientEmail) {
+      privateKey = privateKey.trim();
+      if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+          (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
+        privateKey = privateKey.slice(1, -1);
+      }
+      privateKey = privateKey.replace(/\\n/g, '\n');
+
+      try {
+        admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: projectId || undefined,
+            clientEmail: clientEmail.trim(),
+            privateKey,
+          }),
+        });
+      } catch (e: any) {
+        console.error('Failed to initialize Firebase Admin cert:', e?.message);
+        throw e;
+      }
     } else if (process.env.FIREBASE_CONFIG || process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       admin.initializeApp();
     } else {
       // Default placeholder app for development/mocking
       admin.initializeApp({
-        projectId: process.env.FIREBASE_PROJECT_ID || 'quietpaper-demo',
+        projectId: projectId || 'quietpaper-demo',
       });
     }
     initialized = true;

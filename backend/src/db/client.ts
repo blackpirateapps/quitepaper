@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 let globalClient: Client | null = null;
+let schemaInitialized = false;
 
 export function getDbClient(overrideUrl?: string, overrideAuthToken?: string): Client {
   if (overrideUrl) {
@@ -22,6 +23,19 @@ export function getDbClient(overrideUrl?: string, overrideAuthToken?: string): C
   }
 
   return globalClient;
+}
+
+export async function ensureDbInitialized(db: Client): Promise<void> {
+  if (schemaInitialized) return;
+  try {
+    const { runMigrations } = await import('./migrate.js');
+    await runMigrations(db);
+    schemaInitialized = true;
+  } catch (err) {
+    console.error('Failed to run schema migrations automatically:', err);
+    // Don't crash if migrations already applied
+    schemaInitialized = true;
+  }
 }
 
 export function resetGlobalClient(): void {

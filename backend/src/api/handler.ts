@@ -1,4 +1,4 @@
-import { getDbClient } from '../db/client.js';
+import { getDbClient, ensureDbInitialized } from '../db/client.js';
 import { requireFirebaseAuth } from '../auth/middleware.js';
 import { getEncryptionKey, putEncryptionKey } from '../keys/keyService.js';
 import { pushSyncChanges, pullSyncChanges, getLatestCursor } from '../sync/syncService.js';
@@ -49,6 +49,9 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         },
       };
     }
+
+    // Auto-run schema migrations on database if not already initialized
+    await ensureDbInitialized(db);
 
     // Protected endpoints require Firebase Auth token
     const authContext = await requireFirebaseAuth(authHeader, db);
@@ -134,13 +137,16 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    console.error('[API 500 UNHANDLED ERROR]', method, pathname, err);
+
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
       body: {
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An internal server error occurred.',
+          message: err?.message || 'An internal server error occurred.',
+          details: err?.stack || err?.toString(),
         },
       },
     };
