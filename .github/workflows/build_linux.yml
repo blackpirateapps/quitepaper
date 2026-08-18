@@ -1,0 +1,63 @@
+name: Build Linux App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Test and Build Linux Release Bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate database code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze project
+        run: flutter analyze
+
+      - name: Run unit and widget tests
+        run: flutter test
+
+      - name: Build Linux Release Bundle
+        run: flutter build linux --release
+
+      - name: Create release tarball
+        run: |
+          tar -czvf quiet-paper-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux Release Tarball Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiet-paper-linux-x64
+          path: quiet-paper-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Linux Release Bundle Directory Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiet-paper-linux-bundle
+          path: build/linux/x64/release/bundle/
+          if-no-files-found: error
+          retention-days: 30

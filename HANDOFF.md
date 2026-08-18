@@ -202,7 +202,8 @@ Navigation is modeled by `AppDestination`:
 
 ### GitHub Actions Workflows
 - **Test & Analyze Workflow** ([`.github/workflows/test.yml`](file:///home/dog/git/quitepaper/.github/workflows/test.yml)): Runs on every push and pull request to `main`/`master`. Executes dependency installation, code generation, `flutter analyze`, and `flutter test --coverage`.
-- **Release APK Workflow** ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml)): Builds release and debug APK artifacts.
+- **Release APK Workflow** ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml)): Builds release and debug APK artifacts for Android.
+- **Build Linux App Workflow** ([`.github/workflows/build_linux.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_linux.yml)): Installs native Linux build toolchain (`clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libsqlite3-dev`), runs tests/analysis, builds the standalone 64-bit Linux release bundle, and uploads both tarball (`quiet-paper-linux-x64.tar.gz`) and directory artifacts.
 
 ---
 
@@ -223,7 +224,12 @@ flutter analyze
 flutter test
 ```
 
-### Run on Device / Emulator
+### Build Linux Application
+```bash
+flutter build linux --release
+```
+
+### Run on Device / Emulator / Desktop
 ```bash
 flutter run
 ```
