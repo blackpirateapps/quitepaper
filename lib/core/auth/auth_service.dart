@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 @immutable
@@ -50,6 +51,7 @@ abstract class AuthService {
   Stream<AuthUser?> get authStateChanges;
   String get apiKey;
   void setApiKey(String key);
+  Future<void> initialize();
   Future<void> fetchConfigFromBackend([String? backendUrl]);
 
   Future<AuthUser> signInWithEmailAndPassword(String email, String password);
@@ -60,17 +62,25 @@ abstract class AuthService {
   Future<String?> getIdToken({bool forceRefresh = false});
 }
 
-/// Universal Firebase Auth client using official Firebase REST Auth API (cross-platform, zero native crash risk)
+/// Universal Firebase Auth client using official Firebase REST Auth API with persistent secure storage
 class FirebaseAuthService implements AuthService {
   FirebaseAuthService({
     String? apiKey,
     http.Client? httpClient,
+    FlutterSecureStorage? secureStorage,
   })  : _apiKey = apiKey ??
             const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: ''),
-        _client = httpClient ?? http.Client();
+        _client = httpClient ?? http.Client(),
+        _storage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            );
 
   String _apiKey;
   final http.Client _client;
+  final FlutterSecureStorage _storage;
+
+  static const String _storageKeyAuthSession = 'quietpaper_auth_session_v1';
 
   @override
   String get apiKey => _apiKey;
@@ -78,6 +88,44 @@ class FirebaseAuthService implements AuthService {
   @override
   void setApiKey(String key) {
     _apiKey = key.trim();
+  }
+
+  @override
+  Future<void> initialize() async {
+    try {
+      final storedJson = await _storage.read(key: _storageKeyAuthSession);
+      if (storedJson != null && storedJson.isNotEmpty) {
+        final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
+        _currentUser = AuthUser.fromJson(decoded);
+        _authStateController.add(_currentUser);
+      }
+    } catch (_) {
+      _currentUser = null;
+    }
+
+    if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+
+    // Refresh token if needed upon launch
+    if (_currentUser != null) {
+      try {
+        await getIdToken();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _saveUserSession(AuthUser? user) async {
+    try {
+      if (user != null) {
+        await _storage.write(
+          key: _storageKeyAuthSession,
+          value: jsonEncode(user.toJson()),
+        );
+      } else {
+        await _storage.delete(key: _storageKeyAuthSession);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -145,6 +193,7 @@ class FirebaseAuthService implements AuthService {
     );
 
     _currentUser = user;
+    await _saveUserSession(user);
     _authStateController.add(user);
     return user;
   }
@@ -182,6 +231,7 @@ class FirebaseAuthService implements AuthService {
     );
 
     _currentUser = user;
+    await _saveUserSession(user);
     _authStateController.add(user);
     return user;
   }
@@ -189,6 +239,7 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> signOut() async {
     _currentUser = null;
+    await _saveUserSession(null);
     _authStateController.add(null);
   }
 
@@ -266,6 +317,7 @@ class FirebaseAuthService implements AuthService {
           refreshToken: data['refresh_token'] as String? ?? _currentUser!.refreshToken,
           tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
         );
+        await _saveUserSession(_currentUser);
         _authStateController.add(_currentUser);
         return _currentUser!.idToken;
       }
@@ -288,6 +340,9 @@ class MockAuthService implements AuthService {
   void setApiKey(String key) {
     _mockApiKey = key;
   }
+
+  @override
+  Future<void> initialize() async {}
 
   @override
   Future<void> fetchConfigFromBackend([String? backendUrl]) async {}

@@ -356,6 +356,26 @@ Quiet Paper includes a complete, high-fidelity local backup system with optional
 
 ---
 
+## 15. Auth Session & Cryptographic Key Persistence Across App Restarts & Updates
+
+### Problem & Root Cause
+Prior to this fix, users found themselves logged out whenever the app was updated or closed from recents:
+1. **In-Memory Firebase Auth State**: `FirebaseAuthService` stored `_currentUser` only as an in-memory field. Process termination (such as during APK updates or OS process reclaim) wiped the session, resetting `currentUser` to `null`.
+2. **Missing Token Refresh on Launch**: The app did not restore credentials or exchange the stored `refreshToken` for a valid `idToken` upon startup.
+3. **Master Key Volatility**: `SecureKeyManager` maintained the decrypted `_cachedMasterKey` exclusively in RAM, requiring repeated encryption password entries to re-unlock notes after restarts.
+
+### Solution
+- **Persistent Auth Session in FlutterSecureStorage**:
+  - `FirebaseAuthService` automatically persists and serializes `AuthUser` (User ID, Email, `idToken`, `refreshToken`, `tokenExpiresAt`) to platform-encrypted secure storage (`quietpaper_auth_session_v1`).
+  - `FirebaseAuthService.initialize()` is called at application boot in `main.dart`, restoring the active session and refreshing tokens via Firebase SecureToken API if expired.
+  - Calling `signOut()` cleanly wipes the persisted session.
+- **Persistent Hardware-Backed Master Key Storage**:
+  - `SecureKeyManager` persists the unwrapped Master Key in `FlutterSecureStorage` (`quietpaper_master_key_v1`) using Android Keystore / iOS Keychain encryption upon initial password setup or unlock.
+  - `SecureKeyManager.initialize()` restores the unlocked state on app startup, ensuring uninterrupted zero-knowledge encryption sync across app updates and launches.
+  - Calling `clearLocalKeys()` or explicit logout purges the stored master key and wrapped key data.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -366,6 +386,8 @@ Quiet Paper includes a complete, high-fidelity local backup system with optional
 - [x] Deletion tombstones with empty ciphertexts sync cleanly without schema validation errors.
 - [x] GitHub Releases update engine automatically detects architecture-specific APKs, handles 30-day snooze, and triggers in-app package installation.
 - [x] Local backup engine creates and restores `.qpbackup` snapshots with optional Argon2id encryption, conflict strategies, and daily rolling auto-backups with retention pruning.
+- [x] User auth sessions and unlocked master keys are securely persisted in Android Keystore / iOS Keychain across app updates and process restarts.
+
 
 
 

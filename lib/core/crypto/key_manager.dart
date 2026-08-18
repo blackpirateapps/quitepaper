@@ -70,6 +70,7 @@ class SecureKeyManager implements KeyManager {
   final FlutterSecureStorage _storage;
 
   static const String _storageKeyWrappedData = 'quietpaper_wrapped_master_key_v1';
+  static const String _storageKeyMasterKey = 'quietpaper_master_key_v1';
 
   Uint8List? _cachedMasterKey;
   WrappedMasterKeyData? _cachedWrappedData;
@@ -99,9 +100,14 @@ class SecureKeyManager implements KeyManager {
         final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
         _cachedWrappedData = WrappedMasterKeyData.fromJson(decoded);
       }
+      final storedMasterKey = await _storage.read(key: _storageKeyMasterKey);
+      if (storedMasterKey != null && storedMasterKey.isNotEmpty) {
+        _cachedMasterKey = Uint8List.fromList(base64Decode(storedMasterKey));
+      }
     } catch (_) {
       // Storage unavailable or corrupted; clean slate
       _cachedWrappedData = null;
+      _cachedMasterKey = null;
     }
   }
 
@@ -167,6 +173,12 @@ class SecureKeyManager implements KeyManager {
     );
 
     _cachedMasterKey = masterKey;
+    try {
+      await _storage.write(
+        key: _storageKeyMasterKey,
+        value: base64Encode(masterKey),
+      );
+    } catch (_) {}
     await storeWrappedKeyData(data);
     return data;
   }
@@ -195,6 +207,12 @@ class SecureKeyManager implements KeyManager {
     );
 
     _cachedMasterKey = masterKey;
+    try {
+      await _storage.write(
+        key: _storageKeyMasterKey,
+        value: base64Encode(masterKey),
+      );
+    } catch (_) {}
     await storeWrappedKeyData(data);
   }
 
@@ -225,6 +243,12 @@ class SecureKeyManager implements KeyManager {
     );
 
     _cachedMasterKey = masterKey;
+    try {
+      await _storage.write(
+        key: _storageKeyMasterKey,
+        value: base64Encode(masterKey),
+      );
+    } catch (_) {}
     await storeWrappedKeyData(data);
   }
 
@@ -291,6 +315,12 @@ class SecureKeyManager implements KeyManager {
     );
 
     await storeWrappedKeyData(updatedData);
+    try {
+      await _storage.write(
+        key: _storageKeyMasterKey,
+        value: base64Encode(masterKey),
+      );
+    } catch (_) {}
     return updatedData;
   }
 
@@ -309,6 +339,7 @@ class SecureKeyManager implements KeyManager {
     _cachedWrappedData = null;
     try {
       await _storage.delete(key: _storageKeyWrappedData);
+      await _storage.delete(key: _storageKeyMasterKey);
     } catch (_) {}
   }
 

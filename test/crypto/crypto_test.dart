@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/auth/auth_service.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 
@@ -340,6 +341,93 @@ void main() {
       );
       expect(keyManager.isUnlocked, true);
       expect(keyManager.getMasterKey(), equals(originalMasterKey));
+    });
+
+    test('SecureKeyManager restores unlocked master key on new instance initialize()', () async {
+      const storage = FlutterSecureStorage();
+      final crypto = DefaultCryptoService();
+      const password = 'persistent-password-123';
+      const kdf = KdfParameters(memory: 1024, iterations: 1, parallelism: 1);
+
+      final originalData = await keyManager.setupNewKeys(
+        password: password,
+        kdfParameters: kdf,
+      );
+      final masterKey = Uint8List.fromList(keyManager.getMasterKey());
+
+      // Simulate app restart / update: new KeyManager instance attached to same storage
+      final restartedKeyManager = SecureKeyManager(
+        cryptoService: crypto,
+        secureStorage: storage,
+      );
+      expect(restartedKeyManager.isUnlocked, false);
+
+      await restartedKeyManager.initialize();
+      expect(restartedKeyManager.isUnlocked, true);
+      expect(restartedKeyManager.hasKeyData, true);
+      expect(restartedKeyManager.getMasterKey(), equals(masterKey));
+
+      final storedWrapped = await restartedKeyManager.getStoredWrappedKeyData();
+      expect(storedWrapped?.kdfSalt, equals(originalData.kdfSalt));
+
+      // Clear keys wipes secure storage
+      await restartedKeyManager.clearLocalKeys();
+      expect(restartedKeyManager.isUnlocked, false);
+
+      final freshKeyManager = SecureKeyManager(
+        cryptoService: crypto,
+        secureStorage: storage,
+      );
+      await freshKeyManager.initialize();
+      expect(freshKeyManager.isUnlocked, false);
+      expect(freshKeyManager.hasKeyData, false);
+    });
+
+    test('FirebaseAuthService restores user session on initialize() across restarts', () async {
+      const storage = FlutterSecureStorage();
+      final authService = FirebaseAuthService(
+        apiKey: 'test-api-key',
+        secureStorage: storage,
+      );
+
+      // Verify empty initial state
+      await authService.initialize();
+      expect(authService.currentUser, isNull);
+
+      // Write mock session to secure storage
+      const user = AuthUser(
+        id: 'firebase-user-123',
+        email: 'user@example.com',
+        idToken: 'jwt-id-token-abc',
+        refreshToken: 'refresh-token-xyz',
+      );
+      await storage.write(
+        key: 'quietpaper_auth_session_v1',
+        value: jsonEncode(user.toJson()),
+      );
+
+      // Simulate app update / restart: initialize restores user session
+      final restartedAuthService = FirebaseAuthService(
+        apiKey: 'test-api-key',
+        secureStorage: storage,
+      );
+      await restartedAuthService.initialize();
+
+      expect(restartedAuthService.currentUser, isNotNull);
+      expect(restartedAuthService.currentUser!.id, 'firebase-user-123');
+      expect(restartedAuthService.currentUser!.email, 'user@example.com');
+      expect(restartedAuthService.currentUser!.idToken, 'jwt-id-token-abc');
+
+      // Sign out clears secure storage
+      await restartedAuthService.signOut();
+      expect(restartedAuthService.currentUser, isNull);
+
+      final thirdAuthService = FirebaseAuthService(
+        apiKey: 'test-api-key',
+        secureStorage: storage,
+      );
+      await thirdAuthService.initialize();
+      expect(thirdAuthService.currentUser, isNull);
     });
   });
 }

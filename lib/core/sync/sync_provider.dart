@@ -8,7 +8,9 @@ import 'sync_engine.dart';
 import 'sync_models.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
-  return FirebaseAuthService();
+  final service = FirebaseAuthService();
+  service.initialize();
+  return service;
 });
 
 final authStateProvider = StreamProvider<AuthUser?>((ref) {
