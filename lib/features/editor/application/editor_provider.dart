@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/tag_parser.dart';
@@ -5,6 +6,22 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
 import 'editor_state.dart';
+
+@immutable
+class EditorParams {
+  const EditorParams(this.note);
+  final Note note;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EditorParams &&
+          runtimeType == other.runtimeType &&
+          note.id == other.note.id;
+
+  @override
+  int get hashCode => note.id.hashCode;
+}
 
 class EditorNotifier extends StateNotifier<EditorState> {
   EditorNotifier({
@@ -218,9 +235,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
 }
 
 final editorProviderFamily =
-    StateNotifierProvider.family.autoDispose<EditorNotifier, EditorState, Note>(
-  (ref, note) {
+    StateNotifierProvider.family.autoDispose<EditorNotifier, EditorState, EditorParams>(
+  (ref, params) {
     final repository = ref.watch(notesRepositoryProvider);
-    return EditorNotifier(initialNote: note, repository: repository);
+    return EditorNotifier(initialNote: params.note, repository: repository);
   },
 );

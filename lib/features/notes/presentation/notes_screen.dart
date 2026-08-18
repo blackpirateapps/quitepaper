@@ -435,6 +435,17 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               ),
                             ),
                           ),
+                          QuietIconButton(
+                            icon: Icons.search_rounded,
+                            tooltip: 'Search notes',
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SearchScreen(),
+                                ),
+                              );
+                            },
+                          ),
                           if (destination == AppDestination.trash) ...[
                             QuietIconButton(
                               icon: Icons.delete_sweep_outlined,
@@ -514,11 +525,33 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       ),
                     )
                   : Center(
-                      child: Text(
-                        'Select or create a note',
-                        style: AppTypography.body.copyWith(
-                          color: colors.textTertiary,
-                          fontSize: 16,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.edit_note_rounded,
+                              size: 48,
+                              color: colors.textTertiary.withValues(alpha: 0.35),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'No note selected',
+                              style: AppTypography.title.copyWith(
+                                color: colors.textSecondary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'Select a note to view or create a new one.',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: colors.textTertiary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

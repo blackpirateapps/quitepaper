@@ -1,6 +1,6 @@
 # Quiet Paper — Engineering Handoff Document
 
-Welcome to **Quiet Paper**! This document provides an architectural overview, codebase walkthrough, design philosophy reference, and practical guidelines for future engineers and AI agents working on this project.
+Welcome to **Quiet Paper**! This document provides an architectural overview, codebase walkthrough, design philosophy reference, bugfix history, and practical guidelines for future engineers and AI agents working on this project.
 
 ---
 
@@ -12,7 +12,7 @@ Quiet Paper is an offline-first Android notes application inspired by the calm, 
 - **Content First**: The note content is canonical. The interface gets out of the user's way while writing.
 - **Warm Editorial Aesthetic**: Soft paper tones (`#F7F6F2` Light / `#1D1C1A` Dark), deliberate typography, minimal elevation, zero noisy Material cards or busy toolbars.
 - **Offline-First**: Local persistence with SQLite via Drift. Fast, resilient, and private.
-- **Exceptional Writing Flow**: 
+- **Exceptional Core Writing Loop**: 
   - Restrained app bar (`←` ... `⋯`).
   - Document-style borderless title (30sp) & spacious body (18sp, 1.6 line height).
   - Tapping anywhere in the editor sheet automatically focuses the body and brings up the software keyboard.
@@ -47,12 +47,13 @@ lib/
 │   │   ├── connection/
 │   │   │   └── connection.dart             # Native & In-Memory SQLite connection factories
 │   │   └── tables/
-│   │       ├── notes_table.dart            # Notes table schema (with isArchived, isTrashed, deletedAt)
+│   │       ├── notes_table.dart            # Notes table schema (with performance indexes)
 │   │       ├── tags_table.dart             # Tags table schema
 │   │       └── note_tags_table.dart        # Note-Tag many-to-many junction schema
 │   ├── markdown/
+│   │   ├── markdown_chunker.dart           # Linear O(N) markdown document chunker for lazy rendering
 │   │   ├── markdown_helper.dart            # Text manipulation utilities (heading cycling, wrap, links)
-│   │   └── markdown_preview.dart           # Custom-styled Markdown viewer
+│   │   └── markdown_preview.dart           # Virtualized lazy-chunked Markdown viewer
 │   ├── utils/
 │   │   ├── date_formatter.dart             # Relative time & Date grouping ("Today", "Yesterday", etc.)
 │   │   ├── tag_parser.dart                 # Hashtag extraction, normalization, and validation
@@ -84,7 +85,7 @@ lib/
 │   │   └── presentation/
 │   │       ├── notes_screen.dart           # Phone drawer & 3-pane tablet split view, multi-select, swipe actions
 │   │       └── widgets/
-│   │           ├── note_list_tile.dart     # Editorial note tile with preview, tags, context actions
+│   │           ├── note_list_tile.dart     # Editorial note tile with preview, search highlight, tags, context actions
 │   │           ├── note_date_header.dart   # Date section headers
 │   │           ├── note_empty_state.dart   # Calm typography empty states per destination
 │   │           └── tags_filter_bar.dart    # Horizontal tag filter bar with note counts
@@ -92,9 +93,9 @@ lib/
 │   ├── editor/
 │   │   ├── application/
 │   │   │   ├── editor_state.dart           # Editor state (dirty, saving, preview mode)
-│   │   │   └── editor_provider.dart        # EditorNotifier with debounced autosave, lifecycle & exit cleanup
+│   │   │   └── editor_provider.dart        # EditorNotifier with debounced autosave, EditorParams, lifecycle & exit cleanup
 │   │   └── presentation/
-│   │       ├── editor_screen.dart          # Digital sheet editor (click anywhere to focus body)
+│   │       ├── editor_screen.dart          # Digital sheet editor (click anywhere to focus body, seamless preview switch)
 │   │       └── widgets/
 │   │           ├── formatting_toolbar.dart # Bottom markdown formatting bar (B, I, S, H, lists, etc.)
 │   │           ├── tag_editor_bar.dart     # Inline tag chips with add/remove
@@ -102,7 +103,7 @@ lib/
 │   │
 │   ├── search/
 │   │   └── presentation/
-│   │       └── search_screen.dart          # Fast search across titles, contents, and tags
+│   │       └── search_screen.dart          # Fast debounced search across titles, contents, and tags with match highlighting
 │   │
 │   └── settings/
 │       ├── application/
@@ -113,6 +114,11 @@ lib/
 └── test/
     ├── database/
     │   └── app_database_test.dart          # Unit tests for database CRUD, search, tags, migrations, invariants
+    ├── features/
+    │   └── notes_browsing_search_test.dart # Integration journeys for core writing loop, search, tags, trash persistence
+    ├── markdown/
+    │   ├── markdown_chunker_test.dart      # Unit tests for markdown chunker
+    │   └── markdown_preview_test.dart      # Widget tests for virtualized lazy markdown preview
     ├── utils/
     │   └── date_formatter_test.dart        # Date formatting and grouping unit tests
     └── widget_test.dart                    # Full flow, sidebar, drawer, archive, trash, tablet split-view tests
@@ -165,48 +171,34 @@ Navigation is modeled by `AppDestination`:
 
 ## 5. Editor Features & Usability Enhancements
 
+### Seamless Edit / Markdown Preview Mode Switching
+- **Fix for Preview Mode Switching**: In earlier builds, editing text in the editor caused `saveNote()` to update `updatedAt`, which altered the equality of the family parameter `Note`, causing Riverpod's `StateNotifierProvider.family` to recreate the `EditorNotifier` with `isPreviewMode = false`. This bug was resolved by wrapping family parameter access in `@immutable class EditorParams(this.note)` whose `operator ==` and `hashCode` rely strictly on `note.id`.
+- **Instant Preview of Unsaved Edits**: When switching to preview mode, the preview renderer directly ingests the active `_contentController.text` and `_titleController.text`, rendering the live markdown immediately without waiting for debounce timers.
+
 ### Dynamic Auto-Titling in Editor & Lists
 - **Live Editor Auto-Fill**: As the user types into the note body textarea without typing in the title field, the Title text field in the editor is automatically filled with the first line of content in real-time.
 - **Smart Truncation**: If the first line is long (more than 6 words or 40 characters), it is truncated cleanly with `...` (e.g. `This is an exceptionally long first...`).
 - **User Customization Priority**: If the user clicks into the Title field and explicitly enters a custom title, manual user input takes full priority. If the title is cleared, automatic first-line derivation resumes.
 - **List Card Preview Snippet**: Note list cards display the auto-derived title and start the snippet preview from subsequent content lines to avoid repeating the title.
 
-### Safe Navigation & Tablet Close Handling
-- **Route-Aware Leading Action**: On mobile/pushed routes, `EditorScreen` displays `←` to pop back to the list. On tablet split-view (where `EditorScreen` is embedded), it provides a clean close button (`✕`) that deselects the note into the placeholder state rather than popping the root app route and causing a black screen.
-
-### Tap Anywhere to Focus
-- Tapping anywhere in the editor sheet (including empty canvas and bottom typing space) automatically focuses the body text field and summons the software keyboard.
-- In tablet layout, creating a new note immediately auto-focuses the editor.
-
-### Quiet Tooltips & Non-Persistent Feedback
-- `TooltipThemeData` configured with explicit `waitDuration: 500ms`, `showDuration: 1500ms`, and `triggerMode: TooltipTriggerMode.longPress`.
-- Floating SnackBars dismiss cleanly after 3 seconds with immediate `hideCurrentSnackBar()` before displaying subsequent actions.
+### Search with Debouncing & Highlight Matching
+- **150ms Debounced Queries**: Typing in the search field is debounced by 150ms to prevent database churn while remaining snappy.
+- **Subtle Match Highlighting**: Matching keywords in both note titles and body snippets are subtly highlighted with `AppColors.accent` and semibold typography.
+- **Quick Capture from Search**: Dedicated `+` action in the search bar enables creating a note immediately without leaving the search screen.
 
 ### High-Performance Large Text Handling & Markdown Preview
 - **Constant-Time Bounded Preview Extraction**: `Note.displayTitle` and `Note.previewSnippet` process bounded character samples (300/600 characters max) rather than scanning multi-megabyte texts, ensuring $O(1)$ instant note list rendering with zero jank even for single-line paragraphs.
 - **Asynchronous Tag Extraction**: Content changes update text immediately; tag extraction and normalization run asynchronously during the 700ms debounced save cycle, preserving 60/120 FPS typing performance.
 - **Linear Tag Parsing**: `TagParser` uses a linear line-by-line scanner to strip code blocks, eliminating catastrophic regex backtracking on long code fences.
-- **Non-Scrollable MarkdownBody**: `QuietMarkdownPreview` utilizes `MarkdownBody` with built-in text selection inside `SingleChildScrollView`, preventing nested scrollable layout exceptions and crashes on long documents.
-- **Clean Single Exit Cleanup**: Navigating back via app bar arrow pops the route cleanly while letting `PopScope` flush pending autosaves without duplicate race conditions.
+- **Lazy Virtualized Chunk Rendering**: `MarkdownChunker` splits long documents into semantic chunks (preserving code fences, tables, blockquotes, and lists). `QuietMarkdownPreview` utilizes `ListView.builder` to transform and render only the visible chunks in the viewport just-in-time, keeping memory $O(1)$ bounded and scrolling buttery smooth at 60/120 FPS even for 100,000+ line documents.
 
 ---
 
-## 6. CI/CD & Android Keystore Signing
+## 6. CI/CD & Automated Testing
 
-The repository includes a complete GitHub Actions workflow at [`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml) that builds release APKs automatically.
-
-### Configuring Custom Keystore Signing
-
-To sign release builds with your own Android keystore in GitHub Actions, add the following **Repository Secrets** (**Settings → Secrets and variables → Actions → New repository secret**):
-
-| Secret Name | Description | Value / Generation |
-| :--- | :--- | :--- |
-| `KEYSTORE_BASE64` | Base64-encoded string of your `.jks` or `.keystore` file | Generate with `base64 -w 0 upload-keystore.jks` |
-| `KEYSTORE_PASSWORD` | Password for the keystore file | Password entered when creating the keystore |
-| `KEY_ALIAS` | Key alias name inside the keystore | e.g. `upload` or `key0` |
-| `KEY_PASSWORD` | Password for the key alias | Password entered for the key alias |
-
-> **Graceful Fallback**: If these secrets are not configured, Gradle automatically falls back to debug signing so CI builds always produce a testable APK artifact.
+### GitHub Actions Workflows
+- **Test & Analyze Workflow** ([`.github/workflows/test.yml`](file:///home/dog/git/quitepaper/.github/workflows/test.yml)): Runs on every push and pull request to `main`/`master`. Executes dependency installation, code generation, `flutter analyze`, and `flutter test --coverage`.
+- **Release APK Workflow** ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml)): Builds release and debug APK artifacts.
 
 ---
 
@@ -222,7 +214,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter analyze
 ```
 
-### Run Full Test Suite (38 unit and widget tests)
+### Run Full Test Suite
 ```bash
 flutter test
 ```

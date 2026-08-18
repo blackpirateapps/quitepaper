@@ -381,6 +381,7 @@ void main() {
 
     // Type query
     await tester.enterText(find.byType(TextField), 'architect');
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     expect(find.text('Architectural Blueprint'), findsOneWidget);
@@ -388,6 +389,7 @@ void main() {
 
     // Search by tag
     await tester.enterText(find.byType(TextField), 'food');
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     expect(find.text('Grocery list'), findsOneWidget);
@@ -732,7 +734,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Note is deselected and placeholder is shown
-    expect(find.text('Select or create a note'), findsOneWidget);
+    expect(find.text('No note selected'), findsOneWidget);
     expect(find.byType(SidebarView), findsOneWidget);
 
     await finishTest(tester);

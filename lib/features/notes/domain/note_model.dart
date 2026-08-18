@@ -55,6 +55,7 @@ class Note {
         .replaceAll(RegExp(r'^>\s*'), '')
         .replaceAll(RegExp(r'^[-*+]\s+'), '')
         .replaceAll(RegExp(r'^\d+\.\s+'), '')
+        .replaceAll(RegExp(r'\[(.*?)\]\(.*?\)'), r'$1')
         .replaceAll(RegExp(r'[*_~`]'), '')
         .trim();
     if (cleanFirstLine.isNotEmpty) {
@@ -98,6 +99,8 @@ class Note {
           .replaceAll(RegExp(r'^>\s*'), '')
           .replaceAll(RegExp(r'^[-*+]\s+'), '')
           .replaceAll(RegExp(r'^\d+\.\s+'), '')
+          .replaceAll(RegExp(r'!\[(.*?)\]\(.*?\)'), r'$1')
+          .replaceAll(RegExp(r'\[(.*?)\]\(.*?\)'), r'$1')
           .replaceAll(RegExp(r'[*_~`#]'), '')
           .trim();
       if (clean.isNotEmpty) {

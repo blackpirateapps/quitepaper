@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/debouncer.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
@@ -21,12 +23,14 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
+  late final Debouncer _debouncer;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: widget.initialQuery);
     _searchFocusNode = FocusNode();
+    _debouncer = Debouncer(duration: const Duration(milliseconds: 150));
 
     if (widget.initialQuery.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -40,11 +44,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _onSearchChanged() {
-    ref.read(searchQueryProvider.notifier).state = _searchController.text;
+    _debouncer.run(() {
+      if (mounted) {
+        ref.read(searchQueryProvider.notifier).state = _searchController.text;
+      }
+    });
   }
 
   @override
   void dispose() {
+    _debouncer.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -62,6 +71,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       appBar: AppBar(
         backgroundColor: colors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: QuietIconButton(
           icon: Icons.arrow_back_rounded,
           tooltip: 'Back',
@@ -74,6 +84,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           controller: _searchController,
           focusNode: _searchFocusNode,
           autofocus: widget.initialQuery.isEmpty,
+          cursorColor: colors.accent,
           style: AppTypography.headline.copyWith(
             color: colors.textPrimary,
             fontSize: 18,
@@ -85,6 +96,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               fontSize: 18,
             ),
             border: InputBorder.none,
+            isDense: true,
           ),
         ),
         actions: [
@@ -94,8 +106,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               tooltip: 'Clear search',
               onPressed: () {
                 _searchController.clear();
+                ref.read(searchQueryProvider.notifier).state = '';
               },
             ),
+          QuietIconButton(
+            icon: Icons.add_rounded,
+            tooltip: 'New note',
+            onPressed: () => _createAndOpenNote(context),
+          ),
+          const SizedBox(width: AppSpacing.xs),
         ],
       ),
       body: SafeArea(
@@ -112,6 +131,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       final note = notes[index];
                       return NoteListTile(
                         note: note,
+                        searchQuery: query,
                         onTap: () => _openNote(context, note),
                         onTogglePin: () {
                           ref
@@ -189,13 +209,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Icon(
             Icons.search_rounded,
             size: 40,
-            color: colors.textTertiary.withValues(alpha: 0.5),
+            color: colors.textTertiary.withValues(alpha: 0.4),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Type to search title, body, or tags',
             style: AppTypography.body.copyWith(
               color: colors.textTertiary,
+              fontSize: 15,
             ),
           ),
         ],
@@ -211,17 +232,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'No matches found',
+              'No notes found',
               style: AppTypography.title.copyWith(
                 color: colors.textPrimary,
                 fontWeight: FontWeight.w600,
+                fontSize: 20,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'No notes match "$query"',
+              'Try another search or create a new note.',
               style: AppTypography.body.copyWith(
                 color: colors.textSecondary,
+                fontSize: 15,
               ),
               textAlign: TextAlign.center,
             ),
@@ -237,5 +260,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         builder: (_) => EditorScreen(note: note),
       ),
     );
+  }
+
+  void _createAndOpenNote(BuildContext context) async {
+    const uuid = Uuid();
+    final now = DateTime.now();
+
+    final newNote = Note(
+      id: uuid.v4(),
+      title: '',
+      content: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await ref.read(notesRepositoryProvider).saveNote(newNote);
+
+    if (context.mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditorScreen(
+            note: newNote,
+            autoFocusBody: true,
+          ),
+        ),
+      );
+    }
   }
 }
