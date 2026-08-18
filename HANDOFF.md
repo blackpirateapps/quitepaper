@@ -310,6 +310,28 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 
 ---
 
+## 13. GitHub Releases Auto-Update Engine
+
+### Overview
+Quiet Paper features a native, background-aware auto-update engine powered directly by GitHub Releases (`https://github.com/blackpirateapps/quitepaper`):
+- **GitHub Releases Integration**: Queries `https://api.github.com/repos/blackpirateapps/quitepaper/releases/latest` for release metadata, semver versions, release notes changelog, and multi-architecture APK assets.
+- **Smart Architecture Matching**: Uses native Android ABI detection (`Build.SUPPORTED_ABIS`) via platform channel to select the matching APK binary (`arm64-v8a`, `armeabi-v7a`, `x86_64`, with fallback to `universal`).
+- **App Launch Prompt**: When the app is launched fresh (after being closed from recents), an asynchronous background check verifies if a newer release exists. If available and not snoozed, the warm editorial `UpdateDialog` appears.
+- **30-Day Snooze Mechanism**:
+  - The update dialog features a "Don't remind me for 30 days" checkbox when dismissing.
+  - Snooze expiry timestamp and snoozed version are persisted in `SharedPreferences` (`update_snoozed_until`, `update_snoozed_version`).
+  - Subsequent app launches within 30 days suppress prompts for that specific version while still permitting prompts if a newer version is subsequently published.
+- **In-App Direct Downloader**:
+  - Downloads the selected APK streamingly to the application's temporary cache directory with real-time percentage and byte progress updates (`LinearProgressIndicator`).
+- **Android Package Installer & Permission Handling**:
+  - Registers `REQUEST_INSTALL_PACKAGES` permission and `androidx.core.content.FileProvider` in `AndroidManifest.xml` (`@xml/file_paths`).
+  - Platform MethodChannel (`com.blackpiratex.quietpaper/updater`) triggers `Intent.ACTION_VIEW` with `application/vnd.android.package-archive` and `FLAG_GRANT_READ_URI_PERMISSION`.
+  - Checks `canRequestPackageInstalls()` on Android 8.0+ and provides one-tap navigation to system settings (`ACTION_MANAGE_UNKNOWN_APP_SOURCES`) if installation permission has not yet been granted.
+- **Settings Screen Integration**:
+  - Displays current version in the About section and provides an on-demand "Check for updates" button that bypasses snooze.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -318,6 +340,8 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - [x] Password rotation verification: Changing encryption passwords requires verifying ownership with current password or recovery key, and backend enforces cryptographic proof (`key_auth_commitment`).
 - [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
 - [x] Deletion tombstones with empty ciphertexts sync cleanly without schema validation errors.
+- [x] GitHub Releases update engine automatically detects architecture-specific APKs, handles 30-day snooze, and triggers in-app package installation.
+
 
 
 

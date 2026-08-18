@@ -10,6 +10,8 @@ import '../../../core/sync/sync_models.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/update/update_dialog.dart';
+import '../../../core/update/update_provider.dart';
 import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../notes/application/notes_provider.dart';
@@ -18,11 +20,71 @@ import '../../sync/presentation/change_encryption_password_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _isCheckingForUpdates = false;
+
+  Future<void> _checkManualUpdate() async {
+    setState(() {
+      _isCheckingForUpdates = true;
+    });
+
+    try {
+      final updateService = ref.read(updateServiceProvider);
+      final result = await updateService.checkForUpdate();
+
+      if (!mounted) return;
+
+      if (result.hasUpdate && result.latestRelease != null) {
+        UpdateDialog.show(
+          context,
+          result.latestRelease!,
+          currentVersion: updateService.currentVersion,
+          isManualCheck: true,
+        );
+      } else if (result.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Update check failed: ${result.errorMessage}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Quiet Paper is up to date (v${updateService.currentVersion})',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error checking for updates: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingForUpdates = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.appColors;
     final currentTheme = ref.watch(themeModeProvider);
     final currentUser = ref.watch(currentUserProvider);
@@ -432,10 +494,19 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Version 1.0.0 • Offline-first • End-to-End Encrypted Sync',
+                    'Version 1.2.0 • Offline-first • End-to-End Encrypted Sync',
                     style: AppTypography.bodySmall.copyWith(
                       color: colors.textTertiary,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  QuietButton(
+                    label: 'Check for updates',
+                    icon: Icons.system_update_rounded,
+                    variant: QuietButtonVariant.secondary,
+                    isLoading: _isCheckingForUpdates,
+                    onPressed:
+                        _isCheckingForUpdates ? null : _checkManualUpdate,
                   ),
                 ],
               ),

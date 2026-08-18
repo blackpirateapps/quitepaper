@@ -16,6 +16,8 @@ import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../application/notes_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_model.dart';
+import '../../../core/update/update_dialog.dart';
+import '../../../core/update/update_provider.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
 import 'widgets/note_list_tile.dart';
@@ -34,6 +36,35 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   bool _isMultiSelecting = false;
 
   bool _shouldAutoFocusTablet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdatesOnLaunch();
+    });
+  }
+
+  Future<void> _checkForUpdatesOnLaunch() async {
+    try {
+      final updateService = ref.read(updateServiceProvider);
+      final result = await updateService.checkForUpdate();
+      if (!mounted) return;
+
+      if (result.hasUpdate && result.latestRelease != null) {
+        final release = result.latestRelease!;
+        if (!updateService.isSnoozed(release.version)) {
+          UpdateDialog.show(
+            context,
+            release,
+            currentVersion: updateService.currentVersion,
+          );
+        }
+      }
+    } catch (_) {
+      // Quiet background check failure, ignore
+    }
+  }
 
   void _exitMultiSelect() {
     setState(() {
