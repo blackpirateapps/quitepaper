@@ -74,7 +74,7 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
 
   Future<void> _pickAnotherFolder() async {
     try {
-      final selectedPath = await FilePicker.getDirectoryPath();
+      final selectedPath = await FilePicker.platform.getDirectoryPath();
       if (selectedPath != null && mounted) {
         _scanDirectory(selectedPath);
       }

@@ -272,7 +272,7 @@ class SettingsScreen extends ConsumerWidget {
                     variant: QuietButtonVariant.secondary,
                     onPressed: () async {
                       try {
-                        final folderPath = await FilePicker.getDirectoryPath();
+                        final folderPath = await FilePicker.platform.getDirectoryPath();
                         if (folderPath != null && context.mounted) {
                           Navigator.of(context).push(
                             MaterialPageRoute(
