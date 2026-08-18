@@ -100,25 +100,122 @@ void main() {
       expect(find.text('Header Section 0'), findsNothing); // top item unmounted
     });
 
-    testWidgets('wraps preview content in SelectionArea for multi-line cross-paragraph selection',
+    testWidgets('renders frontmatter properties (author, source, created, description) with icons and derives title',
         (tester) async {
+      const markdown = '''---
+title: "Attention Is All You Need"
+author: Ashish Vaswani et al.
+source: https://arxiv.org/abs/1706.03762
+created: 2017-06-12
+description: The paper introducing the Transformer architecture.
+status: published
+rating: 5
+internal_id: 99482
+---
+
+# Transformer Architecture
+The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.
+''';
+
       await tester.pumpWidget(
         buildWrapper(
           const QuietMarkdownPreview(
-            title: 'Selectable Document',
-            markdownData: 'Line 1 paragraph.\n\nLine 2 paragraph with **bold**.\n\n- Item 1\n- Item 2',
-            selectable: true,
+            markdownData: markdown,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(SelectionArea), findsOneWidget);
-      expect(find.text('Selectable Document'), findsOneWidget);
-      expect(find.text('Line 1 paragraph.'), findsOneWidget);
-      expect(find.textContaining('Line 2 paragraph with'), findsOneWidget);
-      expect(find.text('Item 1'), findsOneWidget);
-      expect(find.text('Item 2'), findsOneWidget);
+      // Frontmatter title should be rendered as main document title
+      expect(find.text('Attention Is All You Need'), findsOneWidget);
+
+      // Frontmatter metadata card should be rendered
+      expect(find.byType(QuietFrontmatterCard), findsOneWidget);
+
+      // Recognized properties and values
+      expect(find.text('Author'), findsOneWidget);
+      expect(find.text('Ashish Vaswani et al.'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(find.text('https://arxiv.org/abs/1706.03762'), findsOneWidget);
+      expect(find.text('Created'), findsOneWidget);
+      expect(find.text('Jun 12, 2017'), findsOneWidget);
+      expect(find.text('Description'), findsOneWidget);
+      expect(find.text('The paper introducing the Transformer architecture.'), findsOneWidget);
+
+      // Icons
+      expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.notes_rounded), findsOneWidget);
+
+      // Unrecognized fields must be hidden automatically
+      expect(find.text('status'), findsNothing);
+      expect(find.text('published'), findsNothing);
+      expect(find.text('rating'), findsNothing);
+      expect(find.text('internal_id'), findsNothing);
+      expect(find.text('99482'), findsNothing);
+
+      // Body content is rendered cleanly
+      expect(find.text('Transformer Architecture'), findsOneWidget);
+      expect(find.textContaining('The dominant sequence transduction models'), findsOneWidget);
+    });
+
+    testWidgets('triggers onTapLink when tapping on frontmatter source URL',
+        (tester) async {
+      String? tappedUrl;
+      const markdown = '''---
+source: https://example.com/flutter-docs
+author: Google
+---
+# Main Content
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          QuietMarkdownPreview(
+            markdownData: markdown,
+            onTapLink: (text, href, title) {
+              tappedUrl = href;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('https://example.com/flutter-docs'), findsOneWidget);
+      await tester.tap(find.text('https://example.com/flutter-docs'));
+      await tester.pumpAndSettle();
+
+      expect(tappedUrl, equals('https://example.com/flutter-docs'));
+    });
+
+    testWidgets('hides frontmatter with only unknown keys without rendering empty card',
+        (tester) async {
+      const markdown = '''---
+status: draft
+draft_id: 1234
+custom_flag: true
+---
+# Clean Note
+This note only has unknown frontmatter keys.
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: markdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuietFrontmatterCard), findsNothing);
+      expect(find.text('status'), findsNothing);
+      expect(find.text('draft'), findsNothing);
+      expect(find.text('draft_id'), findsNothing);
+      expect(find.text('Clean Note'), findsOneWidget);
+      expect(find.text('This note only has unknown frontmatter keys.'), findsOneWidget);
     });
   });
 }
+

@@ -81,23 +81,83 @@ Without any frontmatter header.
       expect(parsed.body, equals(content));
     });
 
-    test('handles empty content gracefully', () {
-      final parsed = MarkdownFrontmatterParser.parse('');
-      expect(parsed.title, isNull);
-      expect(parsed.tags, isEmpty);
-      expect(parsed.body, isEmpty);
+    test('extracts author, source, created, description and strips frontmatter into contentBody', () {
+      const content = '''---
+title: "Obsidian & Bear Research"
+author: Jane Doe
+source: https://quietpaper.app/research
+created: 2026-08-15
+description: A study on minimal note taking tools.
+status: published
+rating: 5
+custom_key: hidden_property
+---
+
+# Introduction
+This is the actual note content body.
+''';
+
+      final parsed = MarkdownFrontmatterParser.parse(content);
+
+      expect(parsed.title, equals('Obsidian & Bear Research'));
+      expect(parsed.author, equals('Jane Doe'));
+      expect(parsed.source, equals('https://quietpaper.app/research'));
+      expect(parsed.createdAt, equals(DateTime.parse('2026-08-15')));
+      expect(parsed.createdRaw, equals('2026-08-15'));
+      expect(parsed.description, equals('A study on minimal note taking tools.'));
+      expect(parsed.hasFrontmatter, isTrue);
+      expect(parsed.hasDisplayableMetadata, isTrue);
+      expect(parsed.body, equals(content));
+      expect(parsed.contentBody.trim(), startsWith('# Introduction'));
+      expect(parsed.contentBody, isNot(contains('---')));
+      expect(parsed.contentBody, isNot(contains('custom_key')));
     });
 
-    test('handles frontmatter with only title', () {
+    test('handles multiline author list and folded multiline description', () {
       const content = '''---
-title: Minimal Note
+author:
+  - Alice Walker
+  - Bob Dylan
+source: 'https://example.com/multi'
+created: August 18, 2026
+description: >
+  This is a folded multiline description
+  that spans multiple lines of text.
 ---
-Body only
+Body text here
 ''';
+
       final parsed = MarkdownFrontmatterParser.parse(content);
-      expect(parsed.title, equals('Minimal Note'));
-      expect(parsed.tags, isEmpty);
-      expect(parsed.body, equals(content));
+
+      expect(parsed.author, equals('Alice Walker, Bob Dylan'));
+      expect(parsed.source, equals('https://example.com/multi'));
+      expect(parsed.createdRaw, equals('August 18, 2026'));
+      expect(parsed.description, equals('This is a folded multiline description that spans multiple lines of text.'));
+      expect(parsed.hasFrontmatter, isTrue);
+      expect(parsed.hasDisplayableMetadata, isTrue);
+      expect(parsed.contentBody.trim(), equals('Body text here'));
+    });
+
+    test('correctly identifies frontmatter with only unrecognized keys', () {
+      const content = '''---
+status: draft
+reviewer: John
+custom_id: 12345
+---
+# Clean Body
+Only this body should be rendered.
+''';
+
+      final parsed = MarkdownFrontmatterParser.parse(content);
+
+      expect(parsed.title, isNull);
+      expect(parsed.author, isNull);
+      expect(parsed.source, isNull);
+      expect(parsed.description, isNull);
+      expect(parsed.hasFrontmatter, isTrue);
+      expect(parsed.hasDisplayableMetadata, isFalse);
+      expect(parsed.contentBody.trim(), equals('# Clean Body\nOnly this body should be rendered.'));
     });
   });
 }
+

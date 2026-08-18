@@ -195,7 +195,7 @@ flutter analyze   # Zero errors / zero warnings
 
 ### Full Flutter Test Suite
 ```bash
-flutter test      # 82 tests covering crypto, sync engine, multi-device flow, UI, editor & markdown import
+flutter test      # 85 tests covering crypto, sync engine, multi-device flow, UI, editor, frontmatter & markdown preview
 ```
 
 ---
@@ -214,7 +214,23 @@ Quiet Paper features a recursive local Markdown folder importer:
 
 ---
 
-## 7. Release & CI/CD Workflows
+## 7. Markdown Preview & YAML Frontmatter Properties
+
+Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the calm, warm aesthetic of Bear Notes:
+- **Zero Raw YAML Leakage**: In preview mode, YAML frontmatter delimiters (`--- ... ---`) and raw YAML syntax are completely stripped from the rendered body, avoiding unsightly code blocks or horizontal rules.
+- **Recognized Metadata Display**:
+  - `title`: Extracted and displayed as the canonical document title (30sp bold editorial typography).
+  - `source`: Rendered with `Icons.link_rounded`. If a URL (`http://`, `https://`, `www.`), rendered with interactive link styling, open-in-new icon, and tap link callback. Plain-text sources are styled cleanly with primary text.
+  - `author`: Rendered with `Icons.person_outline_rounded` and supports single strings or multiline YAML lists.
+  - `created`: Rendered with `Icons.calendar_today_outlined` and formatted cleanly into human-readable dates (`MMM d, yyyy`), with robust fallback for custom raw date strings.
+  - `description`: Rendered with `Icons.notes_rounded` supporting multiline text, folded strings (`>`), and literal blocks (`|`).
+- **Automatic Filtering**: Any unrecognized frontmatter keys (such as `status`, `rating`, `id`, `aliases`, or custom YAML attributes) are automatically omitted/hidden from the preview.
+- **Bear Aesthetic Properties Card**: Displayed in a warm `colors.surface` container with subtle borders (`colors.divider`), rounded corners (`AppRadii.borderMd`), muted 14dp monochrome icons (`colors.textTertiary`), fixed-width aligned labels (80dp, `AppTypography.caption`), and comfortable row dividers.
+- **Verbatim Storage Preservation**: Full frontmatter raw text remains 100% intact in edit mode, local Drift SQLite database, and end-to-end encrypted sync payloads.
+
+---
+
+## 8. Release & CI/CD Workflows
 
 ### Multi-Architecture GitHub Release Workflow (`.github/workflows/release.yml`)
 - **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional tag/title/draft/prerelease flags, or automatically on git tag push (`v*`).
@@ -227,7 +243,7 @@ Quiet Paper features a recursive local Markdown folder importer:
 
 ---
 
-## 8. Security Guarantees & Verification Checklist
+## 9. Security Guarantees & Verification Checklist
 
 - [x] Plaintext titles, bodies, and tags never reach network requests or server storage.
 - [x] Database table `notes` has no `title`, `body`, or `tags` columns.
@@ -239,4 +255,5 @@ Quiet Paper features a recursive local Markdown folder importer:
 - [x] Atomic login: If encryption password is wrong, Firebase session is immediately terminated and app stays logged out.
 - [x] Password rotation verification: Changing encryption passwords requires verifying ownership with current password or recovery key, and backend enforces cryptographic proof (`key_auth_commitment`).
 - [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
+
 

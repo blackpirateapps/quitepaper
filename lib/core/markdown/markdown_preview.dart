@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:intl/intl.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
+import '../../features/import/application/markdown_frontmatter_parser.dart';
 import 'markdown_chunker.dart';
 
 class QuietMarkdownPreview extends StatefulWidget {
@@ -42,20 +44,26 @@ class QuietMarkdownPreview extends StatefulWidget {
 }
 
 class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
+  late ParsedMarkdown _parsedMarkdown;
   late List<String> _chunks;
 
   @override
   void initState() {
     super.initState();
-    _chunks = MarkdownChunker.split(widget.markdownData);
+    _processMarkdown();
   }
 
   @override
   void didUpdateWidget(QuietMarkdownPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.markdownData != widget.markdownData) {
-      _chunks = MarkdownChunker.split(widget.markdownData);
+      _processMarkdown();
     }
+  }
+
+  void _processMarkdown() {
+    _parsedMarkdown = MarkdownFrontmatterParser.parse(widget.markdownData);
+    _chunks = MarkdownChunker.split(_parsedMarkdown.contentBody);
   }
 
   @override
@@ -114,8 +122,13 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
       tablePadding: const EdgeInsets.all(AppSpacing.sm),
     );
 
+    final effectiveTitle = (widget.title != null && widget.title!.trim().isNotEmpty)
+        ? widget.title!.trim()
+        : (_parsedMarkdown.title?.trim() ?? '');
+
     final hasHeader = widget.header != null ||
-        (widget.title != null && widget.title!.trim().isNotEmpty) ||
+        effectiveTitle.isNotEmpty ||
+        _parsedMarkdown.hasDisplayableMetadata ||
         (widget.tags != null && widget.tags!.isNotEmpty);
 
     Widget buildHeader() {
@@ -124,14 +137,21 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.header != null) widget.header!,
-          if (widget.title != null && widget.title!.trim().isNotEmpty) ...[
+          if (effectiveTitle.isNotEmpty) ...[
             Text(
-              widget.title!,
+              effectiveTitle,
               style: AppTypography.editorTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
-            const SizedBox(height: 24.0),
+            const SizedBox(height: 20.0),
+          ],
+          if (_parsedMarkdown.hasDisplayableMetadata) ...[
+            QuietFrontmatterCard(
+              metadata: _parsedMarkdown,
+              onTapLink: widget.onTapLink,
+            ),
+            const SizedBox(height: AppSpacing.sm),
           ],
           if (widget.tags != null && widget.tags!.isNotEmpty) ...[
             TagEditorBar(
@@ -230,3 +250,224 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
     return content;
   }
 }
+
+/// A clean editorial card displaying frontmatter properties (author, source, created date, description)
+/// with subtle icons inspired by Obsidian properties and styled with Bear Notes warmth.
+class QuietFrontmatterCard extends StatelessWidget {
+  const QuietFrontmatterCard({
+    super.key,
+    required this.metadata,
+    this.onTapLink,
+  });
+
+  final ParsedMarkdown metadata;
+  final MarkdownTapLinkCallback? onTapLink;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final rows = <Widget>[];
+
+    // 1. Author
+    if (metadata.author != null && metadata.author!.trim().isNotEmpty) {
+      rows.add(
+        _PropertyRow(
+          icon: Icons.person_outline_rounded,
+          label: 'Author',
+          child: Text(
+            metadata.author!.trim(),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 2. Source
+    if (metadata.source != null && metadata.source!.trim().isNotEmpty) {
+      final source = metadata.source!.trim();
+      final isUrl = source.startsWith('http://') ||
+          source.startsWith('https://') ||
+          source.startsWith('www.');
+
+      rows.add(
+        _PropertyRow(
+          icon: Icons.link_rounded,
+          label: 'Source',
+          child: isUrl
+              ? InkWell(
+                  borderRadius: AppRadii.borderSm,
+                  onTap: () {
+                    final targetUrl = source.startsWith('www.')
+                        ? 'https://$source'
+                        : source;
+                    onTapLink?.call(targetUrl, targetUrl, targetUrl);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            source,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.accent,
+                              decoration: TextDecoration.underline,
+                              decorationColor: colors.accent.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 13.0,
+                          color: colors.accent,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Text(
+                  source,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+        ),
+      );
+    }
+
+    // 3. Created date
+    if (metadata.createdAt != null ||
+        (metadata.createdRaw != null && metadata.createdRaw!.trim().isNotEmpty)) {
+      String displayDate;
+      if (metadata.createdAt != null) {
+        displayDate = DateFormat('MMM d, yyyy').format(metadata.createdAt!);
+      } else {
+        displayDate = metadata.createdRaw!.trim();
+      }
+
+      rows.add(
+        _PropertyRow(
+          icon: Icons.calendar_today_outlined,
+          label: 'Created',
+          child: Text(
+            displayDate,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 4. Description
+    if (metadata.description != null && metadata.description!.trim().isNotEmpty) {
+      rows.add(
+        _PropertyRow(
+          icon: Icons.notes_rounded,
+          label: 'Description',
+          child: Text(
+            metadata.description!.trim(),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+              height: 1.45,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.compact,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: AppRadii.borderMd,
+        border: Border.all(
+          color: colors.divider.withValues(alpha: 0.7),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int i = 0; i < rows.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Divider(
+                  color: colors.divider.withValues(alpha: 0.4),
+                  height: 1,
+                  thickness: 0.5,
+                ),
+              ),
+            rows[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PropertyRow extends StatelessWidget {
+  const _PropertyRow({
+    required this.icon,
+    required this.label,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2.5),
+            child: Icon(
+              icon,
+              size: 14.0,
+              color: colors.textTertiary,
+            ),
+          ),
+          const SizedBox(width: 8.0),
+          SizedBox(
+            width: 80.0,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1.0),
+              child: Text(
+                label,
+                style: AppTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4.0),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+

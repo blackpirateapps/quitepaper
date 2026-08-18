@@ -7,14 +7,34 @@ class ParsedMarkdown {
     this.tags = const [],
     this.createdAt,
     this.updatedAt,
+    this.source,
+    this.author,
+    this.description,
+    this.createdRaw,
     required this.body,
+    this.contentBody = '',
+    this.hasFrontmatter = false,
   });
 
   final String? title;
   final List<String> tags;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final String body;
+  final String? source;
+  final String? author;
+  final String? description;
+  final String? createdRaw;
+  final String body; // Preserves full original raw content with frontmatter
+  final String contentBody; // Content after frontmatter block
+  final bool hasFrontmatter;
+
+  /// Returns true if there are displayable metadata fields (author, source, created, description).
+  bool get hasDisplayableMetadata {
+    return (source != null && source!.trim().isNotEmpty) ||
+        (author != null && author!.trim().isNotEmpty) ||
+        (createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty)) ||
+        (description != null && description!.trim().isNotEmpty);
+  }
 }
 
 abstract final class MarkdownFrontmatterParser {
@@ -23,26 +43,35 @@ abstract final class MarkdownFrontmatterParser {
   );
 
   /// Parses markdown text, extracting YAML frontmatter metadata.
-  /// Note: The original full [rawContent] is preserved in [ParsedMarkdown.body].
+  /// Note: The original full [rawContent] is preserved in [ParsedMarkdown.body],
+  /// while [ParsedMarkdown.contentBody] contains the body with the frontmatter block removed.
   static ParsedMarkdown parse(String rawContent) {
     if (rawContent.isEmpty) {
-      return const ParsedMarkdown(body: '');
+      return const ParsedMarkdown(body: '', contentBody: '', hasFrontmatter: false);
     }
 
     final match = _frontmatterRegex.firstMatch(rawContent);
     if (match == null) {
-      return ParsedMarkdown(body: rawContent);
+      return ParsedMarkdown(body: rawContent, contentBody: rawContent, hasFrontmatter: false);
     }
 
     final frontmatterBlock = match.group(1) ?? '';
+    final contentBody = rawContent.substring(match.end);
 
     String? title;
-    final tags = <String>{};
+    String? source;
+    String? author;
+    final authorList = <String>[];
+    String? createdRaw;
     DateTime? createdAt;
     DateTime? updatedAt;
+    String? description;
+    final descriptionLines = <String>[];
+    final tags = <String>{};
 
     final lines = frontmatterBlock.split(RegExp(r'\r?\n'));
     String? currentListKey;
+    String? currentMultilineKey;
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
@@ -59,39 +88,75 @@ abstract final class MarkdownFrontmatterParser {
           if (TagParser.isValidTag(normalized)) {
             tags.add(normalized);
           }
+        } else if (_isAuthorKey(currentListKey)) {
+          if (itemValue.isNotEmpty) {
+            authorList.add(itemValue);
+          }
         }
         continue;
       }
 
+      // Handle indented continuation lines for multiline text (e.g. description)
+      if ((line.startsWith('  ') || line.startsWith('\t')) && currentMultilineKey != null) {
+        if (_isDescriptionKey(currentMultilineKey)) {
+          descriptionLines.add(trimmed);
+          continue;
+        }
+      }
+
       // Check key: value
-      final colonIndex = trimmed.indexOf(':');
+      final colonIndex = line.indexOf(':');
       if (colonIndex == -1) {
         continue;
       }
 
-      final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
-      final val = trimmed.substring(colonIndex + 1).trim();
+      final rawKey = line.substring(0, colonIndex).trim();
+      final key = rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+      final val = line.substring(colonIndex + 1).trim();
 
-      if (val.isEmpty) {
+      currentMultilineKey = null;
+      currentListKey = null;
+
+      if (val.isEmpty || val == '|' || val == '>') {
         currentListKey = key;
+        currentMultilineKey = key;
         continue;
-      } else {
-        currentListKey = null;
       }
 
       final cleanVal = _stripQuotes(val);
 
-      if (key == 'title') {
+      if (_isTitleKey(key)) {
         if (cleanVal.isNotEmpty) {
           title = cleanVal;
+        }
+      } else if (_isSourceKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          source = cleanVal;
+        }
+      } else if (_isAuthorKey(key)) {
+        if (cleanVal.startsWith('[') && cleanVal.endsWith(']')) {
+          final parts = _parseTagsValue(val);
+          if (parts.isNotEmpty) {
+            author = parts.join(', ');
+          }
+        } else if (cleanVal.isNotEmpty) {
+          author = cleanVal;
+        }
+      } else if (_isDescriptionKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          descriptionLines.add(cleanVal);
+          currentMultilineKey = key;
         }
       } else if (_isTagKey(key)) {
         final parsedTags = _parseTagsValue(val);
         tags.addAll(parsedTags);
       } else if (_isCreatedDateKey(key)) {
-        final dt = _parseDateTime(cleanVal);
-        if (dt != null) {
-          createdAt = dt;
+        if (cleanVal.isNotEmpty) {
+          createdRaw = cleanVal;
+          final dt = _parseDateTime(cleanVal);
+          if (dt != null) {
+            createdAt = dt;
+          }
         }
       } else if (_isUpdatedDateKey(key)) {
         final dt = _parseDateTime(cleanVal);
@@ -99,6 +164,14 @@ abstract final class MarkdownFrontmatterParser {
           updatedAt = dt;
         }
       }
+    }
+
+    if (authorList.isNotEmpty && (author == null || author.isEmpty)) {
+      author = authorList.join(', ');
+    }
+
+    if (descriptionLines.isNotEmpty) {
+      description = descriptionLines.join(' ').trim();
     }
 
     // If only createdAt was set, default updatedAt to createdAt
@@ -110,11 +183,50 @@ abstract final class MarkdownFrontmatterParser {
 
     return ParsedMarkdown(
       title: title,
-      tags: tags.toList(),
+      source: source,
+      author: author,
       createdAt: createdAt,
+      createdRaw: createdRaw,
       updatedAt: updatedAt,
+      description: description,
+      tags: tags.toList(),
       body: rawContent, // Preserve full content as-is (do not strip frontmatter)
+      contentBody: contentBody,
+      hasFrontmatter: true,
     );
+  }
+
+  static bool _isTitleKey(String key) {
+    return key == 'title';
+  }
+
+  static bool _isSourceKey(String key) {
+    return key == 'source' ||
+        key == 'url' ||
+        key == 'link' ||
+        key == 'source_url' ||
+        key == 'sourceurl' ||
+        key == 'source_link' ||
+        key == 'sourcelink' ||
+        key == 'origin' ||
+        key == 'origin_url' ||
+        key == 'canonical_url';
+  }
+
+  static bool _isAuthorKey(String key) {
+    return key == 'author' ||
+        key == 'authors' ||
+        key == 'by' ||
+        key == 'creator' ||
+        key == 'writer';
+  }
+
+  static bool _isDescriptionKey(String key) {
+    return key == 'description' ||
+        key == 'summary' ||
+        key == 'desc' ||
+        key == 'abstract' ||
+        key == 'excerpt';
   }
 
   static bool _isTagKey(String key) {
