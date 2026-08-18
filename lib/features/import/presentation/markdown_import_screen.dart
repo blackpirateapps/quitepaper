@@ -87,6 +87,36 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
     }
   }
 
+  Future<void> _pickFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['md', 'markdown'],
+      );
+      if (result != null && result.files.isNotEmpty && mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+        final items = await MarkdownImportScanner.processPickedFiles(result.files);
+        if (mounted) {
+          setState(() {
+            _items = items;
+            _isLoading = false;
+            _currentFolderPath = 'Selected Files';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open file picker: $e')),
+        );
+      }
+    }
+  }
+
   int get _selectedCount => _items.where((i) => i.isSelected).length;
 
   bool get _areAllSelected => _items.isNotEmpty && _selectedCount == _items.length;
@@ -195,6 +225,14 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
         actions: [
           IconButton(
             icon: Icon(
+              Icons.file_open_outlined,
+              color: colors.textSecondary,
+            ),
+            tooltip: 'Pick markdown files',
+            onPressed: _isLoading || _isImporting ? null : _pickFiles,
+          ),
+          IconButton(
+            icon: Icon(
               Icons.folder_open_rounded,
               color: colors.textSecondary,
             ),
@@ -278,11 +316,24 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
                 style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.lg),
-              QuietButton(
-                label: 'Choose another folder',
-                icon: Icons.folder_open_rounded,
-                variant: QuietButtonVariant.primary,
-                onPressed: _pickAnotherFolder,
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                alignment: WrapAlignment.center,
+                children: [
+                  QuietButton(
+                    label: 'Choose another folder',
+                    icon: Icons.folder_open_rounded,
+                    variant: QuietButtonVariant.primary,
+                    onPressed: _pickAnotherFolder,
+                  ),
+                  QuietButton(
+                    label: 'Select markdown files',
+                    icon: Icons.file_open_outlined,
+                    variant: QuietButtonVariant.secondary,
+                    onPressed: _pickFiles,
+                  ),
+                ],
               ),
             ],
           ),

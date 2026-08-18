@@ -10,6 +10,7 @@ import '../../../core/sync/sync_models.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
@@ -266,33 +267,75 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  QuietButton(
-                    label: 'Choose folder to import',
-                    icon: Icons.folder_open_rounded,
-                    variant: QuietButtonVariant.secondary,
-                    onPressed: () async {
-                      try {
-                        final folderPath = await FilePicker.platform.getDirectoryPath();
-                        if (folderPath != null && context.mounted) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => MarkdownImportScreen(
-                                initialFolderPath: folderPath,
-                              ),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error choosing folder: $e'),
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                        }
-                      }
-                    },
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      QuietButton(
+                        label: 'Choose folder to import',
+                        icon: Icons.folder_open_rounded,
+                        variant: QuietButtonVariant.secondary,
+                        onPressed: () async {
+                          try {
+                            final folderPath = await FilePicker.platform.getDirectoryPath();
+                            if (folderPath != null && context.mounted) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => MarkdownImportScreen(
+                                    initialFolderPath: folderPath,
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error choosing folder: $e'),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      QuietButton(
+                        label: 'Select markdown files',
+                        icon: Icons.file_open_outlined,
+                        variant: QuietButtonVariant.secondary,
+                        onPressed: () async {
+                          try {
+                            final result = await FilePicker.platform.pickFiles(
+                              allowMultiple: true,
+                              type: FileType.custom,
+                              allowedExtensions: ['md', 'markdown'],
+                            );
+                            if (result != null && result.files.isNotEmpty && context.mounted) {
+                              final items = await MarkdownImportScanner.processPickedFiles(result.files);
+                              if (context.mounted) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => MarkdownImportScreen(
+                                      initialFolderPath: 'Selected Files',
+                                      initialItems: items,
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error picking files: $e'),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
