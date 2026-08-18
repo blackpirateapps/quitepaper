@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS encryption_keys (
   recovery_nonce TEXT,
   recovery_salt TEXT,
   recovery_parameters TEXT,
+  key_auth_commitment TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -93,5 +94,12 @@ export async function runMigrations(db: Client): Promise<void> {
 
   for (const stmt of statements) {
     await db.execute(stmt);
+  }
+
+  // Ensure newly added columns exist on existing databases
+  try {
+    await db.execute('ALTER TABLE encryption_keys ADD COLUMN key_auth_commitment TEXT;');
+  } catch (_) {
+    // Column already exists
   }
 }

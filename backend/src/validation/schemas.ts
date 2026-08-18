@@ -19,6 +19,7 @@ export const wrappedKeySchema = z.object({
   recoveryNonce: z.string().min(12).max(256).optional(),
   recoverySalt: z.string().min(8).max(256).optional(),
   recoveryParameters: kdfParametersSchema.optional(),
+  keyAuthCommitment: z.string().min(16).max(256).optional(),
 });
 
 export const noteChangeSchema = z.object({

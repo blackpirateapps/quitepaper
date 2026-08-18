@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:crypto/crypto.dart' as standard_crypto;
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 
@@ -157,6 +158,7 @@ class WrappedMasterKeyData {
     this.recoveryNonce,
     this.recoverySalt,
     this.recoveryParameters,
+    this.keyAuthCommitment,
   });
 
   final int keyVersion;
@@ -173,6 +175,9 @@ class WrappedMasterKeyData {
   final String? recoverySalt;
   final KdfParameters? recoveryParameters;
 
+  // One-way public commitment to the master key for zero-knowledge rotation verification
+  final String? keyAuthCommitment;
+
   Map<String, dynamic> toJson() => {
         'keyVersion': keyVersion,
         'wrappedMasterKey': wrappedMasterKey,
@@ -187,6 +192,7 @@ class WrappedMasterKeyData {
         if (recoverySalt != null) 'recoverySalt': recoverySalt,
         if (recoveryParameters != null)
           'recoveryParameters': recoveryParameters!.toJson(),
+        if (keyAuthCommitment != null) 'keyAuthCommitment': keyAuthCommitment,
       };
 
   factory WrappedMasterKeyData.fromJson(Map<String, dynamic> json) {
@@ -208,6 +214,7 @@ class WrappedMasterKeyData {
               json['recoveryParameters'] as Map<String, dynamic>?,
             )
           : null,
+      keyAuthCommitment: json['keyAuthCommitment'] as String?,
     );
   }
 }
@@ -268,6 +275,9 @@ abstract class CryptoService {
 
   /// Standardizes / cleans recovery key string
   String normalizeRecoveryKey(String key);
+
+  /// Computes a one-way public commitment to the master key for key rotation verification
+  String computeKeyAuthCommitment(Uint8List masterKey);
 }
 
 /// Production implementation of CryptoService using Argon2id and XChaCha20-Poly1305
@@ -278,6 +288,11 @@ class DefaultCryptoService implements CryptoService {
 
   final Cipher _cipher;
   final Random _secureRandom = Random.secure();
+
+  @override
+  String computeKeyAuthCommitment(Uint8List masterKey) {
+    return standard_crypto.sha256.convert(masterKey).toString();
+  }
 
   static const String _keyWrapAadPrefix = 'quietpaper:key-wrap:v1';
   static const String _noteAadPrefix = 'quietpaper:note';

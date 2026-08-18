@@ -3,6 +3,7 @@ export type ApiErrorCode =
   | 'FORBIDDEN'
   | 'BAD_REQUEST'
   | 'NOT_FOUND'
+  | 'CONFLICT'
   | 'SYNC_CONFLICT'
   | 'PAYLOAD_TOO_LARGE'
   | 'RATE_LIMITED'

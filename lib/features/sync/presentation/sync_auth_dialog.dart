@@ -251,39 +251,60 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
 
       // Sign in with Firebase
       await auth.signInWithEmailAndPassword(email, fbPassword);
-      final remoteKey = await api.getKeys();
 
-      if (_isRecoveringInSignIn) {
-        if (remoteKey == null) {
-          throw Exception('No encrypted notes found for this account.');
-        }
+      try {
+        final remoteKey = await api.getKeys();
 
-        await keyManager.unlockWithRecoveryKey(
-          recoveryKey: _recoveryKeyController.text.trim(),
-          remoteWrappedKey: remoteKey,
-        );
+        if (_isRecoveringInSignIn) {
+          if (remoteKey == null) {
+            throw Exception('No encrypted notes vault found for this account.');
+          }
 
-        if (encPassword.isNotEmpty) {
-          final updatedKey =
-              await keyManager.changePassword(newPassword: encPassword);
-          await api.putKeys(updatedKey);
-        }
-      } else {
-        if (remoteKey != null) {
-          await keyManager.unlockWithPassword(
-            password: encPassword,
+          await keyManager.unlockWithRecoveryKey(
+            recoveryKey: _recoveryKeyController.text.trim(),
             remoteWrappedKey: remoteKey,
           );
+
+          if (encPassword.isNotEmpty) {
+            final updatedKey =
+                await keyManager.changePassword(newPassword: encPassword);
+            await api.putKeys(updatedKey);
+          }
         } else {
-          // First time syncing this account: initialize keys
-          final recoveryKey = crypto.generateRecoveryKey();
-          _generatedRecoveryKey = recoveryKey;
-          final wrapped = await keyManager.setupNewKeys(
-            password: encPassword,
-            recoveryKey: recoveryKey,
-          );
-          await api.putKeys(wrapped);
+          if (remoteKey != null) {
+            await keyManager.unlockWithPassword(
+              password: encPassword,
+              remoteWrappedKey: remoteKey,
+            );
+          } else {
+            // First time syncing this account: initialize keys
+            final recoveryKey = crypto.generateRecoveryKey();
+            _generatedRecoveryKey = recoveryKey;
+            final wrapped = await keyManager.setupNewKeys(
+              password: encPassword,
+              recoveryKey: recoveryKey,
+            );
+            await api.putKeys(wrapped);
+          }
         }
+      } catch (unlockError) {
+        // Rollback Firebase session: Stay completely logged out if encryption password fails
+        try {
+          await auth.signOut();
+        } catch (_) {}
+        keyManager.lock();
+
+        final rawMsg = unlockError.toString();
+        if (rawMsg.contains('SecretBoxAuthenticationError') ||
+            rawMsg.contains('MAC') ||
+            rawMsg.contains('decrypt') ||
+            rawMsg.contains('Invalid') ||
+            rawMsg.contains('failed')) {
+          throw Exception(
+            'Incorrect Quiet Paper encryption password. If you forgot your password, tap "Forgot Password? Use Recovery Key" below.',
+          );
+        }
+        rethrow;
       }
 
       engine.syncNow();

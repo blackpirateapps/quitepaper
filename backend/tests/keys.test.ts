@@ -109,4 +109,47 @@ describe('Backend Wrapped Master Key Tests', () => {
     expect(getRes.body.keyVersion).toBe(2);
     expect(getRes.body.wrappedMasterKey).toBe('d3JhcHBlZC12Mg==');
   });
+
+  it('Rejects key rotation with duplicate version or mismatched commitment', async () => {
+    const keyV1 = {
+      keyVersion: 1,
+      wrappedMasterKey: 'd3JhcHBlZC12MQ==',
+      wrappedNonce: 'bm9uY2UtdjEtMTIzNDU2',
+      kdfAlgorithm: 'argon2id',
+      kdfSalt: 'c2FsdC12MS0xMjM0NTY3OA==',
+      kdfParameters: { memory: 19456, iterations: 2, parallelism: 1, hashLength: 32 },
+      encryptionFormatVersion: 1,
+      keyAuthCommitment: 'valid-master-key-commitment-1234567890',
+    };
+
+    await handleApiRequest({
+      method: 'PUT',
+      url: '/api/v1/keys',
+      headers: { authorization: 'Bearer mock:user-verify' },
+      body: keyV1,
+    });
+
+    // 1. Same version should be rejected with 409
+    const duplicateRes = await handleApiRequest({
+      method: 'PUT',
+      url: '/api/v1/keys',
+      headers: { authorization: 'Bearer mock:user-verify' },
+      body: keyV1,
+    });
+    expect(duplicateRes.statusCode).toBe(409);
+
+    // 2. Mismatched commitment should be rejected with 403
+    const fakeKeyV2 = {
+      ...keyV1,
+      keyVersion: 2,
+      keyAuthCommitment: 'wrong-attacker-commitment-9999999999',
+    };
+    const rejectedRes = await handleApiRequest({
+      method: 'PUT',
+      url: '/api/v1/keys',
+      headers: { authorization: 'Bearer mock:user-verify' },
+      body: fakeKeyV2,
+    });
+    expect(rejectedRes.statusCode).toBe(403);
+  });
 });

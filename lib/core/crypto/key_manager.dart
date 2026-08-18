@@ -163,6 +163,7 @@ class SecureKeyManager implements KeyManager {
       recoveryNonce: recoveryNonce,
       recoverySalt: recoverySalt,
       recoveryParameters: recoveryParams,
+      keyAuthCommitment: _crypto.computeKeyAuthCommitment(masterKey),
     );
 
     _cachedMasterKey = masterKey;
@@ -286,6 +287,7 @@ class SecureKeyManager implements KeyManager {
       recoveryNonce: recoveryNonce,
       recoverySalt: recoverySalt,
       recoveryParameters: recoveryParams,
+      keyAuthCommitment: _crypto.computeKeyAuthCommitment(masterKey),
     );
 
     await storeWrappedKeyData(updatedData);
