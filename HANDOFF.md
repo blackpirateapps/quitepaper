@@ -15,6 +15,7 @@ Quiet Paper is an offline-first Android notes application inspired by the calm, 
 - **Exceptional Writing Flow**: 
   - Restrained app bar (`←` ... `⋯`).
   - Document-style borderless title (30sp) & spacious body (18sp, 1.6 line height).
+  - Document starts naturally at the top (`Alignment.topCenter`) with 24dp horizontal margins on phones and 720dp max-width centering on tablets.
   - Invisible, reliable autosave (700ms debounce, focus change, app lifecycle, exit flush).
   - Smart empty-draft disposal on exit.
   - Quiet, keyboard-aware Markdown formatting toolbar with cycling headings and selection preservation.
@@ -83,7 +84,7 @@ lib/
 │   │   │   ├── editor_state.dart           # Editor state (dirty, saving, preview mode)
 │   │   │   └── editor_provider.dart        # EditorNotifier with debounced autosave & exit cleanup
 │   │   └── presentation/
-│   │       ├── editor_screen.dart          # Distraction-free editor screen
+│   │       ├── editor_screen.dart          # Distraction-free digital sheet editor screen
 │   │       └── widgets/
 │   │           ├── formatting_toolbar.dart # Bottom markdown formatting bar (B, I, S, H, lists, etc.)
 │   │           ├── tag_editor_bar.dart     # Inline tag chips with add/remove
@@ -130,6 +131,11 @@ final colors = context.appColors;
 // colors.background, colors.surface, colors.accent, colors.textPrimary, etc.
 ```
 
+### Top-Aligned Document Sheet Layout
+- The editor body uses `Align(alignment: Alignment.topCenter, child: ConstrainedBox(...))` to avoid vertical centering on short notes.
+- Notes start immediately at the top below the transparent app bar with standard 16dp vertical padding and 24dp horizontal margins on mobile devices.
+- On tablets and desktop viewports, content is constrained to 720dp max-width and centered horizontally.
+
 ### Invisible, Multi-Stage Autosave
 - **Debounced Keystrokes**: 700ms after the last edit, SQLite write is triggered quietly without noisy "Saved" popups.
 - **Focus Blur**: When switching focus between title, body, or external controls, pending changes are persisted.
@@ -147,7 +153,26 @@ final colors = context.appColors;
 
 ---
 
-## 5. Development & Testing Commands
+## 5. CI/CD & Android Keystore Signing
+
+The repository includes a complete GitHub Actions workflow at [`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml) that builds release APKs automatically.
+
+### Configuring Custom Keystore Signing
+
+To sign release builds with your own Android keystore in GitHub Actions, add the following **Repository Secrets** (**Settings → Secrets and variables → Actions → New repository secret**):
+
+| Secret Name | Description | Value / Generation |
+| :--- | :--- | :--- |
+| `KEYSTORE_BASE64` | Base64-encoded string of your `.jks` or `.keystore` file | Generate with `base64 -w 0 upload-keystore.jks` |
+| `KEYSTORE_PASSWORD` | Password for the keystore file | Password entered when creating the keystore |
+| `KEY_ALIAS` | Key alias name inside the keystore | e.g. `upload` or `key0` |
+| `KEY_PASSWORD` | Password for the key alias | Password entered for the key alias |
+
+> **Graceful Fallback**: If these secrets are not configured (e.g. on forks or pull requests), Gradle automatically falls back to debug signing so CI builds remain green and always produce a testable APK artifact.
+
+---
+
+## 6. Development & Testing Commands
 
 ### Run Code Generation (Drift Database)
 ```bash
@@ -171,11 +196,9 @@ flutter run
 
 ---
 
-## 6. CI/CD & Build Pipeline
+## 7. Roadmap & Recommendations for Future Iterations
 
-The repository includes a GitHub Actions workflow at [`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml):
-- Runs on every `push` and `pull_request` to `main`.
-- Sets up Java 17 and Flutter stable.
-- Runs `flutter analyze` and `flutter test`.
-- Compiles the release Android APK (`flutter build apk --release`).
-- Uploads the release artifact as `quiet-paper-release-apk`.
+1. **Tag Hierarchy Navigation**: Expand support for nested sub-tags (e.g. browsing `#work/project` as folders).
+2. **Export / Import**: Add single or batch Markdown file export and import.
+3. **Bluetooth Keyboard Shortcuts**: Key bindings (`Ctrl+B`, `Ctrl+I`, `Ctrl+S`, `Ctrl+N`) for hardware keyboards on Android tablets/desktops.
+4. **Encrypted Backup**: Optional local backup archive with encryption.
