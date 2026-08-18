@@ -390,6 +390,20 @@ On Android 10+ (and especially Android 11+ / API 30+ Scoped Storage), calling `F
 
 ---
 
+## 17. App Version Bump Checklist
+
+When releasing a new version of Quiet Paper, ensure the version string (and incremental build number) is consistently bumped across the following files:
+
+| File | Parameter / Location | Description & Purpose |
+|---|---|---|
+| [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19) | `version: X.Y.Z+N` | Flutter build version name (`X.Y.Z`) and Android/iOS build number / `versionCode` (`N`). |
+| [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart#L10) | `currentVersion: 'X.Y.Z'` | Used by `UpdateService` to compare with GitHub Release tags (`vX.Y.Z`) and trigger in-app update prompts. |
+| [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart#L17) | `appVersion: 'X.Y.Z'` | Stored in Riverpod `backupServiceProvider` and written to backup manifest headers. |
+| [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L19) | `this.appVersion = 'X.Y.Z'` | Default constructor parameter for `BackupService` manifest generation. |
+| [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L783) | `'Version X.Y.Z • ...'` | Displayed to the user under **Settings → About**. |
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -402,6 +416,8 @@ On Android 10+ (and especially Android 11+ / API 30+ Scoped Storage), calling `F
 - [x] Local backup engine creates and restores `.qpbackup` snapshots with optional Argon2id encryption, conflict strategies, and daily rolling auto-backups with retention pruning.
 - [x] User auth sessions and unlocked master keys are securely persisted in Android Keystore / iOS Keychain across app updates and process restarts.
 - [x] Local backup file creation utilizes Android Storage Access Framework (SAF) to write `.qpbackup` files safely on modern Android Scoped Storage without permission exceptions.
+- [x] App version bump procedure is documented in HANDOFF.md across all 5 code locations.
+
 
 
 
