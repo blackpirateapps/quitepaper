@@ -18,11 +18,13 @@ class EditorScreen extends ConsumerStatefulWidget {
     super.key,
     required this.note,
     this.autoFocusBody = false,
+    this.initialPreviewMode = false,
     this.onClose,
   });
 
   final Note note;
   final bool autoFocusBody;
+  final bool initialPreviewMode;
   final VoidCallback? onClose;
 
   @override
@@ -106,7 +108,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
-  EditorParams get _editorParams => EditorParams(widget.note);
+  EditorParams get _editorParams => EditorParams(
+        widget.note,
+        initialPreviewMode: widget.initialPreviewMode,
+      );
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -215,6 +220,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     )
                   : null),
           actions: [
+            if (!note.isTrashed)
+              QuietIconButton(
+                icon: editorState.isPreviewMode
+                    ? Icons.edit_outlined
+                    : Icons.remove_red_eye_outlined,
+                tooltip: editorState.isPreviewMode ? 'Edit note' : 'Preview note',
+                onPressed: () {
+                  editorNotifier.togglePreviewMode();
+                },
+              ),
             QuietIconButton(
               icon: Icons.more_horiz_rounded,
               tooltip: 'More options',

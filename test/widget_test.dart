@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/app.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/markdown/markdown_preview.dart';
 import 'package:quitepaper/core/widgets/quiet_fab.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
@@ -131,8 +132,17 @@ void main() {
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Open note
+    // Open note (opens in preview mode)
     await tester.tap(find.text('Persistent Title'));
+    await tester.pumpAndSettle();
+
+    // Verify preview mode is active with edit button next to 3-dots
+    expect(find.byType(QuietMarkdownPreview), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+
+    // Tap edit button to switch to edit mode
+    await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
     // Verify content loaded in text fields
@@ -148,8 +158,12 @@ void main() {
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
 
-    // Reopen and check updated content
+    // Reopen (opens in preview mode)
     await tester.tap(find.text('Persistent Title'));
+    await tester.pumpAndSettle();
+
+    // Tap edit button to verify updated content in TextField
+    await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'),
@@ -629,21 +643,29 @@ void main() {
             'This is the very first line...'),
         findsOneWidget);
 
-    // Reopen the note
+    // Reopen the note (opens in preview mode)
     await tester.tap(find.text('This is the very first line...'));
     await tester.pumpAndSettle();
 
-    expect(find.text(longText), findsOneWidget);
+    // Verify preview mode is active
+    expect(find.byType(QuietMarkdownPreview), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
 
-    // Toggle markdown preview
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    // Tap edit button to switch to edit mode
+    await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Markdown preview'));
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.text(longText), findsOneWidget);
+
+    // Tap preview button next to 3-dots to switch back to preview
+    await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
     await tester.pumpAndSettle();
 
     // Markdown preview renders without layout exception
     expect(find.byType(TextField), findsNothing);
+    expect(find.byType(QuietMarkdownPreview), findsOneWidget);
 
     // Exit back
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));

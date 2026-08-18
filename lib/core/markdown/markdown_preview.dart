@@ -151,76 +151,82 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
           vertical: AppSpacing.md,
         );
 
+    Widget content;
     if (widget.shrinkWrap) {
       if (_chunks.isEmpty) {
-        return Column(
+        content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasHeader) buildHeader(),
             MarkdownBody(
               data: '*No content*',
-              selectable: widget.selectable,
+              selectable: false,
               styleSheet: customStyleSheet,
               onTapLink: widget.onTapLink,
             ),
           ],
         );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasHeader) buildHeader(),
-          ..._chunks.map(
-            (chunk) => MarkdownBody(
-              data: chunk,
-              selectable: widget.selectable,
-              styleSheet: customStyleSheet,
-              onTapLink: widget.onTapLink,
+      } else {
+        content = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasHeader) buildHeader(),
+            ..._chunks.map(
+              (chunk) => MarkdownBody(
+                data: chunk,
+                selectable: false,
+                styleSheet: customStyleSheet,
+                onTapLink: widget.onTapLink,
+              ),
             ),
-          ),
-        ],
-      );
-    }
+          ],
+        );
+      }
+    } else {
+      final headerCount = hasHeader ? 1 : 0;
+      final bodyCount = _chunks.isEmpty ? 1 : _chunks.length;
+      const footerCount = 1;
+      final totalCount = headerCount + bodyCount + footerCount;
 
-    final headerCount = hasHeader ? 1 : 0;
-    final bodyCount = _chunks.isEmpty ? 1 : _chunks.length;
-    const footerCount = 1;
-    final totalCount = headerCount + bodyCount + footerCount;
+      content = ListView.builder(
+        controller: widget.scrollController,
+        physics: widget.physics,
+        padding: effectivePadding,
+        itemCount: totalCount,
+        itemBuilder: (context, index) {
+          if (hasHeader && index == 0) {
+            return buildHeader();
+          }
 
-    return ListView.builder(
-      controller: widget.scrollController,
-      physics: widget.physics,
-      padding: effectivePadding,
-      itemCount: totalCount,
-      itemBuilder: (context, index) {
-        if (hasHeader && index == 0) {
-          return buildHeader();
-        }
-
-        final bodyIndex = index - headerCount;
-        if (bodyIndex < bodyCount) {
-          if (_chunks.isEmpty) {
+          final bodyIndex = index - headerCount;
+          if (bodyIndex < bodyCount) {
+            if (_chunks.isEmpty) {
+              return MarkdownBody(
+                data: '*No content*',
+                selectable: false,
+                styleSheet: customStyleSheet,
+                onTapLink: widget.onTapLink,
+              );
+            }
             return MarkdownBody(
-              data: '*No content*',
-              selectable: widget.selectable,
+              data: _chunks[bodyIndex],
+              selectable: false,
               styleSheet: customStyleSheet,
               onTapLink: widget.onTapLink,
             );
           }
-          return MarkdownBody(
-            data: _chunks[bodyIndex],
-            selectable: widget.selectable,
-            styleSheet: customStyleSheet,
-            onTapLink: widget.onTapLink,
-          );
-        }
 
-        // Generous bottom scroll area for comfortable preview reading
-        return const SizedBox(height: 120.0);
-      },
-    );
+          // Generous bottom scroll area for comfortable preview reading
+          return const SizedBox(height: 120.0);
+        },
+      );
+    }
+
+    if (widget.selectable) {
+      return SelectionArea(child: content);
+    }
+    return content;
   }
 }

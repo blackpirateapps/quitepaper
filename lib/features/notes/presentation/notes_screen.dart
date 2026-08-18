@@ -517,6 +517,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         note: activeNote!,
                         autoFocusBody: _shouldAutoFocusTablet &&
                             _selectedNoteIdForTablet == activeNote!.id,
+                        initialPreviewMode: !(_shouldAutoFocusTablet &&
+                            _selectedNoteIdForTablet == activeNote!.id),
                         onClose: () {
                           setState(() {
                             _selectedNoteIdForTablet = null;
@@ -735,7 +737,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _openNote(BuildContext context, Note note) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditorScreen(note: note),
+        builder: (_) => EditorScreen(
+          note: note,
+          initialPreviewMode: true,
+        ),
       ),
     );
   }
@@ -766,6 +771,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           builder: (_) => EditorScreen(
             note: newNote,
             autoFocusBody: true,
+            initialPreviewMode: false,
           ),
         ),
       );

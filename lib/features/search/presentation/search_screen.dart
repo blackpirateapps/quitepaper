@@ -257,7 +257,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _openNote(BuildContext context, Note note) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditorScreen(note: note),
+        builder: (_) => EditorScreen(
+          note: note,
+          initialPreviewMode: true,
+        ),
       ),
     );
   }
@@ -282,6 +285,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           builder: (_) => EditorScreen(
             note: newNote,
             autoFocusBody: true,
+            initialPreviewMode: false,
           ),
         ),
       );

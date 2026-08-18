@@ -171,9 +171,12 @@ Navigation is modeled by `AppDestination`:
 
 ## 5. Editor Features & Usability Enhancements
 
-### Seamless Edit / Markdown Preview Mode Switching
-- **Fix for Preview Mode Switching**: In earlier builds, editing text in the editor caused `saveNote()` to update `updatedAt`, which altered the equality of the family parameter `Note`, causing Riverpod's `StateNotifierProvider.family` to recreate the `EditorNotifier` with `isPreviewMode = false`. This bug was resolved by wrapping family parameter access in `@immutable class EditorParams(this.note)` whose `operator ==` and `hashCode` rely strictly on `note.id`.
+### Seamless Edit / Markdown Preview Mode Switching & Preview-First Flow
+- **Preview-First Note Reading**: Tapping an existing note from the list or search results opens directly in Markdown Preview mode for an editorial reading experience. Creating a new note via FAB or `+` opens in edit mode with automatic body focus.
+- **Top App Bar Quick Toggle Button**: An Edit button (`Icons.edit_outlined`) is positioned directly in the app bar next to the 3-dot menu when in preview mode for 1-tap editing. When in edit mode, it displays a Preview button (`Icons.remove_red_eye_outlined`) for instant preview toggling.
+- **Fix for Preview Mode Switching**: In earlier builds, editing text in the editor caused `saveNote()` to update `updatedAt`, which altered the equality of the family parameter `Note`, causing Riverpod's `StateNotifierProvider.family` to recreate the `EditorNotifier` with `isPreviewMode = false`. This bug was resolved by wrapping family parameter access in `@immutable class EditorParams(this.note, {this.initialPreviewMode})` whose `operator ==` and `hashCode` rely strictly on `note.id`.
 - **Instant Preview of Unsaved Edits**: When switching to preview mode, the preview renderer directly ingests the active `_contentController.text` and `_titleController.text`, rendering the live markdown immediately without waiting for debounce timers.
+- **Continuous Multi-Line & Multi-Paragraph Selection**: `QuietMarkdownPreview` wraps the rendered document in Flutter's `SelectionArea` (with inner `MarkdownBody` configured with `selectable: false`), allowing continuous drag-selection and copying across lines, headings, bullet lists, blockquotes, and tables without paragraph fragmentation.
 
 ### Dynamic Auto-Titling in Editor & Lists
 - **Live Editor Auto-Fill**: As the user types into the note body textarea without typing in the title field, the Title text field in the editor is automatically filled with the first line of content in real-time.

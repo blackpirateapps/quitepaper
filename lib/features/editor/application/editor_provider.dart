@@ -9,8 +9,9 @@ import 'editor_state.dart';
 
 @immutable
 class EditorParams {
-  const EditorParams(this.note);
+  const EditorParams(this.note, {this.initialPreviewMode = false});
   final Note note;
+  final bool initialPreviewMode;
 
   @override
   bool operator ==(Object other) =>
@@ -27,8 +28,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
   EditorNotifier({
     required Note initialNote,
     required this.repository,
+    bool initialPreviewMode = false,
   })  : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
-        super(EditorState(note: initialNote));
+        super(EditorState(note: initialNote, isPreviewMode: initialPreviewMode));
 
   final NotesRepository repository;
   final Debouncer _debouncer;
@@ -238,6 +240,10 @@ final editorProviderFamily =
     StateNotifierProvider.family.autoDispose<EditorNotifier, EditorState, EditorParams>(
   (ref, params) {
     final repository = ref.watch(notesRepositoryProvider);
-    return EditorNotifier(initialNote: params.note, repository: repository);
+    return EditorNotifier(
+      initialNote: params.note,
+      repository: repository,
+      initialPreviewMode: params.initialPreviewMode,
+    );
   },
 );

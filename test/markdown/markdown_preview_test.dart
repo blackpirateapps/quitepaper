@@ -99,5 +99,26 @@ void main() {
       // After scrolling, later sections are dynamically transformed and rendered
       expect(find.text('Header Section 0'), findsNothing); // top item unmounted
     });
+
+    testWidgets('wraps preview content in SelectionArea for multi-line cross-paragraph selection',
+        (tester) async {
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            title: 'Selectable Document',
+            markdownData: 'Line 1 paragraph.\n\nLine 2 paragraph with **bold**.\n\n- Item 1\n- Item 2',
+            selectable: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(find.text('Selectable Document'), findsOneWidget);
+      expect(find.text('Line 1 paragraph.'), findsOneWidget);
+      expect(find.textContaining('Line 2 paragraph with'), findsOneWidget);
+      expect(find.text('Item 1'), findsOneWidget);
+      expect(find.text('Item 2'), findsOneWidget);
+    });
   });
 }
