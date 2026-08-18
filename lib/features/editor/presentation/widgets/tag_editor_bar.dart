@@ -12,21 +12,24 @@ class TagEditorBar extends StatelessWidget {
     required this.tags,
     required this.onAddTag,
     required this.onRemoveTag,
+    this.showAddButton = false,
   });
 
   final List<String> tags;
   final ValueChanged<String> onAddTag;
   final ValueChanged<String> onRemoveTag;
+  final bool showAddButton;
 
   @override
   Widget build(BuildContext context) {
+    if (tags.isEmpty && !showAddButton) {
+      return const SizedBox.shrink();
+    }
+
     final colors = context.appColors;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Wrap(
         spacing: 8.0,
         runSpacing: 6.0,
@@ -38,46 +41,47 @@ class TagEditorBar extends StatelessWidget {
               onDelete: () => onRemoveTag(tag),
             );
           }),
-          Material(
-            color: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.borderSm,
-              side: BorderSide(color: colors.divider, style: BorderStyle.solid),
-            ),
-            child: InkWell(
-              onTap: () => _showAddTagDialog(context),
-              borderRadius: AppRadii.borderSm,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 4.0,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.add_rounded,
-                      size: 14,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      'Tag',
-                      style: AppTypography.tag.copyWith(
+          if (showAddButton)
+            Material(
+              color: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadii.borderSm,
+                side: BorderSide(color: colors.divider, width: 0.8),
+              ),
+              child: InkWell(
+                onTap: () => showAddTagDialog(context, onAddTag),
+                borderRadius: AppRadii.borderSm,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 3.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add_rounded,
+                        size: 13,
                         color: colors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 2),
+                      Text(
+                        'Tag',
+                        style: AppTypography.tag.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  void _showAddTagDialog(BuildContext context) {
+  static void showAddTagDialog(BuildContext context, ValueChanged<String> onAddTag) {
     final textController = TextEditingController();
     final colors = context.appColors;
 
@@ -86,17 +90,25 @@ class TagEditorBar extends StatelessWidget {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: colors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
           title: Text(
-            'Add tag',
+            'Add Tag',
             style: AppTypography.headline.copyWith(color: colors.textPrimary),
           ),
           content: TextField(
             controller: textController,
             autofocus: true,
+            style: AppTypography.body.copyWith(color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. ideas, work/project',
+              hintStyle: AppTypography.body.copyWith(
+                color: colors.textTertiary.withValues(alpha: 0.5),
+              ),
               prefixText: '#',
-              prefixStyle: AppTypography.body.copyWith(color: colors.accent),
+              prefixStyle: AppTypography.body.copyWith(
+                color: colors.accent,
+                fontWeight: FontWeight.w600,
+              ),
               filled: true,
               fillColor: colors.background,
               contentPadding: const EdgeInsets.symmetric(

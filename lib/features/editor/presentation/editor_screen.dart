@@ -33,6 +33,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final TextEditingController _contentController;
   late final FocusNode _titleFocusNode;
   late final FocusNode _contentFocusNode;
+  late final ScrollController _scrollController;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentController = TextEditingController(text: widget.note.content);
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
+    _scrollController = ScrollController();
 
     _titleController.addListener(_onTitleChanged);
     _contentController.addListener(_onContentChanged);
@@ -101,6 +103,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentController.dispose();
     _titleFocusNode.dispose();
     _contentFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -124,6 +127,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         appBar: AppBar(
           backgroundColor: colors.background,
           elevation: 0,
+          scrolledUnderElevation: 0,
           leading: QuietIconButton(
             icon: Icons.arrow_back_rounded,
             tooltip: 'Back',
@@ -133,7 +137,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             },
           ),
           actions: [
-            // Restrained overflow menu
             QuietIconButton(
               icon: Icons.more_horiz_rounded,
               tooltip: 'More options',
@@ -152,6 +155,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       maxWidth: AppSpacing.maxContentWidth,
                     ),
                     child: SingleChildScrollView(
+                      controller: _scrollController,
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
                         vertical: AppSpacing.sm,
@@ -161,7 +165,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           if (editorState.isPreviewMode) ...[
-                            // Rendered preview mode
+                            // Rendered Markdown preview mode
                             if (note.title.trim().isNotEmpty) ...[
                               Text(
                                 note.title,
@@ -177,7 +181,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 onAddTag: editorNotifier.addTag,
                                 onRemoveTag: editorNotifier.removeTag,
                               ),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: AppSpacing.xs),
                             ],
                             QuietMarkdownPreview(
                               markdownData: note.content,
@@ -187,13 +191,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             TextField(
                               controller: _titleController,
                               focusNode: _titleFocusNode,
+                              cursorColor: colors.accent,
                               style: AppTypography.editorTitle.copyWith(
                                 color: colors.textPrimary,
                               ),
                               decoration: InputDecoration(
                                 hintText: 'Title',
                                 hintStyle: AppTypography.editorTitle.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.5),
+                                  color: colors.textTertiary.withValues(alpha: 0.4),
                                 ),
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
@@ -207,27 +212,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 _contentFocusNode.requestFocus();
                               },
                             ),
-                            const SizedBox(height: 16.0),
+                            const SizedBox(height: 20.0),
 
-                            // Tags bar
-                            TagEditorBar(
-                              tags: note.tags,
-                              onAddTag: editorNotifier.addTag,
-                              onRemoveTag: editorNotifier.removeTag,
-                            ),
-                            const SizedBox(height: 16.0),
+                            // Tags bar (displayed seamlessly if tags exist)
+                            if (note.tags.isNotEmpty) ...[
+                              TagEditorBar(
+                                tags: note.tags,
+                                onAddTag: editorNotifier.addTag,
+                                onRemoveTag: editorNotifier.removeTag,
+                              ),
+                              const SizedBox(height: 12.0),
+                            ],
 
                             // Body markdown editor
                             TextField(
                               controller: _contentController,
                               focusNode: _contentFocusNode,
+                              cursorColor: colors.accent,
                               style: AppTypography.editorBody.copyWith(
                                 color: colors.textPrimary,
                               ),
                               decoration: InputDecoration(
                                 hintText: 'Start writing...',
                                 hintStyle: AppTypography.editorBody.copyWith(
-                                  color: colors.textTertiary.withValues(alpha: 0.5),
+                                  color: colors.textTertiary.withValues(alpha: 0.4),
                                 ),
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
@@ -239,7 +247,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                               keyboardType: TextInputType.multiline,
                               textCapitalization: TextCapitalization.sentences,
                             ),
-                            // Generous bottom scroll padding
+                            // Generous bottom scroll area for comfortable typing above keyboard
                             const SizedBox(height: 280),
                           ],
                         ],
@@ -249,13 +257,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
               ),
 
-              // Formatting Toolbar (only visible in edit mode)
+              // Floating/Docked formatting toolbar (only in edit mode)
               if (!editorState.isPreviewMode)
                 FormattingToolbar(
                   controller: _contentController,
                   focusNode: _contentFocusNode,
                   onTagPressed: () {
-                    // Insert # at current selection
                     final val = _contentController.value;
                     final text = val.text;
                     final sel = val.selection;
@@ -330,6 +337,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   onTap: () {
                     Navigator.of(ctx).pop();
                     notifier.togglePinned();
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.tag_rounded,
+                    color: colors.textSecondary,
+                  ),
+                  title: Text(
+                    'Add tag',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    TagEditorBar.showAddTagDialog(context, notifier.addTag);
                   },
                 ),
                 ListTile(
