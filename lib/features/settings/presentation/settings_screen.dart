@@ -10,6 +10,10 @@ import '../../../core/sync/sync_models.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/backup/backup_provider.dart';
+import '../../../core/backup/presentation/auto_backup_password_dialog.dart';
+import '../../../core/backup/presentation/create_backup_dialog.dart';
+import '../../../core/backup/presentation/restore_backup_dialog.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import '../../import/application/markdown_import_scanner.dart';
@@ -89,6 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final currentTheme = ref.watch(themeModeProvider);
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
+    final autoBackupConfig = ref.watch(autoBackupConfigProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -401,6 +406,287 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            // Section: Local Backup & Restore
+            Text(
+              'Local Backup & Restore',
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: AppRadii.borderMd,
+                border: Border.all(color: colors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Notebook Backups',
+                    style: AppTypography.title.copyWith(
+                      color: colors.textPrimary,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Export and restore complete .qpbackup snapshots, optionally protected with Argon2id encryption.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      QuietButton(
+                        label: 'Create Backup',
+                        icon: Icons.backup_rounded,
+                        variant: QuietButtonVariant.primary,
+                        onPressed: () => CreateBackupDialog.show(context),
+                      ),
+                      QuietButton(
+                        label: 'Restore Backup',
+                        icon: Icons.settings_backup_restore_rounded,
+                        variant: QuietButtonVariant.secondary,
+                        onPressed: () => RestoreBackupDialog.show(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Divider(color: colors.divider, height: 1),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Automated Rolling Backups
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Daily Auto-Backup',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Automatically saves snapshots on app launch',
+                              style: AppTypography.caption.copyWith(
+                                color: colors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: autoBackupConfig.enabled,
+                        activeTrackColor: colors.accent,
+                        onChanged: (val) async {
+                          if (val && autoBackupConfig.folderPath == null) {
+                            // Prompt for folder first
+                            final folder =
+                                await FilePicker.platform.getDirectoryPath(
+                              dialogTitle: 'Select Auto-Backup Folder',
+                            );
+                            if (folder != null) {
+                              await ref
+                                  .read(autoBackupConfigProvider.notifier)
+                                  .setFolderPath(folder);
+                              await ref
+                                  .read(autoBackupConfigProvider.notifier)
+                                  .setEnabled(true);
+                            }
+                          } else {
+                            await ref
+                                .read(autoBackupConfigProvider.notifier)
+                                .setEnabled(val);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+
+                  if (autoBackupConfig.enabled) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    // Folder destination tile
+                    InkWell(
+                      onTap: () async {
+                        final folder =
+                            await FilePicker.platform.getDirectoryPath(
+                          dialogTitle: 'Change Auto-Backup Folder',
+                        );
+                        if (folder != null) {
+                          await ref
+                              .read(autoBackupConfigProvider.notifier)
+                              .setFolderPath(folder);
+                        }
+                      },
+                      borderRadius: AppRadii.borderSm,
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: colors.background,
+                          borderRadius: AppRadii.borderSm,
+                          border: Border.all(color: colors.divider),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.folder_open_rounded,
+                                size: 20, color: colors.accent),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Backup Folder',
+                                    style: AppTypography.caption.copyWith(
+                                      color: colors.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    autoBackupConfig.folderPath ??
+                                        'No folder selected',
+                                    style: AppTypography.caption.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right_rounded,
+                                size: 18, color: colors.textTertiary),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+
+                    // Retention count dropdown & encryption config
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colors.background,
+                              borderRadius: AppRadii.borderSm,
+                              border: Border.all(color: colors.divider),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.history_rounded,
+                                    size: 18, color: colors.textSecondary),
+                                const SizedBox(width: AppSpacing.xs),
+                                Text(
+                                  'Keep:',
+                                  style: AppTypography.caption.copyWith(
+                                      color: colors.textSecondary),
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                DropdownButton<int>(
+                                  value: autoBackupConfig.retentionCount,
+                                  underline: const SizedBox.shrink(),
+                                  dropdownColor: colors.surface,
+                                  style: AppTypography.caption.copyWith(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  items: const [3, 5, 10, 30].map((c) {
+                                    return DropdownMenuItem<int>(
+                                      value: c,
+                                      child: Text('$c backups'),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      ref
+                                          .read(
+                                              autoBackupConfigProvider.notifier)
+                                          .setRetentionCount(val);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () =>
+                                AutoBackupPasswordDialog.show(context),
+                            borderRadius: AppRadii.borderSm,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: colors.background,
+                                borderRadius: AppRadii.borderSm,
+                                border: Border.all(color: colors.divider),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    autoBackupConfig.hasPassword
+                                        ? Icons.lock_rounded
+                                        : Icons.lock_open_rounded,
+                                    size: 18,
+                                    color: autoBackupConfig.hasPassword
+                                        ? colors.accent
+                                        : colors.textSecondary,
+                                  ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  Expanded(
+                                    child: Text(
+                                      autoBackupConfig.hasPassword
+                                          ? 'Encrypted'
+                                          : 'Plaintext',
+                                      style: AppTypography.caption.copyWith(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (autoBackupConfig.lastBackupAt != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Last backup: ${DateFormat.yMMMd().add_jm().format(autoBackupConfig.lastBackupAt!)}',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),

@@ -16,6 +16,7 @@ import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../application/notes_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_model.dart';
+import '../../../core/backup/backup_provider.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import 'widgets/note_date_header.dart';
@@ -42,7 +43,17 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdatesOnLaunch();
+      _performAutoBackupOnLaunch();
     });
+  }
+
+  Future<void> _performAutoBackupOnLaunch() async {
+    try {
+      final backupService = ref.read(backupServiceProvider);
+      await backupService.performAutoBackupIfDue();
+    } catch (_) {
+      // Quiet background failure, ignore
+    }
   }
 
   Future<void> _checkForUpdatesOnLaunch() async {

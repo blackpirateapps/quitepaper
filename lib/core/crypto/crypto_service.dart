@@ -120,6 +120,8 @@ class KdfParameters {
     this.hashLength = 32,
   });
 
+  static const standard = KdfParameters();
+
   final int memory;
   final int iterations;
   final int parallelism;
@@ -278,6 +280,22 @@ abstract class CryptoService {
 
   /// Computes a one-way public commitment to the master key for key rotation verification
   String computeKeyAuthCommitment(Uint8List masterKey);
+
+  /// Encrypts raw bytes with a SecretKey, returning combined ciphertext + MAC
+  Future<Uint8List> encryptRawBytes({
+    required List<int> plaintextBytes,
+    required SecretKey secretKey,
+    required List<int> nonce,
+    List<int>? associatedData,
+  });
+
+  /// Decrypts combined ciphertext + MAC using SecretKey
+  Future<Uint8List> decryptRawBytes({
+    required List<int> combinedCiphertext,
+    required SecretKey secretKey,
+    required List<int> nonce,
+    List<int>? associatedData,
+  });
 }
 
 /// Production implementation of CryptoService using Argon2id and XChaCha20-Poly1305
@@ -488,5 +506,50 @@ class DefaultCryptoService implements CryptoService {
   @override
   String normalizeRecoveryKey(String key) {
     return key.trim().toLowerCase().replaceAll(RegExp(r'[^a-f0-9]'), '');
+  }
+
+  @override
+  Future<Uint8List> encryptRawBytes({
+    required List<int> plaintextBytes,
+    required SecretKey secretKey,
+    required List<int> nonce,
+    List<int>? associatedData,
+  }) async {
+    final secretBox = await _cipher.encrypt(
+      plaintextBytes,
+      secretKey: secretKey,
+      nonce: nonce,
+      aad: associatedData ?? const <int>[],
+    );
+    return Uint8List.fromList(secretBox.concatenation(nonce: false));
+  }
+
+  @override
+  Future<Uint8List> decryptRawBytes({
+    required List<int> combinedCiphertext,
+    required SecretKey secretKey,
+    required List<int> nonce,
+    List<int>? associatedData,
+  }) async {
+    if (combinedCiphertext.length < 16) {
+      throw const FormatException('Ciphertext too short for Poly1305 MAC');
+    }
+    final cipherBytes =
+        combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
+
+    final secretBox = SecretBox(
+      cipherBytes,
+      nonce: nonce,
+      mac: Mac(macBytes),
+    );
+
+    final decrypted = await _cipher.decrypt(
+      secretBox,
+      secretKey: secretKey,
+      aad: associatedData ?? const <int>[],
+    );
+
+    return Uint8List.fromList(decrypted);
   }
 }

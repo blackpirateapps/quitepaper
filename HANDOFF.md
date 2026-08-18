@@ -332,6 +332,30 @@ Quiet Paper features a native, background-aware auto-update engine powered direc
 
 ---
 
+## 14. Local Backup & Rolling Auto-Backup System
+
+### Overview
+Quiet Paper includes a complete, high-fidelity local backup system with optional client-side encryption and automated daily rolling backups:
+
+- **Unified Backup Format (`.qpbackup`)**:
+  - **Unencrypted Format (`quietpaper:backup:v1`)**: Canonical UTF-8 JSON containing full notebook snapshot (notes, tags, markdown contents, pinned/archived/trash states, timestamps, schema version).
+  - **Encrypted Envelope (`quietpaper:encrypted-backup:v1`)**: Protected with **Argon2id** key derivation (`19MB memory`, `2 iterations`) and **XChaCha20-Poly1305** authenticated encryption. Decryption immediately verifies the Poly1305 MAC tag and rejects incorrect passwords.
+- **Manual Backup & Restore Dialogs**:
+  - [`CreateBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/create_backup_dialog.dart): Live note statistics preview, optional password toggle with confirmation, and folder destination selector.
+  - [`RestoreBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/restore_backup_dialog.dart): File selector, password unlock interface for encrypted snapshots, pre-restore validation summary, and 3 restore conflict strategies:
+    1. **Merge (Recommended)**: Adds missing notes, updates local notes if the backup version has a newer `updatedAt`, and preserves newer local edits.
+    2. **Keep Both**: Re-generates UUIDs and appends `(Restored)` title suffix for colliding notes.
+    3. **Clean Replace**: Erases current notebook and restores the exact backup snapshot.
+- **Automated Daily Rolling Backups**:
+  - Triggers non-blocking in background on app launch if $\ge 24$ hours have elapsed since the previous backup.
+  - User chooses the destination directory via folder picker.
+  - User chooses retention limit (**3, 5, 10, or 30 rolling backups**).
+  - Automatically prunes older `quietpaper_autobackup_*.qpbackup` files in the folder when the count exceeds the retention limit.
+  - [`AutoBackupPasswordDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/auto_backup_password_dialog.dart): Allows configuring an optional background encryption password securely persisted in `FlutterSecureStorage` so daily rolling backups can execute unattended.
+- **Cloud Sync Compatibility**: Restored notes are saved with `isDirty: true` and `serverRevision: 0`, seamlessly queuing them for cloud sync.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -341,6 +365,8 @@ Quiet Paper features a native, background-aware auto-update engine powered direc
 - [x] Outdated or duplicate key versions during rotation are rejected with `409 CONFLICT`.
 - [x] Deletion tombstones with empty ciphertexts sync cleanly without schema validation errors.
 - [x] GitHub Releases update engine automatically detects architecture-specific APKs, handles 30-day snooze, and triggers in-app package installation.
+- [x] Local backup engine creates and restores `.qpbackup` snapshots with optional Argon2id encryption, conflict strategies, and daily rolling auto-backups with retention pruning.
+
 
 
 
