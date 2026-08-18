@@ -429,6 +429,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
+  bool get isTabletEditor => widget.onClose != null;
+
   void _showOverflowMenu(
     BuildContext context,
     Note note,
@@ -487,11 +489,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       Navigator.of(ctx).pop();
                       await notifier.restoreNote();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        if (isTabletEditor) {
+                          widget.onClose?.call();
+                        } else if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Note restored'),
-                            duration: Duration(seconds: 3),
+                            duration: Duration(seconds: 2),
                           ),
                         );
                       }
@@ -558,11 +565,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       if (confirmed == true) {
                         await notifier.deletePermanently();
                         if (context.mounted) {
-                          Navigator.of(context).pop();
+                          if (isTabletEditor) {
+                            widget.onClose?.call();
+                          } else if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
+                          ScaffoldMessenger.of(context).clearSnackBars();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Note permanently deleted'),
-                              duration: Duration(seconds: 3),
+                              duration: Duration(seconds: 2),
                             ),
                           );
                         }
@@ -586,11 +598,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       Navigator.of(ctx).pop();
                       await notifier.unarchiveNote();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        if (isTabletEditor) {
+                          widget.onClose?.call();
+                        } else if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Note unarchived'),
-                            duration: Duration(seconds: 3),
+                            duration: Duration(seconds: 2),
                           ),
                         );
                       }
@@ -611,11 +628,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       Navigator.of(ctx).pop();
                       await notifier.trashNote();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        if (isTabletEditor) {
+                          widget.onClose?.call();
+                        } else if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Note moved to Trash'),
-                            duration: Duration(seconds: 3),
+                            duration: Duration(seconds: 2),
                           ),
                         );
                       }
@@ -656,11 +678,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       Navigator.of(ctx).pop();
                       await notifier.archiveNote();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        if (isTabletEditor) {
+                          widget.onClose?.call();
+                        } else if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Note archived'),
-                            duration: Duration(seconds: 3),
+                            duration: Duration(seconds: 2),
                           ),
                         );
                       }
@@ -681,11 +708,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       Navigator.of(ctx).pop();
                       await notifier.trashNote();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        if (isTabletEditor) {
+                          widget.onClose?.call();
+                        } else if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Note moved to Trash'),
-                            duration: Duration(seconds: 3),
+                            duration: Duration(seconds: 2),
                           ),
                         );
                       }

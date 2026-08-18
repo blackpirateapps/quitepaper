@@ -5,6 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
+import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import 'markdown_chunker.dart';
@@ -131,6 +132,12 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
         _parsedMarkdown.hasDisplayableMetadata ||
         (widget.tags != null && widget.tags!.isNotEmpty);
 
+    final effectiveOnTapLink = widget.onTapLink ??
+        (text, href, title) {
+          final target = (href != null && href.isNotEmpty) ? href : text;
+          LinkLauncherHelper.handleLinkTap(context, target);
+        };
+
     Widget buildHeader() {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -149,7 +156,7 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
           if (_parsedMarkdown.hasDisplayableMetadata) ...[
             QuietFrontmatterCard(
               metadata: _parsedMarkdown,
-              onTapLink: widget.onTapLink,
+              onTapLink: effectiveOnTapLink,
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
@@ -183,7 +190,7 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
               data: '*No content*',
               selectable: false,
               styleSheet: customStyleSheet,
-              onTapLink: widget.onTapLink,
+              onTapLink: effectiveOnTapLink,
             ),
           ],
         );
@@ -198,7 +205,7 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
                 data: chunk,
                 selectable: false,
                 styleSheet: customStyleSheet,
-                onTapLink: widget.onTapLink,
+                onTapLink: effectiveOnTapLink,
               ),
             ),
           ],
@@ -227,14 +234,14 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
                 data: '*No content*',
                 selectable: false,
                 styleSheet: customStyleSheet,
-                onTapLink: widget.onTapLink,
+                onTapLink: effectiveOnTapLink,
               );
             }
             return MarkdownBody(
               data: _chunks[bodyIndex],
               selectable: false,
               styleSheet: customStyleSheet,
-              onTapLink: widget.onTapLink,
+              onTapLink: effectiveOnTapLink,
             );
           }
 

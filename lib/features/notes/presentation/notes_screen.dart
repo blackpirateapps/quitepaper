@@ -878,17 +878,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Note archived'),
+        behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.horizontal,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
             repository.unarchiveNote(note.id);
           },
         ),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -903,17 +905,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Note unarchived'),
+        behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.horizontal,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
             repository.archiveNote(note.id);
           },
         ),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -928,17 +932,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Note moved to Trash'),
+        behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.horizontal,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
             repository.restoreFromTrash(note.id);
           },
         ),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -953,17 +959,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Note restored'),
+        behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.horizontal,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
             repository.trashNote(note.id);
           },
         ),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -978,11 +986,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       });
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Note permanently deleted'),
-        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
       ),
     );
   }

@@ -20,6 +20,7 @@ class QuietButton extends StatelessWidget {
     this.icon,
     this.variant = QuietButtonVariant.secondary,
     this.isFullWidth = false,
+    this.isLoading = false,
   });
 
   final String label;
@@ -27,6 +28,7 @@ class QuietButton extends StatelessWidget {
   final IconData? icon;
   final QuietButtonVariant variant;
   final bool isFullWidth;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +70,17 @@ class QuietButton extends StatelessWidget {
       mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (icon != null) ...[
+        if (isLoading) ...[
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.0,
+              valueColor: AlwaysStoppedAnimation(foregroundColor),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ] else if (icon != null) ...[
           Icon(icon, size: 18, color: foregroundColor),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -93,7 +105,7 @@ class QuietButton extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onPressed,
+        onTap: isLoading ? null : onPressed,
         child: Container(
           constraints: const BoxConstraints(minHeight: 44),
           padding: const EdgeInsets.symmetric(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/markdown/markdown_preview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Widget buildWrapper(Widget child) {
@@ -215,6 +216,34 @@ This note only has unknown frontmatter keys.
       expect(find.text('draft_id'), findsNothing);
       expect(find.text('Clean Note'), findsOneWidget);
       expect(find.text('This note only has unknown frontmatter keys.'), findsOneWidget);
+    });
+
+    testWidgets('default onTapLink triggers LinkConfirmationDialog on untrusted domain link',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      const markdown = '''---
+source: https://untrusted-site.org/very/long/path/with/parameters?token=xyz
+---
+# Main Content
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: markdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('https://untrusted-site.org/very/long/path/with/parameters?token=xyz'), findsOneWidget);
+      await tester.tap(find.text('https://untrusted-site.org/very/long/path/with/parameters?token=xyz'));
+      await tester.pumpAndSettle();
+
+      // Verify LinkConfirmationDialog opened
+      expect(find.text('Open External Link?'), findsOneWidget);
+      expect(find.text('https://untrusted-site.org/very/long/path/with/parameters?token=xyz'), findsWidgets);
+      expect(find.text('Trust links from untrusted-site.org in the future'), findsOneWidget);
     });
   });
 }

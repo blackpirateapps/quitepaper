@@ -14,8 +14,8 @@ import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
-import '../../sync/presentation/change_encryption_password_dialog.dart';
-import '../../sync/presentation/sync_auth_dialog.dart';
+import '../../sync/presentation/change_encryption_password_screen.dart';
+import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -94,9 +94,10 @@ class SettingsScreen extends ConsumerWidget {
                       icon: Icons.cloud_sync_outlined,
                       variant: QuietButtonVariant.primary,
                       onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => const SyncAuthDialog(),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SyncAuthScreen(),
+                          ),
                         );
                       },
                     ),
@@ -151,10 +152,11 @@ class SettingsScreen extends ConsumerWidget {
                           icon: Icons.lock_reset_rounded,
                           variant: QuietButtonVariant.secondary,
                           onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) =>
-                                  const ChangeEncryptionPasswordDialog(),
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const ChangeEncryptionPasswordScreen(),
+                              ),
                             );
                           },
                         ),

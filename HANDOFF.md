@@ -248,6 +248,33 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - [x] Plaintext titles, bodies, and tags never reach network requests or server storage.
 - [x] Database table `notes` has no `title`, `body`, or `tags` columns.
 - [x] Backend source code contains zero decryption methods or global decryption keys.
+- [x] Argon2id parameters strictly enforce 19MB memory, 2 iterations, 16-byte cryptographically secure salts.
+
+---
+
+## 10. Hyperlink Security, Dedicated Full-Page Auth & Bugfixes
+
+### Interactive Hyperlink Safety & Domain Trust Persistence
+- **Link Tap Handler**: Clicking any markdown link (`[text](url)` or raw URL) or frontmatter `source` URL invokes `LinkLauncherHelper.handleLinkTap(context, url)`.
+- **Domain Extraction & Trust Check**: Extracts the normalized domain host from the URL and checks the persisted trusted domains list in `SharedPreferences`.
+- **Trusted URLs**: If the domain is already trusted, opens immediately in the default system browser via `url_launcher` (`LaunchMode.externalApplication`).
+- **Confirmation Dialog (`LinkConfirmationDialog`)**: If the domain is not yet trusted, prompts the user with an editorial dialog featuring:
+  - Header with external link icon and domain title.
+  - Scrollable and selectable monospaced container displaying the complete URL (gracefully handling long paths, query parameters, and soft hyphenation).
+  - "Trust links from [domain] in the future" checkmark (persisted to `SharedPreferences`).
+  - "Cancel" and "Open Link" action buttons.
+
+### Full-Page Dedicated Authentication & Encryption Screens
+- **`SyncAuthScreen`**: Dedicated full-page route replacing dialog popups for Cloud Sync onboarding, Step 1 (Email), Step 2 (Account Password), Step 3 (Encryption Password), Step 4 (Recovery Key generation & confirmation), and Sign In.
+- **`ChangeEncryptionPasswordScreen`**: Dedicated full-page route for master password rotation with step 1 current ownership verification (via current password or emergency recovery key) and step 2 new encryption password entry.
+- **Animated Loading Cues**: High-visibility loading banners and animated progress indicators with clear status explanations during Argon2id key derivation (~300-500ms), Firebase authentication, and vault re-wrapping.
+- **`QuietButton(isLoading: true)`**: Displays an inline animated spinner with disabled interactions during async operations.
+
+### Note Lifecycle & Black Screen Bug Fix
+- **Tablet vs Phone Navigator Guard**: In split-view tablet layout, `EditorScreen` is an embedded pane rather than a pushed route. Direct calls to `Navigator.of(context).pop()` previously popped the root route, causing the app container to turn black.
+- **Fix**: Implemented `isTabletEditor ? widget.onClose?.call() : if (Navigator.canPop()) Navigator.pop()`.
+- **Auto-Dismissing SnackBars**: Added `ScaffoldMessenger.of(context).clearSnackBars()`, `behavior: SnackBarBehavior.floating`, and `dismissDirection: DismissDirection.horizontal` to prevent lingering undo banners.
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
