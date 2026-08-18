@@ -27,7 +27,7 @@ class HttpSyncApiClient implements SyncApiClient {
     http.Client? httpClient,
   })  : _baseUrl = baseUrl ??
             const String.fromEnvironment('SYNC_API_URL',
-                defaultValue: 'http://localhost:3000'),
+                defaultValue: 'https://quitepaper.vercel.app'),
         _client = httpClient ?? http.Client();
 
   final AuthService authService;

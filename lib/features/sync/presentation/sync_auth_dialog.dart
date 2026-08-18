@@ -19,7 +19,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
   final _firebasePasswordController = TextEditingController();
   final _encryptionPasswordController = TextEditingController();
   final _recoveryKeyController = TextEditingController();
-  final _serverUrlController = TextEditingController();
+  final _serverUrlController =
+      TextEditingController(text: 'https://quitepaper.vercel.app');
   final _apiKeyController = TextEditingController();
 
   bool _isSignUp = false;

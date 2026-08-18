@@ -50,7 +50,7 @@ abstract class AuthService {
   Stream<AuthUser?> get authStateChanges;
   String get apiKey;
   void setApiKey(String key);
-  Future<void> fetchConfigFromBackend(String backendUrl);
+  Future<void> fetchConfigFromBackend([String? backendUrl]);
 
   Future<AuthUser> signInWithEmailAndPassword(String email, String password);
   Future<AuthUser> signUpWithEmailAndPassword(String email, String password);
@@ -80,10 +80,13 @@ class FirebaseAuthService implements AuthService {
   }
 
   @override
-  Future<void> fetchConfigFromBackend(String backendUrl) async {
-    if (backendUrl.trim().isEmpty) return;
+  Future<void> fetchConfigFromBackend([String? backendUrl]) async {
+    final targetUrl = (backendUrl != null && backendUrl.trim().isNotEmpty)
+        ? backendUrl.trim()
+        : const String.fromEnvironment('SYNC_API_URL',
+            defaultValue: 'https://quitepaper.vercel.app');
     try {
-      final sanitized = backendUrl.replaceAll(RegExp(r'/+$'), '');
+      final sanitized = targetUrl.replaceAll(RegExp(r'/+$'), '');
       final url = Uri.parse('$sanitized/api/v1/config');
       final res = await _client.get(url).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
@@ -268,7 +271,7 @@ class MockAuthService implements AuthService {
   }
 
   @override
-  Future<void> fetchConfigFromBackend(String backendUrl) async {}
+  Future<void> fetchConfigFromBackend([String? backendUrl]) async {}
 
   @override
   AuthUser? get currentUser => _currentUser;
