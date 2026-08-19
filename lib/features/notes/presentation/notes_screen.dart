@@ -305,6 +305,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               await repository.restoreNotes(ids);
               _exitMultiSelect();
               if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$count notes restored'),
@@ -325,6 +326,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 await repository.deletePermanentlyBatch(ids);
                 _exitMultiSelect();
                 if (context.mounted) {
+                  ScaffoldMessenger.of(context).clearSnackBars();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('$count notes permanently deleted'),
@@ -345,6 +347,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               await repository.unarchiveNotes(ids);
               _exitMultiSelect();
               if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$count notes unarchived'),
@@ -362,6 +365,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               await repository.trashNotes(ids);
               _exitMultiSelect();
               if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$count notes moved to Trash'),
@@ -381,6 +385,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               await repository.archiveNotes(ids);
               _exitMultiSelect();
               if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$count notes archived'),
@@ -398,6 +403,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               await repository.trashNotes(ids);
               _exitMultiSelect();
               if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$count notes moved to Trash'),
@@ -926,6 +932,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         content: const Text('Note archived'),
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.horizontal,
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
@@ -953,6 +960,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         content: const Text('Note unarchived'),
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.horizontal,
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
@@ -980,6 +988,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         content: const Text('Note moved to Trash'),
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.horizontal,
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
@@ -1007,6 +1016,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         content: const Text('Note restored'),
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.horizontal,
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
@@ -1041,6 +1051,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Future<void> _confirmEmptyTrash(BuildContext context) async {
     final count = ref.read(trashedNotesCountProvider).valueOrNull ?? 0;
     if (count == 0) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Trash is already empty'),
@@ -1057,6 +1068,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         _selectedNoteIdForTablet = null;
       });
       if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Trash emptied'),

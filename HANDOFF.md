@@ -404,6 +404,18 @@ When releasing a new version of Quiet Paper, ensure the version string (and incr
 
 ---
 
+## 18. Auto-Dismissing Undo SnackBars (`persist: false`)
+
+### Problem & Root Cause
+In recent versions of Flutter (Flutter 3.44+), `SnackBar` introduced the `persist` property which defaults to `action != null` (`persist = persist ?? action != null;`). Consequently, any SnackBar rendered with an action (such as the `'Undo'` button on archive, unarchive, trash, and restore notifications) defaults to `persist: true`. When `persist: true`, the internal Scaffold timeout timer in `ScaffoldMessengerState` returns early without calling `hideCurrentSnackBar(reason: SnackBarClosedReason.timeout)`, causing "Note archived" and "Undo" banners to persist on screen indefinitely unless dismissed manually.
+
+### Solution
+- Set `persist: false` on all action-bearing SnackBars across [`notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart) and [`search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart).
+- Ensured `ScaffoldMessenger.of(context).clearSnackBars()` is called prior to presenting new SnackBars in multi-select batch actions and dialog callbacks.
+- Added automated widget tests to verify that archive/undo SnackBars automatically timeout and dismiss after their configured duration.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -417,6 +429,8 @@ When releasing a new version of Quiet Paper, ensure the version string (and incr
 - [x] User auth sessions and unlocked master keys are securely persisted in Android Keystore / iOS Keychain across app updates and process restarts.
 - [x] Local backup file creation utilizes Android Storage Access Framework (SAF) to write `.qpbackup` files safely on modern Android Scoped Storage without permission exceptions.
 - [x] App version bump procedure is documented in HANDOFF.md across all 5 code locations.
+- [x] Undo action SnackBars explicitly set `persist: false` to ensure reliable auto-dismissal after duration.
+
 
 
 

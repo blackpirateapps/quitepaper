@@ -685,6 +685,47 @@ void main() {
   });
 
   testWidgets(
+      'Archiving note shows undo snackbar which auto-dismisses after duration',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(Note(
+      id: 'arch-auto-dismiss',
+      title: 'Auto Dismiss Note',
+      content: 'Testing auto dismiss of archive snackbar',
+      createdAt: now,
+      updatedAt: now,
+    ));
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto Dismiss Note'), findsOneWidget);
+
+    // Swipe right to archive
+    await tester.drag(find.text('Auto Dismiss Note'), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    // Note archived and SnackBar with Undo is visible
+    expect(find.text('Auto Dismiss Note'), findsNothing);
+    expect(find.text('Note archived'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
+
+    // Fast-forward beyond SnackBar duration (3 seconds)
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    // SnackBar should now be dismissed automatically
+    expect(find.text('Note archived'), findsNothing);
+    expect(find.text('Undo'), findsNothing);
+
+    await finishTest(tester);
+  });
+
+  testWidgets(
       'Creating note, pasting long text with no title, and exiting works cleanly',
       (tester) async {
     setPhoneSize(tester);
