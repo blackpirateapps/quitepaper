@@ -10,8 +10,10 @@ import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../application/editor_provider.dart';
+import '../application/markdown_editing_controller.dart';
 import 'widgets/editor_stats_dialog.dart';
 import 'widgets/formatting_toolbar.dart';
+import 'widgets/markdown_editor.dart';
 import 'widgets/tag_editor_bar.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
@@ -35,7 +37,7 @@ class EditorScreen extends ConsumerStatefulWidget {
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver {
   late final TextEditingController _titleController;
-  late final TextEditingController _contentController;
+  late final MarkdownEditingController _contentController;
   late final FocusNode _titleFocusNode;
   late final FocusNode _contentFocusNode;
   late final ScrollController _scrollController;
@@ -57,7 +59,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         : _lastAutoDerivedTitle;
 
     _titleController = TextEditingController(text: initialTitle);
-    _contentController = TextEditingController(text: widget.note.content);
+    _contentController = MarkdownEditingController(text: widget.note.content);
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
     _scrollController = ScrollController();
@@ -362,27 +364,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   ],
 
                                   // Body markdown editor
-                                  TextField(
+                                  MarkdownEditor(
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
-                                    cursorColor: colors.accent,
-                                    style: AppTypography.editorBody.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Start writing...',
-                                      hintStyle: AppTypography.editorBody.copyWith(
-                                        color: colors.textTertiary.withValues(alpha: 0.4),
-                                      ),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                    maxLines: null,
-                                    keyboardType: TextInputType.multiline,
-                                    textCapitalization: TextCapitalization.sentences,
                                   ),
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(

@@ -480,6 +480,35 @@ Previously, the `Build Android APK` CI workflow ([`.github/workflows/build_apk.y
 
 ---
 
+## 22. Markdown-Aware WYSIWYG Editor (V1)
+
+### Motivation & Core Architectural Principles
+Prior to V1, the editor presented plain, unformatted text while editing, requiring users to toggle to Markdown preview mode to inspect document hierarchy and formatting. To provide a calm, distraction-free writing experience inspired by Bear Notes and Typora:
+1. **Markdown is the Source of Truth**: The underlying note content remains a standard Markdown string. No custom rich-text JSON, HTML, Delta, ProseMirror, or Quill AST document models are introduced.
+2. **TextSpan Dynamic Presentation**: Formatting is computed purely in presentation via `MarkdownEditingController.buildTextSpan()` and `MarkdownParser.buildTextSpan()`, generating a styled `TextSpan` tree while leaving underlying characters 100% intact.
+3. **1:1 Selection and Cursor Accuracy**: There is an exact 1:1 correspondence between character indices in the editable text and Flutter's selection/caret offsets. Copying returns the exact Markdown source, pasting preserves Markdown structure, and standard undo/redo remains native and uninterrupted.
+4. **Zero Migration Required**: Existing notes in SQLite/cloud sync load immediately with zero database schema migrations or data conversions.
+
+### Core Components
+- [`MarkdownToken` & `MarkdownTokenType`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_token.dart): Semantic token definitions for block and inline elements.
+- [`MarkdownStyles`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_styles.dart): Centralized, theme-aware style definitions adapting to Light/Dark modes via `AppColors` and `AppTypography`.
+- [`MarkdownTokenizer`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_tokenizer.dart): Deterministic tokenizer scanning blocks and inline elements with support for escaping, nesting, and graceful tolerance of incomplete syntax.
+- [`MarkdownParser`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart): High-performance linear parser compiling text into styled `TextSpan` trees with Android IME composing underline support (`composingRange`).
+- [`MarkdownEditingController`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_editing_controller.dart): `TextEditingController` subclass providing dynamic theme-aware styling.
+- [`MarkdownTextInputFormatter`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_text_input_formatter.dart): Formatter handling auto-continuation for unordered lists (`- `, `* `, `+ `), auto-incrementing ordered lists (`1. `, `2. `), blockquotes (`> `), and clearing empty markers on Enter.
+- [`MarkdownEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart): Dedicated editorial writing sheet widget embedded in [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart).
+
+### Supported Syntax & Visual Representations
+- **Headings**: `#` to `######` render with proportional font sizes (`editorH1` to `editorH6`), bold typography, and subdued syntax markers (`#`).
+- **Bold & Italic**: `**bold**`, `__bold__`, `*italic*`, `_italic_`, `***bold italic***`, `___bold italic___` with subtle delimiters.
+- **Strikethrough & Highlight**: `~~strikethrough~~` (line-through decoration) and `==highlight==` (soft amber/accent background tint).
+- **Inline Code & Code Blocks**: `` `code` `` and fenced ` ```lang ... ``` ` with monospace typography and subdued fences.
+- **Lists & Quotes**: Unordered lists (`- `, `* `, `+ `), ordered lists (`1. `, `2. `), and blockquotes (`> `) with accent markers and comfortable indentation.
+- **Links & Tags**: `[link title](url)` with interactive styling, bare URLs, and `#tag` highlights.
+- **Escapes & Tolerant Parsing**: `\*`, `\_`, etc. are preserved literally without false formatting, and incomplete Markdown never crashes the editor.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -497,6 +526,8 @@ Previously, the `Build Android APK` CI workflow ([`.github/workflows/build_apk.y
 - [x] Settings restore and backup dialog action layouts are fully responsive and wrapped with `SingleChildScrollView` to prevent UI overflow.
 - [x] Settings screen conforms to the iOS Grouped Table / Bear Notes aesthetic with flush grouped rows, Cupertino controls, indented dividers, and tablet max-width constraints.
 - [x] Android CI build workflow (`build_apk.yml`) builds multi-architecture APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `universal`) and uploads them as separate artifacts.
+- [x] Markdown-Aware WYSIWYG Editor (V1) renders live visual Markdown styling, list auto-continuation, and IME support while maintaining standard Markdown text as the authoritative single source of truth.
+
 
 
 
