@@ -7,10 +7,12 @@ import '../../../../app/theme/app_typography.dart';
 class PasswordUnlockView extends StatefulWidget {
   const PasswordUnlockView({
     super.key,
+    this.title,
     this.hint,
     required this.onUnlock,
   });
 
+  final String? title;
   final String? hint;
   final Future<bool> Function(String password) onUnlock;
 
@@ -82,7 +84,9 @@ class _PasswordUnlockViewState extends State<PasswordUnlockView> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Password Protected Note',
+                widget.title != null && widget.title!.trim().isNotEmpty
+                    ? widget.title!.trim()
+                    : 'Password Protected Note',
                 textAlign: TextAlign.center,
                 style: AppTypography.title.copyWith(
                   color: colors.textPrimary,

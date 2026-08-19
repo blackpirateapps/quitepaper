@@ -736,6 +736,15 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - Downloads the encrypted ciphertext directly from Cloudinary using `cloudUrl`.
   - Saves the encrypted blob to app-private storage, decrypts with the Master Key in memory, verifies SHA-256 integrity, caches in RAM, and displays seamlessly in [`QuietAssetImageView`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart).
 
+### Protected Note Title Preservation & Version 1.4.1
+- **Title Preservation**:
+  - When custom password protection is applied to a note, only the note body and tags are encrypted into the encrypted envelope.
+  - The note's title is preserved in SQLite, note tiles, note cards, editor app bar, and password unlock modal, rather than being wiped and replaced with generic placeholder text.
+  - [`Note.displayTitle`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart#L37) returns the note's real title (`title.trim()`), only falling back to `'Untitled'` if no title was ever set.
+- **Version Bump**:
+  - App version bumped to `1.4.1` (build `+7`) across [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19), [`update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart#L10), and [`settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L620).
+
+
 
 
 

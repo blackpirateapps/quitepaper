@@ -70,15 +70,24 @@ void main() {
 
       final encryptedNote = Note(
         id: 'note-1',
-        title: '',
+        title: 'Secret Title',
         content: encryptedPayload,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
       expect(encryptedNote.isPasswordProtected, isTrue);
-      expect(encryptedNote.displayTitle, equals('Protected Note'));
+      expect(encryptedNote.displayTitle, equals('Secret Title'));
       expect(encryptedNote.previewSnippet, equals('🔒 Password protected note'));
+
+      final untitledProtectedNote = Note(
+        id: 'note-1b',
+        title: '',
+        content: encryptedPayload,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      expect(untitledProtectedNote.displayTitle, equals('Untitled'));
 
       final normalNote = Note(
         id: 'note-2',

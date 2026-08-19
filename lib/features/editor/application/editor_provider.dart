@@ -57,9 +57,10 @@ class EditorNotifier extends StateNotifier<EditorState> {
         encryptedContent: state.note.content,
         password: password,
       );
+      final finalTitle = state.note.title.isNotEmpty ? state.note.title : decrypted.title;
       state = state.copyWith(
         note: state.note.copyWith(
-          title: decrypted.title,
+          title: finalTitle,
           content: decrypted.content,
           tags: decrypted.tags,
         ),
@@ -215,7 +216,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
         );
 
         final encryptedNoteInDb = noteToSave.copyWith(
-          title: '',
+          title: titleToSave,
           content: encryptedPayload,
         );
         await repository.saveNote(encryptedNoteInDb);

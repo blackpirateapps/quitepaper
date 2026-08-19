@@ -38,9 +38,6 @@ class Note {
     if (title.trim().isNotEmpty) {
       return title.trim();
     }
-    if (isPasswordProtected) {
-      return 'Protected Note';
-    }
     final derived = deriveTitle(content);
     return derived.isNotEmpty ? derived : 'Untitled';
   }
@@ -49,7 +46,7 @@ class Note {
   static String deriveTitle(String content) {
     if (content.isEmpty) return '';
     if (content.trimLeft().startsWith('<!-- quiet-paper-encrypted-note-v1:')) {
-      return 'Protected Note';
+      return '';
     }
 
     // Take at most first 300 characters to find first line quickly

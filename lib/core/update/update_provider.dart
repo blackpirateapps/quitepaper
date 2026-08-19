@@ -7,7 +7,7 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return UpdateService(
     sharedPreferences: prefs,
-    currentVersion: '1.4.0',
+    currentVersion: '1.4.1',
     githubRepo: 'blackpirateapps/quitepaper',
   );
 });

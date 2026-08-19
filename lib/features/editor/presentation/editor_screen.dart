@@ -235,7 +235,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       )
                     : null),
             title: Text(
-              'Protected Note',
+              editorState.note.displayTitle,
               style: AppTypography.title.copyWith(
                 color: colors.textPrimary,
                 fontSize: 20,
@@ -245,6 +245,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
           body: SafeArea(
             child: PasswordUnlockView(
+              title: editorState.note.displayTitle,
               hint: editorState.activePasswordHint,
               onUnlock: (password) async {
                 final success =
