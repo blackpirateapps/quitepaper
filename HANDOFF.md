@@ -780,23 +780,30 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - "All" replaces all occurrences throughout the document with feedback notification.
   - Read-only locked notes automatically disable replace controls while allowing find and navigation.
 
+### In-Editor Undo & Redo
+- **Dual-Stack In-Memory History**:
+  - [`UndoRedoManager`](file:///home/dog/git/quitepaper/lib/features/editor/application/undo_redo_manager.dart) maintains discrete undo (`_undoStack`) and redo (`_redoStack`) snapshot stacks during each active editing session.
+  - Captures text state and cursor/selection positions with snapshot timestamps.
+  - **Continuous Typing Batching**: Continuous keystrokes within `typingDebounceDuration` (600ms) update the top snapshot in place to prevent cluttering the undo stack with single-character steps.
+  - **Immediate Atomic Snapshots**: Programmatic markdown formatting operations (bold, italic, list insertion, headings, code blocks, links, images, tag insertion) and newline breaks trigger immediate atomic snapshots.
+- **UI & Keyboard Shortcut Integration**:
+  - **Formatting Toolbar**: Undo (`Icons.undo_rounded`) and Redo (`Icons.redo_rounded`) buttons are integrated into the start of [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart), automatically enabling/dimming based on stack state.
+  - **Desktop/Hardware Shortcuts**: `Ctrl+Z` / `Cmd+Z` for Undo; `Ctrl+Shift+Z` / `Cmd+Shift+Z` / `Ctrl+Y` for Redo wired up via `CallbackShortcuts`.
+  - Cleared automatically on note exit and session completion.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### Session-Based Version History & Cloud Sync
+- **Session Lifecycle & Micro-Edit Filtering**:
+  - [`VersionSessionTracker`](file:///home/dog/git/quitepaper/lib/features/editor/application/version_session_tracker.dart) tracks the state of a note from session open to close (or background/sleep flush).
+  - **Micro-Edit Filter**: Discards trivial accidental taps or micro-adjustments ($< 10$ character delta, $< 3$ word delta, unchanged title/tags/markdown structure).
+  - Substantive edits auto-commit a new [`NoteVersion`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_version_model.dart) with incremented `versionNumber`, formatted timestamp, word count, character count, and delta summary tag (e.g. `+45 words`, `Title updated`, `Tags modified`).
+  - **Auto-Pruning**: Automatically retains the latest 50 versions per note (`pruneOldNoteVersions(noteId, maxKeep: 50)`), cleanly pruning older snapshots.
+- **Zero-Knowledge Encryption & Cloud Sync**:
+  - Client-side encryption: [`SyncEngine`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart) encrypts version payloads (title, content, tags) with the user's Master Key using **XChaCha20-Poly1305** before cloud synchronization.
+  - Turso/libSQL backend migration `backend/migrations/003_note_versions_schema.sql` creates `note_versions` table indexed by `(user_id, note_id, version_number)` and `(user_id, revision)`.
+  - REST endpoints `/api/v1/sync/versions/push` and `/api/v1/sync/versions/pull` in `backend/src/sync/syncService.ts` and `backend/src/api/handler.ts` provide revision-tracked sync.
+- **Version History Sheet & Non-Destructive Restore**:
+  - Accessible from the editor overflow menu (`⋯` -> "Version history").
+  - [`VersionHistorySheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/version_history_sheet.dart) displays real-time stream of past versions (`watchVersions`), formatted timestamps, word counts, and delta summaries.
+  - **Version Inspection & Copy**: Tapping a version previews title, tags, and full Markdown content, with a "Copy Text" action.
+  - **Non-Destructive Restoration**: "Restore" action automatically commits the current note state as a version first, then loads the selected version into the active editor and autosaves to database and cloud sync.
 

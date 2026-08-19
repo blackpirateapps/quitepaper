@@ -13,16 +13,27 @@ class FormattingToolbar extends StatelessWidget {
     required this.onTagPressed,
     this.onImagePressed,
     this.focusNode,
+    this.onUndo,
+    this.onRedo,
+    this.canUndo = false,
+    this.canRedo = false,
+    this.onApplyAtomicEdit,
   });
 
   final TextEditingController controller;
   final VoidCallback onTagPressed;
   final VoidCallback? onImagePressed;
   final FocusNode? focusNode;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
+  final bool canUndo;
+  final bool canRedo;
+  final void Function(TextEditingValue value)? onApplyAtomicEdit;
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
     final updated = action(value: controller.value);
     controller.value = updated;
+    onApplyAtomicEdit?.call(updated);
     if (focusNode != null && !focusNode!.hasFocus) {
       focusNode!.requestFocus();
     }
@@ -31,6 +42,7 @@ class FormattingToolbar extends StatelessWidget {
   void _applyHelperFormat(TextEditingValue Function(TextEditingValue) action) {
     final updated = action(controller.value);
     controller.value = updated;
+    onApplyAtomicEdit?.call(updated);
     if (focusNode != null && !focusNode!.hasFocus) {
       focusNode!.requestFocus();
     }
@@ -58,6 +70,7 @@ class FormattingToolbar extends StatelessWidget {
         title: result.title,
       );
       controller.value = updated;
+      onApplyAtomicEdit?.call(updated);
       if (focusNode != null && !focusNode!.hasFocus) {
         focusNode!.requestFocus();
       }
@@ -80,6 +93,23 @@ class FormattingToolbar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         children: [
+          _ToolbarButton(
+            icon: Icons.undo_rounded,
+            tooltip: 'Undo (Ctrl+Z)',
+            isEnabled: canUndo,
+            onPressed: onUndo ?? () {},
+          ),
+          _ToolbarButton(
+            icon: Icons.redo_rounded,
+            tooltip: 'Redo (Ctrl+Shift+Z)',
+            isEnabled: canRedo,
+            onPressed: onRedo ?? () {},
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            width: 1,
+            color: colors.divider.withValues(alpha: 0.6),
+          ),
           _ToolbarButton(
             label: 'B',
             tooltip: 'Bold (**text**)',
@@ -173,6 +203,7 @@ class _ToolbarButton extends StatelessWidget {
     this.isItalic = false,
     this.isStrikethrough = false,
     this.isMonospace = false,
+    this.isEnabled = true,
   });
 
   final String? label;
@@ -183,14 +214,19 @@ class _ToolbarButton extends StatelessWidget {
   final bool isItalic;
   final bool isStrikethrough;
   final bool isMonospace;
+  final bool isEnabled;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
+    final effectiveColor = isEnabled
+        ? colors.textSecondary
+        : colors.textTertiary.withValues(alpha: 0.35);
+
     TextStyle textStyle = TextStyle(
       fontSize: 16,
-      color: colors.textSecondary,
+      color: effectiveColor,
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
       fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
       decoration: isStrikethrough ? TextDecoration.lineThrough : TextDecoration.none,
@@ -203,13 +239,14 @@ class _ToolbarButton extends StatelessWidget {
         color: Colors.transparent,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderSm),
         child: InkWell(
-          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          onTap: isEnabled ? onPressed : null,
           child: Container(
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             padding: const EdgeInsets.symmetric(horizontal: 10.0),
             alignment: Alignment.center,
             child: icon != null
-                ? Icon(icon, size: 18, color: colors.textSecondary)
+                ? Icon(icon, size: 18, color: effectiveColor)
                 : Text(label!, style: textStyle),
           ),
         ),

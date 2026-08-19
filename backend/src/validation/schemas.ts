@@ -95,9 +95,34 @@ export const confirmAttachmentSchema = z.object({
   height: z.number().int().min(1).optional(),
 });
 
+export const noteVersionSchema = z.object({
+  id: z.string().uuid(),
+  noteId: z.string().uuid(),
+  versionNumber: z.number().int().min(1),
+  contentCiphertext: z.string().max(10 * 1024 * 1024),
+  contentNonce: z.string().min(12).max(256),
+  charCount: z.number().int().min(0).default(0),
+  wordCount: z.number().int().min(0).default(0),
+  deltaSummary: z.string().max(500).optional().nullable(),
+  createdAt: z.string().datetime({ offset: true }).or(z.string()),
+});
+
+export const pushVersionsSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  versions: z.array(noteVersionSchema).min(1).max(100),
+});
+
+export const pullVersionsSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(200).default(100),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
 export type PullSyncInput = z.infer<typeof pullSyncSchema>;
 export type UploadAuthRequestInput = z.infer<typeof uploadAuthRequestSchema>;
 export type ConfirmAttachmentInput = z.infer<typeof confirmAttachmentSchema>;
+export type NoteVersionInput = z.infer<typeof noteVersionSchema>;
+export type PushVersionsInput = z.infer<typeof pushVersionsSchema>;
+export type PullVersionsInput = z.infer<typeof pullVersionsSchema>;

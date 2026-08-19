@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../attachments/attachment_sync_service.dart';
@@ -280,7 +281,112 @@ class SyncEngine {
         hasMore = pullResponse.hasMore;
       }
 
-      // 4. ATTACHMENT SYNC: Upload any pending encrypted attachments to Cloudinary
+      // 4. NOTE VERSION SYNC PHASE
+      // 4a. Push dirty note versions
+      final dirtyVersions = await database.getDirtyNoteVersions();
+      if (dirtyVersions.isNotEmpty) {
+        final versionPayloads = <NoteVersionSyncPayload>[];
+        for (final v in dirtyVersions) {
+          List<String> tags = [];
+          try {
+            final decoded = jsonDecode(v.tagsJson);
+            if (decoded is List) {
+              tags = decoded.map((e) => e.toString()).toList();
+            }
+          } catch (_) {}
+
+          final plaintext = NotePlaintext(
+            title: v.title,
+            body: v.content,
+            tags: tags,
+          );
+          final envelope = await cryptoService.encryptNote(
+            plaintext: plaintext,
+            masterKeyBytes: masterKey,
+            noteId: v.noteId,
+            keyVersion: 1,
+          );
+
+          versionPayloads.add(NoteVersionSyncPayload(
+            id: v.id,
+            noteId: v.noteId,
+            versionNumber: v.versionNumber,
+            contentCiphertext: envelope.ciphertext,
+            contentNonce: envelope.nonce,
+            charCount: v.charCount,
+            wordCount: v.wordCount,
+            deltaSummary: v.deltaSummary,
+            createdAt: v.createdAt,
+          ));
+        }
+
+        try {
+          final versionPushRes = await apiClient.pushVersions(versions: versionPayloads);
+          for (final res in versionPushRes.results) {
+            await database.markNoteVersionSynced(
+              id: res.id,
+              revision: res.revision,
+              syncedAt: DateTime.now(),
+            );
+          }
+        } catch (vPushErr) {
+          debugPrint('Note versions push error: $vPushErr');
+        }
+      }
+
+      // 4b. Pull remote note versions
+      final vCursorStr = await database.getSyncMetadata('version_sync_cursor');
+      var currentVCursor = int.tryParse(vCursorStr ?? '0') ?? 0;
+      var hasMoreVersions = true;
+
+      while (hasMoreVersions) {
+        try {
+          final vPullRes = await apiClient.pullVersions(cursor: currentVCursor, limit: 50);
+          for (final change in vPullRes.changes) {
+            try {
+              final envelope = EncryptedEnvelope(
+                version: 1,
+                algorithm: 'xchacha20-poly1305',
+                keyVersion: 1,
+                nonce: change.contentNonce,
+                ciphertext: change.contentCiphertext,
+              );
+
+              final decrypted = await cryptoService.decryptNote(
+                envelope: envelope,
+                masterKeyBytes: masterKey,
+                noteId: change.noteId,
+              );
+
+              await database.saveNoteVersion(
+                id: change.id,
+                noteId: change.noteId,
+                versionNumber: change.versionNumber,
+                title: decrypted.title,
+                content: decrypted.body,
+                tagsJson: jsonEncode(decrypted.tags),
+                createdAt: change.createdAt,
+                charCount: change.charCount,
+                wordCount: change.wordCount,
+                deltaSummary: change.deltaSummary,
+                serverRevision: change.revision,
+                isDirty: false,
+                syncedAt: DateTime.now(),
+              );
+            } catch (vDecErr) {
+              debugPrint('Failed to decrypt pulled version ${change.id}: $vDecErr');
+            }
+          }
+          currentVCursor = vPullRes.cursor;
+          await database.setSyncMetadata('version_sync_cursor', currentVCursor.toString());
+          hasMoreVersions = vPullRes.hasMore;
+        } catch (vPullErr) {
+          debugPrint('Note versions pull error: $vPullErr');
+          hasMoreVersions = false;
+        }
+      }
+
+      // 5. ATTACHMENT SYNC: Upload any pending encrypted attachments to Cloudinary
       var attachmentsUploaded = 0;
       var attachmentsFailed = 0;
       final attachmentErrors = <String>[];

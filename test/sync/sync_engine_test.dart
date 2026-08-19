@@ -139,6 +139,54 @@ class InMemorySyncApiClient implements SyncApiClient {
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
     return serverAttachments[attachmentId];
   }
+
+  final List<PullVersionChangeItem> versionSyncLog = [];
+
+  @override
+  Future<PushVersionSyncResponse> pushVersions({
+    required List<NoteVersionSyncPayload> versions,
+    String? deviceId,
+  }) async {
+    final results = <PushResultItem>[];
+    for (final v in versions) {
+      cursorCounter++;
+      final rev = cursorCounter;
+      versionSyncLog.add(PullVersionChangeItem(
+        id: v.id,
+        noteId: v.noteId,
+        versionNumber: v.versionNumber,
+        contentCiphertext: v.contentCiphertext,
+        contentNonce: v.contentNonce,
+        charCount: v.charCount,
+        wordCount: v.wordCount,
+        deltaSummary: v.deltaSummary,
+        revision: rev,
+        createdAt: v.createdAt,
+      ));
+      results.add(PushResultItem(
+        id: v.id,
+        revision: rev,
+        status: 'applied',
+        updatedAt: DateTime.now(),
+      ));
+    }
+    return PushVersionSyncResponse(results: results, cursor: cursorCounter);
+  }
+
+  @override
+  Future<PullVersionSyncResponse> pullVersions({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    final matching = versionSyncLog.where((v) => v.revision > cursor).toList();
+    final toReturn = matching.take(limit).toList();
+    final maxRev = toReturn.isEmpty ? cursor : toReturn.last.revision;
+    return PullVersionSyncResponse(
+      changes: toReturn,
+      cursor: maxRev,
+      hasMore: matching.length > limit,
+    );
+  }
 }
 
 void main() {

@@ -5,6 +5,7 @@ import 'connection/connection.dart' as conn;
 import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
 import 'tables/note_tags_table.dart';
+import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
@@ -42,6 +43,7 @@ class TagWithCount {
   SyncQueueTable,
   AttachmentsTable,
   AttachmentVariantsTable,
+  NoteVersionsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -50,7 +52,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,6 +75,9 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await m.createTable(attachmentsTable);
             await m.createTable(attachmentVariantsTable);
+          }
+          if (from < 5) {
+            await m.createTable(noteVersionsTable);
           }
         },
         beforeOpen: (details) async {
@@ -100,6 +105,12 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachment_variants_att_idx ON attachment_variants (attachment_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_versions_note_idx ON note_versions (note_id, version_number DESC);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_versions_dirty_idx ON note_versions (is_dirty);',
           );
         },
       );
@@ -880,5 +891,117 @@ class AppDatabase extends _$AppDatabase {
     return (select(attachmentVariantsTable)
           ..where((v) => v.attachmentId.equals(attachmentId)))
         .get();
+  }
+
+  // ==========================================
+  // NOTE VERSION OPERATIONS & STREAM QUERIES
+  // ==========================================
+
+  /// Save or update a note version snapshot
+  Future<void> saveNoteVersion({
+    required String id,
+    required String noteId,
+    required int versionNumber,
+    String title = '',
+    String content = '',
+    String tagsJson = '[]',
+    required DateTime createdAt,
+    int charCount = 0,
+    int wordCount = 0,
+    String? deltaSummary,
+    int serverRevision = 0,
+    bool isDirty = true,
+    DateTime? syncedAt,
+  }) async {
+    await into(noteVersionsTable).insertOnConflictUpdate(
+      NoteVersionsTableCompanion.insert(
+        id: id,
+        noteId: noteId,
+        versionNumber: versionNumber,
+        title: Value(title),
+        content: Value(content),
+        tagsJson: Value(tagsJson),
+        createdAt: createdAt,
+        charCount: Value(charCount),
+        wordCount: Value(wordCount),
+        deltaSummary: Value(deltaSummary),
+        serverRevision: Value(serverRevision),
+        isDirty: Value(isDirty),
+        syncedAt: Value(syncedAt),
+      ),
+    );
+  }
+
+  /// Get note versions for a note sorted newest first
+  Future<List<NoteVersionEntity>> getNoteVersions(String noteId,
+      {int limit = 50}) async {
+    return (select(noteVersionsTable)
+          ..where((v) => v.noteId.equals(noteId))
+          ..orderBy([(v) => OrderingTerm.desc(v.versionNumber)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Watch note versions for a note sorted newest first
+  Stream<List<NoteVersionEntity>> watchNoteVersions(String noteId,
+      {int limit = 50}) {
+    return (select(noteVersionsTable)
+          ..where((v) => v.noteId.equals(noteId))
+          ..orderBy([(v) => OrderingTerm.desc(v.versionNumber)])
+          ..limit(limit))
+        .watch();
+  }
+
+  /// Get the latest version for a note
+  Future<NoteVersionEntity?> getLatestNoteVersion(String noteId) async {
+    return (select(noteVersionsTable)
+          ..where((v) => v.noteId.equals(noteId))
+          ..orderBy([(v) => OrderingTerm.desc(v.versionNumber)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// Calculates next version number for a note
+  Future<int> getNextVersionNumber(String noteId) async {
+    final latest = await getLatestNoteVersion(noteId);
+    return (latest?.versionNumber ?? 0) + 1;
+  }
+
+  /// Prune old versions exceeding maxKeep limit
+  Future<void> pruneOldNoteVersions(String noteId, {int maxKeep = 50}) async {
+    final versions = await getNoteVersions(noteId, limit: 200);
+    if (versions.length > maxKeep) {
+      final toDelete = versions.sublist(maxKeep);
+      final idsToDelete = toDelete.map((v) => v.id).toList();
+      await (delete(noteVersionsTable)..where((v) => v.id.isIn(idsToDelete)))
+          .go();
+    }
+  }
+
+  /// Delete all versions for a note
+  Future<void> deleteNoteVersions(String noteId) async {
+    await (delete(noteVersionsTable)..where((v) => v.noteId.equals(noteId)))
+        .go();
+  }
+
+  /// Get dirty versions pending sync
+  Future<List<NoteVersionEntity>> getDirtyNoteVersions() async {
+    return (select(noteVersionsTable)..where((v) => v.isDirty.equals(true)))
+        .get();
+  }
+
+  /// Mark a note version as synced
+  Future<void> markNoteVersionSynced({
+    required String id,
+    required int revision,
+    required DateTime syncedAt,
+  }) async {
+    await (update(noteVersionsTable)..where((v) => v.id.equals(id))).write(
+      NoteVersionsTableCompanion(
+        serverRevision: Value(revision),
+        isDirty: const Value(false),
+        syncedAt: Value(syncedAt),
+      ),
+    );
   }
 }

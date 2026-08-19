@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -10,17 +11,22 @@ import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/markdown/markdown_preview.dart';
+import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
+import '../../notes/domain/note_version_model.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
+import '../application/undo_redo_manager.dart';
+import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
 import 'widgets/formatting_toolbar.dart';
 import 'widgets/in_note_search_bar.dart';
 import 'widgets/markdown_editor.dart';
 import 'widgets/password_unlock_view.dart';
 import 'widgets/tag_editor_bar.dart';
+import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
@@ -51,6 +57,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final FocusNode _titleFocusNode;
   late final FocusNode _contentFocusNode;
   late final ScrollController _scrollController;
+  late final UndoRedoManager _undoRedoManager;
+  late final VersionSessionTracker _sessionTracker;
 
   // In-Note Search & Replace state & animations
   bool _isSearchVisible = false;
@@ -86,6 +94,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
     _scrollController = ScrollController();
+
+    _undoRedoManager = UndoRedoManager();
+    _undoRedoManager.initialize(_contentController.value);
+    _undoRedoManager.addListener(() {
+      if (mounted) setState(() {});
+    });
+
+    _sessionTracker = VersionSessionTracker(widget.note);
 
     _searchQueryController = TextEditingController();
     _searchQueryFocusNode = FocusNode();
@@ -170,12 +186,99 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
+      _commitSessionVersionIfNeeded();
     }
   }
 
   void _onFocusChanged() {
     if (!_titleFocusNode.hasFocus && !_contentFocusNode.hasFocus) {
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
+    }
+  }
+
+  void _undo() {
+    final result = _undoRedoManager.undo(_contentController.value);
+    if (result != null) {
+      _contentController.value = result;
+      _onContentChanged();
+    }
+  }
+
+  void _redo() {
+    final result = _undoRedoManager.redo(_contentController.value);
+    if (result != null) {
+      _contentController.value = result;
+      _onContentChanged();
+    }
+  }
+
+  Future<void> _commitSessionVersionIfNeeded() async {
+    final finalTitle = _titleController.text;
+    final finalContent = _contentController.text;
+    final currentNote = ref.read(editorProviderFamily(_editorParams)).note;
+    final finalTags = currentNote.tags;
+
+    if (_sessionTracker.isMeaningfulSession(
+      finalTitle: finalTitle,
+      finalContent: finalContent,
+      finalTags: finalTags,
+    )) {
+      final repository = ref.read(notesRepositoryProvider);
+      final nextNum = await repository.getNextVersionNumber(widget.note.id);
+      final summary = _sessionTracker.generateSummary(
+        finalTitle: finalTitle,
+        finalContent: finalContent,
+        finalTags: finalTags,
+      );
+
+      final version = NoteVersion(
+        id: const Uuid().v4(),
+        noteId: widget.note.id,
+        versionNumber: nextNum,
+        title: finalTitle,
+        content: finalContent,
+        tags: finalTags,
+        createdAt: DateTime.now(),
+        charCount: finalContent.length,
+        wordCount: NoteVersion.countWords(finalContent),
+        deltaSummary: summary,
+        isDirty: true,
+      );
+
+      await repository.saveVersion(version);
+      await repository.pruneVersions(widget.note.id, maxKeep: 50);
+
+      final syncEngine = ref.read(syncEngineProvider);
+      syncEngine.triggerSyncDebounced();
+    }
+  }
+
+  Future<void> _restoreVersion(NoteVersion version) async {
+    await _commitSessionVersionIfNeeded();
+
+    setState(() {
+      _titleController.text = version.title;
+      _contentController.text = version.content;
+      _isTitleManuallySet = version.title.trim().isNotEmpty;
+    });
+
+    final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
+    notifier.updateTitle(version.title);
+    notifier.updateContent(version.content);
+    notifier.setTags(version.tags);
+    await notifier.saveNow();
+
+    _undoRedoManager.initialize(_contentController.value);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restored Version ${version.versionNumber}'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -197,6 +300,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _onContentChanged() {
     final newContent = _contentController.text;
+    _undoRedoManager.registerEdit(_contentController.value);
+
     ref
         .read(editorProviderFamily(_editorParams).notifier)
         .updateContent(newContent);
@@ -442,6 +547,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentFocusNode.dispose();
     _scrollController.dispose();
     _searchAnimationController.dispose();
+    _undoRedoManager.dispose();
     super.dispose();
   }
 
@@ -460,60 +566,51 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
 
     final canPop = Navigator.of(context).canPop();
-
+    final isTablet = MediaQuery.of(context).size.width >= 768;
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
     final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
-    final isTabletEditor = widget.onClose != null;
-    final showSidebarRestore = isTabletEditor && (!isNavSidebarVisible || !isNoteListVisible);
+    final isTabletEditor = isTablet && widget.onClose != null;
+    final showSidebarRestore =
+        isTabletEditor && (!isNavSidebarVisible || !isNoteListVisible);
 
     // If note is encrypted and locked in this session, present the Unlock View
     if (!editorState.isUnlocked) {
-      return PopScope(
-        canPop: true,
-        child: Scaffold(
+      return Scaffold(
+        backgroundColor: colors.background,
+        appBar: AppBar(
           backgroundColor: colors.background,
-          appBar: AppBar(
-            backgroundColor: colors.background,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: isTabletEditor
-                ? QuietIconButton(
-                    icon: Icons.close_rounded,
-                    tooltip: 'Close note',
-                    onPressed: () => widget.onClose?.call(),
-                  )
-                : (canPop
-                    ? QuietIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        tooltip: 'Back',
-                        onPressed: () => Navigator.of(context).pop(),
-                      )
-                    : null),
-            title: Text(
-              editorState.note.displayTitle,
-              style: AppTypography.title.copyWith(
-                color: colors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+          elevation: 0,
+          leading: canPop
+              ? QuietIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
+          title: Text(
+            editorState.note.displayTitle,
+            style: AppTypography.title.copyWith(
+              color: colors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          body: SafeArea(
-            child: PasswordUnlockView(
-              title: editorState.note.displayTitle,
-              hint: editorState.activePasswordHint,
-              onUnlock: (password) async {
-                final success =
-                    await editorNotifier.unlockWithPassword(password);
-                if (success && mounted) {
-                  final unlockedNote =
-                      ref.read(editorProviderFamily(_editorParams)).note;
-                  _titleController.text = unlockedNote.title;
-                  _contentController.text = unlockedNote.content;
-                }
-                return success;
-              },
-            ),
+        ),
+        body: SafeArea(
+          child: PasswordUnlockView(
+            title: editorState.note.displayTitle,
+            hint: editorState.activePasswordHint,
+            onUnlock: (password) async {
+              final success =
+                  await editorNotifier.unlockWithPassword(password);
+              if (success && mounted) {
+                final unlockedNote =
+                    ref.read(editorProviderFamily(_editorParams)).note;
+                _titleController.text = unlockedNote.title;
+                _contentController.text = unlockedNote.content;
+              }
+              return success;
+            },
           ),
         ),
       );
@@ -521,6 +618,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     return CallbackShortcuts(
       bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true):
+            _redo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true):
+            _redo,
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true): _redo,
+        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): _redo,
         const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
             _openSearch(withReplace: false),
         const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
@@ -537,6 +642,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         canPop: true,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) {
+            _commitSessionVersionIfNeeded();
             editorNotifier.handleExitCleanup();
           }
         },
@@ -566,6 +672,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         icon: Icons.close_rounded,
                         tooltip: 'Close note',
                         onPressed: () {
+                          _commitSessionVersionIfNeeded();
                           editorNotifier.handleExitCleanup();
                           widget.onClose?.call();
                         },
@@ -844,16 +951,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 FormattingToolbar(
                   controller: _contentController,
                   focusNode: _contentFocusNode,
+                  canUndo: _undoRedoManager.canUndo,
+                  canRedo: _undoRedoManager.canRedo,
+                  onUndo: _undo,
+                  onRedo: _redo,
+                  onApplyAtomicEdit: (val) => _undoRedoManager.pushAtomicEdit(val),
                   onTagPressed: () {
                     final val = _contentController.value;
                     final text = val.text;
                     final sel = val.selection;
                     final start = sel.isValid ? sel.start : text.length;
                     final newText = text.replaceRange(start, start, '#');
-                    _contentController.value = TextEditingValue(
+                    final updated = TextEditingValue(
                       text: newText,
                       selection: TextSelection.collapsed(offset: start + 1),
                     );
+                    _contentController.value = updated;
+                    _undoRedoManager.pushAtomicEdit(updated);
                     if (!_contentFocusNode.hasFocus) {
                       _contentFocusNode.requestFocus();
                     }
@@ -993,6 +1107,29 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     onTap: () {
                       Navigator.of(ctx).pop();
                       _openSearch();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.history_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Version history',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      VersionHistorySheet.show(
+                        context,
+                        note: note,
+                        currentTitle: _titleController.text,
+                        currentContent: _contentController.text,
+                        currentTags: note.tags,
+                        onRestoreVersion: _restoreVersion,
+                      );
                     },
                   ),
                   ListTile(

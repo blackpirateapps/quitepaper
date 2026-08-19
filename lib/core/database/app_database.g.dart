@@ -3545,6 +3545,764 @@ class AttachmentVariantsTableCompanion
   }
 }
 
+class $NoteVersionsTableTable extends NoteVersionsTable
+    with TableInfo<$NoteVersionsTableTable, NoteVersionEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NoteVersionsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES notes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _versionNumberMeta = const VerificationMeta(
+    'versionNumber',
+  );
+  @override
+  late final GeneratedColumn<int> versionNumber = GeneratedColumn<int>(
+    'version_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _tagsJsonMeta = const VerificationMeta(
+    'tagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+    'tags_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _charCountMeta = const VerificationMeta(
+    'charCount',
+  );
+  @override
+  late final GeneratedColumn<int> charCount = GeneratedColumn<int>(
+    'char_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _wordCountMeta = const VerificationMeta(
+    'wordCount',
+  );
+  @override
+  late final GeneratedColumn<int> wordCount = GeneratedColumn<int>(
+    'word_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deltaSummaryMeta = const VerificationMeta(
+    'deltaSummary',
+  );
+  @override
+  late final GeneratedColumn<String> deltaSummary = GeneratedColumn<String>(
+    'delta_summary',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverRevisionMeta = const VerificationMeta(
+    'serverRevision',
+  );
+  @override
+  late final GeneratedColumn<int> serverRevision = GeneratedColumn<int>(
+    'server_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    noteId,
+    versionNumber,
+    title,
+    content,
+    tagsJson,
+    createdAt,
+    charCount,
+    wordCount,
+    deltaSummary,
+    serverRevision,
+    isDirty,
+    syncedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'note_versions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NoteVersionEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('version_number')) {
+      context.handle(
+        _versionNumberMeta,
+        versionNumber.isAcceptableOrUnknown(
+          data['version_number']!,
+          _versionNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_versionNumberMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('tags_json')) {
+      context.handle(
+        _tagsJsonMeta,
+        tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('char_count')) {
+      context.handle(
+        _charCountMeta,
+        charCount.isAcceptableOrUnknown(data['char_count']!, _charCountMeta),
+      );
+    }
+    if (data.containsKey('word_count')) {
+      context.handle(
+        _wordCountMeta,
+        wordCount.isAcceptableOrUnknown(data['word_count']!, _wordCountMeta),
+      );
+    }
+    if (data.containsKey('delta_summary')) {
+      context.handle(
+        _deltaSummaryMeta,
+        deltaSummary.isAcceptableOrUnknown(
+          data['delta_summary']!,
+          _deltaSummaryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('server_revision')) {
+      context.handle(
+        _serverRevisionMeta,
+        serverRevision.isAcceptableOrUnknown(
+          data['server_revision']!,
+          _serverRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NoteVersionEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NoteVersionEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      versionNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version_number'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      tagsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      charCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}char_count'],
+      )!,
+      wordCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}word_count'],
+      )!,
+      deltaSummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delta_summary'],
+      ),
+      serverRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_revision'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+    );
+  }
+
+  @override
+  $NoteVersionsTableTable createAlias(String alias) {
+    return $NoteVersionsTableTable(attachedDatabase, alias);
+  }
+}
+
+class NoteVersionEntity extends DataClass
+    implements Insertable<NoteVersionEntity> {
+  final String id;
+  final String noteId;
+  final int versionNumber;
+  final String title;
+  final String content;
+  final String tagsJson;
+  final DateTime createdAt;
+  final int charCount;
+  final int wordCount;
+  final String? deltaSummary;
+  final int serverRevision;
+  final bool isDirty;
+  final DateTime? syncedAt;
+  const NoteVersionEntity({
+    required this.id,
+    required this.noteId,
+    required this.versionNumber,
+    required this.title,
+    required this.content,
+    required this.tagsJson,
+    required this.createdAt,
+    required this.charCount,
+    required this.wordCount,
+    this.deltaSummary,
+    required this.serverRevision,
+    required this.isDirty,
+    this.syncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['note_id'] = Variable<String>(noteId);
+    map['version_number'] = Variable<int>(versionNumber);
+    map['title'] = Variable<String>(title);
+    map['content'] = Variable<String>(content);
+    map['tags_json'] = Variable<String>(tagsJson);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['char_count'] = Variable<int>(charCount);
+    map['word_count'] = Variable<int>(wordCount);
+    if (!nullToAbsent || deltaSummary != null) {
+      map['delta_summary'] = Variable<String>(deltaSummary);
+    }
+    map['server_revision'] = Variable<int>(serverRevision);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    return map;
+  }
+
+  NoteVersionsTableCompanion toCompanion(bool nullToAbsent) {
+    return NoteVersionsTableCompanion(
+      id: Value(id),
+      noteId: Value(noteId),
+      versionNumber: Value(versionNumber),
+      title: Value(title),
+      content: Value(content),
+      tagsJson: Value(tagsJson),
+      createdAt: Value(createdAt),
+      charCount: Value(charCount),
+      wordCount: Value(wordCount),
+      deltaSummary: deltaSummary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deltaSummary),
+      serverRevision: Value(serverRevision),
+      isDirty: Value(isDirty),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+    );
+  }
+
+  factory NoteVersionEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NoteVersionEntity(
+      id: serializer.fromJson<String>(json['id']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      versionNumber: serializer.fromJson<int>(json['versionNumber']),
+      title: serializer.fromJson<String>(json['title']),
+      content: serializer.fromJson<String>(json['content']),
+      tagsJson: serializer.fromJson<String>(json['tagsJson']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      charCount: serializer.fromJson<int>(json['charCount']),
+      wordCount: serializer.fromJson<int>(json['wordCount']),
+      deltaSummary: serializer.fromJson<String?>(json['deltaSummary']),
+      serverRevision: serializer.fromJson<int>(json['serverRevision']),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'noteId': serializer.toJson<String>(noteId),
+      'versionNumber': serializer.toJson<int>(versionNumber),
+      'title': serializer.toJson<String>(title),
+      'content': serializer.toJson<String>(content),
+      'tagsJson': serializer.toJson<String>(tagsJson),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'charCount': serializer.toJson<int>(charCount),
+      'wordCount': serializer.toJson<int>(wordCount),
+      'deltaSummary': serializer.toJson<String?>(deltaSummary),
+      'serverRevision': serializer.toJson<int>(serverRevision),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+    };
+  }
+
+  NoteVersionEntity copyWith({
+    String? id,
+    String? noteId,
+    int? versionNumber,
+    String? title,
+    String? content,
+    String? tagsJson,
+    DateTime? createdAt,
+    int? charCount,
+    int? wordCount,
+    Value<String?> deltaSummary = const Value.absent(),
+    int? serverRevision,
+    bool? isDirty,
+    Value<DateTime?> syncedAt = const Value.absent(),
+  }) => NoteVersionEntity(
+    id: id ?? this.id,
+    noteId: noteId ?? this.noteId,
+    versionNumber: versionNumber ?? this.versionNumber,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    tagsJson: tagsJson ?? this.tagsJson,
+    createdAt: createdAt ?? this.createdAt,
+    charCount: charCount ?? this.charCount,
+    wordCount: wordCount ?? this.wordCount,
+    deltaSummary: deltaSummary.present ? deltaSummary.value : this.deltaSummary,
+    serverRevision: serverRevision ?? this.serverRevision,
+    isDirty: isDirty ?? this.isDirty,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+  );
+  NoteVersionEntity copyWithCompanion(NoteVersionsTableCompanion data) {
+    return NoteVersionEntity(
+      id: data.id.present ? data.id.value : this.id,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      versionNumber: data.versionNumber.present
+          ? data.versionNumber.value
+          : this.versionNumber,
+      title: data.title.present ? data.title.value : this.title,
+      content: data.content.present ? data.content.value : this.content,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      charCount: data.charCount.present ? data.charCount.value : this.charCount,
+      wordCount: data.wordCount.present ? data.wordCount.value : this.wordCount,
+      deltaSummary: data.deltaSummary.present
+          ? data.deltaSummary.value
+          : this.deltaSummary,
+      serverRevision: data.serverRevision.present
+          ? data.serverRevision.value
+          : this.serverRevision,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteVersionEntity(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('versionNumber: $versionNumber, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('charCount: $charCount, ')
+          ..write('wordCount: $wordCount, ')
+          ..write('deltaSummary: $deltaSummary, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    noteId,
+    versionNumber,
+    title,
+    content,
+    tagsJson,
+    createdAt,
+    charCount,
+    wordCount,
+    deltaSummary,
+    serverRevision,
+    isDirty,
+    syncedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NoteVersionEntity &&
+          other.id == this.id &&
+          other.noteId == this.noteId &&
+          other.versionNumber == this.versionNumber &&
+          other.title == this.title &&
+          other.content == this.content &&
+          other.tagsJson == this.tagsJson &&
+          other.createdAt == this.createdAt &&
+          other.charCount == this.charCount &&
+          other.wordCount == this.wordCount &&
+          other.deltaSummary == this.deltaSummary &&
+          other.serverRevision == this.serverRevision &&
+          other.isDirty == this.isDirty &&
+          other.syncedAt == this.syncedAt);
+}
+
+class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
+  final Value<String> id;
+  final Value<String> noteId;
+  final Value<int> versionNumber;
+  final Value<String> title;
+  final Value<String> content;
+  final Value<String> tagsJson;
+  final Value<DateTime> createdAt;
+  final Value<int> charCount;
+  final Value<int> wordCount;
+  final Value<String?> deltaSummary;
+  final Value<int> serverRevision;
+  final Value<bool> isDirty;
+  final Value<DateTime?> syncedAt;
+  final Value<int> rowid;
+  const NoteVersionsTableCompanion({
+    this.id = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.versionNumber = const Value.absent(),
+    this.title = const Value.absent(),
+    this.content = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.charCount = const Value.absent(),
+    this.wordCount = const Value.absent(),
+    this.deltaSummary = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NoteVersionsTableCompanion.insert({
+    required String id,
+    required String noteId,
+    required int versionNumber,
+    this.title = const Value.absent(),
+    this.content = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    required DateTime createdAt,
+    this.charCount = const Value.absent(),
+    this.wordCount = const Value.absent(),
+    this.deltaSummary = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       noteId = Value(noteId),
+       versionNumber = Value(versionNumber),
+       createdAt = Value(createdAt);
+  static Insertable<NoteVersionEntity> custom({
+    Expression<String>? id,
+    Expression<String>? noteId,
+    Expression<int>? versionNumber,
+    Expression<String>? title,
+    Expression<String>? content,
+    Expression<String>? tagsJson,
+    Expression<DateTime>? createdAt,
+    Expression<int>? charCount,
+    Expression<int>? wordCount,
+    Expression<String>? deltaSummary,
+    Expression<int>? serverRevision,
+    Expression<bool>? isDirty,
+    Expression<DateTime>? syncedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (noteId != null) 'note_id': noteId,
+      if (versionNumber != null) 'version_number': versionNumber,
+      if (title != null) 'title': title,
+      if (content != null) 'content': content,
+      if (tagsJson != null) 'tags_json': tagsJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (charCount != null) 'char_count': charCount,
+      if (wordCount != null) 'word_count': wordCount,
+      if (deltaSummary != null) 'delta_summary': deltaSummary,
+      if (serverRevision != null) 'server_revision': serverRevision,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NoteVersionsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? noteId,
+    Value<int>? versionNumber,
+    Value<String>? title,
+    Value<String>? content,
+    Value<String>? tagsJson,
+    Value<DateTime>? createdAt,
+    Value<int>? charCount,
+    Value<int>? wordCount,
+    Value<String?>? deltaSummary,
+    Value<int>? serverRevision,
+    Value<bool>? isDirty,
+    Value<DateTime?>? syncedAt,
+    Value<int>? rowid,
+  }) {
+    return NoteVersionsTableCompanion(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      versionNumber: versionNumber ?? this.versionNumber,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      tagsJson: tagsJson ?? this.tagsJson,
+      createdAt: createdAt ?? this.createdAt,
+      charCount: charCount ?? this.charCount,
+      wordCount: wordCount ?? this.wordCount,
+      deltaSummary: deltaSummary ?? this.deltaSummary,
+      serverRevision: serverRevision ?? this.serverRevision,
+      isDirty: isDirty ?? this.isDirty,
+      syncedAt: syncedAt ?? this.syncedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (versionNumber.present) {
+      map['version_number'] = Variable<int>(versionNumber.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (charCount.present) {
+      map['char_count'] = Variable<int>(charCount.value);
+    }
+    if (wordCount.present) {
+      map['word_count'] = Variable<int>(wordCount.value);
+    }
+    if (deltaSummary.present) {
+      map['delta_summary'] = Variable<String>(deltaSummary.value);
+    }
+    if (serverRevision.present) {
+      map['server_revision'] = Variable<int>(serverRevision.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteVersionsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('versionNumber: $versionNumber, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('charCount: $charCount, ')
+          ..write('wordCount: $wordCount, ')
+          ..write('deltaSummary: $deltaSummary, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3559,6 +4317,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $AttachmentVariantsTableTable attachmentVariantsTable =
       $AttachmentVariantsTableTable(this);
+  late final $NoteVersionsTableTable noteVersionsTable =
+      $NoteVersionsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3571,6 +4331,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncQueueTable,
     attachmentsTable,
     attachmentVariantsTable,
+    noteVersionsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3587,6 +4348,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('note_tags', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'notes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('note_versions', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -3641,6 +4409,27 @@ final class $$NotesTableTableReferences
     ).filter((f) => f.noteId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_noteTagsTableRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$NoteVersionsTableTable, List<NoteVersionEntity>>
+  _noteVersionsTableRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.noteVersionsTable,
+        aliasName: 'notes__id__note_versions__note_id',
+      );
+
+  $$NoteVersionsTableTableProcessedTableManager get noteVersionsTableRefs {
+    final manager = $$NoteVersionsTableTableTableManager(
+      $_db,
+      $_db.noteVersionsTable,
+    ).filter((f) => f.noteId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _noteVersionsTableRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -3732,6 +4521,31 @@ class $$NotesTableTableFilterComposer
           }) => $$NoteTagsTableTableFilterComposer(
             $db: $db,
             $table: $db.noteTagsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> noteVersionsTableRefs(
+    Expression<bool> Function($$NoteVersionsTableTableFilterComposer f) f,
+  ) {
+    final $$NoteVersionsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.noteVersionsTable,
+      getReferencedColumn: (t) => t.noteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NoteVersionsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.noteVersionsTable,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3885,6 +4699,32 @@ class $$NotesTableTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> noteVersionsTableRefs<T extends Object>(
+    Expression<T> Function($$NoteVersionsTableTableAnnotationComposer a) f,
+  ) {
+    final $$NoteVersionsTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.noteVersionsTable,
+          getReferencedColumn: (t) => t.noteId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$NoteVersionsTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.noteVersionsTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$NotesTableTableTableManager
@@ -3900,7 +4740,10 @@ class $$NotesTableTableTableManager
           $$NotesTableTableUpdateCompanionBuilder,
           (NoteEntity, $$NotesTableTableReferences),
           NoteEntity,
-          PrefetchHooks Function({bool noteTagsTableRefs})
+          PrefetchHooks Function({
+            bool noteTagsTableRefs,
+            bool noteVersionsTableRefs,
+          })
         > {
   $$NotesTableTableTableManager(_$AppDatabase db, $NotesTableTable table)
     : super(
@@ -3981,38 +4824,63 @@ class $$NotesTableTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({noteTagsTableRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (noteTagsTableRefs) db.noteTagsTable,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (noteTagsTableRefs)
-                    await $_getPrefetchedData<
-                      NoteEntity,
-                      $NotesTableTable,
-                      NoteTagEntity
-                    >(
-                      currentTable: table,
-                      referencedTable: $$NotesTableTableReferences
-                          ._noteTagsTableRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$NotesTableTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).noteTagsTableRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.noteId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({noteTagsTableRefs = false, noteVersionsTableRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (noteTagsTableRefs) db.noteTagsTable,
+                    if (noteVersionsTableRefs) db.noteVersionsTable,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (noteTagsTableRefs)
+                        await $_getPrefetchedData<
+                          NoteEntity,
+                          $NotesTableTable,
+                          NoteTagEntity
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NotesTableTableReferences
+                              ._noteTagsTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NotesTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).noteTagsTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.noteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (noteVersionsTableRefs)
+                        await $_getPrefetchedData<
+                          NoteEntity,
+                          $NotesTableTable,
+                          NoteVersionEntity
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NotesTableTableReferences
+                              ._noteVersionsTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NotesTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).noteVersionsTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.noteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -4029,7 +4897,10 @@ typedef $$NotesTableTableProcessedTableManager =
       $$NotesTableTableUpdateCompanionBuilder,
       (NoteEntity, $$NotesTableTableReferences),
       NoteEntity,
-      PrefetchHooks Function({bool noteTagsTableRefs})
+      PrefetchHooks Function({
+        bool noteTagsTableRefs,
+        bool noteVersionsTableRefs,
+      })
     >;
 typedef $$TagsTableTableCreateCompanionBuilder =
     TagsTableCompanion Function({
@@ -5819,6 +6690,497 @@ typedef $$AttachmentVariantsTableTableProcessedTableManager =
       AttachmentVariantEntity,
       PrefetchHooks Function()
     >;
+typedef $$NoteVersionsTableTableCreateCompanionBuilder =
+    NoteVersionsTableCompanion Function({
+      required String id,
+      required String noteId,
+      required int versionNumber,
+      Value<String> title,
+      Value<String> content,
+      Value<String> tagsJson,
+      required DateTime createdAt,
+      Value<int> charCount,
+      Value<int> wordCount,
+      Value<String?> deltaSummary,
+      Value<int> serverRevision,
+      Value<bool> isDirty,
+      Value<DateTime?> syncedAt,
+      Value<int> rowid,
+    });
+typedef $$NoteVersionsTableTableUpdateCompanionBuilder =
+    NoteVersionsTableCompanion Function({
+      Value<String> id,
+      Value<String> noteId,
+      Value<int> versionNumber,
+      Value<String> title,
+      Value<String> content,
+      Value<String> tagsJson,
+      Value<DateTime> createdAt,
+      Value<int> charCount,
+      Value<int> wordCount,
+      Value<String?> deltaSummary,
+      Value<int> serverRevision,
+      Value<bool> isDirty,
+      Value<DateTime?> syncedAt,
+      Value<int> rowid,
+    });
+
+final class $$NoteVersionsTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $NoteVersionsTableTable,
+          NoteVersionEntity
+        > {
+  $$NoteVersionsTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $NotesTableTable _noteIdTable(_$AppDatabase db) =>
+      db.notesTable.createAlias('note_versions__note_id__notes__id');
+
+  $$NotesTableTableProcessedTableManager get noteId {
+    final $_column = $_itemColumn<String>('note_id')!;
+
+    final manager = $$NotesTableTableTableManager(
+      $_db,
+      $_db.notesTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_noteIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$NoteVersionsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $NoteVersionsTableTable> {
+  $$NoteVersionsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get versionNumber => $composableBuilder(
+    column: $table.versionNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get charCount => $composableBuilder(
+    column: $table.charCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get wordCount => $composableBuilder(
+    column: $table.wordCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deltaSummary => $composableBuilder(
+    column: $table.deltaSummary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NotesTableTableFilterComposer get noteId {
+    final $$NotesTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableFilterComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteVersionsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $NoteVersionsTableTable> {
+  $$NoteVersionsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get versionNumber => $composableBuilder(
+    column: $table.versionNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get charCount => $composableBuilder(
+    column: $table.charCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get wordCount => $composableBuilder(
+    column: $table.wordCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deltaSummary => $composableBuilder(
+    column: $table.deltaSummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NotesTableTableOrderingComposer get noteId {
+    final $$NotesTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteVersionsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NoteVersionsTableTable> {
+  $$NoteVersionsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get versionNumber => $composableBuilder(
+    column: $table.versionNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get charCount =>
+      $composableBuilder(column: $table.charCount, builder: (column) => column);
+
+  GeneratedColumn<int> get wordCount =>
+      $composableBuilder(column: $table.wordCount, builder: (column) => column);
+
+  GeneratedColumn<String> get deltaSummary => $composableBuilder(
+    column: $table.deltaSummary,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  $$NotesTableTableAnnotationComposer get noteId {
+    final $$NotesTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteVersionsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NoteVersionsTableTable,
+          NoteVersionEntity,
+          $$NoteVersionsTableTableFilterComposer,
+          $$NoteVersionsTableTableOrderingComposer,
+          $$NoteVersionsTableTableAnnotationComposer,
+          $$NoteVersionsTableTableCreateCompanionBuilder,
+          $$NoteVersionsTableTableUpdateCompanionBuilder,
+          (NoteVersionEntity, $$NoteVersionsTableTableReferences),
+          NoteVersionEntity,
+          PrefetchHooks Function({bool noteId})
+        > {
+  $$NoteVersionsTableTableTableManager(
+    _$AppDatabase db,
+    $NoteVersionsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NoteVersionsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NoteVersionsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NoteVersionsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<int> versionNumber = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> tagsJson = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> charCount = const Value.absent(),
+                Value<int> wordCount = const Value.absent(),
+                Value<String?> deltaSummary = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteVersionsTableCompanion(
+                id: id,
+                noteId: noteId,
+                versionNumber: versionNumber,
+                title: title,
+                content: content,
+                tagsJson: tagsJson,
+                createdAt: createdAt,
+                charCount: charCount,
+                wordCount: wordCount,
+                deltaSummary: deltaSummary,
+                serverRevision: serverRevision,
+                isDirty: isDirty,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String noteId,
+                required int versionNumber,
+                Value<String> title = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> tagsJson = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> charCount = const Value.absent(),
+                Value<int> wordCount = const Value.absent(),
+                Value<String?> deltaSummary = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteVersionsTableCompanion.insert(
+                id: id,
+                noteId: noteId,
+                versionNumber: versionNumber,
+                title: title,
+                content: content,
+                tagsJson: tagsJson,
+                createdAt: createdAt,
+                charCount: charCount,
+                wordCount: wordCount,
+                deltaSummary: deltaSummary,
+                serverRevision: serverRevision,
+                isDirty: isDirty,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$NoteVersionsTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({noteId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (noteId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.noteId,
+                                referencedTable:
+                                    $$NoteVersionsTableTableReferences
+                                        ._noteIdTable(db),
+                                referencedColumn:
+                                    $$NoteVersionsTableTableReferences
+                                        ._noteIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$NoteVersionsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NoteVersionsTableTable,
+      NoteVersionEntity,
+      $$NoteVersionsTableTableFilterComposer,
+      $$NoteVersionsTableTableOrderingComposer,
+      $$NoteVersionsTableTableAnnotationComposer,
+      $$NoteVersionsTableTableCreateCompanionBuilder,
+      $$NoteVersionsTableTableUpdateCompanionBuilder,
+      (NoteVersionEntity, $$NoteVersionsTableTableReferences),
+      NoteVersionEntity,
+      PrefetchHooks Function({bool noteId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5840,4 +7202,6 @@ class $AppDatabaseManager {
         _db,
         _db.attachmentVariantsTable,
       );
+  $$NoteVersionsTableTableTableManager get noteVersionsTable =>
+      $$NoteVersionsTableTableTableManager(_db, _db.noteVersionsTable);
 }

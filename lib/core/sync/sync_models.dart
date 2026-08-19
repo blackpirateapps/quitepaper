@@ -319,3 +319,141 @@ class PullSyncResponse {
     );
   }
 }
+
+@immutable
+class NoteVersionSyncPayload {
+  const NoteVersionSyncPayload({
+    required this.id,
+    required this.noteId,
+    required this.versionNumber,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.charCount = 0,
+    this.wordCount = 0,
+    this.deltaSummary,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String noteId;
+  final int versionNumber;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int charCount;
+  final int wordCount;
+  final String? deltaSummary;
+  final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'noteId': noteId,
+        'versionNumber': versionNumber,
+        'contentCiphertext': contentCiphertext,
+        'contentNonce': contentNonce,
+        'charCount': charCount,
+        'wordCount': wordCount,
+        if (deltaSummary != null) 'deltaSummary': deltaSummary,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory NoteVersionSyncPayload.fromJson(Map<String, dynamic> json) {
+    return NoteVersionSyncPayload(
+      id: json['id'] as String,
+      noteId: json['noteId'] as String,
+      versionNumber: json['versionNumber'] as int,
+      contentCiphertext: json['contentCiphertext'] as String? ?? '',
+      contentNonce: json['contentNonce'] as String? ?? '',
+      charCount: json['charCount'] as int? ?? 0,
+      wordCount: json['wordCount'] as int? ?? 0,
+      deltaSummary: json['deltaSummary'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+}
+
+@immutable
+class PushVersionSyncResponse {
+  const PushVersionSyncResponse({
+    required this.results,
+    required this.cursor,
+  });
+
+  final List<PushResultItem> results;
+  final int cursor;
+
+  factory PushVersionSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawResults = json['results'] as List? ?? [];
+    return PushVersionSyncResponse(
+      results: rawResults
+          .map((r) => PushResultItem.fromJson(r as Map<String, dynamic>))
+          .toList(),
+      cursor: json['cursor'] as int? ?? 0,
+    );
+  }
+}
+
+@immutable
+class PullVersionChangeItem {
+  const PullVersionChangeItem({
+    required this.id,
+    required this.noteId,
+    required this.versionNumber,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.charCount = 0,
+    this.wordCount = 0,
+    this.deltaSummary,
+    required this.revision,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String noteId;
+  final int versionNumber;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int charCount;
+  final int wordCount;
+  final String? deltaSummary;
+  final int revision;
+  final DateTime createdAt;
+
+  factory PullVersionChangeItem.fromJson(Map<String, dynamic> json) {
+    return PullVersionChangeItem(
+      id: json['id'] as String,
+      noteId: json['noteId'] as String,
+      versionNumber: json['versionNumber'] as int,
+      contentCiphertext: json['contentCiphertext'] as String? ?? '',
+      contentNonce: json['contentNonce'] as String? ?? '',
+      charCount: json['charCount'] as int? ?? 0,
+      wordCount: json['wordCount'] as int? ?? 0,
+      deltaSummary: json['deltaSummary'] as String?,
+      revision: json['revision'] as int? ?? 1,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+}
+
+@immutable
+class PullVersionSyncResponse {
+  const PullVersionSyncResponse({
+    required this.changes,
+    required this.cursor,
+    required this.hasMore,
+  });
+
+  final List<PullVersionChangeItem> changes;
+  final int cursor;
+  final bool hasMore;
+
+  factory PullVersionSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['changes'] as List? ?? [];
+    return PullVersionSyncResponse(
+      changes: rawChanges
+          .map((c) => PullVersionChangeItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: json['cursor'] as int? ?? 0,
+      hasMore: json['hasMore'] as bool? ?? false,
+    );
+  }
+}

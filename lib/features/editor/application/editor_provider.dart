@@ -155,6 +155,20 @@ class EditorNotifier extends StateNotifier<EditorState> {
     saveNow();
   }
 
+  void setTags(List<String> tags) {
+    final normalized = tags
+        .map(TagParser.normalizeTag)
+        .where(TagParser.isValidTag)
+        .toSet()
+        .toList();
+    final updated = state.note.copyWith(
+      tags: normalized,
+      updatedAt: DateTime.now(),
+    );
+    state = state.copyWith(note: updated, isDirty: true);
+    saveNow();
+  }
+
   void togglePinned() {
     final updated = state.note.copyWith(
       isPinned: !state.note.isPinned,

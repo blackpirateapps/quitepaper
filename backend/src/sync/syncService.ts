@@ -251,3 +251,110 @@ export async function getLatestCursor(db: Client, userId: string): Promise<numbe
   });
   return Number(result.rows[0]?.max_rev || 0);
 }
+
+export async function pushNoteVersions(db: Client, userId: string, rawInput: unknown): Promise<{ results: PushResultItem[]; cursor: number }> {
+  const { pushVersionsSchema } = await import('../validation/schemas.js');
+  const parsed = pushVersionsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid version push body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { versions } = parsed.data;
+  const appliedResults: PushResultItem[] = [];
+
+  const maxRevResult = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM note_versions WHERE user_id = ?',
+    args: [userId],
+  });
+  let currentMaxRev = Number(maxRevResult.rows[0]?.max_rev || 0);
+
+  for (const v of versions) {
+    currentMaxRev += 1;
+    const now = new Date().toISOString();
+
+    await db.execute({
+      sql: `INSERT INTO note_versions (id, user_id, note_id, version_number, content_ciphertext, content_nonce, char_count, word_count, delta_summary, revision, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              content_ciphertext = excluded.content_ciphertext,
+              content_nonce = excluded.content_nonce,
+              char_count = excluded.char_count,
+              word_count = excluded.word_count,
+              delta_summary = excluded.delta_summary,
+              revision = excluded.revision`,
+      args: [
+        v.id,
+        userId,
+        v.noteId,
+        v.versionNumber,
+        v.contentCiphertext,
+        v.contentNonce,
+        v.charCount,
+        v.wordCount,
+        v.deltaSummary || null,
+        currentMaxRev,
+        v.createdAt,
+      ],
+    });
+
+    appliedResults.push({
+      id: v.id,
+      revision: currentMaxRev,
+      status: 'applied',
+      updatedAt: now,
+    });
+  }
+
+  return {
+    results: appliedResults,
+    cursor: currentMaxRev,
+  };
+}
+
+export async function pullNoteVersions(db: Client, userId: string, rawInput: unknown): Promise<{ changes: any[]; cursor: number; hasMore: boolean }> {
+  const { pullVersionsSchema } = await import('../validation/schemas.js');
+  const parsed = pullVersionsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid version pull body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { cursor, limit } = parsed.data;
+
+  const results = await db.execute({
+    sql: `SELECT id, note_id, version_number, content_ciphertext, content_nonce, char_count, word_count, delta_summary, revision, created_at
+          FROM note_versions
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const hasMore = results.rows.length > limit;
+  const rowsToUse = hasMore ? results.rows.slice(0, limit) : results.rows;
+
+  const changes = rowsToUse.map(r => ({
+    id: r.id as string,
+    noteId: r.note_id as string,
+    versionNumber: Number(r.version_number),
+    contentCiphertext: r.content_ciphertext as string,
+    contentNonce: r.content_nonce as string,
+    charCount: Number(r.char_count || 0),
+    wordCount: Number(r.word_count || 0),
+    deltaSummary: r.delta_summary as string | null,
+    revision: Number(r.revision),
+    createdAt: r.created_at as string,
+  }));
+
+  let nextCursor = cursor;
+  for (const r of rowsToUse) {
+    if (Number(r.revision) > nextCursor) {
+      nextCursor = Number(r.revision);
+    }
+  }
+
+  return {
+    changes,
+    cursor: nextCursor,
+    hasMore,
+  };
+}

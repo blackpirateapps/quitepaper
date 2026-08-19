@@ -122,6 +122,31 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // POST /api/v1/sync/versions/push
+    if (pathname === '/api/v1/sync/versions/push' && method === 'POST') {
+      const { pushNoteVersions } = await import('../sync/syncService.js');
+      const pushResult = await pushNoteVersions(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pushResult,
+      };
+    }
+
+    // GET /api/v1/sync/versions/pull
+    if (pathname === '/api/v1/sync/versions/pull' && method === 'GET') {
+      const { pullNoteVersions } = await import('../sync/syncService.js');
+      const urlObj = new URL(rawUrl, 'http://localhost');
+      const cursor = parseInt(urlObj.searchParams.get('cursor') || '0', 10);
+      const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+      const pullResult = await pullNoteVersions(db, userId, { cursor, limit });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pullResult,
+      };
+    }
+
     // GET /api/v1/sync/cursor
     if (pathname === '/api/v1/sync/cursor' && method === 'GET') {
       const cursor = await getLatestCursor(db, userId);

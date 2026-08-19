@@ -36,6 +36,14 @@ abstract class SyncApiClient {
     String sha256 = '',
   });
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId);
+  Future<PushVersionSyncResponse> pushVersions({
+    required List<NoteVersionSyncPayload> versions,
+    String? deviceId,
+  });
+  Future<PullVersionSyncResponse> pullVersions({
+    required int cursor,
+    int limit = 100,
+  });
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -288,5 +296,48 @@ class HttpSyncApiClient implements SyncApiClient {
       } catch (_) {}
       throw Exception(message);
     }
+  }
+
+  @override
+  Future<PushVersionSyncResponse> pushVersions({
+    required List<NoteVersionSyncPayload> versions,
+    String? deviceId,
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/sync/versions/push');
+    final body = {
+      'versions': versions.map((v) => v.toJson()).toList(),
+      'deviceId': ?deviceId,
+    };
+
+    final res = await _client.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to push note versions: ${res.statusCode} ${res.body}');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return PushVersionSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<PullVersionSyncResponse> pullVersions({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/sync/versions/pull?cursor=$cursor&limit=$limit');
+    final res = await _client.get(url, headers: headers);
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to pull note versions: ${res.statusCode} ${res.body}');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return PullVersionSyncResponse.fromJson(data);
   }
 }

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import '../../../core/database/app_database.dart';
 import '../domain/note_model.dart';
+import '../domain/note_version_model.dart';
 
 abstract class NotesRepository {
   Stream<List<Note>> watchNotes({
@@ -31,6 +33,12 @@ abstract class NotesRepository {
   Stream<int> watchPinnedNotesCount();
   Stream<int> watchArchivedNotesCount();
   Stream<int> watchTrashedNotesCount();
+  Future<void> saveVersion(NoteVersion version);
+  Future<List<NoteVersion>> getVersions(String noteId, {int limit = 50});
+  Stream<List<NoteVersion>> watchVersions(String noteId, {int limit = 50});
+  Future<NoteVersion?> getLatestVersion(String noteId);
+  Future<int> getNextVersionNumber(String noteId);
+  Future<void> pruneVersions(String noteId, {int maxKeep = 50});
 }
 
 class DriftNotesRepository implements NotesRepository {
@@ -192,5 +200,79 @@ class DriftNotesRepository implements NotesRepository {
   @override
   Stream<int> watchTrashedNotesCount() {
     return _db.watchTrashedNotesCount();
+  }
+
+  NoteVersion _mapVersionToDomain(NoteVersionEntity entity) {
+    List<String> tags = [];
+    try {
+      final decoded = jsonDecode(entity.tagsJson);
+      if (decoded is List) {
+        tags = decoded.map((e) => e.toString()).toList();
+      }
+    } catch (_) {}
+
+    return NoteVersion(
+      id: entity.id,
+      noteId: entity.noteId,
+      versionNumber: entity.versionNumber,
+      title: entity.title,
+      content: entity.content,
+      tags: tags,
+      createdAt: entity.createdAt,
+      charCount: entity.charCount,
+      wordCount: entity.wordCount,
+      deltaSummary: entity.deltaSummary,
+      serverRevision: entity.serverRevision,
+      isDirty: entity.isDirty,
+      syncedAt: entity.syncedAt,
+    );
+  }
+
+  @override
+  Future<void> saveVersion(NoteVersion version) async {
+    await _db.saveNoteVersion(
+      id: version.id,
+      noteId: version.noteId,
+      versionNumber: version.versionNumber,
+      title: version.title,
+      content: version.content,
+      tagsJson: jsonEncode(version.tags),
+      createdAt: version.createdAt,
+      charCount: version.charCount,
+      wordCount: version.wordCount,
+      deltaSummary: version.deltaSummary,
+      serverRevision: version.serverRevision,
+      isDirty: version.isDirty,
+      syncedAt: version.syncedAt,
+    );
+  }
+
+  @override
+  Future<List<NoteVersion>> getVersions(String noteId, {int limit = 50}) async {
+    final list = await _db.getNoteVersions(noteId, limit: limit);
+    return list.map(_mapVersionToDomain).toList();
+  }
+
+  @override
+  Stream<List<NoteVersion>> watchVersions(String noteId, {int limit = 50}) {
+    return _db
+        .watchNoteVersions(noteId, limit: limit)
+        .map((list) => list.map(_mapVersionToDomain).toList());
+  }
+
+  @override
+  Future<NoteVersion?> getLatestVersion(String noteId) async {
+    final entity = await _db.getLatestNoteVersion(noteId);
+    return entity != null ? _mapVersionToDomain(entity) : null;
+  }
+
+  @override
+  Future<int> getNextVersionNumber(String noteId) {
+    return _db.getNextVersionNumber(noteId);
+  }
+
+  @override
+  Future<void> pruneVersions(String noteId, {int maxKeep = 50}) {
+    return _db.pruneOldNoteVersions(noteId, maxKeep: maxKeep);
   }
 }
