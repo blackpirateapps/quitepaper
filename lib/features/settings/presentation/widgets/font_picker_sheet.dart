@@ -1,12 +1,13 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/font_family_helper.dart';
 import '../../application/typography_provider.dart';
+import 'google_fonts_sheet.dart';
 
 enum FontPickerType {
   heading,
@@ -59,8 +60,6 @@ class FontPickerSheet extends ConsumerStatefulWidget {
 class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _isDownloading = false;
-  String? _downloadMessage;
 
   @override
   void initState() {
@@ -116,33 +115,15 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
     }
   }
 
-  Future<void> _fetchGoogleFont(String fontName) async {
-    setState(() {
-      _isDownloading = true;
-      _downloadMessage = 'Fetching $fontName from Google Fonts...';
-    });
-
-    final success = await ref
-        .read(typographySettingsProvider.notifier)
-        .fetchGoogleFont(fontName);
-
-    if (mounted) {
-      setState(() {
-        _isDownloading = false;
-        _downloadMessage = null;
-      });
-
-      if (success) {
-        widget.onFontSelected(fontName);
-        Navigator.of(context).pop();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not download "$fontName". Using system fallback.'),
-          ),
-        );
-      }
-    }
+  void _openGoogleFontsBrowser() {
+    Navigator.of(context).pop();
+    GoogleFontsSheet.show(
+      context,
+      currentFont: widget.currentFont,
+      onFontSelected: (font) {
+        widget.onFontSelected(font);
+      },
+    );
   }
 
   @override
@@ -166,14 +147,14 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
             ? CuratedFonts.systemMono
             : CuratedFonts.systemSans);
 
-    final showGoogleSearchOption = _searchQuery.isNotEmpty &&
+    final showCustomQueryOption = _searchQuery.isNotEmpty &&
         !allFonts.any((f) => f.toLowerCase() == _searchQuery.toLowerCase());
 
     return SafeArea(
       child: DraggableScrollableSheet(
-        initialChildSize: 0.7,
+        initialChildSize: 0.75,
         minChildSize: 0.4,
-        maxChildSize: 0.9,
+        maxChildSize: 0.92,
         expand: false,
         builder: (ctx, scrollController) {
           return Column(
@@ -189,26 +170,47 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                 ),
               ),
 
-              // Title
+              // Title and Actions
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 child: Row(
                   children: [
-                    Text(
-                      widget.title,
-                      style: AppTypography.headline.copyWith(
-                        color: colors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: AppTypography.headline.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    // View Google Fonts Button
+                    TextButton.icon(
+                      icon: Icon(Icons.language_rounded,
+                          size: 15, color: colors.accent),
+                      label: Text(
+                        'Google Fonts',
+                        style: TextStyle(
+                          color: colors.accent,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: _openGoogleFontsBrowser,
+                    ),
+                    const SizedBox(width: 4),
+                    // Import .TTF / .OTF Button
                     TextButton.icon(
                       icon: Icon(Icons.file_upload_outlined,
-                          size: 16, color: colors.accent),
+                          size: 15, color: colors.accent),
                       label: Text(
                         'Import .ttf',
-                        style: TextStyle(color: colors.accent, fontSize: 13),
+                        style: TextStyle(
+                          color: colors.accent,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       onPressed: _importLocalFont,
                     ),
@@ -252,29 +254,11 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     ),
                   ),
                 ),
               ),
-
-              if (_isDownloading)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CupertinoActivityIndicator(radius: 8),
-                      const SizedBox(width: 8),
-                      Text(
-                        _downloadMessage ?? 'Downloading font...',
-                        style: TextStyle(
-                            color: colors.textSecondary, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
 
               const SizedBox(height: 8),
 
@@ -290,7 +274,23 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                     ...filtered.map((font) {
                       final isSelected = (font == effectiveCurrent) ||
                           (font == 'System Sans' && widget.currentFont == null) ||
-                          (font == 'serif' && widget.currentFont == 'serif');
+                          (font == 'System Serif' && widget.currentFont == 'serif') ||
+                          (font == 'Monospace' && widget.currentFont == 'monospace');
+
+                      final fontStyle = FontFamilyHelper.getTextStyle(
+                        fontFamily: font,
+                        baseStyle: TextStyle(
+                          fontSize: 16,
+                          color: isSelected
+                              ? colors.accent
+                              : colors.textPrimary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      );
+
+                      final isBundled = FontFamilyHelper.bundledFonts.contains(font);
 
                       return ListTile(
                         shape: RoundedRectangleBorder(
@@ -298,52 +298,59 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                         ),
                         title: Text(
                           font,
-                          style: TextStyle(
-                            fontFamily: (font == 'System Sans' ||
-                                    font == 'System Serif')
-                                ? (font == 'System Serif' ? 'serif' : null)
-                                : font,
-                            fontSize: 16,
-                            color: isSelected
-                                ? colors.accent
-                                : colors.textPrimary,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
+                          style: fontStyle,
                         ),
+                        subtitle: isBundled
+                            ? Text(
+                                'Bundled in app',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.textTertiary,
+                                ),
+                              )
+                            : null,
                         trailing: isSelected
                             ? Icon(Icons.check_rounded,
                                 color: colors.accent, size: 20)
                             : null,
                         onTap: () {
-                          widget.onFontSelected(font);
+                          if (font == 'System Sans') {
+                            widget.onFontSelected(null);
+                          } else if (font == 'System Serif') {
+                            widget.onFontSelected('serif');
+                          } else if (font == 'Monospace') {
+                            widget.onFontSelected('monospace');
+                          } else {
+                            widget.onFontSelected(font);
+                          }
                           Navigator.of(context).pop();
                         },
                       );
                     }),
 
-                    // Fetch from Google Fonts if user searched for a custom name
-                    if (showGoogleSearchOption) ...[
+                    if (showCustomQueryOption) ...[
                       const Divider(height: 16),
                       ListTile(
-                        leading: Icon(Icons.cloud_download_outlined,
+                        leading: Icon(Icons.font_download_outlined,
                             color: colors.accent),
                         title: Text(
-                          'Fetch "$_searchQuery" from Google Fonts',
+                          'Use "$_searchQuery"',
                           style: TextStyle(
                             color: colors.accent,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         subtitle: Text(
-                          'Downloads and registers font for live rendering',
+                          'Apply font via Google Fonts or system typography',
                           style: TextStyle(
                             color: colors.textSecondary,
                             fontSize: 12,
                           ),
                         ),
-                        onTap: () => _fetchGoogleFont(_searchQuery),
+                        onTap: () {
+                          widget.onFontSelected(_searchQuery);
+                          Navigator.of(context).pop();
+                        },
                       ),
                     ],
                   ],

@@ -7,6 +7,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
+import '../utils/font_family_helper.dart';
 import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
@@ -84,47 +85,57 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final baseLetterSpacing = typography.letterSpacing;
 
     final customStyleSheet = MarkdownStyleSheet(
-      h1: TextStyle(
+      h1: FontFamilyHelper.getTextStyle(
         fontFamily: headingFont,
-        fontSize: typography.scaledHeading1Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing - 0.3,
-        color: colors.textPrimary,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading1Size,
+          fontWeight: FontWeight.w700,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing - 0.3,
+          color: colors.textPrimary,
+        ),
       ),
-      h2: TextStyle(
+      h2: FontFamilyHelper.getTextStyle(
         fontFamily: headingFont,
-        fontSize: typography.scaledHeading2Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing - 0.2,
-        color: colors.textPrimary,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading2Size,
+          fontWeight: FontWeight.w700,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing - 0.2,
+          color: colors.textPrimary,
+        ),
       ),
-      h3: TextStyle(
+      h3: FontFamilyHelper.getTextStyle(
         fontFamily: headingFont,
-        fontSize: typography.scaledHeading3Size,
-        fontWeight: FontWeight.w600,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading3Size,
+          fontWeight: FontWeight.w600,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
       ),
-      p: TextStyle(
+      p: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
-        fontSize: baseFontSize,
-        fontWeight: FontWeight.w400,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          fontWeight: FontWeight.w400,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
       ),
       pPadding: const EdgeInsets.only(bottom: AppSpacing.md),
-      blockquote: TextStyle(
+      blockquote: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
-        fontSize: baseFontSize,
-        fontStyle: FontStyle.italic,
-        fontWeight: FontWeight.w400,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textSecondary,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w400,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textSecondary,
+        ),
       ),
       blockquoteDecoration: BoxDecoration(
         color: colors.surface,
@@ -140,12 +151,14 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         horizontal: AppSpacing.md,
         vertical: AppSpacing.compact,
       ),
-      code: TextStyle(
+      code: FontFamilyHelper.getTextStyle(
         fontFamily: codeFont,
-        fontSize: typography.scaledCodeSize,
-        height: baseHeight,
-        color: colors.accentDark,
-        backgroundColor: colors.tagBackground,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledCodeSize,
+          height: baseHeight,
+          color: colors.accentDark,
+          backgroundColor: colors.tagBackground,
+        ),
       ),
       codeblockDecoration: BoxDecoration(
         color: colors.surface,
@@ -158,20 +171,24 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           top: BorderSide(color: colors.divider, width: 1),
         ),
       ),
-      listBullet: TextStyle(
+      listBullet: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
-        fontSize: baseFontSize,
-        height: baseHeight,
-        color: colors.accent,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          height: baseHeight,
+          color: colors.accent,
+        ),
       ),
       listBulletPadding: const EdgeInsets.only(right: AppSpacing.sm),
-      a: TextStyle(
+      a: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
-        fontSize: baseFontSize,
-        height: baseHeight,
-        color: colors.accent,
-        decoration: TextDecoration.underline,
-        decorationColor: colors.accent.withValues(alpha: 0.5),
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          height: baseHeight,
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.accent.withValues(alpha: 0.5),
+        ),
       ),
       tableHead: AppTypography.bodySmallMedium.copyWith(color: colors.textPrimary),
       tableBody: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
@@ -204,8 +221,13 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           if (effectiveTitle.isNotEmpty) ...[
             Text(
               effectiveTitle,
-              style: AppTypography.editorTitle.copyWith(
-                color: colors.textPrimary,
+              style: FontFamilyHelper.getTextStyle(
+                fontFamily: headingFont,
+                baseStyle: AppTypography.editorTitle.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: typography.scaledTitleSize,
+                  letterSpacing: baseLetterSpacing - 0.4,
+                ),
               ),
             ),
             const SizedBox(height: 20.0),

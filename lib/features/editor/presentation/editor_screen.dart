@@ -19,6 +19,7 @@ import 'widgets/tag_editor_bar.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
+import '../../../core/utils/font_family_helper.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -411,23 +412,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     focusNode: _titleFocusNode,
                                     readOnly: editorState.isReadOnly,
                                     cursorColor: colors.accent,
-                                    style: TextStyle(
+                                    style: FontFamilyHelper.getTextStyle(
                                       fontFamily: typography.headingFontFamily ??
                                           typography.bodyFontFamily,
-                                      fontSize: typography.scaledTitleSize,
-                                      fontWeight: FontWeight.w700,
-                                      height: typography.lineHeight,
-                                      letterSpacing: typography.letterSpacing - 0.5,
-                                      color: colors.textPrimary,
+                                      baseStyle: TextStyle(
+                                        fontSize: typography.scaledTitleSize,
+                                        fontWeight: FontWeight.w700,
+                                        height: typography.lineHeight,
+                                        letterSpacing: typography.letterSpacing - 0.5,
+                                        color: colors.textPrimary,
+                                      ),
                                     ),
                                     decoration: InputDecoration(
                                       hintText: 'Title',
-                                      hintStyle: TextStyle(
+                                      hintStyle: FontFamilyHelper.getTextStyle(
                                         fontFamily: typography.headingFontFamily ??
                                             typography.bodyFontFamily,
-                                        fontSize: typography.scaledTitleSize,
-                                        fontWeight: FontWeight.w700,
-                                        color: colors.textTertiary.withValues(alpha: 0.4),
+                                        baseStyle: TextStyle(
+                                          fontSize: typography.scaledTitleSize,
+                                          fontWeight: FontWeight.w700,
+                                          color: colors.textTertiary.withValues(alpha: 0.4),
+                                        ),
                                       ),
                                       border: InputBorder.none,
                                       enabledBorder: InputBorder.none,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/font_family_helper.dart';
 import '../../settings/domain/typography_settings.dart';
 
 /// Centralized Markdown styling definition for the WYSIWYG editor.
@@ -87,63 +88,49 @@ class MarkdownStyles {
     final headingFont = typo.headingFontFamily ?? bodyFont;
     final codeFont = typo.codeFontFamily ?? 'monospace';
 
-    final effectiveBody = (baseStyle ?? AppTypography.editorBody).copyWith(
-      color: colors.textPrimary,
+    final effectiveBody = FontFamilyHelper.getTextStyle(
       fontFamily: bodyFont,
-      fontSize: baseFontSize,
-      height: baseHeight,
-      letterSpacing: baseLetterSpacing,
+      baseStyle: (baseStyle ?? AppTypography.editorBody).copyWith(
+        color: colors.textPrimary,
+        fontSize: baseFontSize,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+      ),
     );
 
+    TextStyle headingStyle(double size, FontWeight weight, double tracking) {
+      return FontFamilyHelper.getTextStyle(
+        fontFamily: headingFont,
+        baseStyle: TextStyle(
+          fontSize: size,
+          fontWeight: weight,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing + tracking,
+          color: colors.textPrimary,
+        ),
+      );
+    }
+
+    TextStyle codeStyle({Color? color, Color? backgroundColor, FontWeight? weight}) {
+      return FontFamilyHelper.getTextStyle(
+        fontFamily: codeFont,
+        baseStyle: TextStyle(
+          fontSize: typo.scaledCodeSize,
+          height: baseHeight,
+          fontWeight: weight ?? FontWeight.w400,
+          color: color,
+          backgroundColor: backgroundColor,
+        ),
+      );
+    }
+
     return MarkdownStyles(
-      heading1: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading1Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing - 0.3,
-        color: colors.textPrimary,
-      ),
-      heading2: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading2Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing - 0.2,
-        color: colors.textPrimary,
-      ),
-      heading3: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading3Size,
-        fontWeight: FontWeight.w600,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
-      ),
-      heading4: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading4Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
-      ),
-      heading5: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading5Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
-      ),
-      heading6: TextStyle(
-        fontFamily: headingFont,
-        fontSize: typo.scaledHeading6Size,
-        fontWeight: FontWeight.w700,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textPrimary,
-      ),
+      heading1: headingStyle(typo.scaledHeading1Size, FontWeight.w700, -0.3),
+      heading2: headingStyle(typo.scaledHeading2Size, FontWeight.w700, -0.2),
+      heading3: headingStyle(typo.scaledHeading3Size, FontWeight.w600, 0.0),
+      heading4: headingStyle(typo.scaledHeading4Size, FontWeight.w700, 0.0),
+      heading5: headingStyle(typo.scaledHeading5Size, FontWeight.w700, 0.0),
+      heading6: headingStyle(typo.scaledHeading6Size, FontWeight.w700, 0.0),
       headingMarker: TextStyle(
         color: colors.textTertiary.withValues(alpha: 0.6),
         fontWeight: FontWeight.w500,
@@ -166,43 +153,29 @@ class MarkdownStyles {
         backgroundColor: colors.accent.withValues(alpha: 0.22),
         fontWeight: FontWeight.w500,
       ),
-      inlineCode: TextStyle(
-        fontFamily: codeFont,
-        fontSize: typo.scaledCodeSize,
-        height: baseHeight,
-        fontWeight: FontWeight.w400,
+      inlineCode: codeStyle(
         color: colors.accentDark,
         backgroundColor: colors.tagBackground.withValues(alpha: 0.5),
       ),
-      inlineCodeMarker: TextStyle(
-        fontFamily: codeFont,
-        fontSize: typo.scaledCodeSize,
-        height: baseHeight,
-        fontWeight: FontWeight.w400,
-        color: colors.textTertiary.withValues(alpha: 0.6),
-      ),
-      codeBlock: TextStyle(
-        fontFamily: codeFont,
-        fontSize: typo.scaledCodeSize,
-        height: baseHeight,
-        fontWeight: FontWeight.w400,
-        color: colors.textPrimary,
-      ),
-      codeBlockFence: TextStyle(
-        fontFamily: codeFont,
-        fontSize: typo.scaledCodeSize,
-        height: baseHeight,
-        fontWeight: FontWeight.w400,
+      inlineCodeMarker: codeStyle(
         color: colors.textTertiary.withValues(alpha: 0.7),
       ),
-      blockquote: TextStyle(
+      codeBlock: codeStyle(
+        color: colors.textPrimary,
+      ),
+      codeBlockFence: codeStyle(
+        color: colors.textTertiary.withValues(alpha: 0.7),
+      ),
+      blockquote: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
-        fontSize: baseFontSize,
-        fontStyle: FontStyle.italic,
-        fontWeight: FontWeight.w400,
-        height: baseHeight,
-        letterSpacing: baseLetterSpacing,
-        color: colors.textSecondary,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w400,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textSecondary,
+        ),
       ),
       blockquoteMarker: TextStyle(
         color: colors.accent.withValues(alpha: 0.7),

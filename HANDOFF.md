@@ -591,21 +591,25 @@ Quiet Paper features a comprehensive typography engine that allows users to cust
     - `paragraphIndent`: Left start indent for content (0–40 px).
     - `customFonts`: List of dynamically loaded font families.
   - Proportional heading scales (`scaledTitleSize` [30pt at 18pt base], `scaledHeading1Size` [26pt], `scaledHeading2Size` [22pt], `scaledHeading3Size` [19pt], `scaledHeading4Size` [18pt], `scaledHeading5Size` [17pt], `scaledHeading6Size` [16pt], `scaledCodeSize` [15pt]).
+- **Bundled Fonts & Font Resolution** ([`lib/core/utils/font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart)):
+  - 8 core font families and variants are baked directly into the APK assets (`assets/fonts/`) and declared in `pubspec.yaml` for instant 100% offline access: `Inter`, `Roboto`, `Lora`, `Merriweather`, `Open Sans`, `Lato`, `JetBrains Mono`, `Fira Code`.
+  - Dynamic resolution via `FontFamilyHelper.getTextStyle` which falls back smoothly to `GoogleFonts.getFont()` for the entire 1,500+ Google Fonts catalog or system fonts.
 - **`TypographySettingsNotifier`** ([`lib/features/settings/application/typography_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/typography_provider.dart)):
   - Persists JSON state in `SharedPreferences` under key `typography_settings_v1`.
-  - Dynamic Font Loading:
-    - `loadCustomFontFromFile(filePath)`: Reads raw TTF/OTF bytes from device storage and registers font dynamically using Flutter's `FontLoader`.
-    - `fetchGoogleFont(fontName)`: Queries Google Fonts API, parses font file URL, downloads font bytes, and registers it into Flutter's font manifest at runtime.
+  - `loadCustomFontFromFile(filePath)`: Reads raw TTF/OTF bytes from device storage and registers font dynamically using Flutter's `FontLoader`.
   - `resetToDefault()`: Restores factory defaults with a single tap.
 
 ### UI / UX Implementation
 - **`TypographySettingsScreen`** ([`lib/features/settings/presentation/typography_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/typography_settings_screen.dart)):
-  - **Sticky Live Preview**: Fixed 190dp height card with `12dp` rounded corners and subtle header bar showing sample headings (H1, H2), body text with bold and link formatting, blockquote, checklist, and codeblock. Updates reactively in real time as sliders and pickers change.
-  - **Group 1 (Typefaces)**: Heading, Body, and Code font rows with chevrons opening the `FontPickerSheet`.
+  - Single, unified scroll flow (no sticky header).
+  - **Group 1 (Typefaces)**: Heading, Body, and Code font rows opening [`FontPickerSheet`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart).
   - **Group 2 (Dimensions)**: Minimalist coral sliders with live numeric badges for Font Size, Line Height, Letter Spacing, and Paragraph Indent.
   - **Group 3 (Layout & Actions)**: Cupertino segmented control for Paragraph Width (`Narrow`, `Medium`, `Full`), and centered coral "Reset to Default" button.
-- **`FontPickerSheet`** ([`lib/features/settings/presentation/widgets/font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart)):
-  - iOS bottom sheet with search filter, curated presets, custom file import button via `FilePicker`, and Google Fonts downloader.
+  - **Group 4 (Bottom Live Preview)**: Placed naturally at the bottom of the page in a rounded `12dp` card with generous height and no artificial clipping, rendering full Markdown (headings, formatted body, quote, checklist, and code blocks) dynamically in real-time.
+- **`FontPickerSheet` & `GoogleFontsSheet`** ([`lib/features/settings/presentation/widgets/`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/)):
+  - Fast font picker with live typography preview for each font item.
+  - "Google Fonts" browser action displaying a searchable catalog with category filtering (Sans-serif, Serif, Monospace, Handwriting, Display).
+  - "Import .ttf" button for custom local fonts.
 
 ---
 
