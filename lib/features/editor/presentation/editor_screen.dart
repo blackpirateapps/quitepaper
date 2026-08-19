@@ -45,20 +45,23 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final TextEditingController _titleController;
   late final MarkdownEditingController _contentController;
   late final FocusNode _titleFocusNode;
   late final FocusNode _contentFocusNode;
   late final ScrollController _scrollController;
 
-  // In-Note Search & Replace state
+  // In-Note Search & Replace state & animations
   bool _isSearchVisible = false;
   bool _showReplace = false;
   late final TextEditingController _searchQueryController;
   late final FocusNode _searchQueryFocusNode;
   late final TextEditingController _replaceQueryController;
   late final FocusNode _replaceQueryFocusNode;
+  late final AnimationController _searchAnimationController;
+  late final Animation<double> _searchAnimation;
+  late final Animation<Offset> _searchSlideAnimation;
   List<TextRange> _searchMatches = [];
   int _currentMatchIndex = 0;
 
@@ -88,6 +91,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _searchQueryFocusNode = FocusNode();
     _replaceQueryController = TextEditingController();
     _replaceQueryFocusNode = FocusNode();
+
+    _searchAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+    _searchAnimation = CurvedAnimation(
+      parent: _searchAnimationController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _searchSlideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, -0.25),
+      end: Offset.zero,
+    ).animate(_searchAnimation);
 
     _searchQueryController.addListener(_onSearchQueryChanged);
 
@@ -201,10 +219,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _openSearch({bool withReplace = false}) {
+    HapticFeedback.lightImpact();
     setState(() {
       _isSearchVisible = true;
       if (withReplace) _showReplace = true;
     });
+    _searchAnimationController.forward();
 
     final selection = _contentController.selection;
     if (selection.isValid && !selection.isCollapsed) {
@@ -228,21 +248,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _closeSearch() {
-    setState(() {
-      _isSearchVisible = false;
-      _showReplace = false;
-      _searchQueryController.clear();
-      _replaceQueryController.clear();
-      _searchMatches.clear();
-      _currentMatchIndex = 0;
-    });
-    _contentController.setSearchHighlight(query: null, activeRange: null);
     if (_searchQueryFocusNode.hasFocus) {
       _searchQueryFocusNode.unfocus();
     }
     if (_replaceQueryFocusNode.hasFocus) {
       _replaceQueryFocusNode.unfocus();
     }
+    _searchAnimationController.reverse().then((_) {
+      if (mounted) {
+        setState(() {
+          _isSearchVisible = false;
+          _showReplace = false;
+          _searchQueryController.clear();
+          _replaceQueryController.clear();
+          _searchMatches.clear();
+          _currentMatchIndex = 0;
+        });
+        _contentController.setSearchHighlight(query: null, activeRange: null);
+      }
+    });
   }
 
   void _onSearchQueryChanged() {
@@ -417,6 +441,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _titleFocusNode.dispose();
     _contentFocusNode.dispose();
     _scrollController.dispose();
+    _searchAnimationController.dispose();
     super.dispose();
   }
 
@@ -622,32 +647,41 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           body: SafeArea(
             child: Column(
               children: [
-                if (_isSearchVisible)
-                  InNoteSearchBar(
-                    searchController: _searchQueryController,
-                    searchFocusNode: _searchQueryFocusNode,
-                    onClose: _closeSearch,
-                    onPreviousMatch: _goToPreviousMatch,
-                    onNextMatch: _goToNextMatch,
-                    matchCount: _searchMatches.length,
-                    currentMatchIndex: _currentMatchIndex,
-                    showReplace: _showReplace,
-                    onToggleReplace: () {
-                      setState(() {
-                        _showReplace = !_showReplace;
-                      });
-                      if (_showReplace) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _replaceQueryFocusNode.requestFocus();
-                        });
-                      }
-                    },
-                    replaceController: _replaceQueryController,
-                    replaceFocusNode: _replaceQueryFocusNode,
-                    onReplace: _replaceActiveMatch,
-                    onReplaceAll: _replaceAllMatches,
-                    isReadOnly: editorState.isReadOnly,
+                if (_isSearchVisible || _searchAnimationController.value > 0)
+                  SizeTransition(
+                    sizeFactor: _searchAnimation,
+                    child: FadeTransition(
+                    opacity: _searchAnimation,
+                    child: SlideTransition(
+                      position: _searchSlideAnimation,
+                      child: InNoteSearchBar(
+                        searchController: _searchQueryController,
+                        searchFocusNode: _searchQueryFocusNode,
+                        onClose: _closeSearch,
+                        onPreviousMatch: _goToPreviousMatch,
+                        onNextMatch: _goToNextMatch,
+                        matchCount: _searchMatches.length,
+                        currentMatchIndex: _currentMatchIndex,
+                        showReplace: _showReplace,
+                        onToggleReplace: () {
+                          setState(() {
+                            _showReplace = !_showReplace;
+                          });
+                          if (_showReplace) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _replaceQueryFocusNode.requestFocus();
+                            });
+                          }
+                        },
+                        replaceController: _replaceQueryController,
+                        replaceFocusNode: _replaceQueryFocusNode,
+                        onReplace: _replaceActiveMatch,
+                        onReplaceAll: _replaceAllMatches,
+                        isReadOnly: editorState.isReadOnly,
+                      ),
+                    ),
                   ),
+                ),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (notification) {

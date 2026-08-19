@@ -757,18 +757,22 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - **Tablet Layout**: When the navigation sidebar pane is collapsed in focus mode, swiping horizontally from the left edge restores `isNavSidebarVisible = true`.
 
 ### In-Note Search & Replace (Editor & Preview)
-- **Gestures & Shortcuts**:
-  - Swiping/pulling down at the top of the editor or markdown preview reveals the in-note search bar.
+- **Gestures, iOS Animation & Shortcuts**:
+  - Swiping/pulling down at the top of the editor or markdown preview smoothly reveals the in-note search bar using an iOS Bear Notes style springy slide-and-fade transition (`SizeTransition`, `FadeTransition`, `SlideTransition` driven by `Curves.easeOutCubic` / `Curves.easeInCubic`) with tactile `HapticFeedback.lightImpact()`.
+  - Closing the search bar gracefully collapses and slides it upward out of view.
+  - Expandable Replace row inside [`InNoteSearchBar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/in_note_search_bar.dart) expands and collapses with smooth `AnimatedSize`.
   - `Ctrl+F` / `Cmd+F` opens Find in note.
   - `Ctrl+H` / `Cmd+H` opens Find with Replace.
   - `Escape` closes search, unfocuses search fields, and clears all match highlights.
   - Dedicated search button in the Editor `AppBar` and "Find in note" option in the overflow bottom sheet menu.
-- **1:1 WYSIWYG Search Term Highlighting**:
-  - [`MarkdownParser.buildTextSpan`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart) performs multi-pass segment slicing: slices styled spans by case-insensitive search matches, applying `searchHighlight` to all matches and `activeSearchHighlight` (accent background + bold) to the currently active match, before Android IME composing range processing.
-  - Preserves exact 1:1 character source length and offset invariants; caret metrics, selection, and undo/redo remain intact.
+- **1:1 WYSIWYG High-Contrast Search Term Highlighting**:
+  - [`MarkdownParser.buildTextSpan`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart) performs multi-pass segment slicing: slices styled spans by case-insensitive search matches without mutating character offsets or underlying text.
+  - **All Matching Occurrences**: Highlighted with high-contrast golden amber background (`#FFE066` in Light Mode, `#7A5C1E` in Dark Mode) and dark/light high-contrast text (`#242018` / `#FFFFFAED`).
+  - **Active Match**: Highlighted with solid accent fill (`#D65F55` / `#E4776D`), crisp white text, and `FontWeight.w700`.
+  - Seamlessly preserves Android IME composing underline slicing, caret metrics, selection, and undo/redo stacks.
   - [`MarkdownEditingController`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_editing_controller.dart) manages search query state and active match ranges with instant reactive notifications.
 - **Markdown Preview Search Highlighting**:
-  - [`SearchMatchSyntax`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) and [`SearchMatchElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) highlight search matches seamlessly inside rendered [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart).
+  - [`SearchMatchSyntax`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) and [`SearchMatchElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) highlight search matches seamlessly inside rendered [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart) using the same high-contrast amber styling.
 - **Search & Replace UI**:
   - [`InNoteSearchBar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/in_note_search_bar.dart) provides query input, match counter (`X/Y`), previous and next navigation buttons (with wrap-around), close button, and expandable replace row.
   - "Replace" replaces the active match, updates the document, and recalculates matches.

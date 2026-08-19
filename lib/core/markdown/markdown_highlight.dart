@@ -77,18 +77,19 @@ class SearchMatchElementBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
+    final isDark = colors.background.computeLuminance() < 0.5;
     final effectiveStyle =
         (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
-      color: colors.textPrimary,
+      color: isDark ? const Color(0xFFFFFAED) : const Color(0xFF242018),
       fontWeight: FontWeight.w600,
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 0.5),
-      margin: const EdgeInsets.symmetric(horizontal: 0.5),
+      padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 1.0),
+      margin: const EdgeInsets.symmetric(horizontal: 1.0),
       decoration: BoxDecoration(
-        color: colors.accent.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(2.0),
+        color: isDark ? const Color(0xFF7A5C1E) : const Color(0xFFFFE066),
+        borderRadius: BorderRadius.circular(3.0),
       ),
       child: Text(
         element.textContent,

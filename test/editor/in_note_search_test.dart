@@ -36,11 +36,12 @@ void main() {
       // First match "Quiet" (active)
       final activeMatch = children.firstWhere((s) => s.text == 'Quiet');
       expect(activeMatch.style?.backgroundColor, equals(styles.activeSearchHighlight.backgroundColor));
-      expect(activeMatch.style?.fontWeight, equals(FontWeight.w600));
+      expect(activeMatch.style?.fontWeight, equals(styles.activeSearchHighlight.fontWeight));
 
       // Second match "quiet" (non-active)
       final secondaryMatch = children.firstWhere((s) => s.text == 'quiet');
       expect(secondaryMatch.style?.backgroundColor, equals(styles.searchHighlight.backgroundColor));
+      expect(secondaryMatch.style?.color, equals(styles.searchHighlight.color));
     });
 
     test('MarkdownEditingController setSearchHighlight notifies listeners', () {

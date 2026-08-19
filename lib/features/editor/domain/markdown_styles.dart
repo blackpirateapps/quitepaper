@@ -229,12 +229,18 @@ class MarkdownStyles {
         color: colors.textTertiary.withValues(alpha: 0.6),
       ),
       searchHighlight: TextStyle(
-        backgroundColor: colors.accent.withValues(alpha: 0.28),
+        backgroundColor: (colors.background.computeLuminance() < 0.5)
+            ? const Color(0xFF7A5C1E)
+            : const Color(0xFFFFE066),
+        color: (colors.background.computeLuminance() < 0.5)
+            ? const Color(0xFFFFFAED)
+            : const Color(0xFF242018),
+        fontWeight: FontWeight.w500,
       ),
       activeSearchHighlight: TextStyle(
         backgroundColor: colors.accent,
         color: Colors.white,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
       ),
     );
   }

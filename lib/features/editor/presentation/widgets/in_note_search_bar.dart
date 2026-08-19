@@ -164,59 +164,68 @@ class InNoteSearchBar extends StatelessWidget {
             ],
           ),
 
-          // Row 2: Replace Bar (if enabled & not read-only)
-          if (showReplace && !isReadOnly && replaceController != null) ...[
-            Divider(color: colors.divider.withValues(alpha: 0.6), height: 1),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4.0, right: 6.0),
-                  child: Icon(
-                    Icons.edit_note_rounded,
-                    size: 19,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: replaceController,
-                    focusNode: replaceFocusNode,
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: colors.textPrimary,
-                      fontSize: 14.5,
-                    ),
-                    cursorColor: colors.accent,
-                    decoration: InputDecoration(
-                      hintText: 'Replace with...',
-                      hintStyle: AppTypography.bodyMedium.copyWith(
-                        color: colors.textTertiary,
-                        fontSize: 14.5,
+          // Row 2: Replace Bar (smoothly animated)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOutCubic,
+            child: (showReplace && !isReadOnly && replaceController != null)
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Divider(color: colors.divider.withValues(alpha: 0.6), height: 1),
+                      const SizedBox(height: AppSpacing.xs),
+                      Row(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4.0, right: 6.0),
+                            child: Icon(
+                              Icons.edit_note_rounded,
+                              size: 19,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: replaceController,
+                              focusNode: replaceFocusNode,
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: colors.textPrimary,
+                                fontSize: 14.5,
+                              ),
+                              cursorColor: colors.accent,
+                              decoration: InputDecoration(
+                                hintText: 'Replace with...',
+                                hintStyle: AppTypography.bodyMedium.copyWith(
+                                  color: colors.textTertiary,
+                                  fontSize: 14.5,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+                              ),
+                              textInputAction: TextInputAction.done,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          _ActionChipButton(
+                            label: 'Replace',
+                            onPressed: (matchCount > 0) ? onReplace : null,
+                            colors: colors,
+                          ),
+                          const SizedBox(width: 4.0),
+                          _ActionChipButton(
+                            label: 'All',
+                            tooltip: 'Replace all occurrences',
+                            onPressed: (matchCount > 0) ? onReplaceAll : null,
+                            colors: colors,
+                          ),
+                          const SizedBox(width: 4.0),
+                        ],
                       ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
-                    ),
-                    textInputAction: TextInputAction.done,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                _ActionChipButton(
-                  label: 'Replace',
-                  onPressed: (matchCount > 0) ? onReplace : null,
-                  colors: colors,
-                ),
-                const SizedBox(width: 4.0),
-                _ActionChipButton(
-                  label: 'All',
-                  tooltip: 'Replace all occurrences',
-                  onPressed: (matchCount > 0) ? onReplaceAll : null,
-                  colors: colors,
-                ),
-                const SizedBox(width: 4.0),
-              ],
-            ),
-          ],
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
