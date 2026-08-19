@@ -775,9 +775,7 @@ class AppDatabase extends _$AppDatabase {
     return (select(attachmentsTable)
           ..where((a) =>
               a.isDeleted.equals(false) &
-              (a.uploadState.equals('upload_pending') |
-                  a.uploadState.equals('local_only') |
-                  a.uploadState.equals('failed'))))
+              (a.uploadState.isNotValue('synced') | a.isDirty.equals(true))))
         .get();
   }
 

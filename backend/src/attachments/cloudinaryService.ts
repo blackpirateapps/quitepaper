@@ -9,15 +9,15 @@ export interface CloudinaryConfig {
 }
 
 export function getCloudinaryConfig(): CloudinaryConfig {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-  const folder = process.env.CLOUDINARY_FOLDER || 'quitepaper';
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
+  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+  const folder = (process.env.CLOUDINARY_FOLDER || 'quitepaper').replace(/^\/+|\/+$/g, '').trim();
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new ApiError(
       'INTERNAL_ERROR',
-      'Cloudinary configuration is incomplete. Ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set.',
+      'Cloudinary configuration is incomplete on server. Ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are configured in Vercel.',
       500
     );
   }
@@ -59,8 +59,10 @@ export function createSignedUploadAuth(
   config: CloudinaryConfig,
   timestamp: number = Math.floor(Date.now() / 1000)
 ): SignedUploadParams {
+  const cleanFolder = config.folder ? config.folder.replace(/^\/+|\/+$/g, '').trim() : '';
+
   const paramsToSign: Record<string, string | number | undefined> = {
-    folder: config.folder,
+    ...(cleanFolder ? { folder: cleanFolder } : {}),
     public_id: publicId,
     timestamp,
   };
@@ -75,6 +77,6 @@ export function createSignedUploadAuth(
     signature,
     timestamp,
     publicId,
-    folder: config.folder,
+    ...(cleanFolder ? { folder: cleanFolder } : {}),
   };
 }

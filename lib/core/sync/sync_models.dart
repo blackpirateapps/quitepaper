@@ -18,6 +18,9 @@ class SyncState {
     this.errorMessage,
     this.pendingCount = 0,
     this.conflictsCount = 0,
+    this.attachmentsPending = 0,
+    this.attachmentsSynced = 0,
+    this.attachmentsFailed = 0,
   });
 
   final SyncStatus status;
@@ -25,6 +28,9 @@ class SyncState {
   final String? errorMessage;
   final int pendingCount;
   final int conflictsCount;
+  final int attachmentsPending;
+  final int attachmentsSynced;
+  final int attachmentsFailed;
 
   SyncState copyWith({
     SyncStatus? status,
@@ -32,6 +38,9 @@ class SyncState {
     String? errorMessage,
     int? pendingCount,
     int? conflictsCount,
+    int? attachmentsPending,
+    int? attachmentsSynced,
+    int? attachmentsFailed,
   }) {
     return SyncState(
       status: status ?? this.status,
@@ -39,6 +48,9 @@ class SyncState {
       errorMessage: errorMessage ?? this.errorMessage,
       pendingCount: pendingCount ?? this.pendingCount,
       conflictsCount: conflictsCount ?? this.conflictsCount,
+      attachmentsPending: attachmentsPending ?? this.attachmentsPending,
+      attachmentsSynced: attachmentsSynced ?? this.attachmentsSynced,
+      attachmentsFailed: attachmentsFailed ?? this.attachmentsFailed,
     );
   }
 
@@ -51,7 +63,10 @@ class SyncState {
           lastSyncedAt == other.lastSyncedAt &&
           errorMessage == other.errorMessage &&
           pendingCount == other.pendingCount &&
-          conflictsCount == other.conflictsCount;
+          conflictsCount == other.conflictsCount &&
+          attachmentsPending == other.attachmentsPending &&
+          attachmentsSynced == other.attachmentsSynced &&
+          attachmentsFailed == other.attachmentsFailed;
 
   @override
   int get hashCode =>
@@ -59,7 +74,10 @@ class SyncState {
       lastSyncedAt.hashCode ^
       errorMessage.hashCode ^
       pendingCount.hashCode ^
-      conflictsCount.hashCode;
+      conflictsCount.hashCode ^
+      attachmentsPending.hashCode ^
+      attachmentsSynced.hashCode ^
+      attachmentsFailed.hashCode;
 }
 
 @immutable

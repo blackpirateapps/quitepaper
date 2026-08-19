@@ -77,12 +77,16 @@ class MockSyncApiClient implements SyncApiClient {
 class MockCloudinaryClient implements CloudinaryClient {
   Uint8List? lastUploadedBytes;
   CloudinaryUploadAuth? lastAuth;
+  bool throwOnUpload = false;
 
   @override
   Future<CloudinaryUploadResult> uploadEncryptedBytes({
     required Uint8List encryptedBytes,
     required CloudinaryUploadAuth auth,
   }) async {
+    if (throwOnUpload) {
+      throw const CloudinaryException('Cloudinary upload rejected: invalid credentials', statusCode: 401);
+    }
     lastUploadedBytes = encryptedBytes;
     lastAuth = auth;
     return CloudinaryUploadResult(
@@ -171,7 +175,10 @@ void main() {
       );
 
       // Run sync loop
-      await syncService.syncPendingAttachments();
+      final result = await syncService.syncPendingAttachments();
+      expect(result.uploadedCount, 1);
+      expect(result.failedCount, 0);
+      expect(result.hasErrors, isFalse);
 
       // Verify Cloudinary client received direct upload
       expect(cloudinaryClient.lastUploadedBytes, equals(encryptedBytes));
@@ -186,6 +193,41 @@ void main() {
       expect(record!.uploadState, 'synced');
       expect(record.isDirty, isFalse);
       expect(record.cloudUrl, contains('res.cloudinary.com'));
+    });
+
+    test('Captures Cloudinary upload error and returns failure summary', () async {
+      const attachmentId = '88888888-8888-8888-8888-888888888888';
+      final encryptedBytes = Uint8List.fromList([0x51, 0x50, 0x41, 0x31, 7, 7, 7]);
+
+      final localPath = await storage.saveEncryptedBytes(
+        attachmentId: attachmentId,
+        encryptedBytes: encryptedBytes,
+      );
+
+      await database.saveAttachment(
+        id: attachmentId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        mimeType: 'image/jpeg',
+        byteSize: 50,
+        isDirty: true,
+        uploadState: AttachmentUploadState.uploadPending.identifier,
+        localPath: localPath,
+      );
+
+      // Throw error on upload
+      cloudinaryClient.throwOnUpload = true;
+
+      final result = await syncService.syncPendingAttachments();
+      expect(result.failedCount, 1);
+      expect(result.uploadedCount, 0);
+      expect(result.hasErrors, isTrue);
+      expect(result.errors.first, contains('Cloudinary upload rejected'));
+
+      // Check DB record marked as failed
+      final record = await database.getAttachment(attachmentId);
+      expect(record!.uploadState, 'failed');
+      expect(record.isDirty, isTrue);
     });
   });
 }

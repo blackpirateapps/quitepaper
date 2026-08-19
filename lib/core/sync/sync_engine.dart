@@ -241,25 +241,51 @@ class SyncEngine {
       }
 
       // 4. ATTACHMENT SYNC: Upload any pending encrypted attachments to Cloudinary
+      var attachmentsUploaded = 0;
+      var attachmentsFailed = 0;
+      final attachmentErrors = <String>[];
+
       if (attachmentSyncService != null) {
-        await attachmentSyncService!.syncPendingAttachments();
+        final attResult = await attachmentSyncService!.syncPendingAttachments();
+        attachmentsUploaded = attResult.uploadedCount;
+        attachmentsFailed = attResult.failedCount;
+        attachmentErrors.addAll(attResult.errors);
       }
 
-      _updateState(SyncState(
-        status: SyncStatus.synced,
-        lastSyncedAt: DateTime.now(),
-        pendingCount: 0,
-        conflictsCount: _state.conflictsCount,
-      ));
+      if (attachmentsFailed > 0) {
+        final errorMsg = attachmentErrors.isNotEmpty
+            ? attachmentErrors.first
+            : 'Failed to upload $attachmentsFailed image(s) to Cloudinary';
+        _updateState(SyncState(
+          status: SyncStatus.syncError,
+          lastSyncedAt: DateTime.now(),
+          pendingCount: 0,
+          conflictsCount: _state.conflictsCount,
+          attachmentsSynced: attachmentsUploaded,
+          attachmentsFailed: attachmentsFailed,
+          errorMessage: errorMsg,
+        ));
+      } else {
+        _updateState(SyncState(
+          status: SyncStatus.synced,
+          lastSyncedAt: DateTime.now(),
+          pendingCount: 0,
+          conflictsCount: _state.conflictsCount,
+          attachmentsSynced: attachmentsUploaded,
+          attachmentsFailed: 0,
+          errorMessage: null,
+        ));
+      }
     } catch (e) {
-      final isOffline = e.toString().contains('SocketException') ||
-          e.toString().contains('ClientException') ||
-          e.toString().contains('Network is unreachable') ||
-          e.toString().contains('Connection refused');
+      final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      final isOffline = errStr.contains('SocketException') ||
+          errStr.contains('ClientException') ||
+          errStr.contains('Network is unreachable') ||
+          errStr.contains('Connection refused');
 
       _updateState(_state.copyWith(
         status: isOffline ? SyncStatus.offline : SyncStatus.syncError,
-        errorMessage: e.toString(),
+        errorMessage: errStr,
       ));
     } finally {
       _isSyncing = false;

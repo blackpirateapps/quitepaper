@@ -76,7 +76,7 @@ export const pullSyncSchema = z.object({
 
 export const uploadAuthRequestSchema = z.object({
   attachmentId: z.string().uuid(),
-  noteId: z.string().uuid().optional(),
+  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
   mimeType: z.string().max(100).default('image/png'),
   byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
   sha256: z.string().max(128).default(''),
@@ -85,7 +85,7 @@ export const uploadAuthRequestSchema = z.object({
 
 export const confirmAttachmentSchema = z.object({
   attachmentId: z.string().uuid(),
-  noteId: z.string().uuid().optional(),
+  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
   cloudPublicId: z.string().min(1).max(256),
   cloudUrl: z.string().url().max(1024),
   mimeType: z.string().max(100).optional(),

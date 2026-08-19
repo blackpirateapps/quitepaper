@@ -172,9 +172,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         trailing: syncState.status == SyncStatus.syncing
                             ? const CupertinoActivityIndicator(radius: 8)
                             : null,
-                        onTap: () {
-                          ref.read(syncEngineProvider).syncNow();
-                        },
+                        onTap: syncState.status == SyncStatus.syncing
+                            ? null
+                            : () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                messenger.hideCurrentSnackBar();
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Syncing notes & images...'),
+                                    duration: const Duration(seconds: 1),
+                                    backgroundColor: colors.elevated,
+                                  ),
+                                );
+
+                                await ref.read(syncEngineProvider).syncNow();
+
+                                if (!context.mounted) return;
+                                final resultState = ref.read(syncStateProvider);
+
+                                messenger.hideCurrentSnackBar();
+
+                                if (resultState.status == SyncStatus.syncError) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              resultState.errorMessage ??
+                                                  'Sync error occurred. Check Cloudinary credentials in Vercel.',
+                                              style: const TextStyle(color: Colors.white),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      backgroundColor: colors.error,
+                                      duration: const Duration(seconds: 5),
+                                    ),
+                                  );
+                                } else if (resultState.status == SyncStatus.offline) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Offline • Changes preserved on device'),
+                                      duration: const Duration(seconds: 3),
+                                      backgroundColor: colors.elevated,
+                                    ),
+                                  );
+                                } else if (resultState.status == SyncStatus.synced) {
+                                  final attSynced = resultState.attachmentsSynced;
+                                  final successText = attSynced > 0
+                                      ? 'Sync complete: Notes & $attSynced image(s) synced'
+                                      : 'Sync complete: All notes up to date';
+
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              successText,
+                                              style: const TextStyle(color: Colors.white),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      backgroundColor: colors.accent,
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              },
                       ),
                       _buildDivider(colors),
                       _SettingsRow(
@@ -620,10 +691,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _formatSyncStatus(SyncState state) {
     switch (state.status) {
       case SyncStatus.syncing:
-        return 'Syncing changes...';
+        return 'Syncing notes & images...';
       case SyncStatus.synced:
         if (state.lastSyncedAt != null) {
           final time = DateFormat.jm().format(state.lastSyncedAt!);
+          if (state.attachmentsSynced > 0) {
+            return 'All notes & ${state.attachmentsSynced} image(s) synced at $time';
+          }
           return 'All notes synced at $time';
         }
         return 'All notes synced';
@@ -634,7 +708,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case SyncStatus.conflict:
         return 'Conflict detected • Preserved locally';
       case SyncStatus.syncError:
-        return state.errorMessage ?? 'Sync error occurred';
+        return state.errorMessage ?? 'Sync failed • Check Cloudinary config';
       case SyncStatus.localOnly:
         return 'Local storage only';
     }

@@ -210,9 +210,14 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception(
-        'Failed to obtain attachment upload auth: ${res.statusCode} ${res.body}',
-      );
+      var message = 'Failed to obtain attachment upload auth (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -248,9 +253,14 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception(
-        'Failed to confirm attachment upload: ${res.statusCode} ${res.body}',
-      );
+      var message = 'Failed to confirm attachment upload (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
     }
 
     return jsonDecode(res.body) as Map<String, dynamic>;

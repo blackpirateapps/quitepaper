@@ -723,6 +723,14 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - `POST /api/v1/attachments/confirm`: Validates and saves attachment metadata.
   - `GET /api/v1/attachments/:id`: Retrieves metadata for specific attachment.
 
+### Settings Sync Feedback & Error Surfacing
+- **Interactive Sync Now Feedback**:
+  - The "Sync Now" action in [`SettingsScreen`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart) provides instant interactive visual feedback (progress indicators and SnackBars).
+  - On Success: Informs the user of total notes and image attachments synced (`Sync complete: Notes & X image(s) synced`).
+  - On Failure: Immediately presents an error banner with the descriptive reason (e.g. missing Cloudinary environment variables in Vercel, network disconnects, or authentication issues).
+  - Sync State Metrics: Tracks `attachmentsPending`, `attachmentsSynced`, and `attachmentsFailed` in [`SyncState`](file:///home/dog/git/quitepaper/lib/core/sync/sync_models.dart).
+
+
 
 
 
