@@ -458,7 +458,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('IMPORT'), findsOneWidget);
     expect(find.text('Import Markdown Folder'), findsOneWidget);
     expect(find.text('Choose folder to import'), findsOneWidget);
 

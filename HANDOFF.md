@@ -432,6 +432,32 @@ In [`RestoreBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/prese
 
 ---
 
+## 20. Settings Screen iOS Grouped Table & Bear Notes Aesthetic Overhaul
+
+### Problem & Motivation
+The Settings interface previously utilized floating Material cards with separated outline/tonal buttons, inconsistent icon alignment, standard Material switches, and loose spacing. To achieve the clean, editorial Bear Notes aesthetic while preserving the app's warm cozy dark/light color palette, the Settings screen was refactored into an iOS Grouped Table style.
+
+### Key Architectural & UI Enhancements
+1. **Grouped Containers & Flush Rows**:
+   - Replaced loose floating elements with flush, stacked rows inside `_SettingsGroup` containers styled with tight corner radii (`BorderRadius.circular(11)`), subtle borders (`colors.divider`), and internal anti-aliasing clip.
+   - Stacked rows are separated by ultra-thin dividers with an exact `indent: 52` (16dp padding + 24dp icon bounding box + 12dp spacing), aligning the start of the divider with text content.
+2. **Row-Based Actions & Trailing Chevrons**:
+   - Replaced individual button widgets ("Sync Now", "Change Password", "Sign Out", "Create Backup", "Restore Backup", "Choose folder", "Select files", "Load sample notes", "Check for updates") with full-width clickable `_SettingsRow` elements featuring leading icons and trailing right-pointing chevrons (`Icons.chevron_right_rounded`).
+   - "Create Backup" uses coral accent typography while maintaining identical background styling for visual harmony.
+   - Destructive actions ("Sign Out") render in subtle error hues.
+3. **Refined Typography & Section Headers**:
+   - Section headers ("CLOUD SYNC & ENCRYPTION", "APPEARANCE", "IMPORT", "LOCAL BACKUP & RESTORE", "SAMPLE NOTES", "ABOUT") are formatted in uppercase, 11.5sp, bold weight, with +1.1 letter tracking, and positioned tightly (8dp) above their corresponding grouped container.
+   - Explanatory copy uses 12.5sp with 1.45 line-height for optimal legibility.
+4. **Standardized iOS Controls & Uniform Icons**:
+   - Replaced thick Android Material toggles with `CupertinoSwitch` (with `activeTrackColor: colors.accent`).
+   - Standardized all leading icons within fixed 24x24 bounding boxes with 20sp glyphs, centered vertically against primary title text.
+5. **Tablet Responsiveness**:
+   - Grouped table list is constrained to a max-width of `680dp` centered on tablet viewports, preventing awkward horizontal stretching on wide screens while maintaining comfortable margins.
+6. **Automated Verification**:
+   - Added unit and widget tests in [`test/settings/settings_screen_test.dart`](file:///home/dog/git/quitepaper/test/settings/settings_screen_test.dart) covering all grouped sections, interactions, and tablet layout constraints.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -447,6 +473,8 @@ In [`RestoreBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/prese
 - [x] App version bump procedure is documented in HANDOFF.md across all 5 code locations.
 - [x] Undo action SnackBars explicitly set `persist: false` to ensure reliable auto-dismissal after duration.
 - [x] Settings restore and backup dialog action layouts are fully responsive and wrapped with `SingleChildScrollView` to prevent UI overflow.
+- [x] Settings screen conforms to the iOS Grouped Table / Bear Notes aesthetic with flush grouped rows, Cupertino controls, indented dividers, and tablet max-width constraints.
+
 
 
 
