@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../attachments/attachment_storage.dart';
 import '../crypto/crypto_service.dart';
 import '../database/app_database.dart';
 import 'backup_models.dart';
@@ -15,13 +16,16 @@ class BackupService {
     required this.database,
     required this.cryptoService,
     required this.sharedPreferences,
+    AttachmentLocalStorage? storage,
     FlutterSecureStorage? secureStorage,
     this.appVersion = '1.4.0',
-  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  })  : _storage = storage ?? AttachmentLocalStorage(),
+        _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   final AppDatabase database;
   final CryptoService cryptoService;
   final SharedPreferences sharedPreferences;
+  final AttachmentLocalStorage _storage;
   final FlutterSecureStorage _secureStorage;
   final String appVersion;
 
@@ -141,6 +145,36 @@ class BackupService {
 
     final allTagNames = await database.getAllTagNames();
 
+    // Query attachments for included notes
+    final allAttachments = await database.getAllAttachments();
+    final filteredAttachments = allAttachments
+        .where((a) => !a.isDeleted && (a.noteId == null || noteIds.contains(a.noteId)))
+        .toList();
+
+    final backupAttachments = <BackupAttachment>[];
+    for (final att in filteredAttachments) {
+      final encryptedBytes = await _storage.readEncryptedBytes(
+        attachmentId: att.id,
+        variant: 'original',
+        localPath: att.localPath,
+      );
+
+      backupAttachments.add(BackupAttachment(
+        id: att.id,
+        noteId: att.noteId,
+        createdAt: att.createdAt,
+        updatedAt: att.updatedAt,
+        mimeType: att.mimeType,
+        byteSize: att.byteSize,
+        width: att.width,
+        height: att.height,
+        sha256: att.sha256,
+        encryptionKeyVersion: att.encryptionKeyVersion,
+        encryptedPayloadBase64:
+            encryptedBytes != null ? base64Encode(encryptedBytes) : null,
+      ));
+    }
+
     final activeCount =
         backupNotes.where((n) => !n.isArchived && !n.isTrashed).length;
     final archivedCount = backupNotes.where((n) => n.isArchived).length;
@@ -160,12 +194,14 @@ class BackupService {
       trashedNotes: trashedCount,
       pinnedNotes: pinnedCount,
       totalTags: allTagNames.length,
+      totalAttachments: backupAttachments.length,
     );
 
     return BackupPayload(
       manifest: manifest,
       notes: backupNotes,
       tags: allTagNames,
+      attachments: backupAttachments,
     );
   }
 
@@ -213,6 +249,7 @@ class BackupService {
         trashedNotes: payload.manifest.trashedNotes,
         pinnedNotes: payload.manifest.pinnedNotes,
         totalTags: payload.manifest.totalTags,
+        totalAttachments: payload.manifest.totalAttachments,
       );
 
       final envelope = EncryptedBackupEnvelope(
@@ -297,6 +334,22 @@ class BackupService {
       }
 
       final content = await file.readAsString();
+      return validateBackupString(content, password: password);
+    } catch (e) {
+      return BackupValidationResult(
+        isValid: false,
+        isEncrypted: false,
+        errorMessage: 'Failed to read backup file: $e',
+      );
+    }
+  }
+
+  /// Validates backup string content directly and decrypts it if password is provided
+  Future<BackupValidationResult> validateBackupString(
+    String content, {
+    String? password,
+  }) async {
+    try {
       final dynamic decoded = jsonDecode(content);
 
       if (decoded is! Map<String, dynamic>) {
@@ -464,6 +517,41 @@ class BackupService {
           serverRevision: 0,
           isDirty: true,
           syncedAt: null,
+        );
+      }
+
+      // Restore attachments if included in payload
+      for (final backupAtt in payload.attachments) {
+        String? localSavedPath;
+        if (backupAtt.encryptedPayloadBase64 != null &&
+            backupAtt.encryptedPayloadBase64!.isNotEmpty) {
+          try {
+            final encryptedBytes =
+                base64Decode(backupAtt.encryptedPayloadBase64!);
+            localSavedPath = await _storage.saveEncryptedBytes(
+              attachmentId: backupAtt.id,
+              encryptedBytes: encryptedBytes,
+              variant: 'original',
+            );
+          } catch (_) {}
+        }
+
+        await database.saveAttachment(
+          id: backupAtt.id,
+          noteId: backupAtt.noteId,
+          createdAt: backupAtt.createdAt,
+          updatedAt: backupAtt.updatedAt,
+          mimeType: backupAtt.mimeType,
+          byteSize: backupAtt.byteSize,
+          width: backupAtt.width,
+          height: backupAtt.height,
+          sha256: backupAtt.sha256,
+          encryptionKeyVersion: backupAtt.encryptionKeyVersion,
+          isDirty: true,
+          isDeleted: false,
+          serverRevision: 0,
+          uploadState: 'upload_pending',
+          localPath: localSavedPath,
         );
       }
     });

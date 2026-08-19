@@ -59,6 +59,12 @@ abstract final class LinkLauncherHelper {
     var rawUrl = urlString.trim();
     if (rawUrl.isEmpty) return;
 
+    // Internal Quiet Paper URIs (qp://asset/... or qp://note/...) are application resources
+    // and must never be treated as external URLs or routed to the external browser.
+    if (rawUrl.toLowerCase().startsWith('qp://')) {
+      return;
+    }
+
     if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://') && !rawUrl.startsWith('mailto:')) {
       rawUrl = 'https://$rawUrl';
     }

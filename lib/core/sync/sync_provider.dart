@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/notes/application/notes_provider.dart';
+import '../attachments/attachment_provider.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
@@ -50,6 +51,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   final keyManager = ref.watch(keyManagerProvider);
   final auth = ref.watch(authServiceProvider);
   final api = ref.watch(syncApiClientProvider);
+  final attachmentSync = ref.watch(attachmentSyncServiceProvider);
 
   final engine = SyncEngine(
     database: db,
@@ -57,6 +59,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     keyManager: keyManager,
     authService: auth,
     apiClient: api,
+    attachmentSyncService: attachmentSync,
   );
 
   ref.onDispose(engine.dispose);

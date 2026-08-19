@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/attachments/attachment_models.dart';
 import 'package:quitepaper/core/auth/auth_service.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
@@ -99,6 +100,37 @@ class InMemorySyncApiClient implements SyncApiClient {
   @override
   Future<int> getCursor() async {
     return cursorCounter;
+  }
+
+  @override
+  Future<CloudinaryUploadAuth> getAttachmentUploadAuth({
+    required String attachmentId,
+    String? noteId,
+    String mimeType = 'image/png',
+    int byteSize = 0,
+    String sha256 = '',
+    String variant = 'original',
+  }) async {
+    return CloudinaryUploadAuth(
+      uploadUrl: 'https://api.cloudinary.com/v1_1/test/raw/upload',
+      cloudName: 'test',
+      apiKey: 'test-key',
+      signature: 'sig',
+      timestamp: 12345,
+      publicId: 'user_$attachmentId',
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirmAttachmentUpload({
+    required String attachmentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    int byteSize = 0,
+    String sha256 = '',
+  }) async {
+    return {'success': true};
   }
 }
 

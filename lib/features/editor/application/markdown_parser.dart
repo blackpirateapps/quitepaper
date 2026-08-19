@@ -474,6 +474,75 @@ abstract final class MarkdownParser {
         }
       }
 
+      // Images: ![alt](url)
+      if (char == '!' && i + 1 < len && text[i + 1] == '[') {
+        final imageMatch =
+            RegExp(r'!\[([^\]\n]*)\]\(([^)\n]*)\)').matchAsPrefix(text, i);
+        if (imageMatch != null) {
+          final fullMatch = imageMatch.group(0)!;
+          final alt = imageMatch.group(1)!;
+          final url = imageMatch.group(2)!;
+
+          final openParenStart = i + 2 + alt.length;
+          final urlStart = openParenStart + 2;
+          final urlEnd = urlStart + url.length;
+          final matchEnd = i + fullMatch.length;
+
+          flushPlain(i);
+
+          // "!["
+          spans.add(_RawSpan(
+            start: baseOffset + i,
+            end: baseOffset + i + 2,
+            text: '![',
+            style: styles.syntaxMarker,
+          ));
+
+          // Alt text
+          if (alt.isNotEmpty) {
+            spans.add(_RawSpan(
+              start: baseOffset + i + 2,
+              end: baseOffset + openParenStart,
+              text: alt,
+              style: styles.body.copyWith(
+                color: styles.body.color?.withValues(alpha: 0.85),
+                fontStyle: FontStyle.italic,
+              ),
+            ));
+          }
+
+          // "]("
+          spans.add(_RawSpan(
+            start: baseOffset + openParenStart,
+            end: baseOffset + urlStart,
+            text: '](',
+            style: styles.syntaxMarker,
+          ));
+
+          // URL / Asset URI
+          if (url.isNotEmpty) {
+            spans.add(_RawSpan(
+              start: baseOffset + urlStart,
+              end: baseOffset + urlEnd,
+              text: url,
+              style: styles.linkUrl,
+            ));
+          }
+
+          // ")"
+          spans.add(_RawSpan(
+            start: baseOffset + urlEnd,
+            end: baseOffset + matchEnd,
+            text: ')',
+            style: styles.syntaxMarker,
+          ));
+
+          i = matchEnd;
+          plainStart = i;
+          continue;
+        }
+      }
+
       // Links: [title](url)
       if (char == '[') {
         final linkMatch =

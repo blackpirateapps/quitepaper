@@ -12,6 +12,8 @@ import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
+import '../attachments/presentation/quiet_asset_image_view.dart';
+import '../uri/quiet_paper_uri.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
 
@@ -262,6 +264,48 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       'mark': HighlightElementBuilder(colors),
     };
 
+    Widget customImageBuilder(Uri uri, String? title, String? alt) {
+      final uriString = uri.toString();
+      final qpUri = QuietPaperUri.tryParse(uriString);
+      if (qpUri != null && qpUri.isAsset) {
+        return QuietAssetImageView(
+          assetId: qpUri.resourceId,
+          altText: alt,
+          title: title,
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: ClipRRect(
+          borderRadius: AppRadii.borderMd,
+          child: Image.network(
+            uriString,
+            errorBuilder: (context, error, stackTrace) => Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: AppRadii.borderSm,
+                border: Border.all(color: colors.divider),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.broken_image_outlined,
+                      size: 16, color: colors.textTertiary),
+                  const SizedBox(width: 8),
+                  Text(
+                    alt?.isNotEmpty == true ? alt! : 'Image unavailable',
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textTertiary),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget content;
     if (widget.shrinkWrap) {
       if (_chunks.isEmpty) {
@@ -276,6 +320,8 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               styleSheet: customStyleSheet,
               inlineSyntaxes: inlineSyntaxes,
               builders: builders,
+              // ignore: deprecated_member_use
+              imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
             ),
@@ -294,6 +340,8 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 styleSheet: customStyleSheet,
                 inlineSyntaxes: inlineSyntaxes,
                 builders: builders,
+                // ignore: deprecated_member_use
+                imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
               ),
@@ -326,6 +374,8 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 styleSheet: customStyleSheet,
                 inlineSyntaxes: inlineSyntaxes,
                 builders: builders,
+                // ignore: deprecated_member_use
+                imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
               );
@@ -336,6 +386,8 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               styleSheet: customStyleSheet,
               inlineSyntaxes: inlineSyntaxes,
               builders: builders,
+              // ignore: deprecated_member_use
+              imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
             );

@@ -2,6 +2,11 @@ import { getDbClient, ensureDbInitialized } from '../db/client.js';
 import { requireFirebaseAuth } from '../auth/middleware.js';
 import { getEncryptionKey, putEncryptionKey } from '../keys/keyService.js';
 import { pushSyncChanges, pullSyncChanges, getLatestCursor } from '../sync/syncService.js';
+import {
+  authorizeAttachmentUpload,
+  confirmAttachmentUpload,
+  getAttachmentMetadata,
+} from '../attachments/attachmentService.js';
 import { ApiError } from '../errors/apiError.js';
 
 export interface RequestLike {
@@ -125,6 +130,39 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         headers: { 'Content-Type': 'application/json' },
         body: { cursor },
       };
+    }
+
+    // POST /api/v1/attachments/upload-auth
+    if (pathname === '/api/v1/attachments/upload-auth' && method === 'POST') {
+      const uploadAuth = await authorizeAttachmentUpload(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: uploadAuth,
+      };
+    }
+
+    // POST /api/v1/attachments/confirm
+    if (pathname === '/api/v1/attachments/confirm' && method === 'POST') {
+      const confirmResult = await confirmAttachmentUpload(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: confirmResult,
+      };
+    }
+
+    // GET /api/v1/attachments/:id
+    if (pathname.startsWith('/api/v1/attachments/') && method === 'GET') {
+      const attachmentId = pathname.substring('/api/v1/attachments/'.length);
+      if (attachmentId) {
+        const meta = await getAttachmentMetadata(db, userId, attachmentId);
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: meta,
+        };
+      }
     }
 
     throw new ApiError('NOT_FOUND', `Endpoint not found: ${method} ${pathname}`, 404);

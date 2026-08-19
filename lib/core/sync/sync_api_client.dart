@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../attachments/attachment_models.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import 'sync_models.dart';
@@ -18,6 +19,22 @@ abstract class SyncApiClient {
     int limit = 100,
   });
   Future<int> getCursor();
+  Future<CloudinaryUploadAuth> getAttachmentUploadAuth({
+    required String attachmentId,
+    String? noteId,
+    String mimeType = 'image/png',
+    int byteSize = 0,
+    String sha256 = '',
+    String variant = 'original',
+  });
+  Future<Map<String, dynamic>> confirmAttachmentUpload({
+    required String attachmentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    int byteSize = 0,
+    String sha256 = '',
+  });
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -162,5 +179,80 @@ class HttpSyncApiClient implements SyncApiClient {
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return data['cursor'] as int? ?? 0;
+  }
+
+  @override
+  Future<CloudinaryUploadAuth> getAttachmentUploadAuth({
+    required String attachmentId,
+    String? noteId,
+    String mimeType = 'image/png',
+    int byteSize = 0,
+    String sha256 = '',
+    String variant = 'original',
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/attachments/upload-auth');
+    final body = <String, dynamic>{
+      'attachmentId': attachmentId,
+      'mimeType': mimeType,
+      'byteSize': byteSize,
+      'sha256': sha256,
+      'variant': variant,
+    };
+    if (noteId != null) {
+      body['noteId'] = noteId;
+    }
+
+    final res = await _client.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'Failed to obtain attachment upload auth: ${res.statusCode} ${res.body}',
+      );
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return CloudinaryUploadAuth.fromJson(data);
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirmAttachmentUpload({
+    required String attachmentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    int byteSize = 0,
+    String sha256 = '',
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/attachments/confirm');
+    final body = <String, dynamic>{
+      'attachmentId': attachmentId,
+      'cloudPublicId': cloudPublicId,
+      'cloudUrl': cloudUrl,
+      'byteSize': byteSize,
+      'sha256': sha256,
+    };
+    if (noteId != null) {
+      body['noteId'] = noteId;
+    }
+
+    final res = await _client.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'Failed to confirm attachment upload: ${res.statusCode} ${res.body}',
+      );
+    }
+
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 }

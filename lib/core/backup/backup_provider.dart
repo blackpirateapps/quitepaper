@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../../features/settings/application/settings_provider.dart';
+import '../attachments/attachment_provider.dart';
 import '../sync/sync_provider.dart';
 import 'backup_models.dart';
 import 'backup_service.dart';
@@ -9,11 +10,13 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   final db = ref.watch(databaseProvider);
   final crypto = ref.watch(cryptoServiceProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
+  final storage = ref.watch(attachmentLocalStorageProvider);
 
   return BackupService(
     database: db,
     cryptoService: crypto,
     sharedPreferences: prefs,
+    storage: storage,
     appVersion: '1.4.0',
   );
 });

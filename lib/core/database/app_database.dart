@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
+import 'tables/attachment_variants_table.dart';
+import 'tables/attachments_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/notes_table.dart';
 import 'tables/sync_metadata_table.dart';
@@ -38,6 +40,8 @@ class TagWithCount {
   NoteTagsTable,
   SyncMetadataTable,
   SyncQueueTable,
+  AttachmentsTable,
+  AttachmentVariantsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -46,7 +50,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -66,6 +70,10 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(syncMetadataTable);
             await m.createTable(syncQueueTable);
           }
+          if (from < 4) {
+            await m.createTable(attachmentsTable);
+            await m.createTable(attachmentVariantsTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -80,6 +88,18 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachments_dirty_idx ON attachments (is_dirty);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachments_upload_state_idx ON attachments (upload_state);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachment_variants_att_idx ON attachment_variants (attachment_id);',
           );
         },
       );
@@ -671,5 +691,196 @@ class AppDatabase extends _$AppDatabase {
     if (orphanedIds.isNotEmpty) {
       await (delete(tagsTable)..where((t) => t.id.isIn(orphanedIds))).go();
     }
+  }
+
+  // ==========================================
+  // ATTACHMENT OPERATIONS & QUERIES
+  // ==========================================
+
+  /// Inserts or updates an attachment record
+  Future<void> saveAttachment({
+    required String id,
+    String? noteId,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    String mimeType = 'image/png',
+    int byteSize = 0,
+    int? width,
+    int? height,
+    String sha256 = '',
+    int encryptionKeyVersion = 1,
+    bool isDirty = true,
+    bool isDeleted = false,
+    DateTime? deletedAt,
+    int serverRevision = 0,
+    DateTime? syncedAt,
+    String uploadState = 'local_only',
+    String? cloudPublicId,
+    String? cloudUrl,
+    String? localPath,
+  }) async {
+    await into(attachmentsTable).insertOnConflictUpdate(
+      AttachmentsTableCompanion.insert(
+        id: id,
+        noteId: Value(noteId),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        mimeType: Value(mimeType),
+        byteSize: Value(byteSize),
+        width: Value(width),
+        height: Value(height),
+        sha256: Value(sha256),
+        encryptionKeyVersion: Value(encryptionKeyVersion),
+        isDirty: Value(isDirty),
+        isDeleted: Value(isDeleted),
+        deletedAt: Value(deletedAt),
+        serverRevision: Value(serverRevision),
+        syncedAt: Value(syncedAt),
+        uploadState: Value(uploadState),
+        cloudPublicId: Value(cloudPublicId),
+        cloudUrl: Value(cloudUrl),
+        localPath: Value(localPath),
+      ),
+    );
+  }
+
+  /// Get a single attachment by ID
+  Future<AttachmentEntity?> getAttachment(String id) async {
+    return (select(attachmentsTable)..where((a) => a.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Get all active attachments for a note
+  Future<List<AttachmentEntity>> getAttachmentsForNote(String noteId) async {
+    return (select(attachmentsTable)
+          ..where((a) => a.noteId.equals(noteId) & a.isDeleted.equals(false)))
+        .get();
+  }
+
+  /// Watch active attachments for a note
+  Stream<List<AttachmentEntity>> watchAttachmentsForNote(String noteId) {
+    return (select(attachmentsTable)
+          ..where((a) => a.noteId.equals(noteId) & a.isDeleted.equals(false)))
+        .watch();
+  }
+
+  /// Get all dirty attachments requiring sync
+  Future<List<AttachmentEntity>> getDirtyAttachments() async {
+    return (select(attachmentsTable)..where((a) => a.isDirty.equals(true)))
+        .get();
+  }
+
+  /// Get all attachments pending Cloudinary upload
+  Future<List<AttachmentEntity>> getPendingUploadAttachments() async {
+    return (select(attachmentsTable)
+          ..where((a) =>
+              a.isDeleted.equals(false) &
+              (a.uploadState.equals('upload_pending') |
+                  a.uploadState.equals('local_only') |
+                  a.uploadState.equals('failed'))))
+        .get();
+  }
+
+  /// Mark attachment as synced with remote server revision
+  Future<void> markAttachmentSynced({
+    required String id,
+    required int serverRevision,
+    required DateTime syncedAt,
+    String? cloudPublicId,
+    String? cloudUrl,
+  }) async {
+    await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+      AttachmentsTableCompanion(
+        serverRevision: Value(serverRevision),
+        isDirty: const Value(false),
+        syncedAt: Value(syncedAt),
+        uploadState: const Value('synced'),
+        cloudPublicId: cloudPublicId != null
+            ? Value(cloudPublicId)
+            : const Value.absent(),
+        cloudUrl: cloudUrl != null ? Value(cloudUrl) : const Value.absent(),
+      ),
+    );
+  }
+
+  /// Update upload status of attachment
+  Future<void> updateAttachmentUploadState(
+    String id,
+    String state, {
+    String? cloudPublicId,
+    String? cloudUrl,
+    String? localPath,
+  }) async {
+    await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+      AttachmentsTableCompanion(
+        uploadState: Value(state),
+        cloudPublicId: cloudPublicId != null
+            ? Value(cloudPublicId)
+            : const Value.absent(),
+        cloudUrl: cloudUrl != null ? Value(cloudUrl) : const Value.absent(),
+        localPath: localPath != null ? Value(localPath) : const Value.absent(),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Soft-delete (tombstone) or permanently delete an attachment
+  Future<void> deleteAttachment(String id, {bool enqueueSync = true}) async {
+    await transaction(() async {
+      await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+        AttachmentsTableCompanion(
+          isDeleted: const Value(true),
+          deletedAt: Value(DateTime.now()),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      if (enqueueSync) {
+        await enqueueSyncOperation(id, 'attachment_delete');
+      }
+    });
+  }
+
+  /// Get all attachments (including tombstones) for backup
+  Future<List<AttachmentEntity>> getAllAttachments() async {
+    return select(attachmentsTable).get();
+  }
+
+  /// Save an attachment variant record
+  Future<void> saveAttachmentVariant({
+    required String id,
+    required String attachmentId,
+    required String variantType,
+    int byteSize = 0,
+    int? width,
+    int? height,
+    String? localPath,
+    String? cloudPublicId,
+    String? cloudUrl,
+    required DateTime createdAt,
+  }) async {
+    await into(attachmentVariantsTable).insertOnConflictUpdate(
+      AttachmentVariantsTableCompanion.insert(
+        id: id,
+        attachmentId: attachmentId,
+        variantType: variantType,
+        byteSize: Value(byteSize),
+        width: Value(width),
+        height: Value(height),
+        localPath: Value(localPath),
+        cloudPublicId: Value(cloudPublicId),
+        cloudUrl: Value(cloudUrl),
+        createdAt: createdAt,
+      ),
+    );
+  }
+
+  /// Get variants for an attachment
+  Future<List<AttachmentVariantEntity>> getVariantsForAttachment(
+      String attachmentId) async {
+    return (select(attachmentVariantsTable)
+          ..where((v) => v.attachmentId.equals(attachmentId)))
+        .get();
   }
 }

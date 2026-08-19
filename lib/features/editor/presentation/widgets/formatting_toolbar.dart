@@ -11,11 +11,13 @@ class FormattingToolbar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onTagPressed,
+    this.onImagePressed,
     this.focusNode,
   });
 
   final TextEditingController controller;
   final VoidCallback onTagPressed;
+  final VoidCallback? onImagePressed;
   final FocusNode? focusNode;
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
@@ -143,6 +145,12 @@ class FormattingToolbar extends StatelessWidget {
             tooltip: 'Link ([title](url))',
             onPressed: () => _handleLink(context),
           ),
+          if (onImagePressed != null)
+            _ToolbarButton(
+              icon: Icons.image_outlined,
+              tooltip: 'Insert image (![alt](qp://asset/...))',
+              onPressed: onImagePressed!,
+            ),
           _ToolbarButton(
             label: '#',
             tooltip: 'Add tag',

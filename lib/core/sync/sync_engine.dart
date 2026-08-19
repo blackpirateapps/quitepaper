@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+import '../attachments/attachment_sync_service.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
@@ -16,6 +17,7 @@ class SyncEngine {
     required this.keyManager,
     required this.authService,
     required this.apiClient,
+    this.attachmentSyncService,
   }) {
     _init();
   }
@@ -25,6 +27,7 @@ class SyncEngine {
   final KeyManager keyManager;
   final AuthService authService;
   final SyncApiClient apiClient;
+  final AttachmentSyncService? attachmentSyncService;
 
   final Debouncer _syncDebouncer =
       Debouncer(duration: const Duration(milliseconds: 700));
@@ -235,6 +238,11 @@ class SyncEngine {
         currentCursor = pullResponse.cursor;
         await database.setSyncMetadata('sync_cursor', currentCursor.toString());
         hasMore = pullResponse.hasMore;
+      }
+
+      // 4. ATTACHMENT SYNC: Upload any pending encrypted attachments to Cloudinary
+      if (attachmentSyncService != null) {
+        await attachmentSyncService!.syncPendingAttachments();
       }
 
       _updateState(SyncState(

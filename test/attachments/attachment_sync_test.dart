@@ -1,0 +1,191 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/attachments/attachment_models.dart';
+import 'package:quitepaper/core/attachments/attachment_storage.dart';
+import 'package:quitepaper/core/attachments/attachment_sync_service.dart';
+import 'package:quitepaper/core/attachments/cloudinary_client.dart';
+import 'package:quitepaper/core/auth/auth_service.dart';
+import 'package:quitepaper/core/crypto/key_manager.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/sync/sync_api_client.dart';
+
+class MockAuthService implements AuthService {
+  @override
+  AuthUser? currentUser = const AuthUser(
+    id: 'user_123',
+    email: 'user@example.com',
+    idToken: 'mock-jwt-token',
+  );
+
+  @override
+  Stream<AuthUser?> get authStateChanges => Stream.value(currentUser);
+
+  @override
+  Future<String?> getIdToken({bool forceRefresh = false}) async => 'mock-jwt-token';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class MockSyncApiClient implements SyncApiClient {
+  CloudinaryUploadAuth? lastRequestedAuth;
+  Map<String, dynamic>? lastConfirmedData;
+
+  @override
+  Future<CloudinaryUploadAuth> getAttachmentUploadAuth({
+    required String attachmentId,
+    String? noteId,
+    String mimeType = 'image/png',
+    int byteSize = 0,
+    String sha256 = '',
+    String variant = 'original',
+  }) async {
+    lastRequestedAuth = CloudinaryUploadAuth(
+      uploadUrl: 'https://api.cloudinary.com/v1_1/test-cloud/raw/upload',
+      cloudName: 'test-cloud',
+      apiKey: 'test-key',
+      signature: 'test-signature-12345',
+      timestamp: 1700000000,
+      publicId: 'user_123_$attachmentId',
+      folder: 'quitepaper_test',
+    );
+    return lastRequestedAuth!;
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirmAttachmentUpload({
+    required String attachmentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    int byteSize = 0,
+    String sha256 = '',
+  }) async {
+    lastConfirmedData = {
+      'attachmentId': attachmentId,
+      'cloudPublicId': cloudPublicId,
+      'cloudUrl': cloudUrl,
+    };
+    return {'success': true};
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class MockCloudinaryClient implements CloudinaryClient {
+  Uint8List? lastUploadedBytes;
+  CloudinaryUploadAuth? lastAuth;
+
+  @override
+  Future<CloudinaryUploadResult> uploadEncryptedBytes({
+    required Uint8List encryptedBytes,
+    required CloudinaryUploadAuth auth,
+  }) async {
+    lastUploadedBytes = encryptedBytes;
+    lastAuth = auth;
+    return CloudinaryUploadResult(
+      publicId: auth.publicId,
+      secureUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v1/${auth.publicId}',
+      byteSize: encryptedBytes.length,
+    );
+  }
+
+  @override
+  Future<Uint8List> downloadEncryptedBytes({required String cloudUrl}) async {
+    return Uint8List.fromList([1, 2, 3]);
+  }
+}
+
+class MockKeyManager implements KeyManager {
+  MockKeyManager({required this.masterKey});
+  final Uint8List masterKey;
+  @override
+  bool get isUnlocked => true;
+  @override
+  Uint8List getMasterKey() => masterKey;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('AttachmentSyncService Direct Cloudinary Upload Tests', () {
+    late AppDatabase database;
+    late Directory tempDir;
+    late AttachmentLocalStorage storage;
+    late MockSyncApiClient apiClient;
+    late MockCloudinaryClient cloudinaryClient;
+    late MockAuthService authService;
+    late MockKeyManager keyManager;
+    late AttachmentSyncService syncService;
+
+    setUp(() async {
+      database = AppDatabase.memory();
+      tempDir = await Directory.systemTemp.createTemp('qp_test_sync_');
+      storage = AttachmentLocalStorage(customBaseDirectory: tempDir);
+      apiClient = MockSyncApiClient();
+      cloudinaryClient = MockCloudinaryClient();
+      authService = MockAuthService();
+      keyManager = MockKeyManager(masterKey: Uint8List(32));
+
+      syncService = AttachmentSyncService(
+        database: database,
+        storage: storage,
+        apiClient: apiClient,
+        cloudinaryClient: cloudinaryClient,
+        authService: authService,
+        keyManager: keyManager,
+      );
+    });
+
+    tearDown(() async {
+      await database.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('Uploads pending encrypted attachment directly to Cloudinary and confirms with backend', () async {
+      const attachmentId = '99999999-9999-9999-9999-999999999999';
+      final encryptedBytes = Uint8List.fromList([0x51, 0x50, 0x41, 0x31, 1, 2, 3, 4]);
+
+      // Save encrypted file locally
+      final localPath = await storage.saveEncryptedBytes(
+        attachmentId: attachmentId,
+        encryptedBytes: encryptedBytes,
+      );
+
+      // Create database record with upload_pending
+      await database.saveAttachment(
+        id: attachmentId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        mimeType: 'image/png',
+        byteSize: 100,
+        isDirty: true,
+        uploadState: AttachmentUploadState.uploadPending.identifier,
+        localPath: localPath,
+      );
+
+      // Run sync loop
+      await syncService.syncPendingAttachments();
+
+      // Verify Cloudinary client received direct upload
+      expect(cloudinaryClient.lastUploadedBytes, equals(encryptedBytes));
+      expect(cloudinaryClient.lastAuth?.publicId, contains(attachmentId));
+
+      // Verify backend confirmation was sent
+      expect(apiClient.lastConfirmedData?['attachmentId'], attachmentId);
+      expect(apiClient.lastConfirmedData?['cloudPublicId'], contains(attachmentId));
+
+      // Verify DB record updated to synced
+      final record = await database.getAttachment(attachmentId);
+      expect(record!.uploadState, 'synced');
+      expect(record.isDirty, isFalse);
+      expect(record.cloudUrl, contains('res.cloudinary.com'));
+    });
+  });
+}

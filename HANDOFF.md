@@ -657,8 +657,72 @@ On Android devices (specifically tablets running predictive or on-device voice/n
   - Marker styling inherits identical font size, line height, and baseline metrics from the target heading level (`styles.getHeadingStyle(level)`), avoiding font-metric jumping.
   - Active Android composing underline decorations are applied seamlessly across contiguous span slices without zero-width whitespace collapses.
 - **Widget-Level Regression Coverage** ([`test/editor/markdown_editor_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_editor_widget_test.dart) & [`test/editor/markdown_parser_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_parser_test.dart)):
-  - Simulates FUTO-style Android composing ranges while incrementally typing `# ` with repeated spaces, `# Hello ` with trailing spaces, `# Hello world` across word boundaries, and all heading levels `#` through `######`.
-  - Verifies both exact source text matching and strict monotonic caret X advancement (`renderEditable.getLocalRectForCaret`) after every typed space.
+---
+
+## 27. End-to-End Encrypted Images & Attachments Architecture
+
+### Architectural Overview & Zero-Knowledge Invariants
+Quiet Paper supports inline images and binary attachments with strict zero-knowledge security guarantees and high-performance direct cloud storage offloading:
+1. **Zero Raw Image Payload on Vercel Backend**:
+   - Vercel serverless functions act purely as an authentication and authorization control plane.
+   - Serverless functions never receive, decrypt, or proxy binary image payloads.
+   - All image encryption (`XChaCha20-Poly1305`) occurs strictly client-side on the user's device using the user's Master Key.
+2. **Direct-to-Cloudinary Upload Protocol via Signed Parameters**:
+   - Flutter requests cryptographic upload authorization from backend (`POST /api/v1/attachments/upload-auth`).
+   - The backend validates Firebase JWT identity, signs parameters with SHA-1 HMAC (`CLOUDINARY_API_SECRET`), and returns signed Cloudinary parameters (`uploadUrl`, `apiKey`, `signature`, `timestamp`, `publicId`, `folder`).
+   - Flutter uploads ciphertext directly to Cloudinary (`multipart/form-data`) as `raw` resource type.
+   - Flutter confirms upload with backend (`POST /api/v1/attachments/confirm`), updating the metadata record in Turso/libSQL.
+3. **Internal `qp://` Canonical Resource Scheme**:
+   - Canonical internal URI: `qp://asset/<UUID>` (and `qp://note/<UUID>` for cross-note linking).
+   - URIs are parsed, validated, and resolved locally by [`QuietPaperResourceResolver`](file:///home/dog/git/quitepaper/lib/core/uri/resource_resolver.dart).
+   - Markdown documents embed images via standard markdown syntax `![Alt Text](qp://asset/<UUID>)`.
+   - Internal `qp://` links are guarded in [`LinkLauncherHelper`](file:///home/dog/git/quitepaper/lib/core/utils/link_launcher_helper.dart) and never passed to the external browser launcher.
+
+### Cryptographic Specification ([`AttachmentCrypto`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_crypto.dart))
+- **Cipher**: XChaCha20-Poly1305 AEAD with 256-bit key length and 192-bit (24-byte) random nonce.
+- **Binary Header**:
+  - `0..3` (4 bytes): Magic header ASCII `'QPA1'` (`[0x51, 0x50, 0x41, 0x31]`).
+  - `4..27` (24 bytes): Random cryptographic nonce.
+  - `28..` (N bytes): Ciphertext + 16-byte Poly1305 MAC tag.
+- **Associated Authenticated Data (AAD)**:
+  `quietpaper:asset:<attachmentId>:<variant>:v1`
+  Cryptographically binds the encrypted binary directly to its logical attachment ID and variant type, preventing cross-asset swap attacks.
+- **Integrity**: SHA-256 digest computed across plaintext and stored with metadata for integrity validation.
+
+### Database Schema v4 ([`AppDatabase`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart))
+- Schema updated from version 3 to version 4 with automatic SQLite migrations:
+  - **`attachments` Table**:
+    `id` (UUID PK), `note_id` (FK to notes), `mime_type`, `byte_size`, `sha256`, `local_path`, `cloud_url`, `cloud_public_id`, `upload_state` (`local_only`, `upload_pending`, `synced`, `download_pending`, `error`), `is_dirty`, `is_deleted`, `created_at`, `updated_at`, `synced_at`.
+  - **`attachment_variants` Table**:
+    `id` (PK), `attachment_id` (FK), `variant_type` (`original`, `preview`, `thumbnail`), `local_path`, `cloud_url`, `cloud_public_id`, `byte_size`, `created_at`, `updated_at`.
+  - SQLite indexes on `note_id`, `upload_state`, and `is_dirty`.
+
+### Editor & Markdown Rendering Integration
+- **WYSIWYG Markdown Parser** ([`MarkdownParser`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart)):
+  - Image tokenization `![alt](url)` executes prior to link tokenization.
+  - Retains strict 1:1 character source length and offset invariants.
+- **Image View Component** ([`QuietAssetImageView`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart)):
+  - Resolves `qp://asset/<UUID>` through `QuietPaperResourceResolver`.
+  - Reads encrypted file from app-private storage, decrypts in memory with Master Key, and caches decrypted byte buffers ephemerally in RAM.
+  - Smooth shimmer placeholder during loading, graceful error state on missing/corrupted files, and locked badge if key manager is locked.
+- **Editor Toolbar** ([`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart)):
+  - Image picker button invoking system gallery picker, automatically importing image into attachment storage, generating UUID, encrypting payload, inserting `![Image](qp://asset/<UUID>)` at cursor position, and triggering background sync.
+
+### Backup & Restore Integration ([`BackupService`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart))
+- `.qpbackup` JSON schema and Argon2id encrypted envelopes now serialize attachment records and base64-encoded encrypted payloads (`BackupAttachment`).
+- Full round-trip restore into clean databases re-populates both database metadata and encrypted local disk files without requiring network connectivity.
+
+### Backend Infrastructure (`backend/`)
+- **Required Environment Variables**:
+  - `CLOUDINARY_CLOUD_NAME`: Cloudinary cloud name.
+  - `CLOUDINARY_API_KEY`: Cloudinary REST API key.
+  - `CLOUDINARY_API_SECRET`: Cloudinary API secret for HMAC-SHA1 signatures.
+  - `CLOUDINARY_FOLDER`: Root folder for storing Quiet Paper encrypted raw blobs (e.g. `quietpaper_assets`).
+- **REST Endpoints**:
+  - `POST /api/v1/attachments/upload-auth`: Generates signed Cloudinary upload params.
+  - `POST /api/v1/attachments/confirm`: Validates and saves attachment metadata.
+  - `GET /api/v1/attachments/:id`: Retrieves metadata for specific attachment.
+
 
 
 

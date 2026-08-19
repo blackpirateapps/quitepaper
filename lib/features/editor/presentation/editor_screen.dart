@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,8 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/attachments/attachment_provider.dart';
+import '../../../core/database/app_database.dart';
 import '../../../core/markdown/markdown_preview.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
@@ -502,12 +506,80 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       _contentFocusNode.requestFocus();
                     }
                   },
+                  onImagePressed: _handleInsertImage,
                 ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleInsertImage() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.first;
+        final attachmentService = ref.read(attachmentServiceProvider);
+
+        ({AttachmentEntity attachment, String markdownSnippet}) importResult;
+
+        if (pickedFile.path != null) {
+          importResult = await attachmentService.importImageFromFile(
+            File(pickedFile.path!),
+            noteId: widget.note.id,
+            preferredAltText: pickedFile.name,
+          );
+        } else if (pickedFile.bytes != null) {
+          importResult = await attachmentService.importImageFromBytes(
+            pickedFile.bytes!,
+            mimeType: 'image/png',
+            noteId: widget.note.id,
+            preferredAltText: pickedFile.name,
+          );
+        } else {
+          return;
+        }
+
+        final val = _contentController.value;
+        final text = val.text;
+        final sel = val.selection;
+        final start = sel.isValid ? sel.start : text.length;
+        final end = sel.isValid ? sel.end : text.length;
+
+        final snippet = '\n${importResult.markdownSnippet}\n';
+        final newText = text.replaceRange(start, end, snippet);
+        final newCursor = start + snippet.length;
+
+        _contentController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newCursor),
+        );
+
+        if (!_contentFocusNode.hasFocus) {
+          _contentFocusNode.requestFocus();
+        }
+
+        _onContentChanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to insert image: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   bool get isTabletEditor => widget.onClose != null;
@@ -519,6 +591,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   ) {
     final colors = context.appColors;
     final isPreview = ref.read(editorProviderFamily(_editorParams)).isPreviewMode;
+    final isReadOnly = ref.read(editorProviderFamily(_editorParams)).isReadOnly;
 
     showModalBottomSheet(
       context: context,
@@ -536,6 +609,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                 if (!note.isTrashed) ...[
+                  if (!isPreview && !isReadOnly)
+                    ListTile(
+                      leading: Icon(
+                        Icons.image_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Insert image',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _handleInsertImage();
+                      },
+                    ),
                   ListTile(
                     leading: Icon(
                       isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,

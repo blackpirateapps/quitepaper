@@ -74,7 +74,30 @@ export const pullSyncSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
 
+export const uploadAuthRequestSchema = z.object({
+  attachmentId: z.string().uuid(),
+  noteId: z.string().uuid().optional(),
+  mimeType: z.string().max(100).default('image/png'),
+  byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
+  sha256: z.string().max(128).default(''),
+  variant: z.string().max(50).default('original'),
+});
+
+export const confirmAttachmentSchema = z.object({
+  attachmentId: z.string().uuid(),
+  noteId: z.string().uuid().optional(),
+  cloudPublicId: z.string().min(1).max(256),
+  cloudUrl: z.string().url().max(1024),
+  mimeType: z.string().max(100).optional(),
+  byteSize: z.number().int().min(0).optional(),
+  sha256: z.string().max(128).optional(),
+  width: z.number().int().min(1).optional(),
+  height: z.number().int().min(1).optional(),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
 export type PullSyncInput = z.infer<typeof pullSyncSchema>;
+export type UploadAuthRequestInput = z.infer<typeof uploadAuthRequestSchema>;
+export type ConfirmAttachmentInput = z.infer<typeof confirmAttachmentSchema>;

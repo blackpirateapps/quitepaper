@@ -1803,6 +1803,1748 @@ class SyncQueueTableCompanion extends UpdateCompanion<SyncQueueEntity> {
   }
 }
 
+class $AttachmentsTableTable extends AttachmentsTable
+    with TableInfo<$AttachmentsTableTable, AttachmentEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttachmentsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mimeTypeMeta = const VerificationMeta(
+    'mimeType',
+  );
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+    'mime_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('image/png'),
+  );
+  static const VerificationMeta _byteSizeMeta = const VerificationMeta(
+    'byteSize',
+  );
+  @override
+  late final GeneratedColumn<int> byteSize = GeneratedColumn<int>(
+    'byte_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _widthMeta = const VerificationMeta('width');
+  @override
+  late final GeneratedColumn<int> width = GeneratedColumn<int>(
+    'width',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<int> height = GeneratedColumn<int>(
+    'height',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sha256Meta = const VerificationMeta('sha256');
+  @override
+  late final GeneratedColumn<String> sha256 = GeneratedColumn<String>(
+    'sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _encryptionKeyVersionMeta =
+      const VerificationMeta('encryptionKeyVersion');
+  @override
+  late final GeneratedColumn<int> encryptionKeyVersion = GeneratedColumn<int>(
+    'encryption_key_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverRevisionMeta = const VerificationMeta(
+    'serverRevision',
+  );
+  @override
+  late final GeneratedColumn<int> serverRevision = GeneratedColumn<int>(
+    'server_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _uploadStateMeta = const VerificationMeta(
+    'uploadState',
+  );
+  @override
+  late final GeneratedColumn<String> uploadState = GeneratedColumn<String>(
+    'upload_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('local_only'),
+  );
+  static const VerificationMeta _cloudPublicIdMeta = const VerificationMeta(
+    'cloudPublicId',
+  );
+  @override
+  late final GeneratedColumn<String> cloudPublicId = GeneratedColumn<String>(
+    'cloud_public_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cloudUrlMeta = const VerificationMeta(
+    'cloudUrl',
+  );
+  @override
+  late final GeneratedColumn<String> cloudUrl = GeneratedColumn<String>(
+    'cloud_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
+  );
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+    'local_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    noteId,
+    createdAt,
+    updatedAt,
+    mimeType,
+    byteSize,
+    width,
+    height,
+    sha256,
+    encryptionKeyVersion,
+    isDirty,
+    isDeleted,
+    deletedAt,
+    serverRevision,
+    syncedAt,
+    uploadState,
+    cloudPublicId,
+    cloudUrl,
+    localPath,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attachments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AttachmentEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(
+        _mimeTypeMeta,
+        mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta),
+      );
+    }
+    if (data.containsKey('byte_size')) {
+      context.handle(
+        _byteSizeMeta,
+        byteSize.isAcceptableOrUnknown(data['byte_size']!, _byteSizeMeta),
+      );
+    }
+    if (data.containsKey('width')) {
+      context.handle(
+        _widthMeta,
+        width.isAcceptableOrUnknown(data['width']!, _widthMeta),
+      );
+    }
+    if (data.containsKey('height')) {
+      context.handle(
+        _heightMeta,
+        height.isAcceptableOrUnknown(data['height']!, _heightMeta),
+      );
+    }
+    if (data.containsKey('sha256')) {
+      context.handle(
+        _sha256Meta,
+        sha256.isAcceptableOrUnknown(data['sha256']!, _sha256Meta),
+      );
+    }
+    if (data.containsKey('encryption_key_version')) {
+      context.handle(
+        _encryptionKeyVersionMeta,
+        encryptionKeyVersion.isAcceptableOrUnknown(
+          data['encryption_key_version']!,
+          _encryptionKeyVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('server_revision')) {
+      context.handle(
+        _serverRevisionMeta,
+        serverRevision.isAcceptableOrUnknown(
+          data['server_revision']!,
+          _serverRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    if (data.containsKey('upload_state')) {
+      context.handle(
+        _uploadStateMeta,
+        uploadState.isAcceptableOrUnknown(
+          data['upload_state']!,
+          _uploadStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_public_id')) {
+      context.handle(
+        _cloudPublicIdMeta,
+        cloudPublicId.isAcceptableOrUnknown(
+          data['cloud_public_id']!,
+          _cloudPublicIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_url')) {
+      context.handle(
+        _cloudUrlMeta,
+        cloudUrl.isAcceptableOrUnknown(data['cloud_url']!, _cloudUrlMeta),
+      );
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AttachmentEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AttachmentEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      mimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mime_type'],
+      )!,
+      byteSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_size'],
+      )!,
+      width: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}width'],
+      ),
+      height: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}height'],
+      ),
+      sha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sha256'],
+      )!,
+      encryptionKeyVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}encryption_key_version'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      serverRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_revision'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+      uploadState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}upload_state'],
+      )!,
+      cloudPublicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_public_id'],
+      ),
+      cloudUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_url'],
+      ),
+      localPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_path'],
+      ),
+    );
+  }
+
+  @override
+  $AttachmentsTableTable createAlias(String alias) {
+    return $AttachmentsTableTable(attachedDatabase, alias);
+  }
+}
+
+class AttachmentEntity extends DataClass
+    implements Insertable<AttachmentEntity> {
+  /// Canonical UUID primary key
+  final String id;
+
+  /// Associated note ID (can be null for detached/unassigned attachments)
+  final String? noteId;
+
+  /// Creation timestamp
+  final DateTime createdAt;
+
+  /// Update timestamp
+  final DateTime updatedAt;
+
+  /// MIME type (e.g. 'image/png', 'image/jpeg', 'image/webp')
+  final String mimeType;
+
+  /// Plaintext byte size in bytes
+  final int byteSize;
+
+  /// Image pixel width
+  final int? width;
+
+  /// Image pixel height
+  final int? height;
+
+  /// Plaintext SHA-256 hash
+  final String sha256;
+
+  /// Key version used to encrypt this attachment
+  final int encryptionKeyVersion;
+
+  /// Whether local changes need synchronization
+  final bool isDirty;
+
+  /// Whether attachment is tombstoned/deleted
+  final bool isDeleted;
+
+  /// Timestamp when deletion occurred
+  final DateTime? deletedAt;
+
+  /// Cloud revision assigned by control plane
+  final int serverRevision;
+
+  /// Timestamp of last successful metadata sync
+  final DateTime? syncedAt;
+
+  /// Lifecycle state: 'local_only', 'upload_pending', 'uploading', 'uploaded', 'failed', 'synced'
+  final String uploadState;
+
+  /// Cloudinary public ID
+  final String? cloudPublicId;
+
+  /// Cloudinary delivery URL
+  final String? cloudUrl;
+
+  /// Local app-private encrypted file path
+  final String? localPath;
+  const AttachmentEntity({
+    required this.id,
+    this.noteId,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.mimeType,
+    required this.byteSize,
+    this.width,
+    this.height,
+    required this.sha256,
+    required this.encryptionKeyVersion,
+    required this.isDirty,
+    required this.isDeleted,
+    this.deletedAt,
+    required this.serverRevision,
+    this.syncedAt,
+    required this.uploadState,
+    this.cloudPublicId,
+    this.cloudUrl,
+    this.localPath,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || noteId != null) {
+      map['note_id'] = Variable<String>(noteId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['mime_type'] = Variable<String>(mimeType);
+    map['byte_size'] = Variable<int>(byteSize);
+    if (!nullToAbsent || width != null) {
+      map['width'] = Variable<int>(width);
+    }
+    if (!nullToAbsent || height != null) {
+      map['height'] = Variable<int>(height);
+    }
+    map['sha256'] = Variable<String>(sha256);
+    map['encryption_key_version'] = Variable<int>(encryptionKeyVersion);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['server_revision'] = Variable<int>(serverRevision);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    map['upload_state'] = Variable<String>(uploadState);
+    if (!nullToAbsent || cloudPublicId != null) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId);
+    }
+    if (!nullToAbsent || cloudUrl != null) {
+      map['cloud_url'] = Variable<String>(cloudUrl);
+    }
+    if (!nullToAbsent || localPath != null) {
+      map['local_path'] = Variable<String>(localPath);
+    }
+    return map;
+  }
+
+  AttachmentsTableCompanion toCompanion(bool nullToAbsent) {
+    return AttachmentsTableCompanion(
+      id: Value(id),
+      noteId: noteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      mimeType: Value(mimeType),
+      byteSize: Value(byteSize),
+      width: width == null && nullToAbsent
+          ? const Value.absent()
+          : Value(width),
+      height: height == null && nullToAbsent
+          ? const Value.absent()
+          : Value(height),
+      sha256: Value(sha256),
+      encryptionKeyVersion: Value(encryptionKeyVersion),
+      isDirty: Value(isDirty),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      serverRevision: Value(serverRevision),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+      uploadState: Value(uploadState),
+      cloudPublicId: cloudPublicId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudPublicId),
+      cloudUrl: cloudUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudUrl),
+      localPath: localPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localPath),
+    );
+  }
+
+  factory AttachmentEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AttachmentEntity(
+      id: serializer.fromJson<String>(json['id']),
+      noteId: serializer.fromJson<String?>(json['noteId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      mimeType: serializer.fromJson<String>(json['mimeType']),
+      byteSize: serializer.fromJson<int>(json['byteSize']),
+      width: serializer.fromJson<int?>(json['width']),
+      height: serializer.fromJson<int?>(json['height']),
+      sha256: serializer.fromJson<String>(json['sha256']),
+      encryptionKeyVersion: serializer.fromJson<int>(
+        json['encryptionKeyVersion'],
+      ),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      serverRevision: serializer.fromJson<int>(json['serverRevision']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      uploadState: serializer.fromJson<String>(json['uploadState']),
+      cloudPublicId: serializer.fromJson<String?>(json['cloudPublicId']),
+      cloudUrl: serializer.fromJson<String?>(json['cloudUrl']),
+      localPath: serializer.fromJson<String?>(json['localPath']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'noteId': serializer.toJson<String?>(noteId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'mimeType': serializer.toJson<String>(mimeType),
+      'byteSize': serializer.toJson<int>(byteSize),
+      'width': serializer.toJson<int?>(width),
+      'height': serializer.toJson<int?>(height),
+      'sha256': serializer.toJson<String>(sha256),
+      'encryptionKeyVersion': serializer.toJson<int>(encryptionKeyVersion),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'serverRevision': serializer.toJson<int>(serverRevision),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'uploadState': serializer.toJson<String>(uploadState),
+      'cloudPublicId': serializer.toJson<String?>(cloudPublicId),
+      'cloudUrl': serializer.toJson<String?>(cloudUrl),
+      'localPath': serializer.toJson<String?>(localPath),
+    };
+  }
+
+  AttachmentEntity copyWith({
+    String? id,
+    Value<String?> noteId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? mimeType,
+    int? byteSize,
+    Value<int?> width = const Value.absent(),
+    Value<int?> height = const Value.absent(),
+    String? sha256,
+    int? encryptionKeyVersion,
+    bool? isDirty,
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    int? serverRevision,
+    Value<DateTime?> syncedAt = const Value.absent(),
+    String? uploadState,
+    Value<String?> cloudPublicId = const Value.absent(),
+    Value<String?> cloudUrl = const Value.absent(),
+    Value<String?> localPath = const Value.absent(),
+  }) => AttachmentEntity(
+    id: id ?? this.id,
+    noteId: noteId.present ? noteId.value : this.noteId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    mimeType: mimeType ?? this.mimeType,
+    byteSize: byteSize ?? this.byteSize,
+    width: width.present ? width.value : this.width,
+    height: height.present ? height.value : this.height,
+    sha256: sha256 ?? this.sha256,
+    encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+    isDirty: isDirty ?? this.isDirty,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    serverRevision: serverRevision ?? this.serverRevision,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    uploadState: uploadState ?? this.uploadState,
+    cloudPublicId: cloudPublicId.present
+        ? cloudPublicId.value
+        : this.cloudPublicId,
+    cloudUrl: cloudUrl.present ? cloudUrl.value : this.cloudUrl,
+    localPath: localPath.present ? localPath.value : this.localPath,
+  );
+  AttachmentEntity copyWithCompanion(AttachmentsTableCompanion data) {
+    return AttachmentEntity(
+      id: data.id.present ? data.id.value : this.id,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
+      width: data.width.present ? data.width.value : this.width,
+      height: data.height.present ? data.height.value : this.height,
+      sha256: data.sha256.present ? data.sha256.value : this.sha256,
+      encryptionKeyVersion: data.encryptionKeyVersion.present
+          ? data.encryptionKeyVersion.value
+          : this.encryptionKeyVersion,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      serverRevision: data.serverRevision.present
+          ? data.serverRevision.value
+          : this.serverRevision,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      uploadState: data.uploadState.present
+          ? data.uploadState.value
+          : this.uploadState,
+      cloudPublicId: data.cloudPublicId.present
+          ? data.cloudPublicId.value
+          : this.cloudPublicId,
+      cloudUrl: data.cloudUrl.present ? data.cloudUrl.value : this.cloudUrl,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentEntity(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('sha256: $sha256, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('uploadState: $uploadState, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('localPath: $localPath')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    noteId,
+    createdAt,
+    updatedAt,
+    mimeType,
+    byteSize,
+    width,
+    height,
+    sha256,
+    encryptionKeyVersion,
+    isDirty,
+    isDeleted,
+    deletedAt,
+    serverRevision,
+    syncedAt,
+    uploadState,
+    cloudPublicId,
+    cloudUrl,
+    localPath,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AttachmentEntity &&
+          other.id == this.id &&
+          other.noteId == this.noteId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.mimeType == this.mimeType &&
+          other.byteSize == this.byteSize &&
+          other.width == this.width &&
+          other.height == this.height &&
+          other.sha256 == this.sha256 &&
+          other.encryptionKeyVersion == this.encryptionKeyVersion &&
+          other.isDirty == this.isDirty &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt &&
+          other.serverRevision == this.serverRevision &&
+          other.syncedAt == this.syncedAt &&
+          other.uploadState == this.uploadState &&
+          other.cloudPublicId == this.cloudPublicId &&
+          other.cloudUrl == this.cloudUrl &&
+          other.localPath == this.localPath);
+}
+
+class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
+  final Value<String> id;
+  final Value<String?> noteId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> mimeType;
+  final Value<int> byteSize;
+  final Value<int?> width;
+  final Value<int?> height;
+  final Value<String> sha256;
+  final Value<int> encryptionKeyVersion;
+  final Value<bool> isDirty;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
+  final Value<int> serverRevision;
+  final Value<DateTime?> syncedAt;
+  final Value<String> uploadState;
+  final Value<String?> cloudPublicId;
+  final Value<String?> cloudUrl;
+  final Value<String?> localPath;
+  final Value<int> rowid;
+  const AttachmentsTableCompanion({
+    this.id = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.uploadState = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AttachmentsTableCompanion.insert({
+    required String id,
+    this.noteId = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.mimeType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.uploadState = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AttachmentEntity> custom({
+    Expression<String>? id,
+    Expression<String>? noteId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<String>? mimeType,
+    Expression<int>? byteSize,
+    Expression<int>? width,
+    Expression<int>? height,
+    Expression<String>? sha256,
+    Expression<int>? encryptionKeyVersion,
+    Expression<bool>? isDirty,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? serverRevision,
+    Expression<DateTime>? syncedAt,
+    Expression<String>? uploadState,
+    Expression<String>? cloudPublicId,
+    Expression<String>? cloudUrl,
+    Expression<String>? localPath,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (noteId != null) 'note_id': noteId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (byteSize != null) 'byte_size': byteSize,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (sha256 != null) 'sha256': sha256,
+      if (encryptionKeyVersion != null)
+        'encryption_key_version': encryptionKeyVersion,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (serverRevision != null) 'server_revision': serverRevision,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (uploadState != null) 'upload_state': uploadState,
+      if (cloudPublicId != null) 'cloud_public_id': cloudPublicId,
+      if (cloudUrl != null) 'cloud_url': cloudUrl,
+      if (localPath != null) 'local_path': localPath,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AttachmentsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? noteId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? mimeType,
+    Value<int>? byteSize,
+    Value<int?>? width,
+    Value<int?>? height,
+    Value<String>? sha256,
+    Value<int>? encryptionKeyVersion,
+    Value<bool>? isDirty,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
+    Value<int>? serverRevision,
+    Value<DateTime?>? syncedAt,
+    Value<String>? uploadState,
+    Value<String?>? cloudPublicId,
+    Value<String?>? cloudUrl,
+    Value<String?>? localPath,
+    Value<int>? rowid,
+  }) {
+    return AttachmentsTableCompanion(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      mimeType: mimeType ?? this.mimeType,
+      byteSize: byteSize ?? this.byteSize,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      sha256: sha256 ?? this.sha256,
+      encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+      isDirty: isDirty ?? this.isDirty,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      serverRevision: serverRevision ?? this.serverRevision,
+      syncedAt: syncedAt ?? this.syncedAt,
+      uploadState: uploadState ?? this.uploadState,
+      cloudPublicId: cloudPublicId ?? this.cloudPublicId,
+      cloudUrl: cloudUrl ?? this.cloudUrl,
+      localPath: localPath ?? this.localPath,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (byteSize.present) {
+      map['byte_size'] = Variable<int>(byteSize.value);
+    }
+    if (width.present) {
+      map['width'] = Variable<int>(width.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<int>(height.value);
+    }
+    if (sha256.present) {
+      map['sha256'] = Variable<String>(sha256.value);
+    }
+    if (encryptionKeyVersion.present) {
+      map['encryption_key_version'] = Variable<int>(encryptionKeyVersion.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (serverRevision.present) {
+      map['server_revision'] = Variable<int>(serverRevision.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (uploadState.present) {
+      map['upload_state'] = Variable<String>(uploadState.value);
+    }
+    if (cloudPublicId.present) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId.value);
+    }
+    if (cloudUrl.present) {
+      map['cloud_url'] = Variable<String>(cloudUrl.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('sha256: $sha256, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('uploadState: $uploadState, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('localPath: $localPath, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AttachmentVariantsTableTable extends AttachmentVariantsTable
+    with TableInfo<$AttachmentVariantsTableTable, AttachmentVariantEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttachmentVariantsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attachmentIdMeta = const VerificationMeta(
+    'attachmentId',
+  );
+  @override
+  late final GeneratedColumn<String> attachmentId = GeneratedColumn<String>(
+    'attachment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _variantTypeMeta = const VerificationMeta(
+    'variantType',
+  );
+  @override
+  late final GeneratedColumn<String> variantType = GeneratedColumn<String>(
+    'variant_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _byteSizeMeta = const VerificationMeta(
+    'byteSize',
+  );
+  @override
+  late final GeneratedColumn<int> byteSize = GeneratedColumn<int>(
+    'byte_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _widthMeta = const VerificationMeta('width');
+  @override
+  late final GeneratedColumn<int> width = GeneratedColumn<int>(
+    'width',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<int> height = GeneratedColumn<int>(
+    'height',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
+  );
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+    'local_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cloudPublicIdMeta = const VerificationMeta(
+    'cloudPublicId',
+  );
+  @override
+  late final GeneratedColumn<String> cloudPublicId = GeneratedColumn<String>(
+    'cloud_public_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cloudUrlMeta = const VerificationMeta(
+    'cloudUrl',
+  );
+  @override
+  late final GeneratedColumn<String> cloudUrl = GeneratedColumn<String>(
+    'cloud_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    attachmentId,
+    variantType,
+    byteSize,
+    width,
+    height,
+    localPath,
+    cloudPublicId,
+    cloudUrl,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attachment_variants';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AttachmentVariantEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('attachment_id')) {
+      context.handle(
+        _attachmentIdMeta,
+        attachmentId.isAcceptableOrUnknown(
+          data['attachment_id']!,
+          _attachmentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_attachmentIdMeta);
+    }
+    if (data.containsKey('variant_type')) {
+      context.handle(
+        _variantTypeMeta,
+        variantType.isAcceptableOrUnknown(
+          data['variant_type']!,
+          _variantTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_variantTypeMeta);
+    }
+    if (data.containsKey('byte_size')) {
+      context.handle(
+        _byteSizeMeta,
+        byteSize.isAcceptableOrUnknown(data['byte_size']!, _byteSizeMeta),
+      );
+    }
+    if (data.containsKey('width')) {
+      context.handle(
+        _widthMeta,
+        width.isAcceptableOrUnknown(data['width']!, _widthMeta),
+      );
+    }
+    if (data.containsKey('height')) {
+      context.handle(
+        _heightMeta,
+        height.isAcceptableOrUnknown(data['height']!, _heightMeta),
+      );
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
+      );
+    }
+    if (data.containsKey('cloud_public_id')) {
+      context.handle(
+        _cloudPublicIdMeta,
+        cloudPublicId.isAcceptableOrUnknown(
+          data['cloud_public_id']!,
+          _cloudPublicIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_url')) {
+      context.handle(
+        _cloudUrlMeta,
+        cloudUrl.isAcceptableOrUnknown(data['cloud_url']!, _cloudUrlMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AttachmentVariantEntity map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AttachmentVariantEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      attachmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_id'],
+      )!,
+      variantType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}variant_type'],
+      )!,
+      byteSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_size'],
+      )!,
+      width: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}width'],
+      ),
+      height: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}height'],
+      ),
+      localPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_path'],
+      ),
+      cloudPublicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_public_id'],
+      ),
+      cloudUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_url'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AttachmentVariantsTableTable createAlias(String alias) {
+    return $AttachmentVariantsTableTable(attachedDatabase, alias);
+  }
+}
+
+class AttachmentVariantEntity extends DataClass
+    implements Insertable<AttachmentVariantEntity> {
+  /// UUID primary key for the variant
+  final String id;
+
+  /// Foreign key referencing parent attachment
+  final String attachmentId;
+
+  /// Variant type: 'original', 'preview', 'thumbnail'
+  final String variantType;
+
+  /// Plaintext byte size
+  final int byteSize;
+
+  /// Pixel width
+  final int? width;
+
+  /// Pixel height
+  final int? height;
+
+  /// Local encrypted file path
+  final String? localPath;
+
+  /// Cloudinary public ID for variant
+  final String? cloudPublicId;
+
+  /// Cloudinary URL for variant
+  final String? cloudUrl;
+
+  /// Creation timestamp
+  final DateTime createdAt;
+  const AttachmentVariantEntity({
+    required this.id,
+    required this.attachmentId,
+    required this.variantType,
+    required this.byteSize,
+    this.width,
+    this.height,
+    this.localPath,
+    this.cloudPublicId,
+    this.cloudUrl,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['attachment_id'] = Variable<String>(attachmentId);
+    map['variant_type'] = Variable<String>(variantType);
+    map['byte_size'] = Variable<int>(byteSize);
+    if (!nullToAbsent || width != null) {
+      map['width'] = Variable<int>(width);
+    }
+    if (!nullToAbsent || height != null) {
+      map['height'] = Variable<int>(height);
+    }
+    if (!nullToAbsent || localPath != null) {
+      map['local_path'] = Variable<String>(localPath);
+    }
+    if (!nullToAbsent || cloudPublicId != null) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId);
+    }
+    if (!nullToAbsent || cloudUrl != null) {
+      map['cloud_url'] = Variable<String>(cloudUrl);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  AttachmentVariantsTableCompanion toCompanion(bool nullToAbsent) {
+    return AttachmentVariantsTableCompanion(
+      id: Value(id),
+      attachmentId: Value(attachmentId),
+      variantType: Value(variantType),
+      byteSize: Value(byteSize),
+      width: width == null && nullToAbsent
+          ? const Value.absent()
+          : Value(width),
+      height: height == null && nullToAbsent
+          ? const Value.absent()
+          : Value(height),
+      localPath: localPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localPath),
+      cloudPublicId: cloudPublicId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudPublicId),
+      cloudUrl: cloudUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudUrl),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AttachmentVariantEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AttachmentVariantEntity(
+      id: serializer.fromJson<String>(json['id']),
+      attachmentId: serializer.fromJson<String>(json['attachmentId']),
+      variantType: serializer.fromJson<String>(json['variantType']),
+      byteSize: serializer.fromJson<int>(json['byteSize']),
+      width: serializer.fromJson<int?>(json['width']),
+      height: serializer.fromJson<int?>(json['height']),
+      localPath: serializer.fromJson<String?>(json['localPath']),
+      cloudPublicId: serializer.fromJson<String?>(json['cloudPublicId']),
+      cloudUrl: serializer.fromJson<String?>(json['cloudUrl']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'attachmentId': serializer.toJson<String>(attachmentId),
+      'variantType': serializer.toJson<String>(variantType),
+      'byteSize': serializer.toJson<int>(byteSize),
+      'width': serializer.toJson<int?>(width),
+      'height': serializer.toJson<int?>(height),
+      'localPath': serializer.toJson<String?>(localPath),
+      'cloudPublicId': serializer.toJson<String?>(cloudPublicId),
+      'cloudUrl': serializer.toJson<String?>(cloudUrl),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  AttachmentVariantEntity copyWith({
+    String? id,
+    String? attachmentId,
+    String? variantType,
+    int? byteSize,
+    Value<int?> width = const Value.absent(),
+    Value<int?> height = const Value.absent(),
+    Value<String?> localPath = const Value.absent(),
+    Value<String?> cloudPublicId = const Value.absent(),
+    Value<String?> cloudUrl = const Value.absent(),
+    DateTime? createdAt,
+  }) => AttachmentVariantEntity(
+    id: id ?? this.id,
+    attachmentId: attachmentId ?? this.attachmentId,
+    variantType: variantType ?? this.variantType,
+    byteSize: byteSize ?? this.byteSize,
+    width: width.present ? width.value : this.width,
+    height: height.present ? height.value : this.height,
+    localPath: localPath.present ? localPath.value : this.localPath,
+    cloudPublicId: cloudPublicId.present
+        ? cloudPublicId.value
+        : this.cloudPublicId,
+    cloudUrl: cloudUrl.present ? cloudUrl.value : this.cloudUrl,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  AttachmentVariantEntity copyWithCompanion(
+    AttachmentVariantsTableCompanion data,
+  ) {
+    return AttachmentVariantEntity(
+      id: data.id.present ? data.id.value : this.id,
+      attachmentId: data.attachmentId.present
+          ? data.attachmentId.value
+          : this.attachmentId,
+      variantType: data.variantType.present
+          ? data.variantType.value
+          : this.variantType,
+      byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
+      width: data.width.present ? data.width.value : this.width,
+      height: data.height.present ? data.height.value : this.height,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      cloudPublicId: data.cloudPublicId.present
+          ? data.cloudPublicId.value
+          : this.cloudPublicId,
+      cloudUrl: data.cloudUrl.present ? data.cloudUrl.value : this.cloudUrl,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentVariantEntity(')
+          ..write('id: $id, ')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('variantType: $variantType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('localPath: $localPath, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    attachmentId,
+    variantType,
+    byteSize,
+    width,
+    height,
+    localPath,
+    cloudPublicId,
+    cloudUrl,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AttachmentVariantEntity &&
+          other.id == this.id &&
+          other.attachmentId == this.attachmentId &&
+          other.variantType == this.variantType &&
+          other.byteSize == this.byteSize &&
+          other.width == this.width &&
+          other.height == this.height &&
+          other.localPath == this.localPath &&
+          other.cloudPublicId == this.cloudPublicId &&
+          other.cloudUrl == this.cloudUrl &&
+          other.createdAt == this.createdAt);
+}
+
+class AttachmentVariantsTableCompanion
+    extends UpdateCompanion<AttachmentVariantEntity> {
+  final Value<String> id;
+  final Value<String> attachmentId;
+  final Value<String> variantType;
+  final Value<int> byteSize;
+  final Value<int?> width;
+  final Value<int?> height;
+  final Value<String?> localPath;
+  final Value<String?> cloudPublicId;
+  final Value<String?> cloudUrl;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const AttachmentVariantsTableCompanion({
+    this.id = const Value.absent(),
+    this.attachmentId = const Value.absent(),
+    this.variantType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AttachmentVariantsTableCompanion.insert({
+    required String id,
+    required String attachmentId,
+    required String variantType,
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       attachmentId = Value(attachmentId),
+       variantType = Value(variantType),
+       createdAt = Value(createdAt);
+  static Insertable<AttachmentVariantEntity> custom({
+    Expression<String>? id,
+    Expression<String>? attachmentId,
+    Expression<String>? variantType,
+    Expression<int>? byteSize,
+    Expression<int>? width,
+    Expression<int>? height,
+    Expression<String>? localPath,
+    Expression<String>? cloudPublicId,
+    Expression<String>? cloudUrl,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (attachmentId != null) 'attachment_id': attachmentId,
+      if (variantType != null) 'variant_type': variantType,
+      if (byteSize != null) 'byte_size': byteSize,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (localPath != null) 'local_path': localPath,
+      if (cloudPublicId != null) 'cloud_public_id': cloudPublicId,
+      if (cloudUrl != null) 'cloud_url': cloudUrl,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AttachmentVariantsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? attachmentId,
+    Value<String>? variantType,
+    Value<int>? byteSize,
+    Value<int?>? width,
+    Value<int?>? height,
+    Value<String?>? localPath,
+    Value<String?>? cloudPublicId,
+    Value<String?>? cloudUrl,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return AttachmentVariantsTableCompanion(
+      id: id ?? this.id,
+      attachmentId: attachmentId ?? this.attachmentId,
+      variantType: variantType ?? this.variantType,
+      byteSize: byteSize ?? this.byteSize,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      localPath: localPath ?? this.localPath,
+      cloudPublicId: cloudPublicId ?? this.cloudPublicId,
+      cloudUrl: cloudUrl ?? this.cloudUrl,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (attachmentId.present) {
+      map['attachment_id'] = Variable<String>(attachmentId.value);
+    }
+    if (variantType.present) {
+      map['variant_type'] = Variable<String>(variantType.value);
+    }
+    if (byteSize.present) {
+      map['byte_size'] = Variable<int>(byteSize.value);
+    }
+    if (width.present) {
+      map['width'] = Variable<int>(width.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<int>(height.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (cloudPublicId.present) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId.value);
+    }
+    if (cloudUrl.present) {
+      map['cloud_url'] = Variable<String>(cloudUrl.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentVariantsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('variantType: $variantType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('localPath: $localPath, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1812,6 +3554,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SyncMetadataTableTable syncMetadataTable =
       $SyncMetadataTableTable(this);
   late final $SyncQueueTableTable syncQueueTable = $SyncQueueTableTable(this);
+  late final $AttachmentsTableTable attachmentsTable = $AttachmentsTableTable(
+    this,
+  );
+  late final $AttachmentVariantsTableTable attachmentVariantsTable =
+      $AttachmentVariantsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1822,6 +3569,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     noteTagsTable,
     syncMetadataTable,
     syncQueueTable,
+    attachmentsTable,
+    attachmentVariantsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3270,6 +5019,806 @@ typedef $$SyncQueueTableTableProcessedTableManager =
       SyncQueueEntity,
       PrefetchHooks Function()
     >;
+typedef $$AttachmentsTableTableCreateCompanionBuilder =
+    AttachmentsTableCompanion Function({
+      required String id,
+      Value<String?> noteId,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<String> mimeType,
+      Value<int> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      Value<String> sha256,
+      Value<int> encryptionKeyVersion,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<String> uploadState,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      Value<String?> localPath,
+      Value<int> rowid,
+    });
+typedef $$AttachmentsTableTableUpdateCompanionBuilder =
+    AttachmentsTableCompanion Function({
+      Value<String> id,
+      Value<String?> noteId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> mimeType,
+      Value<int> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      Value<String> sha256,
+      Value<int> encryptionKeyVersion,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<String> uploadState,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      Value<String?> localPath,
+      Value<int> rowid,
+    });
+
+class $$AttachmentsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AttachmentsTableTable> {
+  $$AttachmentsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AttachmentsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AttachmentsTableTable> {
+  $$AttachmentsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AttachmentsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AttachmentsTableTable> {
+  $$AttachmentsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<int> get byteSize =>
+      $composableBuilder(column: $table.byteSize, builder: (column) => column);
+
+  GeneratedColumn<int> get width =>
+      $composableBuilder(column: $table.width, builder: (column) => column);
+
+  GeneratedColumn<int> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<String> get sha256 =>
+      $composableBuilder(column: $table.sha256, builder: (column) => column);
+
+  GeneratedColumn<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudUrl =>
+      $composableBuilder(column: $table.cloudUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+}
+
+class $$AttachmentsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AttachmentsTableTable,
+          AttachmentEntity,
+          $$AttachmentsTableTableFilterComposer,
+          $$AttachmentsTableTableOrderingComposer,
+          $$AttachmentsTableTableAnnotationComposer,
+          $$AttachmentsTableTableCreateCompanionBuilder,
+          $$AttachmentsTableTableUpdateCompanionBuilder,
+          (
+            AttachmentEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $AttachmentsTableTable,
+              AttachmentEntity
+            >,
+          ),
+          AttachmentEntity,
+          PrefetchHooks Function()
+        > {
+  $$AttachmentsTableTableTableManager(
+    _$AppDatabase db,
+    $AttachmentsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttachmentsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AttachmentsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AttachmentsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> mimeType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String> uploadState = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentsTableCompanion(
+                id: id,
+                noteId: noteId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                mimeType: mimeType,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                sha256: sha256,
+                encryptionKeyVersion: encryptionKeyVersion,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                uploadState: uploadState,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                localPath: localPath,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> noteId = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<String> mimeType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String> uploadState = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentsTableCompanion.insert(
+                id: id,
+                noteId: noteId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                mimeType: mimeType,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                sha256: sha256,
+                encryptionKeyVersion: encryptionKeyVersion,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                uploadState: uploadState,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                localPath: localPath,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AttachmentsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AttachmentsTableTable,
+      AttachmentEntity,
+      $$AttachmentsTableTableFilterComposer,
+      $$AttachmentsTableTableOrderingComposer,
+      $$AttachmentsTableTableAnnotationComposer,
+      $$AttachmentsTableTableCreateCompanionBuilder,
+      $$AttachmentsTableTableUpdateCompanionBuilder,
+      (
+        AttachmentEntity,
+        BaseReferences<_$AppDatabase, $AttachmentsTableTable, AttachmentEntity>,
+      ),
+      AttachmentEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$AttachmentVariantsTableTableCreateCompanionBuilder =
+    AttachmentVariantsTableCompanion Function({
+      required String id,
+      required String attachmentId,
+      required String variantType,
+      Value<int> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      Value<String?> localPath,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AttachmentVariantsTableTableUpdateCompanionBuilder =
+    AttachmentVariantsTableCompanion Function({
+      Value<String> id,
+      Value<String> attachmentId,
+      Value<String> variantType,
+      Value<int> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      Value<String?> localPath,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$AttachmentVariantsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AttachmentVariantsTableTable> {
+  $$AttachmentVariantsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get variantType => $composableBuilder(
+    column: $table.variantType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AttachmentVariantsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AttachmentVariantsTableTable> {
+  $$AttachmentVariantsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get variantType => $composableBuilder(
+    column: $table.variantType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AttachmentVariantsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AttachmentVariantsTableTable> {
+  $$AttachmentVariantsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get variantType => $composableBuilder(
+    column: $table.variantType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get byteSize =>
+      $composableBuilder(column: $table.byteSize, builder: (column) => column);
+
+  GeneratedColumn<int> get width =>
+      $composableBuilder(column: $table.width, builder: (column) => column);
+
+  GeneratedColumn<int> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudUrl =>
+      $composableBuilder(column: $table.cloudUrl, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$AttachmentVariantsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AttachmentVariantsTableTable,
+          AttachmentVariantEntity,
+          $$AttachmentVariantsTableTableFilterComposer,
+          $$AttachmentVariantsTableTableOrderingComposer,
+          $$AttachmentVariantsTableTableAnnotationComposer,
+          $$AttachmentVariantsTableTableCreateCompanionBuilder,
+          $$AttachmentVariantsTableTableUpdateCompanionBuilder,
+          (
+            AttachmentVariantEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $AttachmentVariantsTableTable,
+              AttachmentVariantEntity
+            >,
+          ),
+          AttachmentVariantEntity,
+          PrefetchHooks Function()
+        > {
+  $$AttachmentVariantsTableTableTableManager(
+    _$AppDatabase db,
+    $AttachmentVariantsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttachmentVariantsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AttachmentVariantsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AttachmentVariantsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> attachmentId = const Value.absent(),
+                Value<String> variantType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentVariantsTableCompanion(
+                id: id,
+                attachmentId: attachmentId,
+                variantType: variantType,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                localPath: localPath,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String attachmentId,
+                required String variantType,
+                Value<int> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentVariantsTableCompanion.insert(
+                id: id,
+                attachmentId: attachmentId,
+                variantType: variantType,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                localPath: localPath,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AttachmentVariantsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AttachmentVariantsTableTable,
+      AttachmentVariantEntity,
+      $$AttachmentVariantsTableTableFilterComposer,
+      $$AttachmentVariantsTableTableOrderingComposer,
+      $$AttachmentVariantsTableTableAnnotationComposer,
+      $$AttachmentVariantsTableTableCreateCompanionBuilder,
+      $$AttachmentVariantsTableTableUpdateCompanionBuilder,
+      (
+        AttachmentVariantEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $AttachmentVariantsTableTable,
+          AttachmentVariantEntity
+        >,
+      ),
+      AttachmentVariantEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3284,4 +5833,11 @@ class $AppDatabaseManager {
       $$SyncMetadataTableTableTableManager(_db, _db.syncMetadataTable);
   $$SyncQueueTableTableTableManager get syncQueueTable =>
       $$SyncQueueTableTableTableManager(_db, _db.syncQueueTable);
+  $$AttachmentsTableTableTableManager get attachmentsTable =>
+      $$AttachmentsTableTableTableManager(_db, _db.attachmentsTable);
+  $$AttachmentVariantsTableTableTableManager get attachmentVariantsTable =>
+      $$AttachmentVariantsTableTableTableManager(
+        _db,
+        _db.attachmentVariantsTable,
+      );
 }
