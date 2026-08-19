@@ -66,6 +66,83 @@ void main() {
       expect(span.toPlainText(), equals(text));
     });
 
+    test('all heading levels 1 to 6 parse markers and retain content styles', () {
+      for (var level = 1; level <= 6; level++) {
+        final hashes = '#' * level;
+        final text = '$hashes Heading level $level';
+        final span = MarkdownParser.buildTextSpan(
+          text: text,
+          styles: styles,
+        );
+
+        expect(span.toPlainText(), equals(text));
+        final children = span.children!;
+        final hashSpan = children.first as TextSpan;
+        expect(hashSpan.text, equals(hashes));
+        expect(hashSpan.style?.color, equals(styles.headingMarker.color));
+
+        final expectedHeadingStyle = styles.getHeadingStyle(level);
+        expect(hashSpan.style?.fontSize, equals(expectedHeadingStyle.fontSize));
+
+        final contentSpan = children.last as TextSpan;
+        expect(contentSpan.text, equals(' Heading level $level'));
+        expect(contentSpan.style?.fontSize, equals(expectedHeadingStyle.fontSize));
+        expect(contentSpan.style?.fontWeight, equals(expectedHeadingStyle.fontWeight));
+      }
+    });
+
+    test('heading with active IME composing range on spaces preserves all characters and underline', () {
+      const text = '#   My Title';
+      // Composing range covering "#   " (indices 0 to 4)
+      final span = MarkdownParser.buildTextSpan(
+        text: text,
+        styles: styles,
+        composingRange: const TextRange(start: 0, end: 4),
+      );
+
+      expect(span.toPlainText(), equals(text));
+      final children = span.children!;
+      final hashSpan = children.first as TextSpan;
+      expect(hashSpan.text, equals('#'));
+      expect(hashSpan.style?.decoration, equals(TextDecoration.underline));
+
+      // The composing spaces part
+      final compSpacesSpan = children[1] as TextSpan;
+      expect(compSpacesSpan.text, equals('   '));
+      expect(compSpacesSpan.style?.decoration, equals(TextDecoration.underline));
+      expect(compSpacesSpan.style?.fontSize, equals(styles.heading1.fontSize));
+
+      // The uncomposed text part
+      final titleSpan = children.last as TextSpan;
+      expect(titleSpan.text, equals('My Title'));
+      expect(titleSpan.style?.decoration, isNot(equals(TextDecoration.underline)));
+    });
+
+    test('7 hashes is not parsed as heading but as body text', () {
+      const text = '####### Not a heading';
+      final span = MarkdownParser.buildTextSpan(
+        text: text,
+        styles: styles,
+      );
+
+      expect(span.toPlainText(), equals(text));
+      final firstChild = span.children!.first as TextSpan;
+      expect(firstChild.style?.fontSize, equals(styles.body.fontSize));
+    });
+
+    test('#tag without space is not parsed as heading', () {
+      const text = '#tag is a tag';
+      final span = MarkdownParser.buildTextSpan(
+        text: text,
+        styles: styles,
+      );
+
+      expect(span.toPlainText(), equals(text));
+      final firstChild = span.children!.first as TextSpan;
+      expect(firstChild.text, equals('#tag'));
+      expect(firstChild.style?.color, equals(styles.tag.color));
+    });
+
     test('nested bold inside heading preserves heading font size with bold weight', () {
       final span = MarkdownParser.buildTextSpan(
         text: '## Heading with **bold** word',

@@ -87,24 +87,21 @@ abstract final class MarkdownParser {
         ));
       }
       // 4. Headings (# to ######)
-      else if (RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').hasMatch(lineText)) {
-        final headingMatch =
-            RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').firstMatch(lineText)!;
-        final indent = headingMatch.group(1) ?? '';
-        final hashes = headingMatch.group(2) ?? '#';
-
-        final level = hashes.length.clamp(1, 6);
+      else if (_tryParseHeading(lineText) case final headingInfo?) {
+        final indentLen = headingInfo.indentLength;
+        final hashCount = headingInfo.hashCount;
+        final level = hashCount;
         final headingStyle = styles.getHeadingStyle(level);
 
         var currentOffset = lineStart;
-        if (indent.isNotEmpty) {
+        if (indentLen > 0) {
           rawSpans.add(_RawSpan(
             start: currentOffset,
-            end: currentOffset + indent.length,
-            text: indent,
+            end: currentOffset + indentLen,
+            text: lineText.substring(0, indentLen),
             style: styles.body,
           ));
-          currentOffset += indent.length;
+          currentOffset += indentLen;
         }
 
         // Heading marker (e.g. "##") - inherits heading font metrics to prevent baseline shifts
@@ -114,14 +111,15 @@ abstract final class MarkdownParser {
         );
         rawSpans.add(_RawSpan(
           start: currentOffset,
-          end: currentOffset + hashes.length,
-          text: hashes,
+          end: currentOffset + hashCount,
+          text: lineText.substring(indentLen, indentLen + hashCount),
           style: markerStyle,
         ));
-        currentOffset += hashes.length;
+        currentOffset += hashCount;
 
-        final remainder = lineText.substring(indent.length + hashes.length);
-        if (remainder.isNotEmpty) {
+        final remainderStart = indentLen + hashCount;
+        if (remainderStart < lineText.length) {
+          final remainder = lineText.substring(remainderStart);
           _parseInlineSegments(
             text: remainder,
             baseOffset: currentOffset,
@@ -854,6 +852,39 @@ abstract final class MarkdownParser {
     }
     return result;
   }
+
+  static _HeadingLineInfo? _tryParseHeading(String lineText) {
+    final len = lineText.length;
+    var i = 0;
+    while (i < len && (lineText[i] == ' ' || lineText[i] == '\t')) {
+      i++;
+    }
+    final indentEnd = i;
+    var hashCount = 0;
+    while (i < len && lineText[i] == '#') {
+      hashCount++;
+      i++;
+    }
+    if (hashCount >= 1 &&
+        hashCount <= 6 &&
+        (i == len || lineText[i] == ' ' || lineText[i] == '\t')) {
+      return _HeadingLineInfo(
+        indentLength: indentEnd,
+        hashCount: hashCount,
+      );
+    }
+    return null;
+  }
+}
+
+class _HeadingLineInfo {
+  final int indentLength;
+  final int hashCount;
+
+  const _HeadingLineInfo({
+    required this.indentLength,
+    required this.hashCount,
+  });
 }
 
 class _LineSpan {

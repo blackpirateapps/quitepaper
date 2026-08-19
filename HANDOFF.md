@@ -637,6 +637,29 @@ Quiet Paper features a comprehensive typography engine that allows users to cust
   - **Unlock View** ([`lib/features/editor/presentation/widgets/password_unlock_view.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/password_unlock_view.dart)): Full-screen unlock prompt embedded inside `EditorScreen` requesting the password, displaying optional hint, and showing clear error feedback on incorrect attempt.
   - **Overflow Actions**: Includes "Protect with password", "Change note password", "Remove password protection", and "Lock note now".
 
+---
+
+## 26. WYSIWYG Heading Whitespace Loss & FUTO Android IME Composing Fix
+
+### Problem & Root Cause
+On Android devices (specifically tablets running predictive or on-device voice/neural IMEs such as FUTO Keyboard), typing headings (`#`, `# Hello `, `# Hello world`) exhibited whitespace drops, collapsed whitespace spans, and frozen caret advancement:
+1. **Regex Re-parsing & Spans Boundary Fragmentation**: The heading parser previously used regex capture groups (`^(\s*)(#{1,6})(?:([ \t])(.*)|$)`), extracting hashes, separator whitespace, and content into distinct captures. When reassembled, typed spaces immediately following hashes or between words could become isolated into standalone whitespace-only `TextSpan`s.
+2. **IME Composing Underline Collision**: Android IMEs maintain an active composing range across active tokens. When composing range decoration (`TextDecoration.underline`) was applied across fragmented spans or whitespace-only spans, text layout engines could treat trailing/boundary spaces as zero-width or defer their caret offset calculation.
+3. **Inadequate Text-Only Test Coverage**: Previous unit tests asserted `TextSpan.toPlainText()`, which only verified string presence without verifying `RenderEditable` layout metrics, glyph boundaries, or caret X-position advancement during live IME composition.
+
+### Architectural Solution & Heading-Span Invariants
+- **Single-Pass Source-Slice Heading Scanner** ([`lib/features/editor/application/markdown_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart)):
+  - Replaced double-regex matching with a deterministic single-pass scanner (`_tryParseHeading`).
+  - Scans indentation, counts 1–6 `#` hash markers, and validates heading separator whitespace in $O(N)$ linear time.
+  - Passes the exact remaining source—including leading separators, consecutive spaces, and trailing whitespace—directly into `_parseInlineSegments` with exact absolute offsets.
+  - Maintains the **source-contiguous heading run invariant**: the heading content remainder is emitted as a contiguous source slice without artificial boundary splitting, preserving exact character indices and font metrics.
+- **Composing-Range Compatibility**:
+  - Marker styling inherits identical font size, line height, and baseline metrics from the target heading level (`styles.getHeadingStyle(level)`), avoiding font-metric jumping.
+  - Active Android composing underline decorations are applied seamlessly across contiguous span slices without zero-width whitespace collapses.
+- **Widget-Level Regression Coverage** ([`test/editor/markdown_editor_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_editor_widget_test.dart) & [`test/editor/markdown_parser_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_parser_test.dart)):
+  - Simulates FUTO-style Android composing ranges while incrementally typing `# ` with repeated spaces, `# Hello ` with trailing spaces, `# Hello world` across word boundaries, and all heading levels `#` through `######`.
+  - Verifies both exact source text matching and strict monotonic caret X advancement (`renderEditable.getLocalRectForCaret`) after every typed space.
+
 
 
 
