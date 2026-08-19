@@ -566,8 +566,9 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
 - [x] Settings restore and backup dialog action layouts are fully responsive and wrapped with `SingleChildScrollView` to prevent UI overflow.
 - [x] Settings screen conforms to the iOS Grouped Table / Bear Notes aesthetic with flush grouped rows, Cupertino controls, indented dividers, and tablet max-width constraints.
 - [x] Android CI build workflow (`build_apk.yml`) builds multi-architecture APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `universal`) and uploads them as separate artifacts.
-- [x] Markdown-Aware WYSIWYG Editor (V1) renders live visual Markdown styling, list auto-continuation, and IME support while maintaining standard Markdown text as the authoritative single source of truth.
 - [x] Markdown Editor V2 implements smart editing (checklist continuation/clearing, delimiter skipping, code fence safety), keyboard shortcuts (Ctrl+B/I/Shift+X/`/K), selection-aware context toolbar, and interactive checkbox tapping.
+- [x] Heading whitespace parsing fix: single-space delimiter regex `(?:([ \t])(.*)|$)` ensures multiple consecutive spaces inside heading sentences and right after hashes are preserved and measured with matching font metrics.
+
 
 
 

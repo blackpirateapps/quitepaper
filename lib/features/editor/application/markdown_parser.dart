@@ -87,13 +87,13 @@ abstract final class MarkdownParser {
         ));
       }
       // 4. Headings (# to ######)
-      else if (RegExp(r'^(\s*)(#{1,6})(?:(\s+)(.*)|$)').hasMatch(lineText)) {
+      else if (RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').hasMatch(lineText)) {
         final headingMatch =
-            RegExp(r'^(\s*)(#{1,6})(?:(\s+)(.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').firstMatch(lineText)!;
         final indent = headingMatch.group(1) ?? '';
         final hashes = headingMatch.group(2) ?? '#';
-        final space = headingMatch.group(3) ?? '';
-        final content = headingMatch.group(4) ?? '';
+        final space = headingMatch.group(3);
+        final content = headingMatch.group(4);
 
         final level = hashes.length.clamp(1, 6);
         final headingStyle = styles.getHeadingStyle(level);
@@ -109,16 +109,20 @@ abstract final class MarkdownParser {
           currentOffset += indent.length;
         }
 
-        // Heading marker (e.g. "##")
+        // Heading marker (e.g. "##") - inherits heading font metrics to prevent baseline shifts
+        final markerStyle = headingStyle.copyWith(
+          color: styles.headingMarker.color,
+          fontWeight: styles.headingMarker.fontWeight,
+        );
         rawSpans.add(_RawSpan(
           start: currentOffset,
           end: currentOffset + hashes.length,
           text: hashes,
-          style: styles.headingMarker.copyWith(fontSize: headingStyle.fontSize),
+          style: markerStyle,
         ));
         currentOffset += hashes.length;
 
-        if (space.isNotEmpty) {
+        if (space != null) {
           rawSpans.add(_RawSpan(
             start: currentOffset,
             end: currentOffset + space.length,
@@ -126,22 +130,22 @@ abstract final class MarkdownParser {
             style: headingStyle,
           ));
           currentOffset += space.length;
-        }
 
-        if (content.isNotEmpty) {
-          _parseInlineSegments(
-            text: content,
-            baseOffset: currentOffset,
-            baseStyle: headingStyle,
-            styles: styles,
-            spans: rawSpans,
-          );
+          if (content != null && content.isNotEmpty) {
+            _parseInlineSegments(
+              text: content,
+              baseOffset: currentOffset,
+              baseStyle: headingStyle,
+              styles: styles,
+              spans: rawSpans,
+            );
+          }
         }
       }
       // 5. Blockquotes (> or >>)
-      else if (RegExp(r'^(\s*)(>{1,3})(?:(\s?)(.*)|$)').hasMatch(lineText)) {
+      else if (RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').hasMatch(lineText)) {
         final quoteMatch =
-            RegExp(r'^(\s*)(>{1,3})(?:(\s?)(.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').firstMatch(lineText)!;
         final indent = quoteMatch.group(1) ?? '';
         final marker = quoteMatch.group(2) ?? '>';
         final space = quoteMatch.group(3) ?? '';
@@ -158,11 +162,15 @@ abstract final class MarkdownParser {
           currentOffset += indent.length;
         }
 
+        final markerStyle = styles.blockquote.copyWith(
+          color: styles.blockquoteMarker.color,
+          fontWeight: styles.blockquoteMarker.fontWeight,
+        );
         rawSpans.add(_RawSpan(
           start: currentOffset,
           end: currentOffset + marker.length,
           text: marker,
-          style: styles.blockquoteMarker,
+          style: markerStyle,
         ));
         currentOffset += marker.length;
 
@@ -412,7 +420,7 @@ abstract final class MarkdownParser {
       }
     }
 
-    return TextSpan(children: textSpans);
+    return TextSpan(style: styles.body, children: textSpans);
   }
 
   /// Scans inline tokens and appends styled [_RawSpan]s.

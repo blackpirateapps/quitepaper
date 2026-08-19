@@ -56,6 +56,16 @@ void main() {
       expect(textSpan.style?.fontWeight, equals(styles.heading1.fontWeight));
     });
 
+    test('multiple consecutive spaces in headings are preserved and measurable', () {
+      const text = '#   Heading   with   spaces   ';
+      final span = MarkdownParser.buildTextSpan(
+        text: text,
+        styles: styles,
+      );
+
+      expect(span.toPlainText(), equals(text));
+    });
+
     test('nested bold inside heading preserves heading font size with bold weight', () {
       final span = MarkdownParser.buildTextSpan(
         text: '## Heading with **bold** word',

@@ -99,12 +99,12 @@ class MarkdownTokenizer {
       }
 
       // 4. Headings (# to ######)
-      final headingMatch = RegExp(r'^(\s*)(#{1,6})(?:(\s+)(.*)|$)').firstMatch(lineText);
+      final headingMatch = RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').firstMatch(lineText);
       if (headingMatch != null) {
         final indent = headingMatch.group(1) ?? '';
         final hashes = headingMatch.group(2) ?? '#';
-        final space = headingMatch.group(3) ?? '';
-        final content = headingMatch.group(4) ?? '';
+        final space = headingMatch.group(3);
+        final content = headingMatch.group(4);
 
         final level = hashes.length.clamp(1, 6);
         final markerType = MarkdownTokenType.headingMarker;
@@ -120,8 +120,8 @@ class MarkdownTokenizer {
           text: hashes,
         ));
 
-        if (content.isNotEmpty) {
-          final contentStart = markerEnd + space.length;
+        if (content != null && content.isNotEmpty) {
+          final contentStart = markerEnd + (space?.length ?? 1);
           final contentEnd = lineEnd;
           tokens.add(MarkdownToken(
             start: contentStart,
@@ -135,7 +135,7 @@ class MarkdownTokenizer {
       }
 
       // 5. Blockquotes (> or >>)
-      final quoteMatch = RegExp(r'^(\s*)(>{1,3})(?:(\s?)(.*)|$)').firstMatch(lineText);
+      final quoteMatch = RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').firstMatch(lineText);
       if (quoteMatch != null) {
         final indent = quoteMatch.group(1) ?? '';
         final marker = quoteMatch.group(2) ?? '>';
