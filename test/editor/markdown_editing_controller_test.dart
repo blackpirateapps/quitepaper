@@ -135,5 +135,37 @@ void main() {
 
       expect(span.toPlainText(), equals('#   \n##   My Heading with   spaces   '));
     });
+
+    testWidgets('preserves spaces immediately after checkbox markers and inside task text', (tester) async {
+      final controller = MarkdownEditingController(
+        text: '- [ ]   \n- [x]   Completed task with   spaces   ',
+      );
+
+      late BuildContext buildContext;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light().copyWith(
+            extensions: [AppColors.light],
+          ),
+          home: Builder(
+            builder: (context) {
+              buildContext = context;
+              return Scaffold(
+                body: TextField(
+                  controller: controller,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      final span = controller.buildTextSpan(
+        context: buildContext,
+        withComposing: false,
+      );
+
+      expect(span.toPlainText(), equals('- [ ]   \n- [x]   Completed task with   spaces   '));
+    });
   });
 }

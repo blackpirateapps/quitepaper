@@ -132,13 +132,12 @@ abstract final class MarkdownParser {
         }
       }
       // 5. Blockquotes (> or >>)
+      // 5. Blockquotes (> or >>)
       else if (RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').hasMatch(lineText)) {
         final quoteMatch =
             RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').firstMatch(lineText)!;
         final indent = quoteMatch.group(1) ?? '';
         final marker = quoteMatch.group(2) ?? '>';
-        final space = quoteMatch.group(3) ?? '';
-        final content = quoteMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -163,19 +162,10 @@ abstract final class MarkdownParser {
         ));
         currentOffset += marker.length;
 
-        if (space.isNotEmpty) {
-          rawSpans.add(_RawSpan(
-            start: currentOffset,
-            end: currentOffset + space.length,
-            text: space,
-            style: styles.blockquote,
-          ));
-          currentOffset += space.length;
-        }
-
-        if (content.isNotEmpty) {
+        final remainder = lineText.substring(indent.length + marker.length);
+        if (remainder.isNotEmpty) {
           _parseInlineSegments(
-            text: content,
+            text: remainder,
             baseOffset: currentOffset,
             baseStyle: styles.blockquote,
             styles: styles,
@@ -184,14 +174,13 @@ abstract final class MarkdownParser {
         }
       }
       // 6. Checklists (- [ ] , - [x] , * [ ] , + [ ] )
-      else if (RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:\s+(.*)|$)').hasMatch(lineText)) {
+      else if (RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final checkMatch =
-            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:\s+(.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
         final indent = checkMatch.group(1) ?? '';
         final prefix = checkMatch.group(2) ?? '- [';
         final stateChar = checkMatch.group(3) ?? ' ';
         final closeBracket = checkMatch.group(4) ?? ']';
-        final content = checkMatch.group(5) ?? '';
         final isChecked = (stateChar == 'x' || stateChar == 'X');
 
         var currentOffset = lineStart;
@@ -214,21 +203,10 @@ abstract final class MarkdownParser {
         ));
         currentOffset += markerText.length;
 
-        if (content.isNotEmpty) {
-          final spaceIndex = lineText.substring(indent.length + markerText.length).indexOf(content);
-          final spaceStr = spaceIndex > 0
-              ? lineText.substring(indent.length + markerText.length, indent.length + markerText.length + spaceIndex)
-              : ' ';
-          rawSpans.add(_RawSpan(
-            start: currentOffset,
-            end: currentOffset + spaceStr.length,
-            text: spaceStr,
-            style: styles.body,
-          ));
-          currentOffset += spaceStr.length;
-
+        final remainder = lineText.substring(indent.length + markerText.length);
+        if (remainder.isNotEmpty) {
           _parseInlineSegments(
-            text: content,
+            text: remainder,
             baseOffset: currentOffset,
             baseStyle: isChecked ? styles.taskTextCompleted : styles.body,
             styles: styles,
@@ -237,13 +215,11 @@ abstract final class MarkdownParser {
         }
       }
       // 7. Unordered Lists (- , * , + )
-      else if (RegExp(r'^(\s*)([-*+])(\s+)(.*)$').hasMatch(lineText)) {
+      else if (RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final listMatch =
-            RegExp(r'^(\s*)([-*+])(\s+)(.*)$').firstMatch(lineText)!;
+            RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '-';
-        final space = listMatch.group(3) ?? ' ';
-        final content = listMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -264,19 +240,10 @@ abstract final class MarkdownParser {
         ));
         currentOffset += marker.length;
 
-        if (space.isNotEmpty) {
-          rawSpans.add(_RawSpan(
-            start: currentOffset,
-            end: currentOffset + space.length,
-            text: space,
-            style: styles.body,
-          ));
-          currentOffset += space.length;
-        }
-
-        if (content.isNotEmpty) {
+        final remainder = lineText.substring(indent.length + marker.length);
+        if (remainder.isNotEmpty) {
           _parseInlineSegments(
-            text: content,
+            text: remainder,
             baseOffset: currentOffset,
             baseStyle: styles.body,
             styles: styles,
@@ -284,14 +251,12 @@ abstract final class MarkdownParser {
           );
         }
       }
-      // 7. Ordered Lists (1. , 2. , 1) )
-      else if (RegExp(r'^(\s*)(\d+[\.\)])(\s+)(.*)$').hasMatch(lineText)) {
+      // 8. Ordered Lists (1. , 2. , 1) )
+      else if (RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final listMatch =
-            RegExp(r'^(\s*)(\d+[\.\)])(\s+)(.*)$').firstMatch(lineText)!;
+            RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '1.';
-        final space = listMatch.group(3) ?? ' ';
-        final content = listMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -312,19 +277,10 @@ abstract final class MarkdownParser {
         ));
         currentOffset += marker.length;
 
-        if (space.isNotEmpty) {
-          rawSpans.add(_RawSpan(
-            start: currentOffset,
-            end: currentOffset + space.length,
-            text: space,
-            style: styles.body,
-          ));
-          currentOffset += space.length;
-        }
-
-        if (content.isNotEmpty) {
+        final remainder = lineText.substring(indent.length + marker.length);
+        if (remainder.isNotEmpty) {
           _parseInlineSegments(
-            text: content,
+            text: remainder,
             baseOffset: currentOffset,
             baseStyle: styles.body,
             styles: styles,
@@ -332,7 +288,7 @@ abstract final class MarkdownParser {
           );
         }
       }
-      // 8. Normal Body line
+      // 9. Normal Body line
       else {
         if (lineText.isNotEmpty) {
           _parseInlineSegments(
@@ -376,7 +332,6 @@ abstract final class MarkdownParser {
       }
     }
 
-    // Convert raw spans to TextSpan list, applying composing underline if active
     final textSpans = <TextSpan>[];
     final isComposingValid = composingRange != null &&
         composingRange.isValid &&
