@@ -128,12 +128,13 @@ class _AutoBackupPasswordDialogState
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header
               Row(
                 children: [
@@ -282,41 +283,87 @@ class _AutoBackupPasswordDialogState
               const SizedBox(height: AppSpacing.lg),
 
               // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (config.hasPassword)
-                    QuietButton(
-                      label: 'Remove Password',
-                      variant: QuietButtonVariant.destructive,
-                      isLoading: _isSaving,
-                      onPressed: _isSaving ? null : _handleClear,
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  Row(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 360;
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (config.hasPassword) ...[
+                          Row(
+                            children: [
+                              QuietButton(
+                                label: 'Remove Password',
+                                variant: QuietButtonVariant.destructive,
+                                isLoading: _isSaving,
+                                onPressed: _isSaving ? null : _handleClear,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                        ],
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: AppSpacing.sm,
+                          runSpacing: AppSpacing.sm,
+                          children: [
+                            QuietButton(
+                              label: 'Cancel',
+                              variant: QuietButtonVariant.tonal,
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            QuietButton(
+                              label: 'Save Password',
+                              icon: Icons.check_rounded,
+                              variant: QuietButtonVariant.primary,
+                              isLoading: _isSaving,
+                              onPressed: _isSaving ? null : _handleSave,
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      QuietButton(
-                        label: 'Cancel',
-                        variant: QuietButtonVariant.tonal,
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      QuietButton(
-                        label: 'Save Password',
-                        icon: Icons.check_rounded,
-                        variant: QuietButtonVariant.primary,
-                        isLoading: _isSaving,
-                        onPressed: _isSaving ? null : _handleSave,
+                      if (config.hasPassword)
+                        QuietButton(
+                          label: 'Remove Password',
+                          variant: QuietButtonVariant.destructive,
+                          isLoading: _isSaving,
+                          onPressed: _isSaving ? null : _handleClear,
+                        )
+                      else
+                        const SizedBox.shrink(),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          QuietButton(
+                            label: 'Cancel',
+                            variant: QuietButtonVariant.tonal,
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          QuietButton(
+                            label: 'Save Password',
+                            icon: Icons.check_rounded,
+                            variant: QuietButtonVariant.primary,
+                            isLoading: _isSaving,
+                            onPressed: _isSaving ? null : _handleSave,
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

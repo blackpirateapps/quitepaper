@@ -173,12 +173,13 @@ class _CreateBackupDialogState extends ConsumerState<CreateBackupDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header
               Row(
                 children: [
@@ -455,8 +456,9 @@ class _CreateBackupDialogState extends ConsumerState<CreateBackupDialog> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStat(AppColors colors, String count, String label) {
     return Column(

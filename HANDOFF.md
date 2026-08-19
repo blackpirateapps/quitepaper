@@ -416,6 +416,22 @@ In recent versions of Flutter (Flutter 3.44+), `SnackBar` introduced the `persis
 
 ---
 
+## 19. Settings Restore Backup Dialog Responsive Action Layout & Overflow Fix
+
+### Problem & Root Cause
+In [`RestoreBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/restore_backup_dialog.dart), the validated preview state displayed a single horizontal `Row` containing "Change File" (left), "Cancel" (middle-right), and the primary "Restore X Notes" button (right). On mobile devices with $\le 400\text{dp}$ screen width (accounting for dialog insets and inner padding), the combined intrinsic width of these 3 actions exceeded available horizontal space, causing the "Restore X Notes" button to overflow past the right boundary of the dialog card. Additionally, dialog contents lacked `SingleChildScrollView`, which could risk vertical clipping on small screens.
+
+### Solution
+- **Responsive Layout via `LayoutBuilder`**:
+  - For narrow viewports ($< 390\text{dp}$ available dialog width), "Change File" is rendered on its own row, with "Cancel" and "Restore X Notes" wrapped in an end-aligned `Wrap` widget.
+  - For wider viewports ($\ge 390\text{dp}$), the actions render inline as a single balanced row.
+- **`SingleChildScrollView` Container**:
+  - Wrapped dialog bodies across [`RestoreBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/restore_backup_dialog.dart), [`CreateBackupDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/create_backup_dialog.dart), and [`AutoBackupPasswordDialog`](file:///home/dog/git/quitepaper/lib/core/backup/presentation/auto_backup_password_dialog.dart) in `SingleChildScrollView` inside `ConstrainedBox` to ensure complete vertical responsiveness.
+- **Unit & Widget Tests**:
+  - Added narrow layout test coverage in [`test/backup/backup_dialog_test.dart`](file:///home/dog/git/quitepaper/test/backup/backup_dialog_test.dart) ensuring zero rendering exceptions or layout overflows.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -430,6 +446,8 @@ In recent versions of Flutter (Flutter 3.44+), `SnackBar` introduced the `persis
 - [x] Local backup file creation utilizes Android Storage Access Framework (SAF) to write `.qpbackup` files safely on modern Android Scoped Storage without permission exceptions.
 - [x] App version bump procedure is documented in HANDOFF.md across all 5 code locations.
 - [x] Undo action SnackBars explicitly set `persist: false` to ensure reliable auto-dismissal after duration.
+- [x] Settings restore and backup dialog action layouts are fully responsive and wrapped with `SingleChildScrollView` to prevent UI overflow.
+
 
 
 

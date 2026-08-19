@@ -165,12 +165,13 @@ class _RestoreBackupDialogState extends ConsumerState<RestoreBackupDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header
               Row(
                 children: [
@@ -329,8 +330,11 @@ class _RestoreBackupDialogState extends ConsumerState<RestoreBackupDialog> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
                         children: [
                           TextButton(
                             onPressed: _pickFile,
@@ -489,46 +493,97 @@ class _RestoreBackupDialogState extends ConsumerState<RestoreBackupDialog> {
 
               // Actions
               if (isReadyToRestore)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _pickFile,
-                      child: Text(
-                        'Change File',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    Row(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 390;
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: _pickFile,
+                                child: Text(
+                                  'Change File',
+                                  style: AppTypography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: AppSpacing.sm,
+                            runSpacing: AppSpacing.sm,
+                            children: [
+                              QuietButton(
+                                label: 'Cancel',
+                                variant: QuietButtonVariant.tonal,
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                              QuietButton(
+                                label:
+                                    'Restore ${_validation!.payload!.notes.length} Notes',
+                                icon: Icons.settings_backup_restore_rounded,
+                                variant: _strategy == RestoreStrategy.replace
+                                    ? QuietButtonVariant.destructive
+                                    : QuietButtonVariant.primary,
+                                isLoading: _isRestoring,
+                                onPressed: _isRestoring ? null : _handleRestore,
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        QuietButton(
-                          label: 'Cancel',
-                          variant: QuietButtonVariant.tonal,
-                          onPressed: () => Navigator.of(context).pop(),
+                        TextButton(
+                          onPressed: _pickFile,
+                          child: Text(
+                            'Change File',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        QuietButton(
-                          label:
-                              'Restore ${_validation!.payload!.notes.length} Notes',
-                          icon: Icons.settings_backup_restore_rounded,
-                          variant: _strategy == RestoreStrategy.replace
-                              ? QuietButtonVariant.destructive
-                              : QuietButtonVariant.primary,
-                          isLoading: _isRestoring,
-                          onPressed: _isRestoring ? null : _handleRestore,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            QuietButton(
+                              label: 'Cancel',
+                              variant: QuietButtonVariant.tonal,
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            QuietButton(
+                              label:
+                                  'Restore ${_validation!.payload!.notes.length} Notes',
+                              icon: Icons.settings_backup_restore_rounded,
+                              variant: _strategy == RestoreStrategy.replace
+                                  ? QuietButtonVariant.destructive
+                                  : QuietButtonVariant.primary,
+                              isLoading: _isRestoring,
+                              onPressed: _isRestoring ? null : _handleRestore,
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStat(AppColors colors, String count, String label) {
     return Column(

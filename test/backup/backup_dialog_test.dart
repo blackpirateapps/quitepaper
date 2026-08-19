@@ -86,6 +86,13 @@ void main() {
   });
 
   testWidgets('RestoreBackupDialog renders file selection button and header', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0; // 360 x 800 logical dp
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       createTestWidget(child: const RestoreBackupDialog()),
     );
@@ -95,7 +102,14 @@ void main() {
     expect(find.text('Select Backup File'), findsOneWidget);
   });
 
-  testWidgets('AutoBackupPasswordDialog renders password fields and save action', (tester) async {
+  testWidgets('AutoBackupPasswordDialog renders password fields and save action on narrow screen', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0; // 360 x 800 logical dp
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       createTestWidget(child: const AutoBackupPasswordDialog()),
     );
@@ -104,5 +118,6 @@ void main() {
     expect(find.text('Auto-Backup Encryption'), findsOneWidget);
     expect(find.text('Save Password'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
   });
 }
