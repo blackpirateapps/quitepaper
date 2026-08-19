@@ -9,11 +9,42 @@ class MarkdownEditingController extends TextEditingController {
   MarkdownEditingController({
     super.text,
     this.styles,
+    this._searchQuery,
+    this._activeSearchRange,
   });
 
   /// Optional static styles override. If null, styles will dynamically adapt to
   /// the active [AppColors] from the build context.
   MarkdownStyles? styles;
+
+  String? _searchQuery;
+  String? get searchQuery => _searchQuery;
+  set searchQuery(String? value) {
+    if (_searchQuery != value) {
+      _searchQuery = value;
+      notifyListeners();
+    }
+  }
+
+  TextRange? _activeSearchRange;
+  TextRange? get activeSearchRange => _activeSearchRange;
+  set activeSearchRange(TextRange? value) {
+    if (_activeSearchRange != value) {
+      _activeSearchRange = value;
+      notifyListeners();
+    }
+  }
+
+  void setSearchHighlight({
+    required String? query,
+    required TextRange? activeRange,
+  }) {
+    if (_searchQuery != query || _activeSearchRange != activeRange) {
+      _searchQuery = query;
+      _activeSearchRange = activeRange;
+      notifyListeners();
+    }
+  }
 
   @override
   TextSpan buildTextSpan({
@@ -34,6 +65,8 @@ class MarkdownEditingController extends TextEditingController {
       text: text,
       styles: effectiveStyles,
       composingRange: composingRange,
+      searchQuery: _searchQuery,
+      activeSearchRange: _activeSearchRange,
     );
   }
 }

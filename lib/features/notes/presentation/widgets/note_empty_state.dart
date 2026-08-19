@@ -56,41 +56,48 @@ class NoteEmptyState extends StatelessWidget {
       }
     }
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: AppTypography.title.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.title.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    subtitle,
+                    style: AppTypography.body.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 15,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (showCreateButton) ...[
+                    const SizedBox(height: AppSpacing.xl),
+                    QuietButton(
+                      label: 'Create note',
+                      icon: Icons.edit_note_rounded,
+                      variant: QuietButtonVariant.primary,
+                      onPressed: onCreateNote,
+                    ),
+                  ],
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              subtitle,
-              style: AppTypography.body.copyWith(
-                color: colors.textSecondary,
-                fontSize: 15,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (showCreateButton) ...[
-              const SizedBox(height: AppSpacing.xl),
-              QuietButton(
-                label: 'Create note',
-                icon: Icons.edit_note_rounded,
-                variant: QuietButtonVariant.primary,
-                onPressed: onCreateNote,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

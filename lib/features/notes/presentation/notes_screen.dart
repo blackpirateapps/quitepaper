@@ -138,6 +138,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
       drawer: Drawer(
         backgroundColor: colors.surface,
         elevation: 0,
@@ -197,11 +199,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 QuietIconButton(
                   icon: Icons.search_rounded,
                   tooltip: 'Search notes',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchScreen()),
-                    );
-                  },
+                  onPressed: () => _openSearchScreen(context),
                 ),
                 if (destination == AppDestination.trash) ...[
                   QuietIconButton(
@@ -223,42 +221,72 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ],
             ),
       body: SafeArea(
-        child: Column(
-          children: [
-            if (destination == AppDestination.allNotes ||
-                destination == AppDestination.tag)
-              const TagsFilterBar(),
-            Expanded(
-              child: groupedNotesAsync.when(
-                data: (groups) {
-                  if (groups.isEmpty) {
-                    return NoteEmptyState(
-                      onCreateNote: () => _createAndOpenNote(context),
-                      destination: destination,
-                      tagFilter: selectedTag,
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: _calculateTotalItemCount(groups),
-                    itemBuilder: (context, index) {
-                      return _buildGroupedItem(context, groups, index);
+        child: Builder(
+          builder: (scaffoldCtx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 250) {
+                Scaffold.of(scaffoldCtx).openDrawer();
+              }
+            },
+            child: Column(
+              children: [
+                if (destination == AppDestination.allNotes ||
+                    destination == AppDestination.tag)
+                  const TagsFilterBar(),
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is OverscrollNotification &&
+                          notification.overscroll < -15) {
+                        _openSearchScreen(context);
+                        return true;
+                      }
+                      if (notification is ScrollUpdateNotification &&
+                          notification.metrics.pixels <= 0 &&
+                          notification.scrollDelta != null &&
+                          notification.scrollDelta! < -12 &&
+                          notification.dragDetails != null) {
+                        _openSearchScreen(context);
+                        return true;
+                      }
+                      return false;
                     },
-                  );
-                },
-                loading: () => const Center(
-                  child: CircularProgressIndicator.adaptive(),
-                ),
-                error: (err, _) => Center(
-                  child: Text(
-                    'Error loading notes: $err',
-                    style: AppTypography.body.copyWith(color: colors.error),
+                    child: groupedNotesAsync.when(
+                      data: (groups) {
+                        if (groups.isEmpty) {
+                          return NoteEmptyState(
+                            onCreateNote: () => _createAndOpenNote(context),
+                            destination: destination,
+                            tagFilter: selectedTag,
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 96),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _calculateTotalItemCount(groups),
+                          itemBuilder: (context, index) {
+                            return _buildGroupedItem(context, groups, index);
+                          },
+                        );
+                      },
+                      loading: () => const Center(
+                        child: CircularProgressIndicator.adaptive(),
+                      ),
+                      error: (err, _) => Center(
+                        child: Text(
+                          'Error loading notes: $err',
+                          style: AppTypography.body.copyWith(color: colors.error),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       floatingActionButton: (destination == AppDestination.allNotes ||
@@ -483,8 +511,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         right: BorderSide(color: colors.divider, width: 1),
                       ),
                     ),
-                    child: Column(
-                      children: [
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (details) {
+                        if (!isNavSidebarVisible &&
+                            details.primaryVelocity != null &&
+                            details.primaryVelocity! > 250) {
+                          ref
+                              .read(isNavSidebarVisibleProvider.notifier)
+                              .state = true;
+                        }
+                      },
+                      child: Column(
+                        children: [
                         // Middle Pane Top bar
                         Padding(
                           padding: const EdgeInsets.symmetric(
@@ -522,13 +561,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               QuietIconButton(
                                 icon: Icons.search_rounded,
                                 tooltip: 'Search notes',
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const SearchScreen(),
-                                    ),
-                                  );
-                                },
+                                onPressed: () => _openSearchScreen(context),
                               ),
                               if (destination == AppDestination.trash) ...[
                                 QuietIconButton(
@@ -562,36 +595,55 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         ],
                         Divider(color: colors.divider, height: 1),
                         Expanded(
-                          child: groupedNotesAsync.when(
-                            data: (groups) {
-                              if (groups.isEmpty) {
-                                return NoteEmptyState(
-                                  onCreateNote: () => _createAndOpenNoteTablet(),
-                                  destination: destination,
-                                  tagFilter: selectedTag,
-                                );
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification is OverscrollNotification &&
+                                  notification.overscroll < -15) {
+                                _openSearchScreen(context);
+                                return true;
                               }
-
-                              return ListView.builder(
-                                itemCount: _calculateTotalItemCount(groups),
-                                itemBuilder: (context, index) {
-                                  return _buildGroupedItem(
-                                    context,
-                                    groups,
-                                    index,
-                                    isTablet: true,
-                                  );
-                                },
-                              );
+                              if (notification is ScrollUpdateNotification &&
+                                  notification.metrics.pixels <= 0 &&
+                                  notification.scrollDelta != null &&
+                                  notification.scrollDelta! < -12 &&
+                                  notification.dragDetails != null) {
+                                _openSearchScreen(context);
+                                return true;
+                              }
+                              return false;
                             },
-                            loading: () => const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            ),
-                            error: (err, _) => Center(
-                              child: Text(
-                                'Error: $err',
-                                style: AppTypography.body.copyWith(
-                                  color: colors.error,
+                            child: groupedNotesAsync.when(
+                              data: (groups) {
+                                if (groups.isEmpty) {
+                                  return NoteEmptyState(
+                                    onCreateNote: () => _createAndOpenNoteTablet(),
+                                    destination: destination,
+                                    tagFilter: selectedTag,
+                                  );
+                                }
+
+                                return ListView.builder(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  itemCount: _calculateTotalItemCount(groups),
+                                  itemBuilder: (context, index) {
+                                    return _buildGroupedItem(
+                                      context,
+                                      groups,
+                                      index,
+                                      isTablet: true,
+                                    );
+                                  },
+                                );
+                              },
+                              loading: () => const Center(
+                                child: CircularProgressIndicator.adaptive(),
+                              ),
+                              error: (err, _) => Center(
+                                child: Text(
+                                  'Error: $err',
+                                  style: AppTypography.body.copyWith(
+                                    color: colors.error,
+                                  ),
                                 ),
                               ),
                             ),
@@ -599,6 +651,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),
@@ -844,6 +897,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
 
     return const SizedBox.shrink();
+  }
+
+  void _openSearchScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SearchScreen(),
+      ),
+    );
   }
 
   void _openNote(BuildContext context, Note note) {

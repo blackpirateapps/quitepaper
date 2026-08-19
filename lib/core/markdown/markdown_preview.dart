@@ -32,6 +32,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.selectable = true,
     this.shrinkWrap = false,
     this.onTapLink,
+    this.searchQuery,
   });
 
   final String markdownData;
@@ -46,6 +47,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final bool selectable;
   final bool shrinkWrap;
   final MarkdownTapLinkCallback? onTapLink;
+  final String? searchQuery;
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -259,10 +261,15 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           vertical: AppSpacing.md,
         );
 
-    final inlineSyntaxes = [HighlightSyntax()];
+    final inlineSyntaxes = <md.InlineSyntax>[HighlightSyntax()];
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
     };
+
+    if (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty) {
+      inlineSyntaxes.add(SearchMatchSyntax(widget.searchQuery!.trim()));
+      builders['searchmark'] = SearchMatchElementBuilder(colors);
+    }
 
     Widget customImageBuilder(Uri uri, String? title, String? alt) {
       final uriString = uri.toString();

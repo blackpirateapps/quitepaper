@@ -13,6 +13,8 @@ abstract final class MarkdownParser {
     required String text,
     required MarkdownStyles styles,
     TextRange? composingRange,
+    String? searchQuery,
+    TextRange? activeSearchRange,
   }) {
     if (text.isEmpty) {
       return const TextSpan(text: '');
@@ -330,6 +332,91 @@ abstract final class MarkdownParser {
       }
     }
 
+    // 1. Process search matches if searchQuery is provided
+    final searchSpans = <_RawSpan>[];
+    final hasSearch = searchQuery != null && searchQuery.isNotEmpty;
+
+    if (!hasSearch) {
+      searchSpans.addAll(mergedSpans);
+    } else {
+      final lowerText = text.toLowerCase();
+      final lowerQuery = searchQuery.toLowerCase();
+      final searchMatches = <TextRange>[];
+      var searchIdx = 0;
+      while (searchIdx < lowerText.length) {
+        final found = lowerText.indexOf(lowerQuery, searchIdx);
+        if (found == -1) break;
+        searchMatches.add(TextRange(start: found, end: found + searchQuery.length));
+        searchIdx = found + searchQuery.length;
+      }
+
+      for (final raw in mergedSpans) {
+        if (raw.text.isEmpty) continue;
+
+        // Find matches that overlap this span
+        final overlapping = searchMatches
+            .where((m) => m.end > raw.start && m.start < raw.end)
+            .toList();
+
+        if (overlapping.isEmpty) {
+          searchSpans.add(raw);
+        } else {
+          var currOffset = raw.start;
+          for (final match in overlapping) {
+            final matchStart = max(currOffset, match.start);
+            final matchEnd = min(raw.end, match.end);
+
+            // Plain segment before match
+            if (matchStart > currOffset) {
+              final beforeText = raw.text.substring(
+                currOffset - raw.start,
+                matchStart - raw.start,
+              );
+              searchSpans.add(_RawSpan(
+                start: currOffset,
+                end: matchStart,
+                text: beforeText,
+                style: raw.style,
+              ));
+            }
+
+            // Matching segment
+            if (matchEnd > matchStart) {
+              final matchText = raw.text.substring(
+                matchStart - raw.start,
+                matchEnd - raw.start,
+              );
+              final isActive = activeSearchRange != null &&
+                  activeSearchRange.start == match.start &&
+                  activeSearchRange.end == match.end;
+
+              final highlightStyle =
+                  isActive ? styles.activeSearchHighlight : styles.searchHighlight;
+
+              searchSpans.add(_RawSpan(
+                start: matchStart,
+                end: matchEnd,
+                text: matchText,
+                style: raw.style.merge(highlightStyle),
+              ));
+              currOffset = matchEnd;
+            }
+          }
+
+          // Plain segment after all matches
+          if (currOffset < raw.end) {
+            final afterText = raw.text.substring(currOffset - raw.start);
+            searchSpans.add(_RawSpan(
+              start: currOffset,
+              end: raw.end,
+              text: afterText,
+              style: raw.style,
+            ));
+          }
+        }
+      }
+    }
+
     final textSpans = <TextSpan>[];
     final isComposingValid = composingRange != null &&
         composingRange.isValid &&
@@ -337,7 +424,7 @@ abstract final class MarkdownParser {
         composingRange.start >= 0 &&
         composingRange.end <= text.length;
 
-    for (final raw in mergedSpans) {
+    for (final raw in searchSpans) {
       if (raw.text.isEmpty) continue;
 
       if (!isComposingValid ||

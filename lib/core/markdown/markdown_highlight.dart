@@ -49,3 +49,51 @@ class HighlightElementBuilder extends MarkdownElementBuilder {
     );
   }
 }
+
+/// Markdown syntax rule to match a search query and parse into `<searchmark>` AST nodes.
+class SearchMatchSyntax extends md.InlineSyntax {
+  SearchMatchSyntax(String query)
+      : super(RegExp.escape(query), caseSensitive: false);
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final text = match[0]!;
+    final el = md.Element.text('searchmark', text);
+    parser.addNode(el);
+    return true;
+  }
+}
+
+/// Custom element builder for `<searchmark>` tags.
+class SearchMatchElementBuilder extends MarkdownElementBuilder {
+  SearchMatchElementBuilder(this.colors);
+
+  final AppColors colors;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final effectiveStyle =
+        (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
+      color: colors.textPrimary,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 0.5),
+      margin: const EdgeInsets.symmetric(horizontal: 0.5),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(2.0),
+      ),
+      child: Text(
+        element.textContent,
+        style: effectiveStyle,
+      ),
+    );
+  }
+}

@@ -39,6 +39,8 @@ class MarkdownStyles {
     required this.horizontalRule,
     required this.frontmatter,
     required this.frontmatterDelimiter,
+    required this.searchHighlight,
+    required this.activeSearchHighlight,
   });
 
   final TextStyle heading1;
@@ -71,6 +73,8 @@ class MarkdownStyles {
   final TextStyle horizontalRule;
   final TextStyle frontmatter;
   final TextStyle frontmatterDelimiter;
+  final TextStyle searchHighlight;
+  final TextStyle activeSearchHighlight;
 
   /// Factory constructor to derive Markdown styles from [AppColors], an optional [baseStyle],
   /// and optional [TypographySettings].
@@ -223,6 +227,14 @@ class MarkdownStyles {
       ),
       frontmatterDelimiter: AppTypography.editorCode.copyWith(
         color: colors.textTertiary.withValues(alpha: 0.6),
+      ),
+      searchHighlight: TextStyle(
+        backgroundColor: colors.accent.withValues(alpha: 0.28),
+      ),
+      activeSearchHighlight: TextStyle(
+        backgroundColor: colors.accent,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

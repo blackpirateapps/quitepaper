@@ -17,6 +17,7 @@ import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import 'widgets/editor_stats_dialog.dart';
 import 'widgets/formatting_toolbar.dart';
+import 'widgets/in_note_search_bar.dart';
 import 'widgets/markdown_editor.dart';
 import 'widgets/password_unlock_view.dart';
 import 'widgets/tag_editor_bar.dart';
@@ -51,6 +52,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final FocusNode _contentFocusNode;
   late final ScrollController _scrollController;
 
+  // In-Note Search & Replace state
+  bool _isSearchVisible = false;
+  bool _showReplace = false;
+  late final TextEditingController _searchQueryController;
+  late final FocusNode _searchQueryFocusNode;
+  late final TextEditingController _replaceQueryController;
+  late final FocusNode _replaceQueryFocusNode;
+  List<TextRange> _searchMatches = [];
+  int _currentMatchIndex = 0;
+
   bool _isTitleManuallySet = false;
   String _lastAutoDerivedTitle = '';
 
@@ -72,6 +83,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
     _scrollController = ScrollController();
+
+    _searchQueryController = TextEditingController();
+    _searchQueryFocusNode = FocusNode();
+    _replaceQueryController = TextEditingController();
+    _replaceQueryFocusNode = FocusNode();
+
+    _searchQueryController.addListener(_onSearchQueryChanged);
 
     _titleController.addListener(_onTitleChanged);
     _contentController.addListener(_onContentChanged);
@@ -106,6 +124,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
       _titleController.text = newTitle;
       _contentController.text = widget.note.content;
+      if (_isSearchVisible && _searchQueryController.text.isNotEmpty) {
+        _recalculateMatches(_searchQueryController.text);
+      }
       if (widget.autoFocusBody) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -173,11 +194,220 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             .updateTitle(autoTitle);
       }
     }
+
+    if (_isSearchVisible && _searchQueryController.text.isNotEmpty) {
+      _recalculateMatches(_searchQueryController.text);
+    }
+  }
+
+  void _openSearch({bool withReplace = false}) {
+    setState(() {
+      _isSearchVisible = true;
+      if (withReplace) _showReplace = true;
+    });
+
+    final selection = _contentController.selection;
+    if (selection.isValid && !selection.isCollapsed) {
+      final selected = _contentController.text
+          .substring(selection.start, selection.end)
+          .trim();
+      if (selected.isNotEmpty && !selected.contains('\n')) {
+        _searchQueryController.text = selected;
+        _searchQueryController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: selected.length,
+        );
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _searchQueryFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _closeSearch() {
+    setState(() {
+      _isSearchVisible = false;
+      _showReplace = false;
+      _searchQueryController.clear();
+      _replaceQueryController.clear();
+      _searchMatches.clear();
+      _currentMatchIndex = 0;
+    });
+    _contentController.setSearchHighlight(query: null, activeRange: null);
+    if (_searchQueryFocusNode.hasFocus) {
+      _searchQueryFocusNode.unfocus();
+    }
+    if (_replaceQueryFocusNode.hasFocus) {
+      _replaceQueryFocusNode.unfocus();
+    }
+  }
+
+  void _onSearchQueryChanged() {
+    final query = _searchQueryController.text;
+    _recalculateMatches(query);
+  }
+
+  void _recalculateMatches(String query) {
+    final text = _contentController.text;
+    if (query.isEmpty || text.isEmpty) {
+      setState(() {
+        _searchMatches = [];
+        _currentMatchIndex = 0;
+      });
+      _contentController.setSearchHighlight(query: null, activeRange: null);
+      return;
+    }
+
+    final matches = <TextRange>[];
+    final lowerText = text.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    var start = 0;
+    while (start < lowerText.length) {
+      final index = lowerText.indexOf(lowerQuery, start);
+      if (index == -1) break;
+      matches.add(TextRange(start: index, end: index + query.length));
+      start = index + query.length;
+    }
+
+    var newIndex = _currentMatchIndex;
+    if (matches.isEmpty) {
+      newIndex = 0;
+    } else if (newIndex >= matches.length) {
+      newIndex = 0;
+    }
+
+    setState(() {
+      _searchMatches = matches;
+      _currentMatchIndex = newIndex;
+    });
+
+    final activeRange = matches.isNotEmpty ? matches[newIndex] : null;
+    _contentController.setSearchHighlight(
+      query: query,
+      activeRange: activeRange,
+    );
+    if (activeRange != null) {
+      _scrollToMatch(activeRange);
+    }
+  }
+
+  void _goToNextMatch() {
+    if (_searchMatches.isEmpty) return;
+    final nextIdx = (_currentMatchIndex + 1) % _searchMatches.length;
+    setState(() {
+      _currentMatchIndex = nextIdx;
+    });
+    final activeRange = _searchMatches[nextIdx];
+    _contentController.setSearchHighlight(
+      query: _searchQueryController.text,
+      activeRange: activeRange,
+    );
+    _scrollToMatch(activeRange);
+  }
+
+  void _goToPreviousMatch() {
+    if (_searchMatches.isEmpty) return;
+    final prevIdx =
+        (_currentMatchIndex - 1 + _searchMatches.length) % _searchMatches.length;
+    setState(() {
+      _currentMatchIndex = prevIdx;
+    });
+    final activeRange = _searchMatches[prevIdx];
+    _contentController.setSearchHighlight(
+      query: _searchQueryController.text,
+      activeRange: activeRange,
+    );
+    _scrollToMatch(activeRange);
+  }
+
+  void _scrollToMatch(TextRange range) {
+    if (!_scrollController.hasClients) return;
+    final text = _contentController.text;
+    if (range.start < 0 || range.start > text.length) return;
+
+    final textBefore = text.substring(0, range.start);
+    final lineCount = '\n'.allMatches(textBefore).length;
+    final typography = ref.read(typographySettingsProvider);
+    final estimatedLineHeight =
+        typography.fontSize * typography.lineHeight + 4.0;
+    final targetOffset = (lineCount * estimatedLineHeight + 40.0).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _replaceActiveMatch() {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+    if (_searchMatches.isEmpty ||
+        _currentMatchIndex >= _searchMatches.length) {
+      return;
+    }
+
+    final match = _searchMatches[_currentMatchIndex];
+    final text = _contentController.text;
+    final replaceText = _replaceQueryController.text;
+
+    final newText = text.replaceRange(match.start, match.end, replaceText);
+    _contentController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: match.start + replaceText.length,
+      ),
+    );
+    _onContentChanged();
+    _recalculateMatches(_searchQueryController.text);
+  }
+
+  void _replaceAllMatches() {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+    final query = _searchQueryController.text;
+    if (query.isEmpty) return;
+
+    final text = _contentController.text;
+    final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+    final count = pattern.allMatches(text).length;
+    if (count == 0) return;
+
+    final replaceText = _replaceQueryController.text;
+    final newText = text.replaceAll(pattern, replaceText);
+    _contentController.value = TextEditingValue(
+      text: newText,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    _onContentChanged();
+    _recalculateMatches(query);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Replaced $count occurrences'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchQueryController.removeListener(_onSearchQueryChanged);
+    _searchQueryController.dispose();
+    _searchQueryFocusNode.dispose();
+    _replaceQueryController.dispose();
+    _replaceQueryFocusNode.dispose();
     _titleController.removeListener(_onTitleChanged);
     _contentController.removeListener(_onContentChanged);
     _titleFocusNode.removeListener(_onFocusChanged);
@@ -264,142 +494,228 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       );
     }
 
-    return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) {
-          editorNotifier.handleExitCleanup();
-        }
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+            _openSearch(withReplace: false),
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
+            _openSearch(withReplace: false),
+        const SingleActivator(LogicalKeyboardKey.keyH, control: true): () =>
+            _openSearch(withReplace: true),
+        const SingleActivator(LogicalKeyboardKey.keyH, meta: true): () =>
+            _openSearch(withReplace: true),
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_isSearchVisible) _closeSearch();
+        },
       },
-      child: Scaffold(
-        backgroundColor: colors.background,
-        appBar: AppBar(
+      child: PopScope(
+        canPop: true,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) {
+            editorNotifier.handleExitCleanup();
+          }
+        },
+        child: Scaffold(
           backgroundColor: colors.background,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          leadingWidth: showSidebarRestore ? 96.0 : null,
-          leading: isTabletEditor
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (showSidebarRestore)
+          appBar: AppBar(
+            backgroundColor: colors.background,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leadingWidth: showSidebarRestore ? 96.0 : null,
+            leading: isTabletEditor
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showSidebarRestore)
+                        QuietIconButton(
+                          icon: Icons.view_sidebar_outlined,
+                          tooltip: 'Show sidebars',
+                          onPressed: () {
+                            ref.read(isNavSidebarVisibleProvider.notifier).state =
+                                true;
+                            ref.read(isNoteListVisibleProvider.notifier).state =
+                                true;
+                          },
+                        ),
                       QuietIconButton(
-                        icon: Icons.view_sidebar_outlined,
-                        tooltip: 'Show sidebars',
+                        icon: Icons.close_rounded,
+                        tooltip: 'Close note',
                         onPressed: () {
-                          ref.read(isNavSidebarVisibleProvider.notifier).state =
-                              true;
-                          ref.read(isNoteListVisibleProvider.notifier).state =
-                              true;
+                          editorNotifier.handleExitCleanup();
+                          widget.onClose?.call();
                         },
                       ),
-                    QuietIconButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Close note',
-                      onPressed: () {
-                        editorNotifier.handleExitCleanup();
-                        widget.onClose?.call();
-                      },
-                    ),
-                  ],
-                )
-              : (canPop
-                  ? QuietIconButton(
-                      icon: Icons.arrow_back_rounded,
-                      tooltip: 'Back',
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                    )
-                  : null),
-          actions: [
-            if (isTabletEditor)
-              QuietIconButton(
-                icon: (!isNavSidebarVisible && !isNoteListVisible)
-                    ? Icons.fullscreen_exit_rounded
-                    : Icons.fullscreen_rounded,
-                tooltip: (!isNavSidebarVisible && !isNoteListVisible)
-                    ? 'Exit focus mode'
-                    : 'Focus mode (hide sidebars)',
-                onPressed: () {
-                  final currentlyCollapsed =
-                      !isNavSidebarVisible && !isNoteListVisible;
-                  ref.read(isNavSidebarVisibleProvider.notifier).state =
-                      currentlyCollapsed;
-                  ref.read(isNoteListVisibleProvider.notifier).state =
-                      currentlyCollapsed;
-                },
-              ),
-            if (editorState.isReadOnly)
-              QuietIconButton(
-                icon: Icons.lock_outline_rounded,
-                tooltip: 'Read-only mode (tap to unlock)',
-                onPressed: () {
-                  editorNotifier.toggleReadOnly();
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Note unlocked for editing'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-              ),
-            if (!note.isTrashed)
-              QuietIconButton(
-                icon: editorState.isPreviewMode
-                    ? Icons.edit_outlined
-                    : Icons.remove_red_eye_outlined,
-                tooltip: editorState.isPreviewMode ? 'Edit note' : 'Preview note',
-                onPressed: () {
-                  editorNotifier.togglePreviewMode();
-                },
-              ),
-            QuietIconButton(
-              icon: Icons.more_horiz_rounded,
-              tooltip: 'More options',
-              onPressed: () => _showOverflowMenu(context, note, editorNotifier),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-        ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    if (!editorState.isPreviewMode && !editorState.isReadOnly) {
-                      if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
-                        if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
-                          _titleFocusNode.requestFocus();
-                        } else {
-                          _contentFocusNode.requestFocus();
-                        }
-                      }
-                    }
+                    ],
+                  )
+                : (canPop
+                    ? QuietIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back',
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      )
+                    : null),
+            actions: [
+              if (isTabletEditor)
+                QuietIconButton(
+                  icon: (!isNavSidebarVisible && !isNoteListVisible)
+                      ? Icons.fullscreen_exit_rounded
+                      : Icons.fullscreen_rounded,
+                  tooltip: (!isNavSidebarVisible && !isNoteListVisible)
+                      ? 'Exit focus mode'
+                      : 'Focus mode (hide sidebars)',
+                  onPressed: () {
+                    final currentlyCollapsed =
+                        !isNavSidebarVisible && !isNoteListVisible;
+                    ref.read(isNavSidebarVisibleProvider.notifier).state =
+                        currentlyCollapsed;
+                    ref.read(isNoteListVisibleProvider.notifier).state =
+                        currentlyCollapsed;
                   },
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: typography.paragraphWidth.maxWidth,
+                ),
+              QuietIconButton(
+                icon: Icons.search_rounded,
+                tooltip: 'Find in note',
+                isActive: _isSearchVisible,
+                onPressed: () {
+                  if (_isSearchVisible) {
+                    _closeSearch();
+                  } else {
+                    _openSearch();
+                  }
+                },
+              ),
+              if (editorState.isReadOnly)
+                QuietIconButton(
+                  icon: Icons.lock_outline_rounded,
+                  tooltip: 'Read-only mode (tap to unlock)',
+                  onPressed: () {
+                    editorNotifier.toggleReadOnly();
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note unlocked for editing'),
+                        duration: Duration(seconds: 2),
                       ),
-                      child: editorState.isPreviewMode
-                          ? QuietMarkdownPreview(
-                              markdownData: _contentController.text.isNotEmpty
-                                  ? _contentController.text
-                                  : note.content,
-                              title: _titleController.text.isNotEmpty
-                                  ? _titleController.text
-                                  : note.title,
-                              tags: note.tags,
-                              onAddTag: editorNotifier.addTag,
-                              onRemoveTag: editorNotifier.removeTag,
-                              scrollController: _scrollController,
-                            )
-                          : SingleChildScrollView(
+                    );
+                  },
+                ),
+              if (!note.isTrashed)
+                QuietIconButton(
+                  icon: editorState.isPreviewMode
+                      ? Icons.edit_outlined
+                      : Icons.remove_red_eye_outlined,
+                  tooltip: editorState.isPreviewMode ? 'Edit note' : 'Preview note',
+                  onPressed: () {
+                    editorNotifier.togglePreviewMode();
+                  },
+                ),
+              QuietIconButton(
+                icon: Icons.more_horiz_rounded,
+                tooltip: 'More options',
+                onPressed: () => _showOverflowMenu(context, note, editorNotifier),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (_isSearchVisible)
+                  InNoteSearchBar(
+                    searchController: _searchQueryController,
+                    searchFocusNode: _searchQueryFocusNode,
+                    onClose: _closeSearch,
+                    onPreviousMatch: _goToPreviousMatch,
+                    onNextMatch: _goToNextMatch,
+                    matchCount: _searchMatches.length,
+                    currentMatchIndex: _currentMatchIndex,
+                    showReplace: _showReplace,
+                    onToggleReplace: () {
+                      setState(() {
+                        _showReplace = !_showReplace;
+                      });
+                      if (_showReplace) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _replaceQueryFocusNode.requestFocus();
+                        });
+                      }
+                    },
+                    replaceController: _replaceQueryController,
+                    replaceFocusNode: _replaceQueryFocusNode,
+                    onReplace: _replaceActiveMatch,
+                    onReplaceAll: _replaceAllMatches,
+                    isReadOnly: editorState.isReadOnly,
+                  ),
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is OverscrollNotification &&
+                          notification.overscroll < -15) {
+                        if (!_isSearchVisible) {
+                          _openSearch();
+                        }
+                        return true;
+                      }
+                      if (notification is ScrollUpdateNotification &&
+                          notification.metrics.pixels <= 0 &&
+                          notification.scrollDelta != null &&
+                          notification.scrollDelta! < -12 &&
+                          notification.dragDetails != null) {
+                        if (!_isSearchVisible) {
+                          _openSearch();
+                        }
+                        return true;
+                      }
+                      return false;
+                    },
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragEnd: (details) {
+                        if (details.primaryVelocity != null &&
+                            details.primaryVelocity! > 250 &&
+                            _scrollController.hasClients &&
+                            _scrollController.offset <= 0) {
+                          if (!_isSearchVisible) {
+                            _openSearch();
+                          }
+                        }
+                      },
+                      onTap: () {
+                        if (!editorState.isPreviewMode && !editorState.isReadOnly) {
+                          if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
+                            if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
+                              _titleFocusNode.requestFocus();
+                            } else {
+                              _contentFocusNode.requestFocus();
+                            }
+                          }
+                        }
+                      },
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: typography.paragraphWidth.maxWidth,
+                          ),
+                          child: editorState.isPreviewMode
+                              ? QuietMarkdownPreview(
+                                  markdownData: _contentController.text.isNotEmpty
+                                      ? _contentController.text
+                                      : note.content,
+                                  title: _titleController.text.isNotEmpty
+                                      ? _titleController.text
+                                      : note.title,
+                                  tags: note.tags,
+                                  onAddTag: editorNotifier.addTag,
+                                  onRemoveTag: editorNotifier.removeTag,
+                                  scrollController: _scrollController,
+                                  searchQuery: _isSearchVisible
+                                      ? _searchQueryController.text
+                                      : null,
+                                )
+                              : SingleChildScrollView(
                               controller: _scrollController,
                               padding: EdgeInsets.only(
                                 left: AppSpacing.lg + typography.paragraphIndent,
@@ -487,6 +803,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                 ),
               ),
+            ),
 
               // Floating/Docked formatting toolbar (only in active edit mode)
               if (!editorState.isPreviewMode && !editorState.isReadOnly)
@@ -513,8 +830,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _handleInsertImage() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));
@@ -627,6 +945,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         _handleInsertImage();
                       },
                     ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.search_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Find in note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      _openSearch();
+                    },
+                  ),
                   ListTile(
                     leading: Icon(
                       isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,
