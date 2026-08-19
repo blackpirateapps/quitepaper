@@ -570,6 +570,7 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
 - [x] Heading whitespace parsing fix: single-space delimiter regex `(?:([ \t])(.*)|$)` ensures multiple consecutive spaces inside heading sentences and right after hashes are preserved and measured with matching font metrics.
 - [x] Typography Settings with sticky live preview, curated font presets, dynamic Google Fonts API fetcher, custom TTF/OTF local font loader, and responsive dimension controls (font size, line height, letter spacing, paragraph width, paragraph indent).
 - [x] Note-level security features: Read-Only mode toggle to lock editing and prevent accidental keystrokes, and individual note password protection with Argon2id and XChaCha20-Poly1305 AEAD client-side encryption.
+- [x] Linux compile workflow (`build_linux.yml`) configured for manual invocation via `workflow_dispatch` only.
 
 ---
 
