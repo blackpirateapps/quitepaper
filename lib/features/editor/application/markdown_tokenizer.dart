@@ -103,6 +103,7 @@ class MarkdownTokenizer {
       if (headingMatch != null) {
         final indent = headingMatch.group(1) ?? '';
         final hashes = headingMatch.group(2) ?? '#';
+
         final space = headingMatch.group(3);
         final content = headingMatch.group(4);
 
@@ -120,12 +121,11 @@ class MarkdownTokenizer {
           text: hashes,
         ));
 
-        if (content != null && content.isNotEmpty) {
-          final contentStart = markerEnd + (space?.length ?? 1);
-          final contentEnd = lineEnd;
+        if (space != null && content != null && content.isNotEmpty) {
+          final contentStart = markerEnd + space.length;
           tokens.add(MarkdownToken(
             start: contentStart,
-            end: contentEnd,
+            end: lineEnd,
             type: headingType,
             text: content,
           ));

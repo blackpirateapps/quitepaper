@@ -103,5 +103,37 @@ void main() {
       expect(span.toPlainText(), equals('# Dark Mode Style'));
       expect(controller.styles, equals(customStyles));
     });
+
+    testWidgets('preserves spaces immediately after hashes and inside heading text', (tester) async {
+      final controller = MarkdownEditingController(
+        text: '#   \n##   My Heading with   spaces   ',
+      );
+
+      late BuildContext buildContext;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light().copyWith(
+            extensions: [AppColors.light],
+          ),
+          home: Builder(
+            builder: (context) {
+              buildContext = context;
+              return Scaffold(
+                body: TextField(
+                  controller: controller,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      final span = controller.buildTextSpan(
+        context: buildContext,
+        withComposing: false,
+      );
+
+      expect(span.toPlainText(), equals('#   \n##   My Heading with   spaces   '));
+    });
   });
 }

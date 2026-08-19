@@ -92,8 +92,6 @@ abstract final class MarkdownParser {
             RegExp(r'^(\s*)(#{1,6})(?:([ \t])(.*)|$)').firstMatch(lineText)!;
         final indent = headingMatch.group(1) ?? '';
         final hashes = headingMatch.group(2) ?? '#';
-        final space = headingMatch.group(3);
-        final content = headingMatch.group(4);
 
         final level = hashes.length.clamp(1, 6);
         final headingStyle = styles.getHeadingStyle(level);
@@ -122,24 +120,15 @@ abstract final class MarkdownParser {
         ));
         currentOffset += hashes.length;
 
-        if (space != null) {
-          rawSpans.add(_RawSpan(
-            start: currentOffset,
-            end: currentOffset + space.length,
-            text: space,
-            style: headingStyle,
-          ));
-          currentOffset += space.length;
-
-          if (content != null && content.isNotEmpty) {
-            _parseInlineSegments(
-              text: content,
-              baseOffset: currentOffset,
-              baseStyle: headingStyle,
-              styles: styles,
-              spans: rawSpans,
-            );
-          }
+        final remainder = lineText.substring(indent.length + hashes.length);
+        if (remainder.isNotEmpty) {
+          _parseInlineSegments(
+            text: remainder,
+            baseOffset: currentOffset,
+            baseStyle: headingStyle,
+            styles: styles,
+            spans: rawSpans,
+          );
         }
       }
       // 5. Blockquotes (> or >>)
@@ -368,6 +357,25 @@ abstract final class MarkdownParser {
       }
     }
 
+    // Merge adjacent raw spans with identical styles to avoid fragmented text spans
+    final mergedSpans = <_RawSpan>[];
+    for (final raw in rawSpans) {
+      if (raw.text.isEmpty) continue;
+      if (mergedSpans.isNotEmpty &&
+          mergedSpans.last.end == raw.start &&
+          mergedSpans.last.style == raw.style) {
+        final prev = mergedSpans.removeLast();
+        mergedSpans.add(_RawSpan(
+          start: prev.start,
+          end: raw.end,
+          text: prev.text + raw.text,
+          style: prev.style,
+        ));
+      } else {
+        mergedSpans.add(raw);
+      }
+    }
+
     // Convert raw spans to TextSpan list, applying composing underline if active
     final textSpans = <TextSpan>[];
     final isComposingValid = composingRange != null &&
@@ -376,7 +384,7 @@ abstract final class MarkdownParser {
         composingRange.start >= 0 &&
         composingRange.end <= text.length;
 
-    for (final raw in rawSpans) {
+    for (final raw in mergedSpans) {
       if (raw.text.isEmpty) continue;
 
       if (!isComposingValid ||

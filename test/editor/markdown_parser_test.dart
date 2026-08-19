@@ -51,7 +51,7 @@ void main() {
 
       // Title text
       final textSpan = children.last as TextSpan;
-      expect(textSpan.text, equals('Big Title'));
+      expect(textSpan.text, equals(' Big Title'));
       expect(textSpan.style?.fontSize, equals(styles.heading1.fontSize));
       expect(textSpan.style?.fontWeight, equals(styles.heading1.fontWeight));
     });

@@ -30,6 +30,22 @@ void main() {
       expect(tokens.any((t) => t.type == MarkdownTokenType.heading1), isTrue);
       expect(tokens.any((t) => t.type == MarkdownTokenType.bold && t.text == 'bold text'), isTrue);
     });
+
+    test('tokenizes heading with multiple spaces and trailing spaces', () {
+      final text = '#   Heading with   spaces   ';
+      final tokens = tokenizer.tokenize(text);
+
+      expect(tokens.any((t) => t.type == MarkdownTokenType.headingMarker && t.text == '#'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.heading1 && t.text == '  Heading with   spaces   '), isTrue);
+    });
+
+    test('tokenizes hash followed only by spaces without dropping spaces', () {
+      final text = '#   ';
+      final tokens = tokenizer.tokenize(text);
+
+      expect(tokens.any((t) => t.type == MarkdownTokenType.headingMarker && t.text == '#'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.heading1 && t.text == '  '), isTrue);
+    });
   });
 
   group('MarkdownTokenizer - Inline Formatting', () {
