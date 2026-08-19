@@ -458,6 +458,28 @@ The Settings interface previously utilized floating Material cards with separate
 
 ---
 
+## 21. Multi-Architecture Android APK Build & Separate Upload Workflow
+
+### Motivation
+Previously, the `Build Android APK` CI workflow ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml)) only built a single monolithic release APK (`app-release.apk`) and uploaded it under a single artifact name. For modern Android installations, architecture-specific APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) offer dramatically smaller download footprints and faster installations.
+
+### Enhancements
+1. **Split-Per-ABI & Universal Builds**:
+   - Compiles split-per-ABI APKs (`flutter build apk --split-per-abi --release`) for `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+   - Compiles a universal fallback release APK (`flutter build apk --release`).
+2. **Version Extraction & Naming Standard**:
+   - Extracts semantic app version from `pubspec.yaml`.
+   - Standardizes output naming:
+     - `quiet-paper-${VERSION}-arm64-v8a.apk`
+     - `quiet-paper-${VERSION}-armeabi-v7a.apk`
+     - `quiet-paper-${VERSION}-x86_64.apk`
+     - `quiet-paper-${VERSION}-universal.apk`
+3. **Separate & Combined Artifact Uploads**:
+   - Uploads individual artifacts for each architecture (`quiet-paper-${VERSION}-arm64-v8a`, `quiet-paper-${VERSION}-armeabi-v7a`, `quiet-paper-${VERSION}-x86_64`, `quiet-paper-${VERSION}-universal`) via `actions/upload-artifact@v4`.
+   - Uploads a bundled archive containing all APKs (`quiet-paper-${VERSION}-all-apks`).
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -474,6 +496,8 @@ The Settings interface previously utilized floating Material cards with separate
 - [x] Undo action SnackBars explicitly set `persist: false` to ensure reliable auto-dismissal after duration.
 - [x] Settings restore and backup dialog action layouts are fully responsive and wrapped with `SingleChildScrollView` to prevent UI overflow.
 - [x] Settings screen conforms to the iOS Grouped Table / Bear Notes aesthetic with flush grouped rows, Cupertino controls, indented dividers, and tablet max-width constraints.
+- [x] Android CI build workflow (`build_apk.yml`) builds multi-architecture APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `universal`) and uploads them as separate artifacts.
+
 
 
 
