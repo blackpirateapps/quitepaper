@@ -166,7 +166,45 @@ class MarkdownTokenizer {
         continue;
       }
 
-      // 6. Unordered Lists (- , * , + )
+      // 6. Checklists (- [ ] , - [x] , * [ ] , + [ ] )
+      final checklistMatch = RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:\s+(.*)|$)').firstMatch(lineText);
+      if (checklistMatch != null) {
+        final indent = checklistMatch.group(1) ?? '';
+        final prefix = checklistMatch.group(2) ?? '- [';
+        final stateChar = checklistMatch.group(3) ?? ' ';
+        final closeBracket = checklistMatch.group(4) ?? ']';
+        final content = checklistMatch.group(5) ?? '';
+        final isChecked = (stateChar == 'x' || stateChar == 'X');
+
+        final markerStart = lineStart + indent.length;
+        final markerText = '$prefix$stateChar$closeBracket';
+        final markerEnd = markerStart + markerText.length;
+
+        tokens.add(MarkdownToken(
+          start: markerStart,
+          end: markerEnd,
+          type: isChecked
+              ? MarkdownTokenType.checklistMarkerChecked
+              : MarkdownTokenType.checklistMarkerUnchecked,
+          text: markerText,
+        ));
+
+        if (content.isNotEmpty) {
+          final spaceLength = lineText.substring(indent.length + markerText.length).indexOf(content);
+          final contentStart = markerEnd + (spaceLength >= 0 ? spaceLength : 1);
+          final contentEnd = lineEnd;
+          tokens.add(MarkdownToken(
+            start: contentStart,
+            end: contentEnd,
+            type: isChecked ? MarkdownTokenType.taskTextCompleted : MarkdownTokenType.taskText,
+            text: content,
+          ));
+          _tokenizeInline(content, contentStart, tokens);
+        }
+        continue;
+      }
+
+      // 7. Unordered Lists (- , * , + )
       final unorderedMatch = RegExp(r'^(\s*)([-*+])(\s+)(.*)$').firstMatch(lineText);
       if (unorderedMatch != null) {
         final indent = unorderedMatch.group(1) ?? '';
@@ -198,7 +236,7 @@ class MarkdownTokenizer {
         continue;
       }
 
-      // 7. Ordered Lists (1. , 2. , 1) )
+      // 8. Ordered Lists (1. , 2. , 1) )
       final orderedMatch = RegExp(r'^(\s*)(\d+[\.\)])(\s+)(.*)$').firstMatch(lineText);
       if (orderedMatch != null) {
         final indent = orderedMatch.group(1) ?? '';

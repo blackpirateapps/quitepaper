@@ -124,6 +124,17 @@ void main() {
       expect(tokens.any((t) => t.type == MarkdownTokenType.unorderedListMarker && t.text == '+'), isTrue);
     });
 
+    test('tokenizes checklists', () {
+      final text = '- [ ] Task unchecked\n- [x] Task checked\n  - [X] Nested done';
+      final tokens = tokenizer.tokenize(text);
+
+      expect(tokens.any((t) => t.type == MarkdownTokenType.checklistMarkerUnchecked && t.text == '- [ ]'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.taskText && t.text == 'Task unchecked'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.checklistMarkerChecked && t.text == '- [x]'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.taskTextCompleted && t.text == 'Task checked'), isTrue);
+      expect(tokens.any((t) => t.type == MarkdownTokenType.checklistMarkerChecked && t.text == '- [X]'), isTrue);
+    });
+
     test('tokenizes ordered lists', () {
       final text = '1. First\n2. Second\n10. Tenth';
       final tokens = tokenizer.tokenize(text);

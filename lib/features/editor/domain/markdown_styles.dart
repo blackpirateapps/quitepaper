@@ -27,6 +27,9 @@ class MarkdownStyles {
     required this.blockquote,
     required this.blockquoteMarker,
     required this.listMarker,
+    required this.checklistMarker,
+    required this.checklistMarkerChecked,
+    required this.taskTextCompleted,
     required this.link,
     required this.linkUrl,
     required this.tag,
@@ -56,6 +59,9 @@ class MarkdownStyles {
   final TextStyle blockquote;
   final TextStyle blockquoteMarker;
   final TextStyle listMarker;
+  final TextStyle checklistMarker;
+  final TextStyle checklistMarkerChecked;
+  final TextStyle taskTextCompleted;
   final TextStyle link;
   final TextStyle linkUrl;
   final TextStyle tag;
@@ -143,6 +149,19 @@ class MarkdownStyles {
       listMarker: TextStyle(
         color: colors.accent,
         fontWeight: FontWeight.w600,
+      ),
+      checklistMarker: TextStyle(
+        color: colors.accent,
+        fontWeight: FontWeight.w600,
+      ),
+      checklistMarkerChecked: TextStyle(
+        color: colors.textTertiary.withValues(alpha: 0.8),
+        fontWeight: FontWeight.w600,
+      ),
+      taskTextCompleted: effectiveBody.copyWith(
+        color: colors.textSecondary.withValues(alpha: 0.7),
+        decoration: TextDecoration.lineThrough,
+        decorationColor: colors.textTertiary,
       ),
       link: TextStyle(
         color: colors.accent,

@@ -186,7 +186,60 @@ abstract final class MarkdownParser {
           );
         }
       }
-      // 6. Unordered Lists (- , * , + )
+      // 6. Checklists (- [ ] , - [x] , * [ ] , + [ ] )
+      else if (RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:\s+(.*)|$)').hasMatch(lineText)) {
+        final checkMatch =
+            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:\s+(.*)|$)').firstMatch(lineText)!;
+        final indent = checkMatch.group(1) ?? '';
+        final prefix = checkMatch.group(2) ?? '- [';
+        final stateChar = checkMatch.group(3) ?? ' ';
+        final closeBracket = checkMatch.group(4) ?? ']';
+        final content = checkMatch.group(5) ?? '';
+        final isChecked = (stateChar == 'x' || stateChar == 'X');
+
+        var currentOffset = lineStart;
+        if (indent.isNotEmpty) {
+          rawSpans.add(_RawSpan(
+            start: currentOffset,
+            end: currentOffset + indent.length,
+            text: indent,
+            style: styles.body,
+          ));
+          currentOffset += indent.length;
+        }
+
+        final markerText = '$prefix$stateChar$closeBracket';
+        rawSpans.add(_RawSpan(
+          start: currentOffset,
+          end: currentOffset + markerText.length,
+          text: markerText,
+          style: isChecked ? styles.checklistMarkerChecked : styles.checklistMarker,
+        ));
+        currentOffset += markerText.length;
+
+        if (content.isNotEmpty) {
+          final spaceIndex = lineText.substring(indent.length + markerText.length).indexOf(content);
+          final spaceStr = spaceIndex > 0
+              ? lineText.substring(indent.length + markerText.length, indent.length + markerText.length + spaceIndex)
+              : ' ';
+          rawSpans.add(_RawSpan(
+            start: currentOffset,
+            end: currentOffset + spaceStr.length,
+            text: spaceStr,
+            style: styles.body,
+          ));
+          currentOffset += spaceStr.length;
+
+          _parseInlineSegments(
+            text: content,
+            baseOffset: currentOffset,
+            baseStyle: isChecked ? styles.taskTextCompleted : styles.body,
+            styles: styles,
+            spans: rawSpans,
+          );
+        }
+      }
+      // 7. Unordered Lists (- , * , + )
       else if (RegExp(r'^(\s*)([-*+])(\s+)(.*)$').hasMatch(lineText)) {
         final listMatch =
             RegExp(r'^(\s*)([-*+])(\s+)(.*)$').firstMatch(lineText)!;

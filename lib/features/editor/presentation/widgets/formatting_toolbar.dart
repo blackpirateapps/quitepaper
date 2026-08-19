@@ -3,6 +3,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/markdown/markdown_helper.dart';
+import '../../application/markdown_formatter.dart';
+import 'link_prompt_dialog.dart';
 
 class FormattingToolbar extends StatelessWidget {
   const FormattingToolbar({
@@ -16,11 +18,47 @@ class FormattingToolbar extends StatelessWidget {
   final VoidCallback onTagPressed;
   final FocusNode? focusNode;
 
-  void _applyFormat(TextEditingValue Function(TextEditingValue) action) {
+  void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
+    final updated = action(value: controller.value);
+    controller.value = updated;
+    if (focusNode != null && !focusNode!.hasFocus) {
+      focusNode!.requestFocus();
+    }
+  }
+
+  void _applyHelperFormat(TextEditingValue Function(TextEditingValue) action) {
     final updated = action(controller.value);
     controller.value = updated;
     if (focusNode != null && !focusNode!.hasFocus) {
       focusNode!.requestFocus();
+    }
+  }
+
+  Future<void> _handleLink(BuildContext context) async {
+    final selection = controller.selection;
+    final text = controller.text;
+    String initialTitle = '';
+    if (selection.isValid && !selection.isCollapsed) {
+      final selStart = selection.start;
+      final selEnd = selection.end;
+      initialTitle = text.substring(selStart, selEnd);
+    }
+
+    final result = await LinkPromptDialog.show(
+      context,
+      initialTitle: initialTitle,
+    );
+
+    if (result != null) {
+      final updated = MarkdownFormatter.createLink(
+        value: controller.value,
+        url: result.url,
+        title: result.title,
+      );
+      controller.value = updated;
+      if (focusNode != null && !focusNode!.hasFocus) {
+        focusNode!.requestFocus();
+      }
     }
   }
 
@@ -44,71 +82,45 @@ class FormattingToolbar extends StatelessWidget {
             label: 'B',
             tooltip: 'Bold (**text**)',
             isBold: true,
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.wrapSelection(
-                value: v,
-                prefix: '**',
-                suffix: '**',
-                defaultText: 'bold',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleBold),
           ),
           _ToolbarButton(
             label: 'I',
             tooltip: 'Italic (*text*)',
             isItalic: true,
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.wrapSelection(
-                value: v,
-                prefix: '*',
-                suffix: '*',
-                defaultText: 'italic',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleItalic),
           ),
           _ToolbarButton(
             label: 'S',
             tooltip: 'Strikethrough (~~text~~)',
             isStrikethrough: true,
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.wrapSelection(
-                value: v,
-                prefix: '~~',
-                suffix: '~~',
-                defaultText: 'strike',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleStrikethrough),
           ),
           _ToolbarButton(
             label: 'H',
             tooltip: 'Cycle heading (# / ## / ###)',
             isBold: true,
-            onPressed: () => _applyFormat(MarkdownHelper.cycleHeading),
+            onPressed: () => _applyHelperFormat(MarkdownHelper.cycleHeading),
+          ),
+          _ToolbarButton(
+            label: '☐',
+            tooltip: 'Checklist (- [ ] item)',
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleChecklist),
           ),
           _ToolbarButton(
             label: '•',
             tooltip: 'Bullet list (- item)',
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.toggleLinePrefix(
-                value: v,
-                prefix: '- ',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleBulletList),
           ),
           _ToolbarButton(
             label: '1.',
             tooltip: 'Numbered list (1. item)',
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.toggleLinePrefix(
-                value: v,
-                prefix: '1. ',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleOrderedList),
           ),
           _ToolbarButton(
             label: '"',
             tooltip: 'Quote (> quote)',
-            onPressed: () => _applyFormat(
+            onPressed: () => _applyHelperFormat(
               (v) => MarkdownHelper.toggleLinePrefix(
                 value: v,
                 prefix: '> ',
@@ -119,24 +131,17 @@ class FormattingToolbar extends StatelessWidget {
             label: '`',
             tooltip: 'Inline code (`code`)',
             isMonospace: true,
-            onPressed: () => _applyFormat(
-              (v) => MarkdownHelper.wrapSelection(
-                value: v,
-                prefix: '`',
-                suffix: '`',
-                defaultText: 'code',
-              ),
-            ),
+            onPressed: () => _applyFormat(MarkdownFormatter.toggleInlineCode),
           ),
           _ToolbarButton(
             icon: Icons.code_rounded,
             tooltip: 'Code block (```)',
-            onPressed: () => _applyFormat(MarkdownHelper.insertCodeBlock),
+            onPressed: () => _applyHelperFormat(MarkdownHelper.insertCodeBlock),
           ),
           _ToolbarButton(
             icon: Icons.link_rounded,
             tooltip: 'Link ([title](url))',
-            onPressed: () => _applyFormat(MarkdownHelper.insertLink),
+            onPressed: () => _handleLink(context),
           ),
           _ToolbarButton(
             label: '#',

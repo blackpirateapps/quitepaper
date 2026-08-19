@@ -131,6 +131,23 @@ void main() {
       expect(urlSpan.style?.color, equals(styles.linkUrl.color));
     });
 
+    test('checklists render with checklist marker and completed task styling', () {
+      const text = '- [ ] Todo item\n- [x] Done item';
+      final span = MarkdownParser.buildTextSpan(text: text, styles: styles);
+
+      expect(span.toPlainText(), equals(text));
+
+      final todoMarkerSpan = span.children!.firstWhere(
+        (s) => (s as TextSpan).text == '- [ ]',
+      ) as TextSpan;
+      expect(todoMarkerSpan.style?.color, equals(styles.checklistMarker.color));
+
+      final doneMarkerSpan = span.children!.firstWhere(
+        (s) => (s as TextSpan).text == '- [x]',
+      ) as TextSpan;
+      expect(doneMarkerSpan.style?.color, equals(styles.checklistMarkerChecked.color));
+    });
+
     test('composing range applies underline decoration to active IME composing characters', () {
       const text = 'Writing a note with composing text';
       // Composing range covering "composing" (index 20 to 29)

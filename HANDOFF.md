@@ -509,6 +509,46 @@ Prior to V1, the editor presented plain, unformatted text while editing, requiri
 
 ---
 
+## 23. Markdown Editor V2 (Smart Markdown, Keyboard Shortcuts, Selection Toolbar, Interactive Checklists)
+
+### Architectural Overview
+Building upon the V1 presentation-only styling engine, V2 adds rich editing superpowers while strictly adhering to the core principle: **Markdown is the single canonical data store**. All operations directly manipulate the underlying Markdown source string, ensuring 100% data integrity, instant autosave, and seamless participation in native undo/redo.
+
+### 1. Smart Markdown Editing (`MarkdownTextInputFormatter`)
+- **Checklist Continuation & Clearing**:
+  - Pressing Enter at the end of `- [ ] Task` creates a new uncompleted task `- [ ] `.
+  - Pressing Enter on a completed task `- [x] Task` creates a new uncompleted task `- [ ] `.
+  - Pressing Enter on an empty checklist marker `- [ ] ` or `- [x] ` cleanly terminates the checklist and clears the line prefix.
+  - Supports indented/nested checklists (`  - [ ] `).
+- **Code Block Safety**:
+  - Inside fenced code blocks (`` ``` `` or `~~~`), Enter behaves normally without inserting list or quote markers.
+- **Auto-Pairing & Delimiter Skipping**:
+  - Typing delimiters (`*`, `_`, `~`, `` ` ``, `[`, `(`) around selected text automatically wraps the selection.
+  - Typing a closing delimiter when the cursor is directly before that matching character advances the cursor without producing duplicates.
+
+### 2. Context-Aware Formatting Utilities (`MarkdownFormatter`)
+- Pure, functional transformations for `TextEditingValue` covering `toggleBold`, `toggleItalic`, `toggleStrikethrough`, `toggleInlineCode`, `createLink`, `toggleChecklist`, `toggleBulletList`, `toggleOrderedList`.
+- Automatically detects if the selected text (or surrounding characters) already have formatting delimiters and toggles them off without creating invalid nested syntax.
+
+### 3. Keyboard Shortcuts (`CallbackShortcuts`)
+- Physical & hardware keyboard support across Android, desktop, web, and tablets:
+  - `Ctrl+B` / `Cmd+B`: Toggle Bold.
+  - `Ctrl+I` / `Cmd+I`: Toggle Italic.
+  - `Ctrl+Shift+X` / `Cmd+Shift+X`: Toggle Strikethrough.
+  - `Ctrl+` ` / `Cmd+` `: Toggle Inline Code.
+  - `Ctrl+K` / `Cmd+K`: Insert / Edit Link dialog ([`LinkPromptDialog`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/link_prompt_dialog.dart)).
+  - Standard editing shortcuts (`Ctrl+C`, `Ctrl+V`, `Ctrl+X`, `Ctrl+A`, `Ctrl+Z`, `Ctrl+Shift+Z`) remain completely native.
+
+### 4. Selection-Aware Formatting Toolbar (`contextMenuBuilder`)
+- Integrated into Flutter's `contextMenuBuilder` to provide floating, touch-friendly formatting actions (`Bold`, `Italic`, `Strike`, `Code`, `Link`, `Checklist`) alongside native text actions (`Cut`, `Copy`, `Paste`, `Select All`).
+- Responsive positioning adapts automatically to viewport, orientations, and keyboard insets.
+
+### 5. Interactive Markdown Checklists
+- **Visual Presentation**: Checklist markers `- [ ] ` and `- [x] ` / `- [X] ` are tokenized with distinct syntax styling (`checklistMarker` and `checklistMarkerChecked`), with completed task text styled using `taskTextCompleted` (subtle strikethrough).
+- **Tap Hit-Testing & Direct Toggling**: Tapping directly on the checkbox marker area of a checklist item immediately toggles between `- [ ] ` and `- [x] ` in the Markdown source, updates controller text, triggers autosave, and preserves selection.
+
+---
+
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.
@@ -527,6 +567,8 @@ Prior to V1, the editor presented plain, unformatted text while editing, requiri
 - [x] Settings screen conforms to the iOS Grouped Table / Bear Notes aesthetic with flush grouped rows, Cupertino controls, indented dividers, and tablet max-width constraints.
 - [x] Android CI build workflow (`build_apk.yml`) builds multi-architecture APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `universal`) and uploads them as separate artifacts.
 - [x] Markdown-Aware WYSIWYG Editor (V1) renders live visual Markdown styling, list auto-continuation, and IME support while maintaining standard Markdown text as the authoritative single source of truth.
+- [x] Markdown Editor V2 implements smart editing (checklist continuation/clearing, delimiter skipping, code fence safety), keyboard shortcuts (Ctrl+B/I/Shift+X/`/K), selection-aware context toolbar, and interactive checkbox tapping.
+
 
 
 
