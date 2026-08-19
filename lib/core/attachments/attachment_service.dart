@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
 import 'attachment_crypto.dart';
@@ -19,6 +19,7 @@ class AttachmentService implements AssetResolver {
     AttachmentCrypto? crypto,
     AttachmentLocalStorage? storage,
     CloudinaryClient? cloudinaryClient,
+    this.apiClient,
   })  : _crypto = crypto ?? AttachmentCrypto(),
         _storage = storage ?? AttachmentLocalStorage(),
         _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
@@ -28,6 +29,7 @@ class AttachmentService implements AssetResolver {
   final AttachmentCrypto _crypto;
   final AttachmentLocalStorage _storage;
   final CloudinaryClient _cloudinary;
+  final SyncApiClient? apiClient;
 
   static const _uuid = Uuid();
 
@@ -159,8 +161,41 @@ class AttachmentService implements AssetResolver {
       return ResourceResolution.available(uri, memCached);
     }
 
-    // 2. Check local database record
-    final entity = await database.getAttachment(assetId);
+    // 2. Check local database record, or fetch remote metadata from backend on demand
+    var entity = await database.getAttachment(assetId);
+
+    final client = apiClient;
+    if ((entity == null || entity.cloudUrl == null || entity.cloudUrl!.isEmpty) &&
+        client != null) {
+      try {
+        final remotePayload = await client.getAttachmentMetadata(assetId);
+        if (remotePayload != null) {
+          await database.saveAttachment(
+            id: remotePayload.id,
+            noteId: remotePayload.noteId,
+            createdAt: remotePayload.createdAt,
+            updatedAt: remotePayload.updatedAt,
+            mimeType: remotePayload.mimeType,
+            byteSize: remotePayload.byteSize,
+            width: remotePayload.width,
+            height: remotePayload.height,
+            sha256: remotePayload.sha256,
+            encryptionKeyVersion: remotePayload.encryptionKeyVersion,
+            serverRevision: remotePayload.serverRevision,
+            isDirty: false,
+            isDeleted: remotePayload.isDeleted,
+            deletedAt: remotePayload.deletedAt,
+            uploadState: 'synced',
+            cloudPublicId: remotePayload.cloudPublicId,
+            cloudUrl: remotePayload.cloudUrl,
+          );
+          entity = await database.getAttachment(assetId);
+        }
+      } catch (metaErr) {
+        debugPrint('Failed to query remote metadata for attachment $assetId: $metaErr');
+      }
+    }
+
     if (entity == null || entity.isDeleted) {
       return ResourceResolution.missing(uri, 'Attachment not found or deleted');
     }

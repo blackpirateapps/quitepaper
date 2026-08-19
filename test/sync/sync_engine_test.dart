@@ -132,6 +132,13 @@ class InMemorySyncApiClient implements SyncApiClient {
   }) async {
     return {'success': true};
   }
+
+  final Map<String, AttachmentSyncPayload> serverAttachments = {};
+
+  @override
+  Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
+    return serverAttachments[attachmentId];
+  }
 }
 
 void main() {

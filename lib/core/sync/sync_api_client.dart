@@ -35,6 +35,7 @@ abstract class SyncApiClient {
     int byteSize = 0,
     String sha256 = '',
   });
+  Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId);
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -264,5 +265,28 @@ class HttpSyncApiClient implements SyncApiClient {
     }
 
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  @override
+  Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/attachments/$attachmentId');
+    final res = await _client.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return AttachmentSyncPayload.fromJson(data);
+    } else if (res.statusCode == 404) {
+      return null;
+    } else {
+      var message = 'Failed to fetch attachment metadata (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
   }
 }

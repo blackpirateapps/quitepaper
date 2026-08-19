@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/attachments/attachment_crypto.dart';
 import 'package:quitepaper/core/attachments/attachment_models.dart';
+import 'package:quitepaper/core/attachments/attachment_service.dart';
 import 'package:quitepaper/core/attachments/attachment_storage.dart';
 import 'package:quitepaper/core/attachments/attachment_sync_service.dart';
 import 'package:quitepaper/core/attachments/cloudinary_client.dart';
@@ -70,6 +72,13 @@ class MockSyncApiClient implements SyncApiClient {
     return {'success': true};
   }
 
+  final Map<String, AttachmentSyncPayload> serverAttachments = {};
+
+  @override
+  Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
+    return serverAttachments[attachmentId];
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -96,9 +105,11 @@ class MockCloudinaryClient implements CloudinaryClient {
     );
   }
 
+  Uint8List? downloadBytesResponse;
+
   @override
   Future<Uint8List> downloadEncryptedBytes({required String cloudUrl}) async {
-    return Uint8List.fromList([1, 2, 3]);
+    return downloadBytesResponse ?? Uint8List.fromList([1, 2, 3]);
   }
 }
 
@@ -228,6 +239,61 @@ void main() {
       final record = await database.getAttachment(attachmentId);
       expect(record!.uploadState, 'failed');
       expect(record.isDirty, isTrue);
+    });
+
+    test('On new device: resolveAsset queries backend metadata, downloads from Cloudinary, and decrypts', () async {
+      const assetId = '77777777-7777-7777-7777-777777777777';
+      final rawImageBytes = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
+      final sha256 = AttachmentCrypto.computeSha256(rawImageBytes);
+      final masterKey = keyManager.getMasterKey();
+
+      final crypto = AttachmentCrypto();
+      final encryptedBytes = await crypto.encryptAttachment(
+        plaintextBytes: rawImageBytes,
+        masterKeyBytes: masterKey,
+        attachmentId: assetId,
+        variant: 'original',
+        keyVersion: 1,
+      );
+
+      // Populate backend metadata & mock Cloudinary response
+      apiClient.serverAttachments[assetId] = AttachmentSyncPayload(
+        id: assetId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        mimeType: 'image/png',
+        byteSize: rawImageBytes.length,
+        sha256: sha256,
+        cloudPublicId: 'user_123_$assetId',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v1/user_123_$assetId',
+      );
+
+      cloudinaryClient.downloadBytesResponse = encryptedBytes;
+
+      final attachmentService = AttachmentService(
+        database: database,
+        keyManager: keyManager,
+        crypto: crypto,
+        storage: storage,
+        cloudinaryClient: cloudinaryClient,
+        apiClient: apiClient,
+      );
+
+      // Local DB initially has NO attachment record
+      final preCheck = await database.getAttachment(assetId);
+      expect(preCheck, isNull);
+
+      // Resolve asset
+      final resolution = await attachmentService.resolveAsset(assetId);
+
+      expect(resolution.isAvailable, isTrue);
+      expect(resolution.data, equals(rawImageBytes));
+
+      // Local DB should now have the synced attachment record
+      final postCheck = await database.getAttachment(assetId);
+      expect(postCheck, isNotNull);
+      expect(postCheck!.cloudUrl, isNotEmpty);
+      expect(postCheck.uploadState, 'synced');
     });
   });
 }

@@ -228,6 +228,46 @@ class SyncEngine {
                 isDirty: false,
                 syncedAt: DateTime.now(),
               );
+
+              // Pre-fetch metadata for any attachments referenced in pulled note
+              final assetMatches = RegExp(
+                r'qp://asset/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+              ).allMatches(decrypted.body);
+
+              for (final match in assetMatches) {
+                final assetId = match.group(1);
+                if (assetId != null) {
+                  final localAtt = await database.getAttachment(assetId);
+                  if (localAtt == null || localAtt.cloudUrl == null || localAtt.cloudUrl!.isEmpty) {
+                    try {
+                      final remoteMeta = await apiClient.getAttachmentMetadata(assetId);
+                      if (remoteMeta != null) {
+                        await database.saveAttachment(
+                          id: remoteMeta.id,
+                          noteId: remoteMeta.noteId,
+                          createdAt: remoteMeta.createdAt,
+                          updatedAt: remoteMeta.updatedAt,
+                          mimeType: remoteMeta.mimeType,
+                          byteSize: remoteMeta.byteSize,
+                          width: remoteMeta.width,
+                          height: remoteMeta.height,
+                          sha256: remoteMeta.sha256,
+                          encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
+                          serverRevision: remoteMeta.serverRevision,
+                          isDirty: false,
+                          isDeleted: remoteMeta.isDeleted,
+                          deletedAt: remoteMeta.deletedAt,
+                          uploadState: 'synced',
+                          cloudPublicId: remoteMeta.cloudPublicId,
+                          cloudUrl: remoteMeta.cloudUrl,
+                        );
+                      }
+                    } catch (attErr) {
+                      debugPrint('Failed to prefetch metadata for attachment $assetId: $attErr');
+                    }
+                  }
+                }
+              }
             } catch (decErr) {
               // Log or skip malformed payload without halting sync loop
               debugPrint('Failed to decrypt pulled note ${change.id}: $decErr');

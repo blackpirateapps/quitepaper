@@ -727,8 +727,15 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
 - **Interactive Sync Now Feedback**:
   - The "Sync Now" action in [`SettingsScreen`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart) provides instant interactive visual feedback (progress indicators and SnackBars).
   - On Success: Informs the user of total notes and image attachments synced (`Sync complete: Notes & X image(s) synced`).
-  - On Failure: Immediately presents an error banner with the descriptive reason (e.g. missing Cloudinary environment variables in Vercel, network disconnects, or authentication issues).
-  - Sync State Metrics: Tracks `attachmentsPending`, `attachmentsSynced`, and `attachmentsFailed` in [`SyncState`](file:///home/dog/git/quitepaper/lib/core/sync/sync_models.dart).
+### Multi-Device Image Sync & On-Demand Cloud Resolution
+- **Sync Pre-fetching** ([`SyncEngine`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart)):
+  - During the note pull phase, `SyncEngine` scans decrypted markdown bodies for `qp://asset/<UUID>` links.
+  - Automatically queries `GET /api/v1/attachments/:id` for any missing attachment metadata records and persists them locally with state `synced`.
+- **On-Demand Resolution & Download** ([`AttachmentService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_service.dart)):
+  - When `resolveAsset(assetId)` runs on a new or secondary device, if the local attachment record is missing or lacks `cloudUrl`, it calls [`SyncApiClient.getAttachmentMetadata`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart) directly.
+  - Downloads the encrypted ciphertext directly from Cloudinary using `cloudUrl`.
+  - Saves the encrypted blob to app-private storage, decrypts with the Master Key in memory, verifies SHA-256 integrity, caches in RAM, and displays seamlessly in [`QuietAssetImageView`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart).
+
 
 
 

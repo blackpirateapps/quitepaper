@@ -27,6 +27,7 @@ final attachmentServiceProvider = Provider<AttachmentService>((ref) {
   final crypto = ref.watch(attachmentCryptoProvider);
   final storage = ref.watch(attachmentLocalStorageProvider);
   final cloudinaryClient = ref.watch(cloudinaryClientProvider);
+  final apiClient = ref.watch(syncApiClientProvider);
 
   return AttachmentService(
     database: database,
@@ -34,6 +35,7 @@ final attachmentServiceProvider = Provider<AttachmentService>((ref) {
     crypto: crypto,
     storage: storage,
     cloudinaryClient: cloudinaryClient,
+    apiClient: apiClient,
   );
 });
 
