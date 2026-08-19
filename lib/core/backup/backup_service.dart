@@ -334,7 +334,7 @@ class BackupService {
       }
 
       final content = await file.readAsString();
-      return validateBackupString(content, password: password);
+      return await validateBackupString(content, password: password);
     } catch (e) {
       return BackupValidationResult(
         isValid: false,
