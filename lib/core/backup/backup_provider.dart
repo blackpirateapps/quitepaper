@@ -14,7 +14,7 @@ final backupServiceProvider = Provider<BackupService>((ref) {
     database: db,
     cryptoService: crypto,
     sharedPreferences: prefs,
-    appVersion: '1.3.1',
+    appVersion: '1.4.0',
   );
 });
 

@@ -571,6 +571,7 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
 - [x] Typography Settings with sticky live preview, curated font presets, dynamic Google Fonts API fetcher, custom TTF/OTF local font loader, and responsive dimension controls (font size, line height, letter spacing, paragraph width, paragraph indent).
 - [x] Note-level security features: Read-Only mode toggle to lock editing and prevent accidental keystrokes, and individual note password protection with Argon2id and XChaCha20-Poly1305 AEAD client-side encryption.
 - [x] Linux compile workflow (`build_linux.yml`) configured for manual invocation via `workflow_dispatch` only.
+- [x] Version bumped to `1.4.0+6` across all 5 code locations (`pubspec.yaml`, `update_provider.dart`, `backup_provider.dart`, `backup_service.dart`, `settings_screen.dart`).
 
 ---
 

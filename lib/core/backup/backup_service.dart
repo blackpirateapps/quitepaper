@@ -16,7 +16,7 @@ class BackupService {
     required this.cryptoService,
     required this.sharedPreferences,
     FlutterSecureStorage? secureStorage,
-    this.appVersion = '1.3.1',
+    this.appVersion = '1.4.0',
   }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   final AppDatabase database;
