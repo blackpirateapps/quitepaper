@@ -238,9 +238,13 @@ class MarkdownStyles {
         fontWeight: FontWeight.w500,
       ),
       activeSearchHighlight: TextStyle(
-        backgroundColor: colors.accent,
-        color: Colors.white,
-        fontWeight: FontWeight.w700,
+        backgroundColor: (colors.background.computeLuminance() < 0.5)
+            ? const Color(0xFFFBBF24)
+            : const Color(0xFFF59E0B),
+        color: (colors.background.computeLuminance() < 0.5)
+            ? const Color(0xFF1E1B13)
+            : const Color(0xFF1A1810),
+        fontWeight: FontWeight.w800,
       ),
     );
   }

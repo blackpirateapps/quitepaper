@@ -765,14 +765,15 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - `Ctrl+H` / `Cmd+H` opens Find with Replace.
   - `Escape` closes search, unfocuses search fields, and clears all match highlights.
   - Dedicated search button in the Editor `AppBar` and "Find in note" option in the overflow bottom sheet menu.
-- **1:1 WYSIWYG High-Contrast Search Term Highlighting**:
+- **1:1 WYSIWYG High-Contrast Search Term Highlighting (Always Yellow/Amber)**:
   - [`MarkdownParser.buildTextSpan`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart) performs multi-pass segment slicing: slices styled spans by case-insensitive search matches without mutating character offsets or underlying text.
   - **All Matching Occurrences**: Highlighted with high-contrast golden amber background (`#FFE066` in Light Mode, `#7A5C1E` in Dark Mode) and dark/light high-contrast text (`#242018` / `#FFFFFAED`).
-  - **Active Match**: Highlighted with solid accent fill (`#D65F55` / `#E4776D`), crisp white text, and `FontWeight.w700`.
+  - **Active Match**: Highlighted with vivid deep amber gold fill (`#F59E0B` in Light Mode, `#FBBF24` in Dark Mode), high-contrast text (`#1A1810` / `#1E1B13`), and `FontWeight.w800`, maintaining consistent yellow/amber aesthetic throughout.
   - Seamlessly preserves Android IME composing underline slicing, caret metrics, selection, and undo/redo stacks.
   - [`MarkdownEditingController`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_editing_controller.dart) manages search query state and active match ranges with instant reactive notifications.
-- **Markdown Preview Search Highlighting**:
-  - [`SearchMatchSyntax`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) and [`SearchMatchElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) highlight search matches seamlessly inside rendered [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart) using the same high-contrast amber styling.
+- **Real-Time Markdown Preview Search Highlighting**:
+  - [`SearchMatchSyntax`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) and [`SearchMatchElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) highlight search matches seamlessly inside rendered [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart) using the matching golden amber styling.
+  - Equipped `MarkdownBody` instances with dynamic `ValueKey('preview_body_${bodyIndex}_${widget.searchQuery ?? ''}')` ensuring `flutter_markdown` re-parses the AST in real time as the user types in the search field without requiring mode toggling.
 - **Search & Replace UI**:
   - [`InNoteSearchBar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/in_note_search_bar.dart) provides query input, match counter (`X/Y`), previous and next navigation buttons (with wrap-around), close button, and expandable replace row.
   - "Replace" replaces the active match, updates the document, and recalculates matches.

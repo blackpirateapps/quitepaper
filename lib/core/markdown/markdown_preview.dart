@@ -322,6 +322,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           children: [
             if (hasHeader) buildHeader(),
             MarkdownBody(
+              key: ValueKey('preview_empty_${widget.searchQuery ?? ''}'),
               data: '*No content*',
               selectable: false,
               styleSheet: customStyleSheet,
@@ -342,6 +343,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
             if (hasHeader) buildHeader(),
             ..._chunks.map(
               (chunk) => MarkdownBody(
+                key: ValueKey('preview_chunk_${chunk.hashCode}_${widget.searchQuery ?? ''}'),
                 data: chunk,
                 selectable: false,
                 styleSheet: customStyleSheet,
@@ -376,6 +378,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           if (bodyIndex < bodyCount) {
             if (_chunks.isEmpty) {
               return MarkdownBody(
+                key: ValueKey('preview_empty_${widget.searchQuery ?? ''}'),
                 data: '*No content*',
                 selectable: false,
                 styleSheet: customStyleSheet,
@@ -388,6 +391,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               );
             }
             return MarkdownBody(
+              key: ValueKey('preview_body_${bodyIndex}_${widget.searchQuery ?? ''}'),
               data: _chunks[bodyIndex],
               selectable: false,
               styleSheet: customStyleSheet,

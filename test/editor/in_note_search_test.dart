@@ -286,13 +286,13 @@ void main() {
       expect(find.byType(InNoteSearchBar), findsOneWidget);
     });
 
-    testWidgets('in-note search works in Markdown Preview mode with search query highlighting',
+    testWidgets('in-note search works in Markdown Preview mode with search query highlighting in real-time',
         (tester) async {
       final now = DateTime.now();
       final note = Note(
         id: 'preview-search-test',
         title: 'Preview Highlight Test',
-        content: '# Header\nThis note contains sample text for search test.',
+        content: '# Header\nThis note contains sample text for search test. Another sample word.',
         createdAt: now,
         updatedAt: now,
       );
@@ -309,8 +309,14 @@ void main() {
 
       expect(find.byType(InNoteSearchBar), findsOneWidget);
 
-      // Enter query
+      // Enter query 'sample' in real time
       await tester.enterText(find.widgetWithText(TextField, 'Find in note...'), 'sample');
+      await tester.pumpAndSettle();
+
+      expect(find.text('1/2'), findsOneWidget);
+
+      // Change query to 'search' in real time
+      await tester.enterText(find.widgetWithText(TextField, 'Find in note...'), 'search');
       await tester.pumpAndSettle();
 
       expect(find.text('1/1'), findsOneWidget);
