@@ -53,11 +53,11 @@ class DefaultCloudinaryClient implements CloudinaryClient {
       request.fields['folder'] = auth.folder!;
     }
 
-    // Attach binary encrypted payload as raw file part
+    // Attach binary encrypted payload as raw file part (avoiding restricted extensions like .bin)
     final multipartFile = http.MultipartFile.fromBytes(
       'file',
       encryptedBytes,
-      filename: '${auth.publicId}.bin',
+      filename: auth.publicId,
     );
     request.files.add(multipartFile);
 
