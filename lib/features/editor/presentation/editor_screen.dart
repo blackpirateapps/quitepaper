@@ -14,7 +14,11 @@ import '../application/markdown_editing_controller.dart';
 import 'widgets/editor_stats_dialog.dart';
 import 'widgets/formatting_toolbar.dart';
 import 'widgets/markdown_editor.dart';
+import 'widgets/password_unlock_view.dart';
 import 'widgets/tag_editor_bar.dart';
+import '../../notes/presentation/widgets/note_password_dialogs.dart';
+import '../../settings/application/typography_provider.dart';
+import '../domain/markdown_styles.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -187,7 +191,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final editorNotifier =
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
+    final typography = ref.watch(typographySettingsProvider);
     final note = editorState.note;
+
+    _contentController.styles = MarkdownStyles.fromColors(
+      colors,
+      typography: typography,
+    );
 
     final canPop = Navigator.of(context).canPop();
 
@@ -195,6 +205,58 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
     final isTabletEditor = widget.onClose != null;
     final showSidebarRestore = isTabletEditor && (!isNavSidebarVisible || !isNoteListVisible);
+
+    // If note is encrypted and locked in this session, present the Unlock View
+    if (!editorState.isUnlocked) {
+      return PopScope(
+        canPop: true,
+        child: Scaffold(
+          backgroundColor: colors.background,
+          appBar: AppBar(
+            backgroundColor: colors.background,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: isTabletEditor
+                ? QuietIconButton(
+                    icon: Icons.close_rounded,
+                    tooltip: 'Close note',
+                    onPressed: () => widget.onClose?.call(),
+                  )
+                : (canPop
+                    ? QuietIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).pop(),
+                      )
+                    : null),
+            title: Text(
+              'Protected Note',
+              style: AppTypography.title.copyWith(
+                color: colors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          body: SafeArea(
+            child: PasswordUnlockView(
+              hint: editorState.activePasswordHint,
+              onUnlock: (password) async {
+                final success =
+                    await editorNotifier.unlockWithPassword(password);
+                if (success && mounted) {
+                  final unlockedNote =
+                      ref.read(editorProviderFamily(_editorParams)).note;
+                  _titleController.text = unlockedNote.title;
+                  _contentController.text = unlockedNote.content;
+                }
+                return success;
+              },
+            ),
+          ),
+        ),
+      );
+    }
 
     return PopScope(
       canPop: true,
@@ -262,6 +324,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       currentlyCollapsed;
                 },
               ),
+            if (editorState.isReadOnly)
+              QuietIconButton(
+                icon: Icons.lock_outline_rounded,
+                tooltip: 'Read-only mode (tap to unlock)',
+                onPressed: () {
+                  editorNotifier.toggleReadOnly();
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Note unlocked for editing'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
             if (!note.isTrashed)
               QuietIconButton(
                 icon: editorState.isPreviewMode
@@ -287,7 +364,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
-                    if (!editorState.isPreviewMode) {
+                    if (!editorState.isPreviewMode && !editorState.isReadOnly) {
                       if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
                         if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
                           _titleFocusNode.requestFocus();
@@ -300,8 +377,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: AppSpacing.maxContentWidth,
+                      constraints: BoxConstraints(
+                        maxWidth: typography.paragraphWidth.maxWidth,
                       ),
                       child: editorState.isPreviewMode
                           ? QuietMarkdownPreview(
@@ -318,9 +395,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             )
                           : SingleChildScrollView(
                               controller: _scrollController,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.lg,
-                                vertical: AppSpacing.md,
+                              padding: EdgeInsets.only(
+                                left: AppSpacing.lg + typography.paragraphIndent,
+                                right: AppSpacing.lg,
+                                top: AppSpacing.md,
+                                bottom: AppSpacing.md,
                               ),
                               physics: const AlwaysScrollableScrollPhysics(),
                               child: Column(
@@ -330,13 +409,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   TextField(
                                     controller: _titleController,
                                     focusNode: _titleFocusNode,
+                                    readOnly: editorState.isReadOnly,
                                     cursorColor: colors.accent,
-                                    style: AppTypography.editorTitle.copyWith(
+                                    style: TextStyle(
+                                      fontFamily: typography.headingFontFamily ??
+                                          typography.bodyFontFamily,
+                                      fontSize: typography.scaledTitleSize,
+                                      fontWeight: FontWeight.w700,
+                                      height: typography.lineHeight,
+                                      letterSpacing: typography.letterSpacing - 0.5,
                                       color: colors.textPrimary,
                                     ),
                                     decoration: InputDecoration(
                                       hintText: 'Title',
-                                      hintStyle: AppTypography.editorTitle.copyWith(
+                                      hintStyle: TextStyle(
+                                        fontFamily: typography.headingFontFamily ??
+                                            typography.bodyFontFamily,
+                                        fontSize: typography.scaledTitleSize,
+                                        fontWeight: FontWeight.w700,
                                         color: colors.textTertiary.withValues(alpha: 0.4),
                                       ),
                                       border: InputBorder.none,
@@ -367,12 +457,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   MarkdownEditor(
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
+                                    readOnly: editorState.isReadOnly,
                                   ),
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
                                     onTap: () {
-                                      if (!_contentFocusNode.hasFocus) {
+                                      if (!_contentFocusNode.hasFocus &&
+                                          !editorState.isReadOnly) {
                                         _contentFocusNode.requestFocus();
                                       }
                                     },
@@ -386,8 +478,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
               ),
 
-              // Floating/Docked formatting toolbar (only in edit mode)
-              if (!editorState.isPreviewMode)
+              // Floating/Docked formatting toolbar (only in active edit mode)
+              if (!editorState.isPreviewMode && !editorState.isReadOnly)
                 FormattingToolbar(
                   controller: _contentController,
                   focusNode: _contentFocusNode,
@@ -455,6 +547,149 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       notifier.togglePreviewMode();
                     },
                   ),
+                  ListTile(
+                    leading: Icon(
+                      ref.read(editorProviderFamily(_editorParams)).isReadOnly
+                          ? Icons.lock_open_rounded
+                          : Icons.lock_outline_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      ref.read(editorProviderFamily(_editorParams)).isReadOnly
+                          ? 'Unlock note (Edit mode)'
+                          : 'Lock note (Read-only)',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      final isCurrentlyReadOnly =
+                          ref.read(editorProviderFamily(_editorParams)).isReadOnly;
+                      notifier.toggleReadOnly();
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            !isCurrentlyReadOnly
+                                ? 'Note locked in read-only mode'
+                                : 'Note unlocked for editing',
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                  if (ref.read(editorProviderFamily(_editorParams)).activePassword == null &&
+                      !note.isPasswordProtected) ...[
+                    ListTile(
+                      leading: Icon(
+                        Icons.enhanced_encryption_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Protect with password',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        final res = await SetNotePasswordDialog.show(context);
+                        if (res != null) {
+                          await notifier.setPasswordProtection(
+                            password: res.password,
+                            hint: res.hint,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Note password protection enabled'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ] else ...[
+                    ListTile(
+                      leading: Icon(
+                        Icons.password_rounded,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Change note password',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        final res = await SetNotePasswordDialog.show(
+                          context,
+                          isChangingPassword: true,
+                        );
+                        if (res != null) {
+                          await notifier.setPasswordProtection(
+                            password: res.password,
+                            hint: res.hint,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Note password updated'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.no_encryption_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Remove password protection',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        await notifier.removePasswordProtection();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Note password protection removed'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.lock_clock_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Lock note now',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        notifier.lockNow();
+                      },
+                    ),
+                  ],
                 ],
                 if (note.isTrashed) ...[
                   // Trash actions: Restore, Delete Permanently

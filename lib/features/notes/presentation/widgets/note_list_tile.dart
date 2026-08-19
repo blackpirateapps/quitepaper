@@ -99,7 +99,16 @@ class NoteListTile extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (note.isPinned && !note.isTrashed && !note.isArchived) ...[
+                        if (note.isPasswordProtected) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2.0, right: 6.0),
+                            child: Icon(
+                              Icons.lock_rounded,
+                              size: 14,
+                              color: colors.accent,
+                            ),
+                          ),
+                        ] else if (note.isPinned && !note.isTrashed && !note.isArchived) ...[
                           Padding(
                             padding: const EdgeInsets.only(top: 2.0, right: 6.0),
                             child: Icon(

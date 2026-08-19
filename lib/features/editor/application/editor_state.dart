@@ -9,6 +9,10 @@ class EditorState {
     this.isSaving = false,
     this.lastSavedAt,
     this.isPreviewMode = false,
+    this.isReadOnly = false,
+    this.isUnlocked = true,
+    this.activePassword,
+    this.activePasswordHint,
   });
 
   final Note note;
@@ -16,6 +20,10 @@ class EditorState {
   final bool isSaving;
   final DateTime? lastSavedAt;
   final bool isPreviewMode;
+  final bool isReadOnly;
+  final bool isUnlocked;
+  final String? activePassword;
+  final String? activePasswordHint;
 
   EditorState copyWith({
     Note? note,
@@ -23,6 +31,12 @@ class EditorState {
     bool? isSaving,
     DateTime? lastSavedAt,
     bool? isPreviewMode,
+    bool? isReadOnly,
+    bool? isUnlocked,
+    String? activePassword,
+    bool clearActivePassword = false,
+    String? activePasswordHint,
+    bool clearActivePasswordHint = false,
   }) {
     return EditorState(
       note: note ?? this.note,
@@ -30,6 +44,14 @@ class EditorState {
       isSaving: isSaving ?? this.isSaving,
       lastSavedAt: lastSavedAt ?? this.lastSavedAt,
       isPreviewMode: isPreviewMode ?? this.isPreviewMode,
+      isReadOnly: isReadOnly ?? this.isReadOnly,
+      isUnlocked: isUnlocked ?? this.isUnlocked,
+      activePassword: clearActivePassword
+          ? null
+          : (activePassword ?? this.activePassword),
+      activePasswordHint: clearActivePasswordHint
+          ? null
+          : (activePasswordHint ?? this.activePasswordHint),
     );
   }
 }

@@ -22,6 +22,8 @@ import '../../notes/application/sample_notes.dart';
 import '../../sync/presentation/change_encryption_password_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
+import '../application/typography_provider.dart';
+import 'typography_settings_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -241,6 +243,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ref
                             .read(themeModeProvider.notifier)
                             .setThemeMode(ThemeMode.dark);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.text_fields_rounded,
+                      title: 'Typography',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${ref.watch(typographySettingsProvider).bodyFontFamily ?? 'System'}, ${ref.watch(typographySettingsProvider).fontSize.toInt()}pt',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TypographySettingsScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],

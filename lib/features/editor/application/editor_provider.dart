@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/tag_parser.dart';
+import '../../notes/application/note_security_service.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
@@ -30,10 +31,81 @@ class EditorNotifier extends StateNotifier<EditorState> {
     required this.repository,
     bool initialPreviewMode = false,
   })  : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
-        super(EditorState(note: initialNote, isPreviewMode: initialPreviewMode));
+        super(
+          EditorState(
+            note: initialNote,
+            isPreviewMode: initialPreviewMode,
+            isUnlocked: !initialNote.isPasswordProtected,
+            activePasswordHint: NoteSecurityService.getHint(initialNote.content),
+          ),
+        );
 
   final NotesRepository repository;
   final Debouncer _debouncer;
+
+  void toggleReadOnly() {
+    state = state.copyWith(isReadOnly: !state.isReadOnly);
+  }
+
+  void setReadOnly(bool readOnly) {
+    state = state.copyWith(isReadOnly: readOnly);
+  }
+
+  Future<bool> unlockWithPassword(String password) async {
+    try {
+      final decrypted = await NoteSecurityService.decryptNote(
+        encryptedContent: state.note.content,
+        password: password,
+      );
+      state = state.copyWith(
+        note: state.note.copyWith(
+          title: decrypted.title,
+          content: decrypted.content,
+          tags: decrypted.tags,
+        ),
+        isUnlocked: true,
+        activePassword: password,
+        activePasswordHint: decrypted.hint,
+        isDirty: false,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setPasswordProtection({
+    required String password,
+    String? hint,
+  }) async {
+    state = state.copyWith(
+      activePassword: password,
+      activePasswordHint: hint,
+      isUnlocked: true,
+      isDirty: true,
+    );
+    await saveNow();
+  }
+
+  Future<void> removePasswordProtection() async {
+    state = state.copyWith(
+      clearActivePassword: true,
+      clearActivePasswordHint: true,
+      isUnlocked: true,
+      isDirty: true,
+    );
+    await saveNow();
+  }
+
+  void lockNow() {
+    if (state.activePassword != null || state.note.isPasswordProtected) {
+      saveNow();
+      state = state.copyWith(
+        isUnlocked: false,
+        clearActivePassword: true,
+      );
+    }
+  }
 
   void updateTitle(String newTitle) {
     if (newTitle == state.note.title) return;
@@ -102,8 +174,14 @@ class EditorNotifier extends StateNotifier<EditorState> {
   Future<void> saveNow() async {
     if (!mounted) return;
 
-    // If completely empty, skip save
-    if (state.note.title.trim().isEmpty &&
+    // If note is currently locked, do not overwrite ciphertext with empty/unlocked buffer
+    if (!state.isUnlocked && state.note.isPasswordProtected) {
+      return;
+    }
+
+    // If completely empty and not password protected, skip save
+    if (state.activePassword == null &&
+        state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
       return;
@@ -127,7 +205,24 @@ class EditorNotifier extends StateNotifier<EditorState> {
     state = state.copyWith(note: noteToSave, isSaving: true);
 
     try {
-      await repository.saveNote(noteToSave);
+      if (state.activePassword != null) {
+        final encryptedPayload = await NoteSecurityService.encryptNote(
+          title: titleToSave,
+          content: state.note.content,
+          tags: combinedTags,
+          password: state.activePassword!,
+          hint: state.activePasswordHint,
+        );
+
+        final encryptedNoteInDb = noteToSave.copyWith(
+          title: '',
+          content: encryptedPayload,
+        );
+        await repository.saveNote(encryptedNoteInDb);
+      } else {
+        await repository.saveNote(noteToSave);
+      }
+
       if (mounted) {
         state = state.copyWith(
           isDirty: false,
@@ -145,7 +240,8 @@ class EditorNotifier extends StateNotifier<EditorState> {
   /// Cleans up note if empty upon exit
   Future<void> handleExitCleanup() async {
     _debouncer.cancel();
-    if (state.note.title.trim().isEmpty &&
+    if (state.activePassword == null &&
+        state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
       await repository.deletePermanently(state.note.id);
@@ -207,7 +303,6 @@ class EditorNotifier extends StateNotifier<EditorState> {
       state = state.copyWith(
         note: state.note.copyWith(
           isTrashed: false,
-          isArchived: false,
           deletedAt: null,
         ),
       );
@@ -218,26 +313,10 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debouncer.cancel();
     await repository.deletePermanently(state.note.id);
   }
-
-  Future<void> deleteNote() async {
-    await trashNote();
-  }
-
-  @override
-  void dispose() {
-    // Flush any pending save before destroying editor notifier
-    if (state.isDirty &&
-        (state.note.title.trim().isNotEmpty ||
-            state.note.content.trim().isNotEmpty)) {
-      repository.saveNote(state.note);
-    }
-    _debouncer.dispose();
-    super.dispose();
-  }
 }
 
 final editorProviderFamily =
-    StateNotifierProvider.family.autoDispose<EditorNotifier, EditorState, EditorParams>(
+    StateNotifierProvider.autoDispose.family<EditorNotifier, EditorState, EditorParams>(
   (ref, params) {
     final repository = ref.watch(notesRepositoryProvider);
     return EditorNotifier(

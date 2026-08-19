@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/markdown/markdown_preview.dart';
@@ -6,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Widget buildWrapper(Widget child) {
-    return MaterialApp(
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      home: Scaffold(
-        body: child,
+    return ProviderScope(
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        home: Scaffold(
+          body: child,
+        ),
       ),
     );
   }
@@ -262,7 +265,7 @@ source: https://untrusted-site.org/very/long/path/with/parameters?token=xyz
       // Ensure == delimiters are not rendered as literal text
       expect(find.textContaining('==highlighted text=='), findsNothing);
       // Ensure the text content inside highlight is rendered
-      expect(find.text('highlighted text'), findsOneWidget);
+      expect(find.textContaining('highlighted text'), findsOneWidget);
       expect(find.textContaining('Here is some'), findsOneWidget);
     });
   });

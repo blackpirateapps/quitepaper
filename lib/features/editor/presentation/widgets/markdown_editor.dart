@@ -19,6 +19,7 @@ class MarkdownEditor extends StatelessWidget {
     this.keyboardType = TextInputType.multiline,
     this.onChanged,
     this.scrollPadding = const EdgeInsets.all(20.0),
+    this.readOnly = false,
   });
 
   final MarkdownEditingController controller;
@@ -28,6 +29,7 @@ class MarkdownEditor extends StatelessWidget {
   final TextInputType keyboardType;
   final ValueChanged<String>? onChanged;
   final EdgeInsets scrollPadding;
+  final bool readOnly;
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
     final updated = action(value: controller.value);
@@ -144,8 +146,9 @@ class MarkdownEditor extends StatelessWidget {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
+        readOnly: readOnly,
         cursorColor: colors.accent,
-        style: AppTypography.editorBody.copyWith(
+        style: (controller.styles?.body ?? AppTypography.editorBody).copyWith(
           color: colors.textPrimary,
         ),
         inputFormatters: const [

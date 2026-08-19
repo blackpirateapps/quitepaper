@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../app/theme/app_colors.dart';
@@ -9,10 +10,11 @@ import '../../app/theme/app_typography.dart';
 import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
+import '../../features/settings/application/typography_provider.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
 
-class QuietMarkdownPreview extends StatefulWidget {
+class QuietMarkdownPreview extends ConsumerStatefulWidget {
   const QuietMarkdownPreview({
     super.key,
     required this.markdownData,
@@ -43,10 +45,10 @@ class QuietMarkdownPreview extends StatefulWidget {
   final MarkdownTapLinkCallback? onTapLink;
 
   @override
-  State<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
+  ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
 }
 
-class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
+class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   late ParsedMarkdown _parsedMarkdown;
   late List<String> _chunks;
 
@@ -72,14 +74,56 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final typography = ref.watch(typographySettingsProvider);
+
+    final headingFont = typography.headingFontFamily ?? typography.bodyFontFamily;
+    final bodyFont = typography.bodyFontFamily;
+    final codeFont = typography.codeFontFamily ?? 'monospace';
+    final baseFontSize = typography.fontSize;
+    final baseHeight = typography.lineHeight;
+    final baseLetterSpacing = typography.letterSpacing;
 
     final customStyleSheet = MarkdownStyleSheet(
-      h1: AppTypography.editorH1.copyWith(color: colors.textPrimary),
-      h2: AppTypography.editorH2.copyWith(color: colors.textPrimary),
-      h3: AppTypography.editorH3.copyWith(color: colors.textPrimary),
-      p: AppTypography.editorBody.copyWith(color: colors.textPrimary),
+      h1: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typography.scaledHeading1Size,
+        fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing - 0.3,
+        color: colors.textPrimary,
+      ),
+      h2: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typography.scaledHeading2Size,
+        fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing - 0.2,
+        color: colors.textPrimary,
+      ),
+      h3: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typography.scaledHeading3Size,
+        fontWeight: FontWeight.w600,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+        color: colors.textPrimary,
+      ),
+      p: TextStyle(
+        fontFamily: bodyFont,
+        fontSize: baseFontSize,
+        fontWeight: FontWeight.w400,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+        color: colors.textPrimary,
+      ),
       pPadding: const EdgeInsets.only(bottom: AppSpacing.md),
-      blockquote: AppTypography.editorQuote.copyWith(
+      blockquote: TextStyle(
+        fontFamily: bodyFont,
+        fontSize: baseFontSize,
+        fontStyle: FontStyle.italic,
+        fontWeight: FontWeight.w400,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
         color: colors.textSecondary,
       ),
       blockquoteDecoration: BoxDecoration(
@@ -96,7 +140,10 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
         horizontal: AppSpacing.md,
         vertical: AppSpacing.compact,
       ),
-      code: AppTypography.editorCode.copyWith(
+      code: TextStyle(
+        fontFamily: codeFont,
+        fontSize: typography.scaledCodeSize,
+        height: baseHeight,
         color: colors.accentDark,
         backgroundColor: colors.tagBackground,
       ),
@@ -111,9 +158,17 @@ class _QuietMarkdownPreviewState extends State<QuietMarkdownPreview> {
           top: BorderSide(color: colors.divider, width: 1),
         ),
       ),
-      listBullet: AppTypography.editorBody.copyWith(color: colors.accent),
+      listBullet: TextStyle(
+        fontFamily: bodyFont,
+        fontSize: baseFontSize,
+        height: baseHeight,
+        color: colors.accent,
+      ),
       listBulletPadding: const EdgeInsets.only(right: AppSpacing.sm),
-      a: AppTypography.editorBody.copyWith(
+      a: TextStyle(
+        fontFamily: bodyFont,
+        fontSize: baseFontSize,
+        height: baseHeight,
         color: colors.accent,
         decoration: TextDecoration.underline,
         decorationColor: colors.accent.withValues(alpha: 0.5),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../settings/domain/typography_settings.dart';
 
 /// Centralized Markdown styling definition for the WYSIWYG editor.
 /// Adapts seamlessly to the active application theme (Light and Dark).
@@ -70,38 +71,77 @@ class MarkdownStyles {
   final TextStyle frontmatter;
   final TextStyle frontmatterDelimiter;
 
-  /// Factory constructor to derive Markdown styles from [AppColors] and an optional [baseStyle].
+  /// Factory constructor to derive Markdown styles from [AppColors], an optional [baseStyle],
+  /// and optional [TypographySettings].
   factory MarkdownStyles.fromColors(
     AppColors colors, {
     TextStyle? baseStyle,
+    TypographySettings? typography,
   }) {
+    final typo = typography ?? TypographySettings.defaultSettings;
+
+    final baseFontSize = typo.fontSize;
+    final baseHeight = typo.lineHeight;
+    final baseLetterSpacing = typo.letterSpacing;
+    final bodyFont = typo.bodyFontFamily;
+    final headingFont = typo.headingFontFamily ?? bodyFont;
+    final codeFont = typo.codeFontFamily ?? 'monospace';
+
     final effectiveBody = (baseStyle ?? AppTypography.editorBody).copyWith(
       color: colors.textPrimary,
+      fontFamily: bodyFont,
+      fontSize: baseFontSize,
+      height: baseHeight,
+      letterSpacing: baseLetterSpacing,
     );
 
     return MarkdownStyles(
-      heading1: AppTypography.editorH1.copyWith(
-        color: colors.textPrimary,
-      ),
-      heading2: AppTypography.editorH2.copyWith(
-        color: colors.textPrimary,
-      ),
-      heading3: AppTypography.editorH3.copyWith(
-        color: colors.textPrimary,
-      ),
-      heading4: effectiveBody.copyWith(
-        fontSize: 18,
+      heading1: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading1Size,
         fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing - 0.3,
         color: colors.textPrimary,
       ),
-      heading5: effectiveBody.copyWith(
-        fontSize: 17,
+      heading2: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading2Size,
         fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing - 0.2,
         color: colors.textPrimary,
       ),
-      heading6: effectiveBody.copyWith(
-        fontSize: 16,
+      heading3: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading3Size,
+        fontWeight: FontWeight.w600,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+        color: colors.textPrimary,
+      ),
+      heading4: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading4Size,
         fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+        color: colors.textPrimary,
+      ),
+      heading5: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading5Size,
+        fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
+        color: colors.textPrimary,
+      ),
+      heading6: TextStyle(
+        fontFamily: headingFont,
+        fontSize: typo.scaledHeading6Size,
+        fontWeight: FontWeight.w700,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
         color: colors.textPrimary,
       ),
       headingMarker: TextStyle(
@@ -126,20 +166,42 @@ class MarkdownStyles {
         backgroundColor: colors.accent.withValues(alpha: 0.22),
         fontWeight: FontWeight.w500,
       ),
-      inlineCode: AppTypography.editorCode.copyWith(
+      inlineCode: TextStyle(
+        fontFamily: codeFont,
+        fontSize: typo.scaledCodeSize,
+        height: baseHeight,
+        fontWeight: FontWeight.w400,
         color: colors.accentDark,
         backgroundColor: colors.tagBackground.withValues(alpha: 0.5),
       ),
-      inlineCodeMarker: AppTypography.editorCode.copyWith(
+      inlineCodeMarker: TextStyle(
+        fontFamily: codeFont,
+        fontSize: typo.scaledCodeSize,
+        height: baseHeight,
+        fontWeight: FontWeight.w400,
         color: colors.textTertiary.withValues(alpha: 0.6),
       ),
-      codeBlock: AppTypography.editorCode.copyWith(
+      codeBlock: TextStyle(
+        fontFamily: codeFont,
+        fontSize: typo.scaledCodeSize,
+        height: baseHeight,
+        fontWeight: FontWeight.w400,
         color: colors.textPrimary,
       ),
-      codeBlockFence: AppTypography.editorCode.copyWith(
+      codeBlockFence: TextStyle(
+        fontFamily: codeFont,
+        fontSize: typo.scaledCodeSize,
+        height: baseHeight,
+        fontWeight: FontWeight.w400,
         color: colors.textTertiary.withValues(alpha: 0.7),
       ),
-      blockquote: AppTypography.editorQuote.copyWith(
+      blockquote: TextStyle(
+        fontFamily: bodyFont,
+        fontSize: baseFontSize,
+        fontStyle: FontStyle.italic,
+        fontWeight: FontWeight.w400,
+        height: baseHeight,
+        letterSpacing: baseLetterSpacing,
         color: colors.textSecondary,
       ),
       blockquoteMarker: TextStyle(

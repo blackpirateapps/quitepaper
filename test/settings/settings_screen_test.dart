@@ -68,13 +68,21 @@ void main() {
     // Top section headers
     expect(find.text('CLOUD SYNC & ENCRYPTION'), findsOneWidget);
     expect(find.text('APPEARANCE'), findsOneWidget);
-    expect(find.text('IMPORT'), findsOneWidget);
+    expect(find.text('Typography'), findsOneWidget);
 
     // Grouped items in top sections
     expect(find.text('Set up Encrypted Sync'), findsOneWidget);
     expect(find.text('System default'), findsOneWidget);
     expect(find.text('Light paper'), findsOneWidget);
     expect(find.text('Dark paper'), findsOneWidget);
+
+    // Scroll to check Import section
+    await tester.scrollUntilVisible(
+      find.text('Import Markdown Folder'),
+      200.0,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('IMPORT'), findsOneWidget);
     expect(find.text('Import Markdown Folder'), findsOneWidget);
 
     // Scroll to check Backup section

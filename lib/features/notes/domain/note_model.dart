@@ -29,10 +29,17 @@ class Note {
   /// Whether the note is active (not archived and not trashed)
   bool get isActive => !isArchived && !isTrashed;
 
+  /// Whether the note is encrypted with a custom note password
+  bool get isPasswordProtected =>
+      content.trimLeft().startsWith('<!-- quiet-paper-encrypted-note-v1:');
+
   /// Returns display title or 'Untitled' if title is empty
   String get displayTitle {
     if (title.trim().isNotEmpty) {
       return title.trim();
+    }
+    if (isPasswordProtected) {
+      return 'Protected Note';
     }
     final derived = deriveTitle(content);
     return derived.isNotEmpty ? derived : 'Untitled';
@@ -41,6 +48,9 @@ class Note {
   /// Derives a clean concise title from note content
   static String deriveTitle(String content) {
     if (content.isEmpty) return '';
+    if (content.trimLeft().startsWith('<!-- quiet-paper-encrypted-note-v1:')) {
+      return 'Protected Note';
+    }
 
     // Take at most first 300 characters to find first line quickly
     final sample = content.length > 300 ? content.substring(0, 300) : content;
@@ -79,6 +89,9 @@ class Note {
 
   /// Returns a clean one or two line snippet of the note content (omitting headers / markers)
   String get previewSnippet {
+    if (isPasswordProtected) {
+      return '🔒 Password protected note';
+    }
     if (content.isEmpty) return '';
 
     // Take at most first 600 characters for snippet preview to ensure instant rendering

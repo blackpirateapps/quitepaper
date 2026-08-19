@@ -568,6 +568,69 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
 - [x] Android CI build workflow (`build_apk.yml`) builds multi-architecture APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `universal`) and uploads them as separate artifacts.
 - [x] Markdown Editor V2 implements smart editing (checklist continuation/clearing, delimiter skipping, code fence safety), keyboard shortcuts (Ctrl+B/I/Shift+X/`/K), selection-aware context toolbar, and interactive checkbox tapping.
 - [x] Heading whitespace parsing fix: single-space delimiter regex `(?:([ \t])(.*)|$)` ensures multiple consecutive spaces inside heading sentences and right after hashes are preserved and measured with matching font metrics.
+- [x] Typography Settings with sticky live preview, curated font presets, dynamic Google Fonts API fetcher, custom TTF/OTF local font loader, and responsive dimension controls (font size, line height, letter spacing, paragraph width, paragraph indent).
+- [x] Note-level security features: Read-Only mode toggle to lock editing and prevent accidental keystrokes, and individual note password protection with Argon2id and XChaCha20-Poly1305 AEAD client-side encryption.
+
+---
+
+## 24. Typography Customization & Global Styling Engine
+
+### Architectural Overview
+Quiet Paper features a comprehensive typography engine that allows users to customize their writing and reading environment with persistent state across app restarts, responsive layout constraints, dynamic font registration, and reactive live preview.
+
+### Domain Model & State Management
+- **`TypographySettings`** ([`lib/features/settings/domain/typography_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/typography_settings.dart)):
+  - Immutable configuration model managing:
+    - `headingFontFamily`: Font family for `#` to `######` headings and document title (defaults to system/body font).
+    - `bodyFontFamily`: Font family for editor body paragraphs, blockquotes, and lists.
+    - `codeFontFamily`: Font family for inline code and codeblocks (defaults to `'monospace'`).
+    - `fontSize`: Base body font size (default: 18.0 pt, range: 12.0–32.0 pt).
+    - `lineHeight`: Vertical line height multiplier (default: 1.6x, range: 1.0–2.5x).
+    - `letterSpacing`: Character tracking spacing in px (default: 0.0 px, range: -1.0–2.0 px).
+    - `paragraphWidth`: Content width constraint (`Narrow` [540dp], `Medium` [720dp], `Full` [unconstrained]).
+    - `paragraphIndent`: Left start indent for content (0–40 px).
+    - `customFonts`: List of dynamically loaded font families.
+  - Proportional heading scales (`scaledTitleSize` [30pt at 18pt base], `scaledHeading1Size` [26pt], `scaledHeading2Size` [22pt], `scaledHeading3Size` [19pt], `scaledHeading4Size` [18pt], `scaledHeading5Size` [17pt], `scaledHeading6Size` [16pt], `scaledCodeSize` [15pt]).
+- **`TypographySettingsNotifier`** ([`lib/features/settings/application/typography_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/typography_provider.dart)):
+  - Persists JSON state in `SharedPreferences` under key `typography_settings_v1`.
+  - Dynamic Font Loading:
+    - `loadCustomFontFromFile(filePath)`: Reads raw TTF/OTF bytes from device storage and registers font dynamically using Flutter's `FontLoader`.
+    - `fetchGoogleFont(fontName)`: Queries Google Fonts API, parses font file URL, downloads font bytes, and registers it into Flutter's font manifest at runtime.
+  - `resetToDefault()`: Restores factory defaults with a single tap.
+
+### UI / UX Implementation
+- **`TypographySettingsScreen`** ([`lib/features/settings/presentation/typography_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/typography_settings_screen.dart)):
+  - **Sticky Live Preview**: Fixed 190dp height card with `12dp` rounded corners and subtle header bar showing sample headings (H1, H2), body text with bold and link formatting, blockquote, checklist, and codeblock. Updates reactively in real time as sliders and pickers change.
+  - **Group 1 (Typefaces)**: Heading, Body, and Code font rows with chevrons opening the `FontPickerSheet`.
+  - **Group 2 (Dimensions)**: Minimalist coral sliders with live numeric badges for Font Size, Line Height, Letter Spacing, and Paragraph Indent.
+  - **Group 3 (Layout & Actions)**: Cupertino segmented control for Paragraph Width (`Narrow`, `Medium`, `Full`), and centered coral "Reset to Default" button.
+- **`FontPickerSheet`** ([`lib/features/settings/presentation/widgets/font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart)):
+  - iOS bottom sheet with search filter, curated presets, custom file import button via `FilePicker`, and Google Fonts downloader.
+
+---
+
+## 25. Note-Level Security Features (Read-Only Mode & Password Protection)
+
+### 1. Read-Only Mode
+- **Purpose**: Prevents accidental keystrokes, edits, or deletions when reading notes or reviewing references.
+- **Implementation**:
+  - Toggled from the editor overflow menu or the app bar lock icon button.
+  - Passes `readOnly: true` to both Document Title `TextField` and `MarkdownEditor`.
+  - Automatically hides the formatting toolbar when read-only mode is active.
+  - Displays a subtle lock badge in the `AppBar` actions with tooltip "Read-only mode (tap to unlock)".
+
+### 2. Individual Note Password Protection
+- **Cryptographic Architecture** ([`lib/features/notes/application/note_security_service.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/note_security_service.dart)):
+  - **Key Derivation**: Argon2id KDF (`memory: 19MB`, `iterations: 2`, `parallelism: 1`, `hashLength: 32`) with a unique 16-byte random salt per note.
+  - **Cipher**: XChaCha20-Poly1305 AEAD with a 24-byte random nonce and 16-byte MAC authentication tag.
+  - **Payload Format**: Encrypts `{title, content, tags, hint}` into an encrypted envelope header:
+    `<!-- quiet-paper-encrypted-note-v1:{"version":1,"salt":"...","nonce":"...","ciphertext":"...","hint":"..."} -->`
+  - In SQLite and cloud sync, the note title is stored as empty and content is stored as the encrypted envelope string.
+- **Editor & UI Integration**:
+  - **Note List**: Displays a lock icon (`Icons.lock_rounded`) and masked preview snippet (`🔒 Password protected note`).
+  - **Unlock View** ([`lib/features/editor/presentation/widgets/password_unlock_view.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/password_unlock_view.dart)): Full-screen unlock prompt embedded inside `EditorScreen` requesting the password, displaying optional hint, and showing clear error feedback on incorrect attempt.
+  - **Overflow Actions**: Includes "Protect with password", "Change note password", "Remove password protection", and "Lock note now".
+
 
 
 
