@@ -225,7 +225,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(find.text('Retry OCR'), findsOneWidget);
+      expect(find.text('Run / Regenerate OCR'), findsOneWidget);
     });
   });
 }

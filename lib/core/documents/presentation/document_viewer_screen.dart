@@ -176,16 +176,29 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     }
   }
 
-  Future<void> _retryOcr() async {
+  Future<void> _regenerateOcr({OcrLanguage? language}) async {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
 
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Starting OCR text recognition in background...'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
     final service = ref.read(documentProcessingServiceProvider);
-    await service.retryOcr(
+    final targetLang = language ?? OcrLanguage.fromCode(docInfo.ocrLanguage);
+
+    await service.regenerateOcr(
       documentId: widget.documentId,
       pdfBytes: docInfo.pdfBytes,
       source: DocumentSource.fromIdentifier(docInfo.source),
-      language: OcrLanguage.fromCode(docInfo.ocrLanguage),
+      language: targetLang,
     );
     await _loadDocument();
   }
@@ -199,14 +212,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
 
     if (chosenLang != null && docInfo != null && mounted) {
-      final service = ref.read(documentProcessingServiceProvider);
-      await service.regenerateOcr(
-        documentId: widget.documentId,
-        pdfBytes: docInfo.pdfBytes,
-        source: DocumentSource.fromIdentifier(docInfo.source),
-        language: chosenLang,
-      );
-      await _loadDocument();
+      await _regenerateOcr(language: chosenLang);
     }
   }
 
@@ -507,6 +513,22 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 icon: const Icon(Icons.article_outlined),
                 tooltip: 'View OCR Text',
                 onPressed: _openOcrTextViewer,
+              )
+            else if (isOcrProcessing)
+              IconButton(
+                icon: const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+                ),
+                tooltip: 'OCR is processing... Tap to restart',
+                onPressed: _regenerateOcr,
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.document_scanner_outlined),
+                tooltip: 'Run OCR',
+                onPressed: _regenerateOcr,
               ),
             if (docInfo != null) ...[
               IconButton(
@@ -539,8 +561,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   case 'copy_ocr':
                     _copyOcrText();
                     break;
-                  case 'retry_ocr':
-                    _retryOcr();
+                  case 'regenerate_ocr':
+                    _regenerateOcr();
                     break;
                   case 'language':
                     _openLanguageDialog();
@@ -592,18 +614,17 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     ),
                   ),
                 ],
-                if (isOcrFailed)
-                  const PopupMenuItem(
-                    value: 'retry_ocr',
-                    child: Row(
-                      children: [
-                        Icon(Icons.refresh_rounded, size: 18),
-                        SizedBox(width: 12),
-                        Expanded(child: Text('Retry OCR')),
-                      ],
-                    ),
+                const PopupMenuItem(
+                  value: 'regenerate_ocr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.document_scanner_outlined, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Run / Regenerate OCR')),
+                    ],
                   ),
-                if (docInfo != null && !isOcrProcessing)
+                ),
+                if (docInfo != null)
                   const PopupMenuItem(
                     value: 'language',
                     child: Row(

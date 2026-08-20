@@ -1135,6 +1135,25 @@ Quiet Paper features real, on-device machine learning character and word recogni
 - **Background Pill Highlighting**: Updated `NoteListTile._buildHighlightedText` to apply a prominent visual highlight background pill (`highlightColor.withValues(alpha: 0.35)`) and bold text matching in both note titles and preview snippets.
 - **Context-Aware Snippet Centering**: When a note matches a search query, `_getEffectivePreview` dynamically slices the snippet starting 25 characters before the first occurrence of the match, ensuring the highlighted term is immediately visible in the 2-line list preview.
 
+---
+
+## 49. OCR Resiliency, Rich Debug Logging & Manual Re-Run Controls
+
+### 1. Robust Timeout & Graceful CV Fallback (`DefaultOcrService`)
+- **10-Second ML Kit Timeout**: Wrapped `textRecognizer.processImage(inputImage)` in a 10s timeout to prevent stalled executions when Google Play Services model downloads are throttled or delayed.
+- **Automatic Fallback**: If ML Kit times out or fails on device, the engine logs a clear diagnostic message and seamlessly executes the Computer Vision text extractor within milliseconds.
+
+### 2. Detailed Diagnostic Logging (`DocumentProcessingService` & `DefaultOcrService`)
+- Structured console logs with `[QuietPaper OCR]` tag track every phase: embedded text detection, page rasterization, per-page recognition block counts, encryption, and database state updates.
+
+### 3. Document Viewer OCR Controls (`DocumentViewerScreen`)
+- **AppBar Action Button**:
+  - `Icons.article_outlined` when OCR is available.
+  - Spinner with tooltip and tap-to-restart action when OCR is processing.
+  - `Icons.document_scanner_outlined` ("Run OCR") when OCR is pending or failed.
+- **Overflow Menu**: Always includes `"Run / Regenerate OCR"` with floating SnackBar status confirmation.
+
+
 
 
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -14,7 +15,7 @@ abstract class OcrService {
   Future<OcrPage> recognizePage(
     Uint8List imageBytes, {
     required int pageNumber,
-    OcrLanguage language = OcrLanguage.english,
+    required OcrLanguage language,
   });
 
   /// Recognizes text and geometry across all pages of a canonical PDF document.
@@ -25,8 +26,8 @@ abstract class OcrService {
   });
 }
 
-/// Default on-device OCR engine implementing hardware-accelerated Google ML Kit recognition
-/// with seamless computer vision line segmentation fallback for test and non-mobile host environments.
+/// Production implementation of [OcrService] using Google ML Kit on mobile
+/// and resilient computer-vision line segmentation fallback on desktop / test VM.
 class DefaultOcrService implements OcrService {
   const DefaultOcrService({
     PdfPageRenderer? pageRenderer,
@@ -40,38 +41,31 @@ class DefaultOcrService implements OcrService {
   Future<OcrPage> recognizePage(
     Uint8List imageBytes, {
     required int pageNumber,
-    OcrLanguage language = OcrLanguage.english,
+    required OcrLanguage language,
   }) async {
-    if (imageBytes.isEmpty) {
-      return OcrPage(
-        pageNumber: pageNumber,
-        plainText: '',
-        width: 1000,
-        height: 1414,
-        source: OcrSource.onDeviceOcr,
-        blocks: const [],
-      );
-    }
+    debugPrint('[QuietPaper OCR] recognizePage called for page $pageNumber (lang: ${language.name})');
 
-    // 1. Attempt hardware-accelerated ML Kit recognition on Android / iOS
-    if (enableMlKit && !kIsWeb) {
+    // 1. If executing on Android or iOS native platform, attempt ML Kit recognition
+    if (enableMlKit &&
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       try {
-        if (Platform.isAndroid || Platform.isIOS) {
-          final mlKitResult = await _recognizeWithMlKit(
-            imageBytes,
-            pageNumber: pageNumber,
-            language: language,
-          );
-          if (mlKitResult != null) {
-            return mlKitResult;
-          }
+        final mlKitResult = await _recognizeWithMlKit(
+          imageBytes,
+          pageNumber: pageNumber,
+          language: language,
+        );
+        if (mlKitResult != null) {
+          return mlKitResult;
         }
       } catch (e) {
-        debugPrint('ML Kit recognition failed or unavailable on host, using fallback: $e');
+        debugPrint('[QuietPaper OCR] ML Kit recognition failed or timed out: $e');
       }
     }
 
-    // 2. Fallback to computer-vision luminance & line segmentation
+    // 2. Pure Dart CV Fallback (for host testing, desktop VMs, or offline ML Kit fallback)
+    debugPrint('[QuietPaper OCR] Using Computer Vision fallback for page $pageNumber');
     return _recognizeWithCvFallback(
       imageBytes,
       pageNumber: pageNumber,
@@ -88,6 +82,7 @@ class DefaultOcrService implements OcrService {
     TextRecognizer? textRecognizer;
 
     try {
+      debugPrint('[QuietPaper OCR] Pre-processing page $pageNumber for ML Kit recognition...');
       final enhancedBytes = await const DartImageProcessor().enhanceForOcr(imageBytes);
       final tempDir = await getTemporaryDirectory();
       final fileName = 'ocr_page_${pageNumber}_${DateTime.now().microsecondsSinceEpoch}.png';
@@ -98,7 +93,15 @@ class DefaultOcrService implements OcrService {
       textRecognizer = TextRecognizer(script: script);
 
       final inputImage = InputImage.fromFile(tempFile);
-      final recognizedText = await textRecognizer.processImage(inputImage);
+      debugPrint('[QuietPaper OCR] Invoking ML Kit TextRecognizer.processImage (10s timeout)...');
+      final recognizedText = await textRecognizer.processImage(inputImage).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('[QuietPaper OCR] ML Kit processImage timed out after 10s. Falling back to local CV.');
+          throw TimeoutException('ML Kit text recognition timed out');
+        },
+      );
+      debugPrint('[QuietPaper OCR] ML Kit successfully recognized ${recognizedText.blocks.length} blocks on page $pageNumber');
 
       final decoded = img.decodeImage(enhancedBytes);
       final width = (decoded?.width ?? 1000).toDouble();
