@@ -6,6 +6,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/sync/sync_provider.dart';
+import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
 
 enum _AuthFlowStep {
@@ -330,25 +331,28 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
     final colors = context.appColors;
 
     return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      backgroundColor: colors.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.lg,
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: SingleChildScrollView(
-            child: switch (_step) {
-              _AuthFlowStep.onboarding => _buildOnboarding(colors),
-              _AuthFlowStep.signupEmail => _buildSignupEmail(colors),
-              _AuthFlowStep.signupAccountPassword =>
-                _buildSignupAccountPassword(colors),
-              _AuthFlowStep.signupEncryptionPassword =>
-                _buildSignupEncryptionPassword(colors),
-              _AuthFlowStep.signupComplete => _buildSignupComplete(colors),
-              _AuthFlowStep.signIn => _buildSignIn(colors),
-            },
-          ),
+          child: switch (_step) {
+            _AuthFlowStep.onboarding => _buildOnboarding(colors),
+            _AuthFlowStep.signupEmail => _buildSignupEmail(colors),
+            _AuthFlowStep.signupAccountPassword =>
+              _buildSignupAccountPassword(colors),
+            _AuthFlowStep.signupEncryptionPassword =>
+              _buildSignupEncryptionPassword(colors),
+            _AuthFlowStep.signupComplete => _buildSignupComplete(colors),
+            _AuthFlowStep.signIn => _buildSignIn(colors),
+          },
         ),
       ),
     );
@@ -380,142 +384,128 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                 children: [
                   Text(
                     'Zero-Knowledge Sync',
-                    style:
-                        AppTypography.headline.copyWith(color: colors.textPrimary),
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     'End-to-End Encrypted Cloud Backup',
-                    style:
-                        AppTypography.caption.copyWith(color: colors.textSecondary),
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
           'Your notes belong only to you. Quiet Paper uses strict client-side encryption so that nobody — not even our servers — can read your notes.',
-          style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+          style: AppTypography.bodySmall.copyWith(
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
 
-        // Information Cards
-        _buildInfoCard(
-          colors: colors,
-          icon: Icons.lock_outline,
-          title: 'What Gets Encrypted',
-          description:
-              'Your note titles, note content, and tags are encrypted on your device using Argon2id and XChaCha20-Poly1305 before uploading.',
-          badge: 'Fully Private',
-          badgeColor: colors.success,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _buildInfoCard(
-          colors: colors,
-          icon: Icons.notes_outlined,
-          title: 'What Stays Plaintext (Metadata)',
-          description:
-              'Only non-sensitive metadata (note IDs, created/updated timestamps, and archived/trashed status) is visible to the server for syncing order.',
-          badge: 'Metadata Only',
-          badgeColor: colors.textSecondary,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _buildInfoCard(
-          colors: colors,
-          icon: Icons.vpn_key_outlined,
-          title: 'Two Separate Passwords',
-          description:
-              '1. Account Password: Logs you into Firebase.\n2. Encryption Password: Unlocks your master key locally. Never sent to any server.',
-          badge: 'Zero Knowledge',
-          badgeColor: colors.accentDark,
+        // Information FormCard
+        FormCard(
+          children: [
+            FormInfoRow(
+              icon: Icons.lock_outline,
+              title: 'What Gets Encrypted',
+              badge: 'Fully Private',
+              badgeColor: colors.success,
+              description:
+                  'Your note titles, note content, and tags are encrypted on your device using Argon2id and XChaCha20-Poly1305 before uploading.',
+            ),
+            const FormDivider(),
+            FormInfoRow(
+              icon: Icons.notes_outlined,
+              title: 'What Stays Plaintext (Metadata)',
+              badge: 'Metadata Only',
+              badgeColor: colors.textSecondary,
+              description:
+                  'Only non-sensitive metadata (note IDs, created/updated timestamps, and archived/trashed status) is visible to the server for syncing order.',
+            ),
+            const FormDivider(),
+            FormInfoRow(
+              icon: Icons.vpn_key_outlined,
+              title: 'Two Separate Passwords',
+              badge: 'Zero Knowledge',
+              badgeColor: colors.accentDark,
+              description:
+                  '1. Account Password: Logs you into Firebase.\n2. Encryption Password: Unlocks your master key locally. Never sent to any server.',
+            ),
+          ],
         ),
 
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            QuietButton(
-              label: 'Cancel',
-              variant: QuietButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            QuietButton(
-              label: 'Sign In',
-              variant: QuietButtonVariant.secondary,
-              onPressed: () {
-                setState(() {
-                  _step = _AuthFlowStep.signIn;
-                  _errorMessage = null;
-                });
-              },
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            QuietButton(
-              label: 'Create Account',
-              variant: QuietButtonVariant.primary,
-              onPressed: () {
-                setState(() {
-                  _step = _AuthFlowStep.signupEmail;
-                  _errorMessage = null;
-                });
-              },
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Create Account',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            onPressed: () {
+              setState(() {
+                _step = _AuthFlowStep.signupEmail;
+                _errorMessage = null;
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Sign In',
+            variant: QuietButtonVariant.secondary,
+            isFullWidth: true,
+            onPressed: () {
+              setState(() {
+                _step = _AuthFlowStep.signIn;
+                _errorMessage = null;
+              });
+            },
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildInfoCard({
-    required AppColors colors,
-    required IconData icon,
-    required String title,
-    required String description,
-    required String badge,
-    required Color badgeColor,
-  }) {
+  Widget _buildLoadingIndicator(AppColors colors, String message) {
     return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: colors.background,
+        color: colors.surface,
         borderRadius: AppRadii.borderMd,
-        border: Border.all(color: colors.divider),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.4)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: colors.textPrimary),
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator.adaptive(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation(colors.accent),
+            ),
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTypography.bodySmallMedium
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    Text(
-                      badge,
-                      style: AppTypography.caption.copyWith(
-                        color: badgeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  description,
-                  style: AppTypography.caption
-                      .copyWith(color: colors.textSecondary, height: 1.4),
-                ),
-              ],
+            child: Text(
+              message,
+              style: AppTypography.bodySmallMedium.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -545,18 +535,19 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           },
         ),
         const SizedBox(height: AppSpacing.lg),
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          autofocus: true,
-          onChanged: (_) => _clearError(),
-          onSubmitted: (_) => _submitSignupEmail(),
-          decoration: InputDecoration(
-            labelText: 'Email address',
-            hintText: 'you@example.com',
-            prefixIcon: const Icon(Icons.email_outlined, size: 20),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-          ),
+        FormCard(
+          children: [
+            FormInputRow(
+              controller: _emailController,
+              icon: Icons.email_outlined,
+              labelText: 'Email address',
+              hintText: 'you@example.com',
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              onChanged: (_) => _clearError(),
+              onSubmitted: (_) => _submitSignupEmail(),
+            ),
+          ],
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: AppSpacing.md),
@@ -566,24 +557,33 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           ),
         ],
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _step = _AuthFlowStep.signIn;
-                  _errorMessage = null;
-                });
-              },
-              child: const Text('Already have an account? Sign In'),
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Continue',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            onPressed: _submitSignupEmail,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: TextButton(
+            onPressed: () {
+              setState(() {
+                _step = _AuthFlowStep.signIn;
+                _errorMessage = null;
+              });
+            },
+            child: Text(
+              'Already have an account? Sign In',
+              style: AppTypography.caption.copyWith(
+                color: colors.accent,
+                fontWeight: FontWeight.w600,
+                fontSize: 13.0,
+              ),
             ),
-            QuietButton(
-              label: 'Continue',
-              variant: QuietButtonVariant.primary,
-              onPressed: _submitSignupEmail,
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -611,48 +611,48 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           },
         ),
         const SizedBox(height: AppSpacing.lg),
-        TextField(
-          controller: _fbPasswordController,
-          obscureText: _obscureFbPassword,
-          autofocus: true,
-          onChanged: (_) => _clearError(),
-          decoration: InputDecoration(
-            labelText: 'Account Password (min. 6 characters)',
-            prefixIcon: const Icon(Icons.lock_outline, size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureFbPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: 20,
+        FormCard(
+          children: [
+            FormInputRow(
+              controller: _fbPasswordController,
+              icon: Icons.lock_outline,
+              labelText: 'Account Password (min. 6 characters)',
+              obscureText: _obscureFbPassword,
+              autofocus: true,
+              onChanged: (_) => _clearError(),
+              suffix: IconButton(
+                icon: Icon(
+                  _obscureFbPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onPressed: () =>
+                    setState(() => _obscureFbPassword = !_obscureFbPassword),
               ),
-              onPressed: () =>
-                  setState(() => _obscureFbPassword = !_obscureFbPassword),
             ),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _fbConfirmPasswordController,
-          obscureText: _obscureFbConfirmPassword,
-          onChanged: (_) => _clearError(),
-          onSubmitted: (_) => _submitSignupAccountPassword(),
-          decoration: InputDecoration(
-            labelText: 'Confirm Account Password',
-            prefixIcon: const Icon(Icons.lock_outline, size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureFbConfirmPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: 20,
+            const FormDivider(),
+            FormInputRow(
+              controller: _fbConfirmPasswordController,
+              icon: Icons.lock_outline,
+              labelText: 'Confirm Account Password',
+              obscureText: _obscureFbConfirmPassword,
+              onChanged: (_) => _clearError(),
+              onSubmitted: (_) => _submitSignupAccountPassword(),
+              suffix: IconButton(
+                icon: Icon(
+                  _obscureFbConfirmPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onPressed: () => setState(() =>
+                    _obscureFbConfirmPassword = !_obscureFbConfirmPassword),
               ),
-              onPressed: () => setState(() =>
-                  _obscureFbConfirmPassword = !_obscureFbConfirmPassword),
             ),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-          ),
+          ],
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: AppSpacing.md),
@@ -662,26 +662,14 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           ),
         ],
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            QuietButton(
-              label: 'Back',
-              variant: QuietButtonVariant.secondary,
-              onPressed: () {
-                setState(() {
-                  _step = _AuthFlowStep.signupEmail;
-                  _errorMessage = null;
-                });
-              },
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            QuietButton(
-              label: 'Continue',
-              variant: QuietButtonVariant.primary,
-              onPressed: _submitSignupAccountPassword,
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Continue',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            onPressed: _submitSignupAccountPassword,
+          ),
         ),
       ],
     );
@@ -709,11 +697,13 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           },
         ),
         const SizedBox(height: AppSpacing.md),
+
+        // Distinct warning banner
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
           decoration: BoxDecoration(
             color: colors.accentSoft,
-            borderRadius: AppRadii.borderMd,
+            borderRadius: BorderRadius.circular(10.0),
             border: Border.all(color: colors.accentDark.withValues(alpha: 0.3)),
           ),
           child: Row(
@@ -733,49 +723,56 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        TextField(
-          controller: _encPasswordController,
-          obscureText: _obscureEncPassword,
-          autofocus: true,
-          onChanged: (_) => _clearError(),
-          decoration: InputDecoration(
-            labelText: 'Quiet Paper Encryption Password (min. 8 chars)',
-            prefixIcon: const Icon(Icons.key_outlined, size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureEncPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: 20,
-              ),
-              onPressed: () =>
-                  setState(() => _obscureEncPassword = !_obscureEncPassword),
-            ),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-          ),
-        ),
         const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _encConfirmPasswordController,
-          obscureText: _obscureEncConfirmPassword,
-          onChanged: (_) => _clearError(),
-          onSubmitted: (_) => _submitSignupFinal(),
-          decoration: InputDecoration(
-            labelText: 'Confirm Encryption Password',
-            prefixIcon: const Icon(Icons.key_outlined, size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureEncConfirmPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: 20,
-              ),
-              onPressed: () => setState(() =>
-                  _obscureEncConfirmPassword = !_obscureEncConfirmPassword),
-            ),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
+        if (_isLoading)
+          _buildLoadingIndicator(
+            colors,
+            'Deriving Argon2id encryption key & wrapping master key...',
           ),
+        FormCard(
+          children: [
+            FormInputRow(
+              controller: _encPasswordController,
+              icon: Icons.key_outlined,
+              labelText: 'Quiet Paper Encryption Password (min. 8 chars)',
+              obscureText: _obscureEncPassword,
+              autofocus: true,
+              enabled: !_isLoading,
+              onChanged: (_) => _clearError(),
+              suffix: IconButton(
+                icon: Icon(
+                  _obscureEncPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onPressed: () =>
+                    setState(() => _obscureEncPassword = !_obscureEncPassword),
+              ),
+            ),
+            const FormDivider(),
+            FormInputRow(
+              controller: _encConfirmPasswordController,
+              icon: Icons.key_outlined,
+              labelText: 'Confirm Encryption Password',
+              obscureText: _obscureEncConfirmPassword,
+              enabled: !_isLoading,
+              onChanged: (_) => _clearError(),
+              onSubmitted: (_) => _submitSignupFinal(),
+              suffix: IconButton(
+                icon: Icon(
+                  _obscureEncConfirmPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onPressed: () => setState(() =>
+                    _obscureEncConfirmPassword = !_obscureEncConfirmPassword),
+              ),
+            ),
+          ],
         ),
         _buildServerSettingsAccordion(colors),
         if (_errorMessage != null) ...[
@@ -786,28 +783,15 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           ),
         ],
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            QuietButton(
-              label: 'Back',
-              variant: QuietButtonVariant.secondary,
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                      setState(() {
-                        _step = _AuthFlowStep.signupAccountPassword;
-                        _errorMessage = null;
-                      });
-                    },
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            QuietButton(
-              label: 'Create Account & Encrypt',
-              variant: QuietButtonVariant.primary,
-              onPressed: _isLoading ? null : _submitSignupFinal,
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Create Account & Encrypt',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            isLoading: _isLoading,
+            onPressed: _isLoading ? null : _submitSignupFinal,
+          ),
         ),
       ],
     );
@@ -839,8 +823,10 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                 children: [
                   Text(
                     'Account Created!',
-                    style: AppTypography.headline
-                        .copyWith(color: colors.textPrimary),
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     'Your zero-knowledge encrypted vault is ready.',
@@ -850,65 +836,54 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                 ],
               ),
             ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
 
-        // Email verification notice
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: AppRadii.borderMd,
-            border: Border.all(color: colors.divider),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.mark_email_unread_outlined,
-                  size: 22, color: colors.accentDark),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Check your email for verification',
-                      style: AppTypography.bodySmallMedium
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'We have sent a verification link to ${_emailController.text.trim()}. Please click the link in your inbox to verify your account.',
-                      style: AppTypography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        // Email verification FormCard
+        FormCard(
+          children: [
+            FormInfoRow(
+              icon: Icons.mark_email_unread_outlined,
+              iconColor: colors.accentDark,
+              title: 'Check your email for verification',
+              description:
+                  'We have sent a verification link to ${_emailController.text.trim()}. Please click the link in your inbox to verify your account.',
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
 
         // Recovery Key Box
         Text(
           'Your Emergency Recovery Key',
-          style:
-              AppTypography.bodySmallMedium.copyWith(color: colors.textPrimary),
+          style: AppTypography.bodySmallMedium.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Save this key in a password manager or safe offline document. If you forget your encryption password, this is the only way to recover your notes.',
-          style: AppTypography.caption.copyWith(color: colors.textSecondary),
+          style: AppTypography.caption.copyWith(
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: AppRadii.borderMd,
-            border: Border.all(color: colors.divider),
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(
+              color: colors.divider.withValues(alpha: 0.6),
+              width: 0.8,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -949,15 +924,14 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           ),
         ),
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            QuietButton(
-              label: 'I Have Saved My Recovery Key',
-              variant: QuietButtonVariant.primary,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: 'Done — Saved Recovery Key',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
       ],
     );
@@ -988,79 +962,102 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           },
         ),
         const SizedBox(height: AppSpacing.lg),
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          onChanged: (_) => _clearError(),
-          decoration: InputDecoration(
-            labelText: 'Email address',
-            prefixIcon: const Icon(Icons.email_outlined, size: 20),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
+        if (_isLoading)
+          _buildLoadingIndicator(
+            colors,
+            'Authenticating & unlocking encrypted vault...',
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _fbPasswordController,
-          obscureText: _obscureSignInFbPassword,
-          onChanged: (_) => _clearError(),
-          decoration: InputDecoration(
-            labelText: 'Account Login Password (Firebase)',
-            prefixIcon: const Icon(Icons.lock_outline, size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureSignInFbPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: 20,
-              ),
-              onPressed: () => setState(() =>
-                  _obscureSignInFbPassword = !_obscureSignInFbPassword),
+        FormCard(
+          children: [
+            FormInputRow(
+              controller: _emailController,
+              icon: Icons.email_outlined,
+              labelText: 'Email address',
+              keyboardType: TextInputType.emailAddress,
+              enabled: !_isLoading,
+              onChanged: (_) => _clearError(),
             ),
-            border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (_isRecoveringInSignIn) ...[
-          TextField(
-            controller: _recoveryKeyController,
-            onChanged: (_) => _clearError(),
-            decoration: InputDecoration(
-              labelText: 'Recovery Key (qp-xxxx-...)',
-              prefixIcon: const Icon(Icons.vpn_key_outlined, size: 20),
-              border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _encPasswordController,
-            obscureText: _obscureSignInEncPassword,
-            onChanged: (_) => _clearError(),
-            decoration: InputDecoration(
-              labelText: 'New Encryption Password (Optional)',
-              prefixIcon: const Icon(Icons.key_outlined, size: 20),
-              border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-            ),
-          ),
-        ] else ...[
-          TextField(
-            controller: _encPasswordController,
-            obscureText: _obscureSignInEncPassword,
-            onChanged: (_) => _clearError(),
-            decoration: InputDecoration(
-              labelText: 'Quiet Paper Encryption Password',
-              helperText: 'Decodes notes locally on device.',
-              prefixIcon: const Icon(Icons.key_outlined, size: 20),
-              suffixIcon: IconButton(
+            const FormDivider(),
+            FormInputRow(
+              controller: _fbPasswordController,
+              icon: Icons.lock_outline,
+              labelText: 'Account Login Password (Firebase)',
+              obscureText: _obscureSignInFbPassword,
+              enabled: !_isLoading,
+              onChanged: (_) => _clearError(),
+              suffix: IconButton(
                 icon: Icon(
-                  _obscureSignInEncPassword
+                  _obscureSignInFbPassword
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   size: 20,
+                  color: colors.textTertiary,
                 ),
                 onPressed: () => setState(() =>
-                    _obscureSignInEncPassword = !_obscureSignInEncPassword),
+                    _obscureSignInFbPassword = !_obscureSignInFbPassword),
               ),
-              border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
+            ),
+            const FormDivider(),
+            if (_isRecoveringInSignIn) ...[
+              FormInputRow(
+                controller: _recoveryKeyController,
+                icon: Icons.vpn_key_outlined,
+                labelText: 'Recovery Key (qp-xxxx-...)',
+                enabled: !_isLoading,
+                onChanged: (_) => _clearError(),
+              ),
+              const FormDivider(),
+              FormInputRow(
+                controller: _encPasswordController,
+                icon: Icons.key_outlined,
+                labelText: 'New Encryption Password (Optional)',
+                obscureText: _obscureSignInEncPassword,
+                enabled: !_isLoading,
+                onChanged: (_) => _clearError(),
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscureSignInEncPassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 20,
+                    color: colors.textTertiary,
+                  ),
+                  onPressed: () => setState(() =>
+                      _obscureSignInEncPassword = !_obscureSignInEncPassword),
+                ),
+              ),
+            ] else ...[
+              FormInputRow(
+                controller: _encPasswordController,
+                icon: Icons.key_outlined,
+                labelText: 'Quiet Paper Encryption Password',
+                obscureText: _obscureSignInEncPassword,
+                enabled: !_isLoading,
+                onChanged: (_) => _clearError(),
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscureSignInEncPassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 20,
+                    color: colors.textTertiary,
+                  ),
+                  onPressed: () => setState(() =>
+                      _obscureSignInEncPassword = !_obscureSignInEncPassword),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (!_isRecoveringInSignIn) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, top: 6.0),
+            child: Text(
+              'Decodes notes locally on device.',
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontSize: 12.0,
+              ),
             ),
           ),
         ],
@@ -1073,49 +1070,64 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
           ),
         ],
         const SizedBox(height: AppSpacing.md),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
           children: [
             TextButton(
-              onPressed: () {
-                setState(() {
-                  _step = _AuthFlowStep.signupEmail;
-                  _errorMessage = null;
-                });
-              },
-              child: const Text('New? Create Account'),
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _step = _AuthFlowStep.signupEmail;
+                        _errorMessage = null;
+                      });
+                    },
+              child: Text(
+                'New? Create Account',
+                style: AppTypography.caption.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
             ),
             TextButton(
-              onPressed: () {
-                setState(() {
-                  _isRecoveringInSignIn = !_isRecoveringInSignIn;
-                  _errorMessage = null;
-                });
-              },
-              child: Text(_isRecoveringInSignIn
-                  ? 'Use Encryption Password'
-                  : 'Forgot Password? Use Recovery Key'),
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _isRecoveringInSignIn = !_isRecoveringInSignIn;
+                        _errorMessage = null;
+                      });
+                    },
+              child: Text(
+                _isRecoveringInSignIn
+                    ? 'Use Encryption Password'
+                    : 'Forgot Password? Use Recovery Key',
+                style: AppTypography.caption.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            QuietButton(
-              label: 'Cancel',
-              variant: QuietButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            QuietButton(
-              label: _isRecoveringInSignIn
-                  ? 'Recover & Unlock'
-                  : 'Sign In & Unlock',
-              variant: QuietButtonVariant.primary,
-              onPressed: _isLoading ? null : _submitSignIn,
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: QuietButton(
+            label: _isRecoveringInSignIn
+                ? 'Recover & Unlock'
+                : 'Sign In & Unlock',
+            variant: QuietButtonVariant.primary,
+            isFullWidth: true,
+            isLoading: _isLoading,
+            onPressed: _isLoading ? null : _submitSignIn,
+          ),
         ),
       ],
     );
@@ -1155,12 +1167,18 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
         const SizedBox(height: AppSpacing.xs),
         Text(
           title,
-          style: AppTypography.headline.copyWith(color: colors.textPrimary),
+          style: AppTypography.headline.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           subtitle,
-          style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+          style: AppTypography.bodySmall.copyWith(
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
         ),
       ],
     );
@@ -1188,10 +1206,13 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
                   size: 18,
                   color: colors.textTertiary,
                 ),
-                Text(
-                  'Server & Firebase API Settings',
-                  style: AppTypography.caption
-                      .copyWith(color: colors.textSecondary),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Server & Firebase API Settings',
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
                 ),
               ],
             ),
@@ -1199,22 +1220,20 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
         ),
         if (_showAdvancedSettings) ...[
           const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _serverUrlController,
-            decoration: InputDecoration(
-              labelText: 'Sync Server URL',
-              hintText: 'https://quitepaper.vercel.app',
-              border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _apiKeyController,
-            decoration: InputDecoration(
-              labelText: 'Firebase Web API Key',
-              hintText: 'AIzaSy...',
-              border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-            ),
+          FormCard(
+            children: [
+              FormInputRow(
+                controller: _serverUrlController,
+                labelText: 'Sync Server URL',
+                hintText: 'https://quitepaper.vercel.app',
+              ),
+              const FormDivider(indent: 16),
+              FormInputRow(
+                controller: _apiKeyController,
+                labelText: 'Firebase Web API Key',
+                hintText: 'AIzaSy...',
+              ),
+            ],
           ),
         ],
       ],

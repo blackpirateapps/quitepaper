@@ -5,6 +5,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/sync/sync_provider.dart';
+import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 
@@ -162,14 +163,16 @@ class _ChangeEncryptionPasswordScreenState
           style: AppTypography.title.copyWith(
             color: colors.textPrimary,
             fontSize: 20,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
+            constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
                 vertical: AppSpacing.md,
@@ -196,13 +199,16 @@ class _ChangeEncryptionPasswordScreenState
                           children: [
                             Text(
                               'Master Password Rotation',
-                              style: AppTypography.headline
-                                  .copyWith(color: colors.textPrimary),
+                              style: AppTypography.headline.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             Text(
                               'Re-wraps your master key. Note ciphertexts stay untouched.',
-                              style: AppTypography.caption
-                                  .copyWith(color: colors.textSecondary),
+                              style: AppTypography.caption.copyWith(
+                                color: colors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -249,56 +255,56 @@ class _ChangeEncryptionPasswordScreenState
                   // Section 1: Verification of Current Credentials
                   Text(
                     '1. Verify Current Vault Ownership',
-                    style: AppTypography.bodySmallMedium
-                        .copyWith(color: colors.textPrimary),
+                    style: AppTypography.bodySmallMedium.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     _isUsingRecoveryKey
                         ? 'Enter your emergency recovery key to authorize changing your password.'
                         : 'Enter your current encryption password to authorize changing your password.',
-                    style:
-                        AppTypography.caption.copyWith(color: colors.textSecondary),
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: AppSpacing.sm),
 
-                  if (_isUsingRecoveryKey) ...[
-                    TextField(
-                      controller: _recoveryKeyController,
-                      enabled: !_isLoading,
-                      onChanged: (_) => _clearError(),
-                      decoration: InputDecoration(
-                        labelText: 'Emergency Recovery Key (qp-xxxx-...)',
-                        prefixIcon:
-                            const Icon(Icons.vpn_key_outlined, size: 20),
-                        border:
-                            OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                      ),
-                    ),
-                  ] else ...[
-                    TextField(
-                      controller: _currentPasswordController,
-                      obscureText: _obscureCurrentPassword,
-                      enabled: !_isLoading,
-                      onChanged: (_) => _clearError(),
-                      decoration: InputDecoration(
-                        labelText: 'Current Encryption Password',
-                        prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureCurrentPassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
-                          ),
-                          onPressed: () => setState(() =>
-                              _obscureCurrentPassword = !_obscureCurrentPassword),
+                  // Group 1 FormCard
+                  FormCard(
+                    children: [
+                      if (_isUsingRecoveryKey) ...[
+                        FormInputRow(
+                          controller: _recoveryKeyController,
+                          icon: Icons.vpn_key_outlined,
+                          labelText: 'Emergency Recovery Key (qp-xxxx-...)',
+                          enabled: !_isLoading,
+                          onChanged: (_) => _clearError(),
                         ),
-                        border:
-                            OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                      ),
-                    ),
-                  ],
+                      ] else ...[
+                        FormInputRow(
+                          controller: _currentPasswordController,
+                          icon: Icons.lock_outline,
+                          labelText: 'Current Encryption Password',
+                          obscureText: _obscureCurrentPassword,
+                          enabled: !_isLoading,
+                          onChanged: (_) => _clearError(),
+                          suffix: IconButton(
+                            icon: Icon(
+                              _obscureCurrentPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 20,
+                              color: colors.textTertiary,
+                            ),
+                            onPressed: () => setState(() =>
+                                _obscureCurrentPassword =
+                                    !_obscureCurrentPassword),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -315,72 +321,76 @@ class _ChangeEncryptionPasswordScreenState
                             ? 'Use Current Password Instead'
                             : 'Forgot password? Use Recovery Key',
                         style: AppTypography.caption.copyWith(
-                          color: colors.accentDark,
+                          color: colors.accent,
                           fontWeight: FontWeight.w600,
+                          fontSize: 12.0,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const Divider(),
                   const SizedBox(height: AppSpacing.sm),
 
                   // Section 2: Set New Password
                   Text(
                     '2. Set New Encryption Password',
-                    style: AppTypography.bodySmallMedium
-                        .copyWith(color: colors.textPrimary),
+                    style: AppTypography.bodySmallMedium.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Choose a strong password (minimum 8 characters).',
-                    style:
-                        AppTypography.caption.copyWith(color: colors.textSecondary),
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _newPasswordController,
-                    obscureText: _obscureNewPassword,
-                    enabled: !_isLoading,
-                    onChanged: (_) => _clearError(),
-                    decoration: InputDecoration(
-                      labelText: 'New Encryption Password (min. 8 chars)',
-                      prefixIcon: const Icon(Icons.key_outlined, size: 20),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureNewPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 20,
+
+                  // Group 2 FormCard
+                  FormCard(
+                    children: [
+                      FormInputRow(
+                        controller: _newPasswordController,
+                        icon: Icons.key_outlined,
+                        labelText: 'New Encryption Password (min. 8 chars)',
+                        obscureText: _obscureNewPassword,
+                        enabled: !_isLoading,
+                        onChanged: (_) => _clearError(),
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscureNewPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                            color: colors.textTertiary,
+                          ),
+                          onPressed: () => setState(() =>
+                              _obscureNewPassword = !_obscureNewPassword),
                         ),
-                        onPressed: () => setState(
-                            () => _obscureNewPassword = !_obscureNewPassword),
                       ),
-                      border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    enabled: !_isLoading,
-                    onChanged: (_) => _clearError(),
-                    onSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      labelText: 'Confirm New Password',
-                      prefixIcon: const Icon(Icons.key_outlined, size: 20),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 20,
+                      const FormDivider(),
+                      FormInputRow(
+                        controller: _confirmPasswordController,
+                        icon: Icons.key_outlined,
+                        labelText: 'Confirm New Password',
+                        obscureText: _obscureConfirmPassword,
+                        enabled: !_isLoading,
+                        onChanged: (_) => _clearError(),
+                        onSubmitted: (_) => _submit(),
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                            color: colors.textTertiary,
+                          ),
+                          onPressed: () => setState(() =>
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword),
                         ),
-                        onPressed: () => setState(() =>
-                            _obscureConfirmPassword = !_obscureConfirmPassword),
                       ),
-                      border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                    ),
+                    ],
                   ),
                   if (_errorMessage != null) ...[
                     const SizedBox(height: AppSpacing.md),
@@ -389,24 +399,16 @@ class _ChangeEncryptionPasswordScreenState
                       style: AppTypography.caption.copyWith(color: colors.error),
                     ),
                   ],
-                  const SizedBox(height: AppSpacing.lg),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      QuietButton(
-                        label: 'Cancel',
-                        variant: QuietButtonVariant.secondary,
-                        onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                      ),
-                      QuietButton(
-                        label: 'Verify & Change Password',
-                        variant: QuietButtonVariant.primary,
-                        isLoading: _isLoading,
-                        onPressed: _isLoading ? null : _submit,
-                      ),
-                    ],
+                  const SizedBox(height: AppSpacing.xl),
+                  SizedBox(
+                    width: double.infinity,
+                    child: QuietButton(
+                      label: 'Verify & Change Password',
+                      variant: QuietButtonVariant.primary,
+                      isFullWidth: true,
+                      isLoading: _isLoading,
+                      onPressed: _isLoading ? null : _submit,
+                    ),
                   ),
                 ],
               ),

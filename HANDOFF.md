@@ -860,4 +860,46 @@ When a user is signed in (`currentUser != null`), the card renders exactly 6 row
      - *Body*: `"Sign out of <email>? Local notes will remain on this device."`
      - *Actions*: `Cancel` (dismisses modal, maintains session) and `Sign Out` (destructive, calls `authService.signOut()` and `keyManager.clearLocalKeys()`, smoothly transitioning the UI to the unauthenticated state).
 
+---
 
+## 30. Auth & Encryption Flow UI Refactor (iOS / Bear Notes Inset Grouped Table Aesthetic)
+
+### Architectural Overview & Reusable Component System
+All authentication and encryption management screens have been refactored away from floating Android-style text fields and scattered cards into an iOS / Bear Notes "Inset Grouped Table" design system. The components are encapsulated in [`lib/core/widgets/form_card.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/form_card.dart):
+
+* **`<FormCard>`**: Solid container with `12dp` rounded corners (`AppRadii.borderMd`), elevated `colors.surface` background, subtle `0.8px` border, and anti-alias clipping.
+* **`FormInputRow`**: Flush iOS list row input with zero Material borders or outlines (`InputBorder.none`). Automatically tracks `FocusNode` to tint the leading 20sp icon with `colors.accent` (coral) upon active focus, and reverts to `colors.textSecondary` when idle. Includes optional suffix toggle widgets.
+* **`FormDivider`**: Ultra-thin `1px` divider indented by `52dp` from the left to align with the text start column (16dp left padding + 24dp icon container + 12dp gap).
+* **`FormInfoRow`**: Grouped informational rows for safety guides and feature breakdowns with leading icon, title, badge chip (`Fully Private`, `Metadata Only`, `Zero Knowledge`), and muted description text.
+
+### Global Constraints & Behavioral System
+* **Max Width Container**: All auth, setup, and password management screens wrap their scrollable content in a `Center` widget with `BoxConstraints(maxWidth: 420)` to maintain a tight iOS table layout on tablet and desktop viewports.
+* **Full-Width Primary Buttons**: Primary action buttons ("Continue", "Sign In & Unlock", "Create Account & Encrypt", "Verify & Change Password", "Update Password") span 100% width of the container with `10dp` rounding (`AppRadii.borderBtn`) and coral accent color.
+* **Keyboard Avoidance**: Screen content wraps in `SingleChildScrollView` with `ClampingScrollPhysics`, allowing input fields and primary action buttons to scroll comfortably above the virtual software keyboard.
+
+### Screen Refactors
+
+1. **Zero-Knowledge Intro Screen (`SyncAuthScreen` - `_AuthFlowStep.onboarding`)**:
+   - Merged "What Gets Encrypted", "What Stays Plaintext (Metadata)", and "Two Separate Passwords" into a single `<FormCard>` separated by inset dividers.
+   - Replaced scattered buttons with full-width primary "Create Account" and full-width secondary "Sign In" buttons.
+
+2. **Sign-In Screen (`SyncAuthScreen` - `_AuthFlowStep.signIn`)**:
+   - Consolidated "Email address", "Account Login Password", and "Quiet Paper Encryption Password" (or "Recovery Key" / "New Encryption Password" in recovery mode) into a single `<FormCard>`.
+   - Moved helper text *"Decodes notes locally on device."* outside and directly below the card with `12sp` muted typography.
+   - Full-width "Sign In & Unlock" (or "Recover & Unlock") button.
+
+3. **Account Creation Multi-Step Flow**:
+   - **Step 1 (Email)**: Email input in `<FormCard>`, full-width "Continue" button, and centered secondary link *"Already have an account? Sign In"*.
+   - **Step 2 (Account Password)**: Single `<FormCard>` containing "Account Password" and "Confirm Account Password" with inset divider. Removed redundant bottom "Back" button; top-left "<- Step 2 of 3" navigation is used. Full-width "Continue" button.
+   - **Step 3 (Encryption Password)**: Distinct Password Safety alert banner placed above input card. "Quiet Paper Encryption Password" and "Confirm Encryption Password" inside `<FormCard>` with inset divider. Full-width "Create Account & Encrypt" button.
+   - **Step 4 (Completion)**: Account Created confirmation, email verification notice in `<FormCard>`, and emergency recovery key box with full-width "Done — Saved Recovery Key" button.
+
+4. **Change Encryption Password (`ChangeEncryptionPasswordScreen` & `ChangeEncryptionPasswordDialog`)**:
+   - **Group 1 `<FormCard>`**: Current encryption password (or recovery key). Subtitle link *"Forgot password? Use Recovery Key"* placed right-aligned below the card.
+   - **Group 2 `<FormCard>`**: New encryption password and confirm password with inset divider.
+   - Full-width "Verify & Change Password" button; removed redundant bottom cancel button in favor of top-left back/close navigation.
+
+5. **Change Account Password (`ChangeAccountPasswordScreen` & `ChangeAccountPasswordDialog`)**:
+   - **Group 1 `<FormCard>`**: Current account password.
+   - **Group 2 `<FormCard>`**: New account password and confirm password with inset divider.
+   - Full-width "Update Password" button.

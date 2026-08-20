@@ -5,6 +5,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/sync/sync_provider.dart';
+import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
 
 class ChangeAccountPasswordDialog extends ConsumerStatefulWidget {
@@ -108,180 +109,189 @@ class _ChangeAccountPasswordDialogState
     final colors = context.appColors;
 
     return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      backgroundColor: colors.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.lg,
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: colors.accentSoft,
-                        borderRadius: AppRadii.borderMd,
-                      ),
-                      child: Icon(
-                        Icons.key_outlined,
-                        color: colors.accentDark,
-                        size: 24,
-                      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: colors.accentSoft,
+                      borderRadius: AppRadii.borderMd,
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Account Password',
-                            style: AppTypography.headline
-                                .copyWith(color: colors.textPrimary),
-                          ),
-                          Text(
-                            'Login & cloud account credentials',
-                            style: AppTypography.caption
-                                .copyWith(color: colors.textSecondary),
-                          ),
-                        ],
-                      ),
+                    child: Icon(
+                      Icons.key_outlined,
+                      color: colors.accentDark,
+                      size: 24,
                     ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Account Password',
+                          style: AppTypography.headline.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'Login & cloud account credentials',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-                // Section 1: Current Password
-                Text(
-                  '1. Verify Current Password',
-                  style: AppTypography.bodySmallMedium
-                      .copyWith(color: colors.textPrimary),
+              // Section 1: Current Password
+              Text(
+                '1. Verify Current Password',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Enter your current account login password.',
-                  style: AppTypography.caption
-                      .copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Enter your current account login password.',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textSecondary,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _currentPasswordController,
-                  obscureText: _obscureCurrentPassword,
-                  enabled: !_isLoading,
-                  onChanged: (_) => _clearError(),
-                  decoration: InputDecoration(
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              FormCard(
+                children: [
+                  FormInputRow(
+                    controller: _currentPasswordController,
+                    icon: Icons.lock_outline,
                     labelText: 'Current Password',
-                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                    suffixIcon: IconButton(
+                    obscureText: _obscureCurrentPassword,
+                    enabled: !_isLoading,
+                    onChanged: (_) => _clearError(),
+                    suffix: IconButton(
                       icon: Icon(
                         _obscureCurrentPassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         size: 20,
+                        color: colors.textTertiary,
                       ),
                       onPressed: () => setState(() =>
                           _obscureCurrentPassword = !_obscureCurrentPassword),
                     ),
-                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const Divider(),
-                const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
 
-                // Section 2: New Password
-                Text(
-                  '2. Set New Account Password',
-                  style: AppTypography.bodySmallMedium
-                      .copyWith(color: colors.textPrimary),
+              // Section 2: New Password
+              Text(
+                '2. Set New Account Password',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Choose a strong password (minimum 8 characters).',
-                  style: AppTypography.caption
-                      .copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Choose a strong password (minimum 8 characters).',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textSecondary,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _newPasswordController,
-                  obscureText: _obscureNewPassword,
-                  enabled: !_isLoading,
-                  onChanged: (_) => _clearError(),
-                  decoration: InputDecoration(
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              FormCard(
+                children: [
+                  FormInputRow(
+                    controller: _newPasswordController,
+                    icon: Icons.key_outlined,
                     labelText: 'New Password (min. 8 chars)',
-                    prefixIcon: const Icon(Icons.key_outlined, size: 20),
-                    suffixIcon: IconButton(
+                    obscureText: _obscureNewPassword,
+                    enabled: !_isLoading,
+                    onChanged: (_) => _clearError(),
+                    suffix: IconButton(
                       icon: Icon(
                         _obscureNewPassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         size: 20,
+                        color: colors.textTertiary,
                       ),
                       onPressed: () => setState(
                           () => _obscureNewPassword = !_obscureNewPassword),
                     ),
-                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
-                  enabled: !_isLoading,
-                  onChanged: (_) => _clearError(),
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
+                  const FormDivider(),
+                  FormInputRow(
+                    controller: _confirmPasswordController,
+                    icon: Icons.key_outlined,
                     labelText: 'Confirm New Password',
-                    prefixIcon: const Icon(Icons.key_outlined, size: 20),
-                    suffixIcon: IconButton(
+                    obscureText: _obscureConfirmPassword,
+                    enabled: !_isLoading,
+                    onChanged: (_) => _clearError(),
+                    onSubmitted: (_) => _submit(),
+                    suffix: IconButton(
                       icon: Icon(
                         _obscureConfirmPassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         size: 20,
+                        color: colors.textTertiary,
                       ),
                       onPressed: () => setState(() =>
                           _obscureConfirmPassword = !_obscureConfirmPassword),
                     ),
-                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                  ),
-                ),
-
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    _errorMessage!,
-                    style: AppTypography.caption.copyWith(color: colors.error),
                   ),
                 ],
+              ),
 
-                const SizedBox(height: AppSpacing.lg),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    QuietButton(
-                      label: 'Cancel',
-                      variant: QuietButtonVariant.secondary,
-                      onPressed:
-                          _isLoading ? null : () => Navigator.of(context).pop(),
-                    ),
-                    QuietButton(
-                      label: 'Update Password',
-                      variant: QuietButtonVariant.primary,
-                      isLoading: _isLoading,
-                      onPressed: _isLoading ? null : _submit,
-                    ),
-                  ],
+              if (_errorMessage != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  _errorMessage!,
+                  style: AppTypography.caption.copyWith(color: colors.error),
                 ),
               ],
-            ),
+
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: QuietButton(
+                  label: 'Update Password',
+                  variant: QuietButtonVariant.primary,
+                  isFullWidth: true,
+                  isLoading: _isLoading,
+                  onPressed: _isLoading ? null : _submit,
+                ),
+              ),
+            ],
           ),
         ),
       ),
