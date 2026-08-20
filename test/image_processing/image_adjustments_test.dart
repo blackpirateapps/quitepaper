@@ -1,5 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:quitepaper/core/image_processing/image_adjustments.dart';
+import 'package:quitepaper/core/image_processing/image_processor.dart';
 import 'package:quitepaper/core/ocr/ocr_models.dart';
 
 void main() {
@@ -65,6 +68,26 @@ void main() {
       expect(restored.crop, equals(crop));
       expect(restored.rotationQuarterTurns, equals(3));
       expect(restored.grayscale, isTrue);
+    });
+
+    test('DartImageProcessor enhanceForOcr enhances image bytes without error', () async {
+      const processor = DartImageProcessor();
+      // Generate a small 10x10 dummy test image
+      final testImg = img.Image(width: 10, height: 10);
+      for (var y = 0; y < 10; y++) {
+        for (var x = 0; x < 10; x++) {
+          testImg.setPixelRgb(x, y, 120, 120, 120);
+        }
+      }
+      final rawPng = Uint8List.fromList(img.encodePng(testImg));
+
+      final enhanced = await processor.enhanceForOcr(rawPng);
+      expect(enhanced, isNotEmpty);
+
+      final normalized = await processor.normalizePage(rawPng);
+      expect(normalized.width, equals(10));
+      expect(normalized.height, equals(10));
+      expect(normalized.normalizedBytes, isNotEmpty);
     });
   });
 }

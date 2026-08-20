@@ -1105,6 +1105,25 @@ Quiet Paper features real, on-device machine learning character and word recogni
   1. **ML Kit (Mobile Runtime)**: Runs on Android and iOS devices for full character recognition.
   2. **Computer Vision Fallback (Host/Test/Desktop)**: Automatically activates in unit test and desktop VM environments, ensuring 100% test reliability without native binary dependencies.
 
+---
+
+## 47. OCR Production Polish, Multi-Page Chunking & R8 Proguard Rules
+
+### 1. Image Pre-Processing & Auto-Orientation (`DartImageProcessor.enhanceForOcr`)
+- **EXIF Baking**: Automatically bakes camera sensor orientation (`bakeOrientation`) so characters are positioned upright before feeding into the ML Kit recognizer.
+- **Contrast Stretching**: Applies adaptive contrast enhancement (`contrast: 115`) to boost character edge definition and remove background shadows.
+
+### 2. Multi-Page Chunked Rasterization (`DefaultPdfPageRenderer`)
+- **Event-Loop Yielding**: Multi-page PDF rasterization periodically yields to the event loop every 3 pages, preventing UI stutter during large document imports (15+ pages).
+
+### 3. Global Note Search Integration with Attached Documents
+- **SQL Subquery Filtering**: `AppDatabase.watchNotes` searches not only note titles, contents, and tags, but also searches `documentsTable.title` so searching for document names returns the parent note.
+
+### 4. Android R8 Minification & Proguard Rules
+- **Rule Definitions**: Created `android/app/proguard-rules.pro` with `-dontwarn com.google.mlkit.vision.text.**` rules for optional non-Latin scripts, resolving `assembleRelease` R8 compilation errors.
+- **Gradle Config**: Configured `proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")` in `build.gradle.kts`.
+
+
 
 
 

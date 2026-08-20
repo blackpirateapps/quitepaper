@@ -4,6 +4,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../image_processing/image_processor.dart';
 import '../pdf/pdf_page_renderer.dart';
 import 'ocr_models.dart';
 
@@ -87,10 +88,11 @@ class DefaultOcrService implements OcrService {
     TextRecognizer? textRecognizer;
 
     try {
+      final enhancedBytes = await const DartImageProcessor().enhanceForOcr(imageBytes);
       final tempDir = await getTemporaryDirectory();
       final fileName = 'ocr_page_${pageNumber}_${DateTime.now().microsecondsSinceEpoch}.png';
       tempFile = File(p.join(tempDir.path, fileName));
-      await tempFile.writeAsBytes(imageBytes);
+      await tempFile.writeAsBytes(enhancedBytes);
 
       final script = _mapLanguageToScript(language);
       textRecognizer = TextRecognizer(script: script);
@@ -98,7 +100,7 @@ class DefaultOcrService implements OcrService {
       final inputImage = InputImage.fromFile(tempFile);
       final recognizedText = await textRecognizer.processImage(inputImage);
 
-      final decoded = img.decodeImage(imageBytes);
+      final decoded = img.decodeImage(enhancedBytes);
       final width = (decoded?.width ?? 1000).toDouble();
       final height = (decoded?.height ?? 1414).toDouble();
 

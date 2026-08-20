@@ -200,7 +200,15 @@ class AppDatabase extends _$AppDatabase {
                 noteTagsTable.noteId.equalsExp(n.id),
           );
 
-        return titleOrContentMatch | existsQuery(tagSubQuery);
+        final docSubQuery = selectOnly(documentsTable)
+          ..addColumns([documentsTable.noteId])
+          ..where(
+            documentsTable.noteId.equalsExp(n.id) &
+                documentsTable.isDeleted.equals(false) &
+                documentsTable.title.lower().like(pattern),
+          );
+
+        return titleOrContentMatch | existsQuery(tagSubQuery) | existsQuery(docSubQuery);
       });
     }
 

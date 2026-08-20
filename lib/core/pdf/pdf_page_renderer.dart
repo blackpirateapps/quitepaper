@@ -73,6 +73,11 @@ class DefaultPdfPageRenderer implements PdfPageRenderer {
           ),
         );
         currentIdx++;
+
+        // Yield to event loop periodically for responsive UI on large multi-page scans
+        if (currentIdx % 3 == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
       }
     } catch (e) {
       debugPrint('PdfPageRenderer error: $e');

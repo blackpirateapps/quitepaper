@@ -156,5 +156,37 @@ void main() {
       final docInDb = await database.getDocument(testDocId);
       expect(docInDb?.title, equals('Updated Via Viewer'));
     });
+
+    test('Searching notes matches notes containing attached documents by document title', () async {
+      const noteAId = 'note-with-insurance-doc';
+      const docInsuranceId = 'doc-insurance-999';
+
+      await database.saveDocument(
+        id: docInsuranceId,
+        noteId: noteAId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        title: 'Health Insurance Policy 2026',
+        source: 'scanner',
+        ocrState: 'available',
+      );
+
+      final note = Note(
+        id: noteAId,
+        title: 'General Files',
+        content: 'Attached file: [Health Insurance Policy 2026](qp://document/$docInsuranceId)',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await notesRepository.saveNote(note);
+
+      // Search for "Insurance"
+      final searchStream = notesRepository.watchNotes(searchQuery: 'Insurance');
+      final matchedNotes = await searchStream.first;
+
+      expect(matchedNotes.length, equals(1));
+      expect(matchedNotes.first.id, equals(noteAId));
+    });
   });
 }

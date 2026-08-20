@@ -20,6 +20,9 @@ abstract class ImageProcessor {
   Future<({Uint8List normalizedBytes, int width, int height, NormalizedRect suggestedCrop})>
       normalizePage(Uint8List rawBytes);
 
+  /// Pre-processes and enhances an image bitmap specifically for Optical Character Recognition.
+  Future<Uint8List> enhanceForOcr(Uint8List rawBytes);
+
   /// Heuristically evaluates document boundary confidence score `[0.0 - 1.0]` for live camera overlays.
   double estimateDocumentConfidence(Uint8List frameBytes);
 }
@@ -45,7 +48,7 @@ class DartImageProcessor implements ImageProcessor {
       final decoded = img.decodeImage(sourceBytes);
       if (decoded == null) return sourceBytes;
 
-      img.Image processed = decoded;
+      img.Image processed = img.bakeOrientation(decoded);
 
       // 1. If in interactive preview mode, downscale first for smooth 60fps adjustments
       if (isPreview) {
@@ -145,6 +148,24 @@ class DartImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<Uint8List> enhanceForOcr(Uint8List rawBytes) async {
+    try {
+      final decoded = img.decodeImage(rawBytes);
+      if (decoded == null) return rawBytes;
+
+      img.Image processed = img.bakeOrientation(decoded);
+
+      // Contrast enhancement for clear character edges
+      processed = img.contrast(processed, contrast: 115);
+
+      return Uint8List.fromList(img.encodePng(processed));
+    } catch (e) {
+      debugPrint('DartImageProcessor enhanceForOcr error: $e');
+      return rawBytes;
+    }
+  }
+
+  @override
   Future<({Uint8List normalizedBytes, int width, int height, NormalizedRect suggestedCrop})>
       normalizePage(Uint8List rawBytes) async {
     try {
@@ -158,7 +179,7 @@ class DartImageProcessor implements ImageProcessor {
         );
       }
 
-      img.Image processed = decoded;
+      img.Image processed = img.bakeOrientation(decoded);
 
       // Downscale if too large
       if (processed.width > defaultMaxDimension ||
