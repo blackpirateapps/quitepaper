@@ -1022,3 +1022,15 @@ Quiet Paper includes a complete, production-ready, client-side zero-knowledge do
 * **Document Viewer (`DocumentViewerScreen`)**: Displays document title, page count, file size, source badge, OCR status pill, and OCR language.
 * **Backup & Restore**: `.qpbackup` format serializes and restores document `source`, `ocrState`, `ocrLanguage`, and encrypted `ocrPages` records.
 
+---
+
+## 43. Streamlined Android APK Build Workflow (`build_apk.yml`)
+
+### Problem
+Previously, `.github/workflows/build_apk.yml` included redundant steps for static analysis (`flutter analyze`) and unit/widget test execution (`flutter test`). Because static analysis and tests are already comprehensively executed by the dedicated `Test & Analyze` workflow (`.github/workflows/test.yml`) on every push and pull request, re-running these checks inside the Android APK build pipeline resulted in duplicate CI runtime and delayed build artifact generation.
+
+### Changes
+- Removed redundant `flutter analyze` and `flutter test` steps from `.github/workflows/build_apk.yml`.
+- Updated job name from `Test and Build Android APK` to `Build Android APK` to reflect its focused responsibility of compiling and packaging multi-architecture release APKs.
+
+
