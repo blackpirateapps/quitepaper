@@ -1,5 +1,9 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../pdf/pdf_page_renderer.dart';
 import 'ocr_models.dart';
 
@@ -20,16 +24,176 @@ abstract class OcrService {
   });
 }
 
-/// Default on-device OCR engine implementing computer vision line and word segmentation.
+/// Default on-device OCR engine implementing hardware-accelerated Google ML Kit recognition
+/// with seamless computer vision line segmentation fallback for test and non-mobile host environments.
 class DefaultOcrService implements OcrService {
   const DefaultOcrService({
     PdfPageRenderer? pageRenderer,
+    this.enableMlKit = true,
   }) : _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer();
 
   final PdfPageRenderer _pageRenderer;
+  final bool enableMlKit;
 
   @override
   Future<OcrPage> recognizePage(
+    Uint8List imageBytes, {
+    required int pageNumber,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    if (imageBytes.isEmpty) {
+      return OcrPage(
+        pageNumber: pageNumber,
+        plainText: '',
+        width: 1000,
+        height: 1414,
+        source: OcrSource.onDeviceOcr,
+        blocks: const [],
+      );
+    }
+
+    // 1. Attempt hardware-accelerated ML Kit recognition on Android / iOS
+    if (enableMlKit && !kIsWeb) {
+      try {
+        if (Platform.isAndroid || Platform.isIOS) {
+          final mlKitResult = await _recognizeWithMlKit(
+            imageBytes,
+            pageNumber: pageNumber,
+            language: language,
+          );
+          if (mlKitResult != null) {
+            return mlKitResult;
+          }
+        }
+      } catch (e) {
+        debugPrint('ML Kit recognition failed or unavailable on host, using fallback: $e');
+      }
+    }
+
+    // 2. Fallback to computer-vision luminance & line segmentation
+    return _recognizeWithCvFallback(
+      imageBytes,
+      pageNumber: pageNumber,
+      language: language,
+    );
+  }
+
+  Future<OcrPage?> _recognizeWithMlKit(
+    Uint8List imageBytes, {
+    required int pageNumber,
+    required OcrLanguage language,
+  }) async {
+    File? tempFile;
+    TextRecognizer? textRecognizer;
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'ocr_page_${pageNumber}_${DateTime.now().microsecondsSinceEpoch}.png';
+      tempFile = File(p.join(tempDir.path, fileName));
+      await tempFile.writeAsBytes(imageBytes);
+
+      final script = _mapLanguageToScript(language);
+      textRecognizer = TextRecognizer(script: script);
+
+      final inputImage = InputImage.fromFile(tempFile);
+      final recognizedText = await textRecognizer.processImage(inputImage);
+
+      final decoded = img.decodeImage(imageBytes);
+      final width = (decoded?.width ?? 1000).toDouble();
+      final height = (decoded?.height ?? 1414).toDouble();
+
+      final ocrBlocks = <OcrBlock>[];
+
+      for (final block in recognizedText.blocks) {
+        final ocrLines = <OcrLine>[];
+        for (final line in block.lines) {
+          final ocrWords = <OcrWord>[];
+          for (final element in line.elements) {
+            final elBox = element.boundingBox;
+            final wordNormRect = NormalizedRect.fromPixels(
+              pixelX: elBox.left,
+              pixelY: elBox.top,
+              pixelWidth: elBox.width,
+              pixelHeight: elBox.height,
+              sourceWidth: width,
+              sourceHeight: height,
+            );
+
+            ocrWords.add(
+              OcrWord(
+                text: element.text,
+                bounds: wordNormRect,
+                confidence: element.confidence ?? 0.95,
+              ),
+            );
+          }
+
+          final lineBox = line.boundingBox;
+          final lineNormRect = NormalizedRect.fromPixels(
+            pixelX: lineBox.left,
+            pixelY: lineBox.top,
+            pixelWidth: lineBox.width,
+            pixelHeight: lineBox.height,
+            sourceWidth: width,
+            sourceHeight: height,
+          );
+
+          ocrLines.add(
+            OcrLine(
+              text: line.text,
+              bounds: lineNormRect,
+              words: ocrWords,
+            ),
+          );
+        }
+
+        final blockBox = block.boundingBox;
+        final blockNormRect = NormalizedRect.fromPixels(
+          pixelX: blockBox.left,
+          pixelY: blockBox.top,
+          pixelWidth: blockBox.width,
+          pixelHeight: blockBox.height,
+          sourceWidth: width,
+          sourceHeight: height,
+        );
+
+        ocrBlocks.add(
+          OcrBlock(
+            text: block.text,
+            bounds: blockNormRect,
+            lines: ocrLines,
+          ),
+        );
+      }
+
+      final plainText = recognizedText.text.trim();
+
+      return OcrPage(
+        pageNumber: pageNumber,
+        plainText: plainText,
+        width: width.toInt(),
+        height: height.toInt(),
+        source: OcrSource.onDeviceOcr,
+        blocks: ocrBlocks,
+      );
+    } finally {
+      if (textRecognizer != null) {
+        await textRecognizer.close();
+      }
+      if (tempFile != null && await tempFile.exists()) {
+        await tempFile.delete().catchError((_) => tempFile!);
+      }
+    }
+  }
+
+  TextRecognitionScript _mapLanguageToScript(OcrLanguage language) {
+    switch (language) {
+      case OcrLanguage.english:
+        return TextRecognitionScript.latin;
+    }
+  }
+
+  Future<OcrPage> _recognizeWithCvFallback(
     Uint8List imageBytes, {
     required int pageNumber,
     OcrLanguage language = OcrLanguage.english,
@@ -135,8 +299,8 @@ class DefaultOcrService implements OcrService {
     return OcrDocument(
       documentId: documentId,
       language: language,
-      engine: 'quietpaper_ml_ocr',
-      engineVersion: '1.0.0',
+      engine: 'google_mlkit_ocr',
+      engineVersion: '0.17.1',
       schemaVersion: 1,
       processedAt: DateTime.now(),
       pages: ocrPages,

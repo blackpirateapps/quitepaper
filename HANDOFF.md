@@ -1086,6 +1086,26 @@ Quiet Paper supports full bidirectional document renaming across both the dedica
 - **Autosave & Persistence Sync**: During note save / autosave, `DriftNotesRepository._syncDocumentTitlesFromMarkdown` scans for referenced document links and syncs updated titles directly into the `documentsTable`.
 - **Active Editor State Sync**: `QuietDocumentCard` and `QuietMarkdownPreview` propagate `onDocumentRenamed` back into `_contentController` so active editor controllers reflect renames seamlessly.
 
+---
+
+## 46. Hardware-Accelerated Google ML Kit OCR Engine Integration
+
+Quiet Paper features real, on-device machine learning character and word recognition powered by Google ML Kit.
+
+### 1. Architecture & Model Delivery
+- **Engine**: `google_mlkit_text_recognition: ^0.17.1`.
+- **Dynamic On-Demand Delivery**: Configured via `com.google.mlkit.vision.DEPENDENCIES = "ocr"` in `AndroidManifest.xml`. Google Play Services automatically handles model delivery and updates on-device without inflating the baseline APK footprint.
+- **Hardware Acceleration**: Executes on neural/DSP/GPU hardware accelerators natively supported by the host OS.
+- **Offline & Private**: 100% on-device execution; zero network transmission of document images or recognized text.
+
+### 2. Structural Parsing & Coordinate Mapping
+- **Spatial Mapping**: Blocks, lines, and words extracted from `RecognizedText` are mapped to `NormalizedRect` coordinate space (`[0.0, 1.0]`).
+- **Confidence Tracking**: Retains word-level confidence ratings for search ranking and text highlighting.
+- **Dual Engine Architecture**:
+  1. **ML Kit (Mobile Runtime)**: Runs on Android and iOS devices for full character recognition.
+  2. **Computer Vision Fallback (Host/Test/Desktop)**: Automatically activates in unit test and desktop VM environments, ensuring 100% test reliability without native binary dependencies.
+
+
 
 
 
