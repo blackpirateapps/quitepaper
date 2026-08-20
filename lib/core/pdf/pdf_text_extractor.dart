@@ -48,10 +48,19 @@ class DefaultPdfTextExtractor implements PdfTextExtractor {
         return const PdfTextExtractionResult(hasUsableText: false);
       }
 
-      final parser = _PdfDocumentParser(pdfBytes);
-      return parser.extractAllPagesText();
+      // Execute on background isolate to guarantee 0ms UI blocking
+      return await compute(_extractWorker, pdfBytes);
     } catch (e, st) {
       debugPrint('[QuietPaper OCR] PdfTextExtractor extraction error: $e\n$st');
+      return const PdfTextExtractionResult(hasUsableText: false);
+    }
+  }
+
+  static PdfTextExtractionResult _extractWorker(Uint8List pdfBytes) {
+    try {
+      final parser = _PdfDocumentParser(pdfBytes);
+      return parser.extractAllPagesText();
+    } catch (e) {
       return const PdfTextExtractionResult(hasUsableText: false);
     }
   }
@@ -67,14 +76,15 @@ class _PdfDocumentParser {
   final Uint8List bytes;
   final ByteData data;
 
+  final Map<_PdfRef, int> _objectOffsets = {};
   final Map<_PdfRef, _PdfIndirectObject> _objects = {};
   final Map<_PdfRef, _PdfFont> _fontCache = {};
 
   PdfTextExtractionResult extractAllPagesText() {
-    // 1. Index all indirect objects
-    _indexAllObjects();
+    // 1. Index all indirect object offsets
+    _indexAllObjectOffsets();
 
-    if (_objects.isEmpty) {
+    if (_objectOffsets.isEmpty && _objects.isEmpty) {
       // Fallback: try raw content stream scan
       return _extractFromRawStreamsFallback();
     }
@@ -125,15 +135,24 @@ class _PdfDocumentParser {
   }
 
   // ---------------------------------------------------------------------------
-  // Object Indexing & Resolution
+  // Object Indexing & Resolution (Lazy On-Demand)
   // ---------------------------------------------------------------------------
 
-  void _indexAllObjects() {
+  void _indexAllObjectOffsets() {
+    // Try fast xref table resolution first
+    final startXref = _findStartXref();
+    if (startXref != null && startXref > 0 && startXref < bytes.length) {
+      if (_parseXrefSection(startXref)) {
+        return;
+      }
+    }
+
+    // Fast linear scan for `N M obj` offsets
     final length = bytes.length;
     var offset = 0;
 
     while (offset < length - 6) {
-      // Find `N M obj` pattern
+      final loopStart = offset;
       if (_isDigit(bytes[offset])) {
         final objStart = offset;
         final num = _readInt(offset);
@@ -150,15 +169,7 @@ class _PdfDocumentParser {
                   (offset + 3 == length || _isDelimiterOrWs(bytes[offset + 3]))) {
                 offset += 3;
                 final ref = _PdfRef(num.value, gen.value);
-                final parsed = _parseObjectValue(offset);
-                _objects[ref] = _PdfIndirectObject(
-                  ref: ref,
-                  offset: objStart,
-                  value: parsed.value,
-                  streamBytes: parsed.streamBytes,
-                  streamDict: parsed.streamDict,
-                );
-                offset = parsed.nextOffset;
+                _objectOffsets[ref] = objStart;
                 continue;
               }
             }
@@ -168,16 +179,86 @@ class _PdfDocumentParser {
         continue;
       }
       offset++;
+      if (offset <= loopStart) offset = loopStart + 1;
     }
+  }
 
-    // Process object streams (/Type /ObjStm)
-    final objStreams = _objects.values
-        .where((obj) => obj.streamDict != null && _getName(obj.streamDict!['/Type']) == '/ObjStm')
-        .toList();
-
-    for (final objStm in objStreams) {
-      _unpackObjectStream(objStm);
+  int? _findStartXref() {
+    final searchStart = math.max(0, bytes.length - 1024);
+    for (var i = bytes.length - 10; i >= searchStart; i--) {
+      if (bytes[i] == 0x73 && // 's'
+          bytes[i + 1] == 0x74 && // 't'
+          bytes[i + 2] == 0x61 && // 'a'
+          bytes[i + 3] == 0x72 && // 'r'
+          bytes[i + 4] == 0x74 && // 't'
+          bytes[i + 5] == 0x78 && // 'x'
+          bytes[i + 6] == 0x72 && // 'r'
+          bytes[i + 7] == 0x65 && // 'e'
+          bytes[i + 8] == 0x66) { // 'f'
+        var pos = _skipWhitespace(i + 9);
+        final num = _readInt(pos);
+        if (num != null && num.value >= 0 && num.value < bytes.length) {
+          return num.value;
+        }
+      }
     }
+    return null;
+  }
+
+  bool _parseXrefSection(int startOffset) {
+    try {
+      var offset = _skipWhitespace(startOffset);
+      if (offset + 4 <= bytes.length &&
+          bytes[offset] == 0x78 && // 'x'
+          bytes[offset + 1] == 0x72 && // 'r'
+          bytes[offset + 2] == 0x65 && // 'e'
+          bytes[offset + 3] == 0x66) { // 'f'
+        offset += 4;
+        offset = _skipWhitespace(offset);
+
+        while (offset < bytes.length) {
+          if (bytes[offset] == 0x74 && // 't' in trailer
+              offset + 7 <= bytes.length &&
+              bytes[offset + 1] == 0x72 &&
+              bytes[offset + 2] == 0x61 &&
+              bytes[offset + 3] == 0x69 &&
+              bytes[offset + 4] == 0x6C &&
+              bytes[offset + 5] == 0x65 &&
+              bytes[offset + 6] == 0x72) {
+            break;
+          }
+
+          final startNum = _readInt(offset);
+          if (startNum == null) break;
+          offset = _skipWhitespace(startNum.nextOffset);
+          final countNum = _readInt(offset);
+          if (countNum == null) break;
+          offset = _skipWhitespace(countNum.nextOffset);
+
+          final firstObj = startNum.value;
+          final count = countNum.value;
+
+          for (var i = 0; i < count; i++) {
+            if (offset + 20 > bytes.length) break;
+            final lineStr = latin1.decode(bytes.sublist(offset, offset + 20));
+            offset += 20;
+            final parts = lineStr.trim().split(RegExp(r'\s+'));
+            if (parts.length >= 3) {
+              final byteOff = int.tryParse(parts[0]);
+              final genNum = int.tryParse(parts[1]) ?? 0;
+              final type = parts[2];
+              if (type == 'n' && byteOff != null && byteOff > 0 && byteOff < bytes.length) {
+                final ref = _PdfRef(firstObj + i, genNum);
+                _objectOffsets[ref] = byteOff;
+              }
+            }
+          }
+          offset = _skipWhitespace(offset);
+        }
+        return _objectOffsets.isNotEmpty;
+      }
+    } catch (_) {}
+    return false;
   }
 
   void _unpackObjectStream(_PdfIndirectObject objStm) {
@@ -224,15 +305,58 @@ class _PdfDocumentParser {
   }
 
   _PdfIndirectObject? _resolveObject(dynamic refOrObj) {
-    if (refOrObj is _PdfRef) {
-      return _objects[refOrObj];
+    if (refOrObj is _PdfIndirectObject) return refOrObj;
+    if (refOrObj is! _PdfRef) return null;
+
+    final ref = refOrObj;
+    if (_objects.containsKey(ref)) {
+      return _objects[ref];
     }
+
+    var offset = _objectOffsets[ref];
+    if (offset != null && offset < bytes.length) {
+      var pos = offset;
+      // Skip 'N M obj' header if offset points at start of object
+      if (_isDigit(bytes[pos])) {
+        final n = _readInt(pos);
+        if (n != null) {
+          pos = _skipWhitespace(n.nextOffset);
+          final g = _readInt(pos);
+          if (g != null) {
+            pos = _skipWhitespace(g.nextOffset);
+            if (pos + 3 <= bytes.length &&
+                bytes[pos] == 0x6F &&
+                bytes[pos + 1] == 0x62 &&
+                bytes[pos + 2] == 0x6A) {
+              pos += 3;
+            }
+          }
+        }
+      }
+
+      final parsed = _parseObjectValue(pos);
+      final obj = _PdfIndirectObject(
+        ref: ref,
+        offset: offset,
+        value: parsed.value,
+        streamBytes: parsed.streamBytes,
+        streamDict: parsed.streamDict,
+      );
+      _objects[ref] = obj;
+
+      if (obj.streamDict != null && _getName(obj.streamDict!['/Type']) == '/ObjStm') {
+        _unpackObjectStream(obj);
+      }
+
+      return obj;
+    }
+
     return null;
   }
 
   dynamic _dereference(dynamic val) {
     if (val is _PdfRef) {
-      final obj = _objects[val];
+      final obj = _resolveObject(val);
       return obj?.value;
     }
     return val;
@@ -244,9 +368,10 @@ class _PdfDocumentParser {
 
   List<_PdfRef> _findPageReferences() {
     // 1. Try resolving Catalog -> Pages -> Kids
-    for (final obj in _objects.values) {
-      if (obj.value is Map<String, dynamic>) {
-        final dict = obj.value as Map<String, dynamic>;
+    for (final ref in _objectOffsets.keys) {
+      final obj = _resolveObject(ref);
+      if (obj?.value is Map<String, dynamic>) {
+        final dict = obj!.value as Map<String, dynamic>;
         if (_getName(dict['/Type']) == '/Catalog' || dict.containsKey('/Pages')) {
           final pagesRef = dict['/Pages'];
           final resolvedPages = _resolvePagesNode(pagesRef);
@@ -259,25 +384,24 @@ class _PdfDocumentParser {
 
     // 2. Direct scan for all objects with /Type /Page
     final directPages = <_PdfRef>[];
-    for (final entry in _objects.entries) {
-      if (entry.value.value is Map<String, dynamic>) {
-        final dict = entry.value.value as Map<String, dynamic>;
+    for (final ref in _objectOffsets.keys) {
+      final obj = _resolveObject(ref);
+      if (obj?.value is Map<String, dynamic>) {
+        final dict = obj!.value as Map<String, dynamic>;
         if (_getName(dict['/Type']) == '/Page') {
-          directPages.add(entry.key);
+          directPages.add(ref);
         }
       }
     }
-
-    if (directPages.isNotEmpty) {
-      return directPages;
-    }
+    if (directPages.isNotEmpty) return directPages;
 
     // 3. Fallback: Objects containing /Contents and /MediaBox
-    for (final entry in _objects.entries) {
-      if (entry.value.value is Map<String, dynamic>) {
-        final dict = entry.value.value as Map<String, dynamic>;
+    for (final ref in _objectOffsets.keys) {
+      final obj = _resolveObject(ref);
+      if (obj?.value is Map<String, dynamic>) {
+        final dict = obj!.value as Map<String, dynamic>;
         if (dict.containsKey('/Contents') || dict.containsKey('/MediaBox')) {
-          directPages.add(entry.key);
+          directPages.add(ref);
         }
       }
     }

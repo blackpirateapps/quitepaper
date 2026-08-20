@@ -317,24 +317,22 @@ class _OcrTextViewerScreenState extends ConsumerState<OcrTextViewerScreen> {
       return _buildErrorState(colors);
     }
 
-    return SelectionArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: isTablet ? 720 : double.infinity,
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: isTablet ? 720 : double.infinity,
+        ),
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.lg,
           ),
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.lg,
-            ),
-            itemCount: doc.pages.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xl),
-            itemBuilder: (context, index) {
-              final page = doc.pages[index];
-              return _buildPageSection(colors, page);
-            },
-          ),
+          itemCount: doc.pages.length,
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xl),
+          itemBuilder: (context, index) {
+            final page = doc.pages[index];
+            return _buildPageSection(colors, page);
+          },
         ),
       ),
     );
