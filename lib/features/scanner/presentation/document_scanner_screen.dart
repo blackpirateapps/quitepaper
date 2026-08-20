@@ -9,10 +9,12 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
-import '../application/document_normalizer.dart';
-import '../application/pdf_builder.dart';
+import '../../../core/ocr/ocr_models.dart';
+import '../../../core/ocr/ocr_provider.dart';
 import '../domain/scanned_page.dart';
+import 'widgets/page_adjustment_sheet.dart';
 
 /// Result returned when a document scanning session successfully finishes.
 class DocumentScanResult {
@@ -26,7 +28,8 @@ class DocumentScanResult {
 }
 
 /// Full-screen document scanning screen with multi-page support, automatic boundary detection,
-/// page reordering, retake/delete actions, and instant PDF compilation.
+/// non-destructive image adjustments (Crop, Rotate, Brightness, Contrast, Saturation, Grayscale),
+/// page reordering, retake/delete actions, OCR language selection, and instant PDF compilation.
 class DocumentScannerScreen extends ConsumerStatefulWidget {
   const DocumentScannerScreen({
     super.key,
@@ -69,9 +72,8 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   int _selectedPageIndex = 0;
   bool _isProcessing = false;
   String _processingStatus = '';
+  OcrLanguage _selectedLanguage = OcrLanguage.english;
 
-  final DocumentNormalizer _normalizer = const DocumentNormalizer();
-  final PdfBuilder _pdfBuilder = const PdfBuilder();
   static const _uuid = Uuid();
 
   late AnimationController _pulseController;
@@ -179,7 +181,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           }
           if (bytes != null) {
             await _processAndAddPage(bytes, replaceIndex: replaceIndex);
-            if (replaceIndex != null) break; // Replace single page
+            if (replaceIndex != null) break;
           }
         }
       }
@@ -195,10 +197,13 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     });
 
     try {
-      final normalized = await _normalizer.normalizePage(rawBytes);
+      final imageProcessor = ref.read(imageProcessorProvider);
+      final normalized = await imageProcessor.normalizePage(rawBytes);
+
       final newPage = ScannedPage(
         id: _uuid.v4(),
         imageBytes: normalized.normalizedBytes,
+        rawImageBytes: rawBytes,
         width: normalized.width,
         height: normalized.height,
         pageNumber: replaceIndex != null ? replaceIndex + 1 : _pages.length + 1,
@@ -222,6 +227,23 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           _processingStatus = '';
         });
       }
+    }
+  }
+
+  Future<void> _openAdjustments(int index) async {
+    if (index < 0 || index >= _pages.length) return;
+
+    final imageProcessor = ref.read(imageProcessorProvider);
+    final updated = await PageAdjustmentSheet.show(
+      context,
+      page: _pages[index],
+      imageProcessor: imageProcessor,
+    );
+
+    if (updated != null && mounted) {
+      setState(() {
+        _pages[index] = updated;
+      });
     }
   }
 
@@ -275,16 +297,19 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
 
     try {
       final docService = ref.read(documentServiceProvider);
+      final pdfGenerator = ref.read(pdfGeneratorProvider);
 
       // 1. Build canonical PDF bytes from all captured pages in sequence
-      final pdfBytes = await _pdfBuilder.buildPdfFromPages(_pages);
+      final pdfBytes = await pdfGenerator.generatePdf(_pages);
 
-      // 2. Encrypt with Master Key and persist locally
+      // 2. Encrypt with Master Key, persist locally, and start background OCR
       final result = await docService.createDocumentFromPdfBytes(
         pdfBytes: pdfBytes,
         pageCount: _pages.length,
         noteId: widget.noteId,
         title: widget.initialTitle,
+        source: DocumentSource.scanner,
+        language: _selectedLanguage,
       );
 
       if (mounted) {
@@ -322,7 +347,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
               child: _buildCameraViewport(colors),
             ),
 
-            // 2. Top Navigation Bar (Close, Document Title / Page Counter, Done Action)
+            // 2. Top Navigation Bar (Close, Title, Language Picker, Done Action)
             Positioned(
               top: 0,
               left: 0,
@@ -330,7 +355,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
               child: _buildTopBar(colors),
             ),
 
-            // 3. Bottom Multi-Page Carousel & Shutter Controls
+            // 3. Bottom Multi-Page Carousel & Controls
             Positioned(
               bottom: 0,
               left: 0,
@@ -415,17 +440,44 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
               ),
             ],
           ),
-          TextButton(
-            onPressed: _pages.isNotEmpty ? _finishAndSaveDocument : null,
-            style: TextButton.styleFrom(
-              foregroundColor: colors.accent,
-              disabledForegroundColor: Colors.white24,
-              textStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // OCR Language Picker
+              PopupMenuButton<OcrLanguage>(
+                icon: const Icon(Icons.language_rounded, color: Colors.white, size: 22),
+                tooltip: 'OCR Language (${_selectedLanguage.displayName})',
+                initialValue: _selectedLanguage,
+                onSelected: (lang) => setState(() => _selectedLanguage = lang),
+                itemBuilder: (_) => OcrLanguage.values.map((l) {
+                  return PopupMenuItem(
+                    value: l,
+                    child: Row(
+                      children: [
+                        if (l == _selectedLanguage)
+                          Icon(Icons.check, size: 18, color: colors.accent)
+                        else
+                          const SizedBox(width: 18),
+                        const SizedBox(width: 8),
+                        Text(l.displayName),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
-            ),
-            child: const Text('Done'),
+              TextButton(
+                onPressed: _pages.isNotEmpty ? _finishAndSaveDocument : null,
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.accent,
+                  disabledForegroundColor: Colors.white24,
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: const Text('Done'),
+              ),
+            ],
           ),
         ],
       ),
@@ -571,13 +623,15 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                   ),
                 ),
 
-                // Selected Page Delete / Retake shortcut if pages exist
+                // Selected Page Delete / Retake / Adjust shortcut
                 if (_pages.isNotEmpty)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Colors.white, size: 28),
                     tooltip: 'Page actions',
                     onSelected: (val) {
-                      if (val == 'retake') {
+                      if (val == 'adjust') {
+                        _openAdjustments(_selectedPageIndex);
+                      } else if (val == 'retake') {
                         _capturePage(replaceIndex: _selectedPageIndex);
                       } else if (val == 'delete') {
                         _deletePage(_selectedPageIndex);
@@ -588,6 +642,16 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                       }
                     },
                     itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'adjust',
+                        child: Row(
+                          children: [
+                            Icon(Icons.tune_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text('Adjust / Crop Page'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem(
                         value: 'retake',
                         child: Row(
@@ -680,7 +744,10 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           final isSelected = index == _selectedPageIndex;
 
           return GestureDetector(
-            onTap: () => setState(() => _selectedPageIndex = index),
+            onTap: () {
+              setState(() => _selectedPageIndex = index);
+              _openAdjustments(index);
+            },
             child: Stack(
               children: [
                 Container(
@@ -720,6 +787,19 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                     ),
                   ),
                 ),
+                if (!page.adjustments.isNeutral)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: colors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.tune, size: 10, color: Colors.white),
+                    ),
+                  ),
               ],
             ),
           );

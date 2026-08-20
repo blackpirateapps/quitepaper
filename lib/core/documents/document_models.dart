@@ -1,6 +1,59 @@
 import 'package:flutter/foundation.dart';
 import '../database/app_database.dart';
 
+/// Method used to create the document resource.
+enum DocumentSource {
+  /// Captured using document camera scanner and compiled locally to PDF.
+  scanner('scanner'),
+
+  /// Imported from an existing local PDF file.
+  importedPdf('imported_pdf');
+
+  const DocumentSource(this.identifier);
+  final String identifier;
+
+  static DocumentSource fromIdentifier(String? id) {
+    if (id == null) return DocumentSource.scanner;
+    for (final src in DocumentSource.values) {
+      if (src.identifier == id || src.name == id) return src;
+    }
+    return DocumentSource.scanner;
+  }
+}
+
+/// State of on-device OCR / text-extraction processing for a document.
+enum OcrProcessingState {
+  /// OCR has not been requested or started.
+  notRequested('not_requested'),
+
+  /// Scheduled in the asynchronous processing queue.
+  queued('queued'),
+
+  /// Actively processing text layer extraction / on-device OCR.
+  processing('processing'),
+
+  /// Structured OCR and searchable text are available.
+  available('available'),
+
+  /// Processing failed.
+  failed('failed');
+
+  const OcrProcessingState(this.identifier);
+  final String identifier;
+
+  static OcrProcessingState fromIdentifier(String? id) {
+    if (id == null) return OcrProcessingState.notRequested;
+    for (final state in OcrProcessingState.values) {
+      if (state.identifier == id || state.name == id) return state;
+    }
+    return OcrProcessingState.notRequested;
+  }
+
+  bool get isProcessing => this == OcrProcessingState.processing || this == OcrProcessingState.queued;
+  bool get isAvailable => this == OcrProcessingState.available;
+  bool get isFailed => this == OcrProcessingState.failed;
+}
+
 /// State of a scanned document's cloud transfer lifecycle.
 enum DocumentUploadState {
   /// Created and saved locally; not yet uploaded to cloud.
@@ -33,13 +86,14 @@ enum DocumentUploadState {
   }
 }
 
-/// Sync payload representing scanned document metadata exchanged with the Vercel backend.
+/// Sync payload representing scanned/imported document metadata exchanged with the Vercel backend.
 @immutable
 class DocumentSyncPayload {
   const DocumentSyncPayload({
     required this.id,
     this.noteId,
     this.title = 'Scanned Document',
+    this.source = DocumentSource.scanner,
     required this.createdAt,
     required this.updatedAt,
     this.mimeType = 'application/pdf',
@@ -52,11 +106,14 @@ class DocumentSyncPayload {
     this.deletedAt,
     this.cloudPublicId,
     this.cloudUrl,
+    this.ocrState = OcrProcessingState.notRequested,
+    this.ocrLanguage = 'en',
   });
 
   final String id;
   final String? noteId;
   final String title;
+  final DocumentSource source;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String mimeType;
@@ -69,11 +126,14 @@ class DocumentSyncPayload {
   final DateTime? deletedAt;
   final String? cloudPublicId;
   final String? cloudUrl;
+  final OcrProcessingState ocrState;
+  final String ocrLanguage;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         if (noteId != null) 'noteId': noteId,
         'title': title,
+        'source': source.identifier,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'mimeType': mimeType,
@@ -86,6 +146,8 @@ class DocumentSyncPayload {
         if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
         if (cloudPublicId != null) 'cloudPublicId': cloudPublicId,
         if (cloudUrl != null) 'cloudUrl': cloudUrl,
+        'ocrState': ocrState.identifier,
+        'ocrLanguage': ocrLanguage,
       };
 
   factory DocumentSyncPayload.fromJson(Map<String, dynamic> json) {
@@ -93,6 +155,7 @@ class DocumentSyncPayload {
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
       title: json['title'] as String? ?? 'Scanned Document',
+      source: DocumentSource.fromIdentifier(json['source'] as String?),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       mimeType: json['mimeType'] as String? ?? 'application/pdf',
@@ -107,6 +170,8 @@ class DocumentSyncPayload {
           : null,
       cloudPublicId: json['cloudPublicId'] as String?,
       cloudUrl: json['cloudUrl'] as String?,
+      ocrState: OcrProcessingState.fromIdentifier(json['ocrState'] as String?),
+      ocrLanguage: json['ocrLanguage'] as String? ?? 'en',
     );
   }
 
@@ -115,6 +180,7 @@ class DocumentSyncPayload {
       id: entity.id,
       noteId: entity.noteId,
       title: entity.title,
+      source: DocumentSource.fromIdentifier(entity.source),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       mimeType: entity.mimeType,
@@ -127,6 +193,8 @@ class DocumentSyncPayload {
       deletedAt: entity.deletedAt,
       cloudPublicId: entity.cloudPublicId,
       cloudUrl: entity.cloudUrl,
+      ocrState: OcrProcessingState.fromIdentifier(entity.ocrState),
+      ocrLanguage: entity.ocrLanguage,
     );
   }
 }

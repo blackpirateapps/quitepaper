@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../attachments/cloudinary_client.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../ocr/document_processing_service.dart';
+import '../ocr/ocr_models.dart';
 import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
@@ -10,7 +14,8 @@ import 'document_crypto.dart';
 import 'document_models.dart';
 import 'document_storage.dart';
 
-/// Central coordinator for scanned document storage, cryptography, lifecycle, and URI resolution.
+/// Central coordinator for scanned and imported document storage, cryptography,
+/// lifecycle, asynchronous OCR processing, and URI resolution.
 class DocumentService implements DocumentResolver {
   DocumentService({
     required this.database,
@@ -18,6 +23,7 @@ class DocumentService implements DocumentResolver {
     DocumentCrypto? crypto,
     DocumentLocalStorage? storage,
     CloudinaryClient? cloudinaryClient,
+    this.processingService,
     this.apiClient,
   })  : _crypto = crypto ?? DocumentCrypto(),
         _storage = storage ?? DocumentLocalStorage(),
@@ -28,6 +34,7 @@ class DocumentService implements DocumentResolver {
   final DocumentCrypto _crypto;
   final DocumentLocalStorage _storage;
   final CloudinaryClient _cloudinary;
+  final DocumentProcessingService? processingService;
   final SyncApiClient? apiClient;
 
   static const _uuid = Uuid();
@@ -35,16 +42,18 @@ class DocumentService implements DocumentResolver {
   /// Maximum permitted PDF document byte size (50 MB).
   static const int maxFileSizeBytes = 50 * 1024 * 1024;
 
-  /// Creates and stores a scanned document from canonical plaintext PDF [pdfBytes].
+  /// Creates and stores a document from canonical plaintext PDF [pdfBytes].
   ///
   /// Encrypts the PDF with the user's Master Key, persists the encrypted ciphertext (.qpd)
   /// locally, caches decrypted bytes in RAM, saves document metadata to Drift DB,
-  /// and returns the persisted entity and canonical Markdown reference `[Title](qp://document/<UUID>)`.
+  /// triggers background OCR processing, and returns the persisted entity and canonical Markdown reference.
   Future<({DocumentEntity document, String markdownSnippet})> createDocumentFromPdfBytes({
     required Uint8List pdfBytes,
     required int pageCount,
     String? noteId,
     String title = 'Scanned Document',
+    DocumentSource source = DocumentSource.scanner,
+    OcrLanguage language = OcrLanguage.english,
     String? thumbnailPath,
   }) async {
     if (pdfBytes.length > maxFileSizeBytes) {
@@ -82,12 +91,15 @@ class DocumentService implements DocumentResolver {
     _storage.putDecryptedCache(documentId, pdfBytes);
 
     // 4. Save metadata to Drift database
-    final cleanTitle = title.trim().isNotEmpty ? title.trim() : 'Scanned Document';
+    final cleanTitle = title.trim().isNotEmpty
+        ? title.trim()
+        : (source == DocumentSource.importedPdf ? 'Imported PDF' : 'Scanned Document');
 
     await database.saveDocument(
       id: documentId,
       noteId: noteId,
       title: cleanTitle,
+      source: source.identifier,
       createdAt: now,
       updatedAt: now,
       mimeType: 'application/pdf',
@@ -101,13 +113,73 @@ class DocumentService implements DocumentResolver {
       uploadState: DocumentUploadState.uploadPending.identifier,
       localPath: localPath,
       thumbnailPath: thumbnailPath,
+      ocrState: OcrProcessingState.queued.identifier,
+      ocrLanguage: language.code,
     );
+
+    // 5. Enqueue background OCR / text extraction asynchronously
+    if (processingService != null) {
+      // Non-blocking invocation
+      processingService!.processDocument(
+        documentId: documentId,
+        pdfBytes: pdfBytes,
+        source: source,
+        language: language,
+      ).catchError((err) {
+        debugPrint('Async document processing error: $err');
+      });
+    }
 
     final entity = await database.getDocument(documentId);
     final uri = QuietPaperUri.document(documentId).toUriString();
     final markdownSnippet = '[$cleanTitle]($uri)';
 
     return (document: entity!, markdownSnippet: markdownSnippet);
+  }
+
+  /// Imports an existing local PDF file as a canonical Quiet Paper document.
+  Future<({DocumentEntity document, String markdownSnippet})> importPdfFile({
+    required File file,
+    String? noteId,
+    String? title,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    if (!await file.exists()) {
+      throw ArgumentError('Selected PDF file does not exist: ${file.path}');
+    }
+
+    final pdfBytes = await file.readAsBytes();
+    if (pdfBytes.length > maxFileSizeBytes) {
+      throw ArgumentError(
+        'Document exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      );
+    }
+
+    // Estimate page count by counting /Type /Page occurrences in PDF structure
+    final pdfContent = String.fromCharCodes(pdfBytes);
+    final pageMatches = RegExp(r'/Type\s*/Page\b').allMatches(pdfContent).toList();
+    final estimatedPages = pageMatches.isNotEmpty ? pageMatches.length : 1;
+
+    final documentTitle = title != null && title.trim().isNotEmpty
+        ? title.trim()
+        : p.basenameWithoutExtension(file.path);
+
+    return createDocumentFromPdfBytes(
+      pdfBytes: pdfBytes,
+      pageCount: estimatedPages,
+      noteId: noteId,
+      title: documentTitle,
+      source: DocumentSource.importedPdf,
+      language: language,
+    );
+  }
+
+  /// Gets decrypted structured OCR document data if available.
+  Future<OcrDocument?> getOcrDocument(String documentId) async {
+    if (processingService != null) {
+      return processingService!.getDecryptedOcrDocument(documentId);
+    }
+    return null;
   }
 
   // ==========================================
@@ -140,6 +212,7 @@ class DocumentService implements DocumentResolver {
             id: remotePayload.id,
             noteId: remotePayload.noteId,
             title: remotePayload.title,
+            source: remotePayload.source.identifier,
             createdAt: remotePayload.createdAt,
             updatedAt: remotePayload.updatedAt,
             mimeType: remotePayload.mimeType,
@@ -154,6 +227,8 @@ class DocumentService implements DocumentResolver {
             uploadState: 'synced',
             cloudPublicId: remotePayload.cloudPublicId,
             cloudUrl: remotePayload.cloudUrl,
+            ocrState: remotePayload.ocrState.identifier,
+            ocrLanguage: remotePayload.ocrLanguage,
           );
           entity = await database.getDocument(documentId);
         }
@@ -179,6 +254,9 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
+          source: entity.source,
+          ocrState: entity.ocrState,
+          ocrLanguage: entity.ocrLanguage,
         ),
       );
     }
@@ -261,6 +339,9 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
+          source: entity.source,
+          ocrState: entity.ocrState,
+          ocrLanguage: entity.ocrLanguage,
         ),
       );
     } catch (decErr) {
@@ -275,6 +356,7 @@ class DocumentService implements DocumentResolver {
   Future<void> deleteDocument(String documentId, {bool enqueueSync = true}) async {
     _storage.invalidateDecryptedCache(documentId);
     await database.deleteDocument(documentId, enqueueSync: enqueueSync);
+    await database.deleteDocumentOcrPages(documentId);
     await _storage.deleteEncryptedFile(documentId: documentId);
   }
 

@@ -1,0 +1,208 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import '../crypto/key_manager.dart';
+import '../database/app_database.dart';
+import '../documents/document_models.dart';
+import '../pdf/pdf_page_renderer.dart';
+import '../pdf/pdf_text_extractor.dart';
+import 'ocr_crypto.dart';
+import 'ocr_models.dart';
+import 'ocr_service.dart';
+
+/// Asynchronous coordinator for document text extraction, on-device OCR,
+/// client-side encryption of OCR data, and recovery across app restarts.
+class DocumentProcessingService {
+  DocumentProcessingService({
+    required this.database,
+    required this.keyManager,
+    OcrCrypto? ocrCrypto,
+    PdfTextExtractor? textExtractor,
+    PdfPageRenderer? pageRenderer,
+    OcrService? ocrService,
+  })  : _ocrCrypto = ocrCrypto ?? OcrCrypto(),
+        _textExtractor = textExtractor ?? const DefaultPdfTextExtractor(),
+        _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer(),
+        _ocrService = ocrService ?? const DefaultOcrService();
+
+  final AppDatabase database;
+  final KeyManager keyManager;
+  final OcrCrypto _ocrCrypto;
+  final PdfTextExtractor _textExtractor;
+  final PdfPageRenderer _pageRenderer;
+  final OcrService _ocrService;
+
+  final Set<String> _inFlightJobIds = <String>{};
+
+  /// Asynchronously processes a document (text extraction or ML OCR) in the background.
+  Future<void> processDocument({
+    required String documentId,
+    required Uint8List pdfBytes,
+    DocumentSource source = DocumentSource.scanner,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    if (_inFlightJobIds.contains(documentId)) {
+      return; // Avoid duplicate concurrent processing
+    }
+
+    _inFlightJobIds.add(documentId);
+
+    try {
+      await database.updateDocumentOcrState(
+        documentId,
+        OcrProcessingState.processing.identifier,
+        ocrLanguage: language.code,
+      );
+
+      OcrDocument? ocrResult;
+
+      // 1. If imported PDF, inspect for existing usable text layer first
+      if (source == DocumentSource.importedPdf) {
+        try {
+          final extraction = await _textExtractor.extractText(pdfBytes);
+          if (extraction.hasUsableText && extraction.pages.isNotEmpty) {
+            ocrResult = OcrDocument(
+              documentId: documentId,
+              language: language,
+              engine: 'quietpaper_pdf_extractor',
+              engineVersion: '1.0.0',
+              schemaVersion: 1,
+              processedAt: DateTime.now(),
+              pages: extraction.pages,
+            );
+          }
+        } catch (extractErr) {
+          debugPrint('Text extraction fallback to OCR: $extractErr');
+        }
+      }
+
+      // 2. If no text layer found or scanned document, run on-device OCR
+      if (ocrResult == null) {
+        final renderedPages = await _pageRenderer.renderPages(pdfBytes, dpi: 150.0);
+        final ocrPages = <OcrPage>[];
+
+        for (final rendered in renderedPages) {
+          final ocrPage = await _ocrService.recognizePage(
+            rendered.imageBytes,
+            pageNumber: rendered.pageNumber,
+            language: language,
+          );
+          ocrPages.add(ocrPage);
+        }
+
+        ocrResult = OcrDocument(
+          documentId: documentId,
+          language: language,
+          engine: 'quietpaper_ml_ocr',
+          engineVersion: '1.0.0',
+          schemaVersion: 1,
+          processedAt: DateTime.now(),
+          pages: ocrPages,
+        );
+      }
+
+      // 3. Encrypt structured OCR pages client-side using Master Key
+      if (keyManager.isUnlocked) {
+        final masterKey = keyManager.getMasterKey();
+        final now = DateTime.now();
+
+        await database.deleteDocumentOcrPages(documentId);
+
+        for (final page in ocrResult.pages) {
+          final pageDoc = OcrDocument(
+            documentId: documentId,
+            language: language,
+            engine: ocrResult.engine,
+            engineVersion: ocrResult.engineVersion,
+            schemaVersion: ocrResult.schemaVersion,
+            processedAt: now,
+            pages: [page],
+          );
+
+          final encryptedBytes = await _ocrCrypto.encryptOcrDocument(
+            ocrDocument: pageDoc,
+            masterKeyBytes: masterKey,
+          );
+
+          final payloadBase64 = base64Encode(encryptedBytes);
+
+          await database.saveDocumentOcrPage(
+            documentId: documentId,
+            pageNumber: page.pageNumber,
+            encryptedPayload: payloadBase64,
+            ocrSchemaVersion: ocrResult.schemaVersion,
+            ocrEngine: ocrResult.engine,
+            ocrEngineVersion: ocrResult.engineVersion,
+            language: language.code,
+            processedAt: now,
+          );
+        }
+      }
+
+      await database.updateDocumentOcrState(
+        documentId,
+        OcrProcessingState.available.identifier,
+        ocrLanguage: language.code,
+      );
+    } catch (e) {
+      debugPrint('OCR processing error for document $documentId: $e');
+      await database.updateDocumentOcrState(
+        documentId,
+        OcrProcessingState.failed.identifier,
+        ocrLanguage: language.code,
+      );
+    } finally {
+      _inFlightJobIds.remove(documentId);
+    }
+  }
+
+  /// Decrypts and returns the full structured [OcrDocument] for [documentId].
+  Future<OcrDocument?> getDecryptedOcrDocument(String documentId) async {
+    if (!keyManager.isUnlocked) return null;
+
+    final rows = await database.getDocumentOcrPages(documentId);
+    if (rows.isEmpty) return null;
+
+    final masterKey = keyManager.getMasterKey();
+    final pages = <OcrPage>[];
+    String engine = 'quietpaper_ocr_v1';
+    String engineVersion = '1.0.0';
+    int schemaVersion = 1;
+    OcrLanguage language = OcrLanguage.english;
+    DateTime processedAt = DateTime.now();
+
+    for (final row in rows) {
+      try {
+        final encryptedBytes = base64Decode(row.encryptedPayload);
+        final decryptedDoc = await _ocrCrypto.decryptOcrDocument(
+          encryptedEnvelopeBytes: encryptedBytes,
+          masterKeyBytes: masterKey,
+          documentId: documentId,
+        );
+
+        engine = decryptedDoc.engine;
+        engineVersion = decryptedDoc.engineVersion;
+        schemaVersion = decryptedDoc.schemaVersion;
+        language = decryptedDoc.language;
+        processedAt = decryptedDoc.processedAt;
+
+        pages.addAll(decryptedDoc.pages);
+      } catch (e) {
+        debugPrint('Failed to decrypt OCR page ${row.pageNumber}: $e');
+      }
+    }
+
+    if (pages.isEmpty) return null;
+
+    pages.sort((a, b) => a.pageNumber.compareTo(b.pageNumber));
+
+    return OcrDocument(
+      documentId: documentId,
+      language: language,
+      engine: engine,
+      engineVersion: engineVersion,
+      schemaVersion: schemaVersion,
+      processedAt: processedAt,
+      pages: pages,
+    );
+  }
+}

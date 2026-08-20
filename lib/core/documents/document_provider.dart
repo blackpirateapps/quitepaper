@@ -7,6 +7,8 @@ import 'document_service.dart';
 import 'document_storage.dart';
 import 'document_sync_service.dart';
 
+import '../ocr/ocr_provider.dart';
+
 final documentCryptoProvider = Provider<DocumentCrypto>((ref) {
   final cryptoService = ref.watch(cryptoServiceProvider);
   return DocumentCrypto(cryptoService: cryptoService);
@@ -22,6 +24,7 @@ final documentServiceProvider = Provider<DocumentService>((ref) {
   final crypto = ref.watch(documentCryptoProvider);
   final storage = ref.watch(documentLocalStorageProvider);
   final cloudinaryClient = ref.watch(cloudinaryClientProvider);
+  final processingService = ref.watch(documentProcessingServiceProvider);
   final apiClient = ref.watch(syncApiClientProvider);
 
   return DocumentService(
@@ -30,6 +33,7 @@ final documentServiceProvider = Provider<DocumentService>((ref) {
     crypto: crypto,
     storage: storage,
     cloudinaryClient: cloudinaryClient,
+    processingService: processingService,
     apiClient: apiClient,
   );
 });

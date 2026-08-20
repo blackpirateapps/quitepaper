@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
@@ -10,6 +12,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/documents/document_provider.dart';
 import '../../../core/markdown/markdown_preview.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -975,6 +978,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   },
                   onImagePressed: _handleInsertImage,
                   onScanPressed: _handleScanDocument,
+                  onPdfPressed: _handleAttachPdf,
                 ),
             ],
           ),
@@ -983,6 +987,76 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ),
   );
 }
+
+  Future<void> _handleAttachPdf() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.first;
+        File? file;
+        final bytes = pickedFile.bytes;
+        if (pickedFile.path != null) {
+          file = File(pickedFile.path!);
+        } else if (bytes != null) {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File(p.join(tempDir.path, pickedFile.name));
+          await tempFile.writeAsBytes(bytes);
+          file = tempFile;
+        }
+
+        if (file != null) {
+          final docService = ref.read(documentServiceProvider);
+          final res = await docService.importPdfFile(
+            file: file,
+            noteId: widget.note.id,
+            title: pickedFile.name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), ''),
+          );
+
+          final val = _contentController.value;
+          final text = val.text;
+          final sel = val.selection;
+          final start = sel.isValid ? sel.start : text.length;
+          final end = sel.isValid ? sel.end : text.length;
+
+          final snippet = '\n${res.markdownSnippet}\n';
+          final newText = text.replaceRange(start, end, snippet);
+          final newCursor = start + snippet.length;
+
+          final updated = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(offset: newCursor),
+          );
+
+          _contentController.value = updated;
+          _undoRedoManager.pushAtomicEdit(updated);
+
+          if (!_contentFocusNode.hasFocus) {
+            _contentFocusNode.requestFocus();
+          }
+
+          _onContentChanged();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to attach PDF: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _handleScanDocument() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));

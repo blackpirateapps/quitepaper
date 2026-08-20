@@ -143,5 +143,26 @@ void main() {
       final resolution = await documentService.resolveDocument(createResult.document.id);
       expect(resolution.isMissing, isTrue);
     });
+
+    test('Imports PDF file from local storage and tracks source as imported_pdf', () async {
+      final dummyPdfFile = File('${tempDir.path}/Quarterly_Financial_Report.pdf');
+      await dummyPdfFile.writeAsBytes(samplePdfBytes);
+
+      final result = await documentService.importPdfFile(
+        file: dummyPdfFile,
+        title: 'Quarterly Financial Report',
+      );
+
+      final doc = result.document;
+      expect(doc.id, isNotEmpty);
+      expect(doc.title, equals('Quarterly Financial Report'));
+      expect(doc.source, equals('imported_pdf'));
+      expect(doc.mimeType, equals('application/pdf'));
+      expect(result.markdownSnippet, equals('[Quarterly Financial Report](qp://document/${doc.id})'));
+
+      final resolution = await documentService.resolveDocument(doc.id);
+      expect(resolution.isAvailable, isTrue);
+      expect(resolution.data?.source, equals('imported_pdf'));
+    });
   });
 }

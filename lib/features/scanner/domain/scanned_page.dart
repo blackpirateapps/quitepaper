@@ -1,38 +1,56 @@
 import 'package:flutter/foundation.dart';
+import '../../../core/image_processing/image_adjustments.dart';
 
 /// A single captured page within an active document scanning session.
+///
+/// Preserves the unmodified original capture in [rawImageBytes] so non-destructive
+/// edits in [adjustments] (crop, rotate, brightness, contrast, saturation, grayscale)
+/// can be adjusted repeatedly without cumulative re-encoding quality loss.
 @immutable
 class ScannedPage {
   const ScannedPage({
     required this.id,
     required this.imageBytes,
+    Uint8List? rawImageBytes,
     required this.width,
     required this.height,
     required this.pageNumber,
+    this.adjustments = ImageAdjustments.neutral,
     this.isNormalized = false,
-  });
+  }) : rawImageBytes = rawImageBytes ?? imageBytes;
 
-  /// Unique identifier for this temporary page instance
+  /// Unique identifier for this temporary page instance.
   final String id;
 
-  /// Raw or normalized image bytes (JPEG/PNG)
+  /// Current display/final rendered image bytes (JPEG/PNG).
   final Uint8List imageBytes;
 
-  /// Pixel width of the page image
+  /// Original unmodified capture bytes.
+  final Uint8List rawImageBytes;
+
+  /// Non-destructive adjustment parameters.
+  final ImageAdjustments adjustments;
+
+  /// Pixel width of the page image.
   final int width;
 
-  /// Pixel height of the page image
+  /// Pixel height of the page image.
   final int height;
 
-  /// 1-based page sequence number
+  /// 1-based page sequence number.
   final int pageNumber;
 
-  /// Whether automatic normalization has already been applied
+  /// Whether automatic normalization has already been applied.
   final bool isNormalized;
+
+  /// Alias for the current rendered image bytes for PDF compilation.
+  Uint8List get finalImageBytes => imageBytes;
 
   ScannedPage copyWith({
     String? id,
     Uint8List? imageBytes,
+    Uint8List? rawImageBytes,
+    ImageAdjustments? adjustments,
     int? width,
     int? height,
     int? pageNumber,
@@ -41,6 +59,8 @@ class ScannedPage {
     return ScannedPage(
       id: id ?? this.id,
       imageBytes: imageBytes ?? this.imageBytes,
+      rawImageBytes: rawImageBytes ?? this.rawImageBytes,
+      adjustments: adjustments ?? this.adjustments,
       width: width ?? this.width,
       height: height ?? this.height,
       pageNumber: pageNumber ?? this.pageNumber,

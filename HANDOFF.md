@@ -956,3 +956,69 @@ Quiet Paper supports zero-knowledge end-to-end encrypted document scanning with 
 
 ### 5. Backup & Restore
 * `BackupService` serializes all local scanned documents to base64 encrypted payloads within `.qpbackup` snapshots and restores them to SQLite and local disk storage upon import.
+
+---
+
+## 42. On-Device OCR, PDF Import & Non-Destructive Document Processing (`ocr.md`)
+
+Quiet Paper includes a complete, production-ready, client-side zero-knowledge document OCR and PDF import subsystem following the invariants of `ocr.md`.
+
+### 1. Invariants & Security Architecture
+* **Single Resource Type**: Both camera-scanned documents and imported PDF documents resolve to the canonical URI `qp://document/<UUID>`.
+* **Zero Plaintext Upload**: Plaintext OCR is NEVER uploaded to cloud OCR services or third-party APIs. All OCR recognition and text extraction run strictly on-device.
+* **Client-Side Encrypted OCR Storage (`QPOC`)**:
+  - Structured OCR data is encrypted client-side using `XChaCha20-Poly1305` and the user's Master Key before persistence or synchronization.
+  - Magic header bytes: `[0x51, 0x50, 0x4F, 0x43]` (`QPOC`).
+  - Format version: `1`.
+  - Authenticated Associated Data (AAD): strictly bound to `quietpaper:document-ocr:<documentId>:v1`.
+  - Stored in local Drift table `document_ocr_pages` (and cloud Turso table `document_ocr_pages`) as base64-encoded encrypted envelopes.
+* **Direct Binary Transport**: PDF binary files are stored encrypted in Cloudinary and NEVER pass through the Vercel backend.
+
+### 2. Geometry & Normalized Coordinate Space
+* **Normalized Coordinates**: `[0.0, 1.0]` across all pages.
+* **Origin**: Top-left corner `(0.0, 0.0)`.
+* **`NormalizedRect`**: Immutable bounding box with `x`, `y`, `width`, `height`, containment (`contains`), intersection (`intersects`), pixel conversion (`toPixels`), and sub-pixel rounding precision.
+* **Structured Hierarchy**:
+  - `OcrDocument`: Document UUID, language (`OcrLanguage.english`), engine identifier, version, schema version, timestamp, and ordered `List<OcrPage>`.
+  - `OcrPage`: 1-based `pageNumber`, `plainText` (search-indexed representation), `width`, `height`, `source` (`embeddedPdfText` vs `onDeviceOcr`), and `List<OcrBlock>`.
+  - `OcrBlock`: Coherent paragraph/block bounds with `List<OcrLine>`.
+  - `OcrLine`: Text line bounds with child `List<OcrWord>`.
+  - `OcrWord`: Single word string, bounding box, and confidence score (`0.0 - 1.0`).
+
+### 3. Non-Destructive Image Adjustments (`ImageAdjustments`)
+* **Live Non-Destructive Parameters**:
+  - `crop: NormalizedRect?` (clamped margins with reset support).
+  - `rotationQuarterTurns: int` (0, 1, 2, 3 in 90° clockwise increments: `↶ Rotate Left`, `↷ Rotate Right`).
+  - `brightness: double` (-1.0 to 1.0, neutral 0.0).
+  - `contrast: double` (-1.0 to 1.0, neutral 0.0).
+  - `saturation: double` (-1.0 to 1.0, neutral 0.0).
+  - `grayscale: bool` (dedicated toggle composable with tone adjustments).
+* **High-Performance Preview Pipeline**: Real-time slider updates downscale to 600px for responsive 60fps adjustments; the original high-resolution raw capture is preserved in RAM and only rendered to full resolution on final PDF compilation.
+* **`PageAdjustmentSheet`**: Warm editorial modal sheet with real-time preview canvas, segmented "Tone & Exposure" and "Crop & Rotate" tabs, and instant reset actions.
+
+### 4. PDF Import & Text Layer Detection Heuristic
+* **Text Layer First (`PdfTextExtractor`)**:
+  - Inspects imported PDF byte streams for `/Font`, `BT ... ET`, `Tj`, and `TJ` operators.
+  - If a usable text layer exists, extracts text streams, preserves paragraph structure, and generates `OcrPage` objects with `source: OcrSource.embeddedPdfText`.
+  - If no usable text is detected (e.g. image-only raster PDF), falls back seamlessly to rasterizing pages with `PdfPageRenderer` and running `OcrService` computer-vision on-device recognition.
+
+### 5. Asynchronous Background Queue (`DocumentProcessingService`)
+* Processes documents asynchronously without blocking the UI or note-editing loop.
+* Updates database lifecycle state: `not_requested` -> `queued` -> `processing` -> `available` / `failed`.
+* Auto-recovers on app restarts: queries documents in `queued` or `processing` state and resumes processing.
+
+### 6. Database Schema (Drift Schema v7 & Backend Migration 005)
+* **Drift Schema v7**:
+  - Added columns to `documents`: `source` ('scanner' | 'imported_pdf'), `ocr_state` ('not_requested' | 'queued' | 'processing' | 'available' | 'failed'), `ocr_language` ('en').
+  - Added table `document_ocr_pages`: `document_id`, `page_number`, `encrypted_payload`, `ocr_schema_version`, `ocr_engine`, `ocr_engine_version`, `language`, `processed_at`, with composite primary key `(document_id, page_number)` and index on `document_id`.
+* **Backend Migration 005**:
+  - Updated `documents` table with `source`, `ocr_state`, `ocr_language`.
+  - Added `document_ocr_pages` table in Turso / libSQL.
+  - Updated Zod validation schemas (`uploadDocumentAuthRequestSchema`, `confirmDocumentSchema`) and `documentService.ts`.
+
+### 7. UI & Editor Integration
+* **Toolbar**: "Attach PDF" (`Icons.picture_as_pdf_outlined`) added immediately adjacent to "Scan Document" (`Icons.document_scanner_outlined`).
+* **Document Cards (`QuietDocumentCard`)**: Displays live OCR status badge ("Searchable", "Processing text…", "OCR unavailable") and page count.
+* **Document Viewer (`DocumentViewerScreen`)**: Displays document title, page count, file size, source badge, OCR status pill, and OCR language.
+* **Backup & Restore**: `.qpbackup` format serializes and restores document `source`, `ocrState`, `ocrLanguage`, and encrypted `ocrPages` records.
+

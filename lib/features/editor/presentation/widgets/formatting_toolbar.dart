@@ -13,6 +13,7 @@ class FormattingToolbar extends StatelessWidget {
     required this.onTagPressed,
     this.onImagePressed,
     this.onScanPressed,
+    this.onPdfPressed,
     this.focusNode,
     this.onUndo,
     this.onRedo,
@@ -25,6 +26,7 @@ class FormattingToolbar extends StatelessWidget {
   final VoidCallback onTagPressed;
   final VoidCallback? onImagePressed;
   final VoidCallback? onScanPressed;
+  final VoidCallback? onPdfPressed;
   final FocusNode? focusNode;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
@@ -188,6 +190,12 @@ class FormattingToolbar extends StatelessWidget {
               icon: Icons.document_scanner_outlined,
               tooltip: 'Scan document ([title](qp://document/...))',
               onPressed: onScanPressed!,
+            ),
+          if (onPdfPressed != null)
+            _ToolbarButton(
+              icon: Icons.picture_as_pdf_outlined,
+              tooltip: 'Attach PDF document ([title](qp://document/...))',
+              onPressed: onPdfPressed!,
             ),
           _ToolbarButton(
             label: '#',

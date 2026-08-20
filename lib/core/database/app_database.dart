@@ -4,6 +4,7 @@ import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
 import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
+import 'tables/document_ocr_pages_table.dart';
 import 'tables/documents_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
@@ -46,6 +47,7 @@ class TagWithCount {
   AttachmentVariantsTable,
   NoteVersionsTable,
   DocumentsTable,
+  DocumentOcrPagesTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -54,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -83,6 +85,12 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 6) {
             await m.createTable(documentsTable);
+          }
+          if (from < 7) {
+            await m.addColumn(documentsTable, documentsTable.source);
+            await m.addColumn(documentsTable, documentsTable.ocrState);
+            await m.addColumn(documentsTable, documentsTable.ocrLanguage);
+            await m.createTable(documentOcrPagesTable);
           }
         },
         beforeOpen: (details) async {
@@ -125,6 +133,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS documents_upload_state_idx ON documents (upload_state);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
           );
         },
       );
@@ -1028,6 +1039,7 @@ class AppDatabase extends _$AppDatabase {
     required String id,
     String? noteId,
     String title = 'Scanned Document',
+    String source = 'scanner',
     required DateTime createdAt,
     required DateTime updatedAt,
     String mimeType = 'application/pdf',
@@ -1045,12 +1057,15 @@ class AppDatabase extends _$AppDatabase {
     String? cloudUrl,
     String? localPath,
     String? thumbnailPath,
+    String ocrState = 'not_requested',
+    String ocrLanguage = 'en',
   }) async {
     await into(documentsTable).insertOnConflictUpdate(
       DocumentsTableCompanion.insert(
         id: id,
         noteId: Value(noteId),
         title: Value(title),
+        source: Value(source),
         createdAt: createdAt,
         updatedAt: updatedAt,
         mimeType: Value(mimeType),
@@ -1068,6 +1083,8 @@ class AppDatabase extends _$AppDatabase {
         cloudUrl: Value(cloudUrl),
         localPath: Value(localPath),
         thumbnailPath: Value(thumbnailPath),
+        ocrState: Value(ocrState),
+        ocrLanguage: Value(ocrLanguage),
       ),
     );
   }
@@ -1076,6 +1093,12 @@ class AppDatabase extends _$AppDatabase {
   Future<DocumentEntity?> getDocument(String id) async {
     return (select(documentsTable)..where((d) => d.id.equals(id)))
         .getSingleOrNull();
+  }
+
+  /// Watch a single document by ID
+  Stream<DocumentEntity?> watchDocument(String id) {
+    return (select(documentsTable)..where((d) => d.id.equals(id)))
+        .watchSingleOrNull();
   }
 
   /// Get all active documents for a note
@@ -1155,6 +1178,30 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Update OCR state of a document
+  Future<void> updateDocumentOcrState(
+    String id,
+    String ocrState, {
+    String? ocrLanguage,
+  }) async {
+    await (update(documentsTable)..where((d) => d.id.equals(id))).write(
+      DocumentsTableCompanion(
+        ocrState: Value(ocrState),
+        ocrLanguage: ocrLanguage != null ? Value(ocrLanguage) : const Value.absent(),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Get documents queued or in-progress for OCR
+  Future<List<DocumentEntity>> getDocumentsPendingOcr() async {
+    return (select(documentsTable)
+          ..where((d) =>
+              d.isDeleted.equals(false) &
+              (d.ocrState.equals('queued') | d.ocrState.equals('processing'))))
+        .get();
+  }
+
   /// Soft-delete (tombstone) a document and enqueue sync operation
   Future<void> deleteDocument(String id, {bool enqueueSync = true}) async {
     await transaction(() async {
@@ -1175,5 +1222,60 @@ class AppDatabase extends _$AppDatabase {
   /// Get all documents (including tombstones) for backup
   Future<List<DocumentEntity>> getAllDocuments() async {
     return select(documentsTable).get();
+  }
+
+  // ==========================================
+  // DOCUMENT OCR OPERATIONS & QUERIES
+  // ==========================================
+
+  /// Save or update a single page OCR encrypted payload
+  Future<void> saveDocumentOcrPage({
+    required String documentId,
+    required int pageNumber,
+    required String encryptedPayload,
+    int ocrSchemaVersion = 1,
+    String ocrEngine = 'quietpaper_ocr_v1',
+    String ocrEngineVersion = '1.0.0',
+    String language = 'en',
+    required DateTime processedAt,
+  }) async {
+    await into(documentOcrPagesTable).insertOnConflictUpdate(
+      DocumentOcrPagesTableCompanion.insert(
+        documentId: documentId,
+        pageNumber: pageNumber,
+        encryptedPayload: encryptedPayload,
+        ocrSchemaVersion: Value(ocrSchemaVersion),
+        ocrEngine: Value(ocrEngine),
+        ocrEngineVersion: Value(ocrEngineVersion),
+        language: Value(language),
+        processedAt: processedAt,
+      ),
+    );
+  }
+
+  /// Get all OCR page records for a document ordered by page number
+  Future<List<DocumentOcrPageEntity>> getDocumentOcrPages(String documentId) async {
+    return (select(documentOcrPagesTable)
+          ..where((p) => p.documentId.equals(documentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .get();
+  }
+
+  /// Watch all OCR page records for a document ordered by page number
+  Stream<List<DocumentOcrPageEntity>> watchDocumentOcrPages(String documentId) {
+    return (select(documentOcrPagesTable)
+          ..where((p) => p.documentId.equals(documentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .watch();
+  }
+
+  /// Delete OCR pages for a document
+  Future<void> deleteDocumentOcrPages(String documentId) async {
+    await (delete(documentOcrPagesTable)..where((p) => p.documentId.equals(documentId))).go();
+  }
+
+  /// Get all OCR pages across all documents (for full backup)
+  Future<List<DocumentOcrPageEntity>> getAllDocumentOcrPages() async {
+    return select(documentOcrPagesTable).get();
   }
 }

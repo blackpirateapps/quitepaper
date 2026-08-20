@@ -129,11 +129,60 @@ class BackupAttachment {
 }
 
 @immutable
+class BackupDocumentOcrPage {
+  const BackupDocumentOcrPage({
+    required this.documentId,
+    required this.pageNumber,
+    required this.encryptedPayload,
+    this.ocrSchemaVersion = 1,
+    this.ocrEngine = 'quietpaper_ocr_v1',
+    this.ocrEngineVersion = '1.0.0',
+    this.language = 'en',
+    required this.processedAt,
+  });
+
+  final String documentId;
+  final int pageNumber;
+  final String encryptedPayload;
+  final int ocrSchemaVersion;
+  final String ocrEngine;
+  final String ocrEngineVersion;
+  final String language;
+  final DateTime processedAt;
+
+  Map<String, dynamic> toJson() => {
+        'documentId': documentId,
+        'pageNumber': pageNumber,
+        'encryptedPayload': encryptedPayload,
+        'ocrSchemaVersion': ocrSchemaVersion,
+        'ocrEngine': ocrEngine,
+        'ocrEngineVersion': ocrEngineVersion,
+        'language': language,
+        'processedAt': processedAt.toIso8601String(),
+      };
+
+  factory BackupDocumentOcrPage.fromJson(Map<String, dynamic> json) {
+    return BackupDocumentOcrPage(
+      documentId: json['documentId'] as String? ?? '',
+      pageNumber: json['pageNumber'] as int? ?? 1,
+      encryptedPayload: json['encryptedPayload'] as String? ?? '',
+      ocrSchemaVersion: json['ocrSchemaVersion'] as int? ?? 1,
+      ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
+      ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
+      language: json['language'] as String? ?? 'en',
+      processedAt: DateTime.tryParse(json['processedAt'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+@immutable
 class BackupDocument {
   const BackupDocument({
     required this.id,
     this.noteId,
     this.title = 'Scanned Document',
+    this.source = 'scanner',
     required this.createdAt,
     required this.updatedAt,
     this.mimeType = 'application/pdf',
@@ -142,11 +191,15 @@ class BackupDocument {
     this.sha256 = '',
     this.encryptionKeyVersion = 1,
     this.encryptedPayloadBase64,
+    this.ocrState = 'not_requested',
+    this.ocrLanguage = 'en',
+    this.ocrPages = const [],
   });
 
   final String id;
   final String? noteId;
   final String title;
+  final String source;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String mimeType;
@@ -155,11 +208,15 @@ class BackupDocument {
   final String sha256;
   final int encryptionKeyVersion;
   final String? encryptedPayloadBase64;
+  final String ocrState;
+  final String ocrLanguage;
+  final List<BackupDocumentOcrPage> ocrPages;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         if (noteId != null) 'noteId': noteId,
         'title': title,
+        'source': source,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'mimeType': mimeType,
@@ -169,13 +226,19 @@ class BackupDocument {
         'encryptionKeyVersion': encryptionKeyVersion,
         if (encryptedPayloadBase64 != null)
           'encryptedPayloadBase64': encryptedPayloadBase64,
+        'ocrState': ocrState,
+        'ocrLanguage': ocrLanguage,
+        if (ocrPages.isNotEmpty)
+          'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
       };
 
   factory BackupDocument.fromJson(Map<String, dynamic> json) {
+    final rawOcrPages = json['ocrPages'] as List? ?? [];
     return BackupDocument(
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
       title: json['title'] as String? ?? 'Scanned Document',
+      source: json['source'] as String? ?? 'scanner',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
@@ -186,6 +249,12 @@ class BackupDocument {
       sha256: json['sha256'] as String? ?? '',
       encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
       encryptedPayloadBase64: json['encryptedPayloadBase64'] as String?,
+      ocrState: json['ocrState'] as String? ?? 'not_requested',
+      ocrLanguage: json['ocrLanguage'] as String? ?? 'en',
+      ocrPages: rawOcrPages
+          .whereType<Map>()
+          .map((p) => BackupDocumentOcrPage.fromJson(Map<String, dynamic>.from(p)))
+          .toList(),
     );
   }
 }

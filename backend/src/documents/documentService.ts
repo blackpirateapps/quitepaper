@@ -69,10 +69,13 @@ export async function confirmDocumentUpload(
     cloudPublicId,
     cloudUrl,
     title = 'Scanned Document',
+    source = 'scanner',
     mimeType = 'application/pdf',
     byteSize = 0,
     pageCount = 1,
     sha256 = '',
+    ocrState = 'not_requested',
+    ocrLanguage = 'en',
   } = parseRes.data;
 
   const nowIso = new Date().toISOString();
@@ -96,24 +99,30 @@ export async function confirmDocumentUpload(
       sql: `UPDATE documents SET
               note_id = COALESCE(?, note_id),
               title = COALESCE(?, title),
+              source = COALESCE(?, source),
               cloud_public_id = ?,
               cloud_url = ?,
               mime_type = ?,
               byte_size = ?,
               page_count = ?,
               sha256 = ?,
+              ocr_state = COALESCE(?, ocr_state),
+              ocr_language = COALESCE(?, ocr_language),
               server_revision = ?,
               updated_at = ?
             WHERE id = ? AND user_id = ?`,
       args: [
         noteId || null,
         title,
+        source,
         cloudPublicId,
         cloudUrl,
         mimeType,
         byteSize,
         pageCount,
         sha256,
+        ocrState,
+        ocrLanguage,
         serverRevision,
         nowIso,
         documentId,
@@ -123,15 +132,16 @@ export async function confirmDocumentUpload(
   } else {
     await db.execute({
       sql: `INSERT INTO documents (
-              id, user_id, note_id, title, created_at, updated_at, mime_type,
+              id, user_id, note_id, title, source, created_at, updated_at, mime_type,
               byte_size, page_count, sha256, server_revision,
-              cloud_public_id, cloud_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              cloud_public_id, cloud_url, ocr_state, ocr_language
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         documentId,
         userId,
         noteId || null,
         title,
+        source,
         nowIso,
         nowIso,
         mimeType,
@@ -141,6 +151,8 @@ export async function confirmDocumentUpload(
         serverRevision,
         cloudPublicId,
         cloudUrl,
+        ocrState,
+        ocrLanguage,
       ],
     });
   }
@@ -152,6 +164,7 @@ export async function confirmDocumentUpload(
       userId,
       noteId: noteId || null,
       title,
+      source,
       cloudPublicId,
       cloudUrl,
       mimeType,
@@ -159,6 +172,8 @@ export async function confirmDocumentUpload(
       pageCount,
       sha256,
       serverRevision,
+      ocrState,
+      ocrLanguage,
       updatedAt: nowIso,
     },
   };
@@ -184,6 +199,7 @@ export async function getDocumentMetadata(
     userId: row.user_id,
     noteId: row.note_id,
     title: row.title || 'Scanned Document',
+    source: row.source || 'scanner',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     mimeType: row.mime_type,
@@ -195,5 +211,7 @@ export async function getDocumentMetadata(
     deletedAt: row.deleted_at,
     cloudPublicId: row.cloud_public_id,
     cloudUrl: row.cloud_url,
+    ocrState: row.ocr_state || 'not_requested',
+    ocrLanguage: row.ocr_language || 'en',
   };
 }

@@ -15,6 +15,10 @@ class DocumentsTable extends Table {
   TextColumn get title =>
       text().withDefault(const Constant('Scanned Document'))();
 
+  /// Document source: 'scanner' or 'imported_pdf'
+  TextColumn get source =>
+      text().withDefault(const Constant('scanner'))();
+
   /// Creation timestamp
   DateTimeColumn get createdAt => dateTime()();
 
@@ -69,6 +73,14 @@ class DocumentsTable extends Table {
 
   /// Optional local path to cached first-page thumbnail
   TextColumn get thumbnailPath => text().nullable()();
+
+  /// OCR processing state: 'not_requested', 'queued', 'processing', 'available', 'failed'
+  TextColumn get ocrState =>
+      text().withDefault(const Constant('not_requested'))();
+
+  /// OCR language code: e.g. 'en'
+  TextColumn get ocrLanguage =>
+      text().withDefault(const Constant('en'))();
 
   @override
   Set<Column> get primaryKey => {id};

@@ -99,10 +99,12 @@ export const uploadDocumentAuthRequestSchema = z.object({
   documentId: z.string().uuid(),
   noteId: z.string().uuid().optional().nullable().or(z.literal('')),
   title: z.string().max(256).default('Scanned Document'),
+  source: z.enum(['scanner', 'imported_pdf']).default('scanner'),
   mimeType: z.string().max(100).default('application/pdf'),
   byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
   pageCount: z.number().int().min(1).max(500).default(1),
   sha256: z.string().max(128).default(''),
+  ocrLanguage: z.string().max(10).default('en'),
 });
 
 export const confirmDocumentSchema = z.object({
@@ -111,10 +113,13 @@ export const confirmDocumentSchema = z.object({
   cloudPublicId: z.string().min(1).max(256),
   cloudUrl: z.string().url().max(1024),
   title: z.string().max(256).optional(),
+  source: z.enum(['scanner', 'imported_pdf']).optional(),
   mimeType: z.string().max(100).optional(),
   byteSize: z.number().int().min(0).optional(),
   pageCount: z.number().int().min(1).optional(),
   sha256: z.string().max(128).optional(),
+  ocrState: z.enum(['not_requested', 'queued', 'processing', 'available', 'failed']).optional(),
+  ocrLanguage: z.string().max(10).optional(),
 });
 
 export const noteVersionSchema = z.object({

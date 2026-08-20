@@ -233,13 +233,41 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             if (docInfo != null)
-              Text(
-                '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.normal,
-                ),
+              Row(
+                children: [
+                  Text(
+                    '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: docInfo.ocrState == 'available'
+                          ? Colors.green.withValues(alpha: 0.15)
+                          : colors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      docInfo.ocrState == 'available'
+                          ? 'Searchable (OCR)'
+                          : docInfo.ocrState == 'processing'
+                              ? 'Processing OCR…'
+                              : docInfo.ocrState == 'queued'
+                                  ? 'Queued'
+                                  : 'PDF',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: docInfo.ocrState == 'available' ? Colors.green : colors.accent,
+                      ),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),

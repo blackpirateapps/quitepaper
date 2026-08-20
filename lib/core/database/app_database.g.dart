@@ -4337,6 +4337,16 @@ class $DocumentsTableTable extends DocumentsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('Scanned Document'),
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('scanner'),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -4536,11 +4546,36 @@ class $DocumentsTableTable extends DocumentsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _ocrStateMeta = const VerificationMeta(
+    'ocrState',
+  );
+  @override
+  late final GeneratedColumn<String> ocrState = GeneratedColumn<String>(
+    'ocr_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('not_requested'),
+  );
+  static const VerificationMeta _ocrLanguageMeta = const VerificationMeta(
+    'ocrLanguage',
+  );
+  @override
+  late final GeneratedColumn<String> ocrLanguage = GeneratedColumn<String>(
+    'ocr_language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('en'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
     noteId,
     title,
+    source,
     createdAt,
     updatedAt,
     mimeType,
@@ -4558,6 +4593,8 @@ class $DocumentsTableTable extends DocumentsTable
     cloudUrl,
     localPath,
     thumbnailPath,
+    ocrState,
+    ocrLanguage,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4586,6 +4623,12 @@ class $DocumentsTableTable extends DocumentsTable
       context.handle(
         _titleMeta,
         title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -4709,6 +4752,21 @@ class $DocumentsTableTable extends DocumentsTable
         ),
       );
     }
+    if (data.containsKey('ocr_state')) {
+      context.handle(
+        _ocrStateMeta,
+        ocrState.isAcceptableOrUnknown(data['ocr_state']!, _ocrStateMeta),
+      );
+    }
+    if (data.containsKey('ocr_language')) {
+      context.handle(
+        _ocrLanguageMeta,
+        ocrLanguage.isAcceptableOrUnknown(
+          data['ocr_language']!,
+          _ocrLanguageMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4729,6 +4787,10 @@ class $DocumentsTableTable extends DocumentsTable
       title: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}title'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
       )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -4798,6 +4860,14 @@ class $DocumentsTableTable extends DocumentsTable
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_path'],
       ),
+      ocrState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_state'],
+      )!,
+      ocrLanguage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_language'],
+      )!,
     );
   }
 
@@ -4816,6 +4886,9 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
 
   /// Document title (display name, e.g. 'Scanned Document')
   final String title;
+
+  /// Document source: 'scanner' or 'imported_pdf'
+  final String source;
 
   /// Creation timestamp
   final DateTime createdAt;
@@ -4867,10 +4940,17 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
 
   /// Optional local path to cached first-page thumbnail
   final String? thumbnailPath;
+
+  /// OCR processing state: 'not_requested', 'queued', 'processing', 'available', 'failed'
+  final String ocrState;
+
+  /// OCR language code: e.g. 'en'
+  final String ocrLanguage;
   const DocumentEntity({
     required this.id,
     this.noteId,
     required this.title,
+    required this.source,
     required this.createdAt,
     required this.updatedAt,
     required this.mimeType,
@@ -4888,6 +4968,8 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     this.cloudUrl,
     this.localPath,
     this.thumbnailPath,
+    required this.ocrState,
+    required this.ocrLanguage,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4897,6 +4979,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       map['note_id'] = Variable<String>(noteId);
     }
     map['title'] = Variable<String>(title);
+    map['source'] = Variable<String>(source);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['mime_type'] = Variable<String>(mimeType);
@@ -4926,6 +5009,8 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     if (!nullToAbsent || thumbnailPath != null) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath);
     }
+    map['ocr_state'] = Variable<String>(ocrState);
+    map['ocr_language'] = Variable<String>(ocrLanguage);
     return map;
   }
 
@@ -4936,6 +5021,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
           ? const Value.absent()
           : Value(noteId),
       title: Value(title),
+      source: Value(source),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       mimeType: Value(mimeType),
@@ -4965,6 +5051,8 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       thumbnailPath: thumbnailPath == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailPath),
+      ocrState: Value(ocrState),
+      ocrLanguage: Value(ocrLanguage),
     );
   }
 
@@ -4977,6 +5065,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       id: serializer.fromJson<String>(json['id']),
       noteId: serializer.fromJson<String?>(json['noteId']),
       title: serializer.fromJson<String>(json['title']),
+      source: serializer.fromJson<String>(json['source']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       mimeType: serializer.fromJson<String>(json['mimeType']),
@@ -4996,6 +5085,8 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       cloudUrl: serializer.fromJson<String?>(json['cloudUrl']),
       localPath: serializer.fromJson<String?>(json['localPath']),
       thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
+      ocrState: serializer.fromJson<String>(json['ocrState']),
+      ocrLanguage: serializer.fromJson<String>(json['ocrLanguage']),
     );
   }
   @override
@@ -5005,6 +5096,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       'id': serializer.toJson<String>(id),
       'noteId': serializer.toJson<String?>(noteId),
       'title': serializer.toJson<String>(title),
+      'source': serializer.toJson<String>(source),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'mimeType': serializer.toJson<String>(mimeType),
@@ -5022,6 +5114,8 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       'cloudUrl': serializer.toJson<String?>(cloudUrl),
       'localPath': serializer.toJson<String?>(localPath),
       'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
+      'ocrState': serializer.toJson<String>(ocrState),
+      'ocrLanguage': serializer.toJson<String>(ocrLanguage),
     };
   }
 
@@ -5029,6 +5123,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     String? id,
     Value<String?> noteId = const Value.absent(),
     String? title,
+    String? source,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? mimeType,
@@ -5046,10 +5141,13 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     Value<String?> cloudUrl = const Value.absent(),
     Value<String?> localPath = const Value.absent(),
     Value<String?> thumbnailPath = const Value.absent(),
+    String? ocrState,
+    String? ocrLanguage,
   }) => DocumentEntity(
     id: id ?? this.id,
     noteId: noteId.present ? noteId.value : this.noteId,
     title: title ?? this.title,
+    source: source ?? this.source,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     mimeType: mimeType ?? this.mimeType,
@@ -5071,12 +5169,15 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     thumbnailPath: thumbnailPath.present
         ? thumbnailPath.value
         : this.thumbnailPath,
+    ocrState: ocrState ?? this.ocrState,
+    ocrLanguage: ocrLanguage ?? this.ocrLanguage,
   );
   DocumentEntity copyWithCompanion(DocumentsTableCompanion data) {
     return DocumentEntity(
       id: data.id.present ? data.id.value : this.id,
       noteId: data.noteId.present ? data.noteId.value : this.noteId,
       title: data.title.present ? data.title.value : this.title,
+      source: data.source.present ? data.source.value : this.source,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
@@ -5104,6 +5205,10 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
       thumbnailPath: data.thumbnailPath.present
           ? data.thumbnailPath.value
           : this.thumbnailPath,
+      ocrState: data.ocrState.present ? data.ocrState.value : this.ocrState,
+      ocrLanguage: data.ocrLanguage.present
+          ? data.ocrLanguage.value
+          : this.ocrLanguage,
     );
   }
 
@@ -5113,6 +5218,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
           ..write('id: $id, ')
           ..write('noteId: $noteId, ')
           ..write('title: $title, ')
+          ..write('source: $source, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('mimeType: $mimeType, ')
@@ -5129,16 +5235,19 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
           ..write('cloudPublicId: $cloudPublicId, ')
           ..write('cloudUrl: $cloudUrl, ')
           ..write('localPath: $localPath, ')
-          ..write('thumbnailPath: $thumbnailPath')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('ocrState: $ocrState, ')
+          ..write('ocrLanguage: $ocrLanguage')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     noteId,
     title,
+    source,
     createdAt,
     updatedAt,
     mimeType,
@@ -5156,7 +5265,9 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
     cloudUrl,
     localPath,
     thumbnailPath,
-  );
+    ocrState,
+    ocrLanguage,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5164,6 +5275,7 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
           other.id == this.id &&
           other.noteId == this.noteId &&
           other.title == this.title &&
+          other.source == this.source &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.mimeType == this.mimeType &&
@@ -5180,13 +5292,16 @@ class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
           other.cloudPublicId == this.cloudPublicId &&
           other.cloudUrl == this.cloudUrl &&
           other.localPath == this.localPath &&
-          other.thumbnailPath == this.thumbnailPath);
+          other.thumbnailPath == this.thumbnailPath &&
+          other.ocrState == this.ocrState &&
+          other.ocrLanguage == this.ocrLanguage);
 }
 
 class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
   final Value<String> id;
   final Value<String?> noteId;
   final Value<String> title;
+  final Value<String> source;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<String> mimeType;
@@ -5204,11 +5319,14 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
   final Value<String?> cloudUrl;
   final Value<String?> localPath;
   final Value<String?> thumbnailPath;
+  final Value<String> ocrState;
+  final Value<String> ocrLanguage;
   final Value<int> rowid;
   const DocumentsTableCompanion({
     this.id = const Value.absent(),
     this.noteId = const Value.absent(),
     this.title = const Value.absent(),
+    this.source = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.mimeType = const Value.absent(),
@@ -5226,12 +5344,15 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     this.cloudUrl = const Value.absent(),
     this.localPath = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
+    this.ocrState = const Value.absent(),
+    this.ocrLanguage = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DocumentsTableCompanion.insert({
     required String id,
     this.noteId = const Value.absent(),
     this.title = const Value.absent(),
+    this.source = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.mimeType = const Value.absent(),
@@ -5249,6 +5370,8 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     this.cloudUrl = const Value.absent(),
     this.localPath = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
+    this.ocrState = const Value.absent(),
+    this.ocrLanguage = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -5257,6 +5380,7 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     Expression<String>? id,
     Expression<String>? noteId,
     Expression<String>? title,
+    Expression<String>? source,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<String>? mimeType,
@@ -5274,12 +5398,15 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     Expression<String>? cloudUrl,
     Expression<String>? localPath,
     Expression<String>? thumbnailPath,
+    Expression<String>? ocrState,
+    Expression<String>? ocrLanguage,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (noteId != null) 'note_id': noteId,
       if (title != null) 'title': title,
+      if (source != null) 'source': source,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (mimeType != null) 'mime_type': mimeType,
@@ -5298,6 +5425,8 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
       if (cloudUrl != null) 'cloud_url': cloudUrl,
       if (localPath != null) 'local_path': localPath,
       if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
+      if (ocrState != null) 'ocr_state': ocrState,
+      if (ocrLanguage != null) 'ocr_language': ocrLanguage,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5306,6 +5435,7 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     Value<String>? id,
     Value<String?>? noteId,
     Value<String>? title,
+    Value<String>? source,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<String>? mimeType,
@@ -5323,12 +5453,15 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     Value<String?>? cloudUrl,
     Value<String?>? localPath,
     Value<String?>? thumbnailPath,
+    Value<String>? ocrState,
+    Value<String>? ocrLanguage,
     Value<int>? rowid,
   }) {
     return DocumentsTableCompanion(
       id: id ?? this.id,
       noteId: noteId ?? this.noteId,
       title: title ?? this.title,
+      source: source ?? this.source,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       mimeType: mimeType ?? this.mimeType,
@@ -5346,6 +5479,8 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
       cloudUrl: cloudUrl ?? this.cloudUrl,
       localPath: localPath ?? this.localPath,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      ocrState: ocrState ?? this.ocrState,
+      ocrLanguage: ocrLanguage ?? this.ocrLanguage,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5361,6 +5496,9 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -5413,6 +5551,12 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
     if (thumbnailPath.present) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
     }
+    if (ocrState.present) {
+      map['ocr_state'] = Variable<String>(ocrState.value);
+    }
+    if (ocrLanguage.present) {
+      map['ocr_language'] = Variable<String>(ocrLanguage.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5425,6 +5569,7 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
           ..write('id: $id, ')
           ..write('noteId: $noteId, ')
           ..write('title: $title, ')
+          ..write('source: $source, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('mimeType: $mimeType, ')
@@ -5442,6 +5587,558 @@ class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
           ..write('cloudUrl: $cloudUrl, ')
           ..write('localPath: $localPath, ')
           ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('ocrState: $ocrState, ')
+          ..write('ocrLanguage: $ocrLanguage, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
+    with TableInfo<$DocumentOcrPagesTableTable, DocumentOcrPageEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DocumentOcrPagesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageNumberMeta = const VerificationMeta(
+    'pageNumber',
+  );
+  @override
+  late final GeneratedColumn<int> pageNumber = GeneratedColumn<int>(
+    'page_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _encryptedPayloadMeta = const VerificationMeta(
+    'encryptedPayload',
+  );
+  @override
+  late final GeneratedColumn<String> encryptedPayload = GeneratedColumn<String>(
+    'encrypted_payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ocrSchemaVersionMeta = const VerificationMeta(
+    'ocrSchemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> ocrSchemaVersion = GeneratedColumn<int>(
+    'ocr_schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _ocrEngineMeta = const VerificationMeta(
+    'ocrEngine',
+  );
+  @override
+  late final GeneratedColumn<String> ocrEngine = GeneratedColumn<String>(
+    'ocr_engine',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('quietpaper_ocr_v1'),
+  );
+  static const VerificationMeta _ocrEngineVersionMeta = const VerificationMeta(
+    'ocrEngineVersion',
+  );
+  @override
+  late final GeneratedColumn<String> ocrEngineVersion = GeneratedColumn<String>(
+    'ocr_engine_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('1.0.0'),
+  );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('en'),
+  );
+  static const VerificationMeta _processedAtMeta = const VerificationMeta(
+    'processedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> processedAt = GeneratedColumn<DateTime>(
+    'processed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    documentId,
+    pageNumber,
+    encryptedPayload,
+    ocrSchemaVersion,
+    ocrEngine,
+    ocrEngineVersion,
+    language,
+    processedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'document_ocr_pages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DocumentOcrPageEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('page_number')) {
+      context.handle(
+        _pageNumberMeta,
+        pageNumber.isAcceptableOrUnknown(data['page_number']!, _pageNumberMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pageNumberMeta);
+    }
+    if (data.containsKey('encrypted_payload')) {
+      context.handle(
+        _encryptedPayloadMeta,
+        encryptedPayload.isAcceptableOrUnknown(
+          data['encrypted_payload']!,
+          _encryptedPayloadMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_encryptedPayloadMeta);
+    }
+    if (data.containsKey('ocr_schema_version')) {
+      context.handle(
+        _ocrSchemaVersionMeta,
+        ocrSchemaVersion.isAcceptableOrUnknown(
+          data['ocr_schema_version']!,
+          _ocrSchemaVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ocr_engine')) {
+      context.handle(
+        _ocrEngineMeta,
+        ocrEngine.isAcceptableOrUnknown(data['ocr_engine']!, _ocrEngineMeta),
+      );
+    }
+    if (data.containsKey('ocr_engine_version')) {
+      context.handle(
+        _ocrEngineVersionMeta,
+        ocrEngineVersion.isAcceptableOrUnknown(
+          data['ocr_engine_version']!,
+          _ocrEngineVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    }
+    if (data.containsKey('processed_at')) {
+      context.handle(
+        _processedAtMeta,
+        processedAt.isAcceptableOrUnknown(
+          data['processed_at']!,
+          _processedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_processedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {documentId, pageNumber};
+  @override
+  DocumentOcrPageEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DocumentOcrPageEntity(
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      pageNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_number'],
+      )!,
+      encryptedPayload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}encrypted_payload'],
+      )!,
+      ocrSchemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ocr_schema_version'],
+      )!,
+      ocrEngine: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_engine'],
+      )!,
+      ocrEngineVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_engine_version'],
+      )!,
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      )!,
+      processedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}processed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DocumentOcrPagesTableTable createAlias(String alias) {
+    return $DocumentOcrPagesTableTable(attachedDatabase, alias);
+  }
+}
+
+class DocumentOcrPageEntity extends DataClass
+    implements Insertable<DocumentOcrPageEntity> {
+  /// Document canonical UUID reference
+  final String documentId;
+
+  /// 1-based page number
+  final int pageNumber;
+
+  /// Base64-encoded encrypted binary OCR envelope (QPOC)
+  final String encryptedPayload;
+
+  /// OCR schema version (e.g. 1)
+  final int ocrSchemaVersion;
+
+  /// Engine name used for recognition
+  final String ocrEngine;
+
+  /// Engine version used for recognition
+  final String ocrEngineVersion;
+
+  /// Language code used during recognition (e.g. 'en')
+  final String language;
+
+  /// Processing completion timestamp
+  final DateTime processedAt;
+  const DocumentOcrPageEntity({
+    required this.documentId,
+    required this.pageNumber,
+    required this.encryptedPayload,
+    required this.ocrSchemaVersion,
+    required this.ocrEngine,
+    required this.ocrEngineVersion,
+    required this.language,
+    required this.processedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['document_id'] = Variable<String>(documentId);
+    map['page_number'] = Variable<int>(pageNumber);
+    map['encrypted_payload'] = Variable<String>(encryptedPayload);
+    map['ocr_schema_version'] = Variable<int>(ocrSchemaVersion);
+    map['ocr_engine'] = Variable<String>(ocrEngine);
+    map['ocr_engine_version'] = Variable<String>(ocrEngineVersion);
+    map['language'] = Variable<String>(language);
+    map['processed_at'] = Variable<DateTime>(processedAt);
+    return map;
+  }
+
+  DocumentOcrPagesTableCompanion toCompanion(bool nullToAbsent) {
+    return DocumentOcrPagesTableCompanion(
+      documentId: Value(documentId),
+      pageNumber: Value(pageNumber),
+      encryptedPayload: Value(encryptedPayload),
+      ocrSchemaVersion: Value(ocrSchemaVersion),
+      ocrEngine: Value(ocrEngine),
+      ocrEngineVersion: Value(ocrEngineVersion),
+      language: Value(language),
+      processedAt: Value(processedAt),
+    );
+  }
+
+  factory DocumentOcrPageEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DocumentOcrPageEntity(
+      documentId: serializer.fromJson<String>(json['documentId']),
+      pageNumber: serializer.fromJson<int>(json['pageNumber']),
+      encryptedPayload: serializer.fromJson<String>(json['encryptedPayload']),
+      ocrSchemaVersion: serializer.fromJson<int>(json['ocrSchemaVersion']),
+      ocrEngine: serializer.fromJson<String>(json['ocrEngine']),
+      ocrEngineVersion: serializer.fromJson<String>(json['ocrEngineVersion']),
+      language: serializer.fromJson<String>(json['language']),
+      processedAt: serializer.fromJson<DateTime>(json['processedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'documentId': serializer.toJson<String>(documentId),
+      'pageNumber': serializer.toJson<int>(pageNumber),
+      'encryptedPayload': serializer.toJson<String>(encryptedPayload),
+      'ocrSchemaVersion': serializer.toJson<int>(ocrSchemaVersion),
+      'ocrEngine': serializer.toJson<String>(ocrEngine),
+      'ocrEngineVersion': serializer.toJson<String>(ocrEngineVersion),
+      'language': serializer.toJson<String>(language),
+      'processedAt': serializer.toJson<DateTime>(processedAt),
+    };
+  }
+
+  DocumentOcrPageEntity copyWith({
+    String? documentId,
+    int? pageNumber,
+    String? encryptedPayload,
+    int? ocrSchemaVersion,
+    String? ocrEngine,
+    String? ocrEngineVersion,
+    String? language,
+    DateTime? processedAt,
+  }) => DocumentOcrPageEntity(
+    documentId: documentId ?? this.documentId,
+    pageNumber: pageNumber ?? this.pageNumber,
+    encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+    ocrSchemaVersion: ocrSchemaVersion ?? this.ocrSchemaVersion,
+    ocrEngine: ocrEngine ?? this.ocrEngine,
+    ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
+    language: language ?? this.language,
+    processedAt: processedAt ?? this.processedAt,
+  );
+  DocumentOcrPageEntity copyWithCompanion(DocumentOcrPagesTableCompanion data) {
+    return DocumentOcrPageEntity(
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      pageNumber: data.pageNumber.present
+          ? data.pageNumber.value
+          : this.pageNumber,
+      encryptedPayload: data.encryptedPayload.present
+          ? data.encryptedPayload.value
+          : this.encryptedPayload,
+      ocrSchemaVersion: data.ocrSchemaVersion.present
+          ? data.ocrSchemaVersion.value
+          : this.ocrSchemaVersion,
+      ocrEngine: data.ocrEngine.present ? data.ocrEngine.value : this.ocrEngine,
+      ocrEngineVersion: data.ocrEngineVersion.present
+          ? data.ocrEngineVersion.value
+          : this.ocrEngineVersion,
+      language: data.language.present ? data.language.value : this.language,
+      processedAt: data.processedAt.present
+          ? data.processedAt.value
+          : this.processedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentOcrPageEntity(')
+          ..write('documentId: $documentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('ocrSchemaVersion: $ocrSchemaVersion, ')
+          ..write('ocrEngine: $ocrEngine, ')
+          ..write('ocrEngineVersion: $ocrEngineVersion, ')
+          ..write('language: $language, ')
+          ..write('processedAt: $processedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    documentId,
+    pageNumber,
+    encryptedPayload,
+    ocrSchemaVersion,
+    ocrEngine,
+    ocrEngineVersion,
+    language,
+    processedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DocumentOcrPageEntity &&
+          other.documentId == this.documentId &&
+          other.pageNumber == this.pageNumber &&
+          other.encryptedPayload == this.encryptedPayload &&
+          other.ocrSchemaVersion == this.ocrSchemaVersion &&
+          other.ocrEngine == this.ocrEngine &&
+          other.ocrEngineVersion == this.ocrEngineVersion &&
+          other.language == this.language &&
+          other.processedAt == this.processedAt);
+}
+
+class DocumentOcrPagesTableCompanion
+    extends UpdateCompanion<DocumentOcrPageEntity> {
+  final Value<String> documentId;
+  final Value<int> pageNumber;
+  final Value<String> encryptedPayload;
+  final Value<int> ocrSchemaVersion;
+  final Value<String> ocrEngine;
+  final Value<String> ocrEngineVersion;
+  final Value<String> language;
+  final Value<DateTime> processedAt;
+  final Value<int> rowid;
+  const DocumentOcrPagesTableCompanion({
+    this.documentId = const Value.absent(),
+    this.pageNumber = const Value.absent(),
+    this.encryptedPayload = const Value.absent(),
+    this.ocrSchemaVersion = const Value.absent(),
+    this.ocrEngine = const Value.absent(),
+    this.ocrEngineVersion = const Value.absent(),
+    this.language = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DocumentOcrPagesTableCompanion.insert({
+    required String documentId,
+    required int pageNumber,
+    required String encryptedPayload,
+    this.ocrSchemaVersion = const Value.absent(),
+    this.ocrEngine = const Value.absent(),
+    this.ocrEngineVersion = const Value.absent(),
+    this.language = const Value.absent(),
+    required DateTime processedAt,
+    this.rowid = const Value.absent(),
+  }) : documentId = Value(documentId),
+       pageNumber = Value(pageNumber),
+       encryptedPayload = Value(encryptedPayload),
+       processedAt = Value(processedAt);
+  static Insertable<DocumentOcrPageEntity> custom({
+    Expression<String>? documentId,
+    Expression<int>? pageNumber,
+    Expression<String>? encryptedPayload,
+    Expression<int>? ocrSchemaVersion,
+    Expression<String>? ocrEngine,
+    Expression<String>? ocrEngineVersion,
+    Expression<String>? language,
+    Expression<DateTime>? processedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (documentId != null) 'document_id': documentId,
+      if (pageNumber != null) 'page_number': pageNumber,
+      if (encryptedPayload != null) 'encrypted_payload': encryptedPayload,
+      if (ocrSchemaVersion != null) 'ocr_schema_version': ocrSchemaVersion,
+      if (ocrEngine != null) 'ocr_engine': ocrEngine,
+      if (ocrEngineVersion != null) 'ocr_engine_version': ocrEngineVersion,
+      if (language != null) 'language': language,
+      if (processedAt != null) 'processed_at': processedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DocumentOcrPagesTableCompanion copyWith({
+    Value<String>? documentId,
+    Value<int>? pageNumber,
+    Value<String>? encryptedPayload,
+    Value<int>? ocrSchemaVersion,
+    Value<String>? ocrEngine,
+    Value<String>? ocrEngineVersion,
+    Value<String>? language,
+    Value<DateTime>? processedAt,
+    Value<int>? rowid,
+  }) {
+    return DocumentOcrPagesTableCompanion(
+      documentId: documentId ?? this.documentId,
+      pageNumber: pageNumber ?? this.pageNumber,
+      encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+      ocrSchemaVersion: ocrSchemaVersion ?? this.ocrSchemaVersion,
+      ocrEngine: ocrEngine ?? this.ocrEngine,
+      ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
+      language: language ?? this.language,
+      processedAt: processedAt ?? this.processedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (pageNumber.present) {
+      map['page_number'] = Variable<int>(pageNumber.value);
+    }
+    if (encryptedPayload.present) {
+      map['encrypted_payload'] = Variable<String>(encryptedPayload.value);
+    }
+    if (ocrSchemaVersion.present) {
+      map['ocr_schema_version'] = Variable<int>(ocrSchemaVersion.value);
+    }
+    if (ocrEngine.present) {
+      map['ocr_engine'] = Variable<String>(ocrEngine.value);
+    }
+    if (ocrEngineVersion.present) {
+      map['ocr_engine_version'] = Variable<String>(ocrEngineVersion.value);
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
+    if (processedAt.present) {
+      map['processed_at'] = Variable<DateTime>(processedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentOcrPagesTableCompanion(')
+          ..write('documentId: $documentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('ocrSchemaVersion: $ocrSchemaVersion, ')
+          ..write('ocrEngine: $ocrEngine, ')
+          ..write('ocrEngineVersion: $ocrEngineVersion, ')
+          ..write('language: $language, ')
+          ..write('processedAt: $processedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5465,6 +6162,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $NoteVersionsTableTable noteVersionsTable =
       $NoteVersionsTableTable(this);
   late final $DocumentsTableTable documentsTable = $DocumentsTableTable(this);
+  late final $DocumentOcrPagesTableTable documentOcrPagesTable =
+      $DocumentOcrPagesTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5479,6 +6178,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     attachmentVariantsTable,
     noteVersionsTable,
     documentsTable,
+    documentOcrPagesTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -8333,6 +9033,7 @@ typedef $$DocumentsTableTableCreateCompanionBuilder =
       required String id,
       Value<String?> noteId,
       Value<String> title,
+      Value<String> source,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<String> mimeType,
@@ -8350,6 +9051,8 @@ typedef $$DocumentsTableTableCreateCompanionBuilder =
       Value<String?> cloudUrl,
       Value<String?> localPath,
       Value<String?> thumbnailPath,
+      Value<String> ocrState,
+      Value<String> ocrLanguage,
       Value<int> rowid,
     });
 typedef $$DocumentsTableTableUpdateCompanionBuilder =
@@ -8357,6 +9060,7 @@ typedef $$DocumentsTableTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String?> noteId,
       Value<String> title,
+      Value<String> source,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<String> mimeType,
@@ -8374,6 +9078,8 @@ typedef $$DocumentsTableTableUpdateCompanionBuilder =
       Value<String?> cloudUrl,
       Value<String?> localPath,
       Value<String?> thumbnailPath,
+      Value<String> ocrState,
+      Value<String> ocrLanguage,
       Value<int> rowid,
     });
 
@@ -8398,6 +9104,11 @@ class $$DocumentsTableTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8485,6 +9196,16 @@ class $$DocumentsTableTableFilterComposer
     column: $table.thumbnailPath,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get ocrState => $composableBuilder(
+    column: $table.ocrState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$DocumentsTableTableOrderingComposer
@@ -8508,6 +9229,11 @@ class $$DocumentsTableTableOrderingComposer
 
   ColumnOrderings<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8595,6 +9321,16 @@ class $$DocumentsTableTableOrderingComposer
     column: $table.thumbnailPath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get ocrState => $composableBuilder(
+    column: $table.ocrState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DocumentsTableTableAnnotationComposer
@@ -8614,6 +9350,9 @@ class $$DocumentsTableTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -8675,6 +9414,14 @@ class $$DocumentsTableTableAnnotationComposer
     column: $table.thumbnailPath,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get ocrState =>
+      $composableBuilder(column: $table.ocrState, builder: (column) => column);
+
+  GeneratedColumn<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
+    builder: (column) => column,
+  );
 }
 
 class $$DocumentsTableTableTableManager
@@ -8713,6 +9460,7 @@ class $$DocumentsTableTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String?> noteId = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> mimeType = const Value.absent(),
@@ -8730,11 +9478,14 @@ class $$DocumentsTableTableTableManager
                 Value<String?> cloudUrl = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
+                Value<String> ocrState = const Value.absent(),
+                Value<String> ocrLanguage = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentsTableCompanion(
                 id: id,
                 noteId: noteId,
                 title: title,
+                source: source,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 mimeType: mimeType,
@@ -8752,6 +9503,8 @@ class $$DocumentsTableTableTableManager
                 cloudUrl: cloudUrl,
                 localPath: localPath,
                 thumbnailPath: thumbnailPath,
+                ocrState: ocrState,
+                ocrLanguage: ocrLanguage,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8759,6 +9512,7 @@ class $$DocumentsTableTableTableManager
                 required String id,
                 Value<String?> noteId = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<String> mimeType = const Value.absent(),
@@ -8776,11 +9530,14 @@ class $$DocumentsTableTableTableManager
                 Value<String?> cloudUrl = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
+                Value<String> ocrState = const Value.absent(),
+                Value<String> ocrLanguage = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentsTableCompanion.insert(
                 id: id,
                 noteId: noteId,
                 title: title,
+                source: source,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 mimeType: mimeType,
@@ -8798,6 +9555,8 @@ class $$DocumentsTableTableTableManager
                 cloudUrl: cloudUrl,
                 localPath: localPath,
                 thumbnailPath: thumbnailPath,
+                ocrState: ocrState,
+                ocrLanguage: ocrLanguage,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8825,6 +9584,294 @@ typedef $$DocumentsTableTableProcessedTableManager =
       DocumentEntity,
       PrefetchHooks Function()
     >;
+typedef $$DocumentOcrPagesTableTableCreateCompanionBuilder =
+    DocumentOcrPagesTableCompanion Function({
+      required String documentId,
+      required int pageNumber,
+      required String encryptedPayload,
+      Value<int> ocrSchemaVersion,
+      Value<String> ocrEngine,
+      Value<String> ocrEngineVersion,
+      Value<String> language,
+      required DateTime processedAt,
+      Value<int> rowid,
+    });
+typedef $$DocumentOcrPagesTableTableUpdateCompanionBuilder =
+    DocumentOcrPagesTableCompanion Function({
+      Value<String> documentId,
+      Value<int> pageNumber,
+      Value<String> encryptedPayload,
+      Value<int> ocrSchemaVersion,
+      Value<String> ocrEngine,
+      Value<String> ocrEngineVersion,
+      Value<String> language,
+      Value<DateTime> processedAt,
+      Value<int> rowid,
+    });
+
+class $$DocumentOcrPagesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $DocumentOcrPagesTableTable> {
+  $$DocumentOcrPagesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrEngine => $composableBuilder(
+    column: $table.ocrEngine,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DocumentOcrPagesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $DocumentOcrPagesTableTable> {
+  $$DocumentOcrPagesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrEngine => $composableBuilder(
+    column: $table.ocrEngine,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DocumentOcrPagesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DocumentOcrPagesTableTable> {
+  $$DocumentOcrPagesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ocrEngine =>
+      $composableBuilder(column: $table.ocrEngine, builder: (column) => column);
+
+  GeneratedColumn<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$DocumentOcrPagesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DocumentOcrPagesTableTable,
+          DocumentOcrPageEntity,
+          $$DocumentOcrPagesTableTableFilterComposer,
+          $$DocumentOcrPagesTableTableOrderingComposer,
+          $$DocumentOcrPagesTableTableAnnotationComposer,
+          $$DocumentOcrPagesTableTableCreateCompanionBuilder,
+          $$DocumentOcrPagesTableTableUpdateCompanionBuilder,
+          (
+            DocumentOcrPageEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $DocumentOcrPagesTableTable,
+              DocumentOcrPageEntity
+            >,
+          ),
+          DocumentOcrPageEntity,
+          PrefetchHooks Function()
+        > {
+  $$DocumentOcrPagesTableTableTableManager(
+    _$AppDatabase db,
+    $DocumentOcrPagesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DocumentOcrPagesTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DocumentOcrPagesTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DocumentOcrPagesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> documentId = const Value.absent(),
+                Value<int> pageNumber = const Value.absent(),
+                Value<String> encryptedPayload = const Value.absent(),
+                Value<int> ocrSchemaVersion = const Value.absent(),
+                Value<String> ocrEngine = const Value.absent(),
+                Value<String> ocrEngineVersion = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                Value<DateTime> processedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentOcrPagesTableCompanion(
+                documentId: documentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                ocrSchemaVersion: ocrSchemaVersion,
+                ocrEngine: ocrEngine,
+                ocrEngineVersion: ocrEngineVersion,
+                language: language,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String documentId,
+                required int pageNumber,
+                required String encryptedPayload,
+                Value<int> ocrSchemaVersion = const Value.absent(),
+                Value<String> ocrEngine = const Value.absent(),
+                Value<String> ocrEngineVersion = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                required DateTime processedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentOcrPagesTableCompanion.insert(
+                documentId: documentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                ocrSchemaVersion: ocrSchemaVersion,
+                ocrEngine: ocrEngine,
+                ocrEngineVersion: ocrEngineVersion,
+                language: language,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DocumentOcrPagesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DocumentOcrPagesTableTable,
+      DocumentOcrPageEntity,
+      $$DocumentOcrPagesTableTableFilterComposer,
+      $$DocumentOcrPagesTableTableOrderingComposer,
+      $$DocumentOcrPagesTableTableAnnotationComposer,
+      $$DocumentOcrPagesTableTableCreateCompanionBuilder,
+      $$DocumentOcrPagesTableTableUpdateCompanionBuilder,
+      (
+        DocumentOcrPageEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $DocumentOcrPagesTableTable,
+          DocumentOcrPageEntity
+        >,
+      ),
+      DocumentOcrPageEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8850,4 +9897,6 @@ class $AppDatabaseManager {
       $$NoteVersionsTableTableTableManager(_db, _db.noteVersionsTable);
   $$DocumentsTableTableTableManager get documentsTable =>
       $$DocumentsTableTableTableManager(_db, _db.documentsTable);
+  $$DocumentOcrPagesTableTableTableManager get documentOcrPagesTable =>
+      $$DocumentOcrPagesTableTableTableManager(_db, _db.documentOcrPagesTable);
 }

@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS documents (
   user_id TEXT NOT NULL,
   note_id TEXT,
   title TEXT NOT NULL DEFAULT 'Scanned Document',
+  source TEXT NOT NULL DEFAULT 'scanner',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   mime_type TEXT NOT NULL DEFAULT 'application/pdf',
@@ -119,9 +120,26 @@ CREATE TABLE IF NOT EXISTS documents (
   deleted_at TEXT,
   cloud_public_id TEXT,
   cloud_url TEXT,
+  ocr_state TEXT NOT NULL DEFAULT 'not_requested',
+  ocr_language TEXT NOT NULL DEFAULT 'en',
   created_device_id TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_ocr_pages (
+  document_id TEXT NOT NULL,
+  page_number INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  encrypted_payload TEXT NOT NULL,
+  ocr_schema_version INTEGER NOT NULL DEFAULT 1,
+  ocr_engine TEXT NOT NULL DEFAULT 'quietpaper_ocr_v1',
+  ocr_engine_version TEXT NOT NULL DEFAULT '1.0.0',
+  language TEXT NOT NULL DEFAULT 'en',
+  processed_at TEXT NOT NULL,
+  PRIMARY KEY (document_id, page_number),
+  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS note_versions (
@@ -150,6 +168,8 @@ CREATE INDEX IF NOT EXISTS idx_attachments_note_id ON attachments (note_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user_rev ON documents (user_id, server_revision);
 CREATE INDEX IF NOT EXISTS idx_documents_note_id ON documents (note_id);
+CREATE INDEX IF NOT EXISTS idx_document_ocr_doc ON document_ocr_pages (document_id);
+CREATE INDEX IF NOT EXISTS idx_document_ocr_user ON document_ocr_pages (user_id);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
 `;
@@ -167,7 +187,14 @@ export async function runMigrations(db: Client): Promise<void> {
   // Ensure newly added columns exist on existing databases
   try {
     await db.execute('ALTER TABLE encryption_keys ADD COLUMN key_auth_commitment TEXT;');
-  } catch (_) {
-    // Column already exists
-  }
+  } catch (_) {}
+  try {
+    await db.execute("ALTER TABLE documents ADD COLUMN source TEXT NOT NULL DEFAULT 'scanner';");
+  } catch (_) {}
+  try {
+    await db.execute("ALTER TABLE documents ADD COLUMN ocr_state TEXT NOT NULL DEFAULT 'not_requested';");
+  } catch (_) {}
+  try {
+    await db.execute("ALTER TABLE documents ADD COLUMN ocr_language TEXT NOT NULL DEFAULT 'en';");
+  } catch (_) {}
 }

@@ -179,7 +179,7 @@ class BackupService {
       ));
     }
 
-    // Query scanned documents for included notes
+    // Query scanned/imported documents for included notes
     final allDocuments = await database.getAllDocuments();
     final filteredDocuments = allDocuments
         .where((d) => !d.isDeleted && (d.noteId == null || noteIds.contains(d.noteId)))
@@ -192,10 +192,25 @@ class BackupService {
         localPath: doc.localPath,
       );
 
+      final ocrPageRows = await database.getDocumentOcrPages(doc.id);
+      final backupOcrPages = ocrPageRows.map((row) {
+        return BackupDocumentOcrPage(
+          documentId: row.documentId,
+          pageNumber: row.pageNumber,
+          encryptedPayload: row.encryptedPayload,
+          ocrSchemaVersion: row.ocrSchemaVersion,
+          ocrEngine: row.ocrEngine,
+          ocrEngineVersion: row.ocrEngineVersion,
+          language: row.language,
+          processedAt: row.processedAt,
+        );
+      }).toList();
+
       backupDocuments.add(BackupDocument(
         id: doc.id,
         noteId: doc.noteId,
         title: doc.title,
+        source: doc.source,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
         mimeType: doc.mimeType,
@@ -205,6 +220,9 @@ class BackupService {
         encryptionKeyVersion: doc.encryptionKeyVersion,
         encryptedPayloadBase64:
             encryptedBytes != null ? base64Encode(encryptedBytes) : null,
+        ocrState: doc.ocrState,
+        ocrLanguage: doc.ocrLanguage,
+        ocrPages: backupOcrPages,
       ));
     }
 
@@ -590,7 +608,7 @@ class BackupService {
         );
       }
 
-      // Restore scanned documents if included in payload
+      // Restore scanned/imported documents if included in payload
       for (final backupDoc in payload.documents) {
         String? localSavedPath;
         if (backupDoc.encryptedPayloadBase64 != null &&
@@ -599,8 +617,8 @@ class BackupService {
             final encryptedBytes =
                 base64Decode(backupDoc.encryptedPayloadBase64!);
             localSavedPath = await _documentStorage.saveEncryptedBytes(
-              documentId: backupDoc.id,
-              encryptedBytes: encryptedBytes,
+               documentId: backupDoc.id,
+               encryptedBytes: encryptedBytes,
             );
           } catch (_) {}
         }
@@ -609,6 +627,7 @@ class BackupService {
           id: backupDoc.id,
           noteId: backupDoc.noteId,
           title: backupDoc.title,
+          source: backupDoc.source,
           createdAt: backupDoc.createdAt,
           updatedAt: backupDoc.updatedAt,
           mimeType: backupDoc.mimeType,
@@ -621,7 +640,23 @@ class BackupService {
           serverRevision: 0,
           uploadState: 'upload_pending',
           localPath: localSavedPath,
+          ocrState: backupDoc.ocrState,
+          ocrLanguage: backupDoc.ocrLanguage,
         );
+
+        // Restore OCR pages if present
+        for (final ocrPage in backupDoc.ocrPages) {
+          await database.saveDocumentOcrPage(
+            documentId: ocrPage.documentId,
+            pageNumber: ocrPage.pageNumber,
+            encryptedPayload: ocrPage.encryptedPayload,
+            ocrSchemaVersion: ocrPage.ocrSchemaVersion,
+            ocrEngine: ocrPage.ocrEngine,
+            ocrEngineVersion: ocrPage.ocrEngineVersion,
+            language: ocrPage.language,
+            processedAt: ocrPage.processedAt,
+          );
+        }
       }
     });
 

@@ -111,6 +111,9 @@ class ResolvedDocumentInfo {
     required this.sha256,
     this.title = 'Scanned Document',
     this.noteId,
+    this.source = 'scanner',
+    this.ocrState = 'not_requested',
+    this.ocrLanguage = 'en',
   });
 
   final String documentId;
@@ -120,6 +123,9 @@ class ResolvedDocumentInfo {
   final String sha256;
   final String title;
   final String? noteId;
+  final String source;
+  final String ocrState;
+  final String ocrLanguage;
 }
 
 /// Lightweight container for resolved note link metadata.

@@ -163,8 +163,20 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     final isError = _resolution != null && !_resolution!.isAvailable && !isLocked;
 
     final displayTitle = docInfo?.title ?? widget.title;
+
+    String ocrStatusText = _formatByteSize(docInfo?.byteSize ?? 0);
+    if (docInfo != null) {
+      if (docInfo.ocrState == 'processing' || docInfo.ocrState == 'queued') {
+        ocrStatusText = 'Processing text…';
+      } else if (docInfo.ocrState == 'available') {
+        ocrStatusText = 'Searchable';
+      } else if (docInfo.ocrState == 'failed') {
+        ocrStatusText = 'OCR unavailable';
+      }
+    }
+
     final pageCountText = docInfo != null
-        ? '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}'
+        ? '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • $ocrStatusText'
         : 'Encrypted PDF';
 
     return Container(
