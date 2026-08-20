@@ -87,12 +87,12 @@ class DefaultOcrService implements OcrService {
       final tempDir = await getTemporaryDirectory();
       final fileName = 'ocr_page_${pageNumber}_${DateTime.now().microsecondsSinceEpoch}.png';
       tempFile = File(p.join(tempDir.path, fileName));
-      await tempFile.writeAsBytes(enhancedBytes);
+      await tempFile.writeAsBytes(enhancedBytes, flush: true);
 
       final script = _mapLanguageToScript(language);
       textRecognizer = TextRecognizer(script: script);
 
-      final inputImage = InputImage.fromFile(tempFile);
+      final inputImage = InputImage.fromFilePath(tempFile.absolute.path);
       debugPrint('[QuietPaper OCR] Invoking ML Kit TextRecognizer.processImage (10s timeout)...');
       final recognizedText = await textRecognizer.processImage(inputImage).timeout(
         const Duration(seconds: 10),
