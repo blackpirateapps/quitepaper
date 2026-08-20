@@ -126,6 +126,32 @@ class ResolvedDocumentInfo {
   final String source;
   final String ocrState;
   final String ocrLanguage;
+
+  ResolvedDocumentInfo copyWith({
+    String? documentId,
+    Uint8List? pdfBytes,
+    int? pageCount,
+    int? byteSize,
+    String? sha256,
+    String? title,
+    String? noteId,
+    String? source,
+    String? ocrState,
+    String? ocrLanguage,
+  }) {
+    return ResolvedDocumentInfo(
+      documentId: documentId ?? this.documentId,
+      pdfBytes: pdfBytes ?? this.pdfBytes,
+      pageCount: pageCount ?? this.pageCount,
+      byteSize: byteSize ?? this.byteSize,
+      sha256: sha256 ?? this.sha256,
+      title: title ?? this.title,
+      noteId: noteId ?? this.noteId,
+      source: source ?? this.source,
+      ocrState: ocrState ?? this.ocrState,
+      ocrLanguage: ocrLanguage ?? this.ocrLanguage,
+    );
+  }
 }
 
 /// Lightweight container for resolved note link metadata.

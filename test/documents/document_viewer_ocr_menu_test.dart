@@ -135,6 +135,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
+      expect(find.text('Rename Document'), findsOneWidget);
       expect(find.text('View OCR Text'), findsOneWidget);
       expect(find.text('Copy OCR Text'), findsOneWidget);
       expect(find.text('OCR Language'), findsOneWidget);

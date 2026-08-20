@@ -9,12 +9,14 @@ import 'package:printing/printing.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_typography.dart';
 import '../../ocr/ocr_models.dart';
 import '../../ocr/ocr_provider.dart';
 import '../../ocr/presentation/ocr_language_dialog.dart';
 import '../../ocr/presentation/ocr_text_viewer_screen.dart';
 import '../../uri/quiet_paper_uri.dart';
 import '../../uri/resource_resolver.dart';
+import '../../widgets/quiet_button.dart';
 import '../document_models.dart';
 import '../document_provider.dart';
 
@@ -34,13 +36,13 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
   final String title;
   final ResourceResolution<ResolvedDocumentInfo>? initialResolution;
 
-  static Future<void> open(
+  static Future<String?> open(
     BuildContext context, {
     required String documentId,
     String title = 'Scanned Document',
     ResourceResolution<ResolvedDocumentInfo>? initialResolution,
   }) {
-    return Navigator.of(context).push<void>(
+    return Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => DocumentViewerScreen(
           documentId: documentId,
@@ -51,7 +53,7 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
     );
   }
 
-  static Future<void> openUri(
+  static Future<String?> openUri(
     BuildContext context, {
     required QuietPaperUri uri,
     String title = 'Scanned Document',
@@ -74,6 +76,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   bool _isLoading = true;
   bool _isRasterizing = false;
   int _selectedPageIndex = 0;
+  String? _currentTitle;
+
+  String get displayTitle => _currentTitle ?? _resolution?.data?.title ?? widget.title;
 
   @override
   void initState() {
@@ -285,6 +290,129 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
   }
 
+  Future<void> _promptRenameDocument() async {
+    final colors = context.appColors;
+    final initialName = displayTitle;
+    final controller = TextEditingController(text: initialName);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: initialName.length,
+    );
+
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
+          title: Text(
+            'Rename Document',
+            style: AppTypography.headline.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter a new name for this document:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: colors.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Document Name',
+                  hintStyle: TextStyle(color: colors.textTertiary),
+                  filled: true,
+                  fillColor: colors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    borderSide: BorderSide(color: colors.divider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    borderSide: BorderSide(color: colors.accent, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                ),
+                onSubmitted: (val) {
+                  Navigator.of(dialogContext).pop(val.trim());
+                },
+              ),
+            ],
+          ),
+          actions: [
+            QuietButton(
+              label: 'Cancel',
+              variant: QuietButtonVariant.secondary,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            QuietButton(
+              label: 'Rename',
+              variant: QuietButtonVariant.primary,
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newTitle == null || newTitle.isEmpty || newTitle == initialName) {
+      return;
+    }
+
+    try {
+      final docService = ref.read(documentServiceProvider);
+      await docService.renameDocument(
+        documentId: widget.documentId,
+        newTitle: newTitle,
+        noteId: _resolution?.data?.noteId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _currentTitle = newTitle;
+          if (_resolution?.data != null) {
+            _resolution = ResourceResolution.available(
+              _resolution!.uri,
+              _resolution!.data!.copyWith(title: newTitle),
+            );
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document renamed to "$newTitle"'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to rename document: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -295,218 +423,244 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final isOcrProcessing = docInfo?.ocrState == 'processing' || docInfo?.ocrState == 'queued';
     final isOcrFailed = docInfo?.ocrState == 'failed';
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.surface,
-        foregroundColor: colors.textPrimary,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              docInfo?.title ?? widget.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.of(context).pop(_currentTitle);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colors.background,
+        appBar: AppBar(
+          backgroundColor: colors.surface,
+          foregroundColor: colors.textPrimary,
+          elevation: 0,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                displayTitle,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              if (docInfo != null)
+                Row(
+                  children: [
+                    Text(
+                      '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: isOcrAvailable
+                            ? Colors.green.withValues(alpha: 0.15)
+                            : isOcrFailed
+                                ? Colors.redAccent.withValues(alpha: 0.15)
+                                : colors.accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isOcrAvailable
+                            ? 'Searchable (OCR)'
+                            : docInfo.ocrState == 'processing'
+                                ? 'Processing text…'
+                                : docInfo.ocrState == 'queued'
+                                    ? 'Preparing text…'
+                                    : isOcrFailed
+                                        ? 'OCR unavailable'
+                                        : 'PDF',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isOcrAvailable
+                              ? Colors.green
+                              : isOcrFailed
+                                  ? Colors.redAccent
+                                  : colors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Rename document',
+              onPressed: _promptRenameDocument,
             ),
-            if (docInfo != null)
-              Row(
-                children: [
-                  Text(
-                    '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.normal,
+            if (isOcrAvailable)
+              IconButton(
+                icon: const Icon(Icons.article_outlined),
+                tooltip: 'View OCR Text',
+                onPressed: _openOcrTextViewer,
+              ),
+            if (docInfo != null) ...[
+              IconButton(
+                icon: const Icon(Icons.download_rounded),
+                tooltip: 'Save PDF to storage',
+                onPressed: _savePdfToStorage,
+              ),
+              IconButton(
+                icon: const Icon(Icons.share_rounded),
+                tooltip: 'Share PDF',
+                onPressed: _sharePdf,
+              ),
+              IconButton(
+                icon: const Icon(Icons.print_rounded),
+                tooltip: 'Print PDF',
+                onPressed: _printPdf,
+              ),
+            ],
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Document options',
+              onSelected: (value) {
+                switch (value) {
+                  case 'rename':
+                    _promptRenameDocument();
+                    break;
+                  case 'view_ocr':
+                    _openOcrTextViewer();
+                    break;
+                  case 'copy_ocr':
+                    _copyOcrText();
+                    break;
+                  case 'retry_ocr':
+                    _retryOcr();
+                    break;
+                  case 'language':
+                    _openLanguageDialog();
+                    break;
+                  case 'save':
+                    _savePdfToStorage();
+                    break;
+                  case 'share':
+                    _sharePdf();
+                    break;
+                  case 'print':
+                    _printPdf();
+                    break;
+                  case 'reload':
+                    _loadDocument();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'rename',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Rename Document')),
+                    ],
+                  ),
+                ),
+                if (isOcrAvailable) ...[
+                  const PopupMenuItem(
+                    value: 'view_ocr',
+                    child: Row(
+                      children: [
+                        Icon(Icons.article_outlined, size: 18),
+                        SizedBox(width: 12),
+                        Expanded(child: Text('View OCR Text')),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: isOcrAvailable
-                          ? Colors.green.withValues(alpha: 0.15)
-                          : isOcrFailed
-                              ? Colors.redAccent.withValues(alpha: 0.15)
-                              : colors.accent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      isOcrAvailable
-                          ? 'Searchable (OCR)'
-                          : docInfo.ocrState == 'processing'
-                              ? 'Processing text…'
-                              : docInfo.ocrState == 'queued'
-                                  ? 'Preparing text…'
-                                  : isOcrFailed
-                                      ? 'OCR unavailable'
-                                      : 'PDF',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: isOcrAvailable
-                            ? Colors.green
-                            : isOcrFailed
-                                ? Colors.redAccent
-                                : colors.accent,
-                      ),
+                  const PopupMenuItem(
+                    value: 'copy_ocr',
+                    child: Row(
+                      children: [
+                        Icon(Icons.copy_rounded, size: 18),
+                        SizedBox(width: 12),
+                        Expanded(child: Text('Copy OCR Text')),
+                      ],
                     ),
                   ),
                 ],
-              ),
-          ],
-        ),
-        actions: [
-          if (isOcrAvailable)
-            IconButton(
-              icon: const Icon(Icons.article_outlined),
-              tooltip: 'View OCR Text',
-              onPressed: _openOcrTextViewer,
-            ),
-          if (docInfo != null) ...[
-            IconButton(
-              icon: const Icon(Icons.download_rounded),
-              tooltip: 'Save PDF to storage',
-              onPressed: _savePdfToStorage,
-            ),
-            IconButton(
-              icon: const Icon(Icons.share_rounded),
-              tooltip: 'Share PDF',
-              onPressed: _sharePdf,
-            ),
-            IconButton(
-              icon: const Icon(Icons.print_rounded),
-              tooltip: 'Print PDF',
-              onPressed: _printPdf,
-            ),
-          ],
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            tooltip: 'Document options',
-            onSelected: (value) {
-              switch (value) {
-                case 'view_ocr':
-                  _openOcrTextViewer();
-                  break;
-                case 'copy_ocr':
-                  _copyOcrText();
-                  break;
-                case 'retry_ocr':
-                  _retryOcr();
-                  break;
-                case 'language':
-                  _openLanguageDialog();
-                  break;
-                case 'save':
-                  _savePdfToStorage();
-                  break;
-                case 'share':
-                  _sharePdf();
-                  break;
-                case 'print':
-                  _printPdf();
-                  break;
-                case 'reload':
-                  _loadDocument();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              if (isOcrAvailable) ...[
+                if (isOcrFailed)
+                  const PopupMenuItem(
+                    value: 'retry_ocr',
+                    child: Row(
+                      children: [
+                        Icon(Icons.refresh_rounded, size: 18),
+                        SizedBox(width: 12),
+                        Expanded(child: Text('Retry OCR')),
+                      ],
+                    ),
+                  ),
+                if (docInfo != null && !isOcrProcessing)
+                  const PopupMenuItem(
+                    value: 'language',
+                    child: Row(
+                      children: [
+                        Icon(Icons.language_rounded, size: 18),
+                        SizedBox(width: 12),
+                        Expanded(child: Text('OCR Language')),
+                      ],
+                    ),
+                  ),
+                const PopupMenuDivider(),
                 const PopupMenuItem(
-                  value: 'view_ocr',
+                  value: 'save',
                   child: Row(
                     children: [
-                      Icon(Icons.article_outlined, size: 18),
+                      Icon(Icons.download_rounded, size: 18),
                       SizedBox(width: 12),
-                      Expanded(child: Text('View OCR Text')),
+                      Expanded(child: Text('Save PDF')),
                     ],
                   ),
                 ),
                 const PopupMenuItem(
-                  value: 'copy_ocr',
+                  value: 'share',
                   child: Row(
                     children: [
-                      Icon(Icons.copy_rounded, size: 18),
+                      Icon(Icons.share_rounded, size: 18),
                       SizedBox(width: 12),
-                      Expanded(child: Text('Copy OCR Text')),
+                      Expanded(child: Text('Share PDF')),
                     ],
                   ),
                 ),
-              ],
-              if (isOcrFailed)
                 const PopupMenuItem(
-                  value: 'retry_ocr',
+                  value: 'print',
+                  child: Row(
+                    children: [
+                      Icon(Icons.print_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Print PDF')),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'reload',
                   child: Row(
                     children: [
                       Icon(Icons.refresh_rounded, size: 18),
                       SizedBox(width: 12),
-                      Expanded(child: Text('Retry OCR')),
+                      Expanded(child: Text('Reload Document')),
                     ],
                   ),
                 ),
-              if (docInfo != null && !isOcrProcessing)
-                const PopupMenuItem(
-                  value: 'language',
-                  child: Row(
-                    children: [
-                      Icon(Icons.language_rounded, size: 18),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('OCR Language')),
-                    ],
-                  ),
-                ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'save',
-                child: Row(
-                  children: [
-                    Icon(Icons.download_rounded, size: 18),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Save PDF')),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'share',
-                child: Row(
-                  children: [
-                    Icon(Icons.share_rounded, size: 18),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Share PDF')),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'print',
-                child: Row(
-                  children: [
-                    Icon(Icons.print_rounded, size: 18),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Print PDF')),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'reload',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh_rounded, size: 18),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Reload Document')),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
+        body: _buildBody(colors, isTablet),
       ),
-      body: _buildBody(colors, isTablet),
     );
   }
 

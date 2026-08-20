@@ -164,5 +164,45 @@ void main() {
       expect(resolution.isAvailable, isTrue);
       expect(resolution.data?.source, equals('imported_pdf'));
     });
+
+    test('renameDocument updates document title and replaces markdown link in note content', () async {
+      const noteId = 'note-with-doc-123';
+      const docTitle = 'Initial Invoice';
+      const newDocTitle = 'Renamed Invoice 2026';
+
+      final createResult = await documentService.createDocumentFromPdfBytes(
+        pdfBytes: samplePdfBytes,
+        pageCount: 1,
+        title: docTitle,
+        noteId: noteId,
+      );
+      final docId = createResult.document.id;
+
+      // Create note containing the document link
+      await database.saveNote(
+        id: noteId,
+        title: 'Expenses Note',
+        content: '# Expenses\n\nSee attachment: [$docTitle](qp://document/$docId)\n\nEnd of note.',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isPinned: false,
+      );
+
+      // Rename the document
+      await documentService.renameDocument(
+        documentId: docId,
+        newTitle: newDocTitle,
+        noteId: noteId,
+      );
+
+      // 1. Verify document entity updated
+      final updatedDoc = await database.getDocument(docId);
+      expect(updatedDoc?.title, equals(newDocTitle));
+
+      // 2. Verify note content updated with new title
+      final updatedNote = await database.getNoteWithTags(noteId);
+      expect(updatedNote?.note.content, contains('[$newDocTitle](qp://document/$docId)'));
+      expect(updatedNote?.note.content, isNot(contains('[$docTitle]')));
+    });
   });
 }

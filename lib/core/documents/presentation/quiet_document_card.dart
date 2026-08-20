@@ -23,11 +23,13 @@ class QuietDocumentCard extends ConsumerStatefulWidget {
     required this.documentId,
     required this.title,
     required this.uriString,
+    this.onDocumentRenamed,
   });
 
   final String documentId;
   final String title;
   final String uriString;
+  final void Function(String documentId, String newTitle)? onDocumentRenamed;
 
   @override
   ConsumerState<QuietDocumentCard> createState() => _QuietDocumentCardState();
@@ -186,13 +188,17 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         borderRadius: BorderRadius.circular(AppRadii.md),
         elevation: 0,
         child: InkWell(
-          onTap: () {
-            DocumentViewerScreen.open(
+          onTap: () async {
+            final renamedTitle = await DocumentViewerScreen.open(
               context,
               documentId: widget.documentId,
               title: displayTitle,
               initialResolution: _resolution,
             );
+            if (renamedTitle != null && renamedTitle.isNotEmpty && mounted) {
+              _loadDocument();
+              widget.onDocumentRenamed?.call(widget.documentId, renamedTitle);
+            }
           },
           borderRadius: BorderRadius.circular(AppRadii.md),
           child: Container(

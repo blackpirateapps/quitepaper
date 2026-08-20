@@ -174,6 +174,57 @@ class DocumentService implements DocumentResolver {
     );
   }
 
+  /// Renames a document and updates its metadata in the database.
+  /// If the document is attached to a note ([noteId] or looked up from DB),
+  /// it also updates any markdown link references `[oldTitle](qp://document/<documentId>)`
+  /// in the note content.
+  Future<void> renameDocument({
+    required String documentId,
+    required String newTitle,
+    String? noteId,
+  }) async {
+    final cleanTitle = newTitle.trim();
+    if (cleanTitle.isEmpty) return;
+
+    // 1. Update title in documents database table
+    await database.updateDocumentTitle(documentId, cleanTitle);
+
+    // 2. Look up the document to find associated noteId if not provided
+    final doc = await database.getDocument(documentId);
+    final targetNoteId = noteId ?? doc?.noteId;
+
+    // 3. If note is found, replace markdown link title in the note's content
+    if (targetNoteId != null && targetNoteId.isNotEmpty) {
+      final noteWithTags = await database.getNoteWithTags(targetNoteId);
+      if (noteWithTags != null) {
+        final note = noteWithTags.note;
+        final regex = RegExp(
+          r'\[([^\]\n]*)\]\(qp:\/\/document\/' + RegExp.escape(documentId) + r'(\?[^\)]*)?\)',
+        );
+        if (regex.hasMatch(note.content)) {
+          final updatedContent = note.content.replaceAllMapped(regex, (match) {
+            final queryPart = match.group(2) ?? '';
+            return '[$cleanTitle](qp://document/$documentId$queryPart)';
+          });
+          if (updatedContent != note.content) {
+            await database.saveNote(
+              id: note.id,
+              title: note.title,
+              content: updatedContent,
+              createdAt: note.createdAt,
+              updatedAt: DateTime.now(),
+              isPinned: note.isPinned,
+              isArchived: note.isArchived,
+              isTrashed: note.isTrashed,
+              deletedAt: note.deletedAt,
+              tags: noteWithTags.tagNames,
+            );
+          }
+        }
+      }
+    }
+  }
+
   /// Gets decrypted structured OCR document data if available.
   Future<OcrDocument?> getOcrDocument(String documentId) async {
     if (processingService != null) {

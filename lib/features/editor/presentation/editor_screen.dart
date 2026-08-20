@@ -859,6 +859,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   searchQuery: _isSearchVisible
                                       ? _searchQueryController.text
                                       : null,
+                                  onDocumentRenamed: _updateDocumentMarkdownTitle,
                                 )
                               : SingleChildScrollView(
                               controller: _scrollController,
@@ -987,6 +988,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ),
   );
 }
+
+  void _updateDocumentMarkdownTitle(String documentId, String newTitle) {
+    final text = _contentController.text;
+    final regex = RegExp(
+      r'\[([^\]\n]*)\]\(qp:\/\/document\/' + RegExp.escape(documentId) + r'(\?[^\)]*)?\)',
+    );
+    if (regex.hasMatch(text)) {
+      final newText = text.replaceAllMapped(regex, (match) {
+        final queryPart = match.group(2) ?? '';
+        return '[$newTitle](qp://document/$documentId$queryPart)';
+      });
+      _contentController.text = newText;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+    }
+  }
 
   Future<void> _handleAttachPdf() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));

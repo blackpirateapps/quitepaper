@@ -105,6 +105,28 @@ class DriftNotesRepository implements NotesRepository {
       deletedAt: note.deletedAt,
       tags: note.tags.isNotEmpty ? note.tags : null,
     );
+
+    // Sync any renamed document titles referenced inside the note's markdown body
+    await _syncDocumentTitlesFromMarkdown(note.id, note.content);
+  }
+
+  Future<void> _syncDocumentTitlesFromMarkdown(String noteId, String content) async {
+    if (!content.contains('qp://document/')) return;
+
+    final matches = RegExp(
+      r'\[([^\]\n]+)\]\(qp:\/\/document\/([^)\s?]+)',
+    ).allMatches(content);
+
+    for (final match in matches) {
+      final docTitle = match.group(1)?.trim();
+      final docId = match.group(2);
+      if (docTitle != null && docTitle.isNotEmpty && docId != null) {
+        final existingDoc = await _db.getDocument(docId);
+        if (existingDoc != null && existingDoc.title != docTitle) {
+          await _db.updateDocumentTitle(docId, docTitle);
+        }
+      }
+    }
   }
 
   @override

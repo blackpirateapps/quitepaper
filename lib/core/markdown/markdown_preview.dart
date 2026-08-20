@@ -35,6 +35,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.shrinkWrap = false,
     this.onTapLink,
     this.searchQuery,
+    this.onDocumentRenamed,
   });
 
   final String markdownData;
@@ -50,6 +51,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final bool shrinkWrap;
   final MarkdownTapLinkCallback? onTapLink;
   final String? searchQuery;
+  final void Function(String documentId, String newTitle)? onDocumentRenamed;
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -213,15 +215,18 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         (widget.tags != null && widget.tags!.isNotEmpty);
 
     final effectiveOnTapLink = widget.onTapLink ??
-        (text, href, title) {
+        (text, href, title) async {
           final target = (href != null && href.isNotEmpty) ? href : text;
           final qpUri = QuietPaperUri.tryParse(target);
           if (qpUri != null && qpUri.isDocument) {
-            DocumentViewerScreen.openUri(
+            final renamed = await DocumentViewerScreen.openUri(
               context,
               uri: qpUri,
               title: text.isNotEmpty ? text : 'Scanned Document',
             );
+            if (renamed != null && renamed.isNotEmpty && renamed != text && widget.onDocumentRenamed != null) {
+              widget.onDocumentRenamed!(qpUri.resourceId, renamed);
+            }
             return;
           }
           LinkLauncherHelper.handleLinkTap(context, target);
@@ -278,7 +283,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     ];
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
-      'quietdoc': QuietDocumentElementBuilder(),
+      'quietdoc': QuietDocumentElementBuilder(
+        onDocumentRenamed: widget.onDocumentRenamed,
+      ),
     };
 
     if (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty) {

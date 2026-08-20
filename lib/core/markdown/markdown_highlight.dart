@@ -121,7 +121,9 @@ class QuietDocumentSyntax extends md.InlineSyntax {
 
 /// Custom element builder for `<quietdoc>` tags produced by [QuietDocumentSyntax].
 class QuietDocumentElementBuilder extends MarkdownElementBuilder {
-  QuietDocumentElementBuilder();
+  QuietDocumentElementBuilder({this.onDocumentRenamed});
+
+  final void Function(String documentId, String newTitle)? onDocumentRenamed;
 
   @override
   Widget? visitElementAfterWithContext(
@@ -138,6 +140,7 @@ class QuietDocumentElementBuilder extends MarkdownElementBuilder {
       documentId: docId,
       title: title.isNotEmpty ? title : 'Scanned Document',
       uriString: url,
+      onDocumentRenamed: onDocumentRenamed,
     );
   }
 }

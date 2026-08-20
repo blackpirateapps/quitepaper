@@ -1068,5 +1068,24 @@ Quiet Paper includes a complete, production-ready, client-side zero-knowledge us
 - **Atomic Replacement**: `DocumentProcessingService.processDocument` and `regenerateOcr` encrypt all new pages in memory before purging old records, preventing data loss on interrupted jobs.
 - **Offline & Zero-Knowledge Assurance**: Decryption and rendering run 100% on-device; plaintext OCR never leaves the client or touches external APIs.
 
+---
+
+## 45. Bidirectional Document Renaming (Viewer & Note Editor)
+
+Quiet Paper supports full bidirectional document renaming across both the dedicated PDF document viewer and the active note markdown editor.
+
+### 1. Document Viewer Renaming (`DocumentViewerScreen`)
+- **Direct Rename Icon in AppBar**: A dedicated `Icons.edit_outlined` action button with tooltip `"Rename document"` is placed in the AppBar.
+- **Overflow Menu Option**: `"Rename Document"` option added to the popup options menu.
+- **Editorial Rename Dialog**: Opens a styled modal dialog with the current document name pre-selected for quick editing.
+- **Immediate State Synchronization**: Renaming updates the document entity in SQLite (`documentsTable`), updates the title across the viewer header, and returns the new title when popped.
+- **Automatic Note Markdown Link Update**: When renamed from the viewer, `DocumentService.renameDocument` automatically locates any references in the attached note and updates `[Old Name](qp://document/<UUID>)` to `[New Name](qp://document/<UUID>)`.
+
+### 2. Editor-Side Markdown Renaming Synchronization (`DriftNotesRepository`)
+- **Direct Markdown Editing**: Users can edit the title component directly inside their note (e.g. `[New Title](qp://document/<UUID>)`).
+- **Autosave & Persistence Sync**: During note save / autosave, `DriftNotesRepository._syncDocumentTitlesFromMarkdown` scans for referenced document links and syncs updated titles directly into the `documentsTable`.
+- **Active Editor State Sync**: `QuietDocumentCard` and `QuietMarkdownPreview` propagate `onDocumentRenamed` back into `_contentController` so active editor controllers reflect renames seamlessly.
+
+
 
 

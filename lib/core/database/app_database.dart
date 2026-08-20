@@ -1178,6 +1178,17 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Update the title of a document
+  Future<void> updateDocumentTitle(String id, String newTitle) async {
+    await (update(documentsTable)..where((d) => d.id.equals(id))).write(
+      DocumentsTableCompanion(
+        title: Value(newTitle),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Update OCR state of a document
   Future<void> updateDocumentOcrState(
     String id,
