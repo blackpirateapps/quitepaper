@@ -363,11 +363,52 @@ class _PdfDocumentParser {
   }
 
   // ---------------------------------------------------------------------------
-  // Page Tree Resolution
+  // Page Tree Resolution (O(1) Trailer Root Resolution)
   // ---------------------------------------------------------------------------
 
+  _PdfRef? _findTrailerRootRef() {
+    final searchStart = math.max(0, bytes.length - 8192);
+    final trailerSlice = latin1.decode(bytes.sublist(searchStart), allowInvalid: true);
+
+    // Form 1: /Root N M R
+    final rootMatch = RegExp(r'/Root\s+(\d+)\s+(\d+)\s+R').firstMatch(trailerSlice);
+    if (rootMatch != null) {
+      final objNum = int.tryParse(rootMatch.group(1)!);
+      final genNum = int.tryParse(rootMatch.group(2)!);
+      if (objNum != null && genNum != null) {
+        return _PdfRef(objNum, genNum);
+      }
+    }
+
+    // Form 2: /Root N M
+    final rootMatchShort = RegExp(r'/Root\s+(\d+)\s+(\d+)').firstMatch(trailerSlice);
+    if (rootMatchShort != null) {
+      final objNum = int.tryParse(rootMatchShort.group(1)!);
+      final genNum = int.tryParse(rootMatchShort.group(2)!);
+      if (objNum != null && genNum != null) {
+        return _PdfRef(objNum, genNum);
+      }
+    }
+
+    return null;
+  }
+
   List<_PdfRef> _findPageReferences() {
-    // 1. Try resolving Catalog -> Pages -> Kids
+    // 1. Direct O(1) Trailer Root Catalog resolution
+    final rootRef = _findTrailerRootRef();
+    if (rootRef != null) {
+      final rootObj = _resolveObject(rootRef);
+      if (rootObj?.value is Map<String, dynamic>) {
+        final catalogDict = rootObj!.value as Map<String, dynamic>;
+        final pagesRef = catalogDict['/Pages'];
+        final resolved = _resolvePagesNode(pagesRef);
+        if (resolved.isNotEmpty) {
+          return resolved;
+        }
+      }
+    }
+
+    // 2. Try resolving Catalog -> Pages -> Kids
     for (final ref in _objectOffsets.keys) {
       final obj = _resolveObject(ref);
       if (obj?.value is Map<String, dynamic>) {
@@ -382,7 +423,7 @@ class _PdfDocumentParser {
       }
     }
 
-    // 2. Direct scan for all objects with /Type /Page
+    // 3. Direct scan for all objects with /Type /Page
     final directPages = <_PdfRef>[];
     for (final ref in _objectOffsets.keys) {
       final obj = _resolveObject(ref);
@@ -395,7 +436,7 @@ class _PdfDocumentParser {
     }
     if (directPages.isNotEmpty) return directPages;
 
-    // 3. Fallback: Objects containing /Contents and /MediaBox
+    // 4. Fallback: Objects containing /Contents and /MediaBox
     for (final ref in _objectOffsets.keys) {
       final obj = _resolveObject(ref);
       if (obj?.value is Map<String, dynamic>) {
@@ -1467,7 +1508,7 @@ class _PdfDocumentParser {
 
       final streamStart = offset;
       final dict = parsed.value is Map<String, dynamic> ? parsed.value as Map<String, dynamic> : null;
-      final declaredLen = _asInt(dict?['/Length']);
+      final declaredLen = _asInt(_dereference(dict?['/Length']));
 
       if (declaredLen != null && declaredLen > 0 && streamStart + declaredLen <= bytes.length) {
         final streamData = bytes.sublist(streamStart, streamStart + declaredLen);
