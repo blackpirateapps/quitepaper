@@ -84,11 +84,42 @@ abstract class AssetResolver {
   Future<bool> isAssetAvailableLocally(String assetId);
 }
 
+/// Abstract contract for resolving scanned document resources (`qp://document/<UUID>`).
+abstract class DocumentResolver {
+  /// Resolves a document by [documentId] and returns its decrypted PDF payload and metadata.
+  Future<ResourceResolution<ResolvedDocumentInfo>> resolveDocument(String documentId);
+
+  /// Checks whether the decrypted or local encrypted document is cached on device.
+  Future<bool> isDocumentAvailableLocally(String documentId);
+}
+
 /// Abstract contract for resolving note resources (`qp://note/<UUID>`).
 /// Reserved for future note-to-note linking architecture.
 abstract class NoteResolver {
   /// Resolves a note by [noteId] and returns its metadata/title info without coupling to UI.
   Future<ResourceResolution<ResolvedNoteInfo>> resolveNote(String noteId);
+}
+
+/// Lightweight container for resolved document link and PDF data.
+@immutable
+class ResolvedDocumentInfo {
+  const ResolvedDocumentInfo({
+    required this.documentId,
+    required this.pdfBytes,
+    required this.pageCount,
+    required this.byteSize,
+    required this.sha256,
+    this.title = 'Scanned Document',
+    this.noteId,
+  });
+
+  final String documentId;
+  final Uint8List pdfBytes;
+  final int pageCount;
+  final int byteSize;
+  final String sha256;
+  final String title;
+  final String? noteId;
 }
 
 /// Lightweight container for resolved note link metadata.
@@ -109,14 +140,16 @@ class ResolvedNoteInfo {
   final bool isLocked;
 }
 
-/// Unified resource resolver that coordinates dispatching between asset and note resolvers.
+/// Unified resource resolver that coordinates dispatching between asset, document, and note resolvers.
 class QuietPaperResourceResolver {
   QuietPaperResourceResolver({
     this.assetResolver,
+    this.documentResolver,
     this.noteResolver,
   });
 
   final AssetResolver? assetResolver;
+  final DocumentResolver? documentResolver;
   final NoteResolver? noteResolver;
 
   /// Resolves any [QuietPaperUri] polymorphically.
@@ -131,6 +164,14 @@ class QuietPaperResourceResolver {
         }
         final variant = uri.parameters['variant'] ?? 'original';
         return assetResolver!.resolveAsset(uri.resourceId, variant: variant);
+      case QuietPaperResourceType.document:
+        if (documentResolver == null) {
+          return ResourceResolution.error(
+            uri,
+            'No DocumentResolver registered in QuietPaperResourceResolver',
+          );
+        }
+        return documentResolver!.resolveDocument(uri.resourceId);
       case QuietPaperResourceType.note:
         if (noteResolver == null) {
           return ResourceResolution.error(

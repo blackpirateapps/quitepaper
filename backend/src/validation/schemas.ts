@@ -95,6 +95,28 @@ export const confirmAttachmentSchema = z.object({
   height: z.number().int().min(1).optional(),
 });
 
+export const uploadDocumentAuthRequestSchema = z.object({
+  documentId: z.string().uuid(),
+  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  title: z.string().max(256).default('Scanned Document'),
+  mimeType: z.string().max(100).default('application/pdf'),
+  byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
+  pageCount: z.number().int().min(1).max(500).default(1),
+  sha256: z.string().max(128).default(''),
+});
+
+export const confirmDocumentSchema = z.object({
+  documentId: z.string().uuid(),
+  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  cloudPublicId: z.string().min(1).max(256),
+  cloudUrl: z.string().url().max(1024),
+  title: z.string().max(256).optional(),
+  mimeType: z.string().max(100).optional(),
+  byteSize: z.number().int().min(0).optional(),
+  pageCount: z.number().int().min(1).optional(),
+  sha256: z.string().max(128).optional(),
+});
+
 export const noteVersionSchema = z.object({
   id: z.string().uuid(),
   noteId: z.string().uuid(),
@@ -123,6 +145,8 @@ export type PushSyncInput = z.infer<typeof pushSyncSchema>;
 export type PullSyncInput = z.infer<typeof pullSyncSchema>;
 export type UploadAuthRequestInput = z.infer<typeof uploadAuthRequestSchema>;
 export type ConfirmAttachmentInput = z.infer<typeof confirmAttachmentSchema>;
+export type UploadDocumentAuthRequestInput = z.infer<typeof uploadDocumentAuthRequestSchema>;
+export type ConfirmDocumentInput = z.infer<typeof confirmDocumentSchema>;
 export type NoteVersionInput = z.infer<typeof noteVersionSchema>;
 export type PushVersionsInput = z.infer<typeof pushVersionsSchema>;
 export type PullVersionsInput = z.infer<typeof pullVersionsSchema>;

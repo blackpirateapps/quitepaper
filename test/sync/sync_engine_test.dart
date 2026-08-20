@@ -6,6 +6,7 @@ import 'package:quitepaper/core/auth/auth_service.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/documents/document_models.dart';
 import 'package:quitepaper/core/sync/sync_api_client.dart';
 import 'package:quitepaper/core/sync/sync_engine.dart';
 import 'package:quitepaper/core/sync/sync_models.dart';
@@ -138,6 +139,48 @@ class InMemorySyncApiClient implements SyncApiClient {
   @override
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
     return serverAttachments[attachmentId];
+  }
+
+  @override
+  Future<CloudinaryUploadAuth> getDocumentUploadAuth({
+    required String documentId,
+    String? noteId,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  }) async {
+    return CloudinaryUploadAuth(
+      uploadUrl: 'https://api.cloudinary.com/v1_1/test/raw/upload',
+      cloudName: 'test',
+      apiKey: 'test-key',
+      signature: 'sig',
+      timestamp: 12345,
+      publicId: 'user_doc_$documentId',
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirmDocumentUpload({
+    required String documentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  }) async {
+    return {'success': true};
+  }
+
+  final Map<String, DocumentSyncPayload> serverDocuments = {};
+
+  @override
+  Future<DocumentSyncPayload?> getDocumentMetadata(String documentId) async {
+    return serverDocuments[documentId];
   }
 
   final List<PullVersionChangeItem> versionSyncLog = [];

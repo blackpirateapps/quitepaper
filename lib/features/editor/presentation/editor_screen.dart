@@ -28,6 +28,7 @@ import 'widgets/password_unlock_view.dart';
 import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
+import '../../scanner/presentation/document_scanner_screen.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
 import '../../../core/utils/font_family_helper.dart';
@@ -973,6 +974,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     }
                   },
                   onImagePressed: _handleInsertImage,
+                  onScanPressed: _handleScanDocument,
                 ),
             ],
           ),
@@ -981,6 +983,55 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ),
   );
 }
+
+  Future<void> _handleScanDocument() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+
+    try {
+      final scanResult = await DocumentScannerScreen.open(
+        context,
+        noteId: widget.note.id,
+        initialTitle: 'Scanned Document',
+      );
+
+      if (scanResult != null) {
+        final val = _contentController.value;
+        final text = val.text;
+        final sel = val.selection;
+        final start = sel.isValid ? sel.start : text.length;
+        final end = sel.isValid ? sel.end : text.length;
+
+        final snippet = '\n${scanResult.markdownSnippet}\n';
+        final newText = text.replaceRange(start, end, snippet);
+        final newCursor = start + snippet.length;
+
+        final updated = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newCursor),
+        );
+
+        _contentController.value = updated;
+        _undoRedoManager.pushAtomicEdit(updated);
+
+        if (!_contentFocusNode.hasFocus) {
+          _contentFocusNode.requestFocus();
+        }
+
+        _onContentChanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to scan document: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _handleInsertImage() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));
@@ -1076,7 +1127,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                 if (!note.isTrashed) ...[
-                  if (!isPreview && !isReadOnly)
+                  if (!isPreview && !isReadOnly) ...[
                     ListTile(
                       leading: Icon(
                         Icons.image_outlined,
@@ -1093,6 +1144,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         _handleInsertImage();
                       },
                     ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.document_scanner_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Scan document',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _handleScanDocument();
+                      },
+                    ),
+                  ],
                   ListTile(
                     leading: Icon(
                       Icons.search_rounded,

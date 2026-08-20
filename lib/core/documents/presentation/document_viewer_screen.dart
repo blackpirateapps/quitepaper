@@ -1,0 +1,439 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
+import '../../uri/quiet_paper_uri.dart';
+import '../../uri/resource_resolver.dart';
+import '../document_provider.dart';
+
+/// Dedicated full-screen viewer for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
+class DocumentViewerScreen extends ConsumerStatefulWidget {
+  const DocumentViewerScreen({
+    super.key,
+    required this.documentId,
+    this.title = 'Scanned Document',
+    this.initialResolution,
+  });
+
+  final String documentId;
+  final String title;
+  final ResourceResolution<ResolvedDocumentInfo>? initialResolution;
+
+  static Future<void> open(
+    BuildContext context, {
+    required String documentId,
+    String title = 'Scanned Document',
+    ResourceResolution<ResolvedDocumentInfo>? initialResolution,
+  }) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DocumentViewerScreen(
+          documentId: documentId,
+          title: title,
+          initialResolution: initialResolution,
+        ),
+      ),
+    );
+  }
+
+  static Future<void> openUri(
+    BuildContext context, {
+    required QuietPaperUri uri,
+    String title = 'Scanned Document',
+  }) {
+    return open(
+      context,
+      documentId: uri.resourceId,
+      title: title,
+    );
+  }
+
+  @override
+  ConsumerState<DocumentViewerScreen> createState() =>
+      _DocumentViewerScreenState();
+}
+
+class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
+  ResourceResolution<ResolvedDocumentInfo>? _resolution;
+  bool _isLoading = true;
+  int _selectedPageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialResolution != null) {
+      _resolution = widget.initialResolution;
+      _isLoading = false;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadDocument();
+      });
+    }
+  }
+
+  Future<void> _loadDocument() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    final service = ref.read(documentServiceProvider);
+    final res = await service.resolveDocument(widget.documentId);
+    if (mounted) {
+      setState(() {
+        _resolution = res;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isTablet = MediaQuery.of(context).size.width >= 768;
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.surface,
+        foregroundColor: colors.textPrimary,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _resolution?.data?.title ?? widget.title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (_resolution?.data != null)
+              Text(
+                '${_resolution!.data!.pageCount} ${_resolution!.data!.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(_resolution!.data!.byteSize)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Reload document',
+            onPressed: _loadDocument,
+          ),
+        ],
+      ),
+      body: _buildBody(colors, isTablet),
+    );
+  }
+
+  Widget _buildBody(AppColors colors, bool isTablet) {
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Decrypting document...',
+              style: TextStyle(color: colors.textSecondary, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final res = _resolution;
+    if (res == null || !res.isAvailable || res.data == null) {
+      return _buildErrorState(colors, res);
+    }
+
+    final docInfo = res.data!;
+
+    if (isTablet) {
+      return _buildTabletLayout(colors, docInfo);
+    }
+
+    return _buildPhoneLayout(colors, docInfo);
+  }
+
+  Widget _buildPhoneLayout(AppColors colors, ResolvedDocumentInfo docInfo) {
+    return Column(
+      children: [
+        // Main PDF Document Canvas
+        Expanded(
+          child: InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4.0,
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _buildDocumentPreviewPlaceholder(colors, docInfo),
+              ),
+            ),
+          ),
+        ),
+
+        // Bottom Page Indicator Pill
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.divider, width: 0.8)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Page ${_selectedPageIndex + 1} of ${docInfo.pageCount}',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios, size: 16),
+                    onPressed: _selectedPageIndex > 0
+                        ? () => setState(() => _selectedPageIndex--)
+                        : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onPressed: _selectedPageIndex < docInfo.pageCount - 1
+                        ? () => setState(() => _selectedPageIndex++)
+                        : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(AppColors colors, ResolvedDocumentInfo docInfo) {
+    return Row(
+      children: [
+        // Left Thumbnail Rail
+        Container(
+          width: 180,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(right: BorderSide(color: colors.divider, width: 0.8)),
+          ),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            itemCount: docInfo.pageCount,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final isSelected = index == _selectedPageIndex;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedPageIndex = index),
+                child: Container(
+                  height: 140,
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    border: Border.all(
+                      color: isSelected ? colors.accent : colors.divider,
+                      width: isSelected ? 2.0 : 1.0,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 36,
+                        color: isSelected ? colors.accent : colors.textTertiary,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Page ${index + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected ? colors.accent : colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Right Main Viewer
+        Expanded(
+          child: InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4.0,
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.all(AppSpacing.lg),
+                constraints: const BoxConstraints(maxWidth: 800),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: _buildDocumentPreviewPlaceholder(colors, docInfo),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentPreviewPlaceholder(
+    AppColors colors,
+    ResolvedDocumentInfo docInfo,
+  ) {
+    return AspectRatio(
+      aspectRatio: 1 / 1.414, // Standard A4 Document aspect ratio
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.picture_as_pdf_rounded,
+              size: 64,
+              color: colors.accent,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              docInfo.title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Page ${_selectedPageIndex + 1} of ${docInfo.pageCount}',
+              style: TextStyle(
+                fontSize: 14,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: colors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              child: Text(
+                'End-to-End Encrypted PDF (QPD1)',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colors.accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(
+    AppColors colors,
+    ResourceResolution<ResolvedDocumentInfo>? res,
+  ) {
+    final message = res?.errorMessage ?? 'Unable to load scanned document.';
+    final isLocked = res?.isLocked ?? false;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isLocked ? Icons.lock_outline : Icons.error_outline,
+              size: 56,
+              color: isLocked ? colors.accent : Colors.redAccent,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              isLocked ? 'Document Locked' : 'Document Unavailable',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            ElevatedButton(
+              onPressed: _loadDocument,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatByteSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}

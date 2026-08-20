@@ -4,6 +4,7 @@ import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
 import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
+import 'tables/documents_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
@@ -44,6 +45,7 @@ class TagWithCount {
   AttachmentsTable,
   AttachmentVariantsTable,
   NoteVersionsTable,
+  DocumentsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -52,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -78,6 +80,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 5) {
             await m.createTable(noteVersionsTable);
+          }
+          if (from < 6) {
+            await m.createTable(documentsTable);
           }
         },
         beforeOpen: (details) async {
@@ -111,6 +116,15 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_versions_dirty_idx ON note_versions (is_dirty);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS documents_note_idx ON documents (note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS documents_dirty_idx ON documents (is_dirty);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS documents_upload_state_idx ON documents (upload_state);',
           );
         },
       );
@@ -1003,5 +1017,163 @@ class AppDatabase extends _$AppDatabase {
         syncedAt: Value(syncedAt),
       ),
     );
+  }
+
+  // ==========================================
+  // DOCUMENT OPERATIONS & STREAM QUERIES
+  // ==========================================
+
+  /// Save or update a scanned document metadata record
+  Future<void> saveDocument({
+    required String id,
+    String? noteId,
+    String title = 'Scanned Document',
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+    int encryptionKeyVersion = 1,
+    bool isDirty = true,
+    bool isDeleted = false,
+    DateTime? deletedAt,
+    int serverRevision = 0,
+    DateTime? syncedAt,
+    String uploadState = 'local_only',
+    String? cloudPublicId,
+    String? cloudUrl,
+    String? localPath,
+    String? thumbnailPath,
+  }) async {
+    await into(documentsTable).insertOnConflictUpdate(
+      DocumentsTableCompanion.insert(
+        id: id,
+        noteId: Value(noteId),
+        title: Value(title),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        mimeType: Value(mimeType),
+        byteSize: Value(byteSize),
+        pageCount: Value(pageCount),
+        sha256: Value(sha256),
+        encryptionKeyVersion: Value(encryptionKeyVersion),
+        isDirty: Value(isDirty),
+        isDeleted: Value(isDeleted),
+        deletedAt: Value(deletedAt),
+        serverRevision: Value(serverRevision),
+        syncedAt: Value(syncedAt),
+        uploadState: Value(uploadState),
+        cloudPublicId: Value(cloudPublicId),
+        cloudUrl: Value(cloudUrl),
+        localPath: Value(localPath),
+        thumbnailPath: Value(thumbnailPath),
+      ),
+    );
+  }
+
+  /// Get a single document by ID
+  Future<DocumentEntity?> getDocument(String id) async {
+    return (select(documentsTable)..where((d) => d.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Get all active documents for a note
+  Future<List<DocumentEntity>> getDocumentsForNote(String noteId) async {
+    return (select(documentsTable)
+          ..where((d) => d.noteId.equals(noteId) & d.isDeleted.equals(false)))
+        .get();
+  }
+
+  /// Watch active documents for a note
+  Stream<List<DocumentEntity>> watchDocumentsForNote(String noteId) {
+    return (select(documentsTable)
+          ..where((d) => d.noteId.equals(noteId) & d.isDeleted.equals(false)))
+        .watch();
+  }
+
+  /// Get all dirty documents requiring sync
+  Future<List<DocumentEntity>> getDirtyDocuments() async {
+    return (select(documentsTable)..where((d) => d.isDirty.equals(true)))
+        .get();
+  }
+
+  /// Get all documents pending Cloudinary upload
+  Future<List<DocumentEntity>> getPendingUploadDocuments() async {
+    return (select(documentsTable)
+          ..where((d) =>
+              d.isDeleted.equals(false) &
+              (d.uploadState.isNotValue('synced') | d.isDirty.equals(true))))
+        .get();
+  }
+
+  /// Mark document as synced with remote server revision
+  Future<void> markDocumentSynced({
+    required String id,
+    required int serverRevision,
+    required DateTime syncedAt,
+    String? cloudPublicId,
+    String? cloudUrl,
+  }) async {
+    await (update(documentsTable)..where((d) => d.id.equals(id))).write(
+      DocumentsTableCompanion(
+        serverRevision: Value(serverRevision),
+        isDirty: const Value(false),
+        syncedAt: Value(syncedAt),
+        uploadState: const Value('synced'),
+        cloudPublicId: cloudPublicId != null
+            ? Value(cloudPublicId)
+            : const Value.absent(),
+        cloudUrl: cloudUrl != null ? Value(cloudUrl) : const Value.absent(),
+      ),
+    );
+  }
+
+  /// Update upload status and paths of document
+  Future<void> updateDocumentUploadState(
+    String id,
+    String state, {
+    String? cloudPublicId,
+    String? cloudUrl,
+    String? localPath,
+    String? thumbnailPath,
+  }) async {
+    await (update(documentsTable)..where((d) => d.id.equals(id))).write(
+      DocumentsTableCompanion(
+        uploadState: Value(state),
+        cloudPublicId: cloudPublicId != null
+            ? Value(cloudPublicId)
+            : const Value.absent(),
+        cloudUrl: cloudUrl != null ? Value(cloudUrl) : const Value.absent(),
+        localPath: localPath != null ? Value(localPath) : const Value.absent(),
+        thumbnailPath: thumbnailPath != null
+            ? Value(thumbnailPath)
+            : const Value.absent(),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Soft-delete (tombstone) a document and enqueue sync operation
+  Future<void> deleteDocument(String id, {bool enqueueSync = true}) async {
+    await transaction(() async {
+      await (update(documentsTable)..where((d) => d.id.equals(id))).write(
+        DocumentsTableCompanion(
+          isDeleted: const Value(true),
+          deletedAt: Value(DateTime.now()),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      if (enqueueSync) {
+        await enqueueSyncOperation(id, 'document_delete');
+      }
+    });
+  }
+
+  /// Get all documents (including tombstones) for backup
+  Future<List<DocumentEntity>> getAllDocuments() async {
+    return select(documentsTable).get();
   }
 }

@@ -7,6 +7,7 @@ import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../documents/document_sync_service.dart';
 import '../utils/debouncer.dart';
 import 'sync_api_client.dart';
 import 'sync_models.dart';
@@ -19,6 +20,7 @@ class SyncEngine {
     required this.authService,
     required this.apiClient,
     this.attachmentSyncService,
+    this.documentSyncService,
   }) {
     _init();
   }
@@ -29,6 +31,7 @@ class SyncEngine {
   final AuthService authService;
   final SyncApiClient apiClient;
   final AttachmentSyncService? attachmentSyncService;
+  final DocumentSyncService? documentSyncService;
 
   final Debouncer _syncDebouncer =
       Debouncer(duration: const Duration(milliseconds: 700));
@@ -269,6 +272,46 @@ class SyncEngine {
                   }
                 }
               }
+
+              // Pre-fetch metadata for any scanned documents referenced in pulled note
+              final docMatches = RegExp(
+                r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+              ).allMatches(decrypted.body);
+
+              for (final match in docMatches) {
+                final docId = match.group(1);
+                if (docId != null) {
+                  final localDoc = await database.getDocument(docId);
+                  if (localDoc == null || localDoc.cloudUrl == null || localDoc.cloudUrl!.isEmpty) {
+                    try {
+                      final remoteMeta = await apiClient.getDocumentMetadata(docId);
+                      if (remoteMeta != null) {
+                        await database.saveDocument(
+                          id: remoteMeta.id,
+                          noteId: remoteMeta.noteId,
+                          title: remoteMeta.title,
+                          createdAt: remoteMeta.createdAt,
+                          updatedAt: remoteMeta.updatedAt,
+                          mimeType: remoteMeta.mimeType,
+                          byteSize: remoteMeta.byteSize,
+                          pageCount: remoteMeta.pageCount,
+                          sha256: remoteMeta.sha256,
+                          encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
+                          serverRevision: remoteMeta.serverRevision,
+                          isDirty: false,
+                          isDeleted: remoteMeta.isDeleted,
+                          deletedAt: remoteMeta.deletedAt,
+                          uploadState: 'synced',
+                          cloudPublicId: remoteMeta.cloudPublicId,
+                          cloudUrl: remoteMeta.cloudUrl,
+                        );
+                      }
+                    } catch (docErr) {
+                      debugPrint('Failed to prefetch metadata for document $docId: $docErr');
+                    }
+                  }
+                }
+              }
             } catch (decErr) {
               // Log or skip malformed payload without halting sync loop
               debugPrint('Failed to decrypt pulled note ${change.id}: $decErr');
@@ -320,17 +363,15 @@ class SyncEngine {
           ));
         }
 
-        try {
-          final versionPushRes = await apiClient.pushVersions(versions: versionPayloads);
-          for (final res in versionPushRes.results) {
+        if (versionPayloads.isNotEmpty) {
+          final vPushRes = await apiClient.pushVersions(versions: versionPayloads);
+          for (final res in vPushRes.results) {
             await database.markNoteVersionSynced(
               id: res.id,
               revision: res.revision,
               syncedAt: DateTime.now(),
             );
           }
-        } catch (vPushErr) {
-          debugPrint('Note versions push error: $vPushErr');
         }
       }
 
@@ -386,7 +427,7 @@ class SyncEngine {
         }
       }
 
-      // 5. ATTACHMENT SYNC: Upload any pending encrypted attachments to Cloudinary
+      // 5. ATTACHMENT & DOCUMENT SYNC: Upload any pending encrypted attachments/documents to Cloudinary
       var attachmentsUploaded = 0;
       var attachmentsFailed = 0;
       final attachmentErrors = <String>[];
@@ -398,10 +439,17 @@ class SyncEngine {
         attachmentErrors.addAll(attResult.errors);
       }
 
+      if (documentSyncService != null) {
+        final docResult = await documentSyncService!.syncPendingDocuments();
+        attachmentsUploaded += docResult.uploadedCount;
+        attachmentsFailed += docResult.failedCount;
+        attachmentErrors.addAll(docResult.errors);
+      }
+
       if (attachmentsFailed > 0) {
         final errorMsg = attachmentErrors.isNotEmpty
             ? attachmentErrors.first
-            : 'Failed to upload $attachmentsFailed image(s) to Cloudinary';
+            : 'Failed to upload $attachmentsFailed file(s) to Cloudinary';
         _updateState(SyncState(
           status: SyncStatus.syncError,
           lastSyncedAt: DateTime.now(),

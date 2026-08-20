@@ -129,6 +129,68 @@ class BackupAttachment {
 }
 
 @immutable
+class BackupDocument {
+  const BackupDocument({
+    required this.id,
+    this.noteId,
+    this.title = 'Scanned Document',
+    required this.createdAt,
+    required this.updatedAt,
+    this.mimeType = 'application/pdf',
+    this.byteSize = 0,
+    this.pageCount = 1,
+    this.sha256 = '',
+    this.encryptionKeyVersion = 1,
+    this.encryptedPayloadBase64,
+  });
+
+  final String id;
+  final String? noteId;
+  final String title;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String mimeType;
+  final int byteSize;
+  final int pageCount;
+  final String sha256;
+  final int encryptionKeyVersion;
+  final String? encryptedPayloadBase64;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        if (noteId != null) 'noteId': noteId,
+        'title': title,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'mimeType': mimeType,
+        'byteSize': byteSize,
+        'pageCount': pageCount,
+        'sha256': sha256,
+        'encryptionKeyVersion': encryptionKeyVersion,
+        if (encryptedPayloadBase64 != null)
+          'encryptedPayloadBase64': encryptedPayloadBase64,
+      };
+
+  factory BackupDocument.fromJson(Map<String, dynamic> json) {
+    return BackupDocument(
+      id: json['id'] as String,
+      noteId: json['noteId'] as String?,
+      title: json['title'] as String? ?? 'Scanned Document',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
+      mimeType: json['mimeType'] as String? ?? 'application/pdf',
+      byteSize: json['byteSize'] as int? ?? 0,
+      pageCount: json['pageCount'] as int? ?? 1,
+      sha256: json['sha256'] as String? ?? '',
+      encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+      encryptedPayloadBase64: json['encryptedPayloadBase64'] as String?,
+    );
+  }
+}
+
+@immutable
 class BackupManifest {
   const BackupManifest({
     required this.format,
@@ -143,6 +205,7 @@ class BackupManifest {
     required this.pinnedNotes,
     required this.totalTags,
     this.totalAttachments = 0,
+    this.totalDocuments = 0,
   });
 
   final String format;
@@ -157,6 +220,7 @@ class BackupManifest {
   final int pinnedNotes;
   final int totalTags;
   final int totalAttachments;
+  final int totalDocuments;
 
   Map<String, dynamic> toJson() => {
         'format': format,
@@ -172,6 +236,7 @@ class BackupManifest {
           'pinnedNotes': pinnedNotes,
           'totalTags': totalTags,
           'totalAttachments': totalAttachments,
+          'totalDocuments': totalDocuments,
         },
       };
 
@@ -191,6 +256,7 @@ class BackupManifest {
       pinnedNotes: meta['pinnedNotes'] as int? ?? 0,
       totalTags: meta['totalTags'] as int? ?? 0,
       totalAttachments: meta['totalAttachments'] as int? ?? 0,
+      totalDocuments: meta['totalDocuments'] as int? ?? 0,
     );
   }
 }
@@ -202,12 +268,14 @@ class BackupPayload {
     required this.notes,
     required this.tags,
     this.attachments = const [],
+    this.documents = const [],
   });
 
   final BackupManifest manifest;
   final List<BackupNote> notes;
   final List<String> tags;
   final List<BackupAttachment> attachments;
+  final List<BackupDocument> documents;
 
   Map<String, dynamic> toJson() => {
         ...manifest.toJson(),
@@ -215,6 +283,8 @@ class BackupPayload {
         'notes': notes.map((n) => n.toJson()).toList(),
         if (attachments.isNotEmpty)
           'attachments': attachments.map((a) => a.toJson()).toList(),
+        if (documents.isNotEmpty)
+          'documents': documents.map((d) => d.toJson()).toList(),
       };
 
   factory BackupPayload.fromJson(Map<String, dynamic> json) {
@@ -222,6 +292,7 @@ class BackupPayload {
     final rawNotes = json['notes'] as List? ?? [];
     final rawTags = json['tags'] as List? ?? [];
     final rawAttachments = json['attachments'] as List? ?? [];
+    final rawDocuments = json['documents'] as List? ?? [];
 
     final notes = rawNotes
         .whereType<Map>()
@@ -235,11 +306,17 @@ class BackupPayload {
         .map((e) => BackupAttachment.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
+    final documents = rawDocuments
+        .whereType<Map>()
+        .map((e) => BackupDocument.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
     return BackupPayload(
       manifest: manifest,
       notes: notes,
       tags: tags,
       attachments: attachments,
+      documents: documents,
     );
   }
 }
@@ -321,6 +398,7 @@ class RestoreResult {
     required this.totalSkipped,
     required this.totalConflicts,
     required this.totalTagsCreated,
+    this.totalDocumentsRestored = 0,
   });
 
   final int totalRestored;
@@ -328,6 +406,7 @@ class RestoreResult {
   final int totalSkipped;
   final int totalConflicts;
   final int totalTagsCreated;
+  final int totalDocumentsRestored;
 }
 
 @immutable

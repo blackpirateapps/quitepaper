@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/notes/application/notes_provider.dart';
+import '../documents/document_provider.dart';
 import '../sync/sync_provider.dart';
 import '../uri/resource_resolver.dart';
 import 'attachment_crypto.dart';
@@ -59,7 +60,9 @@ final attachmentSyncServiceProvider = Provider<AttachmentSyncService>((ref) {
 
 final resourceResolverProvider = Provider<QuietPaperResourceResolver>((ref) {
   final attachmentService = ref.watch(attachmentServiceProvider);
+  final documentService = ref.watch(documentServiceProvider);
   return QuietPaperResourceResolver(
     assetResolver: attachmentService,
+    documentResolver: documentService,
   );
 });

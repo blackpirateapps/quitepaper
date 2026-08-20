@@ -14,10 +14,21 @@ void main() {
       expect(uri.toUriString(), 'qp://asset/$validUuid');
     });
 
+    test('Parses valid qp://document/<UUID> URI correctly', () {
+      final uri = QuietPaperUri.parse('qp://document/$validUuid');
+      expect(uri.resourceType, QuietPaperResourceType.document);
+      expect(uri.isDocument, isTrue);
+      expect(uri.isAsset, isFalse);
+      expect(uri.isNote, isFalse);
+      expect(uri.resourceId, validUuid);
+      expect(uri.toUriString(), 'qp://document/$validUuid');
+    });
+
     test('Parses valid qp://note/<UUID> URI correctly', () {
       final uri = QuietPaperUri.parse('qp://note/$validUuid');
       expect(uri.resourceType, QuietPaperResourceType.note);
       expect(uri.isNote, isTrue);
+      expect(uri.isDocument, isFalse);
       expect(uri.isAsset, isFalse);
       expect(uri.resourceId, validUuid);
       expect(uri.toUriString(), 'qp://note/$validUuid');
@@ -38,11 +49,14 @@ void main() {
       expect(QuietPaperUri.tryParse('http://example.com'), isNull);
       expect(QuietPaperUri.tryParse('qp://unknown/$validUuid'), isNull);
       expect(QuietPaperUri.tryParse('qp://asset/not-a-uuid'), isNull);
+      expect(QuietPaperUri.tryParse('qp://document/not-a-uuid'), isNull);
       expect(QuietPaperUri.tryParse('qp://asset/'), isNull);
+      expect(QuietPaperUri.tryParse('qp://document/'), isNull);
     });
 
     test('isValidUri static method accurately verifies string URIs', () {
       expect(QuietPaperUri.isValidUri('qp://asset/$validUuid'), isTrue);
+      expect(QuietPaperUri.isValidUri('qp://document/$validUuid'), isTrue);
       expect(QuietPaperUri.isValidUri('qp://note/$validUuid'), isTrue);
       expect(QuietPaperUri.isValidUri('https://res.cloudinary.com/demo.png'), isFalse);
       expect(QuietPaperUri.isValidUri('invalid'), isFalse);
@@ -51,6 +65,9 @@ void main() {
     test('Factory constructors produce valid URIs', () {
       final assetUri = QuietPaperUri.asset(validUuid);
       expect(assetUri.toUriString(), 'qp://asset/$validUuid');
+
+      final documentUri = QuietPaperUri.document(validUuid);
+      expect(documentUri.toUriString(), 'qp://document/$validUuid');
 
       final noteUri = QuietPaperUri.note(validUuid);
       expect(noteUri.toUriString(), 'qp://note/$validUuid');

@@ -7,6 +7,11 @@ import {
   confirmAttachmentUpload,
   getAttachmentMetadata,
 } from '../attachments/attachmentService.js';
+import {
+  authorizeDocumentUpload,
+  confirmDocumentUpload,
+  getDocumentMetadata,
+} from '../documents/documentService.js';
 import { ApiError } from '../errors/apiError.js';
 
 export interface RequestLike {
@@ -182,6 +187,39 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       const attachmentId = pathname.substring('/api/v1/attachments/'.length);
       if (attachmentId) {
         const meta = await getAttachmentMetadata(db, userId, attachmentId);
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: meta,
+        };
+      }
+    }
+
+    // POST /api/v1/documents/upload-auth
+    if (pathname === '/api/v1/documents/upload-auth' && method === 'POST') {
+      const uploadAuth = await authorizeDocumentUpload(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: uploadAuth,
+      };
+    }
+
+    // POST /api/v1/documents/confirm
+    if (pathname === '/api/v1/documents/confirm' && method === 'POST') {
+      const confirmResult = await confirmDocumentUpload(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: confirmResult,
+      };
+    }
+
+    // GET /api/v1/documents/:id
+    if (pathname.startsWith('/api/v1/documents/') && method === 'GET') {
+      const documentId = pathname.substring('/api/v1/documents/'.length);
+      if (documentId) {
+        const meta = await getDocumentMetadata(db, userId, documentId);
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },

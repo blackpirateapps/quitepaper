@@ -12,6 +12,7 @@ class FormattingToolbar extends StatelessWidget {
     required this.controller,
     required this.onTagPressed,
     this.onImagePressed,
+    this.onScanPressed,
     this.focusNode,
     this.onUndo,
     this.onRedo,
@@ -23,6 +24,7 @@ class FormattingToolbar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onTagPressed;
   final VoidCallback? onImagePressed;
+  final VoidCallback? onScanPressed;
   final FocusNode? focusNode;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
@@ -180,6 +182,12 @@ class FormattingToolbar extends StatelessWidget {
               icon: Icons.image_outlined,
               tooltip: 'Insert image (![alt](qp://asset/...))',
               onPressed: onImagePressed!,
+            ),
+          if (onScanPressed != null)
+            _ToolbarButton(
+              icon: Icons.document_scanner_outlined,
+              tooltip: 'Scan document ([title](qp://document/...))',
+              onPressed: onScanPressed!,
             ),
           _ToolbarButton(
             label: '#',

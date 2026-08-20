@@ -4303,6 +4303,1151 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
   }
 }
 
+class $DocumentsTableTable extends DocumentsTable
+    with TableInfo<$DocumentsTableTable, DocumentEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DocumentsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Scanned Document'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mimeTypeMeta = const VerificationMeta(
+    'mimeType',
+  );
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+    'mime_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('application/pdf'),
+  );
+  static const VerificationMeta _byteSizeMeta = const VerificationMeta(
+    'byteSize',
+  );
+  @override
+  late final GeneratedColumn<int> byteSize = GeneratedColumn<int>(
+    'byte_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _pageCountMeta = const VerificationMeta(
+    'pageCount',
+  );
+  @override
+  late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
+    'page_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _sha256Meta = const VerificationMeta('sha256');
+  @override
+  late final GeneratedColumn<String> sha256 = GeneratedColumn<String>(
+    'sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _encryptionKeyVersionMeta =
+      const VerificationMeta('encryptionKeyVersion');
+  @override
+  late final GeneratedColumn<int> encryptionKeyVersion = GeneratedColumn<int>(
+    'encryption_key_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverRevisionMeta = const VerificationMeta(
+    'serverRevision',
+  );
+  @override
+  late final GeneratedColumn<int> serverRevision = GeneratedColumn<int>(
+    'server_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _uploadStateMeta = const VerificationMeta(
+    'uploadState',
+  );
+  @override
+  late final GeneratedColumn<String> uploadState = GeneratedColumn<String>(
+    'upload_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('local_only'),
+  );
+  static const VerificationMeta _cloudPublicIdMeta = const VerificationMeta(
+    'cloudPublicId',
+  );
+  @override
+  late final GeneratedColumn<String> cloudPublicId = GeneratedColumn<String>(
+    'cloud_public_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cloudUrlMeta = const VerificationMeta(
+    'cloudUrl',
+  );
+  @override
+  late final GeneratedColumn<String> cloudUrl = GeneratedColumn<String>(
+    'cloud_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
+  );
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+    'local_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
+    'thumbnailPath',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailPath = GeneratedColumn<String>(
+    'thumbnail_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    noteId,
+    title,
+    createdAt,
+    updatedAt,
+    mimeType,
+    byteSize,
+    pageCount,
+    sha256,
+    encryptionKeyVersion,
+    isDirty,
+    isDeleted,
+    deletedAt,
+    serverRevision,
+    syncedAt,
+    uploadState,
+    cloudPublicId,
+    cloudUrl,
+    localPath,
+    thumbnailPath,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'documents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DocumentEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(
+        _mimeTypeMeta,
+        mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta),
+      );
+    }
+    if (data.containsKey('byte_size')) {
+      context.handle(
+        _byteSizeMeta,
+        byteSize.isAcceptableOrUnknown(data['byte_size']!, _byteSizeMeta),
+      );
+    }
+    if (data.containsKey('page_count')) {
+      context.handle(
+        _pageCountMeta,
+        pageCount.isAcceptableOrUnknown(data['page_count']!, _pageCountMeta),
+      );
+    }
+    if (data.containsKey('sha256')) {
+      context.handle(
+        _sha256Meta,
+        sha256.isAcceptableOrUnknown(data['sha256']!, _sha256Meta),
+      );
+    }
+    if (data.containsKey('encryption_key_version')) {
+      context.handle(
+        _encryptionKeyVersionMeta,
+        encryptionKeyVersion.isAcceptableOrUnknown(
+          data['encryption_key_version']!,
+          _encryptionKeyVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('server_revision')) {
+      context.handle(
+        _serverRevisionMeta,
+        serverRevision.isAcceptableOrUnknown(
+          data['server_revision']!,
+          _serverRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    if (data.containsKey('upload_state')) {
+      context.handle(
+        _uploadStateMeta,
+        uploadState.isAcceptableOrUnknown(
+          data['upload_state']!,
+          _uploadStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_public_id')) {
+      context.handle(
+        _cloudPublicIdMeta,
+        cloudPublicId.isAcceptableOrUnknown(
+          data['cloud_public_id']!,
+          _cloudPublicIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_url')) {
+      context.handle(
+        _cloudUrlMeta,
+        cloudUrl.isAcceptableOrUnknown(data['cloud_url']!, _cloudUrlMeta),
+      );
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
+      );
+    }
+    if (data.containsKey('thumbnail_path')) {
+      context.handle(
+        _thumbnailPathMeta,
+        thumbnailPath.isAcceptableOrUnknown(
+          data['thumbnail_path']!,
+          _thumbnailPathMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DocumentEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DocumentEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      mimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mime_type'],
+      )!,
+      byteSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_size'],
+      )!,
+      pageCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_count'],
+      )!,
+      sha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sha256'],
+      )!,
+      encryptionKeyVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}encryption_key_version'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      serverRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_revision'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+      uploadState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}upload_state'],
+      )!,
+      cloudPublicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_public_id'],
+      ),
+      cloudUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_url'],
+      ),
+      localPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_path'],
+      ),
+      thumbnailPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_path'],
+      ),
+    );
+  }
+
+  @override
+  $DocumentsTableTable createAlias(String alias) {
+    return $DocumentsTableTable(attachedDatabase, alias);
+  }
+}
+
+class DocumentEntity extends DataClass implements Insertable<DocumentEntity> {
+  /// Canonical UUID primary key
+  final String id;
+
+  /// Associated note ID (can be null for unassigned documents)
+  final String? noteId;
+
+  /// Document title (display name, e.g. 'Scanned Document')
+  final String title;
+
+  /// Creation timestamp
+  final DateTime createdAt;
+
+  /// Update timestamp
+  final DateTime updatedAt;
+
+  /// Canonical MIME type (strictly 'application/pdf')
+  final String mimeType;
+
+  /// Plaintext PDF byte size in bytes
+  final int byteSize;
+
+  /// Total page count in PDF
+  final int pageCount;
+
+  /// Plaintext SHA-256 hash of canonical PDF bytes
+  final String sha256;
+
+  /// Key version used to encrypt this document
+  final int encryptionKeyVersion;
+
+  /// Whether local changes need synchronization
+  final bool isDirty;
+
+  /// Whether document is tombstoned/deleted
+  final bool isDeleted;
+
+  /// Timestamp when deletion occurred
+  final DateTime? deletedAt;
+
+  /// Cloud revision assigned by control plane
+  final int serverRevision;
+
+  /// Timestamp of last successful metadata sync
+  final DateTime? syncedAt;
+
+  /// Lifecycle state: 'local_only', 'upload_pending', 'uploading', 'uploaded', 'failed', 'synced'
+  final String uploadState;
+
+  /// Cloudinary public ID
+  final String? cloudPublicId;
+
+  /// Cloudinary delivery URL
+  final String? cloudUrl;
+
+  /// Local app-private encrypted file path (.qpd)
+  final String? localPath;
+
+  /// Optional local path to cached first-page thumbnail
+  final String? thumbnailPath;
+  const DocumentEntity({
+    required this.id,
+    this.noteId,
+    required this.title,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.mimeType,
+    required this.byteSize,
+    required this.pageCount,
+    required this.sha256,
+    required this.encryptionKeyVersion,
+    required this.isDirty,
+    required this.isDeleted,
+    this.deletedAt,
+    required this.serverRevision,
+    this.syncedAt,
+    required this.uploadState,
+    this.cloudPublicId,
+    this.cloudUrl,
+    this.localPath,
+    this.thumbnailPath,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || noteId != null) {
+      map['note_id'] = Variable<String>(noteId);
+    }
+    map['title'] = Variable<String>(title);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['mime_type'] = Variable<String>(mimeType);
+    map['byte_size'] = Variable<int>(byteSize);
+    map['page_count'] = Variable<int>(pageCount);
+    map['sha256'] = Variable<String>(sha256);
+    map['encryption_key_version'] = Variable<int>(encryptionKeyVersion);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['server_revision'] = Variable<int>(serverRevision);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    map['upload_state'] = Variable<String>(uploadState);
+    if (!nullToAbsent || cloudPublicId != null) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId);
+    }
+    if (!nullToAbsent || cloudUrl != null) {
+      map['cloud_url'] = Variable<String>(cloudUrl);
+    }
+    if (!nullToAbsent || localPath != null) {
+      map['local_path'] = Variable<String>(localPath);
+    }
+    if (!nullToAbsent || thumbnailPath != null) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath);
+    }
+    return map;
+  }
+
+  DocumentsTableCompanion toCompanion(bool nullToAbsent) {
+    return DocumentsTableCompanion(
+      id: Value(id),
+      noteId: noteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteId),
+      title: Value(title),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      mimeType: Value(mimeType),
+      byteSize: Value(byteSize),
+      pageCount: Value(pageCount),
+      sha256: Value(sha256),
+      encryptionKeyVersion: Value(encryptionKeyVersion),
+      isDirty: Value(isDirty),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      serverRevision: Value(serverRevision),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+      uploadState: Value(uploadState),
+      cloudPublicId: cloudPublicId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudPublicId),
+      cloudUrl: cloudUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudUrl),
+      localPath: localPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localPath),
+      thumbnailPath: thumbnailPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailPath),
+    );
+  }
+
+  factory DocumentEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DocumentEntity(
+      id: serializer.fromJson<String>(json['id']),
+      noteId: serializer.fromJson<String?>(json['noteId']),
+      title: serializer.fromJson<String>(json['title']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      mimeType: serializer.fromJson<String>(json['mimeType']),
+      byteSize: serializer.fromJson<int>(json['byteSize']),
+      pageCount: serializer.fromJson<int>(json['pageCount']),
+      sha256: serializer.fromJson<String>(json['sha256']),
+      encryptionKeyVersion: serializer.fromJson<int>(
+        json['encryptionKeyVersion'],
+      ),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      serverRevision: serializer.fromJson<int>(json['serverRevision']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      uploadState: serializer.fromJson<String>(json['uploadState']),
+      cloudPublicId: serializer.fromJson<String?>(json['cloudPublicId']),
+      cloudUrl: serializer.fromJson<String?>(json['cloudUrl']),
+      localPath: serializer.fromJson<String?>(json['localPath']),
+      thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'noteId': serializer.toJson<String?>(noteId),
+      'title': serializer.toJson<String>(title),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'mimeType': serializer.toJson<String>(mimeType),
+      'byteSize': serializer.toJson<int>(byteSize),
+      'pageCount': serializer.toJson<int>(pageCount),
+      'sha256': serializer.toJson<String>(sha256),
+      'encryptionKeyVersion': serializer.toJson<int>(encryptionKeyVersion),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'serverRevision': serializer.toJson<int>(serverRevision),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'uploadState': serializer.toJson<String>(uploadState),
+      'cloudPublicId': serializer.toJson<String?>(cloudPublicId),
+      'cloudUrl': serializer.toJson<String?>(cloudUrl),
+      'localPath': serializer.toJson<String?>(localPath),
+      'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
+    };
+  }
+
+  DocumentEntity copyWith({
+    String? id,
+    Value<String?> noteId = const Value.absent(),
+    String? title,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? mimeType,
+    int? byteSize,
+    int? pageCount,
+    String? sha256,
+    int? encryptionKeyVersion,
+    bool? isDirty,
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    int? serverRevision,
+    Value<DateTime?> syncedAt = const Value.absent(),
+    String? uploadState,
+    Value<String?> cloudPublicId = const Value.absent(),
+    Value<String?> cloudUrl = const Value.absent(),
+    Value<String?> localPath = const Value.absent(),
+    Value<String?> thumbnailPath = const Value.absent(),
+  }) => DocumentEntity(
+    id: id ?? this.id,
+    noteId: noteId.present ? noteId.value : this.noteId,
+    title: title ?? this.title,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    mimeType: mimeType ?? this.mimeType,
+    byteSize: byteSize ?? this.byteSize,
+    pageCount: pageCount ?? this.pageCount,
+    sha256: sha256 ?? this.sha256,
+    encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+    isDirty: isDirty ?? this.isDirty,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    serverRevision: serverRevision ?? this.serverRevision,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    uploadState: uploadState ?? this.uploadState,
+    cloudPublicId: cloudPublicId.present
+        ? cloudPublicId.value
+        : this.cloudPublicId,
+    cloudUrl: cloudUrl.present ? cloudUrl.value : this.cloudUrl,
+    localPath: localPath.present ? localPath.value : this.localPath,
+    thumbnailPath: thumbnailPath.present
+        ? thumbnailPath.value
+        : this.thumbnailPath,
+  );
+  DocumentEntity copyWithCompanion(DocumentsTableCompanion data) {
+    return DocumentEntity(
+      id: data.id.present ? data.id.value : this.id,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      title: data.title.present ? data.title.value : this.title,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
+      pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
+      sha256: data.sha256.present ? data.sha256.value : this.sha256,
+      encryptionKeyVersion: data.encryptionKeyVersion.present
+          ? data.encryptionKeyVersion.value
+          : this.encryptionKeyVersion,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      serverRevision: data.serverRevision.present
+          ? data.serverRevision.value
+          : this.serverRevision,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      uploadState: data.uploadState.present
+          ? data.uploadState.value
+          : this.uploadState,
+      cloudPublicId: data.cloudPublicId.present
+          ? data.cloudPublicId.value
+          : this.cloudPublicId,
+      cloudUrl: data.cloudUrl.present ? data.cloudUrl.value : this.cloudUrl,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      thumbnailPath: data.thumbnailPath.present
+          ? data.thumbnailPath.value
+          : this.thumbnailPath,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentEntity(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('sha256: $sha256, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('uploadState: $uploadState, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('localPath: $localPath, ')
+          ..write('thumbnailPath: $thumbnailPath')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    noteId,
+    title,
+    createdAt,
+    updatedAt,
+    mimeType,
+    byteSize,
+    pageCount,
+    sha256,
+    encryptionKeyVersion,
+    isDirty,
+    isDeleted,
+    deletedAt,
+    serverRevision,
+    syncedAt,
+    uploadState,
+    cloudPublicId,
+    cloudUrl,
+    localPath,
+    thumbnailPath,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DocumentEntity &&
+          other.id == this.id &&
+          other.noteId == this.noteId &&
+          other.title == this.title &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.mimeType == this.mimeType &&
+          other.byteSize == this.byteSize &&
+          other.pageCount == this.pageCount &&
+          other.sha256 == this.sha256 &&
+          other.encryptionKeyVersion == this.encryptionKeyVersion &&
+          other.isDirty == this.isDirty &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt &&
+          other.serverRevision == this.serverRevision &&
+          other.syncedAt == this.syncedAt &&
+          other.uploadState == this.uploadState &&
+          other.cloudPublicId == this.cloudPublicId &&
+          other.cloudUrl == this.cloudUrl &&
+          other.localPath == this.localPath &&
+          other.thumbnailPath == this.thumbnailPath);
+}
+
+class DocumentsTableCompanion extends UpdateCompanion<DocumentEntity> {
+  final Value<String> id;
+  final Value<String?> noteId;
+  final Value<String> title;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> mimeType;
+  final Value<int> byteSize;
+  final Value<int> pageCount;
+  final Value<String> sha256;
+  final Value<int> encryptionKeyVersion;
+  final Value<bool> isDirty;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
+  final Value<int> serverRevision;
+  final Value<DateTime?> syncedAt;
+  final Value<String> uploadState;
+  final Value<String?> cloudPublicId;
+  final Value<String?> cloudUrl;
+  final Value<String?> localPath;
+  final Value<String?> thumbnailPath;
+  final Value<int> rowid;
+  const DocumentsTableCompanion({
+    this.id = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.uploadState = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DocumentsTableCompanion.insert({
+    required String id,
+    this.noteId = const Value.absent(),
+    this.title = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.mimeType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.uploadState = const Value.absent(),
+    this.cloudPublicId = const Value.absent(),
+    this.cloudUrl = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<DocumentEntity> custom({
+    Expression<String>? id,
+    Expression<String>? noteId,
+    Expression<String>? title,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<String>? mimeType,
+    Expression<int>? byteSize,
+    Expression<int>? pageCount,
+    Expression<String>? sha256,
+    Expression<int>? encryptionKeyVersion,
+    Expression<bool>? isDirty,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? serverRevision,
+    Expression<DateTime>? syncedAt,
+    Expression<String>? uploadState,
+    Expression<String>? cloudPublicId,
+    Expression<String>? cloudUrl,
+    Expression<String>? localPath,
+    Expression<String>? thumbnailPath,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (noteId != null) 'note_id': noteId,
+      if (title != null) 'title': title,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (byteSize != null) 'byte_size': byteSize,
+      if (pageCount != null) 'page_count': pageCount,
+      if (sha256 != null) 'sha256': sha256,
+      if (encryptionKeyVersion != null)
+        'encryption_key_version': encryptionKeyVersion,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (serverRevision != null) 'server_revision': serverRevision,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (uploadState != null) 'upload_state': uploadState,
+      if (cloudPublicId != null) 'cloud_public_id': cloudPublicId,
+      if (cloudUrl != null) 'cloud_url': cloudUrl,
+      if (localPath != null) 'local_path': localPath,
+      if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DocumentsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? noteId,
+    Value<String>? title,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? mimeType,
+    Value<int>? byteSize,
+    Value<int>? pageCount,
+    Value<String>? sha256,
+    Value<int>? encryptionKeyVersion,
+    Value<bool>? isDirty,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
+    Value<int>? serverRevision,
+    Value<DateTime?>? syncedAt,
+    Value<String>? uploadState,
+    Value<String?>? cloudPublicId,
+    Value<String?>? cloudUrl,
+    Value<String?>? localPath,
+    Value<String?>? thumbnailPath,
+    Value<int>? rowid,
+  }) {
+    return DocumentsTableCompanion(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      title: title ?? this.title,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      mimeType: mimeType ?? this.mimeType,
+      byteSize: byteSize ?? this.byteSize,
+      pageCount: pageCount ?? this.pageCount,
+      sha256: sha256 ?? this.sha256,
+      encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+      isDirty: isDirty ?? this.isDirty,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      serverRevision: serverRevision ?? this.serverRevision,
+      syncedAt: syncedAt ?? this.syncedAt,
+      uploadState: uploadState ?? this.uploadState,
+      cloudPublicId: cloudPublicId ?? this.cloudPublicId,
+      cloudUrl: cloudUrl ?? this.cloudUrl,
+      localPath: localPath ?? this.localPath,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (byteSize.present) {
+      map['byte_size'] = Variable<int>(byteSize.value);
+    }
+    if (pageCount.present) {
+      map['page_count'] = Variable<int>(pageCount.value);
+    }
+    if (sha256.present) {
+      map['sha256'] = Variable<String>(sha256.value);
+    }
+    if (encryptionKeyVersion.present) {
+      map['encryption_key_version'] = Variable<int>(encryptionKeyVersion.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (serverRevision.present) {
+      map['server_revision'] = Variable<int>(serverRevision.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (uploadState.present) {
+      map['upload_state'] = Variable<String>(uploadState.value);
+    }
+    if (cloudPublicId.present) {
+      map['cloud_public_id'] = Variable<String>(cloudPublicId.value);
+    }
+    if (cloudUrl.present) {
+      map['cloud_url'] = Variable<String>(cloudUrl.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (thumbnailPath.present) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('sha256: $sha256, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('uploadState: $uploadState, ')
+          ..write('cloudPublicId: $cloudPublicId, ')
+          ..write('cloudUrl: $cloudUrl, ')
+          ..write('localPath: $localPath, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4319,6 +5464,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AttachmentVariantsTableTable(this);
   late final $NoteVersionsTableTable noteVersionsTable =
       $NoteVersionsTableTable(this);
+  late final $DocumentsTableTable documentsTable = $DocumentsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4332,6 +5478,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     attachmentsTable,
     attachmentVariantsTable,
     noteVersionsTable,
+    documentsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7181,6 +8328,503 @@ typedef $$NoteVersionsTableTableProcessedTableManager =
       NoteVersionEntity,
       PrefetchHooks Function({bool noteId})
     >;
+typedef $$DocumentsTableTableCreateCompanionBuilder =
+    DocumentsTableCompanion Function({
+      required String id,
+      Value<String?> noteId,
+      Value<String> title,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<String> mimeType,
+      Value<int> byteSize,
+      Value<int> pageCount,
+      Value<String> sha256,
+      Value<int> encryptionKeyVersion,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<String> uploadState,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      Value<String?> localPath,
+      Value<String?> thumbnailPath,
+      Value<int> rowid,
+    });
+typedef $$DocumentsTableTableUpdateCompanionBuilder =
+    DocumentsTableCompanion Function({
+      Value<String> id,
+      Value<String?> noteId,
+      Value<String> title,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> mimeType,
+      Value<int> byteSize,
+      Value<int> pageCount,
+      Value<String> sha256,
+      Value<int> encryptionKeyVersion,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<String> uploadState,
+      Value<String?> cloudPublicId,
+      Value<String?> cloudUrl,
+      Value<String?> localPath,
+      Value<String?> thumbnailPath,
+      Value<int> rowid,
+    });
+
+class $$DocumentsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $DocumentsTableTable> {
+  $$DocumentsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DocumentsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $DocumentsTableTable> {
+  $$DocumentsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudUrl => $composableBuilder(
+    column: $table.cloudUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DocumentsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DocumentsTableTable> {
+  $$DocumentsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<int> get byteSize =>
+      $composableBuilder(column: $table.byteSize, builder: (column) => column);
+
+  GeneratedColumn<int> get pageCount =>
+      $composableBuilder(column: $table.pageCount, builder: (column) => column);
+
+  GeneratedColumn<String> get sha256 =>
+      $composableBuilder(column: $table.sha256, builder: (column) => column);
+
+  GeneratedColumn<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get uploadState => $composableBuilder(
+    column: $table.uploadState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudPublicId => $composableBuilder(
+    column: $table.cloudPublicId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudUrl =>
+      $composableBuilder(column: $table.cloudUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => column,
+  );
+}
+
+class $$DocumentsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DocumentsTableTable,
+          DocumentEntity,
+          $$DocumentsTableTableFilterComposer,
+          $$DocumentsTableTableOrderingComposer,
+          $$DocumentsTableTableAnnotationComposer,
+          $$DocumentsTableTableCreateCompanionBuilder,
+          $$DocumentsTableTableUpdateCompanionBuilder,
+          (
+            DocumentEntity,
+            BaseReferences<_$AppDatabase, $DocumentsTableTable, DocumentEntity>,
+          ),
+          DocumentEntity,
+          PrefetchHooks Function()
+        > {
+  $$DocumentsTableTableTableManager(
+    _$AppDatabase db,
+    $DocumentsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DocumentsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DocumentsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DocumentsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> mimeType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int> pageCount = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String> uploadState = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentsTableCompanion(
+                id: id,
+                noteId: noteId,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                mimeType: mimeType,
+                byteSize: byteSize,
+                pageCount: pageCount,
+                sha256: sha256,
+                encryptionKeyVersion: encryptionKeyVersion,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                uploadState: uploadState,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                localPath: localPath,
+                thumbnailPath: thumbnailPath,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> noteId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<String> mimeType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int> pageCount = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String> uploadState = const Value.absent(),
+                Value<String?> cloudPublicId = const Value.absent(),
+                Value<String?> cloudUrl = const Value.absent(),
+                Value<String?> localPath = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentsTableCompanion.insert(
+                id: id,
+                noteId: noteId,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                mimeType: mimeType,
+                byteSize: byteSize,
+                pageCount: pageCount,
+                sha256: sha256,
+                encryptionKeyVersion: encryptionKeyVersion,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                uploadState: uploadState,
+                cloudPublicId: cloudPublicId,
+                cloudUrl: cloudUrl,
+                localPath: localPath,
+                thumbnailPath: thumbnailPath,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DocumentsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DocumentsTableTable,
+      DocumentEntity,
+      $$DocumentsTableTableFilterComposer,
+      $$DocumentsTableTableOrderingComposer,
+      $$DocumentsTableTableAnnotationComposer,
+      $$DocumentsTableTableCreateCompanionBuilder,
+      $$DocumentsTableTableUpdateCompanionBuilder,
+      (
+        DocumentEntity,
+        BaseReferences<_$AppDatabase, $DocumentsTableTable, DocumentEntity>,
+      ),
+      DocumentEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7204,4 +8848,6 @@ class $AppDatabaseManager {
       );
   $$NoteVersionsTableTableTableManager get noteVersionsTable =>
       $$NoteVersionsTableTableTableManager(_db, _db.noteVersionsTable);
+  $$DocumentsTableTableTableManager get documentsTable =>
+      $$DocumentsTableTableTableManager(_db, _db.documentsTable);
 }

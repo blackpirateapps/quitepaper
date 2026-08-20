@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../attachments/attachment_models.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
+import '../documents/document_models.dart';
 import 'sync_models.dart';
 
 abstract class SyncApiClient {
@@ -36,6 +37,27 @@ abstract class SyncApiClient {
     String sha256 = '',
   });
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId);
+  Future<CloudinaryUploadAuth> getDocumentUploadAuth({
+    required String documentId,
+    String? noteId,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  });
+  Future<Map<String, dynamic>> confirmDocumentUpload({
+    required String documentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  });
+  Future<DocumentSyncPayload?> getDocumentMetadata(String documentId);
   Future<PushVersionSyncResponse> pushVersions({
     required List<NoteVersionSyncPayload> versions,
     String? deviceId,
@@ -288,6 +310,122 @@ class HttpSyncApiClient implements SyncApiClient {
       return null;
     } else {
       var message = 'Failed to fetch attachment metadata (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  @override
+  Future<CloudinaryUploadAuth> getDocumentUploadAuth({
+    required String documentId,
+    String? noteId,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/documents/upload-auth');
+    final body = <String, dynamic>{
+      'documentId': documentId,
+      'title': title,
+      'mimeType': mimeType,
+      'byteSize': byteSize,
+      'pageCount': pageCount,
+      'sha256': sha256,
+    };
+    if (noteId != null) {
+      body['noteId'] = noteId;
+    }
+
+    final res = await _client.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (res.statusCode != 200) {
+      var message = 'Failed to obtain document upload auth (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return CloudinaryUploadAuth.fromJson(data);
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirmDocumentUpload({
+    required String documentId,
+    String? noteId,
+    required String cloudPublicId,
+    required String cloudUrl,
+    String title = 'Scanned Document',
+    String mimeType = 'application/pdf',
+    int byteSize = 0,
+    int pageCount = 1,
+    String sha256 = '',
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/documents/confirm');
+    final body = <String, dynamic>{
+      'documentId': documentId,
+      'cloudPublicId': cloudPublicId,
+      'cloudUrl': cloudUrl,
+      'title': title,
+      'mimeType': mimeType,
+      'byteSize': byteSize,
+      'pageCount': pageCount,
+      'sha256': sha256,
+    };
+    if (noteId != null) {
+      body['noteId'] = noteId;
+    }
+
+    final res = await _client.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (res.statusCode != 200) {
+      var message = 'Failed to confirm document upload with backend (HTTP ${res.statusCode})';
+      try {
+        final errJson = jsonDecode(res.body);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          message = errJson['error']['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  @override
+  Future<DocumentSyncPayload?> getDocumentMetadata(String documentId) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/documents/$documentId');
+    final res = await _client.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return DocumentSyncPayload.fromJson(data);
+    } else if (res.statusCode == 404) {
+      return null;
+    } else {
+      var message = 'Failed to fetch document metadata (HTTP ${res.statusCode})';
       try {
         final errJson = jsonDecode(res.body);
         if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {

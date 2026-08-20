@@ -13,6 +13,7 @@ import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
 import '../attachments/presentation/quiet_asset_image_view.dart';
+import '../documents/presentation/document_viewer_screen.dart';
 import '../uri/quiet_paper_uri.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
@@ -213,6 +214,15 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final effectiveOnTapLink = widget.onTapLink ??
         (text, href, title) {
           final target = (href != null && href.isNotEmpty) ? href : text;
+          final qpUri = QuietPaperUri.tryParse(target);
+          if (qpUri != null && qpUri.isDocument) {
+            DocumentViewerScreen.openUri(
+              context,
+              uri: qpUri,
+              title: text.isNotEmpty ? text : 'Scanned Document',
+            );
+            return;
+          }
           LinkLauncherHelper.handleLinkTap(context, target);
         };
 
@@ -279,6 +289,70 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           assetId: qpUri.resourceId,
           altText: alt,
           title: title,
+        );
+      }
+      if (qpUri != null && qpUri.isDocument) {
+        return GestureDetector(
+          onTap: () {
+            DocumentViewerScreen.openUri(
+              context,
+              uri: qpUri,
+              title: (alt != null && alt.isNotEmpty)
+                  ? alt
+                  : (title ?? 'Scanned Document'),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              border: Border.all(color: colors.divider),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: Icon(Icons.description_outlined,
+                      color: colors.accent, size: 24),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        (alt != null && alt.isNotEmpty)
+                            ? alt
+                            : (title ?? 'Scanned Document'),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Encrypted PDF Document • Tap to view',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios,
+                    size: 14, color: colors.textTertiary),
+              ],
+            ),
+          ),
         );
       }
       return Padding(

@@ -903,3 +903,54 @@ All authentication and encryption management screens have been refactored away f
    - **Group 1 `<FormCard>`**: Current account password.
    - **Group 2 `<FormCard>`**: New account password and confirm password with inset divider.
    - Full-width "Update Password" button.
+
+
+---
+
+## 41. Scanned Documents Architecture & Implementation (`qp://document/<UUID>`)
+
+Quiet Paper supports zero-knowledge end-to-end encrypted document scanning with local PDF compilation and direct cloud sync.
+
+### 1. Invariants & Security Architecture
+* **Markdown As Source Of Truth**: Scanned documents are referenced within note Markdown as `[Scanned Document](qp://document/<UUID>)` or `[Custom Title](qp://document/<UUID>)`.
+* **Canonical Binary Payload**: A multi-page scan is compiled into a single standard **PDF** (`application/pdf`) locally on the client. Individual raw photos are temporary and not retained.
+* **Client-Side Cryptography (`QPD1`)**:
+  - Magic header bytes: `[0x51, 0x50, 0x44, 0x31]` (`QPD1`).
+  - Envelope Version: `1`.
+  - Cipher: `XChaCha20-Poly1305` authenticated encryption using Master Key.
+  - Nonce: 24 random cryptographic bytes.
+  - Additional Authenticated Data (AAD): `quietpaper:document:<documentId>:v1`.
+  - SHA-256 integrity digest computed across raw decrypted PDF bytes.
+* **Crypto-Blind Direct Cloud Sync**:
+  - Vercel control plane provides authenticated signing (`POST /api/v1/documents/upload-auth`) and metadata tracking (`POST /api/v1/documents/confirm`, `GET /api/v1/documents/:id`).
+  - Client uploads encrypted `.qpd` bytes directly to Cloudinary storage.
+  - Vercel backend never proxies, processes, or receives document payload bytes.
+
+### 2. Database Schema (Drift Schema v6 & Turso Migration 004)
+* Added `documents` table with columns: `id` (UUID primary key), `note_id`, `title`, `created_at`, `updated_at`, `mime_type`, `byte_size`, `page_count`, `sha256`, `encryption_key_version`, `is_dirty`, `is_deleted`, `deleted_at`, `server_revision`, `synced_at`, `upload_state`, `cloud_public_id`, `cloud_url`, `local_path`, `thumbnail_path`.
+* Indexed on `note_id`, `is_dirty`, and `upload_state`.
+
+### 3. Local PDF Generation & Pipeline
+* `ScannedPage`: Domain entity representing a captured page with dimensions, sequence number, and raw/normalized bytes.
+* `DocumentNormalizer`: Automated image optimization with contrast adjustment, maximum dimension bounding (2400px), and heuristic boundary confidence scoring.
+* `PdfBuilder`: Assembles normalized pages into a clean, standard A4 PDF document using the `pdf` package.
+
+### 4. UI & User Experience
+* **Editor Formatting Toolbar**: Document scanner button (`Icons.document_scanner_outlined`) placed immediately adjacent to the image button (`Icons.image_outlined`).
+* **Document Scanner Screen (`DocumentScannerScreen`)**:
+  - Full-screen capture canvas with camera preview and live boundary guide overlay.
+  - Multi-page bottom thumbnail strip displaying page count badges.
+  - Page management controls: Retake page, Delete page, Move Left, Move Right, Add page.
+  - Fallback document import mode for simulator and desktop environments without camera hardware.
+  - "Done" compilation that generates PDF, encrypts with Master Key, persists locally, and inserts Markdown snippet `\n[Scanned Document](qp://document/<UUID>)\n` into the editor with instant autosave.
+* **Document Viewer Screen (`DocumentViewerScreen`)**:
+  - Dedicated viewer displaying decrypted document pages with page count and size indicators.
+  - Phone layout: vertically scrollable multi-page canvas with page indicator pill.
+  - Tablet layout: side-by-side thumbnail rail and main viewer.
+  - Smooth pinch-to-zoom via `InteractiveViewer`.
+* **Markdown Preview**:
+  - `QuietMarkdownPreview` intercepts `qp://document/<UUID>` and renders an editorial document tile/card with icon, title, and page count badge.
+  - Tapping opens `DocumentViewerScreen`.
+
+### 5. Backup & Restore
+* `BackupService` serializes all local scanned documents to base64 encrypted payloads within `.qpbackup` snapshots and restores them to SQLite and local disk storage upon import.

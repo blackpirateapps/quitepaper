@@ -5,6 +5,9 @@ enum QuietPaperResourceType {
   /// Binary image or media attachment (`qp://asset/<UUID>`).
   asset('asset'),
 
+  /// Scanned multi-page document whose canonical payload is a PDF (`qp://document/<UUID>`).
+  document('document'),
+
   /// Note entity reference for future note-to-note linking (`qp://note/<UUID>`).
   note('note'),
 
@@ -30,6 +33,7 @@ enum QuietPaperResourceType {
 /// Canonical format:
 /// ```text
 /// qp://asset/550e8400-e29b-41d4-a716-446655440000
+/// qp://document/550e8400-e29b-41d4-a716-446655440000
 /// qp://note/3f4a2100-e29b-41d4-a716-446655440000
 /// ```
 @immutable
@@ -48,10 +52,10 @@ class QuietPaperUri {
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
   );
 
-  /// The parsed resource type (e.g. `asset` or `note`).
+  /// The parsed resource type (e.g. `asset`, `document`, or `note`).
   final QuietPaperResourceType resourceType;
 
-  /// The unique logical identity of the resource (e.g. attachment UUID or note UUID).
+  /// The unique logical identity of the resource (e.g. attachment UUID, document UUID, or note UUID).
   final String resourceId;
 
   /// Optional query parameters attached to the URI (e.g. variant type).
@@ -59,6 +63,9 @@ class QuietPaperUri {
 
   /// Whether this URI points to an asset/attachment.
   bool get isAsset => resourceType == QuietPaperResourceType.asset;
+
+  /// Whether this URI points to a scanned document.
+  bool get isDocument => resourceType == QuietPaperResourceType.document;
 
   /// Whether this URI points to a note.
   bool get isNote => resourceType == QuietPaperResourceType.note;
@@ -89,6 +96,19 @@ class QuietPaperUri {
     }
     return QuietPaperUri(
       resourceType: QuietPaperResourceType.asset,
+      resourceId: cleanId,
+      parameters: parameters ?? const <String, String>{},
+    );
+  }
+
+  /// Creates a canonical document URI (`qp://document/<documentId>`).
+  factory QuietPaperUri.document(String documentId, {Map<String, String>? parameters}) {
+    final cleanId = documentId.trim();
+    if (cleanId.isEmpty) {
+      throw const FormatException('Document ID cannot be empty');
+    }
+    return QuietPaperUri(
+      resourceType: QuietPaperResourceType.document,
       resourceId: cleanId,
       parameters: parameters ?? const <String, String>{},
     );

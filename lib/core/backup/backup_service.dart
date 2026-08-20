@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../attachments/attachment_storage.dart';
 import '../crypto/crypto_service.dart';
 import '../database/app_database.dart';
+import '../documents/document_storage.dart';
 import 'backup_models.dart';
 
 class BackupService {
@@ -17,15 +18,18 @@ class BackupService {
     required this.cryptoService,
     required this.sharedPreferences,
     AttachmentLocalStorage? storage,
+    DocumentLocalStorage? documentStorage,
     FlutterSecureStorage? secureStorage,
     this.appVersion = '1.4.0',
   })  : _storage = storage ?? AttachmentLocalStorage(),
+        _documentStorage = documentStorage ?? DocumentLocalStorage(),
         _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   final AppDatabase database;
   final CryptoService cryptoService;
   final SharedPreferences sharedPreferences;
   final AttachmentLocalStorage _storage;
+  final DocumentLocalStorage _documentStorage;
   final FlutterSecureStorage _secureStorage;
   final String appVersion;
 
@@ -175,6 +179,35 @@ class BackupService {
       ));
     }
 
+    // Query scanned documents for included notes
+    final allDocuments = await database.getAllDocuments();
+    final filteredDocuments = allDocuments
+        .where((d) => !d.isDeleted && (d.noteId == null || noteIds.contains(d.noteId)))
+        .toList();
+
+    final backupDocuments = <BackupDocument>[];
+    for (final doc in filteredDocuments) {
+      final encryptedBytes = await _documentStorage.readEncryptedBytes(
+        documentId: doc.id,
+        localPath: doc.localPath,
+      );
+
+      backupDocuments.add(BackupDocument(
+        id: doc.id,
+        noteId: doc.noteId,
+        title: doc.title,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        mimeType: doc.mimeType,
+        byteSize: doc.byteSize,
+        pageCount: doc.pageCount,
+        sha256: doc.sha256,
+        encryptionKeyVersion: doc.encryptionKeyVersion,
+        encryptedPayloadBase64:
+            encryptedBytes != null ? base64Encode(encryptedBytes) : null,
+      ));
+    }
+
     final activeCount =
         backupNotes.where((n) => !n.isArchived && !n.isTrashed).length;
     final archivedCount = backupNotes.where((n) => n.isArchived).length;
@@ -195,6 +228,7 @@ class BackupService {
       pinnedNotes: pinnedCount,
       totalTags: allTagNames.length,
       totalAttachments: backupAttachments.length,
+      totalDocuments: backupDocuments.length,
     );
 
     return BackupPayload(
@@ -202,6 +236,7 @@ class BackupService {
       notes: backupNotes,
       tags: allTagNames,
       attachments: backupAttachments,
+      documents: backupDocuments,
     );
   }
 
@@ -554,6 +589,40 @@ class BackupService {
           localPath: localSavedPath,
         );
       }
+
+      // Restore scanned documents if included in payload
+      for (final backupDoc in payload.documents) {
+        String? localSavedPath;
+        if (backupDoc.encryptedPayloadBase64 != null &&
+            backupDoc.encryptedPayloadBase64!.isNotEmpty) {
+          try {
+            final encryptedBytes =
+                base64Decode(backupDoc.encryptedPayloadBase64!);
+            localSavedPath = await _documentStorage.saveEncryptedBytes(
+              documentId: backupDoc.id,
+              encryptedBytes: encryptedBytes,
+            );
+          } catch (_) {}
+        }
+
+        await database.saveDocument(
+          id: backupDoc.id,
+          noteId: backupDoc.noteId,
+          title: backupDoc.title,
+          createdAt: backupDoc.createdAt,
+          updatedAt: backupDoc.updatedAt,
+          mimeType: backupDoc.mimeType,
+          byteSize: backupDoc.byteSize,
+          pageCount: backupDoc.pageCount,
+          sha256: backupDoc.sha256,
+          encryptionKeyVersion: backupDoc.encryptionKeyVersion,
+          isDirty: true,
+          isDeleted: false,
+          serverRevision: 0,
+          uploadState: 'upload_pending',
+          localPath: localSavedPath,
+        );
+      }
     });
 
     final currentTags = await database.getAllTagNames();
@@ -564,6 +633,7 @@ class BackupService {
       totalSkipped: totalSkipped,
       totalConflicts: totalConflicts,
       totalTagsCreated: currentTags.length,
+      totalDocumentsRestored: payload.documents.length,
     );
   }
 

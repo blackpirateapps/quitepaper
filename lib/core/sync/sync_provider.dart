@@ -4,6 +4,7 @@ import '../attachments/attachment_provider.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
+import '../documents/document_provider.dart';
 import 'sync_api_client.dart';
 import 'sync_engine.dart';
 import 'sync_models.dart';
@@ -52,6 +53,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   final auth = ref.watch(authServiceProvider);
   final api = ref.watch(syncApiClientProvider);
   final attachmentSync = ref.watch(attachmentSyncServiceProvider);
+  final documentSync = ref.watch(documentSyncServiceProvider);
 
   final engine = SyncEngine(
     database: db,
@@ -60,6 +62,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     authService: auth,
     apiClient: api,
     attachmentSyncService: attachmentSync,
+    documentSyncService: documentSync,
   );
 
   ref.onDispose(engine.dispose);
