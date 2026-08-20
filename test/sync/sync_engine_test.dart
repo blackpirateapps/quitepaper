@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:quitepaper/core/attachments/attachment_models.dart';
 import 'package:quitepaper/core/auth/auth_service.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
@@ -11,11 +13,30 @@ import 'package:quitepaper/core/sync/sync_api_client.dart';
 import 'package:quitepaper/core/sync/sync_engine.dart';
 import 'package:quitepaper/core/sync/sync_models.dart';
 
+class FakeHttpClient extends http.BaseClient {
+  FakeHttpClient(this.handler);
+  final Future<http.Response> Function(http.BaseRequest request) handler;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await handler(request);
+    return http.StreamedResponse(
+      Stream.value(utf8.encode(response.body)),
+      response.statusCode,
+      headers: response.headers,
+      request: request,
+    );
+  }
+}
+
 /// In-memory mock sync API client simulating the Vercel backend
 class InMemorySyncApiClient implements SyncApiClient {
   WrappedMasterKeyData? storedKey;
   final Map<String, NoteSyncPayload> serverNotes = {};
   final List<PullChangeItem> syncLog = [];
+  final List<List<NoteSyncPayload>> pushBatches = [];
+  final List<String?> pushIdempotencyKeys = [];
+  final List<List<NoteVersionSyncPayload>> pushVersionBatches = [];
   int cursorCounter = 0;
 
   @override
@@ -40,6 +61,8 @@ class InMemorySyncApiClient implements SyncApiClient {
     String? idempotencyKey,
     String? deviceId,
   }) async {
+    pushBatches.add(List.from(changes));
+    pushIdempotencyKeys.add(idempotencyKey);
     final results = <PushResultItem>[];
     final conflicts = <ConflictItem>[];
 
@@ -190,6 +213,7 @@ class InMemorySyncApiClient implements SyncApiClient {
     required List<NoteVersionSyncPayload> versions,
     String? deviceId,
   }) async {
+    pushVersionBatches.add(List.from(versions));
     final results = <PushResultItem>[];
     for (final v in versions) {
       cursorCounter++;
@@ -477,5 +501,140 @@ void main() {
     // Verify Device B did NOT re-enqueue deletion into its sync queue
     final pendingB = await dbB.getPendingSyncQueue();
     expect(pendingB.isEmpty, true);
+  });
+
+  test('Batching: pushes >100 dirty notes in batches of <= 100 with unique idempotency keys', () async {
+    const userEmail = 'batch@test.local';
+    const password = 'password';
+
+    await authA.signUpWithEmailAndPassword(userEmail, password);
+    final wrappedKey = await keyManagerA.setupNewKeys(
+      password: password,
+      kdfParameters: testKdf,
+    );
+    await sharedApi.putKeys(wrappedKey);
+
+    // Create 150 dirty notes
+    final now = DateTime.now();
+    for (var i = 1; i <= 150; i++) {
+      await dbA.saveNote(
+        id: 'note-batch-$i',
+        title: 'Batch Note $i',
+        content: 'Content of batch note $i',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        isDirty: true,
+      );
+    }
+
+    final dirtyNotes = await dbA.getDirtyNotes();
+    expect(dirtyNotes.length, 150);
+
+    // Reset batches recorded so far
+    sharedApi.pushBatches.clear();
+    sharedApi.pushIdempotencyKeys.clear();
+
+    // Sync
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+
+    // Verify chunked into 2 batches (100 + 50)
+    expect(sharedApi.pushBatches.length, 2);
+    expect(sharedApi.pushBatches[0].length, 100);
+    expect(sharedApi.pushBatches[1].length, 50);
+
+    // Verify each batch has a distinct non-empty idempotency key
+    expect(sharedApi.pushIdempotencyKeys.length, 2);
+    expect(sharedApi.pushIdempotencyKeys[0], isNotNull);
+    expect(sharedApi.pushIdempotencyKeys[1], isNotNull);
+    expect(sharedApi.pushIdempotencyKeys[0] != sharedApi.pushIdempotencyKeys[1], true);
+
+    // Verify all 150 notes exist on server and locally marked not dirty
+    expect(sharedApi.serverNotes.length, 150);
+    expect((await dbA.getDirtyNotes()).isEmpty, true);
+  });
+
+  test('Batching: pushes >100 note versions in batches of <= 100', () async {
+    const userEmail = 'batch-versions@test.local';
+    const password = 'password';
+
+    await authA.signUpWithEmailAndPassword(userEmail, password);
+    final wrappedKey = await keyManagerA.setupNewKeys(
+      password: password,
+      kdfParameters: testKdf,
+    );
+    await sharedApi.putKeys(wrappedKey);
+
+    final now = DateTime.now();
+    await dbA.saveNote(
+      id: 'note-versioned-1',
+      title: 'Parent Note',
+      content: 'Parent Content',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isDirty: false,
+    );
+
+    // Create 120 dirty note versions
+    for (var i = 1; i <= 120; i++) {
+      await dbA.saveNoteVersion(
+        id: 'version-batch-$i',
+        noteId: 'note-versioned-1',
+        versionNumber: i,
+        title: 'Version $i',
+        content: 'Content $i',
+        tagsJson: '[]',
+        createdAt: now,
+        isDirty: true,
+      );
+    }
+
+    expect((await dbA.getDirtyNoteVersions()).length, 120);
+
+    // Reset recorded version batches
+    sharedApi.pushVersionBatches.clear();
+
+    // Sync
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+
+    // Verify chunked into 2 batches (100 + 20)
+    expect(sharedApi.pushVersionBatches.length, 2);
+    expect(sharedApi.pushVersionBatches[0].length, 100);
+    expect(sharedApi.pushVersionBatches[1].length, 20);
+    expect((await dbA.getDirtyNoteVersions()).isEmpty, true);
+  });
+
+  test('HttpSyncApiClient extracts structured error messages on API failure', () async {
+    final client = FakeHttpClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'error': {
+            'code': 'BAD_REQUEST',
+            'message': 'Array must contain at most 100 element(s)',
+          }
+        }),
+        400,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final auth = MockAuthService();
+    await auth.signUpWithEmailAndPassword('err@test.local', 'password');
+
+    final apiClient = HttpSyncApiClient(
+      authService: auth,
+      baseUrl: 'https://test.api',
+      httpClient: client,
+    );
+
+    expect(
+      () => apiClient.pushChanges(changes: []),
+      throwsA(predicate((e) =>
+          e is Exception &&
+          e.toString().contains('Push sync failed: Array must contain at most 100 element(s)'))),
+    );
   });
 }

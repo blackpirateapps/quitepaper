@@ -104,7 +104,7 @@ class SyncEngine {
       final dirtyNotes = await database.getDirtyNotes();
       final pendingQueue = await database.getPendingSyncQueue();
 
-      final pushPayloads = <NoteSyncPayload>[];
+      final pushItems = <({NoteSyncPayload payload, String? queueId})>[];
 
       for (final item in dirtyNotes) {
         final note = item.note;
@@ -123,66 +123,90 @@ class SyncEngine {
           keyVersion: 1,
         );
 
-        pushPayloads.add(NoteSyncPayload(
-          id: note.id,
-          createdAt: note.createdAt,
-          updatedAt: note.updatedAt,
-          archived: note.isArchived,
-          trashed: note.isTrashed,
-          pinned: note.isPinned,
-          contentCiphertext: envelope.ciphertext,
-          contentNonce: envelope.nonce,
-          contentVersion: envelope.contentVersion,
-          encryptionKeyVersion: envelope.keyVersion,
-          baseRevision: note.serverRevision > 0 ? note.serverRevision : null,
-          deletedAt: note.deletedAt,
+        pushItems.add((
+          payload: NoteSyncPayload(
+            id: note.id,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+            archived: note.isArchived,
+            trashed: note.isTrashed,
+            pinned: note.isPinned,
+            contentCiphertext: envelope.ciphertext,
+            contentNonce: envelope.nonce,
+            contentVersion: envelope.contentVersion,
+            encryptionKeyVersion: envelope.keyVersion,
+            baseRevision: note.serverRevision > 0 ? note.serverRevision : null,
+            deletedAt: note.deletedAt,
+          ),
+          queueId: null,
         ));
       }
 
       for (final queueItem in pendingQueue) {
         if (queueItem.operation == 'delete') {
-          pushPayloads.add(NoteSyncPayload(
-            id: queueItem.noteId,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            archived: false,
-            trashed: true,
-            pinned: false,
-            contentCiphertext: '',
-            contentNonce: '',
-            isDeleted: true,
-            deletedAt: DateTime.now(),
+          pushItems.add((
+            payload: NoteSyncPayload(
+              id: queueItem.noteId,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              archived: false,
+              trashed: true,
+              pinned: false,
+              contentCiphertext: '',
+              contentNonce: '',
+              isDeleted: true,
+              deletedAt: DateTime.now(),
+            ),
+            queueId: queueItem.id,
           ));
         }
       }
 
-      if (pushPayloads.isNotEmpty) {
-        const uuid = Uuid();
-        final idempotencyKey = 'push_${uuid.v4()}';
+      if (pushItems.isNotEmpty) {
+        const pushBatchSize = 100;
+        var totalConflicts = 0;
 
-        final pushResponse = await apiClient.pushChanges(
-          changes: pushPayloads,
-          idempotencyKey: idempotencyKey,
-        );
+        for (var i = 0; i < pushItems.length; i += pushBatchSize) {
+          final end = (i + pushBatchSize < pushItems.length)
+              ? i + pushBatchSize
+              : pushItems.length;
+          final batch = pushItems.sublist(i, end);
+          final batchPayloads = batch.map((item) => item.payload).toList();
+          final batchQueueIds = batch
+              .map((item) => item.queueId)
+              .whereType<String>()
+              .toList();
 
-        // Update local revisions for successfully applied notes
-        for (final res in pushResponse.results) {
-          await database.markNoteSynced(
-            noteId: res.id,
-            serverRevision: res.revision,
-            syncedAt: DateTime.now(),
+          const uuid = Uuid();
+          final idempotencyKey = 'push_${uuid.v4()}';
+
+          final pushResponse = await apiClient.pushChanges(
+            changes: batchPayloads,
+            idempotencyKey: idempotencyKey,
           );
+
+          // Update local revisions for successfully applied notes
+          for (final res in pushResponse.results) {
+            await database.markNoteSynced(
+              noteId: res.id,
+              serverRevision: res.revision,
+              syncedAt: DateTime.now(),
+            );
+          }
+
+          // Remove processed deletion queue entries for this batch
+          if (batchQueueIds.isNotEmpty) {
+            await database.removeSyncQueueEntries(batchQueueIds);
+          }
+
+          if (pushResponse.conflicts.isNotEmpty) {
+            totalConflicts += pushResponse.conflicts.length;
+          }
         }
 
-        // Remove processed deletion queue entries
-        if (pendingQueue.isNotEmpty) {
-          await database
-              .removeSyncQueueEntries(pendingQueue.map((q) => q.id).toList());
-        }
-
-        if (pushResponse.conflicts.isNotEmpty) {
+        if (totalConflicts > 0) {
           _updateState(_state.copyWith(
-            conflictsCount: pushResponse.conflicts.length,
+            conflictsCount: totalConflicts,
           ));
         }
       }
@@ -364,13 +388,21 @@ class SyncEngine {
         }
 
         if (versionPayloads.isNotEmpty) {
-          final vPushRes = await apiClient.pushVersions(versions: versionPayloads);
-          for (final res in vPushRes.results) {
-            await database.markNoteVersionSynced(
-              id: res.id,
-              revision: res.revision,
-              syncedAt: DateTime.now(),
-            );
+          const versionBatchSize = 100;
+          for (var i = 0; i < versionPayloads.length; i += versionBatchSize) {
+            final end = (i + versionBatchSize < versionPayloads.length)
+                ? i + versionBatchSize
+                : versionPayloads.length;
+            final batch = versionPayloads.sublist(i, end);
+
+            final vPushRes = await apiClient.pushVersions(versions: batch);
+            for (final res in vPushRes.results) {
+              await database.markNoteVersionSynced(
+                id: res.id,
+                revision: res.revision,
+                syncedAt: DateTime.now(),
+              );
+            }
           }
         }
       }

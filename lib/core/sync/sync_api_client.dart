@@ -93,6 +93,19 @@ class HttpSyncApiClient implements SyncApiClient {
     };
   }
 
+  String _extractErrorMessage(http.Response res, String defaultPrefix) {
+    try {
+      final errJson = jsonDecode(res.body);
+      if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+        return '$defaultPrefix: ${errJson['error']['message']}';
+      }
+      if (errJson is Map && errJson['message'] != null) {
+        return '$defaultPrefix: ${errJson['message']}';
+      }
+    } catch (_) {}
+    return '$defaultPrefix (${res.statusCode}): ${res.body}';
+  }
+
   @override
   Future<Map<String, dynamic>> getAccount() async {
     final headers = await _authHeaders();
@@ -100,7 +113,7 @@ class HttpSyncApiClient implements SyncApiClient {
     final res = await _client.get(url, headers: headers);
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to get account: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to get account'));
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
@@ -115,7 +128,7 @@ class HttpSyncApiClient implements SyncApiClient {
       return null;
     }
     if (res.statusCode != 200) {
-      throw Exception('Failed to fetch keys: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch keys'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -133,7 +146,7 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to save keys: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to save keys'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -165,7 +178,7 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Push sync failed: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Push sync failed'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -191,7 +204,7 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Pull sync failed: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Pull sync failed'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -205,7 +218,7 @@ class HttpSyncApiClient implements SyncApiClient {
     final res = await _client.get(url, headers: headers);
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to get cursor: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to get cursor'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -455,7 +468,7 @@ class HttpSyncApiClient implements SyncApiClient {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to push note versions: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to push note versions'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -472,7 +485,7 @@ class HttpSyncApiClient implements SyncApiClient {
     final res = await _client.get(url, headers: headers);
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to pull note versions: ${res.statusCode} ${res.body}');
+      throw Exception(_extractErrorMessage(res, 'Failed to pull note versions'));
     }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;

@@ -1299,6 +1299,30 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
     4. [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L23): `this.appVersion = '1.5.0'`
     5. [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L902): `Version 1.5.0`
 
+---
+
+## 57. Sync Push Batch Chunking & Structured Error Formatting
+
+### 1. Problem & Root Cause Analysis
+- **100 Items Batch Limit Rejection**: When users performed operations resulting in more than 100 dirty notes or queued deletion tombstones (e.g. bulk importing markdown folders, initial full account sync with $>100$ notes, or batch deleting notes), `SyncEngine.syncNow()` pushed all `pushPayloads` in a single HTTP request to `/api/v1/sync/push`.
+- **Backend Schema Enforcement**: The backend Zod validation schema `pushSyncSchema` strictly enforces `changes: z.array(noteChangeSchema).min(1).max(100)`.
+- **400 Bad Request**: Any push payload containing $>100$ notes or versions was rejected with HTTP 400: `Array must contain at most 100 element(s)`.
+- **Raw JSON Error Leakage**: `HttpSyncApiClient` previously included the raw response body in thrown exceptions (`Push sync failed: 400 {"error": ...}`), resulting in cluttered, unformatted JSON strings shown in the Settings sync status UI.
+
+### 2. Resolution & Architectural Improvements
+1. **Push Changes Chunking (`SyncEngine`)**:
+   - `SyncEngine.syncNow()` pairs each dirty note or deletion tombstone with its sync queue ID and splits `pushItems` into chunks of at most 100 items (`const pushBatchSize = 100;`).
+   - Each batch generates a unique idempotency key (`push_${uuid.v4()}`) and updates local note revision metadata upon successful completion.
+   - Deletion queue entries are removed batch-by-batch upon successful delivery.
+2. **Note Versions Push Chunking (`SyncEngine`)**:
+   - `SyncEngine` also splits dirty note versions (`versionPayloads`) into batches of at most 100 items (`const versionBatchSize = 100;`).
+3. **Structured Error Extraction (`HttpSyncApiClient`)**:
+   - Implemented `_extractErrorMessage(http.Response res, String defaultPrefix)` across all REST endpoints (`pushChanges`, `pullChanges`, `pushVersions`, `pullVersions`, `getAccount`, `getKeys`, `putKeys`, `getCursor`).
+   - Parses structured backend error objects (`error.message` / `message`) cleanly while providing graceful fallbacks.
+4. **Automated Verification**:
+   - Added unit tests in [`test/sync/sync_engine_test.dart`](file:///home/dog/git/quitepaper/test/sync/sync_engine_test.dart) testing chunked multi-batch note pushing (150 notes $\to$ 100 + 50 batches), chunked version pushing (120 versions $\to$ 100 + 20 batches), and structured error message extraction.
+
+
 
 
 
