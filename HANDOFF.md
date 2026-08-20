@@ -1287,5 +1287,18 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - **Defensive In-Flight Image Validation (`lib/core/ocr/ocr_service.dart`)**:
   - Added pre-checks for `enhancedBytes.isNotEmpty`, temp file existence, and non-zero file length before constructing `InputImage.fromFilePath` and invoking `processImage()`.
 
+---
+
+## 56. App Version Bump to 1.5.0 (`1.5.0+8`)
+
+- **Version Bump**:
+  - Bumped application release version to `1.5.0` (build `+8`) synchronously across all 5 canonical locations defined in [Section 17](#17-app-version-bump-checklist):
+    1. [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19): `version: 1.5.0+8`
+    2. [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart#L10): `currentVersion: '1.5.0'`
+    3. [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart#L23): `appVersion: '1.5.0'`
+    4. [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L23): `this.appVersion = '1.5.0'`
+    5. [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L902): `Version 1.5.0`
+
+
 
 
