@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/ocr/ocr_provider.dart';
+import '../../../core/sync/sync_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
@@ -20,7 +22,9 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 
 final notesRepositoryProvider = Provider<NotesRepository>((ref) {
   final db = ref.watch(databaseProvider);
-  return DriftNotesRepository(db);
+  final keyManager = ref.watch(keyManagerProvider);
+  final ocrCrypto = ref.watch(ocrCryptoProvider);
+  return DriftNotesRepository(db, keyManager, ocrCrypto);
 });
 
 /// Currently selected top-level destination in the sidebar / navigation

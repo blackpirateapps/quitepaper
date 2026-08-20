@@ -151,6 +151,7 @@ class AppDatabase extends _$AppDatabase {
     bool? isPinned,
     String? filterTag,
     String? searchQuery,
+    List<String>? matchingNoteIds,
   }) {
     final notesQuery = select(notesTable);
 
@@ -208,7 +209,11 @@ class AppDatabase extends _$AppDatabase {
                 documentsTable.title.lower().like(pattern),
           );
 
-        return titleOrContentMatch | existsQuery(tagSubQuery) | existsQuery(docSubQuery);
+        final matchesAdditional = (matchingNoteIds != null && matchingNoteIds.isNotEmpty)
+            ? n.id.isIn(matchingNoteIds)
+            : const Constant(false);
+
+        return titleOrContentMatch | existsQuery(tagSubQuery) | existsQuery(docSubQuery) | matchesAdditional;
       });
     }
 

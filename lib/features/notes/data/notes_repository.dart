@@ -1,5 +1,7 @@
 import 'dart:convert';
+import '../../../core/crypto/key_manager.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/ocr/ocr_crypto.dart';
 import '../domain/note_model.dart';
 import '../domain/note_version_model.dart';
 
@@ -42,9 +44,15 @@ abstract class NotesRepository {
 }
 
 class DriftNotesRepository implements NotesRepository {
-  DriftNotesRepository(this._db);
+  DriftNotesRepository(
+    this._db, [
+    this._keyManager,
+    this._ocrCrypto,
+  ]);
 
   final AppDatabase _db;
+  final KeyManager? _keyManager;
+  final OcrCrypto? _ocrCrypto;
 
   Note _mapToDomain(NoteWithTags entity) {
     return Note(
@@ -69,15 +77,70 @@ class DriftNotesRepository implements NotesRepository {
     String? filterTag,
     String? searchQuery,
   }) {
-    return _db
-        .watchNotes(
-          isArchived: isArchived,
-          isTrashed: isTrashed,
-          isPinned: isPinned,
-          filterTag: filterTag,
-          searchQuery: searchQuery,
-        )
-        .map((list) => list.map(_mapToDomain).toList());
+    if (searchQuery == null ||
+        searchQuery.trim().isEmpty ||
+        _keyManager == null ||
+        !_keyManager.isUnlocked) {
+      return _db
+          .watchNotes(
+            isArchived: isArchived,
+            isTrashed: isTrashed,
+            isPinned: isPinned,
+            filterTag: filterTag,
+            searchQuery: searchQuery,
+          )
+          .map((list) => list.map(_mapToDomain).toList());
+    }
+
+    return Stream.fromFuture(_getNoteIdsMatchingOcr(searchQuery.trim()))
+        .asyncExpand((ocrNoteIds) {
+      return _db
+          .watchNotes(
+            isArchived: isArchived,
+            isTrashed: isTrashed,
+            isPinned: isPinned,
+            filterTag: filterTag,
+            searchQuery: searchQuery,
+            matchingNoteIds: ocrNoteIds,
+          )
+          .map((list) => list.map(_mapToDomain).toList());
+    });
+  }
+
+  Future<List<String>> _getNoteIdsMatchingOcr(String query) async {
+    if (_keyManager == null || !_keyManager.isUnlocked) return const [];
+    final clean = query.toLowerCase();
+    if (clean.isEmpty) return const [];
+
+    try {
+      final masterKey = _keyManager.getMasterKey();
+      final crypto = _ocrCrypto ?? OcrCrypto();
+      final ocrPages = await _db.getAllDocumentOcrPages();
+      final matchingNoteIds = <String>{};
+
+      for (final page in ocrPages) {
+        try {
+          final encryptedBytes = base64Decode(page.encryptedPayload);
+          final ocrDoc = await crypto.decryptOcrDocument(
+            encryptedEnvelopeBytes: encryptedBytes,
+            masterKeyBytes: masterKey,
+            documentId: page.documentId,
+          );
+          for (final p in ocrDoc.pages) {
+            if (p.plainText.toLowerCase().contains(clean)) {
+              final doc = await _db.getDocument(page.documentId);
+              if (doc?.noteId != null && doc!.noteId!.isNotEmpty) {
+                matchingNoteIds.add(doc.noteId!);
+              }
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+      return matchingNoteIds.toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override

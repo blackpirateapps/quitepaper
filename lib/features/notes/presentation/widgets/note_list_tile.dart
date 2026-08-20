@@ -50,7 +50,7 @@ class NoteListTile extends StatelessWidget {
     final formattedTime = DateFormatter.formatNoteTileTime(
       note.isTrashed ? (note.deletedAt ?? note.updatedAt) : note.updatedAt,
     );
-    final preview = note.previewSnippet;
+    final preview = _getEffectivePreview(note, searchQuery);
 
     return Material(
       color: (isSelected || isItemMultiSelected)
@@ -130,6 +130,7 @@ class NoteListTile extends StatelessWidget {
                               fontSize: 16.5,
                             ),
                             highlightColor: colors.accent,
+                            textColor: colors.textPrimary,
                             maxLines: 1,
                           ),
                         ),
@@ -155,6 +156,7 @@ class NoteListTile extends StatelessWidget {
                           height: 1.35,
                         ),
                         highlightColor: colors.accent,
+                        textColor: colors.textPrimary,
                         maxLines: 2,
                       ),
                     ] else if (note.hasCustomTitle) ...[
@@ -164,22 +166,20 @@ class NoteListTile extends StatelessWidget {
                         style: AppTypography.bodySmall.copyWith(
                           color: colors.textTertiary.withValues(alpha: 0.6),
                           fontStyle: FontStyle.italic,
-                          fontSize: 13,
                         ),
                       ),
                     ],
 
-                    // Tags row
+                    // Tag chips row
                     if (note.tags.isNotEmpty) ...[
-                      const SizedBox(height: 8.0),
+                      const SizedBox(height: 6.0),
                       Wrap(
                         spacing: 6.0,
                         runSpacing: 4.0,
                         children: note.tags.map((tag) {
                           return QuietTagChip(
                             tag: tag,
-                            showBackground: true,
-                            onTap: onTagTap != null ? () => onTagTap!(tag) : null,
+                            onTap: () => onTagTap?.call(tag),
                           );
                         }).toList(),
                       ),
@@ -206,11 +206,31 @@ class NoteListTile extends StatelessWidget {
     );
   }
 
+  String _getEffectivePreview(Note note, String? query) {
+    if (query == null || query.trim().isEmpty) {
+      return note.previewSnippet;
+    }
+    final cleanQuery = query.trim().replaceAll(RegExp(r'^#'), '');
+    if (cleanQuery.isEmpty) return note.previewSnippet;
+
+    final content = note.content;
+    final matchIdx = content.toLowerCase().indexOf(cleanQuery.toLowerCase());
+    if (matchIdx == -1) {
+      return note.previewSnippet;
+    }
+
+    final start = (matchIdx - 25).clamp(0, content.length);
+    final prefix = start > 0 ? '…' : '';
+    final rawSnippet = content.substring(start).trim();
+    return '$prefix$rawSnippet'.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   Widget _buildHighlightedText({
     required String text,
     required String? query,
     required TextStyle baseStyle,
     required Color highlightColor,
+    required Color textColor,
     int maxLines = 1,
   }) {
     if (query == null || query.trim().isEmpty) {
@@ -261,7 +281,8 @@ class NoteListTile extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(match.start, match.end),
         style: baseStyle.copyWith(
-          color: highlightColor,
+          color: textColor,
+          backgroundColor: highlightColor.withValues(alpha: 0.35),
           fontWeight: FontWeight.w700,
         ),
       ));

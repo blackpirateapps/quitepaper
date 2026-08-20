@@ -1123,6 +1123,19 @@ Quiet Paper features real, on-device machine learning character and word recogni
 - **Rule Definitions**: Created `android/app/proguard-rules.pro` with `-dontwarn com.google.mlkit.vision.text.**` rules for optional non-Latin scripts, resolving `assembleRelease` R8 compilation errors.
 - **Gradle Config**: Configured `proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")` in `build.gradle.kts`.
 
+---
+
+## 48. Decrypted OCR Body Text Search & Global Search Visual Highlighting
+
+### 1. Decrypted OCR Body Text Search (`DriftNotesRepository` & `AppDatabase`)
+- **Master Key Decryption**: When `KeyManager` is unlocked in RAM, `DriftNotesRepository.watchNotes` queries all encrypted OCR pages, decrypts them client-side in-memory via `OcrCrypto`, and matches search queries against plain-text recognized document bodies (e.g. scanned receipts, contracts).
+- **Subquery Inclusion**: Matched document parent `noteId`s are passed as `matchingNoteIds` to `AppDatabase.watchNotes`, returning the parent note even if the query text does not appear in the note title or markdown body.
+
+### 2. Search Term Highlighting in Global Search (`NoteListTile`)
+- **Background Pill Highlighting**: Updated `NoteListTile._buildHighlightedText` to apply a prominent visual highlight background pill (`highlightColor.withValues(alpha: 0.35)`) and bold text matching in both note titles and preview snippets.
+- **Context-Aware Snippet Centering**: When a note matches a search query, `_getEffectivePreview` dynamically slices the snippet starting 25 characters before the first occurrence of the match, ensuring the highlighted term is immediately visible in the 2-line list preview.
+
+
 
 
 
