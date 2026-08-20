@@ -655,11 +655,19 @@ abstract final class MarkdownParser {
             style: styles.syntaxMarker,
           ));
 
+          final isDocumentLink = url.startsWith('qp://document/');
+          final linkStyle = isDocumentLink
+              ? baseStyle.merge(styles.link.copyWith(
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.none,
+                ))
+              : baseStyle.merge(styles.link);
+
           // Link Title with link styling and nested inline parsing
           _parseInlineSegments(
             text: title,
             baseOffset: baseOffset + openBracketEnd,
-            baseStyle: baseStyle.merge(styles.link),
+            baseStyle: linkStyle,
             styles: styles,
             spans: spans,
           );

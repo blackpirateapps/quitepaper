@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../app/theme/app_colors.dart';
+import '../documents/presentation/quiet_document_card.dart';
 
 /// Markdown syntax rule to match `==highlighted text==` and parse into `<mark>` AST nodes.
 class HighlightSyntax extends md.InlineSyntax {
@@ -95,6 +96,48 @@ class SearchMatchElementBuilder extends MarkdownElementBuilder {
         element.textContent,
         style: effectiveStyle,
       ),
+    );
+  }
+}
+
+/// Markdown syntax rule to match `[Title](qp://document/<UUID>)` and parse into `<quietdoc>` AST nodes.
+class QuietDocumentSyntax extends md.InlineSyntax {
+  QuietDocumentSyntax()
+      : super(r'\[([^\]\n]+)\]\((qp:\/\/document\/([0-9a-fA-F\-]{36}))\)');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final title = match[1]!;
+    final url = match[2]!;
+    final docId = match[3]!;
+    final el = md.Element('quietdoc', [md.Text(title)])
+      ..attributes['url'] = url
+      ..attributes['title'] = title
+      ..attributes['docId'] = docId;
+    parser.addNode(el);
+    return true;
+  }
+}
+
+/// Custom element builder for `<quietdoc>` tags produced by [QuietDocumentSyntax].
+class QuietDocumentElementBuilder extends MarkdownElementBuilder {
+  QuietDocumentElementBuilder();
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final docId = element.attributes['docId'] ?? '';
+    final title = element.attributes['title'] ?? element.textContent;
+    final url = element.attributes['url'] ?? 'qp://document/$docId';
+
+    return QuietDocumentCard(
+      documentId: docId,
+      title: title.isNotEmpty ? title : 'Scanned Document',
+      uriString: url,
     );
   }
 }

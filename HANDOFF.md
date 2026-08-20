@@ -944,13 +944,15 @@ Quiet Paper supports zero-knowledge end-to-end encrypted document scanning with 
   - Fallback document import mode for simulator and desktop environments without camera hardware.
   - "Done" compilation that generates PDF, encrypts with Master Key, persists locally, and inserts Markdown snippet `\n[Scanned Document](qp://document/<UUID>)\n` into the editor with instant autosave.
 * **Document Viewer Screen (`DocumentViewerScreen`)**:
-  - Dedicated viewer displaying decrypted document pages with page count and size indicators.
-  - Phone layout: vertically scrollable multi-page canvas with page indicator pill.
+  - Dedicated viewer decrypting and rasterizing PDF pages on-device using `Printing.raster()`.
+  - Phone layout: vertically scrollable multi-page canvas with page indicator pill and interactive pinch-to-zoom.
   - Tablet layout: side-by-side thumbnail rail and main viewer.
-  - Smooth pinch-to-zoom via `InteractiveViewer`.
-* **Markdown Preview**:
-  - `QuietMarkdownPreview` intercepts `qp://document/<UUID>` and renders an editorial document tile/card with icon, title, and page count badge.
-  - Tapping opens `DocumentViewerScreen`.
+  - Direct actions in AppBar: "Save to Storage" (`FilePicker` save dialog and direct `Downloads` fallback), "Share PDF" (native OS share sheet), and "Print PDF".
+* **Markdown Preview & Card Embed (`QuietDocumentCard`)**:
+  - `QuietMarkdownPreview` intercepts `qp://document/<UUID>` via `QuietDocumentSyntax` and `QuietDocumentElementBuilder`.
+  - Renders a rich embedded document card with live first-page thumbnail preview, title, page count & size badge (`1 page • 186.1 KB`), E2EE pill (`PDF (QPD1)`), direct tap to view full screen, and one-tap download button.
+* **Editor WYSIWYG Parser**:
+  - `MarkdownParser` styles `qp://document/` references with distinct semi-bold document styling to clearly identify embedded documents.
 
 ### 5. Backup & Restore
 * `BackupService` serializes all local scanned documents to base64 encrypted payloads within `.qpbackup` snapshots and restores them to SQLite and local disk storage upon import.

@@ -1,5 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -8,6 +14,9 @@ import '../../uri/resource_resolver.dart';
 import '../document_provider.dart';
 
 /// Dedicated full-screen viewer for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
+///
+/// Decrypts and renders actual visual PDF pages on-device, supports multi-page navigation,
+/// zoom/pan, responsive phone & tablet layouts, and direct export/download to phone storage.
 class DocumentViewerScreen extends ConsumerStatefulWidget {
   const DocumentViewerScreen({
     super.key,
@@ -56,7 +65,9 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
 
 class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   ResourceResolution<ResolvedDocumentInfo>? _resolution;
+  final List<Uint8List> _renderedPages = [];
   bool _isLoading = true;
+  bool _isRasterizing = false;
   int _selectedPageIndex = 0;
 
   @override
@@ -65,6 +76,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
       _isLoading = false;
+      if (_resolution!.isAvailable && _resolution!.data != null) {
+        _rasterizePages(_resolution!.data!.pdfBytes);
+      }
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadDocument();
@@ -82,13 +96,122 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         _resolution = res;
         _isLoading = false;
       });
+
+      if (res.isAvailable && res.data != null) {
+        _rasterizePages(res.data!.pdfBytes);
+      }
     }
+  }
+
+  Future<void> _rasterizePages(Uint8List pdfBytes) async {
+    if (_isRasterizing) return;
+    _isRasterizing = true;
+    _renderedPages.clear();
+
+    try {
+      await for (final page in Printing.raster(pdfBytes, dpi: 150.0)) {
+        final png = await page.toPng();
+        if (!mounted) break;
+        setState(() {
+          _renderedPages.add(png);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error rasterizing PDF document pages: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRasterizing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _savePdfToStorage() async {
+    final docInfo = _resolution?.data;
+    if (docInfo == null) return;
+
+    try {
+      final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
+      final fileName = '${cleanTitle.isEmpty ? 'document' : cleanTitle}.pdf';
+
+      // 1. Try native file picker save dialog if available
+      String? selectedPath;
+      try {
+        selectedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save PDF to Storage',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          bytes: docInfo.pdfBytes,
+        );
+      } catch (e) {
+        debugPrint('FilePicker saveFile fallback: $e');
+      }
+
+      if (selectedPath != null && selectedPath.isNotEmpty) {
+        final file = File(selectedPath);
+        if (!await file.exists() || await file.length() == 0) {
+          await file.writeAsBytes(docInfo.pdfBytes);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Document saved: ${p.basename(selectedPath)}'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Direct Downloads folder fallback
+      Directory? targetDir = await getDownloadsDirectory();
+      targetDir ??= await getExternalStorageDirectory();
+      targetDir ??= await getApplicationDocumentsDirectory();
+
+      final targetFile = File(p.join(targetDir.path, fileName));
+      await targetFile.writeAsBytes(docInfo.pdfBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to ${targetDir.path}/$fileName'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Share',
+              onPressed: _sharePdf,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      await _sharePdf();
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    final docInfo = _resolution?.data;
+    if (docInfo == null) return;
+    final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    final fileName = '${cleanTitle.isEmpty ? 'document' : cleanTitle}.pdf';
+    await Printing.sharePdf(bytes: docInfo.pdfBytes, filename: fileName);
+  }
+
+  Future<void> _printPdf() async {
+    final docInfo = _resolution?.data;
+    if (docInfo == null) return;
+    await Printing.layoutPdf(
+      name: docInfo.title,
+      onLayout: (_) async => docInfo.pdfBytes,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final isTablet = MediaQuery.of(context).size.width >= 768;
+    final docInfo = _resolution?.data;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -101,7 +224,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _resolution?.data?.title ?? widget.title,
+              docInfo?.title ?? widget.title,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -109,9 +232,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            if (_resolution?.data != null)
+            if (docInfo != null)
               Text(
-                '${_resolution!.data!.pageCount} ${_resolution!.data!.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(_resolution!.data!.byteSize)}',
+                '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • ${_formatByteSize(docInfo.byteSize)}',
                 style: TextStyle(
                   fontSize: 12,
                   color: colors.textSecondary,
@@ -121,6 +244,23 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           ],
         ),
         actions: [
+          if (docInfo != null) ...[
+            IconButton(
+              icon: const Icon(Icons.download_rounded),
+              tooltip: 'Save PDF to storage',
+              onPressed: _savePdfToStorage,
+            ),
+            IconButton(
+              icon: const Icon(Icons.share_rounded),
+              tooltip: 'Share PDF',
+              onPressed: _sharePdf,
+            ),
+            IconButton(
+              icon: const Icon(Icons.print_rounded),
+              tooltip: 'Print PDF',
+              onPressed: _printPdf,
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Reload document',
@@ -177,17 +317,17 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               child: Container(
                 margin: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: _buildDocumentPreviewPlaceholder(colors, docInfo),
+                child: _buildPageContent(colors, docInfo),
               ),
             ),
           ),
@@ -253,6 +393,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, index) {
               final isSelected = index == _selectedPageIndex;
+              final hasRendered = index < _renderedPages.length;
+
               return GestureDetector(
                 onTap: () => setState(() => _selectedPageIndex = index),
                 child: Container(
@@ -265,26 +407,34 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       width: isSelected ? 2.0 : 1.0,
                     ),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   alignment: Alignment.center,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.description_outlined,
-                        size: 36,
-                        color: isSelected ? colors.accent : colors.textTertiary,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Page ${index + 1}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? colors.accent : colors.textSecondary,
+                  child: hasRendered
+                      ? Image.memory(
+                          _renderedPages[index],
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.description_outlined,
+                              size: 36,
+                              color: isSelected ? colors.accent : colors.textTertiary,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Page ${index + 1}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                color: isSelected ? colors.accent : colors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               );
             },
@@ -301,17 +451,17 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 margin: const EdgeInsets.all(AppSpacing.lg),
                 constraints: const BoxConstraints(maxWidth: 800),
                 decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
                   ],
                 ),
-                child: _buildDocumentPreviewPlaceholder(colors, docInfo),
+                child: _buildPageContent(colors, docInfo),
               ),
             ),
           ),
@@ -320,17 +470,45 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
   }
 
-  Widget _buildDocumentPreviewPlaceholder(
-    AppColors colors,
-    ResolvedDocumentInfo docInfo,
-  ) {
+  Widget _buildPageContent(AppColors colors, ResolvedDocumentInfo docInfo) {
+    if (_selectedPageIndex < _renderedPages.length) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        child: Image.memory(
+          _renderedPages[_selectedPageIndex],
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+
+    if (_isRasterizing) {
+      return AspectRatio(
+        aspectRatio: 1 / 1.414,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Rendering page ${_selectedPageIndex + 1}...',
+                style: TextStyle(color: colors.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return AspectRatio(
       aspectRatio: 1 / 1.414, // Standard A4 Document aspect ratio
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
