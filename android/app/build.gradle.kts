@@ -74,7 +74,9 @@ flutter {
 }
 
 dependencies {
-    // Bundled standalone ML Kit models for 100% offline on-device OCR
+    // Bundled standalone ML Kit models for 100% offline on-device OCR.
+    // Do not add com.google.mlkit.vision.DEPENDENCIES to AndroidManifest.xml:
+    // that setting selects the alternative Play Services download path.
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")

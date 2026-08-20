@@ -1247,6 +1247,12 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
   3. Whitespace/newline trimming for streams sliced before `endstream`.
   4. Corrupted header bypass for 2-byte truncated zlib streams.
 
+---
+
+## 53. ML Kit OCR Model-Delivery Path Fix
+
+- **Root cause**: Android declared both the bundled standalone ML Kit text-recognition artifact and the `com.google.mlkit.vision.DEPENDENCIES = "ocr"` manifest metadata. The metadata is exclusively for the alternative Google Play Services download path, and can lead to an uninitialized recognizer (`NullPointerException`) when that module is unavailable.
+- **Resolution**: Removed the manifest metadata. Quiet Paper now uses only the statically bundled `com.google.mlkit:text-recognition:16.0.1` model, which is available immediately in sideloaded, offline, and Google-Play-Services-free installations.
 
 
 
