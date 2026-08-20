@@ -20,10 +20,10 @@ class DocumentProcessingService {
     PdfTextExtractor? textExtractor,
     PdfPageRenderer? pageRenderer,
     OcrService? ocrService,
-  })  : _ocrCrypto = ocrCrypto ?? OcrCrypto(),
-        _textExtractor = textExtractor ?? const DefaultPdfTextExtractor(),
-        _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer(),
-        _ocrService = ocrService ?? const DefaultOcrService();
+  }) : _ocrCrypto = ocrCrypto ?? OcrCrypto(),
+       _textExtractor = textExtractor ?? const DefaultPdfTextExtractor(),
+       _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer(),
+       _ocrService = ocrService ?? const DefaultOcrService();
 
   final AppDatabase database;
   final KeyManager keyManager;
@@ -42,12 +42,16 @@ class DocumentProcessingService {
     OcrLanguage language = OcrLanguage.english,
   }) async {
     if (_inFlightJobIds.contains(documentId)) {
-      debugPrint('[QuietPaper OCR] Document $documentId is already being processed. Skipping duplicate.');
+      debugPrint(
+        '[QuietPaper OCR] Document $documentId is already being processed. Skipping duplicate.',
+      );
       return;
     }
 
     _inFlightJobIds.add(documentId);
-    debugPrint('[QuietPaper OCR] Started OCR processing for doc $documentId (size: ${pdfBytes.length} bytes, source: $source, lang: ${language.code})');
+    debugPrint(
+      '[QuietPaper OCR] Started OCR processing for doc $documentId (size: ${pdfBytes.length} bytes, source: $source, lang: ${language.code})',
+    );
 
     try {
       await database.updateDocumentOcrState(
@@ -64,7 +68,9 @@ class DocumentProcessingService {
         debugPrint('[QuietPaper OCR] Checking for embedded PDF text layer...');
         final extraction = await _textExtractor.extractText(pdfBytes);
         if (extraction.hasUsableText && extraction.pages.isNotEmpty) {
-          debugPrint('[QuietPaper OCR] Found embedded text layer with ${extraction.pages.length} pages.');
+          debugPrint(
+            '[QuietPaper OCR] Found embedded text layer with ${extraction.pages.length} pages.',
+          );
           ocrResult = OcrDocument(
             documentId: documentId,
             language: language,
@@ -75,16 +81,33 @@ class DocumentProcessingService {
             sourceDocumentSha256: pdfSha256,
             pages: extraction.pages,
           );
+        } else if (extraction.timedOut) {
+          debugPrint(
+            '[QuietPaper OCR] Embedded PDF text extraction reached its safety limit. Falling back to OCR.',
+          );
+        } else {
+          debugPrint(
+            '[QuietPaper OCR] No usable embedded PDF text layer found. Falling back to OCR.',
+          );
         }
       } catch (extractErr) {
-        debugPrint('[QuietPaper OCR] Text extraction fallback to OCR: $extractErr');
+        debugPrint(
+          '[QuietPaper OCR] Text extraction fallback to OCR: $extractErr',
+        );
       }
 
       // 2. If no text layer found or scanned document, run on-device OCR
       if (ocrResult == null) {
-        debugPrint('[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...');
-        final renderedPages = await _pageRenderer.renderPages(pdfBytes, dpi: 150.0);
-        debugPrint('[QuietPaper OCR] Rasterized ${renderedPages.length} pages. Starting text recognition...');
+        debugPrint(
+          '[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...',
+        );
+        final renderedPages = await _pageRenderer.renderPages(
+          pdfBytes,
+          dpi: 150.0,
+        );
+        debugPrint(
+          '[QuietPaper OCR] Rasterized ${renderedPages.length} pages. Starting text recognition...',
+        );
         final ocrPages = <OcrPage>[];
 
         for (final rendered in renderedPages) {
@@ -94,7 +117,9 @@ class DocumentProcessingService {
             language: language,
           );
           ocrPages.add(ocrPage);
-          debugPrint('[QuietPaper OCR] Page ${rendered.pageNumber} recognized (${ocrPage.blocks.length} blocks, ${ocrPage.plainText.length} chars).');
+          debugPrint(
+            '[QuietPaper OCR] Page ${rendered.pageNumber} recognized (${ocrPage.blocks.length} blocks, ${ocrPage.plainText.length} chars).',
+          );
         }
 
         ocrResult = OcrDocument(
@@ -111,7 +136,9 @@ class DocumentProcessingService {
 
       // 3. Encrypt structured OCR pages client-side using Master Key and atomically save
       if (keyManager.isUnlocked) {
-        debugPrint('[QuietPaper OCR] Encrypting OCR datasets with Master Key...');
+        debugPrint(
+          '[QuietPaper OCR] Encrypting OCR datasets with Master Key...',
+        );
         final masterKey = keyManager.getMasterKey();
         final now = DateTime.now();
 
@@ -135,7 +162,10 @@ class DocumentProcessingService {
           );
 
           final payloadBase64 = base64Encode(encryptedBytes);
-          pagePayloads.add((pageNumber: page.pageNumber, payloadBase64: payloadBase64));
+          pagePayloads.add((
+            pageNumber: page.pageNumber,
+            payloadBase64: payloadBase64,
+          ));
         }
 
         // Atomically replace: delete existing records only once all new pages are encrypted
@@ -160,9 +190,13 @@ class DocumentProcessingService {
         OcrProcessingState.available.identifier,
         ocrLanguage: language.code,
       );
-      debugPrint('[QuietPaper OCR] Successfully finished processing for $documentId (state: available)');
+      debugPrint(
+        '[QuietPaper OCR] Successfully finished processing for $documentId (state: available)',
+      );
     } catch (e, st) {
-      debugPrint('[QuietPaper OCR] Processing error for document $documentId: $e\n$st');
+      debugPrint(
+        '[QuietPaper OCR] Processing error for document $documentId: $e\n$st',
+      );
       await database.updateDocumentOcrState(
         documentId,
         OcrProcessingState.failed.identifier,

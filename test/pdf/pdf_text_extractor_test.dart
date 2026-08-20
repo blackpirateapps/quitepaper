@@ -15,20 +15,85 @@ void main() {
       extractor = const DefaultPdfTextExtractor();
     });
 
-    test('Returns hasUsableText: false for raw raster binary with no text layer', () async {
-      final rasterFakePdf = Uint8List.fromList(List.generate(500, (i) => i % 256));
-      final result = await extractor.extractText(rasterFakePdf);
+    test(
+      'Returns hasUsableText: false for raw raster binary with no text layer',
+      () async {
+        final rasterFakePdf = Uint8List.fromList(
+          List.generate(500, (i) => i % 256),
+        );
+        final result = await extractor.extractText(rasterFakePdf);
 
-      expect(result.hasUsableText, isFalse);
-      expect(result.pages, isEmpty);
-      expect(result.extractedText, isEmpty);
-    });
+        expect(result.hasUsableText, isFalse);
+        expect(result.pages, isEmpty);
+        expect(result.extractedText, isEmpty);
+      },
+    );
 
     test('Returns hasUsableText: false for empty or tiny buffer', () async {
       final result = await extractor.extractText(Uint8List(5));
       expect(result.hasUsableText, isFalse);
       expect(result.pages, isEmpty);
     });
+
+    test(
+      'Bounds extraction before an unsupported PDF can block processing',
+      () async {
+        const timedExtractor = DefaultPdfTextExtractor(
+          extractionTimeout: Duration.zero,
+        );
+        final result = await timedExtractor.extractText(
+          Uint8List.fromList(utf8.encode('%PDF-1.4\n1 0 obj\n<<>>\nendobj')),
+        );
+
+        expect(result.hasUsableText, isFalse);
+        expect(result.timedOut, isTrue);
+      },
+    );
+
+    test(
+      'Extracts tagged PDF text with marked-content property dictionaries',
+      () async {
+        const taggedPdf = '''
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 110 >>
+stream
+BT
+/F1 12 Tf
+72 700 Td
+/Span << /MCID 0 >> BDC
+(Tagged PDF text remains extractable) Tj
+EMC
+ET
+endstream
+endobj
+%%EOF
+''';
+
+        final result = await extractor.extractText(
+          Uint8List.fromList(utf8.encode(taggedPdf)),
+        );
+
+        expect(result.timedOut, isFalse);
+        expect(result.hasUsableText, isTrue);
+        expect(
+          result.extractedText,
+          contains('Tagged PDF text remains extractable'),
+        );
+      },
+    );
 
     test('Extracts text from uncompressed PDF stream', () async {
       const mockPdfStream = '''
@@ -66,7 +131,10 @@ endobj
       expect(result.hasUsableText, isTrue);
       expect(result.pages.length, equals(1));
       expect(result.extractedText, contains('Quiet Paper Encrypted Notes'));
-      expect(result.extractedText, contains('Second line of confidential document'));
+      expect(
+        result.extractedText,
+        contains('Second line of confidential document'),
+      );
       expect(result.pages.first.source, equals(OcrSource.embeddedPdfText));
       expect(result.pages.first.blocks.isNotEmpty, isTrue);
     });
@@ -81,7 +149,9 @@ BT
 (Argon2id and XChaCha20-Poly1305 Security) Tj
 ET
 ''';
-      final compressedContent = Uint8List.fromList(zlib.encode(utf8.encode(rawContent)));
+      final compressedContent = Uint8List.fromList(
+        zlib.encode(utf8.encode(rawContent)),
+      );
 
       final pdfHeader = utf8.encode('''
 %PDF-1.4
@@ -107,20 +177,35 @@ endobj
 %%EOF
 ''');
 
-      final fullPdf = Uint8List.fromList([...pdfHeader, ...compressedContent, ...pdfFooter]);
+      final fullPdf = Uint8List.fromList([
+        ...pdfHeader,
+        ...compressedContent,
+        ...pdfFooter,
+      ]);
       final result = await extractor.extractText(fullPdf);
 
       expect(result.hasUsableText, isTrue);
       expect(result.pages.length, equals(1));
-      expect(result.extractedText, contains('Zero-Knowledge Architecture Overview'));
-      expect(result.extractedText, contains('Argon2id and XChaCha20-Poly1305 Security'));
+      expect(
+        result.extractedText,
+        contains('Zero-Knowledge Architecture Overview'),
+      );
+      expect(
+        result.extractedText,
+        contains('Argon2id and XChaCha20-Poly1305 Security'),
+      );
     });
 
-    test('Extracts text from multi-page document with accurate per-page isolation', () async {
-      const page1Content = 'BT /F1 12 Tf 50 700 Td (Page One Header Content) Tj ET';
-      const page2Content = 'BT /F1 12 Tf 50 700 Td (Page Two Footer Content) Tj ET';
+    test(
+      'Extracts text from multi-page document with accurate per-page isolation',
+      () async {
+        const page1Content =
+            'BT /F1 12 Tf 50 700 Td (Page One Header Content) Tj ET';
+        const page2Content =
+            'BT /F1 12 Tf 50 700 Td (Page Two Footer Content) Tj ET';
 
-      final mockPdf = '''
+        final mockPdf =
+            '''
 %PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -152,16 +237,17 @@ endobj
 %%EOF
 ''';
 
-      final pdfBytes = Uint8List.fromList(utf8.encode(mockPdf));
-      final result = await extractor.extractText(pdfBytes);
+        final pdfBytes = Uint8List.fromList(utf8.encode(mockPdf));
+        final result = await extractor.extractText(pdfBytes);
 
-      expect(result.hasUsableText, isTrue);
-      expect(result.pages.length, equals(2));
-      expect(result.pages[0].plainText, contains('Page One Header Content'));
-      expect(result.pages[0].plainText, isNot(contains('Page Two')));
-      expect(result.pages[1].plainText, contains('Page Two Footer Content'));
-      expect(result.pages[1].plainText, isNot(contains('Page One')));
-    });
+        expect(result.hasUsableText, isTrue);
+        expect(result.pages.length, equals(2));
+        expect(result.pages[0].plainText, contains('Page One Header Content'));
+        expect(result.pages[0].plainText, isNot(contains('Page Two')));
+        expect(result.pages[1].plainText, contains('Page Two Footer Content'));
+        expect(result.pages[1].plainText, isNot(contains('Page One')));
+      },
+    );
 
     test('Extracts text with /ToUnicode CMap font mapping', () async {
       const toUnicodeCMap = '''
@@ -189,7 +275,8 @@ end
 
       final cmapBytes = Uint8List.fromList(utf8.encode(toUnicodeCMap));
 
-      final mockPdf = '''
+      final mockPdf =
+          '''
 %PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -231,8 +318,10 @@ endobj
       expect(result.extractedText, contains('HiAB'));
     });
 
-    test('Extracts text with TJ kerning array and synthesizes word boundaries', () async {
-      const mockPdf = '''
+    test(
+      'Extracts text with TJ kerning array and synthesizes word boundaries',
+      () async {
+        const mockPdf = '''
 %PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -259,48 +348,66 @@ endobj
 %%EOF
 ''';
 
-      final pdfBytes = Uint8List.fromList(utf8.encode(mockPdf));
-      final result = await extractor.extractText(pdfBytes);
+        final pdfBytes = Uint8List.fromList(utf8.encode(mockPdf));
+        final result = await extractor.extractText(pdfBytes);
 
-      expect(result.hasUsableText, isTrue);
-      expect(result.extractedText, contains('Quiet Paper Sync'));
-    });
+        expect(result.hasUsableText, isTrue);
+        expect(result.extractedText, contains('Quiet Paper Sync'));
+      },
+    );
 
-    test('Extracts text from real-world binary PDF generated via pdf package', () async {
-      final doc = pw.Document();
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Header(level: 0, text: 'Quiet Paper Product Specification'),
-                pw.Paragraph(
-                  text: 'Quiet Paper is an offline-first notes application inspired by Bear Notes with zero-knowledge end-to-end encryption.',
-                ),
-                pw.Paragraph(
-                  text: 'Local persistence is managed by Drift SQLite, ensuring high performance without latency.',
-                ),
-              ],
-            );
-          },
-        ),
-      );
+    test(
+      'Extracts text from real-world binary PDF generated via pdf package',
+      () async {
+        final doc = pw.Document();
+        doc.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (pw.Context context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Header(
+                    level: 0,
+                    text: 'Quiet Paper Product Specification',
+                  ),
+                  pw.Paragraph(
+                    text:
+                        'Quiet Paper is an offline-first notes application inspired by Bear Notes with zero-knowledge end-to-end encryption.',
+                  ),
+                  pw.Paragraph(
+                    text:
+                        'Local persistence is managed by Drift SQLite, ensuring high performance without latency.',
+                  ),
+                ],
+              );
+            },
+          ),
+        );
 
-      final realPdfBytes = await doc.save();
-      expect(realPdfBytes.isNotEmpty, isTrue);
+        final realPdfBytes = await doc.save();
+        expect(realPdfBytes.isNotEmpty, isTrue);
 
-      final result = await extractor.extractText(realPdfBytes);
+        final result = await extractor.extractText(realPdfBytes);
 
-      expect(result.hasUsableText, isTrue);
-      expect(result.pages.length, equals(1));
-      expect(result.extractedText, contains('Quiet Paper Product Specification'));
-      expect(result.extractedText, contains('offline-first notes application'));
-      expect(result.extractedText, contains('zero-knowledge end-to-end encryption'));
-      expect(result.pages.first.source, equals(OcrSource.embeddedPdfText));
-      expect(result.pages.first.blocks.length, greaterThanOrEqualTo(1));
-    });
+        expect(result.hasUsableText, isTrue);
+        expect(result.pages.length, equals(1));
+        expect(
+          result.extractedText,
+          contains('Quiet Paper Product Specification'),
+        );
+        expect(
+          result.extractedText,
+          contains('offline-first notes application'),
+        );
+        expect(
+          result.extractedText,
+          contains('zero-knowledge end-to-end encryption'),
+        );
+        expect(result.pages.first.source, equals(OcrSource.embeddedPdfText));
+        expect(result.pages.first.blocks.length, greaterThanOrEqualTo(1));
+      },
+    );
 
     test('Extracts text from real-world multi-page binary PDF', () async {
       final doc = pw.Document();
@@ -308,7 +415,10 @@ endobj
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           build: (pw.Context context) {
-            return pw.Header(level: 0, text: 'Chapter 1: Encryption Architecture');
+            return pw.Header(
+              level: 0,
+              text: 'Chapter 1: Encryption Architecture',
+            );
           },
         ),
       );
@@ -326,9 +436,15 @@ endobj
 
       expect(result.hasUsableText, isTrue);
       expect(result.pages.length, equals(2));
-      expect(result.pages[0].plainText, contains('Chapter 1: Encryption Architecture'));
+      expect(
+        result.pages[0].plainText,
+        contains('Chapter 1: Encryption Architecture'),
+      );
       expect(result.pages[0].plainText, isNot(contains('Chapter 2')));
-      expect(result.pages[1].plainText, contains('Chapter 2: Master Key Hierarchy'));
+      expect(
+        result.pages[1].plainText,
+        contains('Chapter 2: Master Key Hierarchy'),
+      );
       expect(result.pages[1].plainText, isNot(contains('Chapter 1')));
     });
   });

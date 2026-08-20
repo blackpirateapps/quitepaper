@@ -58,3 +58,7 @@ app.*.map.json
 .env.local
 *.env
 !*.env.example
+
+# Local test artifacts
+/test.pdf
+

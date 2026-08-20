@@ -11,6 +11,7 @@ class PdfTextExtractionResult {
     required this.hasUsableText,
     this.pages = const [],
     this.extractedText = '',
+    this.timedOut = false,
   });
 
   /// Whether a usable text layer was present in the PDF.
@@ -22,6 +23,9 @@ class PdfTextExtractionResult {
 
   /// Combined plain text across all pages.
   final String extractedText;
+
+  /// Whether extraction was stopped by its bounded processing budget.
+  final bool timedOut;
 }
 
 /// Abstract contract for inspecting and extracting embedded text layers from PDF files.
@@ -39,7 +43,12 @@ abstract class PdfTextExtractor {
 /// - Text display operators (Tj, TJ with kerning spacing, ', ")
 /// - Layout reconstruction, word spacing synthesis, and paragraph formatting
 class DefaultPdfTextExtractor implements PdfTextExtractor {
-  const DefaultPdfTextExtractor();
+  const DefaultPdfTextExtractor({
+    this.extractionTimeout = const Duration(seconds: 5),
+  });
+
+  /// Limits parsing of hostile or unsupported embedded text layers.
+  final Duration extractionTimeout;
 
   @override
   Future<PdfTextExtractionResult> extractText(Uint8List pdfBytes) async {
@@ -48,18 +57,36 @@ class DefaultPdfTextExtractor implements PdfTextExtractor {
         return const PdfTextExtractionResult(hasUsableText: false);
       }
 
-      // Execute on background isolate to guarantee 0ms UI blocking
-      return await compute(_extractWorker, pdfBytes);
+      // Execute on a background isolate to keep the UI responsive. The worker
+      // enforces the same deadline so it exits rather than running indefinitely.
+      return await compute(_extractWorker, <String, dynamic>{
+        'pdfBytes': pdfBytes,
+        'timeoutMilliseconds': extractionTimeout.inMilliseconds,
+      }).timeout(
+        extractionTimeout + const Duration(seconds: 1),
+        onTimeout: () =>
+            const PdfTextExtractionResult(hasUsableText: false, timedOut: true),
+      );
     } catch (e, st) {
       debugPrint('[QuietPaper OCR] PdfTextExtractor extraction error: $e\n$st');
       return const PdfTextExtractionResult(hasUsableText: false);
     }
   }
 
-  static PdfTextExtractionResult _extractWorker(Uint8List pdfBytes) {
+  static PdfTextExtractionResult _extractWorker(Map<String, dynamic> request) {
     try {
-      final parser = _PdfDocumentParser(pdfBytes);
+      final parser = _PdfDocumentParser(
+        request['pdfBytes'] as Uint8List,
+        timeLimit: Duration(
+          milliseconds: request['timeoutMilliseconds'] as int,
+        ),
+      );
       return parser.extractAllPagesText();
+    } on _PdfExtractionTimeout {
+      return const PdfTextExtractionResult(
+        hasUsableText: false,
+        timedOut: true,
+      );
     } catch (e) {
       return const PdfTextExtractionResult(hasUsableText: false);
     }
@@ -71,16 +98,29 @@ class DefaultPdfTextExtractor implements PdfTextExtractor {
 // =============================================================================
 
 class _PdfDocumentParser {
-  _PdfDocumentParser(this.bytes) : data = ByteData.sublistView(bytes);
+  _PdfDocumentParser(this.bytes, {this.timeLimit = const Duration(seconds: 5)})
+    : data = ByteData.sublistView(bytes),
+      _stopwatch = Stopwatch()..start();
 
   final Uint8List bytes;
   final ByteData data;
+  final Duration timeLimit;
+  final Stopwatch _stopwatch;
+  int _checkpointCount = 0;
 
   final Map<_PdfRef, int> _objectOffsets = {};
   final Map<_PdfRef, _PdfIndirectObject> _objects = {};
   final Map<_PdfRef, _PdfFont> _fontCache = {};
 
+  void _checkpoint({bool force = false}) {
+    if (!force && (++_checkpointCount & 0x3FF) != 0) return;
+    if (_stopwatch.elapsed >= timeLimit) {
+      throw const _PdfExtractionTimeout();
+    }
+  }
+
   PdfTextExtractionResult extractAllPagesText() {
+    _checkpoint(force: true);
     // 1. Index all indirect object offsets
     _indexAllObjectOffsets();
 
@@ -100,6 +140,7 @@ class _PdfDocumentParser {
     final fullDocBuffer = StringBuffer();
 
     for (var i = 0; i < pageRefs.length; i++) {
+      _checkpoint();
       final pageRef = pageRefs[i];
       final pageNum = i + 1;
       final pageObj = _resolveObject(pageRef);
@@ -129,7 +170,10 @@ class _PdfDocumentParser {
 
   bool _hasMeaningfulText(String text) {
     if (text.isEmpty) return false;
-    final words = text.split(RegExp(r'\s+')).where((w) => w.length >= 2).toList();
+    final words = text
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length >= 2)
+        .toList();
     // At least 1 word with printable characters
     return words.isNotEmpty;
   }
@@ -152,6 +196,7 @@ class _PdfDocumentParser {
     var offset = 0;
 
     while (offset < length - 6) {
+      _checkpoint();
       final loopStart = offset;
       if (_isDigit(bytes[offset])) {
         final objStart = offset;
@@ -166,7 +211,8 @@ class _PdfDocumentParser {
                   bytes[offset] == 0x6F && // 'o'
                   bytes[offset + 1] == 0x62 && // 'b'
                   bytes[offset + 2] == 0x6A && // 'j'
-                  (offset + 3 == length || _isDelimiterOrWs(bytes[offset + 3]))) {
+                  (offset + 3 == length ||
+                      _isDelimiterOrWs(bytes[offset + 3]))) {
                 offset += 3;
                 final ref = _PdfRef(num.value, gen.value);
                 _objectOffsets[ref] = objStart;
@@ -194,7 +240,8 @@ class _PdfDocumentParser {
           bytes[i + 5] == 0x78 && // 'x'
           bytes[i + 6] == 0x72 && // 'r'
           bytes[i + 7] == 0x65 && // 'e'
-          bytes[i + 8] == 0x66) { // 'f'
+          bytes[i + 8] == 0x66) {
+        // 'f'
         var pos = _skipWhitespace(i + 9);
         final num = _readInt(pos);
         if (num != null && num.value >= 0 && num.value < bytes.length) {
@@ -212,11 +259,13 @@ class _PdfDocumentParser {
           bytes[offset] == 0x78 && // 'x'
           bytes[offset + 1] == 0x72 && // 'r'
           bytes[offset + 2] == 0x65 && // 'e'
-          bytes[offset + 3] == 0x66) { // 'f'
+          bytes[offset + 3] == 0x66) {
+        // 'f'
         offset += 4;
         offset = _skipWhitespace(offset);
 
         while (offset < bytes.length) {
+          _checkpoint();
           if (bytes[offset] == 0x74 && // 't' in trailer
               offset + 7 <= bytes.length &&
               bytes[offset + 1] == 0x72 &&
@@ -239,6 +288,7 @@ class _PdfDocumentParser {
           final count = countNum.value;
 
           for (var i = 0; i < count; i++) {
+            _checkpoint();
             if (offset + 20 > bytes.length) break;
             final lineStr = latin1.decode(bytes.sublist(offset, offset + 20));
             offset += 20;
@@ -247,7 +297,10 @@ class _PdfDocumentParser {
               final byteOff = int.tryParse(parts[0]);
               final genNum = int.tryParse(parts[1]) ?? 0;
               final type = parts[2];
-              if (type == 'n' && byteOff != null && byteOff > 0 && byteOff < bytes.length) {
+              if (type == 'n' &&
+                  byteOff != null &&
+                  byteOff > 0 &&
+                  byteOff < bytes.length) {
                 final ref = _PdfRef(firstObj + i, genNum);
                 _objectOffsets[ref] = byteOff;
               }
@@ -344,7 +397,8 @@ class _PdfDocumentParser {
       );
       _objects[ref] = obj;
 
-      if (obj.streamDict != null && _getName(obj.streamDict!['/Type']) == '/ObjStm') {
+      if (obj.streamDict != null &&
+          _getName(obj.streamDict!['/Type']) == '/ObjStm') {
         _unpackObjectStream(obj);
       }
 
@@ -368,10 +422,15 @@ class _PdfDocumentParser {
 
   _PdfRef? _findTrailerRootRef() {
     final searchStart = math.max(0, bytes.length - 8192);
-    final trailerSlice = latin1.decode(bytes.sublist(searchStart), allowInvalid: true);
+    final trailerSlice = latin1.decode(
+      bytes.sublist(searchStart),
+      allowInvalid: true,
+    );
 
     // Form 1: /Root N M R
-    final rootMatch = RegExp(r'/Root\s+(\d+)\s+(\d+)\s+R').firstMatch(trailerSlice);
+    final rootMatch = RegExp(
+      r'/Root\s+(\d+)\s+(\d+)\s+R',
+    ).firstMatch(trailerSlice);
     if (rootMatch != null) {
       final objNum = int.tryParse(rootMatch.group(1)!);
       final genNum = int.tryParse(rootMatch.group(2)!);
@@ -381,7 +440,9 @@ class _PdfDocumentParser {
     }
 
     // Form 2: /Root N M
-    final rootMatchShort = RegExp(r'/Root\s+(\d+)\s+(\d+)').firstMatch(trailerSlice);
+    final rootMatchShort = RegExp(
+      r'/Root\s+(\d+)\s+(\d+)',
+    ).firstMatch(trailerSlice);
     if (rootMatchShort != null) {
       final objNum = int.tryParse(rootMatchShort.group(1)!);
       final genNum = int.tryParse(rootMatchShort.group(2)!);
@@ -413,7 +474,8 @@ class _PdfDocumentParser {
       final obj = _resolveObject(ref);
       if (obj?.value is Map<String, dynamic>) {
         final dict = obj!.value as Map<String, dynamic>;
-        if (_getName(dict['/Type']) == '/Catalog' || dict.containsKey('/Pages')) {
+        if (_getName(dict['/Type']) == '/Catalog' ||
+            dict.containsKey('/Pages')) {
           final pagesRef = dict['/Pages'];
           final resolvedPages = _resolvePagesNode(pagesRef);
           if (resolvedPages.isNotEmpty) {
@@ -470,7 +532,9 @@ class _PdfDocumentParser {
       for (final kid in kids) {
         if (kid is _PdfRef) {
           final kidObj = _resolveObject(kid);
-          final kidDict = kidObj?.value is Map<String, dynamic> ? kidObj!.value as Map<String, dynamic> : null;
+          final kidDict = kidObj?.value is Map<String, dynamic>
+              ? kidObj!.value as Map<String, dynamic>
+              : null;
           final kidType = _getName(kidDict?['/Type']);
           if (kidType == '/Pages' || kidDict?.containsKey('/Kids') == true) {
             results.addAll(_resolvePagesNode(kid));
@@ -490,12 +554,15 @@ class _PdfDocumentParser {
 
   OcrPage? _processPage(int pageNumber, Map<String, dynamic> pageDict) {
     // MediaBox / CropBox
-    var mediaBox = _parseBox(pageDict['/MediaBox']) ?? _parseBox(pageDict['/CropBox']);
+    var mediaBox =
+        _parseBox(pageDict['/MediaBox']) ?? _parseBox(pageDict['/CropBox']);
     if (mediaBox == null) {
       // Check parent /Pages node for inherited MediaBox
       final parent = _resolveObject(pageDict['/Parent']);
       if (parent?.value is Map<String, dynamic>) {
-        mediaBox = _parseBox((parent!.value as Map<String, dynamic>)['/MediaBox']);
+        mediaBox = _parseBox(
+          (parent!.value as Map<String, dynamic>)['/MediaBox'],
+        );
       }
     }
     mediaBox ??= const _Box(0, 0, 595.28, 841.89); // Default A4
@@ -549,7 +616,15 @@ class _PdfDocumentParser {
           continue;
         }
 
-        final fontObj = _resolveObject(fontRef) ?? (fontRef is Map<String, dynamic> ? _PdfIndirectObject(ref: const _PdfRef(0, 0), offset: 0, value: fontRef) : null);
+        final fontObj =
+            _resolveObject(fontRef) ??
+            (fontRef is Map<String, dynamic>
+                ? _PdfIndirectObject(
+                    ref: const _PdfRef(0, 0),
+                    offset: 0,
+                    value: fontRef,
+                  )
+                : null);
         if (fontObj != null && fontObj.value is Map<String, dynamic>) {
           final font = _parseFont(fontObj.value as Map<String, dynamic>);
           fonts[entry.key] = font;
@@ -573,7 +648,10 @@ class _PdfDocumentParser {
     dynamic toUnicodeRef = fontDict['/ToUnicode'];
     final toUnicodeObj = _resolveObject(toUnicodeRef);
     if (toUnicodeObj != null && toUnicodeObj.streamBytes != null) {
-      final decompressed = _decompressStream(toUnicodeObj.streamBytes, toUnicodeObj.streamDict);
+      final decompressed = _decompressStream(
+        toUnicodeObj.streamBytes,
+        toUnicodeObj.streamDict,
+      );
       if (decompressed != null && decompressed.isNotEmpty) {
         toUnicodeMap = _parseToUnicodeCMap(decompressed);
       }
@@ -607,11 +685,18 @@ class _PdfDocumentParser {
       final text = latin1.decode(cmapBytes, allowInvalid: true);
 
       // 1. beginbfchar ... endbfchar
-      final bfCharRegex = RegExp(r'beginbfchar\s*(.*?)\s*endbfchar', dotAll: true);
+      final bfCharRegex = RegExp(
+        r'beginbfchar\s*(.*?)\s*endbfchar',
+        dotAll: true,
+      );
       for (final match in bfCharRegex.allMatches(text)) {
+        _checkpoint();
         final block = match.group(1) ?? '';
-        final charPairs = RegExp(r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>').allMatches(block);
+        final charPairs = RegExp(
+          r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>',
+        ).allMatches(block);
         for (final cp in charPairs) {
+          _checkpoint();
           final srcHex = cp.group(1)!;
           final dstHex = cp.group(2)!;
           final srcCode = int.tryParse(srcHex, radix: 16);
@@ -622,18 +707,29 @@ class _PdfDocumentParser {
       }
 
       // 2. beginbfrange ... endbfrange (Format 1: <start> <end> <destStart>)
-      final bfRangeRegex = RegExp(r'beginbfrange\s*(.*?)\s*endbfrange', dotAll: true);
+      final bfRangeRegex = RegExp(
+        r'beginbfrange\s*(.*?)\s*endbfrange',
+        dotAll: true,
+      );
       for (final match in bfRangeRegex.allMatches(text)) {
+        _checkpoint();
         final block = match.group(1) ?? '';
 
         // Form A: <src1> <src2> <dstStart>
-        final rangeA = RegExp(r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>').allMatches(block);
+        final rangeA = RegExp(
+          r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>',
+        ).allMatches(block);
         for (final r in rangeA) {
+          _checkpoint();
           final start = int.tryParse(r.group(1)!, radix: 16);
           final end = int.tryParse(r.group(2)!, radix: 16);
           final dstStart = int.tryParse(r.group(3)!, radix: 16);
-          if (start != null && end != null && dstStart != null && end >= start) {
+          if (start != null &&
+              end != null &&
+              dstStart != null &&
+              end >= start) {
             for (var c = start; c <= end; c++) {
+              _checkpoint();
               final targetCode = dstStart + (c - start);
               map[c] = String.fromCharCode(targetCode);
             }
@@ -641,14 +737,25 @@ class _PdfDocumentParser {
         }
 
         // Form B: <src1> <src2> [ <dst1> <dst2> ... ]
-        final rangeB = RegExp(r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*\[(.*?)\]', dotAll: true).allMatches(block);
+        final rangeB = RegExp(
+          r'<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*\[(.*?)\]',
+          dotAll: true,
+        ).allMatches(block);
         for (final r in rangeB) {
+          _checkpoint();
           final start = int.tryParse(r.group(1)!, radix: 16);
           final end = int.tryParse(r.group(2)!, radix: 16);
           final arrayContent = r.group(3) ?? '';
-          final hexItems = RegExp(r'<([0-9a-fA-F]+)>').allMatches(arrayContent).map((m) => m.group(1)!).toList();
+          final hexItems = RegExp(
+            r'<([0-9a-fA-F]+)>',
+          ).allMatches(arrayContent).map((m) => m.group(1)!).toList();
           if (start != null && end != null) {
-            for (var idx = 0; idx < hexItems.length && (start + idx) <= end; idx++) {
+            for (
+              var idx = 0;
+              idx < hexItems.length && (start + idx) <= end;
+              idx++
+            ) {
+              _checkpoint();
               map[start + idx] = _hexToUnicode(hexItems[idx]);
             }
           }
@@ -735,7 +842,10 @@ class _PdfDocumentParser {
     return Uint8List.fromList(bytesList);
   }
 
-  Uint8List? _decompressStream(Uint8List? rawBytes, Map<String, dynamic>? dict) {
+  Uint8List? _decompressStream(
+    Uint8List? rawBytes,
+    Map<String, dynamic>? dict,
+  ) {
     if (rawBytes == null || rawBytes.isEmpty) return null;
     if (dict == null) return rawBytes;
 
@@ -818,7 +928,9 @@ class _PdfDocumentParser {
     // 4. Try skipping first 2 bytes if header is corrupted
     if (rawBytes.length > 6) {
       try {
-        return Uint8List.fromList(ZLibDecoder(raw: true).convert(rawBytes.sublist(2)));
+        return Uint8List.fromList(
+          ZLibDecoder(raw: true).convert(rawBytes.sublist(2)),
+        );
       } catch (_) {}
     }
 
@@ -956,7 +1068,10 @@ class _PdfDocumentParser {
     _Box mediaBox,
   ) {
     final fragments = <_TextFragment>[];
-    final tokenizer = _ContentStreamTokenizer(contentBytes);
+    final tokenizer = _ContentStreamTokenizer(
+      contentBytes,
+      onProgress: _checkpoint,
+    );
 
     _Matrix ctm = const _Matrix();
     final ctmStack = <_Matrix>[];
@@ -973,6 +1088,7 @@ class _PdfDocumentParser {
     final operands = <dynamic>[];
 
     while (tokenizer.hasNext()) {
+      _checkpoint();
       final token = tokenizer.nextToken();
       if (token == null) break;
 
@@ -1141,7 +1257,8 @@ class _PdfDocumentParser {
                   );
                 } else if (item is num) {
                   final kern = item.toDouble();
-                  final displacement = -kern / 1000.0 * fontSize * (horizScale / 100.0);
+                  final displacement =
+                      -kern / 1000.0 * fontSize * (horizScale / 100.0);
                   tm = tm.multiply(_Matrix(1, 0, 0, 1, displacement, 0));
                   if (kern <= -150 && fragments.isNotEmpty) {
                     fragments.last.hadKerningSpace = true;
@@ -1188,12 +1305,14 @@ class _PdfDocumentParser {
 
     // Approximate width and height in points
     final scaleFactor = horizScale / 100.0;
-    final approxWidth = (_calculateStringWidth(decoded, fontSize) * scaleFactor).clamp(1.0, 2000.0);
+    final approxWidth = (_calculateStringWidth(decoded, fontSize) * scaleFactor)
+        .clamp(1.0, 2000.0);
     final approxHeight = (fontSize * combined.d.abs()).clamp(2.0, 200.0);
 
     // Map to Normalized Page Coordinates [0.0, 1.0] (top-left origin)
     final normX = ((userX - mediaBox.x0) / mediaBox.width).clamp(0.0, 1.0);
-    final normY = ((mediaBox.y1 - userY - approxHeight) / mediaBox.height).clamp(0.0, 1.0);
+    final normY = ((mediaBox.y1 - userY - approxHeight) / mediaBox.height)
+        .clamp(0.0, 1.0);
     final normW = (approxWidth / mediaBox.width).clamp(0.001, 1.0);
     final normH = (approxHeight / mediaBox.height).clamp(0.001, 0.5);
 
@@ -1289,9 +1408,13 @@ class _PdfDocumentParser {
         if (f > 0) {
           final prev = lineFrags[f - 1];
           final gap = frag.normX - (prev.normX + prev.normW);
-          final spaceThreshold = (0.08 * (frag.fontSize / mediaBox.width)).clamp(0.0003, 0.003);
-          if (prev.hadKerningSpace || gap > spaceThreshold || frag.normX > (prev.normX + prev.normW * 0.90)) {
-            if (!lineBuffer.toString().endsWith(' ') && !frag.text.startsWith(' ')) {
+          final spaceThreshold = (0.08 * (frag.fontSize / mediaBox.width))
+              .clamp(0.0003, 0.003);
+          if (prev.hadKerningSpace ||
+              gap > spaceThreshold ||
+              frag.normX > (prev.normX + prev.normW * 0.90)) {
+            if (!lineBuffer.toString().endsWith(' ') &&
+                !frag.text.startsWith(' ')) {
               lineBuffer.write(' ');
             }
           }
@@ -1299,11 +1422,21 @@ class _PdfDocumentParser {
         lineBuffer.write(frag.text);
 
         // Build word objects
-        final words = frag.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final words = frag.text
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
         for (var w = 0; w < words.length; w++) {
           final word = words[w];
-          final wordX = (frag.normX + (w / math.max(1, words.length)) * frag.normW).clamp(0.0, 1.0);
-          final wordW = (frag.normW / math.max(1, words.length)).clamp(0.001, 1.0);
+          final wordX =
+              (frag.normX + (w / math.max(1, words.length)) * frag.normW).clamp(
+                0.0,
+                1.0,
+              );
+          final wordW = (frag.normW / math.max(1, words.length)).clamp(
+            0.001,
+            1.0,
+          );
           ocrWords.add(
             OcrWord(
               text: word,
@@ -1352,15 +1485,20 @@ class _PdfDocumentParser {
       for (var l = 1; l < ocrLines.length; l++) {
         final prevLine = ocrLines[l - 1];
         final currLine = ocrLines[l];
-        final lineGap = currLine.bounds.y - (prevLine.bounds.y + prevLine.bounds.height);
+        final lineGap =
+            currLine.bounds.y - (prevLine.bounds.y + prevLine.bounds.height);
         final isParagraphBreak = lineGap > (prevLine.bounds.height * 1.35);
 
         if (isParagraphBreak) {
-          final blockText = currentBlockLines.map((line) => line.text).join('\n');
+          final blockText = currentBlockLines
+              .map((line) => line.text)
+              .join('\n');
           blocks.add(
             OcrBlock(
               text: blockText,
-              bounds: _computeEnclosingBounds(currentBlockLines.map((l) => l.bounds).toList()),
+              bounds: _computeEnclosingBounds(
+                currentBlockLines.map((l) => l.bounds).toList(),
+              ),
               lines: List.of(currentBlockLines),
             ),
           );
@@ -1377,7 +1515,9 @@ class _PdfDocumentParser {
         blocks.add(
           OcrBlock(
             text: blockText,
-            bounds: _computeEnclosingBounds(currentBlockLines.map((l) => l.bounds).toList()),
+            bounds: _computeEnclosingBounds(
+              currentBlockLines.map((l) => l.bounds).toList(),
+            ),
             lines: List.of(currentBlockLines),
           ),
         );
@@ -1397,7 +1537,9 @@ class _PdfDocumentParser {
   }
 
   NormalizedRect _computeEnclosingBounds(List<NormalizedRect> boxes) {
-    if (boxes.isEmpty) return const NormalizedRect(x: 0, y: 0, width: 1, height: 1);
+    if (boxes.isEmpty) {
+      return const NormalizedRect(x: 0, y: 0, width: 1, height: 1);
+    }
     final minX = boxes.map((b) => b.x).reduce(math.min);
     final minY = boxes.map((b) => b.y).reduce(math.min);
     final maxX = boxes.map((b) => b.x + b.width).reduce(math.max);
@@ -1452,7 +1594,10 @@ class _PdfDocumentParser {
         }
       }
 
-      final cleanLines = extractedLines.map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+      final cleanLines = extractedLines
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
       if (cleanLines.isEmpty) {
         return const PdfTextExtractionResult(hasUsableText: false);
       }
@@ -1467,8 +1612,26 @@ class _PdfDocumentParser {
         blocks: [
           OcrBlock(
             text: fullText,
-            bounds: const NormalizedRect(x: 0.05, y: 0.05, width: 0.90, height: 0.90),
-            lines: cleanLines.map((l) => OcrLine(text: l, bounds: const NormalizedRect(x: 0.05, y: 0.05, width: 0.90, height: 0.04), words: const [])).toList(),
+            bounds: const NormalizedRect(
+              x: 0.05,
+              y: 0.05,
+              width: 0.90,
+              height: 0.90,
+            ),
+            lines: cleanLines
+                .map(
+                  (l) => OcrLine(
+                    text: l,
+                    bounds: const NormalizedRect(
+                      x: 0.05,
+                      y: 0.05,
+                      width: 0.90,
+                      height: 0.04,
+                    ),
+                    words: const [],
+                  ),
+                )
+                .toList(),
           ),
         ],
       );
@@ -1487,8 +1650,13 @@ class _PdfDocumentParser {
   // Low-Level Tokenizer & Helpers
   // ---------------------------------------------------------------------------
 
-  ({dynamic value, Uint8List? streamBytes, Map<String, dynamic>? streamDict, int nextOffset})
-      _parseObjectValue(int startOffset) {
+  ({
+    dynamic value,
+    Uint8List? streamBytes,
+    Map<String, dynamic>? streamDict,
+    int nextOffset,
+  })
+  _parseObjectValue(int startOffset) {
     var offset = _skipWhitespace(startOffset);
     final parsed = _parseDirectValue(offset);
     offset = parsed.nextOffset;
@@ -1501,17 +1669,25 @@ class _PdfDocumentParser {
         bytes[offset + 2] == 0x72 && // 'r'
         bytes[offset + 3] == 0x65 && // 'e'
         bytes[offset + 4] == 0x61 && // 'a'
-        bytes[offset + 5] == 0x6D) { // 'm'
+        bytes[offset + 5] == 0x6D) {
+      // 'm'
       offset += 6;
       if (offset < bytes.length && bytes[offset] == 0x0D) offset++; // \r
       if (offset < bytes.length && bytes[offset] == 0x0A) offset++; // \n
 
       final streamStart = offset;
-      final dict = parsed.value is Map<String, dynamic> ? parsed.value as Map<String, dynamic> : null;
+      final dict = parsed.value is Map<String, dynamic>
+          ? parsed.value as Map<String, dynamic>
+          : null;
       final declaredLen = _asInt(_dereference(dict?['/Length']));
 
-      if (declaredLen != null && declaredLen > 0 && streamStart + declaredLen <= bytes.length) {
-        final streamData = bytes.sublist(streamStart, streamStart + declaredLen);
+      if (declaredLen != null &&
+          declaredLen > 0 &&
+          streamStart + declaredLen <= bytes.length) {
+        final streamData = bytes.sublist(
+          streamStart,
+          streamStart + declaredLen,
+        );
         var afterStream = streamStart + declaredLen;
         afterStream = _skipWhitespace(afterStream);
         if (afterStream + 9 <= bytes.length &&
@@ -1555,8 +1731,12 @@ class _PdfDocumentParser {
 
       if (streamEnd >= streamStart) {
         var trimmedEnd = streamEnd;
-        if (trimmedEnd > streamStart && bytes[trimmedEnd - 1] == 0x0A) trimmedEnd--;
-        if (trimmedEnd > streamStart && bytes[trimmedEnd - 1] == 0x0D) trimmedEnd--;
+        if (trimmedEnd > streamStart && bytes[trimmedEnd - 1] == 0x0A) {
+          trimmedEnd--;
+        }
+        if (trimmedEnd > streamStart && bytes[trimmedEnd - 1] == 0x0D) {
+          trimmedEnd--;
+        }
 
         final streamData = bytes.sublist(streamStart, trimmedEnd);
         return (
@@ -1614,13 +1794,19 @@ class _PdfDocumentParser {
     }
 
     // Boolean true / false / null
-    if (b == 0x74 && offset + 4 <= bytes.length && latin1.decode(bytes.sublist(offset, offset + 4)) == 'true') {
+    if (b == 0x74 &&
+        offset + 4 <= bytes.length &&
+        latin1.decode(bytes.sublist(offset, offset + 4)) == 'true') {
       return (value: true, nextOffset: offset + 4);
     }
-    if (b == 0x66 && offset + 5 <= bytes.length && latin1.decode(bytes.sublist(offset, offset + 5)) == 'false') {
+    if (b == 0x66 &&
+        offset + 5 <= bytes.length &&
+        latin1.decode(bytes.sublist(offset, offset + 5)) == 'false') {
       return (value: false, nextOffset: offset + 5);
     }
-    if (b == 0x6E && offset + 4 <= bytes.length && latin1.decode(bytes.sublist(offset, offset + 4)) == 'null') {
+    if (b == 0x6E &&
+        offset + 4 <= bytes.length &&
+        latin1.decode(bytes.sublist(offset, offset + 4)) == 'null') {
       return (value: null, nextOffset: offset + 4);
     }
 
@@ -1629,10 +1815,15 @@ class _PdfDocumentParser {
     while (offset < bytes.length && !_isDelimiterOrWs(bytes[offset])) {
       offset++;
     }
-    return (value: latin1.decode(bytes.sublist(start, offset)), nextOffset: offset);
+    return (
+      value: latin1.decode(bytes.sublist(start, offset)),
+      nextOffset: offset,
+    );
   }
 
-  ({Map<String, dynamic> value, int nextOffset}) _parseDictionary(int startOffset) {
+  ({Map<String, dynamic> value, int nextOffset}) _parseDictionary(
+    int startOffset,
+  ) {
     var offset = startOffset + 2; // skip '<<'
     final dict = <String, dynamic>{};
 
@@ -1640,7 +1831,9 @@ class _PdfDocumentParser {
       offset = _skipWhitespace(offset);
       if (offset >= bytes.length) break;
 
-      if (bytes[offset] == 0x3E && offset + 1 < bytes.length && bytes[offset + 1] == 0x3E) {
+      if (bytes[offset] == 0x3E &&
+          offset + 1 < bytes.length &&
+          bytes[offset + 1] == 0x3E) {
         offset += 2; // skip '>>'
         break;
       }
@@ -1772,10 +1965,7 @@ class _PdfDocumentParser {
       raw[i] = (h << 4) | l;
     }
 
-    return (
-      value: _PdfRawString(raw, isHex: true),
-      nextOffset: offset,
-    );
+    return (value: _PdfRawString(raw, isHex: true), nextOffset: offset);
   }
 
   ({String value, int nextOffset}) _parseName(int startOffset) {
@@ -1804,8 +1994,10 @@ class _PdfDocumentParser {
         final num2 = _readInt(wsOffset);
         if (num2 != null) {
           final afterGen = _skipWhitespace(num2.nextOffset);
-          if (afterGen < bytes.length && bytes[afterGen] == 0x52 && // 'R'
-              (afterGen + 1 == bytes.length || _isDelimiterOrWs(bytes[afterGen + 1]))) {
+          if (afterGen < bytes.length &&
+              bytes[afterGen] == 0x52 && // 'R'
+              (afterGen + 1 == bytes.length ||
+                  _isDelimiterOrWs(bytes[afterGen + 1]))) {
             return (
               value: _PdfRef(num1.value, num2.value),
               nextOffset: afterGen + 1,
@@ -1831,11 +2023,18 @@ class _PdfDocumentParser {
   int _skipWhitespace(int offset) {
     while (offset < bytes.length) {
       final b = bytes[offset];
-      if (b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D || b == 0x0C || b == 0x00) {
+      if (b == 0x20 ||
+          b == 0x09 ||
+          b == 0x0A ||
+          b == 0x0D ||
+          b == 0x0C ||
+          b == 0x00) {
         offset++;
       } else if (b == 0x25) {
         // '%' comment
-        while (offset < bytes.length && bytes[offset] != 0x0A && bytes[offset] != 0x0D) {
+        while (offset < bytes.length &&
+            bytes[offset] != 0x0A &&
+            bytes[offset] != 0x0D) {
           offset++;
         }
       } else {
@@ -1877,9 +2076,22 @@ class _PdfDocumentParser {
   }
 
   static bool _isDelimiterOrWs(int b) {
-    return b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D || b == 0x0C || b == 0x00 ||
-        b == 0x28 || b == 0x29 || b == 0x3C || b == 0x3E || b == 0x5B || b == 0x5D ||
-        b == 0x7B || b == 0x7D || b == 0x2F || b == 0x25;
+    return b == 0x20 ||
+        b == 0x09 ||
+        b == 0x0A ||
+        b == 0x0D ||
+        b == 0x0C ||
+        b == 0x00 ||
+        b == 0x28 ||
+        b == 0x29 ||
+        b == 0x3C ||
+        b == 0x3E ||
+        b == 0x5B ||
+        b == 0x5D ||
+        b == 0x7B ||
+        b == 0x7D ||
+        b == 0x2F ||
+        b == 0x25;
   }
 
   static String? _getName(dynamic val) {
@@ -1916,9 +2128,10 @@ class _PdfDocumentParser {
 // =============================================================================
 
 class _ContentStreamTokenizer {
-  _ContentStreamTokenizer(this.bytes);
+  _ContentStreamTokenizer(this.bytes, {required this.onProgress});
 
   final Uint8List bytes;
+  final VoidCallback onProgress;
   int _offset = 0;
 
   bool hasNext() {
@@ -1927,6 +2140,8 @@ class _ContentStreamTokenizer {
   }
 
   dynamic nextToken() {
+    final startOffset = _offset;
+    onProgress();
     _skipWs();
     if (_offset >= bytes.length) return null;
 
@@ -1935,6 +2150,13 @@ class _ContentStreamTokenizer {
     // Literal String ( ... )
     if (b == 0x28) {
       return _readLiteralString();
+    }
+
+    // Marked-content properties are dictionaries, for example
+    // `/Span << /MCID 0 >> BDC`. They are operands, not hex strings.
+    if (b == 0x3C && _offset + 1 < bytes.length && bytes[_offset + 1] == 0x3C) {
+      _skipDictionary();
+      return const _ContentDictionary();
     }
 
     // Hex String < ... >
@@ -1951,15 +2173,24 @@ class _ContentStreamTokenizer {
     if (b == 0x2F) {
       final start = _offset;
       _offset++;
-      while (_offset < bytes.length && !_PdfDocumentParser._isDelimiterOrWs(bytes[_offset])) {
+      while (_offset < bytes.length &&
+          !_PdfDocumentParser._isDelimiterOrWs(bytes[_offset])) {
         _offset++;
       }
       return latin1.decode(bytes.sublist(start, _offset));
     }
 
+    // Consume malformed standalone delimiters. A tokenizer must always make
+    // progress: previously a dangling `>` could be returned forever.
+    if (_PdfDocumentParser._isDelimiterOrWs(b)) {
+      _offset++;
+      return const _Operator('');
+    }
+
     // Number or Keyword / Operator
     final start = _offset;
-    while (_offset < bytes.length && !_PdfDocumentParser._isDelimiterOrWs(bytes[_offset])) {
+    while (_offset < bytes.length &&
+        !_PdfDocumentParser._isDelimiterOrWs(bytes[_offset])) {
       _offset++;
     }
 
@@ -1969,7 +2200,36 @@ class _ContentStreamTokenizer {
       return numVal;
     }
 
+    if (_offset == startOffset) {
+      _offset++;
+      return const _Operator('');
+    }
     return _Operator(tokenStr);
+  }
+
+  void _skipDictionary() {
+    var depth = 0;
+
+    while (_offset < bytes.length - 1) {
+      onProgress();
+      if (bytes[_offset] == 0x3C && bytes[_offset + 1] == 0x3C) {
+        depth++;
+        _offset += 2;
+      } else if (bytes[_offset] == 0x3E && bytes[_offset + 1] == 0x3E) {
+        depth--;
+        _offset += 2;
+        if (depth == 0) return;
+      } else if (bytes[_offset] == 0x28) {
+        _readLiteralString();
+      } else if (bytes[_offset] == 0x3C) {
+        _readHexString();
+      } else {
+        _offset++;
+      }
+    }
+
+    // Consume a final byte in a malformed dictionary before returning.
+    if (_offset < bytes.length) _offset++;
   }
 
   _PdfRawString _readLiteralString() {
@@ -1978,6 +2238,7 @@ class _ContentStreamTokenizer {
     var depth = 1;
 
     while (_offset < bytes.length && depth > 0) {
+      onProgress();
       final b = bytes[_offset];
       if (b == 0x5C) {
         _offset++;
@@ -2001,10 +2262,12 @@ class _ContentStreamTokenizer {
           buffer.add(0x5C);
         } else if (_PdfDocumentParser._isOctalDigit(esc)) {
           var octal = esc - 0x30;
-          if (_offset + 1 < bytes.length && _PdfDocumentParser._isOctalDigit(bytes[_offset + 1])) {
+          if (_offset + 1 < bytes.length &&
+              _PdfDocumentParser._isOctalDigit(bytes[_offset + 1])) {
             _offset++;
             octal = (octal << 3) + (bytes[_offset] - 0x30);
-            if (_offset + 1 < bytes.length && _PdfDocumentParser._isOctalDigit(bytes[_offset + 1])) {
+            if (_offset + 1 < bytes.length &&
+                _PdfDocumentParser._isOctalDigit(bytes[_offset + 1])) {
               _offset++;
               octal = (octal << 3) + (bytes[_offset] - 0x30);
             }
@@ -2033,6 +2296,7 @@ class _ContentStreamTokenizer {
     final hexChars = <int>[];
 
     while (_offset < bytes.length) {
+      onProgress();
       final b = bytes[_offset];
       if (b == 0x3E) {
         _offset++;
@@ -2063,6 +2327,7 @@ class _ContentStreamTokenizer {
     final list = <dynamic>[];
 
     while (hasNext()) {
+      onProgress();
       _skipWs();
       if (_offset >= bytes.length) break;
       if (bytes[_offset] == 0x5D) {
@@ -2079,10 +2344,17 @@ class _ContentStreamTokenizer {
   void _skipWs() {
     while (_offset < bytes.length) {
       final b = bytes[_offset];
-      if (b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D || b == 0x0C || b == 0x00) {
+      if (b == 0x20 ||
+          b == 0x09 ||
+          b == 0x0A ||
+          b == 0x0D ||
+          b == 0x0C ||
+          b == 0x00) {
         _offset++;
       } else if (b == 0x25) {
-        while (_offset < bytes.length && bytes[_offset] != 0x0A && bytes[_offset] != 0x0D) {
+        while (_offset < bytes.length &&
+            bytes[_offset] != 0x0A &&
+            bytes[_offset] != 0x0D) {
           _offset++;
         }
       } else {
@@ -2103,7 +2375,8 @@ class _PdfRef {
   final int gen;
 
   @override
-  bool operator ==(Object other) => other is _PdfRef && other.num == num && other.gen == gen;
+  bool operator ==(Object other) =>
+      other is _PdfRef && other.num == num && other.gen == gen;
 
   @override
   int get hashCode => Object.hash(num, gen);
@@ -2137,6 +2410,16 @@ class _PdfRawString {
 class _Operator {
   const _Operator(this.name);
   final String name;
+}
+
+/// Opaque marked-content property dictionary. Text extraction does not need
+/// its metadata, but it must consume it so subsequent operators are aligned.
+class _ContentDictionary {
+  const _ContentDictionary();
+}
+
+class _PdfExtractionTimeout implements Exception {
+  const _PdfExtractionTimeout();
 }
 
 class _Box {
@@ -2237,7 +2520,8 @@ class _PdfFont {
       return buffer.toString();
     }
 
-    if (subtype == '/Type0' || (isHex && bytes.length % 2 == 0 && bytes.length >= 2)) {
+    if (subtype == '/Type0' ||
+        (isHex && bytes.length % 2 == 0 && bytes.length >= 2)) {
       // UTF-16BE / CID Identity
       final codeUnits = <int>[];
       for (var i = 0; i < bytes.length; i += 2) {

@@ -1254,12 +1254,12 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - **Root cause**: Android declared both the bundled standalone ML Kit text-recognition artifact and the `com.google.mlkit.vision.DEPENDENCIES = "ocr"` manifest metadata. The metadata is exclusively for the alternative Google Play Services download path, and can lead to an uninitialized recognizer (`NullPointerException`) when that module is unavailable.
 - **Resolution**: Removed the manifest metadata. Quiet Paper now uses only the statically bundled `com.google.mlkit:text-recognition:16.0.1` model, which is available immediately in sideloaded, offline, and Google-Play-Services-free installations.
 
+---
 
+## 54. Bounded Tagged-PDF Text Extraction
 
-
-
-
-
-
+- **Root cause**: Tagged PDFs can include marked-content property dictionaries such as `/Span << /MCID 0 >> BDC`. The content-stream tokenizer treated `<<` as a hexadecimal string, leaving the second closing `>` unconsumed and repeatedly tokenizing it without cursor progress.
+- **Resolution**: The tokenizer now consumes property dictionaries as opaque operands and guarantees progress for malformed standalone delimiters. Embedded text extraction also runs with a five-second safety budget; a timeout is reported to the document-processing coordinator and falls back to on-device OCR instead of leaving a document stuck in `processing`.
+- **Regression coverage**: Tests use generated tagged-PDF content and a zero-duration budget to validate both normal extraction and bounded fallback. The user-supplied root `test.pdf` remains untracked and is not part of the repository.
 
 
