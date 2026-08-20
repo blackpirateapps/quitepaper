@@ -124,6 +124,22 @@ CREATE TABLE IF NOT EXISTS documents (
   FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS note_versions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  note_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  content_ciphertext TEXT NOT NULL,
+  content_nonce TEXT NOT NULL,
+  char_count INTEGER NOT NULL DEFAULT 0,
+  word_count INTEGER NOT NULL DEFAULT 0,
+  delta_summary TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes (user_id);
 CREATE INDEX IF NOT EXISTS idx_sync_changes_user_rev ON sync_changes (user_id, revision);
 CREATE INDEX IF NOT EXISTS idx_idempotency_user ON idempotency_keys (user_id, key);
@@ -134,6 +150,8 @@ CREATE INDEX IF NOT EXISTS idx_attachments_note_id ON attachments (note_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user_rev ON documents (user_id, server_revision);
 CREATE INDEX IF NOT EXISTS idx_documents_note_id ON documents (note_id);
+CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
+CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
 `;
 
 export async function runMigrations(db: Client): Promise<void> {
