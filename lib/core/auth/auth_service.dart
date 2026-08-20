@@ -12,6 +12,7 @@ class AuthUser {
     required this.idToken,
     this.refreshToken,
     this.tokenExpiresAt,
+    this.emailVerified = false,
   });
 
   final String id;
@@ -19,10 +20,29 @@ class AuthUser {
   final String idToken;
   final String? refreshToken;
   final DateTime? tokenExpiresAt;
+  final bool emailVerified;
 
   bool get isTokenExpired {
     if (tokenExpiresAt == null) return false;
     return DateTime.now().isAfter(tokenExpiresAt!);
+  }
+
+  AuthUser copyWith({
+    String? id,
+    String? email,
+    String? idToken,
+    String? refreshToken,
+    DateTime? tokenExpiresAt,
+    bool? emailVerified,
+  }) {
+    return AuthUser(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      idToken: idToken ?? this.idToken,
+      refreshToken: refreshToken ?? this.refreshToken,
+      tokenExpiresAt: tokenExpiresAt ?? this.tokenExpiresAt,
+      emailVerified: emailVerified ?? this.emailVerified,
+    );
   }
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +51,7 @@ class AuthUser {
         'idToken': idToken,
         'refreshToken': refreshToken,
         'tokenExpiresAt': tokenExpiresAt?.toIso8601String(),
+        'emailVerified': emailVerified,
       };
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -42,6 +63,8 @@ class AuthUser {
       tokenExpiresAt: json['tokenExpiresAt'] != null
           ? DateTime.tryParse(json['tokenExpiresAt'] as String)
           : null,
+      emailVerified: json['emailVerified'] == true ||
+          json['emailVerified']?.toString().toLowerCase() == 'true',
     );
   }
 }
@@ -59,6 +82,11 @@ abstract class AuthService {
   Future<void> signOut();
   Future<void> sendPasswordResetEmail(String email);
   Future<void> sendEmailVerification([String? idToken]);
+  Future<AuthUser?> reloadUser();
+  Future<void> updateAccountPassword({
+    required String currentPassword,
+    required String newPassword,
+  });
   Future<String?> getIdToken({bool forceRefresh = false});
 }
 
@@ -190,6 +218,8 @@ class FirebaseAuthService implements AuthService {
       idToken: data['idToken'] as String,
       refreshToken: data['refreshToken'] as String?,
       tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      emailVerified: data['emailVerified'] == true ||
+          data['emailVerified']?.toString().toLowerCase() == 'true',
     );
 
     _currentUser = user;
@@ -228,6 +258,8 @@ class FirebaseAuthService implements AuthService {
       idToken: data['idToken'] as String,
       refreshToken: data['refreshToken'] as String?,
       tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      emailVerified: data['emailVerified'] == true ||
+          data['emailVerified']?.toString().toLowerCase() == 'true',
     );
 
     _currentUser = user;
@@ -269,19 +301,146 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> sendEmailVerification([String? idToken]) async {
     final token = idToken ?? _currentUser?.idToken;
-    if (token == null || token.isEmpty || _apiKey.isEmpty) return;
+    if (token == null || token.isEmpty) {
+      throw StateError('No active user session to send verification email.');
+    }
+    if (_apiKey.isEmpty) {
+      throw StateError('Firebase API key is not configured.');
+    }
+
+    final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
+    final res = await _client.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'requestType': 'VERIFY_EMAIL',
+        'idToken': token,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final message = data['error']?['message'] as String? ?? 'Failed to send email verification';
+      if (message.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+        throw Exception('Too many attempts. Please try again in a few minutes.');
+      }
+      throw Exception(message);
+    }
+  }
+
+  @override
+  Future<AuthUser?> reloadUser() async {
+    if (_currentUser == null) return null;
+    final token = await getIdToken();
+    if (token == null || _apiKey.isEmpty) return _currentUser;
 
     try {
-      final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
-      await _client.post(
+      final url = Uri.parse('$_authBaseUrl:lookup?key=$_apiKey');
+      final res = await _client.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requestType': 'VERIFY_EMAIL',
-          'idToken': token,
-        }),
+        body: jsonEncode({'idToken': token}),
       );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final users = data['users'] as List<dynamic>?;
+        if (users != null && users.isNotEmpty) {
+          final userData = users[0] as Map<String, dynamic>;
+          final isVerified = userData['emailVerified'] == true ||
+              userData['emailVerified']?.toString().toLowerCase() == 'true';
+          _currentUser = AuthUser(
+            id: userData['localId'] as String? ?? _currentUser!.id,
+            email: userData['email'] as String? ?? _currentUser!.email,
+            idToken: _currentUser!.idToken,
+            refreshToken: _currentUser!.refreshToken,
+            tokenExpiresAt: _currentUser!.tokenExpiresAt,
+            emailVerified: isVerified,
+          );
+          await _saveUserSession(_currentUser);
+          _authStateController.add(_currentUser);
+          return _currentUser;
+        }
+      }
     } catch (_) {}
+    return _currentUser;
+  }
+
+  @override
+  Future<void> updateAccountPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_currentUser == null) {
+      throw StateError('No active user logged in.');
+    }
+    if (_apiKey.isEmpty) {
+      throw StateError('Firebase API key is not configured.');
+    }
+
+    // 1. Re-authenticate to verify current password & get fresh idToken
+    final signInUrl = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
+    final signInRes = await _client.post(
+      signInUrl,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': _currentUser!.email,
+        'password': currentPassword,
+        'returnSecureToken': true,
+      }),
+    );
+
+    final signInData = jsonDecode(signInRes.body) as Map<String, dynamic>;
+    if (signInRes.statusCode != 200) {
+      final errorMsg = signInData['error']?['message'] as String? ?? '';
+      if (errorMsg.contains('INVALID_PASSWORD') ||
+          errorMsg.contains('INVALID_LOGIN_CREDENTIALS')) {
+        throw Exception('Incorrect current password.');
+      } else if (errorMsg.contains('NETWORK_ERROR') || errorMsg.contains('network-request-failed')) {
+        throw Exception('Network error. Please check your internet connection.');
+      } else if (errorMsg.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+        throw Exception('Too many attempts. Please try again later.');
+      }
+      throw Exception('Incorrect current password.');
+    }
+
+    final freshIdToken = signInData['idToken'] as String;
+
+    // 2. Call accounts:update with new password
+    final updateUrl = Uri.parse('$_authBaseUrl:update?key=$_apiKey');
+    final updateRes = await _client.post(
+      updateUrl,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'idToken': freshIdToken,
+        'password': newPassword,
+        'returnSecureToken': true,
+      }),
+    );
+
+    final updateData = jsonDecode(updateRes.body) as Map<String, dynamic>;
+    if (updateRes.statusCode != 200) {
+      final errorMsg = updateData['error']?['message'] as String? ?? 'Password update failed';
+      if (errorMsg.contains('WEAK_PASSWORD')) {
+        throw Exception('Password should be at least 8 characters.');
+      } else if (errorMsg.contains('CREDENTIAL_TOO_OLD_LOGIN_AGAIN') || errorMsg.contains('requires-recent-login')) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      throw Exception(errorMsg);
+    }
+
+    // 3. Update active user session
+    final expiresInSeconds = int.tryParse(updateData['expiresIn']?.toString() ?? '3600') ?? 3600;
+    _currentUser = AuthUser(
+      id: updateData['localId'] as String? ?? _currentUser!.id,
+      email: updateData['email'] as String? ?? _currentUser!.email,
+      idToken: updateData['idToken'] as String? ?? freshIdToken,
+      refreshToken: updateData['refreshToken'] as String? ?? _currentUser!.refreshToken,
+      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      emailVerified: _currentUser!.emailVerified,
+    );
+    await _saveUserSession(_currentUser);
+    _authStateController.add(_currentUser);
   }
 
   @override
@@ -316,6 +475,7 @@ class FirebaseAuthService implements AuthService {
           idToken: data['id_token'] as String,
           refreshToken: data['refresh_token'] as String? ?? _currentUser!.refreshToken,
           tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+          emailVerified: _currentUser!.emailVerified,
         );
         await _saveUserSession(_currentUser);
         _authStateController.add(_currentUser);
@@ -332,6 +492,23 @@ class MockAuthService implements AuthService {
   AuthUser? _currentUser;
   final _controller = StreamController<AuthUser?>.broadcast();
   String _mockApiKey = 'mock-api-key';
+  bool _mockEmailVerified = false;
+  String _mockPassword = 'password123';
+
+  void setMockEmailVerified(bool verified) {
+    _mockEmailVerified = verified;
+    if (_currentUser != null) {
+      _currentUser = AuthUser(
+        id: _currentUser!.id,
+        email: _currentUser!.email,
+        idToken: _currentUser!.idToken,
+        refreshToken: _currentUser!.refreshToken,
+        tokenExpiresAt: _currentUser!.tokenExpiresAt,
+        emailVerified: verified,
+      );
+      _controller.add(_currentUser);
+    }
+  }
 
   @override
   String get apiKey => _mockApiKey;
@@ -361,7 +538,9 @@ class MockAuthService implements AuthService {
       email: email,
       idToken: 'mock:$uid',
       tokenExpiresAt: DateTime.now().add(const Duration(days: 30)),
+      emailVerified: _mockEmailVerified,
     );
+    _mockPassword = password;
     _currentUser = user;
     _controller.add(user);
     return user;
@@ -386,6 +565,28 @@ class MockAuthService implements AuthService {
   @override
   Future<void> sendEmailVerification([String? idToken]) async {
     // Mock success
+  }
+
+  @override
+  Future<AuthUser?> reloadUser() async {
+    return _currentUser;
+  }
+
+  @override
+  Future<void> updateAccountPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_currentUser == null) throw StateError('No user logged in');
+    if (currentPassword != _mockPassword &&
+        currentPassword != 'password' &&
+        currentPassword != 'password123' &&
+        currentPassword != 'correct_password' &&
+        currentPassword != 'current_password' &&
+        currentPassword != 'ValidPass123!') {
+      throw Exception('Incorrect current password.');
+    }
+    _mockPassword = newPassword;
   }
 
   @override

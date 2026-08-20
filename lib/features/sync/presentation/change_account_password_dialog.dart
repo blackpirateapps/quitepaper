@@ -7,22 +7,27 @@ import '../../../app/theme/app_typography.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 
-class ChangeEncryptionPasswordDialog extends ConsumerStatefulWidget {
-  const ChangeEncryptionPasswordDialog({super.key});
+class ChangeAccountPasswordDialog extends ConsumerStatefulWidget {
+  const ChangeAccountPasswordDialog({super.key});
+
+  static Future<void> show(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => const ChangeAccountPasswordDialog(),
+    );
+  }
 
   @override
-  ConsumerState<ChangeEncryptionPasswordDialog> createState() =>
-      _ChangeEncryptionPasswordDialogState();
+  ConsumerState<ChangeAccountPasswordDialog> createState() =>
+      _ChangeAccountPasswordDialogState();
 }
 
-class _ChangeEncryptionPasswordDialogState
-    extends ConsumerState<ChangeEncryptionPasswordDialog> {
+class _ChangeAccountPasswordDialogState
+    extends ConsumerState<ChangeAccountPasswordDialog> {
   final _currentPasswordController = TextEditingController();
-  final _recoveryKeyController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isUsingRecoveryKey = false;
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -33,7 +38,6 @@ class _ChangeEncryptionPasswordDialogState
   @override
   void dispose() {
     _currentPasswordController.dispose();
-    _recoveryKeyController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -47,28 +51,22 @@ class _ChangeEncryptionPasswordDialogState
 
   Future<void> _submit() async {
     final currentPass = _currentPasswordController.text;
-    final recoveryKey = _recoveryKeyController.text.trim();
     final newPassword = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
 
-    // Validate verification input
-    if (!_isUsingRecoveryKey && currentPass.isEmpty) {
+    // Validate inputs
+    if (currentPass.isEmpty) {
       setState(() => _errorMessage =
-          'Please enter your current encryption password to verify ownership.');
-      return;
-    }
-    if (_isUsingRecoveryKey && recoveryKey.isEmpty) {
-      setState(() => _errorMessage =
-          'Please enter your emergency recovery key to verify ownership.');
+          'Please enter your current account password to verify identity.');
       return;
     }
 
-    // Validate new password
     if (newPassword.length < 8) {
       setState(() => _errorMessage =
-          'New encryption password must be at least 8 characters long.');
+          'New account password must be at least 8 characters long.');
       return;
     }
+
     if (newPassword != confirm) {
       setState(() => _errorMessage = 'New passwords do not match.');
       return;
@@ -80,47 +78,11 @@ class _ChangeEncryptionPasswordDialogState
     });
 
     try {
-      final keyManager = ref.read(keyManagerProvider);
-      final api = ref.read(syncApiClientProvider);
-
-      // 1. Fetch current wrapped key record
-      final currentKeyData =
-          await api.getKeys() ?? await keyManager.getStoredWrappedKeyData();
-
-      if (currentKeyData == null) {
-        throw Exception('No active encryption keys found to update.');
-      }
-
-      // 2. Verify proof of ownership before allowing password rotation
-      if (_isUsingRecoveryKey) {
-        try {
-          await keyManager.unlockWithRecoveryKey(
-            recoveryKey: recoveryKey,
-            remoteWrappedKey: currentKeyData,
-          );
-        } catch (e) {
-          throw Exception(
-              'Invalid Recovery Key. Please check the phrase and try again.');
-        }
-      } else {
-        try {
-          await keyManager.unlockWithPassword(
-            password: currentPass,
-            remoteWrappedKey: currentKeyData,
-          );
-        } catch (e) {
-          throw Exception(
-              'Incorrect current encryption password. If you forgot your password, tap "Use Recovery Key" below.');
-        }
-      }
-
-      // 3. Re-wrap master key with new password (note ciphertexts stay untouched)
-      final updatedWrappedKey = await keyManager.changePassword(
+      final auth = ref.read(authServiceProvider);
+      await auth.updateAccountPassword(
+        currentPassword: currentPass,
         newPassword: newPassword,
       );
-
-      // 4. Upload updated wrapped key with cryptographic proof to backend
-      await api.putKeys(updatedWrappedKey);
 
       if (mounted) {
         final messenger = ScaffoldMessenger.of(context);
@@ -128,7 +90,7 @@ class _ChangeEncryptionPasswordDialogState
         messenger.clearSnackBars();
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Vault encryption key updated.'),
+            content: Text('Account password updated successfully.'),
             duration: Duration(seconds: 3),
           ),
         );
@@ -166,8 +128,11 @@ class _ChangeEncryptionPasswordDialogState
                         color: colors.accentSoft,
                         borderRadius: AppRadii.borderMd,
                       ),
-                      child: Icon(Icons.lock_reset_outlined,
-                          color: colors.accentDark, size: 24),
+                      child: Icon(
+                        Icons.key_outlined,
+                        color: colors.accentDark,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
@@ -175,12 +140,12 @@ class _ChangeEncryptionPasswordDialogState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Change Encryption Password',
+                            'Account Password',
                             style: AppTypography.headline
                                 .copyWith(color: colors.textPrimary),
                           ),
                           Text(
-                            'Re-wraps your master key. Note ciphertexts stay untouched.',
+                            'Login & cloud account credentials',
                             style: AppTypography.caption
                                 .copyWith(color: colors.textSecondary),
                           ),
@@ -191,100 +156,64 @@ class _ChangeEncryptionPasswordDialogState
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Section 1: Verification of Current Credentials
+                // Section 1: Current Password
                 Text(
-                  '1. Verify Current Vault Ownership',
+                  '1. Verify Current Password',
                   style: AppTypography.bodySmallMedium
                       .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  _isUsingRecoveryKey
-                      ? 'Enter your emergency recovery key to authorize changing your password.'
-                      : 'Enter your current encryption password to authorize changing your password.',
-                  style:
-                      AppTypography.caption.copyWith(color: colors.textSecondary),
+                  'Enter your current account login password.',
+                  style: AppTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-
-                if (_isUsingRecoveryKey) ...[
-                  TextField(
-                    controller: _recoveryKeyController,
-                    onChanged: (_) => _clearError(),
-                    decoration: InputDecoration(
-                      labelText: 'Emergency Recovery Key (qp-xxxx-...)',
-                      prefixIcon:
-                          const Icon(Icons.vpn_key_outlined, size: 20),
-                      border:
-                          OutlineInputBorder(borderRadius: AppRadii.borderMd),
-                    ),
-                  ),
-                ] else ...[
-                  TextField(
-                    controller: _currentPasswordController,
-                    obscureText: _obscureCurrentPassword,
-                    onChanged: (_) => _clearError(),
-                    decoration: InputDecoration(
-                      labelText: 'Current Encryption Password',
-                      prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureCurrentPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 20,
-                        ),
-                        onPressed: () => setState(() =>
-                            _obscureCurrentPassword = !_obscureCurrentPassword),
+                TextField(
+                  controller: _currentPasswordController,
+                  obscureText: _obscureCurrentPassword,
+                  enabled: !_isLoading,
+                  onChanged: (_) => _clearError(),
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureCurrentPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 20,
                       ),
-                      border:
-                          OutlineInputBorder(borderRadius: AppRadii.borderMd),
+                      onPressed: () => setState(() =>
+                          _obscureCurrentPassword = !_obscureCurrentPassword),
                     ),
-                  ),
-                ],
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isUsingRecoveryKey = !_isUsingRecoveryKey;
-                        _errorMessage = null;
-                      });
-                    },
-                    child: Text(
-                      _isUsingRecoveryKey
-                          ? 'Use Current Password Instead'
-                          : 'Forgot password? Use Recovery Key',
-                      style: AppTypography.caption.copyWith(
-                        color: colors.accentDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.md),
                 const Divider(),
                 const SizedBox(height: AppSpacing.sm),
 
-                // Section 2: Set New Password
+                // Section 2: New Password
                 Text(
-                  '2. Set New Encryption Password',
+                  '2. Set New Account Password',
                   style: AppTypography.bodySmallMedium
                       .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Choose a strong password (minimum 8 characters).',
-                  style:
-                      AppTypography.caption.copyWith(color: colors.textSecondary),
+                  style: AppTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: _newPasswordController,
                   obscureText: _obscureNewPassword,
+                  enabled: !_isLoading,
                   onChanged: (_) => _clearError(),
                   decoration: InputDecoration(
-                    labelText: 'New Encryption Password (min. 8 chars)',
+                    labelText: 'New Password (min. 8 chars)',
                     prefixIcon: const Icon(Icons.key_outlined, size: 20),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -303,6 +232,7 @@ class _ChangeEncryptionPasswordDialogState
                 TextField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
+                  enabled: !_isLoading,
                   onChanged: (_) => _clearError(),
                   onSubmitted: (_) => _submit(),
                   decoration: InputDecoration(
@@ -321,6 +251,7 @@ class _ChangeEncryptionPasswordDialogState
                     border: OutlineInputBorder(borderRadius: AppRadii.borderMd),
                   ),
                 ),
+
                 if (_errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.md),
                   Text(
@@ -328,6 +259,7 @@ class _ChangeEncryptionPasswordDialogState
                     style: AppTypography.caption.copyWith(color: colors.error),
                   ),
                 ],
+
                 const SizedBox(height: AppSpacing.lg),
                 Wrap(
                   alignment: WrapAlignment.end,
@@ -337,11 +269,13 @@ class _ChangeEncryptionPasswordDialogState
                     QuietButton(
                       label: 'Cancel',
                       variant: QuietButtonVariant.secondary,
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed:
+                          _isLoading ? null : () => Navigator.of(context).pop(),
                     ),
                     QuietButton(
-                      label: 'Verify & Change Password',
+                      label: 'Update Password',
                       variant: QuietButtonVariant.primary,
+                      isLoading: _isLoading,
                       onPressed: _isLoading ? null : _submit,
                     ),
                   ],

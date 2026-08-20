@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
+import '../../sync/presentation/change_account_password_dialog.dart';
 import '../../sync/presentation/change_encryption_password_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
@@ -32,8 +34,165 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  late final AnimationController _syncRotationController;
+  Timer? _cooldownTimer;
+  int _resendCooldownSeconds = 0;
+  bool _isSendingVerification = false;
   bool _isCheckingForUpdates = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _syncRotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkEmailVerification();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkEmailVerification();
+    }
+  }
+
+  Future<void> _checkEmailVerification() async {
+    final user = ref.read(currentUserProvider);
+    if (user != null && !user.emailVerified) {
+      await ref.read(authServiceProvider).reloadUser();
+    }
+  }
+
+  void _startCooldownTimer() {
+    setState(() {
+      _resendCooldownSeconds = 60;
+    });
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCooldownSeconds > 1) {
+        setState(() {
+          _resendCooldownSeconds--;
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _resendCooldownSeconds = 0;
+        });
+      }
+    });
+  }
+
+  Future<void> _sendVerificationEmail(String email) async {
+    final colors = Theme.of(context).extension<AppColors>() ?? AppColors.light;
+    setState(() {
+      _isSendingVerification = true;
+    });
+    try {
+      final auth = ref.read(authServiceProvider);
+      await auth.sendEmailVerification();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Verification email sent to $email'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      _startCooldownTimer();
+    } catch (e) {
+      if (!mounted) return;
+      final errorMsg = e.toString().replaceAll('Exception: ', '');
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send verification email: $errorMsg'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: colors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingVerification = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, String email) async {
+    final colors = context.appColors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: Text(
+            'Sign Out',
+            style: AppTypography.headline.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            'Sign out of $email? Local notes will remain on this device.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Sign Out',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      await ref.read(authServiceProvider).signOut();
+      await ref.read(keyManagerProvider).clearLocalKeys();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncRotationController.dispose();
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _checkManualUpdate() async {
     setState(() {
@@ -96,6 +255,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final syncState = ref.watch(syncStateProvider);
     final autoBackupConfig = ref.watch(autoBackupConfigProvider);
 
+    if (syncState.status == SyncStatus.syncing) {
+      if (!_syncRotationController.isAnimating) {
+        _syncRotationController.repeat();
+      }
+    } else {
+      if (_syncRotationController.isAnimating) {
+        _syncRotationController.stop();
+        _syncRotationController.reset();
+      }
+    }
+
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
@@ -156,30 +326,104 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         },
                       ),
                     ] else ...[
+                      // 1. User Profile & Sync Status Row
                       _SettingsInfoTile(
-                        icon: Icons.account_circle_outlined,
+                        icon: Icons.person_outline_rounded,
                         iconColor: colors.accent,
                         title: currentUser.email,
                         description: _formatSyncStatus(syncState),
-                        descriptionColor: syncState.status == SyncStatus.syncError
-                            ? colors.error
-                            : colors.textSecondary,
+                        descriptionColor:
+                            syncState.status == SyncStatus.syncError
+                                ? colors.error
+                                : colors.textSecondary,
                       ),
+
+                      // 2. [CONDITIONAL] Email Verification Row
+                      if (!currentUser.emailVerified) ...[
+                        _buildDivider(colors),
+                        _SettingsRow(
+                          icon: Icons.mark_email_unread_outlined,
+                          iconColor: colors.accent,
+                          title: 'Verify Email Address',
+                          subtitle:
+                              'Verification required for account recovery.',
+                          trailing: GestureDetector(
+                            onTap: (_resendCooldownSeconds > 0 ||
+                                    _isSendingVerification)
+                                ? null
+                                : () => _sendVerificationEmail(
+                                    currentUser.email),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: _resendCooldownSeconds > 0
+                                    ? colors.elevated
+                                    : colors.accent
+                                        .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _resendCooldownSeconds > 0
+                                      ? colors.divider
+                                      : colors.accent
+                                          .withValues(alpha: 0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: _isSendingVerification
+                                  ? const CupertinoActivityIndicator(radius: 6)
+                                  : Text(
+                                      _resendCooldownSeconds > 0
+                                          ? '${_resendCooldownSeconds}s'
+                                          : 'Resend Link',
+                                      style: AppTypography.caption.copyWith(
+                                        color: _resendCooldownSeconds > 0
+                                            ? colors.textTertiary
+                                            : colors.accent,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12.0,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          onTap: (_resendCooldownSeconds > 0 ||
+                                  _isSendingVerification)
+                              ? null
+                              : () => _sendVerificationEmail(currentUser.email),
+                        ),
+                      ],
+
+                      // 3. Sync Now Row
                       _buildDivider(colors),
                       _SettingsRow(
-                        icon: Icons.sync_rounded,
+                        leading: RotationTransition(
+                          turns: _syncRotationController,
+                          child: Icon(
+                            Icons.sync_rounded,
+                            size: 20,
+                            color: syncState.status == SyncStatus.syncing
+                                ? colors.accent
+                                : colors.textSecondary,
+                          ),
+                        ),
                         title: 'Sync Now',
                         trailing: syncState.status == SyncStatus.syncing
                             ? const CupertinoActivityIndicator(radius: 8)
-                            : null,
+                            : Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: colors.textTertiary,
+                              ),
                         onTap: syncState.status == SyncStatus.syncing
                             ? null
                             : () async {
-                                final messenger = ScaffoldMessenger.of(context);
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
                                 messenger.hideCurrentSnackBar();
                                 messenger.showSnackBar(
                                   SnackBar(
-                                    content: const Text('Syncing notes & images...'),
+                                    content: const Text(
+                                        'Syncing notes & images...'),
                                     duration: const Duration(seconds: 1),
                                     backgroundColor: colors.elevated,
                                   ),
@@ -188,22 +432,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 await ref.read(syncEngineProvider).syncNow();
 
                                 if (!context.mounted) return;
-                                final resultState = ref.read(syncStateProvider);
+                                final resultState =
+                                    ref.read(syncStateProvider);
 
                                 messenger.hideCurrentSnackBar();
 
-                                if (resultState.status == SyncStatus.syncError) {
+                                if (resultState.status ==
+                                    SyncStatus.syncError) {
                                   messenger.showSnackBar(
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                                          const Icon(Icons.error_outline,
+                                              color: Colors.white, size: 20),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               resultState.errorMessage ??
                                                   'Sync error occurred. Check Cloudinary credentials in Vercel.',
-                                              style: const TextStyle(color: Colors.white),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
                                             ),
                                           ),
                                         ],
@@ -212,16 +460,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       duration: const Duration(seconds: 5),
                                     ),
                                   );
-                                } else if (resultState.status == SyncStatus.offline) {
+                                } else if (resultState.status ==
+                                    SyncStatus.offline) {
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: const Text('Offline • Changes preserved on device'),
+                                      content: const Text(
+                                          'Offline • Changes preserved on device'),
                                       duration: const Duration(seconds: 3),
                                       backgroundColor: colors.elevated,
                                     ),
                                   );
-                                } else if (resultState.status == SyncStatus.synced) {
-                                  final attSynced = resultState.attachmentsSynced;
+                                } else if (resultState.status ==
+                                    SyncStatus.synced) {
+                                  final attSynced =
+                                      resultState.attachmentsSynced;
                                   final successText = attSynced > 0
                                       ? 'Sync complete: Notes & $attSynced image(s) synced'
                                       : 'Sync complete: All notes up to date';
@@ -230,12 +482,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                                          const Icon(
+                                              Icons.check_circle_outline,
+                                              color: Colors.white,
+                                              size: 20),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               successText,
-                                              style: const TextStyle(color: Colors.white),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
                                             ),
                                           ),
                                         ],
@@ -247,10 +503,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 }
                               },
                       ),
+
+                      // 4. Account Password Row (Firebase Auth)
                       _buildDivider(colors),
                       _SettingsRow(
-                        icon: Icons.lock_reset_rounded,
-                        title: 'Change Password',
+                        icon: Icons.key_outlined,
+                        title: 'Account Password',
+                        subtitle: 'Login & cloud account credentials',
+                        trailingRowText: 'Change',
+                        onTap: () {
+                          ChangeAccountPasswordDialog.show(context);
+                        },
+                      ),
+
+                      // 5. Encryption Password Row (Zero-Knowledge / Argon2id)
+                      _buildDivider(colors),
+                      _SettingsRow(
+                        icon: Icons.shield_outlined,
+                        title: 'Encryption Password',
+                        subtitle: 'Zero-knowledge note vault key',
+                        trailingRowText: 'Change',
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
@@ -260,6 +532,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           );
                         },
                       ),
+
+                      // 6. Sign Out Row
                       _buildDivider(colors),
                       _SettingsRow(
                         icon: Icons.logout_rounded,
@@ -267,10 +541,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         title: 'Sign Out',
                         titleColor: colors.error,
                         isDestructive: true,
-                        onTap: () async {
-                          await ref.read(authServiceProvider).signOut();
-                          await ref.read(keyManagerProvider).clearLocalKeys();
-                        },
+                        onTap: () =>
+                            _confirmSignOut(context, currentUser.email),
                       ),
                     ],
                   ],
@@ -340,7 +612,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const TypographySettingsScreen(),
+                            builder: (_) =>
+                                const TypographySettingsScreen(),
                           ),
                         );
                       },
@@ -398,7 +671,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       title: 'Select markdown files',
                       onTap: () async {
                         try {
-                          final result = await FilePicker.platform.pickFiles(
+                          final result =
+                              await FilePicker.platform.pickFiles(
                             allowMultiple: true,
                             type: FileType.custom,
                             allowedExtensions: ['md', 'markdown'],
@@ -412,7 +686,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             if (context.mounted) {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => MarkdownImportScreen(
+                                  builder: (context) =>
+                                      MarkdownImportScreen(
                                     initialFolderPath: 'Selected Files',
                                     initialItems: items,
                                   ),
@@ -476,7 +751,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _SettingsRow(
                       icon: Icons.schedule_rounded,
                       title: 'Daily Auto-Backup',
-                      subtitle: 'Automatically saves snapshots on app launch',
+                      subtitle:
+                          'Automatically saves snapshots on app launch',
                       trailing: CupertinoSwitch(
                         value: autoBackupConfig.enabled,
                         activeTrackColor: colors.accent,
@@ -488,10 +764,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             );
                             if (folder != null) {
                               await ref
-                                  .read(autoBackupConfigProvider.notifier)
+                                  .read(
+                                      autoBackupConfigProvider.notifier)
                                   .setFolderPath(folder);
                               await ref
-                                  .read(autoBackupConfigProvider.notifier)
+                                  .read(
+                                      autoBackupConfigProvider.notifier)
                                   .setEnabled(true);
                             }
                           } else {
@@ -516,7 +794,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           );
                           if (folder != null) {
                             await ref
-                                .read(autoBackupConfigProvider.notifier)
+                                .read(
+                                    autoBackupConfigProvider.notifier)
                                 .setFolderPath(folder);
                           }
                         },
@@ -547,7 +826,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             onChanged: (val) {
                               if (val != null) {
                                 ref
-                                    .read(autoBackupConfigProvider.notifier)
+                                    .read(
+                                        autoBackupConfigProvider.notifier)
                                     .setRetentionCount(val);
                               }
                             },
@@ -589,8 +869,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       subtitle:
                           'Populate example notes demonstrating Markdown, hashtags, and editorial formatting.',
                       onTap: () async {
-                        final repository = ref.read(notesRepositoryProvider);
-                        await SampleNotes.populateSampleNotes(repository);
+                        final repository =
+                            ref.read(notesRepositoryProvider);
+                        await SampleNotes.populateSampleNotes(
+                            repository);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -626,7 +908,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       trailing: _isCheckingForUpdates
                           ? const CupertinoActivityIndicator(radius: 8)
                           : null,
-                      onTap: _isCheckingForUpdates ? null : _checkManualUpdate,
+                      onTap:
+                          _isCheckingForUpdates ? null : _checkManualUpdate,
                     ),
                   ],
                 ),
@@ -682,7 +965,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Divider(
       color: colors.divider.withValues(alpha: 0.5),
       height: 1,
-      thickness: 0.8,
+      thickness: 1.0,
       indent: 52, // 16 horizontal padding + 24 icon box + 12 gap = 52
       endIndent: 0,
     );
@@ -691,7 +974,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _formatSyncStatus(SyncState state) {
     switch (state.status) {
       case SyncStatus.syncing:
-        return 'Syncing notes & images...';
+        return 'Syncing...';
       case SyncStatus.synced:
         if (state.lastSyncedAt != null) {
           final time = DateFormat.jm().format(state.lastSyncedAt!);
@@ -728,7 +1011,7 @@ class _SettingsGroup extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(11.0),
+        borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
           color: colors.divider.withValues(alpha: 0.6),
           width: 0.8,
@@ -793,7 +1076,7 @@ class _SettingsInfoTile extends StatelessWidget {
                   style: AppTypography.bodyMedium.copyWith(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
-                    fontSize: 15.0,
+                    fontSize: 16.0,
                   ),
                 ),
                 const SizedBox(height: 3.0),
@@ -801,7 +1084,7 @@ class _SettingsInfoTile extends StatelessWidget {
                   description,
                   style: AppTypography.caption.copyWith(
                     color: descriptionColor ?? colors.textSecondary,
-                    fontSize: 12.5,
+                    fontSize: 12.0,
                     height: 1.45,
                   ),
                 ),
@@ -817,7 +1100,8 @@ class _SettingsInfoTile extends StatelessWidget {
 /// A standard clickable row inside a grouped section.
 class _SettingsRow extends StatelessWidget {
   const _SettingsRow({
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.title,
     this.subtitle,
     this.iconColor,
@@ -828,9 +1112,11 @@ class _SettingsRow extends StatelessWidget {
     this.isPrimaryAction = false,
     this.isDestructive = false,
     this.onTap,
-  });
+  }) : assert(icon != null || leading != null,
+            'Either icon or leading must be provided');
 
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String title;
   final String? subtitle;
   final Color? iconColor;
@@ -878,11 +1164,12 @@ class _SettingsRow extends StatelessWidget {
                 width: 24,
                 height: 24,
                 child: Center(
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: resolvedIconColor,
-                  ),
+                  child: leading ??
+                      Icon(
+                        icon,
+                        size: 20,
+                        color: resolvedIconColor,
+                      ),
                 ),
               ),
               const SizedBox(width: 12.0),
@@ -897,7 +1184,7 @@ class _SettingsRow extends StatelessWidget {
                         fontWeight: (isSelected || isPrimaryAction)
                             ? FontWeight.w600
                             : FontWeight.w400,
-                        fontSize: 15.0,
+                        fontSize: 16.0,
                       ),
                     ),
                     if (subtitle != null) ...[
@@ -958,4 +1245,3 @@ class _SettingsRow extends StatelessWidget {
     );
   }
 }
-

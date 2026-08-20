@@ -124,11 +124,12 @@ class _ChangeEncryptionPasswordScreenState
       await api.putKeys(updatedWrappedKey);
 
       if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
           const SnackBar(
-            content: Text('Encryption password changed successfully.'),
+            content: Text('Vault encryption key updated.'),
             duration: Duration(seconds: 3),
           ),
         );

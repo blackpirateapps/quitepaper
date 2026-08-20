@@ -807,3 +807,57 @@ Quiet Paper supports inline images and binary attachments with strict zero-knowl
   - **Version Inspection & Copy**: Tapping a version previews title, tags, and full Markdown content, with a "Copy Text" action.
   - **Non-Destructive Restoration**: "Restore" action automatically commits the current note state as a version first, then loads the selected version into the active editor and autosaves to database and cloud sync.
 
+---
+
+## 29. Cloud Sync & Encryption Settings Card Refactor (iOS Grouped-Table & Auth/Encryption Disambiguation)
+
+### Architectural Overview & Visual Hierarchy
+The **"Cloud Sync & Encryption"** section in Settings has been completely refactored to follow an iOS / Bear Notes grouped-table layout (`12dp` card radius, flush edges, `1px` subtle divider inset by `52dp` to align with the text start). Crucially, account authentication credentials and zero-knowledge vault encryption are now distinctly separated into two dedicated settings rows, preventing user confusion between Firebase login passwords and Argon2id encryption master keys.
+
+### Vertical Row Hierarchy (Authenticated State)
+When a user is signed in (`currentUser != null`), the card renders exactly 6 rows in top-to-bottom order:
+
+1. **User Profile & Sync Status Row**:
+   - **Leading**: `Icons.person_outline_rounded` (24dp bounding box, accent color).
+   - **Title**: `currentUser.email` (Primary text, semi-bold, 16sp).
+   - **Subtitle**: Dynamic sync status string (12sp, e.g. "All notes synced at 10:45 AM", "Syncing...", "Offline • Changes saved locally", "Unlock encryption password to sync").
+   - Non-clickable informational tile.
+
+2. **[CONDITIONAL] Email Verification Row**:
+   - **Condition**: Renders if and only if `!currentUser.emailVerified`.
+   - **Leading**: `Icons.mark_email_unread_outlined` in coral / accent color.
+   - **Title**: `"Verify Email Address"`.
+   - **Subtitle**: `"Verification required for account recovery."`.
+   - **Trailing Action**: Styled accent-tinted pill button (`"Resend Link"` / `"60s"` cooldown countdown).
+   - **Cooldown & Lifecycle Sync**: Enforces a 60-second cooldown timer upon sending verification. Implements `WidgetsBindingObserver.didChangeAppLifecycleState` to trigger `authService.reloadUser()` on `AppLifecycleState.resumed`, automatically hiding the row when the user returns after verifying their email in a browser.
+
+3. **Sync Now Row**:
+   - **Leading**: Rotating `Icons.sync_rounded` driven by `AnimationController` during active `SyncStatus.syncing`.
+   - **Title**: `"Sync Now"`.
+   - **Trailing**: `CupertinoActivityIndicator` when syncing; subtle chevron (`>`) when idle.
+   - **Action**: Triggers manual push/pull sync pipeline via `syncEngine.syncNow()` with SnackBar status feedback.
+
+4. **Account Password Row (Firebase Auth)**:
+   - **Leading**: `Icons.key_outlined`.
+   - **Title**: `"Account Password"`.
+   - **Subtitle**: `"Login & cloud account credentials"`.
+   - **Trailing**: `"Change >"`.
+   - **Action**: Opens [`ChangeAccountPasswordDialog`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/change_account_password_dialog.dart) (and route [`ChangeAccountPasswordScreen`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/change_account_password_screen.dart)). Re-authenticates with current password, validates $\ge 8$ character requirement and password confirmation equality, updates password via Firebase Auth `:update` endpoint, and presents inline error or success SnackBar (`"Account password updated successfully."`).
+
+5. **Encryption Password Row (Zero-Knowledge / Argon2id)**:
+   - **Leading**: `Icons.shield_outlined`.
+   - **Title**: `"Encryption Password"`.
+   - **Subtitle**: `"Zero-knowledge note vault key"`.
+   - **Trailing**: `"Change >"`.
+   - **Action**: Navigates to [`ChangeEncryptionPasswordScreen`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/change_encryption_password_screen.dart) / [`ChangeEncryptionPasswordDialog`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/change_encryption_password_dialog.dart). Re-verifies vault master key derivation using Argon2id, rotates key wrapper, synchronizes updated key wrapper to backend with `key_auth_commitment`, and presents success SnackBar (`"Vault encryption key updated."`).
+
+6. **Sign Out Row**:
+   - **Leading**: `Icons.logout_rounded` (coral / error tint).
+   - **Title**: `"Sign Out"` (coral / error tint).
+   - **Trailing**: Chevron icon (`>`) in matching coral tint.
+   - **Confirmation Dialog**: Tapping displays an `AlertDialog`:
+     - *Title*: `"Sign Out"`
+     - *Body*: `"Sign out of <email>? Local notes will remain on this device."`
+     - *Actions*: `Cancel` (dismisses modal, maintains session) and `Sign Out` (destructive, calls `authService.signOut()` and `keyManager.clearLocalKeys()`, smoothly transitioning the UI to the unauthenticated state).
+
+
