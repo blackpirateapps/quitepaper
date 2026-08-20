@@ -1227,6 +1227,27 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - Removed the conflicting outer `SelectionArea` wrapper around `ListView.separated`.
 - Kept per-page isolated `SelectableText` with individual copy actions, ensuring smooth scrolling without duplicate layout or hit-test passes.
 
+---
+
+## 52. Bundled Standalone ML Kit OCR Models & Robust Stream Decompression
+
+### 1. Root Cause of ML Kit `NullPointerException` on Android
+- By default, unbundled ML Kit delegates text recognition model downloads dynamically to Google Play Services. On devices without Google Play Services, sideloaded/debug builds, emulators, or restricted networks, Google Play Services has not downloaded the OCR model, throwing `NullPointerException` or `MlKitException: Waiting for text recognition module to be downloaded`.
+
+### 2. Standalone Bundled OCR Models Embedded in App (`build.gradle.kts`)
+- Added bundled standalone ML Kit dependencies (`com.google.mlkit:text-recognition:16.0.1`, Chinese, Devanagari, Japanese, Korean) directly in `android/app/build.gradle.kts`.
+- Models are now packaged directly inside the app binary:
+  - **100% Offline**: Zero dependencies on Google Play Services background downloads or internet connectivity.
+  - **Zero Crash Invariant**: Eliminates `NullPointerException` on uninitialized model references.
+
+### 3. Multi-Strategy Deflate & Zlib Decompression (`_safeZlibDecompress`)
+- Added multi-stage fallback decompression:
+  1. Standard Zlib stream decoder (`zlib.decode`).
+  2. Raw Deflate stream decoder (`ZLibDecoder(raw: true)`).
+  3. Whitespace/newline trimming for streams sliced before `endstream`.
+  4. Corrupted header bypass for 2-byte truncated zlib streams.
+
+
 
 
 

@@ -716,14 +716,11 @@ class _PdfDocumentParser {
 
     for (final f in filters) {
       if (f == '/FlateDecode' || f == '/Fl') {
-        try {
-          currentBytes = Uint8List.fromList(zlib.decode(currentBytes));
-        } catch (_) {
-          try {
-            currentBytes = Uint8List.fromList(ZLibDecoder(raw: true).convert(currentBytes));
-          } catch (_) {
-            return rawBytes;
-          }
+        final decomp = _safeZlibDecompress(currentBytes);
+        if (decomp != null) {
+          currentBytes = decomp;
+        } else {
+          return rawBytes;
         }
 
         // Apply PNG Predictor if specified
@@ -745,6 +742,46 @@ class _PdfDocumentParser {
     }
 
     return currentBytes;
+  }
+
+  Uint8List? _safeZlibDecompress(Uint8List rawBytes) {
+    // 1. Standard zlib decode
+    try {
+      return Uint8List.fromList(zlib.decode(rawBytes));
+    } catch (_) {}
+
+    // 2. Raw deflate decode
+    try {
+      return Uint8List.fromList(ZLibDecoder(raw: true).convert(rawBytes));
+    } catch (_) {}
+
+    // 3. Trim trailing whitespace / newlines before retry
+    var end = rawBytes.length;
+    while (end > 0 &&
+        (rawBytes[end - 1] == 0x0A ||
+            rawBytes[end - 1] == 0x0D ||
+            rawBytes[end - 1] == 0x20 ||
+            rawBytes[end - 1] == 0x00)) {
+      end--;
+    }
+    if (end < rawBytes.length && end > 2) {
+      final trimmed = rawBytes.sublist(0, end);
+      try {
+        return Uint8List.fromList(zlib.decode(trimmed));
+      } catch (_) {}
+      try {
+        return Uint8List.fromList(ZLibDecoder(raw: true).convert(trimmed));
+      } catch (_) {}
+    }
+
+    // 4. Try skipping first 2 bytes if header is corrupted
+    if (rawBytes.length > 6) {
+      try {
+        return Uint8List.fromList(ZLibDecoder(raw: true).convert(rawBytes.sublist(2)));
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   Uint8List _unpredictPng(Uint8List src, int columns, int colors, int bits) {
