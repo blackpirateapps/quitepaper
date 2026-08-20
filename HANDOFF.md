@@ -1262,4 +1262,30 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - **Resolution**: The tokenizer now consumes property dictionaries as opaque operands and guarantees progress for malformed standalone delimiters. Embedded text extraction also runs with a five-second safety budget; a timeout is reported to the document-processing coordinator and falls back to on-device OCR instead of leaving a document stuck in `processing`.
 - **Regression coverage**: Tests use generated tagged-PDF content and a zero-duration budget to validate both normal extraction and bounded fallback. The user-supplied root `test.pdf` remains untracked and is not part of the repository.
 
+---
+
+## 55. ML Kit OCR NullPointerException Fix & ProGuard Hardening
+
+### 1. Root Cause Analysis
+- **Uncaught Native Runtime Exception**: When ML Kit's `TextRecognizer.processImage()` was invoked, a native Java `NullPointerException` on `null.getClass()` was thrown synchronously inside the Android `MethodChannel` dispatch.
+- **Root Contributing Factors**:
+  1. **R8 / ProGuard Stripping**: `proguard-rules.pro` omitted `-keep` rules for `com.google.mlkit.**`, `com.google.android.gms.**`, and the ML Kit Flutter plugins, causing reflection-based component discovery in `MlKitContext` and `TextRecognizerProvider` to be stripped or obfuscated during minification.
+  2. **Play Services Delivery Synchronization**: `com.google.mlkit:text-recognition:16.0.1` depends on `com.google.android.gms:play-services-mlkit-text-recognition:19.0.1` (the dynamic Play Services thin client for Latin). Missing the `com.google.mlkit.vision.DEPENDENCIES = "ocr"` manifest declaration caused Play Services to omit pre-downloading the Latin OCR module on app install.
+  3. **Input Image Validation**: `DefaultOcrService._recognizeWithMlKit` did not validate enhanced image byte lengths or temp file creation before passing the file path to `InputImage.fromFilePath`, allowing empty or corrupted image buffers to trigger null bitmap dereferences in native `InputImageConverter`.
+
+### 2. Resolution & Fix
+- **ProGuard / R8 Preservation Rules (`android/app/proguard-rules.pro`)**:
+  - Added `-keep class com.google.mlkit.** { *; }`
+  - Added `-dontwarn com.google.mlkit.**`
+  - Added `-keep class com.google.android.gms.tasks.** { *; }`
+  - Added `-keep class com.google.android.gms.vision.** { *; }`
+  - Added `-keep class com.google.android.gms.internal.mlkit_vision_** { *; }`
+  - Added `-keep class com.google_mlkit_commons.** { *; }`
+  - Added `-keep class com.google_mlkit_text_recognition.** { *; }`
+- **Manifest Dependency Declaration (`android/app/src/main/AndroidManifest.xml`)**:
+  - Added `<meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="ocr" />` inside `<application>` to ensure Google Play Services provisions the Latin OCR engine upon installation.
+- **Defensive In-Flight Image Validation (`lib/core/ocr/ocr_service.dart`)**:
+  - Added pre-checks for `enhancedBytes.isNotEmpty`, temp file existence, and non-zero file length before constructing `InputImage.fromFilePath` and invoking `processImage()`.
+
+
 

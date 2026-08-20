@@ -84,10 +84,20 @@ class DefaultOcrService implements OcrService {
     try {
       debugPrint('[QuietPaper OCR] Pre-processing page $pageNumber for ML Kit recognition...');
       final enhancedBytes = await const DartImageProcessor().enhanceForOcr(imageBytes);
+      if (enhancedBytes.isEmpty) {
+        debugPrint('[QuietPaper OCR] Enhanced image bytes empty for page $pageNumber. Aborting ML Kit.');
+        return null;
+      }
+
       final tempDir = await getTemporaryDirectory();
       final fileName = 'ocr_page_${pageNumber}_${DateTime.now().microsecondsSinceEpoch}.png';
       tempFile = File(p.join(tempDir.path, fileName));
       await tempFile.writeAsBytes(enhancedBytes, flush: true);
+
+      if (!await tempFile.exists() || await tempFile.length() == 0) {
+        debugPrint('[QuietPaper OCR] Temp file invalid for page $pageNumber. Aborting ML Kit.');
+        return null;
+      }
 
       final script = _mapLanguageToScript(language);
       textRecognizer = TextRecognizer(script: script);
