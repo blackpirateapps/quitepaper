@@ -346,20 +346,41 @@ class DefaultOcrService implements OcrService {
       return [];
     }
 
-    // Heuristically segment text bands
-    final bandCount = 8;
-    for (var i = 0; i < bandCount; i++) {
-      final normY = (0.10 + (i * 0.10)).clamp(0.0, 0.95);
-      final normH = 0.04;
-      lines.add((
-        text: 'Document Line ${i + 1}',
-        bounds: NormalizedRect(
-          x: 0.08,
-          y: normY,
-          width: 0.84,
-          height: normH,
-        ),
-      ));
+    // Heuristically segment text bands based on horizontal projection profile
+    final rowHeights = <int>[];
+    for (var y = 0; y < gray.height; y++) {
+      var darkPixels = 0;
+      for (var x = 0; x < gray.width; x++) {
+        final v = gray.getPixel(x, y).r.toInt();
+        if (v < ((minVal + maxVal) ~/ 2)) {
+          darkPixels++;
+        }
+      }
+      rowHeights.add(darkPixels);
+    }
+
+    var inBand = false;
+    var bandStartY = 0;
+
+    for (var y = 0; y < rowHeights.length; y++) {
+      final isDark = rowHeights[y] > (gray.width * 0.05);
+      if (isDark && !inBand) {
+        inBand = true;
+        bandStartY = y;
+      } else if (!isDark && inBand) {
+        inBand = false;
+        final normY = (bandStartY / gray.height).clamp(0.0, 1.0);
+        final normH = ((y - bandStartY) / gray.height).clamp(0.01, 0.5);
+        lines.add((
+          text: '',
+          bounds: NormalizedRect(
+            x: 0.08,
+            y: normY,
+            width: 0.84,
+            height: normH,
+          ),
+        ));
+      }
     }
 
     return lines;

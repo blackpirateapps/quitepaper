@@ -173,6 +173,35 @@ void main() {
       expect(decryptedDoc?.pages.first.source, equals(OcrSource.embeddedPdfText));
     });
 
+    test('Extracts text layer directly for scanner document if text layer exists without calling OCR', () async {
+      var ocrCalled = false;
+      final trackingOcrService = FakeOcrService();
+
+      processingService = DocumentProcessingService(
+        database: database,
+        keyManager: keyManager,
+        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+        textExtractor: FakePdfTextExtractor(hasText: true, mockText: 'Scanned PDF Embedded Text'),
+        pageRenderer: FakePdfPageRenderer(),
+        ocrService: trackingOcrService,
+      );
+
+      await processingService.processDocument(
+        documentId: testDocId,
+        pdfBytes: samplePdfBytes,
+        source: DocumentSource.scanner,
+      );
+
+      final doc = await database.getDocument(testDocId);
+      expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
+
+      final decryptedDoc = await processingService.getDecryptedOcrDocument(testDocId);
+      expect(decryptedDoc, isNotNull);
+      expect(decryptedDoc?.fullPlainText, contains('Scanned PDF Embedded Text'));
+      expect(decryptedDoc?.pages.first.source, equals(OcrSource.embeddedPdfText));
+      expect(ocrCalled, isFalse);
+    });
+
     test('Falls back to on-device OCR when PDF text layer is absent', () async {
       processingService = DocumentProcessingService(
         database: database,

@@ -59,27 +59,25 @@ class DocumentProcessingService {
       final pdfSha256 = DocumentCrypto.computeSha256(pdfBytes);
       OcrDocument? ocrResult;
 
-      // 1. If imported PDF, inspect for existing usable text layer first
-      if (source == DocumentSource.importedPdf) {
-        try {
-          debugPrint('[QuietPaper OCR] Checking for embedded PDF text layer...');
-          final extraction = await _textExtractor.extractText(pdfBytes);
-          if (extraction.hasUsableText && extraction.pages.isNotEmpty) {
-            debugPrint('[QuietPaper OCR] Found embedded text layer with ${extraction.pages.length} pages.');
-            ocrResult = OcrDocument(
-              documentId: documentId,
-              language: language,
-              engine: 'quietpaper_pdf_extractor',
-              engineVersion: '1.0.0',
-              schemaVersion: 1,
-              processedAt: DateTime.now(),
-              sourceDocumentSha256: pdfSha256,
-              pages: extraction.pages,
-            );
-          }
-        } catch (extractErr) {
-          debugPrint('[QuietPaper OCR] Text extraction fallback to OCR: $extractErr');
+      // 1. Inspect for existing usable embedded PDF text layer first
+      try {
+        debugPrint('[QuietPaper OCR] Checking for embedded PDF text layer...');
+        final extraction = await _textExtractor.extractText(pdfBytes);
+        if (extraction.hasUsableText && extraction.pages.isNotEmpty) {
+          debugPrint('[QuietPaper OCR] Found embedded text layer with ${extraction.pages.length} pages.');
+          ocrResult = OcrDocument(
+            documentId: documentId,
+            language: language,
+            engine: 'quietpaper_pdf_extractor',
+            engineVersion: '1.0.0',
+            schemaVersion: 1,
+            processedAt: DateTime.now(),
+            sourceDocumentSha256: pdfSha256,
+            pages: extraction.pages,
+          );
         }
+      } catch (extractErr) {
+        debugPrint('[QuietPaper OCR] Text extraction fallback to OCR: $extractErr');
       }
 
       // 2. If no text layer found or scanned document, run on-device OCR

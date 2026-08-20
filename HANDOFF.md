@@ -1153,6 +1153,55 @@ Quiet Paper features real, on-device machine learning character and word recogni
   - `Icons.document_scanner_outlined` ("Run OCR") when OCR is pending or failed.
 - **Overflow Menu**: Always includes `"Run / Regenerate OCR"` with floating SnackBar status confirmation.
 
+---
+
+## 50. Production-Ready Embedded PDF Text Layer Extraction Engine & Direct Text Layer Bypass
+
+### 1. Motivation & Architectural Overhaul
+Previously, PDF text extraction used a naive regex pattern over raw `latin1.decode` byte streams looking for uncompressed `BT ... ET` and `Tj` operators. Real-world PDFs compress content streams using `/Filter /FlateDecode` (Zlib/Deflate) and often store indirect objects inside Object Streams (`/Type /ObjStm`) or Cross-Reference Streams (`/Type /XRef`), causing previous heuristic extraction to return `hasUsableText: false` on standard PDFs and fall back unnecessarily to page rasterization and ML Kit / CV computer vision OCR. Additionally, `DocumentProcessingService.processDocument` previously only inspected the text layer for `DocumentSource.importedPdf`, and `DefaultOcrService` contained placeholder strings (`'Document Line ${i + 1}'`).
+
+### 2. Full-Featured Pure-Dart PDF Tokenizer & Document Parser (`DefaultPdfTextExtractor`)
+- **Complete Object Parser (`_PdfDocumentParser`)**:
+  - Parses indirect objects (`N M obj ... endobj`), dictionaries (`<< ... >>`), arrays (`[ ... ]`), names (`/Name`), numbers, references (`N M R`), literal strings with escapes (`\n`, `\r`, `\t`, `\b`, `\f`, `\\`, `\(`, `\)`, octals `\ddd`), and hexadecimal strings (`<...>`).
+  - Unpacks Object Streams (`/Type /ObjStm`) and indexes compressed indirect objects.
+  - Resolves cross-reference tables and incorporates a linear scanner fallback for broken or incremental PDFs.
+- **Multi-Filter Stream Decompression Engine**:
+  - Decompresses `/FlateDecode` / `/Fl` streams (supporting standard Zlib and raw Deflate).
+  - Handles `/DecodeParms` with PNG Predictor reconstruction (`/Predictor 10..15`: None, Sub, Up, Average, Paeth).
+  - Supports `/ASCIIHexDecode` (`/AHx`) and `/ASCII85Decode` (`/A85`).
+
+### 3. Font Decoding, Adobe Glyph List & `/ToUnicode` CMap Support
+- **`/ToUnicode` CMap Parser**:
+  - Parses `beginbfchar ... endbfchar` and `beginbfrange ... endbfrange` (both start-end-dest and array formats), mapping character codes and CIDs to UTF-16 / Unicode characters.
+- **Standard Encodings & Adobe Glyph List (AGL)**:
+  - Supports `WinAnsiEncoding` (CP-1252), `MacRomanEncoding`, `StandardEncoding`, `PDFDocEncoding`, and `/Differences` arrays with the standard Adobe Glyph List.
+
+### 4. Text Operator Interpreter & Coordinate Transformation Engine
+- **Graphics & Text Matrices**:
+  - Maintains graphics state stack (`q` / `Q`) and Current Transformation Matrix (`cm`).
+  - Interprets text positioning operators (`BT`, `ET`, `Tf`, `Td`, `TD`, `Tm`, `T*`, `TL`, `Tc`, `Tw`, `Tz`).
+  - Interprets text display operators (`Tj`, `'`, `"`, and `TJ` with kerning arrays).
+  - Translates $(X, Y)$ user coordinates via $T_m \times CTM$ to normalized page coordinate space `NormalizedRect(x, y, width, height)` in $[0.0, 1.0]$.
+
+### 5. Layout Reconstruction, Word Spacing & Paragraph Formatting (`pdf2text` Style)
+- **Typographic Glyph Width Calculation (`_calculateStringWidth`)**:
+  - Distinguishes narrow glyphs (`i`, `l`, `j`, `t`, `f`, `r`, punctuation), wide glyphs (`m`, `w`, `M`, `W`, etc.), uppercase, and standard characters for accurate width calculation.
+- **Line & Word Assembly**:
+  - Groups fragments into horizontal lines by vertical baseline alignment ($\Delta Y \le 0.45 \times \text{line height}$).
+  - Sorts left-to-right within lines and synthesizes natural word spaces based on displacement and kerning.
+  - Builds `OcrWord` with confidence `1.0` and `OcrLine`.
+- **Paragraph Grouping (`OcrBlock`)**:
+  - Detects paragraph breaks when vertical gap $> 1.35 \times \text{line height}$, joining lines with `\n` and paragraphs with `\n\n`.
+  - Assembles `OcrPage` with `source: OcrSource.embeddedPdfText`.
+
+### 6. Universal Direct Text Layer Bypass (`DocumentProcessingService`)
+- Whenever any PDF document is processed or the user clicks "Generate OCR" / "Regenerate OCR", `DocumentProcessingService.processDocument` always checks for an embedded text layer first.
+- If a usable text layer exists, it extracts and formats the text directly, encrypts with the user's Master Key, and saves with `source: OcrSource.embeddedPdfText`, skipping page rasterization and ML Kit OCR entirely.
+
+### 7. Zero Placeholder Invariant
+- Removed `'Document Line ${i + 1}'` placeholder in `DefaultOcrService._detectTextLines`, replacing it with horizontal projection profile analysis without hardcoded text strings.
+
+
 
 
 
