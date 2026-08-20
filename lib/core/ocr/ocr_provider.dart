@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/notes/application/notes_provider.dart';
+import '../../features/settings/application/settings_provider.dart';
 import '../image_processing/image_processor.dart';
 import '../pdf/pdf_generator.dart';
 import '../pdf/pdf_page_renderer.dart';
@@ -7,7 +9,39 @@ import '../pdf/pdf_text_extractor.dart';
 import '../sync/sync_provider.dart';
 import 'document_processing_service.dart';
 import 'ocr_crypto.dart';
+import 'ocr_models.dart';
 import 'ocr_service.dart';
+
+/// Notifier managing persisted user OCR language preference.
+class OcrLanguagePreferenceNotifier extends StateNotifier<OcrLanguage> {
+  OcrLanguagePreferenceNotifier(this._prefs) : super(_loadLanguage(_prefs));
+
+  final SharedPreferences? _prefs;
+  static const String _key = 'quietpaper_ocr_language_pref';
+
+  static OcrLanguage _loadLanguage(SharedPreferences? prefs) {
+    if (prefs == null) return OcrLanguage.english;
+    final code = prefs.getString(_key);
+    return OcrLanguage.fromCode(code);
+  }
+
+  Future<void> setLanguage(OcrLanguage language) async {
+    state = language;
+    await _prefs?.setString(_key, language.code);
+  }
+}
+
+/// Provider for user's configured OCR language preference.
+final ocrLanguagePreferenceProvider =
+    StateNotifierProvider<OcrLanguagePreferenceNotifier, OcrLanguage>((ref) {
+  SharedPreferences? prefs;
+  try {
+    prefs = ref.watch(sharedPreferencesProvider);
+  } catch (_) {
+    // In unit test contexts where sharedPreferencesProvider is uninitialized
+  }
+  return OcrLanguagePreferenceNotifier(prefs);
+});
 
 /// Provider for image processing operations (adjustments, crop, rotate, normalize).
 final imageProcessorProvider = Provider<ImageProcessor>((ref) {

@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -9,8 +9,13 @@ import 'package:printing/printing.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../ocr/ocr_models.dart';
+import '../../ocr/ocr_provider.dart';
+import '../../ocr/presentation/ocr_language_dialog.dart';
+import '../../ocr/presentation/ocr_text_viewer_screen.dart';
 import '../../uri/quiet_paper_uri.dart';
 import '../../uri/resource_resolver.dart';
+import '../document_models.dart';
 import '../document_provider.dart';
 
 /// Dedicated full-screen viewer for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
@@ -127,6 +132,79 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     }
   }
 
+  void _openOcrTextViewer() {
+    final docInfo = _resolution?.data;
+    OcrTextViewerScreen.open(
+      context,
+      documentId: widget.documentId,
+      title: docInfo?.title ?? widget.title,
+      pdfBytes: docInfo?.pdfBytes,
+      source: DocumentSource.fromIdentifier(docInfo?.source),
+    );
+  }
+
+  Future<void> _copyOcrText() async {
+    final service = ref.read(documentProcessingServiceProvider);
+    final ocrDoc = await service.getDecryptedOcrDocument(widget.documentId);
+    if (ocrDoc == null || ocrDoc.pages.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No OCR text available to copy.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: ocrDoc.formattedCopyText));
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OCR text copied to clipboard'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _retryOcr() async {
+    final docInfo = _resolution?.data;
+    if (docInfo == null) return;
+
+    final service = ref.read(documentProcessingServiceProvider);
+    await service.retryOcr(
+      documentId: widget.documentId,
+      pdfBytes: docInfo.pdfBytes,
+      source: DocumentSource.fromIdentifier(docInfo.source),
+      language: OcrLanguage.fromCode(docInfo.ocrLanguage),
+    );
+    await _loadDocument();
+  }
+
+  Future<void> _openLanguageDialog() async {
+    final docInfo = _resolution?.data;
+    final currentLang = OcrLanguage.fromCode(docInfo?.ocrLanguage);
+    final chosenLang = await OcrLanguageDialog.show(
+      context,
+      initialLanguage: currentLang,
+    );
+
+    if (chosenLang != null && docInfo != null && mounted) {
+      final service = ref.read(documentProcessingServiceProvider);
+      await service.regenerateOcr(
+        documentId: widget.documentId,
+        pdfBytes: docInfo.pdfBytes,
+        source: DocumentSource.fromIdentifier(docInfo.source),
+        language: chosenLang,
+      );
+      await _loadDocument();
+    }
+  }
+
   Future<void> _savePdfToStorage() async {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
@@ -213,6 +291,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final isTablet = MediaQuery.of(context).size.width >= 768;
     final docInfo = _resolution?.data;
 
+    final isOcrAvailable = docInfo?.ocrState == 'available';
+    final isOcrProcessing = docInfo?.ocrState == 'processing' || docInfo?.ocrState == 'queued';
+    final isOcrFailed = docInfo?.ocrState == 'failed';
+
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
@@ -247,23 +329,31 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(
-                      color: docInfo.ocrState == 'available'
+                      color: isOcrAvailable
                           ? Colors.green.withValues(alpha: 0.15)
-                          : colors.accent.withValues(alpha: 0.15),
+                          : isOcrFailed
+                              ? Colors.redAccent.withValues(alpha: 0.15)
+                              : colors.accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      docInfo.ocrState == 'available'
+                      isOcrAvailable
                           ? 'Searchable (OCR)'
                           : docInfo.ocrState == 'processing'
-                              ? 'Processing OCR…'
+                              ? 'Processing text…'
                               : docInfo.ocrState == 'queued'
-                                  ? 'Queued'
-                                  : 'PDF',
+                                  ? 'Preparing text…'
+                                  : isOcrFailed
+                                      ? 'OCR unavailable'
+                                      : 'PDF',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: docInfo.ocrState == 'available' ? Colors.green : colors.accent,
+                        color: isOcrAvailable
+                            ? Colors.green
+                            : isOcrFailed
+                                ? Colors.redAccent
+                                : colors.accent,
                       ),
                     ),
                   ),
@@ -272,6 +362,12 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           ],
         ),
         actions: [
+          if (isOcrAvailable)
+            IconButton(
+              icon: const Icon(Icons.article_outlined),
+              tooltip: 'View OCR Text',
+              onPressed: _openOcrTextViewer,
+            ),
           if (docInfo != null) ...[
             IconButton(
               icon: const Icon(Icons.download_rounded),
@@ -289,10 +385,124 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               onPressed: _printPdf,
             ),
           ],
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Reload document',
-            onPressed: _loadDocument,
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded),
+            tooltip: 'Document options',
+            onSelected: (value) {
+              switch (value) {
+                case 'view_ocr':
+                  _openOcrTextViewer();
+                  break;
+                case 'copy_ocr':
+                  _copyOcrText();
+                  break;
+                case 'retry_ocr':
+                  _retryOcr();
+                  break;
+                case 'language':
+                  _openLanguageDialog();
+                  break;
+                case 'save':
+                  _savePdfToStorage();
+                  break;
+                case 'share':
+                  _sharePdf();
+                  break;
+                case 'print':
+                  _printPdf();
+                  break;
+                case 'reload':
+                  _loadDocument();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              if (isOcrAvailable) ...[
+                const PopupMenuItem(
+                  value: 'view_ocr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.article_outlined, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('View OCR Text')),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'copy_ocr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.copy_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Copy OCR Text')),
+                    ],
+                  ),
+                ),
+              ],
+              if (isOcrFailed)
+                const PopupMenuItem(
+                  value: 'retry_ocr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Retry OCR')),
+                    ],
+                  ),
+                ),
+              if (docInfo != null && !isOcrProcessing)
+                const PopupMenuItem(
+                  value: 'language',
+                  child: Row(
+                    children: [
+                      Icon(Icons.language_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('OCR Language')),
+                    ],
+                  ),
+                ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'save',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_rounded, size: 18),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Save PDF')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'share',
+                child: Row(
+                  children: [
+                    Icon(Icons.share_rounded, size: 18),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Share PDF')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'print',
+                child: Row(
+                  children: [
+                    Icon(Icons.print_rounded, size: 18),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Print PDF')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'reload',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh_rounded, size: 18),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Reload Document')),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

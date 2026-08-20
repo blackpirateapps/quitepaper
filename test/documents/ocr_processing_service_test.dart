@@ -196,6 +196,47 @@ void main() {
       expect(decryptedDoc, isNotNull);
       expect(decryptedDoc?.fullPlainText, equals('Recognized on-device scan text'));
       expect(decryptedDoc?.pages.first.source, equals(OcrSource.onDeviceOcr));
+      expect(decryptedDoc?.sourceDocumentSha256, isNotNull);
+    });
+
+    test('retryOcr and regenerateOcr atomically re-process and replace OCR dataset', () async {
+      processingService = DocumentProcessingService(
+        database: database,
+        keyManager: keyManager,
+        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+        textExtractor: FakePdfTextExtractor(hasText: true, mockText: 'Initial OCR Text'),
+        pageRenderer: FakePdfPageRenderer(),
+        ocrService: FakeOcrService(),
+      );
+
+      await processingService.processDocument(
+        documentId: testDocId,
+        pdfBytes: samplePdfBytes,
+        source: DocumentSource.importedPdf,
+      );
+
+      final doc1 = await processingService.getDecryptedOcrDocument(testDocId);
+      expect(doc1?.fullPlainText, contains('Initial OCR Text'));
+
+      // Now regenerate with updated extractor mock
+      final updatedService = DocumentProcessingService(
+        database: database,
+        keyManager: keyManager,
+        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+        textExtractor: FakePdfTextExtractor(hasText: true, mockText: 'Updated Regenerated Text'),
+        pageRenderer: FakePdfPageRenderer(),
+        ocrService: FakeOcrService(),
+      );
+
+      await updatedService.regenerateOcr(
+        documentId: testDocId,
+        pdfBytes: samplePdfBytes,
+        source: DocumentSource.importedPdf,
+      );
+
+      final doc2 = await updatedService.getDecryptedOcrDocument(testDocId);
+      expect(doc2?.fullPlainText, contains('Updated Regenerated Text'));
+      expect(doc2?.pages.length, equals(1));
     });
   });
 }

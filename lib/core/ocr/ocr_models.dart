@@ -369,6 +369,7 @@ class OcrDocument {
     this.schemaVersion = 1,
     required this.processedAt,
     this.pages = const [],
+    this.sourceDocumentSha256,
   });
 
   /// Canonical document UUID.
@@ -392,9 +393,28 @@ class OcrDocument {
   /// Ordered page OCR results.
   final List<OcrPage> pages;
 
+  /// Optional SHA-256 hash of canonical PDF source to bind OCR and detect stale data.
+  final String? sourceDocumentSha256;
+
   /// Returns full plain text across all pages concatenated with double newlines.
   String get fullPlainText =>
       pages.map((p) => p.plainText.trim()).where((t) => t.isNotEmpty).join('\n\n');
+
+  /// Formatted text output suitable for copying the entire document OCR text with stable page headers.
+  String get formattedCopyText {
+    if (pages.isEmpty) return '';
+    if (pages.length == 1) {
+      return 'Page 1\n================================\n\n${pages.first.plainText.trim()}';
+    }
+    final buffer = StringBuffer();
+    for (var i = 0; i < pages.length; i++) {
+      if (i > 0) buffer.writeln('\n');
+      buffer.writeln('Page ${pages[i].pageNumber}');
+      buffer.writeln('================================\n');
+      buffer.writeln(pages[i].plainText.trim());
+    }
+    return buffer.toString().trim();
+  }
 
   Map<String, dynamic> toJson() => {
         'documentId': documentId,
@@ -403,6 +423,8 @@ class OcrDocument {
         'engineVersion': engineVersion,
         'schemaVersion': schemaVersion,
         'processedAt': processedAt.toIso8601String(),
+        if (sourceDocumentSha256 != null)
+          'sourceDocumentSha256': sourceDocumentSha256,
         'pages': pages.map((p) => p.toJson()).toList(),
       };
 
@@ -416,6 +438,7 @@ class OcrDocument {
       schemaVersion: json['schemaVersion'] as int? ?? 1,
       processedAt: DateTime.tryParse(json['processedAt'] as String? ?? '') ??
           DateTime.now(),
+      sourceDocumentSha256: json['sourceDocumentSha256'] as String?,
       pages: rawPages
           .whereType<Map>()
           .map((p) => OcrPage.fromJson(Map<String, dynamic>.from(p)))

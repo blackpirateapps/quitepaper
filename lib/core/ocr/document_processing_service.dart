@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../documents/document_crypto.dart';
 import '../documents/document_models.dart';
 import '../pdf/pdf_page_renderer.dart';
 import '../pdf/pdf_text_extractor.dart';
@@ -53,6 +54,7 @@ class DocumentProcessingService {
         ocrLanguage: language.code,
       );
 
+      final pdfSha256 = DocumentCrypto.computeSha256(pdfBytes);
       OcrDocument? ocrResult;
 
       // 1. If imported PDF, inspect for existing usable text layer first
@@ -67,6 +69,7 @@ class DocumentProcessingService {
               engineVersion: '1.0.0',
               schemaVersion: 1,
               processedAt: DateTime.now(),
+              sourceDocumentSha256: pdfSha256,
               pages: extraction.pages,
             );
           }
@@ -96,16 +99,17 @@ class DocumentProcessingService {
           engineVersion: '1.0.0',
           schemaVersion: 1,
           processedAt: DateTime.now(),
+          sourceDocumentSha256: pdfSha256,
           pages: ocrPages,
         );
       }
 
-      // 3. Encrypt structured OCR pages client-side using Master Key
+      // 3. Encrypt structured OCR pages client-side using Master Key and atomically save
       if (keyManager.isUnlocked) {
         final masterKey = keyManager.getMasterKey();
         final now = DateTime.now();
 
-        await database.deleteDocumentOcrPages(documentId);
+        final pagePayloads = <({int pageNumber, String payloadBase64})>[];
 
         for (final page in ocrResult.pages) {
           final pageDoc = OcrDocument(
@@ -115,6 +119,7 @@ class DocumentProcessingService {
             engineVersion: ocrResult.engineVersion,
             schemaVersion: ocrResult.schemaVersion,
             processedAt: now,
+            sourceDocumentSha256: pdfSha256,
             pages: [page],
           );
 
@@ -124,11 +129,17 @@ class DocumentProcessingService {
           );
 
           final payloadBase64 = base64Encode(encryptedBytes);
+          pagePayloads.add((pageNumber: page.pageNumber, payloadBase64: payloadBase64));
+        }
 
+        // Atomically replace: delete existing records only once all new pages are encrypted
+        await database.deleteDocumentOcrPages(documentId);
+
+        for (final item in pagePayloads) {
           await database.saveDocumentOcrPage(
             documentId: documentId,
-            pageNumber: page.pageNumber,
-            encryptedPayload: payloadBase64,
+            pageNumber: item.pageNumber,
+            encryptedPayload: item.payloadBase64,
             ocrSchemaVersion: ocrResult.schemaVersion,
             ocrEngine: ocrResult.engine,
             ocrEngineVersion: ocrResult.engineVersion,
@@ -155,6 +166,36 @@ class DocumentProcessingService {
     }
   }
 
+  /// Retries OCR processing for a document with given [pdfBytes] and [language].
+  Future<void> retryOcr({
+    required String documentId,
+    required Uint8List pdfBytes,
+    DocumentSource source = DocumentSource.scanner,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    await processDocument(
+      documentId: documentId,
+      pdfBytes: pdfBytes,
+      source: source,
+      language: language,
+    );
+  }
+
+  /// Regenerates OCR for a document with given [pdfBytes] and [language].
+  Future<void> regenerateOcr({
+    required String documentId,
+    required Uint8List pdfBytes,
+    DocumentSource source = DocumentSource.scanner,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    await processDocument(
+      documentId: documentId,
+      pdfBytes: pdfBytes,
+      source: source,
+      language: language,
+    );
+  }
+
   /// Decrypts and returns the full structured [OcrDocument] for [documentId].
   Future<OcrDocument?> getDecryptedOcrDocument(String documentId) async {
     if (!keyManager.isUnlocked) return null;
@@ -169,6 +210,7 @@ class DocumentProcessingService {
     int schemaVersion = 1;
     OcrLanguage language = OcrLanguage.english;
     DateTime processedAt = DateTime.now();
+    String? sourceSha;
 
     for (final row in rows) {
       try {
@@ -184,6 +226,9 @@ class DocumentProcessingService {
         schemaVersion = decryptedDoc.schemaVersion;
         language = decryptedDoc.language;
         processedAt = decryptedDoc.processedAt;
+        if (decryptedDoc.sourceDocumentSha256 != null) {
+          sourceSha = decryptedDoc.sourceDocumentSha256;
+        }
 
         pages.addAll(decryptedDoc.pages);
       } catch (e) {
@@ -202,6 +247,7 @@ class DocumentProcessingService {
       engineVersion: engineVersion,
       schemaVersion: schemaVersion,
       processedAt: processedAt,
+      sourceDocumentSha256: sourceSha,
       pages: pages,
     );
   }

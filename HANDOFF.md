@@ -1033,4 +1033,40 @@ Previously, `.github/workflows/build_apk.yml` included redundant steps for stati
 - Removed redundant `flutter analyze` and `flutter test` steps from `.github/workflows/build_apk.yml`.
 - Updated job name from `Test and Build Android APK` to `Build Android APK` to reflect its focused responsibility of compiling and packaging multi-architecture release APKs.
 
+---
+
+## 44. User-Facing OCR Experience, Page Viewer & Language Selection (`ocr2.md`)
+
+Quiet Paper includes a complete, production-ready, client-side zero-knowledge user-facing OCR experience according to `ocr2.md`.
+
+### 1. Dedicated Page-by-Page OCR Text Viewer (`OcrTextViewerScreen`)
+- **Full-Screen Editorial Viewer**: Dedicated route (`OcrTextViewerScreen.open`) to view recognized OCR text organized by page.
+- **Visual Page Boundaries**: Displays distinct page headers (`Page 1`, `Page 2`, etc.) with subtle badges (`PDF Text Layer` vs `On-Device OCR`), line dividers, and page-level copy buttons.
+- **Native Text Selection**: Encapsulated in `SelectionArea` and `SelectableText`, supporting native selection, drag handles, text range selection, copy, and select-all.
+- **Deterministic Text Formatting**: `OcrDocument.formattedCopyText` renders clean, human-readable representations with stable page headers and double-newline spacing without leaking internal IDs or geometry coordinates.
+- **Responsive Layout**: Constrained to a max width of 720dp centered on tablets with comfortable editorial margins.
+- **Loading & State Cues**: Clear animated progress indicators ("Decrypting OCR text…", "Processing OCR text…") and error fallbacks.
+
+### 2. Document Viewer Overflow Menu & Quick Navigation (`DocumentViewerScreen`)
+- **Direct Navigation**: When OCR is available (`isOcrAvailable`), a dedicated "View OCR Text" icon button appears in the AppBar for instant one-tap switching.
+- **Overflow Actions**:
+  - `View OCR Text` (navigates to `OcrTextViewerScreen`)
+  - `Copy OCR Text` (fetches, formats, and copies complete document OCR text to clipboard with SnackBar confirmation)
+  - `Retry OCR` (visible when OCR state is `failed` to re-trigger on-device recognition from canonical PDF without re-scanning or re-importing)
+  - `OCR Language` (opens language configuration dialog)
+  - Existing export actions (`Save PDF`, `Share PDF`, `Print PDF`, `Reload Document`)
+- **Reactive Status Badges**: Visual indicator reflects live lifecycle state (`Searchable (OCR)`, `Processing text…`, `Preparing text…`, `OCR unavailable`, `PDF`).
+
+### 3. OCR Language Configuration (`OcrLanguageDialog`)
+- **Modal Dialog**: Warm editorial dialog displaying the available recognition languages.
+- **Initial Language**: English (`en`) is the canonical and only supported language in initial release.
+- **Persistence**: Managed via `OcrLanguagePreferenceNotifier` and `ocrLanguagePreferenceProvider` backed by `SharedPreferences` (`quietpaper_ocr_language_pref`).
+- **Extensible Schema**: Designed with stable ISO codes (`en`) to support future multilingual expansion without schema migration.
+
+### 4. Integrity, Atomicity & SHA-256 Hash Binding
+- **Document Hash Binding**: `OcrDocument.sourceDocumentSha256` binds OCR payloads directly to the source PDF SHA-256 hash.
+- **Atomic Replacement**: `DocumentProcessingService.processDocument` and `regenerateOcr` encrypt all new pages in memory before purging old records, preventing data loss on interrupted jobs.
+- **Offline & Zero-Knowledge Assurance**: Decryption and rendering run 100% on-device; plaintext OCR never leaves the client or touches external APIs.
+
+
 

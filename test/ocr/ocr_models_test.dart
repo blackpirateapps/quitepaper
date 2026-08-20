@@ -122,20 +122,54 @@ void main() {
         engineVersion: '1.0.0',
         schemaVersion: 1,
         processedAt: DateTime(2026, 8, 20, 15, 0, 0),
+        sourceDocumentSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
         pages: [page1],
       );
 
       expect(doc.fullPlainText, equals('Quiet Paper'));
+      expect(
+        doc.formattedCopyText,
+        equals('Page 1\n================================\n\nQuiet Paper'),
+      );
 
       final json = doc.toJson();
       final restored = OcrDocument.fromJson(json);
 
       expect(restored.documentId, equals('doc-uuid-1234'));
       expect(restored.language, equals(OcrLanguage.english));
+      expect(restored.sourceDocumentSha256, equals('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'));
       expect(restored.pages.length, equals(1));
       expect(restored.pages.first.plainText, equals('Quiet Paper'));
       expect(restored.pages.first.blocks.first.lines.first.words.length, equals(2));
       expect(restored.pages.first.blocks.first.lines.first.words.first.text, equals('Quiet'));
+    });
+
+    test('Formatted copy text handles multi-page documents with stable separators', () {
+      final doc = OcrDocument(
+        documentId: 'doc-multi-123',
+        processedAt: DateTime.now(),
+        pages: const [
+          OcrPage(
+            pageNumber: 1,
+            plainText: 'Invoice #4829\nACME Corp',
+            width: 1000,
+            height: 1414,
+          ),
+          OcrPage(
+            pageNumber: 2,
+            plainText: 'Terms & Conditions\nPayment due in 30 days',
+            width: 1000,
+            height: 1414,
+          ),
+        ],
+      );
+
+      final copyText = doc.formattedCopyText;
+      expect(copyText, contains('Page 1'));
+      expect(copyText, contains('================================'));
+      expect(copyText, contains('Invoice #4829'));
+      expect(copyText, contains('Page 2'));
+      expect(copyText, contains('Terms & Conditions'));
     });
   });
 }
