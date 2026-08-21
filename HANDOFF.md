@@ -1528,3 +1528,63 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 
 
 
+
+---
+
+## 65. Markdown Importer Image Ingestion, Smart Relinker & Expandable Tray
+
+### 1. Architectural Overview & Motivation
+Previously, the Markdown folder importer only ingested text and frontmatter from `.md` files. If imported documents contained relative image links (e.g. `![Diagram](images/flow.png)`, `![[flow.png]]`, or `<img src="./assets/flow.png">`), the image files on disk were ignored and not imported into Quiet Paper's zero-knowledge encrypted attachment vault, causing imported notes to render broken image icons.
+
+This update introduces an end-to-end image parsing, resolution, smart matching, and encrypted attachment ingestion engine with visual feedback:
+1. **Multi-Format Image Extraction**:
+   - Standard Markdown images: `![alt text](path/to/image.png "title")` and angle-bracketed paths with spaces: `![alt](<path with spaces/image.png>)`.
+   - Obsidian / Logseq Wikilink embeds: `![[image.png]]`, `![[image.png|alt text]]`, `![[image.png|300x200]]`.
+   - HTML images: `<img src="assets/pic.png" alt="preview" />`.
+   - Code block filtering: Ignores sample image syntax inside fenced code blocks (` ``` ... ``` ` or `~~~ ... ~~~`).
+   - Web exclusions: Remote URLs (`http://`, `https://`, `data:image/`) are safely preserved without attempting local disk lookups.
+2. **Multi-Strategy Disk Resolution**:
+   - Priority 1: Relative to note directory (`p.join(noteDir, relPath)`).
+   - Priority 2: Relative to vault root directory (`p.join(rootVaultDir, relPath)`).
+   - Priority 3: Common attachment subfolders under note directory and root vault (`attachments/`, `_resources/`, `assets/`, `images/`, `media/`, `files/`, `img/`, `photos/`).
+   - Priority 4: Vault-wide indexed image lookup (maps lowercase filenames to absolute paths across the entire folder tree for wikilinks and moved files).
+   - Enforces the 25 MB max file size limit per attachment (`AttachmentService.maxFileSizeBytes`).
+3. **Smart Image Matcher (`ImageReferenceMatcher`)**:
+   - When users batch-pick multiple images from their gallery or file system via "Locate Missing Images", the matcher automatically maps them to unresolved note references using:
+     - Exact basename match (case-insensitive, URL-decoded).
+     - Trailing subpath match (e.g. `assets/pic.png` in `/path/to/assets/pic.png`).
+     - Filename without extension match (`photo.jpg` $\leftrightarrow$ `photo.jpeg` / `photo.png`).
+     - Delimiter-tolerant match (`flow_chart.png` $\leftrightarrow$ `flow-chart.png` $\leftrightarrow$ `flow chart.png`).
+   - Provides direct single-image relinking via `relinkSingleImage`.
+4. **Encrypted Ingestion & Markdown Link Rewriting (`MarkdownImportService`)**:
+   - Ingests found images through `AttachmentService.importImageFromFile` or `importImageFromBytes`, performing authenticated client-side encryption (**XChaCha20-Poly1305**) and persisting `.enc` ciphertexts in app-private storage.
+   - Automatically rewrites source image references to canonical Quiet Paper URIs (`![alt](qp://asset/<UUID>)`).
+   - Deduplicates identical image files within the same import batch to avoid duplicate encryption and storage.
+   - Non-destructive fallback: Unresolved or missing images are preserved with their original markdown syntax intact.
+5. **Interactive UI & Expandable Tray**:
+   - **`ImportItemCard`**:
+     - Shows an `ATTACHMENTS (N)` header with missing image count badges.
+     - Displays live image thumbnails (36×36 rounded), clean filenames, human-readable file sizes, and status indicators (`✅ Ready to import` vs `⚠️ Missing on disk` with a `[Relink]` button).
+     - Notes with $\le 2$ images display attachments inline. Notes with $> 2$ images feature an **expandable tray** ("Show all N attachments ▾" / "Show fewer attachments ▴").
+   - **`MarkdownImportScreen`**:
+     - Displays aggregate image statistics and a high-visibility alert banner when unresolved images exist with a one-tap `[Locate Images]` action.
+     - Confirmation dialog when importing notes with missing images, giving users the option to locate images or import text anyway.
+
+### 2. Core Modified & New Components
+- [`ImportImageReference` & `ImportImageStatus`](file:///home/dog/git/quitepaper/lib/features/import/domain/import_image_reference.dart): Domain model for tracking image references, status, resolved file paths, picked bytes, and file sizes.
+- [`MarkdownImportItem`](file:///home/dog/git/quitepaper/lib/features/import/domain/markdown_import_item.dart): Extended with `imageReferences`, `totalImagesCount`, `foundImagesCount`, `missingImagesCount`, and `hasMissingImages`.
+- [`MarkdownImageParser`](file:///home/dog/git/quitepaper/lib/features/import/application/markdown_image_parser.dart): Regex extraction and multi-strategy disk resolution engine.
+- [`ImageReferenceMatcher`](file:///home/dog/git/quitepaper/lib/features/import/application/image_reference_matcher.dart): Smart batch matcher for user-picked image files.
+- [`MarkdownImportScanner`](file:///home/dog/git/quitepaper/lib/features/import/application/markdown_import_scanner.dart): Indexes vault image files and attaches resolved image references during folder scan and file pick.
+- [`MarkdownImportService`](file:///home/dog/git/quitepaper/lib/features/import/application/markdown_import_service.dart): Orchestrates `AttachmentService` encryption, image deduplication, and markdown URI rewriting.
+- [`ImportItemCard`](file:///home/dog/git/quitepaper/lib/features/import/presentation/widgets/import_item_card.dart): Updated with live thumbnails, missing badges, relink button, and expandable tray.
+- [`MarkdownImportScreen`](file:///home/dog/git/quitepaper/lib/features/import/presentation/markdown_import_screen.dart): Added missing image banner, batch image locator, single relinking, and confirmation dialog.
+
+### 3. Automated Verification & Quality
+- Added [`test/import/markdown_image_parser_test.dart`](file:///home/dog/git/quitepaper/test/import/markdown_image_parser_test.dart) testing standard markdown, angle brackets, wikilinks, HTML tags, common folder resolution, missing file detection, code block exclusions, and web image exclusions.
+- Added [`test/import/image_reference_matcher_test.dart`](file:///home/dog/git/quitepaper/test/import/image_reference_matcher_test.dart) testing exact basename matching, delimiter tolerance, in-memory bytes matching, and single relinking.
+- Added [`test/import/markdown_import_service_image_test.dart`](file:///home/dog/git/quitepaper/test/import/markdown_import_service_image_test.dart) testing client-side encryption, link rewriting to `qp://asset/UUID`, and batch deduplication.
+- Added [`test/import/import_item_card_image_test.dart`](file:///home/dog/git/quitepaper/test/import/import_item_card_image_test.dart) testing inline attachment rows, expandable tray toggle for >2 images, and relink callbacks.
+- Added [`test/import/markdown_import_screen_image_test.dart`](file:///home/dog/git/quitepaper/test/import/markdown_import_screen_image_test.dart) testing missing image banner and import confirmation dialog.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all 407 unit and widget tests passing**).

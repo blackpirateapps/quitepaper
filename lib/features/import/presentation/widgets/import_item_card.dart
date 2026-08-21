@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -5,10 +6,11 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
+import '../../domain/import_image_reference.dart';
 import '../../domain/markdown_import_item.dart';
 import 'add_tag_modal.dart';
 
-class ImportItemCard extends StatelessWidget {
+class ImportItemCard extends StatefulWidget {
   const ImportItemCard({
     super.key,
     required this.item,
@@ -16,6 +18,7 @@ class ImportItemCard extends StatelessWidget {
     required this.onAddTag,
     required this.onRemoveTag,
     required this.onEditTitle,
+    this.onRelinkImage,
   });
 
   final MarkdownImportItem item;
@@ -23,6 +26,14 @@ class ImportItemCard extends StatelessWidget {
   final ValueChanged<String> onAddTag;
   final ValueChanged<String> onRemoveTag;
   final ValueChanged<String> onEditTitle;
+  final ValueChanged<ImportImageReference>? onRelinkImage;
+
+  @override
+  State<ImportItemCard> createState() => _ImportItemCardState();
+}
+
+class _ImportItemCardState extends State<ImportItemCard> {
+  bool _isAttachmentsExpanded = false;
 
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
@@ -33,8 +44,13 @@ class ImportItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final item = widget.item;
     final dateStr = DateFormat('MMM d, y • h:mm a').format(item.updatedAt);
     final sizeStr = _formatFileSize(item.fileSizeBytes);
+
+    final visibleImages = _isAttachmentsExpanded
+        ? item.imageReferences
+        : item.imageReferences.take(2).toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -60,7 +76,7 @@ class ImportItemCard extends StatelessWidget {
                   height: 24,
                   child: Checkbox(
                     value: item.isSelected,
-                    onChanged: onToggleSelect,
+                    onChanged: widget.onToggleSelect,
                     activeColor: colors.accent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
@@ -161,7 +177,7 @@ class ImportItemCard extends StatelessWidget {
                       for (final tag in item.tags)
                         QuietTagChip(
                           tag: tag,
-                          onDelete: () => onRemoveTag(tag),
+                          onDelete: () => widget.onRemoveTag(tag),
                         ),
                       // Add Tag Button
                       InkWell(
@@ -171,7 +187,7 @@ class ImportItemCard extends StatelessWidget {
                             title: 'Add Tag to "${item.title}"',
                           );
                           if (newTag != null && newTag.isNotEmpty) {
-                            onAddTag(newTag);
+                            widget.onAddTag(newTag);
                           }
                         },
                         borderRadius: AppRadii.borderSm,
@@ -199,6 +215,92 @@ class ImportItemCard extends StatelessWidget {
                       ),
                     ],
                   ),
+
+                  // Image Attachments Section
+                  if (item.imageReferences.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.photo_library_outlined,
+                          size: 13,
+                          color: colors.textTertiary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ATTACHMENTS (${item.totalImagesCount})',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        if (item.hasMissingImages) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: colors.accent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${item.missingImagesCount} missing',
+                              style: AppTypography.caption.copyWith(
+                                color: colors.accentDark,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+
+                    // Attachment Rows
+                    for (final ref in visibleImages)
+                      _buildAttachmentRow(context, colors, ref),
+
+                    // Expandable Tray Toggle if > 2 images
+                    if (item.totalImagesCount > 2) ...[
+                      const SizedBox(height: 4),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isAttachmentsExpanded = !_isAttachmentsExpanded;
+                          });
+                        },
+                        borderRadius: AppRadii.borderSm,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _isAttachmentsExpanded
+                                    ? 'Show fewer attachments'
+                                    : 'Show all ${item.totalImagesCount} attachments',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.accent,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                _isAttachmentsExpanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 14,
+                                color: colors.accent,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -208,9 +310,147 @@ class ImportItemCard extends StatelessWidget {
     );
   }
 
+  Widget _buildAttachmentRow(
+    BuildContext context,
+    AppColors colors,
+    ImportImageReference ref,
+  ) {
+    final isFound = ref.isFound;
+    final sizeText =
+        isFound && ref.fileSizeBytes > 0 ? _formatFileSize(ref.fileSizeBytes) : null;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: AppRadii.borderSm,
+        border: Border.all(
+          color: isFound ? colors.divider : colors.accent.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Thumbnail / Icon
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              width: 32,
+              height: 32,
+              color: colors.surface,
+              child: _buildThumbnail(colors, ref),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  ref.displayName,
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  isFound
+                      ? (sizeText != null ? '$sizeText • Ready to import' : 'Ready to import')
+                      : 'Missing on disk',
+                  style: AppTypography.caption.copyWith(
+                    color: isFound ? colors.textTertiary : colors.accentDark,
+                    fontSize: 10.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+
+          // Trailing status / relink action
+          if (isFound)
+            Icon(
+              Icons.check_circle_rounded,
+              size: 16,
+              color: colors.accent,
+            )
+          else
+            InkWell(
+              onTap: () => widget.onRelinkImage?.call(ref),
+              borderRadius: AppRadii.borderSm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: colors.accent.withValues(alpha: 0.6)),
+                  borderRadius: AppRadii.borderSm,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.link_rounded, size: 12, color: colors.accent),
+                    const SizedBox(width: 2),
+                    Text(
+                      'Relink',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(AppColors colors, ImportImageReference ref) {
+    if (ref.isFound) {
+      if (ref.resolvedFilePath != null && ref.resolvedFilePath!.isNotEmpty) {
+        return Image.file(
+          File(ref.resolvedFilePath!),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            Icons.image_outlined,
+            size: 16,
+            color: colors.textTertiary,
+          ),
+        );
+      }
+      if (ref.pickedBytes != null && ref.pickedBytes!.isNotEmpty) {
+        return Image.memory(
+          ref.pickedBytes!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            Icons.image_outlined,
+            size: 16,
+            color: colors.textTertiary,
+          ),
+        );
+      }
+    }
+
+    return Icon(
+      Icons.broken_image_outlined,
+      size: 16,
+      color: colors.accent.withValues(alpha: 0.8),
+    );
+  }
+
   void _promptEditTitle(BuildContext context) async {
     final colors = context.appColors;
-    final controller = TextEditingController(text: item.title);
+    final controller = TextEditingController(text: widget.item.title);
 
     final newTitle = await showDialog<String>(
       context: context,
@@ -250,7 +490,7 @@ class ImportItemCard extends StatelessWidget {
     );
 
     if (newTitle != null && newTitle.trim().isNotEmpty) {
-      onEditTitle(newTitle.trim());
+      widget.onEditTitle(newTitle.trim());
     }
   }
 }

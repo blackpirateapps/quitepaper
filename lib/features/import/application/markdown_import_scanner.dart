@@ -5,11 +5,12 @@ import 'package:path/path.dart' as p;
 import '../../../core/utils/tag_parser.dart';
 import '../domain/markdown_import_item.dart';
 import 'markdown_frontmatter_parser.dart';
+import 'markdown_image_parser.dart';
 import 'storage_permission_helper.dart';
 
 abstract final class MarkdownImportScanner {
   /// Recursively scans [folderPath] for markdown files (.md and .markdown),
-  /// extracts titles, subfolder tags, file properties, and prepares import items.
+  /// indexes image files, resolves linked image references, and prepares import items.
   static Future<List<MarkdownImportItem>> scanFolder(String folderPath) async {
     // Ensure storage permissions on Android
     await StoragePermissionHelper.requestStoragePermission();
@@ -20,18 +21,30 @@ abstract final class MarkdownImportScanner {
     }
 
     final items = <MarkdownImportItem>[];
+    final vaultImagesMap = <String, String>{};
+    final markdownFiles = <File>[];
 
     try {
       await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
         if (entity is! File) continue;
 
         final lowerPath = entity.path.toLowerCase();
-        if (!lowerPath.endsWith('.md') && !lowerPath.endsWith('.markdown')) {
-          continue;
+        if (lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown')) {
+          markdownFiles.add(entity);
+        } else if (_isImageFile(lowerPath)) {
+          // Index vault image by lowercase filename for wikilink / relative matching
+          final baseName = p.basename(entity.path).toLowerCase();
+          vaultImagesMap[baseName] = entity.path;
         }
+      }
 
+      for (final mdFile in markdownFiles) {
         try {
-          final item = await processFile(entity, folderPath);
+          final item = await processFile(
+            mdFile,
+            folderPath,
+            vaultImagesMap: vaultImagesMap,
+          );
           if (item != null) {
             items.add(item);
           }
@@ -103,6 +116,16 @@ abstract final class MarkdownImportScanner {
         combinedTags.add(tag);
       }
 
+      final rootDir = (pf.path != null && pf.path!.isNotEmpty)
+          ? p.dirname(pf.path!)
+          : '';
+
+      final images = MarkdownImageParser.extractAndResolveImages(
+        markdownContent: rawContent,
+        filePath: filePath,
+        rootFolderPath: rootDir,
+      );
+
       items.add(
         MarkdownImportItem(
           filePath: filePath,
@@ -114,6 +137,7 @@ abstract final class MarkdownImportScanner {
           updatedAt: parsed.updatedAt ?? updatedAt,
           fileSizeBytes: fileSizeBytes,
           isSelected: true,
+          imageReferences: images,
         ),
       );
     }
@@ -123,7 +147,11 @@ abstract final class MarkdownImportScanner {
   }
 
   /// Processes a single markdown file into a [MarkdownImportItem].
-  static Future<MarkdownImportItem?> processFile(File file, String rootFolderPath) async {
+  static Future<MarkdownImportItem?> processFile(
+    File file,
+    String rootFolderPath, {
+    Map<String, String>? vaultImagesMap,
+  }) async {
     final rawContent = await file.readAsString();
     final stat = await file.stat();
 
@@ -166,6 +194,14 @@ abstract final class MarkdownImportScanner {
     final createdAt = parsed.createdAt ?? changed;
     final updatedAt = parsed.updatedAt ?? modified;
 
+    // 8. Extract and resolve image attachments
+    final images = MarkdownImageParser.extractAndResolveImages(
+      markdownContent: rawContent,
+      filePath: file.path,
+      rootFolderPath: rootFolderPath,
+      vaultImagesMap: vaultImagesMap,
+    );
+
     return MarkdownImportItem(
       filePath: file.path,
       relativePath: relativePath,
@@ -176,7 +212,20 @@ abstract final class MarkdownImportScanner {
       updatedAt: updatedAt,
       fileSizeBytes: stat.size,
       isSelected: true,
+      imageReferences: images,
     );
+  }
+
+  static bool _isImageFile(String path) {
+    return path.endsWith('.png') ||
+        path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.webp') ||
+        path.endsWith('.gif') ||
+        path.endsWith('.bmp') ||
+        path.endsWith('.svg') ||
+        path.endsWith('.ico') ||
+        path.endsWith('.heic');
   }
 
   /// Extracts subfolder names from relative path and converts them to valid tags.

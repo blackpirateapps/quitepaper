@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import 'import_image_reference.dart';
 
 class MarkdownImportItem {
   MarkdownImportItem({
@@ -12,8 +13,12 @@ class MarkdownImportItem {
     required this.updatedAt,
     required this.fileSizeBytes,
     this.isSelected = true,
+    List<ImportImageReference>? imageReferences,
   })  : id = id ?? const Uuid().v4(),
-        tags = List<String>.from(tags);
+        tags = List<String>.from(tags),
+        imageReferences = imageReferences != null
+            ? List<ImportImageReference>.from(imageReferences)
+            : <ImportImageReference>[];
 
   final String id;
   final String filePath;
@@ -25,6 +30,13 @@ class MarkdownImportItem {
   DateTime updatedAt;
   int fileSizeBytes;
   bool isSelected;
+  List<ImportImageReference> imageReferences;
+
+  int get totalImagesCount => imageReferences.length;
+  int get foundImagesCount => imageReferences.where((img) => img.isFound).length;
+  int get missingImagesCount => imageReferences.where((img) => !img.isFound).length;
+  bool get hasImages => imageReferences.isNotEmpty;
+  bool get hasMissingImages => missingImagesCount > 0;
 
   void toggleSelected() {
     isSelected = !isSelected;
@@ -52,6 +64,7 @@ class MarkdownImportItem {
     DateTime? updatedAt,
     int? fileSizeBytes,
     bool? isSelected,
+    List<ImportImageReference>? imageReferences,
   }) {
     return MarkdownImportItem(
       id: id ?? this.id,
@@ -64,6 +77,7 @@ class MarkdownImportItem {
       updatedAt: updatedAt ?? this.updatedAt,
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
       isSelected: isSelected ?? this.isSelected,
+      imageReferences: imageReferences ?? this.imageReferences,
     );
   }
 }

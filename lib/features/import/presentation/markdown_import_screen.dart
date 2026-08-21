@@ -8,8 +8,10 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../application/image_reference_matcher.dart';
 import '../application/markdown_import_scanner.dart';
 import '../application/markdown_import_service.dart';
+import '../domain/import_image_reference.dart';
 import '../domain/markdown_import_item.dart';
 import 'widgets/add_tag_modal.dart';
 import 'widgets/import_item_card.dart';
@@ -117,6 +119,76 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
     }
   }
 
+  Future<void> _locateMissingImages() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.image,
+      );
+
+      if (result != null && result.files.isNotEmpty && mounted) {
+        final matchedCount = ImageReferenceMatcher.matchMissingImages(
+          items: _items,
+          pickedFiles: result.files,
+        );
+
+        setState(() {});
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              matchedCount > 0
+                  ? 'Matched $matchedCount missing image${matchedCount == 1 ? '' : 's'} across notes'
+                  : 'No matching image names found among selected files',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not select images: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _relinkSingleImage(
+    MarkdownImportItem item,
+    ImportImageReference ref,
+  ) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.image,
+      );
+
+      if (result != null && result.files.isNotEmpty && mounted) {
+        final success = ImageReferenceMatcher.relinkSingleImage(
+          ref: ref,
+          pickedFile: result.files.first,
+        );
+
+        if (success) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Linked "${ref.displayName}" successfully'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not relink image: $e')),
+        );
+      }
+    }
+  }
+
   int get _selectedCount => _items.where((i) => i.isSelected).length;
 
   bool get _areAllSelected => _items.isNotEmpty && _selectedCount == _items.length;
@@ -152,6 +224,69 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
     final selectedItems = _items.where((i) => i.isSelected).toList();
     if (selectedItems.isEmpty) return;
 
+    final missingCount = selectedItems.fold<int>(
+      0,
+      (sum, item) => sum + item.missingImagesCount,
+    );
+
+    if (missingCount > 0) {
+      final shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final colors = ctx.appColors;
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+            title: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: colors.accent, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  'Missing Images',
+                  style: AppTypography.title.copyWith(
+                    color: colors.textPrimary,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              '$missingCount image${missingCount == 1 ? '' : 's'} referenced in the selected notes could not be found on disk.\n\nIf you proceed, note text will be imported and image links will remain preserved as original markdown.',
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+              ),
+              QuietButton(
+                label: 'Locate Images',
+                variant: QuietButtonVariant.secondary,
+                onPressed: () {
+                  Navigator.of(ctx).pop(false);
+                  _locateMissingImages();
+                },
+              ),
+              QuietButton(
+                label: 'Import Anyway',
+                variant: QuietButtonVariant.primary,
+                onPressed: () => Navigator.of(ctx).pop(true),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldProceed != true) return;
+    }
+
+    await _executeImport(selectedItems);
+  }
+
+  Future<void> _executeImport(List<MarkdownImportItem> selectedItems) async {
     setState(() {
       _isImporting = true;
     });
@@ -261,7 +396,7 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Scanning directory for Markdown files...',
+              'Scanning directory for Markdown files & images...',
               style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
             ),
           ],
@@ -341,8 +476,76 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
       );
     }
 
+    final selectedItems = _items.where((i) => i.isSelected).toList();
+    final missingImagesAcrossSelected = selectedItems.fold<int>(
+      0,
+      (sum, item) => sum + item.missingImagesCount,
+    );
+
     return Column(
       children: [
+        // Missing Images Alert Banner
+        if (missingImagesAcrossSelected > 0)
+          Container(
+            margin: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.compact,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: AppRadii.borderMd,
+              border: Border.all(
+                color: colors.accent.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 20,
+                  color: colors.accent,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$missingImagesAcrossSelected missing image${missingImagesAcrossSelected == 1 ? '' : 's'}',
+                        style: AppTypography.bodySmallMedium.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      Text(
+                        'Select image files to automatically link them.',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                QuietButton(
+                  label: 'Locate Images',
+                  icon: Icons.image_search_rounded,
+                  variant: QuietButtonVariant.secondary,
+                  onPressed: _locateMissingImages,
+                ),
+              ],
+            ),
+          ),
+
         // Control Header: Select All & Bulk Actions
         Container(
           padding: const EdgeInsets.symmetric(
@@ -434,6 +637,7 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
                     item.title = title;
                   });
                 },
+                onRelinkImage: (ref) => _relinkSingleImage(item, ref),
               );
             },
           ),
