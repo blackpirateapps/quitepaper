@@ -13,8 +13,11 @@ import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
 import '../attachments/presentation/quiet_asset_image_view.dart';
+import '../documents/document_models.dart';
+import '../documents/document_provider.dart';
 import '../documents/presentation/document_viewer_screen.dart';
 import '../documents/presentation/quiet_document_card.dart';
+import '../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../uri/quiet_paper_uri.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
@@ -221,13 +224,32 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           final target = (href != null && href.isNotEmpty) ? href : text;
           final qpUri = QuietPaperUri.tryParse(target);
           if (qpUri != null && qpUri.isDocument) {
-            final renamed = await DocumentViewerScreen.openUri(
-              context,
-              uri: qpUri,
-              title: text.isNotEmpty ? text : 'Scanned Document',
-            );
-            if (renamed != null && renamed.isNotEmpty && renamed != text && widget.onDocumentRenamed != null) {
-              widget.onDocumentRenamed!(qpUri.resourceId, renamed);
+            try {
+              final doc = await ref.read(documentServiceProvider).database.getDocument(qpUri.resourceId);
+              if (doc != null &&
+                  (doc.source == DocumentSource.webSnapshot.identifier ||
+                      doc.mimeType == 'text/html')) {
+                if (context.mounted) {
+                  await WebSnapshotViewerScreen.open(
+                    context,
+                    documentId: qpUri.resourceId,
+                    title: text.isNotEmpty ? text : doc.title,
+                    sourceUrl: _parsedMarkdown.source,
+                  );
+                }
+                return;
+              }
+            } catch (_) {}
+
+            if (context.mounted) {
+              final renamed = await DocumentViewerScreen.openUri(
+                context,
+                uri: qpUri,
+                title: text.isNotEmpty ? text : 'Scanned Document',
+              );
+              if (renamed != null && renamed.isNotEmpty && renamed != text && widget.onDocumentRenamed != null) {
+                widget.onDocumentRenamed!(qpUri.resourceId, renamed);
+              }
             }
             return;
           }

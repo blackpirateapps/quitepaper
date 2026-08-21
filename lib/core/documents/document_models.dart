@@ -7,7 +7,10 @@ enum DocumentSource {
   scanner('scanner'),
 
   /// Imported from an existing local PDF file.
-  importedPdf('imported_pdf');
+  importedPdf('imported_pdf'),
+
+  /// Captured from a clipped web page preserving original HTML & CSS styles.
+  webSnapshot('web_snapshot');
 
   const DocumentSource(this.identifier);
   final String identifier;

@@ -137,6 +137,78 @@ class DocumentService implements DocumentResolver {
     return (document: entity!, markdownSnippet: markdownSnippet);
   }
 
+  /// Creates and stores a web snapshot document from UTF-8 HTML [htmlBytes].
+  Future<({DocumentEntity document, String markdownSnippet})> createWebSnapshotDocument({
+    required Uint8List htmlBytes,
+    String? noteId,
+    String title = 'Web Snapshot',
+  }) async {
+    if (htmlBytes.length > maxFileSizeBytes) {
+      throw ArgumentError(
+        'Snapshot exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      );
+    }
+
+    if (!keyManager.isUnlocked) {
+      throw StateError(
+        'Quiet Paper encryption keys are locked. Unlock notebook to create documents.',
+      );
+    }
+
+    final documentId = _uuid.v4();
+    final now = DateTime.now();
+    final sha256Hash = DocumentCrypto.computeSha256(htmlBytes);
+    final masterKey = keyManager.getMasterKey();
+
+    // 1. Client-side authenticated encryption bound to document ID
+    final encryptedBytes = await _crypto.encryptDocument(
+      plaintextBytes: htmlBytes,
+      masterKeyBytes: masterKey,
+      documentId: documentId,
+      keyVersion: 1,
+    );
+
+    // 2. Persist encrypted ciphertext locally in app-private storage (.qpd)
+    final localPath = await _storage.saveEncryptedBytes(
+      documentId: documentId,
+      encryptedBytes: encryptedBytes,
+    );
+
+    // 3. Cache decrypted plaintext in memory for instant local viewing
+    _storage.putDecryptedCache(documentId, htmlBytes);
+
+    // 4. Save metadata to Drift database
+    final cleanTitle = title.trim().isNotEmpty ? title.trim() : 'Web Snapshot';
+
+    await database.saveDocument(
+      id: documentId,
+      noteId: noteId,
+      title: cleanTitle,
+      source: DocumentSource.webSnapshot.identifier,
+      createdAt: now,
+      updatedAt: now,
+      mimeType: 'text/html',
+      byteSize: htmlBytes.length,
+      pageCount: 1,
+      sha256: sha256Hash,
+      encryptionKeyVersion: 1,
+      isDirty: true,
+      isDeleted: false,
+      serverRevision: 0,
+      uploadState: DocumentUploadState.uploadPending.identifier,
+      localPath: localPath,
+      thumbnailPath: null,
+      ocrState: OcrProcessingState.available.identifier,
+      ocrLanguage: 'en',
+    );
+
+    final entity = await database.getDocument(documentId);
+    final uri = QuietPaperUri.document(documentId).toUriString();
+    final markdownSnippet = '[$cleanTitle]($uri)';
+
+    return (document: entity!, markdownSnippet: markdownSnippet);
+  }
+
   /// Imports an existing local PDF file as a canonical Quiet Paper document.
   Future<({DocumentEntity document, String markdownSnippet})> importPdfFile({
     required File file,

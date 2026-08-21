@@ -10,6 +10,8 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../uri/resource_resolver.dart';
+import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
+import '../document_models.dart';
 import '../document_provider.dart';
 import 'document_viewer_screen.dart';
 
@@ -189,6 +191,15 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         elevation: 0,
         child: InkWell(
           onTap: () async {
+            if (docInfo?.source == DocumentSource.webSnapshot.identifier) {
+              await WebSnapshotViewerScreen.open(
+                context,
+                documentId: widget.documentId,
+                title: displayTitle,
+              );
+              return;
+            }
+
             final renamedTitle = await DocumentViewerScreen.open(
               context,
               documentId: widget.documentId,
@@ -258,7 +269,10 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                             ? 'Encrypted (Locked)'
                             : isError
                                 ? (_resolution?.errorMessage ?? 'Unavailable')
-                                : pageCountText,
+                                : (docInfo?.source ==
+                                        DocumentSource.webSnapshot.identifier
+                                    ? 'Web Snapshot'
+                                    : pageCountText),
                         style: TextStyle(
                           fontSize: 12,
                           color: isLocked
@@ -279,7 +293,10 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                           borderRadius: BorderRadius.circular(AppRadii.sm / 2),
                         ),
                         child: Text(
-                          'PDF (QPD1)',
+                          docInfo?.source ==
+                                  DocumentSource.webSnapshot.identifier
+                              ? 'WEB (QPD1)'
+                              : 'PDF (QPD1)',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,

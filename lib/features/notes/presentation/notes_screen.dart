@@ -14,6 +14,7 @@ import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
+import '../../web_clipper/presentation/web_clip_dialog.dart';
 import '../application/notes_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_model.dart';
@@ -172,13 +173,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 ),
               ),
               title: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    title,
-                    style: AppTypography.title.copyWith(
-                      color: colors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (selectedTag != null && destination != AppDestination.tag) ...[
@@ -209,6 +215,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     onPressed: () => _confirmEmptyTrash(context),
                   ),
                 ],
+                QuietIconButton(
+                  icon: Icons.language_rounded,
+                  tooltip: 'Clip webpage',
+                  onPressed: () => WebClipDialog.show(context),
+                ),
                 QuietIconButton(
                   icon: Icons.settings_outlined,
                   tooltip: 'Settings',

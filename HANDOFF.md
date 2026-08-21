@@ -1653,3 +1653,87 @@ This update introduces an end-to-end on-device image OCR, client-side encryption
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Test suite: `flutter test` (**all 414 unit and widget tests passing**).
 
+---
+
+## 67. Web Clipping Feature with Dual-Fidelity Snapshots & Local Encrypted Image Vault
+
+Quiet Paper features a comprehensive, distraction-free **Web Clipper** that allows clipping online articles, blog posts, documentation, and essays directly into encrypted, local-first notes with zero external cloud dependencies.
+
+```mermaid
+graph TD
+    A[Webpage URL / OS Share Sheet] --> B[WebClipperScanner / ArticleExtractor]
+    B --> C[Noise Stripping & Semantic DOM Parsing]
+    B --> D[OpenGraph, Twitter & Author Metadata Extraction]
+    B --> E[Image Discovery & Size Probing]
+    C --> F[WebClipPreviewSheet - iOS Grouped Style]
+    F -->|Customize Title, Tags & Storage Toggles| G[WebClipperService]
+    G --> H[WebImageDownloader: Parallel Vault Ingestion & Encryption]
+    H --> I[AttachmentProcessingService: On-Device ML Kit OCR]
+    G --> J[WebSnapshotGenerator: Offline Styled HTML Bundle]
+    J --> K[DocumentService: Encrypted Document qp://document/UUID]
+    G --> L[HtmlToMarkdownConverter: Frontmatter, Hero Image & GFM Body]
+    L --> M[NotesRepository: Save Note to SQLite]
+    M --> N[EditorScreen / QuietMarkdownPreview / WebSnapshotViewerScreen]
+```
+
+### 1. Dual-Fidelity Model & Storage Options
+1. **Core Markdown Note (Primary Body)**:
+   - Sanitized, clean, distraction-free Markdown document with YAML frontmatter (`title`, `source`, `author`, `created`, `description`, `tags`).
+   - Automatically tagged with `#clipped` and source domain (e.g. `#clipped`, `#theverge.com`).
+   - Lead/hero image placed at top of note with subtle italic captions and inline figures.
+   - Fully editable and formatted with GitHub Flavored Markdown (GFM tables, blockquotes, code blocks with language identifiers, and task lists).
+2. **Offline Styled HTML Web Snapshot (`qp://document/<UUID>`)**:
+   - Preserves 1:1 original layout, headings, and semantic hierarchy in a self-contained offline HTML document.
+   - Automatically adopts Quiet Paper's warm editorial palette (`#F7F6F2` Light / `#1D1C1A` Dark) and typography tokens.
+   - Encrypted with user's Master Key (`XChaCha20-Poly1305`) inside the local document vault (`.qpd` container).
+   - Direct interactive banner attached at top of Markdown note: `> 🌐 Original Web Snapshot Attached • 120.0 KB — [View Web Snapshot →](qp://document/<UUID>)`.
+3. **Local Encrypted Image Vault & Automatic OCR (`qp://asset/<UUID>`)**:
+   - Bounded parallel downloading (up to 4 streams with 25MB cap).
+   - Validates MIME types and encrypts images with `XChaCha20-Poly1305` via `AttachmentService.importImageFromBytes()`.
+   - Automatically enqueues background on-device ML Kit OCR recognition and indexing, enabling instant searchability in Global Search.
+
+### 2. Ingress & User Experience
+1. **In-App "Clip Webpage" Dialog (`WebClipDialog`)**:
+   - Accessible via note list AppBar icon (`Icons.language_rounded`) and sidebar drawer navigation item.
+   - Auto-detects URLs on the system clipboard on launch.
+2. **OS Share Sheet Receiver (`ReceiveSharingIntent`)**:
+   - Configured `android.intent.action.SEND` intent filter in `AndroidManifest.xml` for `text/plain`.
+   - `ShareIntentHandler` intercepts incoming URLs from mobile browsers (Chrome, Firefox, Safari) and opens `WebClipDialog`.
+3. **Interactive Pre-Clip Review Sheet (`WebClipPreviewSheet`)**:
+   - iOS Grouped Inset card style matching Quiet Paper design tokens.
+   - Live storage footprint breakdown showing sizes for Markdown note, HTML snapshot, and local images.
+   - `CupertinoSwitch` toggles for optional HTML snapshot and image downloading with expandable thumbnail list.
+   - Inline interactive tag chip editor for adding and removing tags prior to ingestion.
+4. **Sandboxed Web Snapshot Viewer Screen (`WebSnapshotViewerScreen`)**:
+   - In-app sandboxed `WebViewWidget` with JavaScript disabled for safety and speed.
+   - Displays offline styles, decrypted assets, and quick navigation button back to note editor.
+   - Fallback selectable text rendering for desktop/unit test environments.
+5. **Interactive Markdown Document Link Navigation (`QuietMarkdownPreview` & `QuietDocumentCard`)**:
+   - Tapping `qp://document/<UUID>` web snapshot links automatically detects `DocumentSource.webSnapshot` and routes to `WebSnapshotViewerScreen`.
+   - Document cards display distinct `'WEB (QPD1)'` badges.
+
+### 3. Core Architecture & New Components
+- [`WebClipperModels`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_models.dart): Immutable models for `ExtractedArticleMetadata`, `ClippedImageCandidate`, `WebClipScanResult`, `WebClipperOptions`, and `WebClipProgress`.
+- [`ArticleExtractor`](file:///home/dog/git/quitepaper/lib/core/web_clipper/article_extractor.dart): Noise-stripping readability parser, OpenGraph metadata extractor, and image discovery engine.
+- [`HtmlToMarkdownConverter`](file:///home/dog/git/quitepaper/lib/core/web_clipper/html_to_markdown_converter.dart): GFM Markdown compiler with YAML frontmatter, hero lead image, and snapshot reference banners.
+- [`WebImageDownloader`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_image_downloader.dart): Concurrent image downloader with XChaCha20-Poly1305 encryption and ML Kit OCR queuing.
+- [`WebSnapshotGenerator`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_snapshot_generator.dart): Self-contained offline HTML/CSS snapshot generator with Quiet Paper theme tokens.
+- [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): Pre-scan probe computing accurate storage footprints.
+- [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart) & [`webClipperServiceProvider`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_provider.dart): Orchestrator connecting scanner, downloader, snapshot generator, converter, document service, and notes repository.
+- [`ShareIntentHandler`](file:///home/dog/git/quitepaper/lib/core/web_clipper/share_intent_handler.dart): Mobile share sheet listener for Chrome/Firefox/Safari incoming URLs.
+- [`WebClipDialog`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_clip_dialog.dart): URL input modal with clipboard auto-detection.
+- [`WebClipPreviewSheet`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_clip_preview_sheet.dart): Pre-clip storage review sheet with `CupertinoSwitch` toggles and tag editor.
+- [`WebSnapshotViewerScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart): Sandboxed offline web snapshot viewer.
+- [`QuietDocumentCard`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/quiet_document_card.dart) & [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart): Web snapshot document routing and `'WEB (QPD1)'` visual indicators.
+
+### 4. Automated Verification & Quality
+- Added [`test/web_clipper/article_extractor_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/article_extractor_test.dart) for metadata, noise stripping, and image discovery testing.
+- Added [`test/web_clipper/html_to_markdown_converter_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/html_to_markdown_converter_test.dart) for frontmatter, GFM formatting, and tables.
+- Added [`test/web_clipper/web_snapshot_generator_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_snapshot_generator_test.dart) for HTML snapshot generation and style tokens.
+- Added [`test/web_clipper/web_clipper_scanner_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_scanner_test.dart) for pre-scan probes and size estimates.
+- Added [`test/web_clipper/web_clipper_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_service_test.dart) for end-to-end clipping and note creation.
+- Added [`test/web_clipper/web_clip_dialog_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clip_dialog_test.dart) and [`test/web_clipper/web_clip_preview_sheet_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clip_preview_sheet_test.dart) for UI widgets.
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 423 unit and widget tests passing**).
+
+

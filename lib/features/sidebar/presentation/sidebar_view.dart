@@ -8,6 +8,7 @@ import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../web_clipper/presentation/web_clip_dialog.dart';
 import 'widgets/sidebar_item.dart';
 import 'widgets/tag_browser_sheet.dart';
 
@@ -270,19 +271,33 @@ class SidebarView extends ConsumerWidget {
               ),
             ),
 
-            // Bottom Divider & Settings Row
+            // Bottom Divider & Actions
             Divider(color: colors.divider, height: 1),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: SidebarItem(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
-                onTap: () {
-                  onItemSelected?.call();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SidebarItem(
+                    icon: Icons.language_rounded,
+                    label: 'Clip Webpage',
+                    onTap: () {
+                      onItemSelected?.call();
+                      WebClipDialog.show(context);
+                    },
+                  ),
+                  SidebarItem(
+                    icon: Icons.settings_outlined,
+                    label: 'Settings',
+                    onTap: () {
+                      onItemSelected?.call();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const SettingsScreen()),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ],
