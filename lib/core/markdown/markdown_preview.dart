@@ -36,6 +36,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onTapLink,
     this.searchQuery,
     this.onDocumentRenamed,
+    this.onInsertText,
   });
 
   final String markdownData;
@@ -52,6 +53,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final MarkdownTapLinkCallback? onTapLink;
   final String? searchQuery;
   final void Function(String documentId, String newTitle)? onDocumentRenamed;
+  final void Function(String text)? onInsertText;
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -301,6 +303,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           assetId: qpUri.resourceId,
           altText: alt,
           title: title,
+          onInsertText: widget.onInsertText,
         );
       }
       if (qpUri != null && qpUri.isDocument) {

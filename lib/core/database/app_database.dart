@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
+import 'tables/attachment_ocr_pages_table.dart';
 import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
 import 'tables/document_ocr_pages_table.dart';
@@ -46,6 +47,7 @@ class TagWithCount {
   SyncQueueTable,
   AttachmentsTable,
   AttachmentVariantsTable,
+  AttachmentOcrPagesTable,
   NoteVersionsTable,
   DocumentsTable,
   DocumentOcrPagesTable,
@@ -58,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -130,6 +132,13 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
+          if (from < 9) {
+            if (from >= 4) {
+              await _addColumnSafely(m, attachmentsTable, attachmentsTable.ocrState);
+              await _addColumnSafely(m, attachmentsTable, attachmentsTable.ocrLanguage);
+            }
+            await _createTableSafely(m, attachmentOcrPagesTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -174,6 +183,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachment_ocr_att_idx ON attachment_ocr_pages (attachment_id);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS sync_conflicts_note_idx ON sync_conflicts (note_id, state);',
@@ -859,6 +871,8 @@ class AppDatabase extends _$AppDatabase {
     String? cloudPublicId,
     String? cloudUrl,
     String? localPath,
+    String ocrState = 'not_requested',
+    String ocrLanguage = 'en',
   }) async {
     await into(attachmentsTable).insertOnConflictUpdate(
       AttachmentsTableCompanion.insert(
@@ -881,8 +895,31 @@ class AppDatabase extends _$AppDatabase {
         cloudPublicId: Value(cloudPublicId),
         cloudUrl: Value(cloudUrl),
         localPath: Value(localPath),
+        ocrState: Value(ocrState),
+        ocrLanguage: Value(ocrLanguage),
       ),
     );
+  }
+
+  /// Update OCR status of an attachment
+  Future<void> updateAttachmentOcrState(
+    String id,
+    String ocrState, {
+    String? ocrLanguage,
+  }) async {
+    await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+      AttachmentsTableCompanion(
+        ocrState: Value(ocrState),
+        ocrLanguage: ocrLanguage != null ? Value(ocrLanguage) : const Value.absent(),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Get all active non-deleted attachments
+  Future<List<AttachmentEntity>> getActiveAttachments() async {
+    return (select(attachmentsTable)..where((a) => a.isDeleted.equals(false)))
+        .get();
   }
 
   /// Get a single attachment by ID
@@ -1535,5 +1572,60 @@ class AppDatabase extends _$AppDatabase {
   /// Get all OCR pages across all documents (for full backup)
   Future<List<DocumentOcrPageEntity>> getAllDocumentOcrPages() async {
     return select(documentOcrPagesTable).get();
+  }
+
+  // ==========================================
+  // ATTACHMENT OCR OPERATIONS & QUERIES
+  // ==========================================
+
+  /// Save or update an attachment OCR page encrypted payload
+  Future<void> saveAttachmentOcrPage({
+    required String attachmentId,
+    int pageNumber = 1,
+    required String encryptedPayload,
+    int ocrSchemaVersion = 1,
+    String ocrEngine = 'quietpaper_ocr_v1',
+    String ocrEngineVersion = '1.0.0',
+    String language = 'en',
+    required DateTime processedAt,
+  }) async {
+    await into(attachmentOcrPagesTable).insertOnConflictUpdate(
+      AttachmentOcrPagesTableCompanion.insert(
+        attachmentId: attachmentId,
+        pageNumber: Value(pageNumber),
+        encryptedPayload: encryptedPayload,
+        ocrSchemaVersion: Value(ocrSchemaVersion),
+        ocrEngine: Value(ocrEngine),
+        ocrEngineVersion: Value(ocrEngineVersion),
+        language: Value(language),
+        processedAt: processedAt,
+      ),
+    );
+  }
+
+  /// Get all OCR page records for an attachment ordered by page number
+  Future<List<AttachmentOcrPageEntity>> getAttachmentOcrPages(String attachmentId) async {
+    return (select(attachmentOcrPagesTable)
+          ..where((p) => p.attachmentId.equals(attachmentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .get();
+  }
+
+  /// Watch all OCR page records for an attachment ordered by page number
+  Stream<List<AttachmentOcrPageEntity>> watchAttachmentOcrPages(String attachmentId) {
+    return (select(attachmentOcrPagesTable)
+          ..where((p) => p.attachmentId.equals(attachmentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .watch();
+  }
+
+  /// Delete OCR pages for an attachment
+  Future<void> deleteAttachmentOcrPages(String attachmentId) async {
+    await (delete(attachmentOcrPagesTable)..where((p) => p.attachmentId.equals(attachmentId))).go();
+  }
+
+  /// Get all OCR pages across all attachments (for full search/backup)
+  Future<List<AttachmentOcrPageEntity>> getAllAttachmentOcrPages() async {
+    return select(attachmentOcrPagesTable).get();
   }
 }

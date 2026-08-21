@@ -66,6 +66,14 @@ class AttachmentsTable extends Table {
   /// Local app-private encrypted file path
   TextColumn get localPath => text().nullable()();
 
+  /// OCR processing state: 'not_requested', 'queued', 'processing', 'available', 'failed'
+  TextColumn get ocrState =>
+      text().withDefault(const Constant('not_requested'))();
+
+  /// OCR language code: e.g. 'en'
+  TextColumn get ocrLanguage =>
+      text().withDefault(const Constant('en'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

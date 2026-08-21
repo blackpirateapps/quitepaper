@@ -3,11 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../ocr/ocr_models.dart';
 import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
 import 'attachment_crypto.dart';
 import 'attachment_models.dart';
+import 'attachment_processing_service.dart';
 import 'attachment_storage.dart';
 import 'cloudinary_client.dart';
 
@@ -20,6 +22,7 @@ class AttachmentService implements AssetResolver {
     AttachmentLocalStorage? storage,
     CloudinaryClient? cloudinaryClient,
     this.apiClient,
+    this.processingService,
   })  : _crypto = crypto ?? AttachmentCrypto(),
         _storage = storage ?? AttachmentLocalStorage(),
         _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
@@ -30,6 +33,7 @@ class AttachmentService implements AssetResolver {
   final AttachmentLocalStorage _storage;
   final CloudinaryClient _cloudinary;
   final SyncApiClient? apiClient;
+  final AttachmentProcessingService? processingService;
 
   static const _uuid = Uuid();
 
@@ -127,7 +131,19 @@ class AttachmentService implements AssetResolver {
       serverRevision: 0,
       uploadState: AttachmentUploadState.uploadPending.identifier,
       localPath: localPath,
+      ocrState: 'queued',
+      ocrLanguage: 'en',
     );
+
+    // 5. Enqueue background OCR recognition asynchronously (non-blocking)
+    if (processingService != null) {
+      processingService!.processAttachment(
+        attachmentId: attachmentId,
+        imageBytes: bytes,
+      ).catchError((err) {
+        debugPrint('[QuietPaper Image OCR] Async image processing error: $err');
+      });
+    }
 
     final entity = await database.getAttachment(attachmentId);
     final cleanAlt = preferredAltText.replaceAll('[', '').replaceAll(']', '').trim();
@@ -135,6 +151,26 @@ class AttachmentService implements AssetResolver {
     final markdownSnippet = '![$cleanAlt]($uri)';
 
     return (attachment: entity!, markdownSnippet: markdownSnippet);
+  }
+
+  /// Triggers OCR re-processing for an existing attachment.
+  Future<void> regenerateOcr(
+    String attachmentId, {
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    final resolution = await resolveAsset(attachmentId);
+    if (!resolution.isAvailable || resolution.data == null) {
+      throw StateError(
+        'Cannot regenerate OCR: image data unavailable ($attachmentId)',
+      );
+    }
+    if (processingService != null) {
+      await processingService!.regenerateOcr(
+        attachmentId: attachmentId,
+        imageBytes: resolution.data!,
+        language: language,
+      );
+    }
   }
 
   // ==========================================

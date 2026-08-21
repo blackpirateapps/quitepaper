@@ -37,19 +37,35 @@ class OcrSearchService {
   /// In-memory decrypted OCR text cache: documentId -> list of pages
   final Map<String, List<_CachedOcrPage>> _ocrCache = {};
 
+  /// In-memory decrypted OCR text cache: attachmentId -> list of pages
+  final Map<String, List<_CachedOcrPage>> _attachmentOcrCache = {};
+
   /// Invalidate cache for a specific document (e.g. on OCR retry or document deletion)
   void invalidateDocumentCache(String documentId) {
     _ocrCache.remove(documentId);
   }
 
+  /// Invalidate cache for a specific attachment (e.g. on OCR retry or deletion)
+  void invalidateAttachmentCache(String attachmentId) {
+    _attachmentOcrCache.remove(attachmentId);
+  }
+
   /// Invalidate entire in-memory cache (e.g. on notebook lock or account sign-out)
   void clearCache() {
     _ocrCache.clear();
+    _attachmentOcrCache.clear();
   }
 
   /// Directly update cache with newly recognized OCR pages from DocumentProcessingService
   void updateDocumentCache(String documentId, List<OcrPage> pages) {
     _ocrCache[documentId] = pages
+        .map((p) => _CachedOcrPage(pageNumber: p.pageNumber, plainText: p.plainText))
+        .toList();
+  }
+
+  /// Directly update cache with newly recognized OCR pages from AttachmentProcessingService
+  void updateAttachmentCache(String attachmentId, List<OcrPage> pages) {
+    _attachmentOcrCache[attachmentId] = pages
         .map((p) => _CachedOcrPage(pageNumber: p.pageNumber, plainText: p.plainText))
         .toList();
   }

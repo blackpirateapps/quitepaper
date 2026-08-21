@@ -1587,4 +1587,69 @@ This update introduces an end-to-end image parsing, resolution, smart matching, 
 - Added [`test/import/import_item_card_image_test.dart`](file:///home/dog/git/quitepaper/test/import/import_item_card_image_test.dart) testing inline attachment rows, expandable tray toggle for >2 images, and relink callbacks.
 - Added [`test/import/markdown_import_screen_image_test.dart`](file:///home/dog/git/quitepaper/test/import/markdown_import_screen_image_test.dart) testing missing image banner and import confirmation dialog.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
-- Test suite: `flutter test` (**all 407 unit and widget tests passing**).
+- Test suite: `flutter test` (**all 414 unit and widget tests passing**).
+
+---
+
+## 66. On-Device Image OCR, Interactive Live-Text Viewer Modal & Unified Search Integration
+
+### 1. Architectural Overview & Motivation
+Previously, Quiet Paper featured client-side zero-knowledge OCR for PDF documents, but standard image attachments (`qp://asset/<UUID>` e.g. receipt photos, whiteboard captures, screenshots, and diagrams) did not undergo OCR. Their contents were unsearchable in notes, and users had no interactive way to view, zoom, or copy text directly out of images.
+
+This update introduces an end-to-end on-device image OCR, client-side encryption, interactive Live-Text overlay viewer modal, note transcription insertion, and global search subsystem:
+
+1. **Drift SQLite Schema v9 Migration**:
+   - Added `ocrState` (`TEXT`, default `'not_requested'`) and `ocrLanguage` (`TEXT`, default `'en'`) columns to the `attachments` table.
+   - Created the `attachment_ocr_pages` table (`attachment_ocr_pages_table.dart`) with `attachment_id`, `page_number`, `encrypted_payload`, `ocr_schema_version`, `ocr_engine`, `ocr_engine_version`, `language`, and `processed_at`.
+   - Indexed via `attachment_ocr_att_idx` (`attachment_id`, `page_number`) with cascading foreign key deletion on attachment removal.
+   - Bumped `schemaVersion` to `9` with backward-compatible migration steps in `onUpgrade` and `beforeOpen`.
+
+2. **Background On-Device Image OCR Pipeline (`AttachmentProcessingService`)**:
+   - Asynchronous background worker coordinates OCR recognition using `DefaultOcrService.recognizePage()` (hardware-accelerated ML Kit or Pure-Dart CV fallback).
+   - Normalizes image orientation, enhances contrast via `DartImageProcessor.enhanceForOcr()`, and generates structured `OcrDocument` with normalized word/line bounding boxes (`NormalizedRect`).
+   - Encrypts OCR payloads client-side using `OcrCrypto.encryptOcrDocument()` with the user's Master Key (`QPOC` envelope with `XChaCha20-Poly1305` AEAD and AAD `quietpaper:asset-ocr:<attachmentId>:v1`). Plaintext never touches disk or backend.
+   - Enqueued non-blockingly whenever images are imported (`importImageFromFile`, `importImageFromBytes`, or markdown folder import).
+   - Supports manual re-running and language switching via `regenerateOcr()`.
+
+3. **Interactive Live-Text Image Viewer Modal (`ImageViewerModal`)**:
+   - **Immersive Presentation**: Full-screen modal with smooth pinch-to-zoom (up to 5x), double-tap zoom/reset, subtle top app bar, and dismiss gesture/button.
+   - **Live-Text Overlay**: Highlights recognized words and lines directly over the image canvas. Tapping on a word or line selects it and displays a copy/insert chip. Live text can be toggled on/off via the app bar.
+   - **Action Bar**:
+     - `Copy All Text`: Copies complete recognized transcription to clipboard with SnackBar confirmation.
+     - `Insert into Note`: Appends/inserts OCR transcription directly into the Markdown note below the image with undo/redo support and autosave.
+     - `Save Image`: Exports decrypted image to device storage via `FilePicker`.
+   - **Overflow Controls**: Provides "Re-run OCR", "OCR Language", and "Save Image" actions.
+
+4. **Interactive Image Preview & Context Menu (`QuietAssetImageView`)**:
+   - Tapping an inline Markdown image (`![alt](qp://asset/UUID)`) opens `ImageViewerModal`.
+   - Long-pressing opens a quick bottom-sheet context menu ("View Full Image", "Copy Extracted Text", "Insert Text into Note", "Save Image to Device").
+   - Wired seamlessly into `QuietMarkdownPreview` and `EditorScreen`.
+
+5. **Unified Global Search Integration (`DriftNotesRepository` & `OcrSearchService`)**:
+   - Updated `DriftNotesRepository._getNoteIdsMatchingOcr()` to query and decrypt both `getAllDocumentOcrPages()` (PDFs) and `getAllAttachmentOcrPages()` (Images).
+   - Matches words in image OCR payloads against search queries and maps them to parent notes via foreign key or inline Markdown token (`qp://asset/<UUID>`).
+   - `OcrSearchService` maintains an in-memory decrypted attachment cache for instant search performance.
+
+6. **Local Backup & Cloud Sync Compatibility (`BackupService`)**:
+   - Serialized `ocrPages`, `ocrState`, and `ocrLanguage` inside `BackupAttachment` and added `BackupAttachmentOcrPage` model.
+   - Full backward compatibility for `.qpbackup` archives.
+
+### 2. Core Modified & New Components
+- [`AttachmentOcrPagesTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/attachment_ocr_pages_table.dart): **NEW** table definition for encrypted image OCR payloads.
+- [`AttachmentsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/attachments_table.dart): Added `ocrState` and `ocrLanguage` columns.
+- [`AppDatabase`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart): Schema v9 upgrade, indexes, and DAO methods (`saveAttachmentOcrPage`, `getAttachmentOcrPages`, `watchAttachmentOcrPages`, `deleteAttachmentOcrPages`, `getAllAttachmentOcrPages`, `updateAttachmentOcrState`).
+- [`AttachmentProcessingService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_processing_service.dart): **NEW** background OCR coordinator for image assets.
+- [`AttachmentService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_service.dart): Integrated background OCR on import and added `regenerateOcr()`.
+- [`ImageViewerModal`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_viewer_modal.dart): **NEW** full-screen Live-Text viewer modal with zoom and text extraction.
+- [`QuietAssetImageView`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart): Updated with tap-to-open modal, long-press bottom-sheet context menu, and `onInsertText` support.
+- [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart) & [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart): Wired `onInsertText` for direct note transcription insertions.
+- [`DriftNotesRepository`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_repository.dart) & [`OcrSearchService`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_search_service.dart): Unified decrypted image OCR search matching.
+- [`BackupService`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart) & [`BackupModels`](file:///home/dog/git/quitepaper/lib/core/backup/backup_models.dart): Backup serialization and restoration of attachment OCR pages.
+
+### 3. Automated Verification & Quality
+- Added [`test/attachments/attachment_processing_service_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_processing_service_test.dart) testing background recognition, encryption, state persistence, and OCR regeneration.
+- Added [`test/attachments/attachment_ocr_search_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_ocr_search_test.dart) testing searching notes matching decrypted image OCR text.
+- Added [`test/attachments/image_viewer_modal_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart) testing widget layout, Live-Text toggle, clipboard copying, and note text insertion.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all 414 unit and widget tests passing**).
+

@@ -163,6 +163,20 @@ class BackupService {
         localPath: att.localPath,
       );
 
+      final ocrPageRows = await database.getAttachmentOcrPages(att.id);
+      final backupOcrPages = ocrPageRows.map((row) {
+        return BackupAttachmentOcrPage(
+          attachmentId: row.attachmentId,
+          pageNumber: row.pageNumber,
+          encryptedPayload: row.encryptedPayload,
+          ocrSchemaVersion: row.ocrSchemaVersion,
+          ocrEngine: row.ocrEngine,
+          ocrEngineVersion: row.ocrEngineVersion,
+          language: row.language,
+          processedAt: row.processedAt,
+        );
+      }).toList();
+
       backupAttachments.add(BackupAttachment(
         id: att.id,
         noteId: att.noteId,
@@ -176,6 +190,9 @@ class BackupService {
         encryptionKeyVersion: att.encryptionKeyVersion,
         encryptedPayloadBase64:
             encryptedBytes != null ? base64Encode(encryptedBytes) : null,
+        ocrState: att.ocrState,
+        ocrLanguage: att.ocrLanguage,
+        ocrPages: backupOcrPages,
       ));
     }
 
@@ -605,7 +622,23 @@ class BackupService {
           serverRevision: 0,
           uploadState: 'upload_pending',
           localPath: localSavedPath,
+          ocrState: backupAtt.ocrState,
+          ocrLanguage: backupAtt.ocrLanguage,
         );
+
+        // Restore Attachment OCR pages if present
+        for (final ocrPage in backupAtt.ocrPages) {
+          await database.saveAttachmentOcrPage(
+            attachmentId: ocrPage.attachmentId,
+            pageNumber: ocrPage.pageNumber,
+            encryptedPayload: ocrPage.encryptedPayload,
+            ocrSchemaVersion: ocrPage.ocrSchemaVersion,
+            ocrEngine: ocrPage.ocrEngine,
+            ocrEngineVersion: ocrPage.ocrEngineVersion,
+            language: ocrPage.language,
+            processedAt: ocrPage.processedAt,
+          );
+        }
       }
 
       // Restore scanned/imported documents if included in payload

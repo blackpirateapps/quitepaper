@@ -875,6 +875,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       ? _searchQueryController.text
                                       : null,
                                   onDocumentRenamed: _updateDocumentMarkdownTitle,
+                                  onInsertText: _insertExtractedOcrText,
                                 )
                               : SingleChildScrollView(
                               controller: _scrollController,
@@ -1203,6 +1204,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         );
       }
     }
+  }
+
+  void _insertExtractedOcrText(String extractedText) {
+    final clean = extractedText.trim();
+    if (clean.isEmpty) return;
+
+    final val = _contentController.value;
+    final text = val.text;
+    final sel = val.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+
+    final snippet = '\n\n$clean\n';
+    final newText = text.replaceRange(start, end, snippet);
+    final newCursor = start + snippet.length;
+
+    final updated = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+
+    _contentController.value = updated;
+    _undoRedoManager.pushAtomicEdit(updated);
+
+    if (!_contentFocusNode.hasFocus) {
+      _contentFocusNode.requestFocus();
+    }
+
+    _onContentChanged();
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Extracted text inserted into note'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   bool get isTabletEditor => widget.onClose != null;

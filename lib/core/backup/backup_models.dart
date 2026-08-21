@@ -67,6 +67,54 @@ class BackupNote {
 }
 
 @immutable
+class BackupAttachmentOcrPage {
+  const BackupAttachmentOcrPage({
+    required this.attachmentId,
+    required this.pageNumber,
+    required this.encryptedPayload,
+    this.ocrSchemaVersion = 1,
+    this.ocrEngine = 'quietpaper_ocr_v1',
+    this.ocrEngineVersion = '1.0.0',
+    this.language = 'en',
+    required this.processedAt,
+  });
+
+  final String attachmentId;
+  final int pageNumber;
+  final String encryptedPayload;
+  final int ocrSchemaVersion;
+  final String ocrEngine;
+  final String ocrEngineVersion;
+  final String language;
+  final DateTime processedAt;
+
+  Map<String, dynamic> toJson() => {
+        'attachmentId': attachmentId,
+        'pageNumber': pageNumber,
+        'encryptedPayload': encryptedPayload,
+        'ocrSchemaVersion': ocrSchemaVersion,
+        'ocrEngine': ocrEngine,
+        'ocrEngineVersion': ocrEngineVersion,
+        'language': language,
+        'processedAt': processedAt.toIso8601String(),
+      };
+
+  factory BackupAttachmentOcrPage.fromJson(Map<String, dynamic> json) {
+    return BackupAttachmentOcrPage(
+      attachmentId: json['attachmentId'] as String? ?? '',
+      pageNumber: json['pageNumber'] as int? ?? 1,
+      encryptedPayload: json['encryptedPayload'] as String? ?? '',
+      ocrSchemaVersion: json['ocrSchemaVersion'] as int? ?? 1,
+      ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
+      ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
+      language: json['language'] as String? ?? 'en',
+      processedAt: DateTime.tryParse(json['processedAt'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+@immutable
 class BackupAttachment {
   const BackupAttachment({
     required this.id,
@@ -80,6 +128,9 @@ class BackupAttachment {
     this.sha256 = '',
     this.encryptionKeyVersion = 1,
     this.encryptedPayloadBase64,
+    this.ocrState = 'not_requested',
+    this.ocrLanguage = 'en',
+    this.ocrPages = const [],
   });
 
   final String id;
@@ -93,6 +144,9 @@ class BackupAttachment {
   final String sha256;
   final int encryptionKeyVersion;
   final String? encryptedPayloadBase64;
+  final String ocrState;
+  final String ocrLanguage;
+  final List<BackupAttachmentOcrPage> ocrPages;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -107,9 +161,14 @@ class BackupAttachment {
         'encryptionKeyVersion': encryptionKeyVersion,
         if (encryptedPayloadBase64 != null)
           'encryptedPayloadBase64': encryptedPayloadBase64,
+        'ocrState': ocrState,
+        'ocrLanguage': ocrLanguage,
+        if (ocrPages.isNotEmpty)
+          'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
       };
 
   factory BackupAttachment.fromJson(Map<String, dynamic> json) {
+    final rawOcrPages = json['ocrPages'] as List? ?? [];
     return BackupAttachment(
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
@@ -124,6 +183,13 @@ class BackupAttachment {
       sha256: json['sha256'] as String? ?? '',
       encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
       encryptedPayloadBase64: json['encryptedPayloadBase64'] as String?,
+      ocrState: json['ocrState'] as String? ?? 'not_requested',
+      ocrLanguage: json['ocrLanguage'] as String? ?? 'en',
+      ocrPages: rawOcrPages
+          .whereType<Map>()
+          .map((p) => BackupAttachmentOcrPage.fromJson(
+              Map<String, dynamic>.from(p)))
+          .toList(),
     );
   }
 }

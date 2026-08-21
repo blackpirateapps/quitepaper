@@ -115,10 +115,11 @@ class DriftNotesRepository implements NotesRepository {
     try {
       final masterKey = _keyManager.getMasterKey();
       final crypto = _ocrCrypto ?? OcrCrypto();
-      final ocrPages = await _db.getAllDocumentOcrPages();
       final matchingNoteIds = <String>{};
 
-      for (final page in ocrPages) {
+      // 1. Check Document OCR pages (PDFs)
+      final docOcrPages = await _db.getAllDocumentOcrPages();
+      for (final page in docOcrPages) {
         try {
           final encryptedBytes = base64Decode(page.encryptedPayload);
           final ocrDoc = await crypto.decryptOcrDocument(
@@ -137,6 +138,29 @@ class DriftNotesRepository implements NotesRepository {
           }
         } catch (_) {}
       }
+
+      // 2. Check Attachment OCR pages (Images)
+      final attOcrPages = await _db.getAllAttachmentOcrPages();
+      for (final page in attOcrPages) {
+        try {
+          final encryptedBytes = base64Decode(page.encryptedPayload);
+          final ocrDoc = await crypto.decryptOcrDocument(
+            encryptedEnvelopeBytes: encryptedBytes,
+            masterKeyBytes: masterKey,
+            documentId: page.attachmentId,
+          );
+          for (final p in ocrDoc.pages) {
+            if (p.plainText.toLowerCase().contains(clean)) {
+              final att = await _db.getAttachment(page.attachmentId);
+              if (att?.noteId != null && att!.noteId!.isNotEmpty) {
+                matchingNoteIds.add(att.noteId!);
+              }
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
       return matchingNoteIds.toList();
     } catch (_) {
       return const [];

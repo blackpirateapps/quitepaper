@@ -3,7 +3,9 @@ import '../../features/notes/application/notes_provider.dart';
 import '../documents/document_provider.dart';
 import '../sync/sync_provider.dart';
 import '../uri/resource_resolver.dart';
+import '../ocr/ocr_provider.dart';
 import 'attachment_crypto.dart';
+import 'attachment_processing_service.dart';
 import 'attachment_service.dart';
 import 'attachment_storage.dart';
 import 'attachment_sync_service.dart';
@@ -22,6 +24,23 @@ final cloudinaryClientProvider = Provider<CloudinaryClient>((ref) {
   return DefaultCloudinaryClient();
 });
 
+final attachmentProcessingServiceProvider =
+    Provider<AttachmentProcessingService>((ref) {
+  final database = ref.watch(databaseProvider);
+  final keyManager = ref.watch(keyManagerProvider);
+  final ocrCrypto = ref.watch(ocrCryptoProvider);
+  final ocrService = ref.watch(ocrServiceProvider);
+  final ocrSearchService = ref.watch(ocrSearchServiceProvider);
+
+  return AttachmentProcessingService(
+    database: database,
+    keyManager: keyManager,
+    ocrCrypto: ocrCrypto,
+    ocrService: ocrService,
+    ocrSearchService: ocrSearchService,
+  );
+});
+
 final attachmentServiceProvider = Provider<AttachmentService>((ref) {
   final database = ref.watch(databaseProvider);
   final keyManager = ref.watch(keyManagerProvider);
@@ -29,6 +48,7 @@ final attachmentServiceProvider = Provider<AttachmentService>((ref) {
   final storage = ref.watch(attachmentLocalStorageProvider);
   final cloudinaryClient = ref.watch(cloudinaryClientProvider);
   final apiClient = ref.watch(syncApiClientProvider);
+  final processingService = ref.watch(attachmentProcessingServiceProvider);
 
   return AttachmentService(
     database: database,
@@ -37,6 +57,7 @@ final attachmentServiceProvider = Provider<AttachmentService>((ref) {
     storage: storage,
     cloudinaryClient: cloudinaryClient,
     apiClient: apiClient,
+    processingService: processingService,
   );
 });
 

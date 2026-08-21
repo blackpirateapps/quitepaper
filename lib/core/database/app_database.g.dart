@@ -2021,6 +2021,30 @@ class $AttachmentsTableTable extends AttachmentsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _ocrStateMeta = const VerificationMeta(
+    'ocrState',
+  );
+  @override
+  late final GeneratedColumn<String> ocrState = GeneratedColumn<String>(
+    'ocr_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('not_requested'),
+  );
+  static const VerificationMeta _ocrLanguageMeta = const VerificationMeta(
+    'ocrLanguage',
+  );
+  @override
+  late final GeneratedColumn<String> ocrLanguage = GeneratedColumn<String>(
+    'ocr_language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('en'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2042,6 +2066,8 @@ class $AttachmentsTableTable extends AttachmentsTable
     cloudPublicId,
     cloudUrl,
     localPath,
+    ocrState,
+    ocrLanguage,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2184,6 +2210,21 @@ class $AttachmentsTableTable extends AttachmentsTable
         localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
       );
     }
+    if (data.containsKey('ocr_state')) {
+      context.handle(
+        _ocrStateMeta,
+        ocrState.isAcceptableOrUnknown(data['ocr_state']!, _ocrStateMeta),
+      );
+    }
+    if (data.containsKey('ocr_language')) {
+      context.handle(
+        _ocrLanguageMeta,
+        ocrLanguage.isAcceptableOrUnknown(
+          data['ocr_language']!,
+          _ocrLanguageMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2269,6 +2310,14 @@ class $AttachmentsTableTable extends AttachmentsTable
         DriftSqlType.string,
         data['${effectivePrefix}local_path'],
       ),
+      ocrState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_state'],
+      )!,
+      ocrLanguage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_language'],
+      )!,
     );
   }
 
@@ -2336,6 +2385,12 @@ class AttachmentEntity extends DataClass
 
   /// Local app-private encrypted file path
   final String? localPath;
+
+  /// OCR processing state: 'not_requested', 'queued', 'processing', 'available', 'failed'
+  final String ocrState;
+
+  /// OCR language code: e.g. 'en'
+  final String ocrLanguage;
   const AttachmentEntity({
     required this.id,
     this.noteId,
@@ -2356,6 +2411,8 @@ class AttachmentEntity extends DataClass
     this.cloudPublicId,
     this.cloudUrl,
     this.localPath,
+    required this.ocrState,
+    required this.ocrLanguage,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2395,6 +2452,8 @@ class AttachmentEntity extends DataClass
     if (!nullToAbsent || localPath != null) {
       map['local_path'] = Variable<String>(localPath);
     }
+    map['ocr_state'] = Variable<String>(ocrState);
+    map['ocr_language'] = Variable<String>(ocrLanguage);
     return map;
   }
 
@@ -2435,6 +2494,8 @@ class AttachmentEntity extends DataClass
       localPath: localPath == null && nullToAbsent
           ? const Value.absent()
           : Value(localPath),
+      ocrState: Value(ocrState),
+      ocrLanguage: Value(ocrLanguage),
     );
   }
 
@@ -2465,6 +2526,8 @@ class AttachmentEntity extends DataClass
       cloudPublicId: serializer.fromJson<String?>(json['cloudPublicId']),
       cloudUrl: serializer.fromJson<String?>(json['cloudUrl']),
       localPath: serializer.fromJson<String?>(json['localPath']),
+      ocrState: serializer.fromJson<String>(json['ocrState']),
+      ocrLanguage: serializer.fromJson<String>(json['ocrLanguage']),
     );
   }
   @override
@@ -2490,6 +2553,8 @@ class AttachmentEntity extends DataClass
       'cloudPublicId': serializer.toJson<String?>(cloudPublicId),
       'cloudUrl': serializer.toJson<String?>(cloudUrl),
       'localPath': serializer.toJson<String?>(localPath),
+      'ocrState': serializer.toJson<String>(ocrState),
+      'ocrLanguage': serializer.toJson<String>(ocrLanguage),
     };
   }
 
@@ -2513,6 +2578,8 @@ class AttachmentEntity extends DataClass
     Value<String?> cloudPublicId = const Value.absent(),
     Value<String?> cloudUrl = const Value.absent(),
     Value<String?> localPath = const Value.absent(),
+    String? ocrState,
+    String? ocrLanguage,
   }) => AttachmentEntity(
     id: id ?? this.id,
     noteId: noteId.present ? noteId.value : this.noteId,
@@ -2535,6 +2602,8 @@ class AttachmentEntity extends DataClass
         : this.cloudPublicId,
     cloudUrl: cloudUrl.present ? cloudUrl.value : this.cloudUrl,
     localPath: localPath.present ? localPath.value : this.localPath,
+    ocrState: ocrState ?? this.ocrState,
+    ocrLanguage: ocrLanguage ?? this.ocrLanguage,
   );
   AttachmentEntity copyWithCompanion(AttachmentsTableCompanion data) {
     return AttachmentEntity(
@@ -2565,6 +2634,10 @@ class AttachmentEntity extends DataClass
           : this.cloudPublicId,
       cloudUrl: data.cloudUrl.present ? data.cloudUrl.value : this.cloudUrl,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      ocrState: data.ocrState.present ? data.ocrState.value : this.ocrState,
+      ocrLanguage: data.ocrLanguage.present
+          ? data.ocrLanguage.value
+          : this.ocrLanguage,
     );
   }
 
@@ -2589,13 +2662,15 @@ class AttachmentEntity extends DataClass
           ..write('uploadState: $uploadState, ')
           ..write('cloudPublicId: $cloudPublicId, ')
           ..write('cloudUrl: $cloudUrl, ')
-          ..write('localPath: $localPath')
+          ..write('localPath: $localPath, ')
+          ..write('ocrState: $ocrState, ')
+          ..write('ocrLanguage: $ocrLanguage')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     noteId,
     createdAt,
@@ -2615,7 +2690,9 @@ class AttachmentEntity extends DataClass
     cloudPublicId,
     cloudUrl,
     localPath,
-  );
+    ocrState,
+    ocrLanguage,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2638,7 +2715,9 @@ class AttachmentEntity extends DataClass
           other.uploadState == this.uploadState &&
           other.cloudPublicId == this.cloudPublicId &&
           other.cloudUrl == this.cloudUrl &&
-          other.localPath == this.localPath);
+          other.localPath == this.localPath &&
+          other.ocrState == this.ocrState &&
+          other.ocrLanguage == this.ocrLanguage);
 }
 
 class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
@@ -2661,6 +2740,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
   final Value<String?> cloudPublicId;
   final Value<String?> cloudUrl;
   final Value<String?> localPath;
+  final Value<String> ocrState;
+  final Value<String> ocrLanguage;
   final Value<int> rowid;
   const AttachmentsTableCompanion({
     this.id = const Value.absent(),
@@ -2682,6 +2763,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     this.cloudPublicId = const Value.absent(),
     this.cloudUrl = const Value.absent(),
     this.localPath = const Value.absent(),
+    this.ocrState = const Value.absent(),
+    this.ocrLanguage = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AttachmentsTableCompanion.insert({
@@ -2704,6 +2787,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     this.cloudPublicId = const Value.absent(),
     this.cloudUrl = const Value.absent(),
     this.localPath = const Value.absent(),
+    this.ocrState = const Value.absent(),
+    this.ocrLanguage = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -2728,6 +2813,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     Expression<String>? cloudPublicId,
     Expression<String>? cloudUrl,
     Expression<String>? localPath,
+    Expression<String>? ocrState,
+    Expression<String>? ocrLanguage,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2751,6 +2838,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
       if (cloudPublicId != null) 'cloud_public_id': cloudPublicId,
       if (cloudUrl != null) 'cloud_url': cloudUrl,
       if (localPath != null) 'local_path': localPath,
+      if (ocrState != null) 'ocr_state': ocrState,
+      if (ocrLanguage != null) 'ocr_language': ocrLanguage,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2775,6 +2864,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     Value<String?>? cloudPublicId,
     Value<String?>? cloudUrl,
     Value<String?>? localPath,
+    Value<String>? ocrState,
+    Value<String>? ocrLanguage,
     Value<int>? rowid,
   }) {
     return AttachmentsTableCompanion(
@@ -2797,6 +2888,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
       cloudPublicId: cloudPublicId ?? this.cloudPublicId,
       cloudUrl: cloudUrl ?? this.cloudUrl,
       localPath: localPath ?? this.localPath,
+      ocrState: ocrState ?? this.ocrState,
+      ocrLanguage: ocrLanguage ?? this.ocrLanguage,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2861,6 +2954,12 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     if (localPath.present) {
       map['local_path'] = Variable<String>(localPath.value);
     }
+    if (ocrState.present) {
+      map['ocr_state'] = Variable<String>(ocrState.value);
+    }
+    if (ocrLanguage.present) {
+      map['ocr_language'] = Variable<String>(ocrLanguage.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2889,6 +2988,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
           ..write('cloudPublicId: $cloudPublicId, ')
           ..write('cloudUrl: $cloudUrl, ')
           ..write('localPath: $localPath, ')
+          ..write('ocrState: $ocrState, ')
+          ..write('ocrLanguage: $ocrLanguage, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3539,6 +3640,562 @@ class AttachmentVariantsTableCompanion
           ..write('cloudPublicId: $cloudPublicId, ')
           ..write('cloudUrl: $cloudUrl, ')
           ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
+    with TableInfo<$AttachmentOcrPagesTableTable, AttachmentOcrPageEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttachmentOcrPagesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _attachmentIdMeta = const VerificationMeta(
+    'attachmentId',
+  );
+  @override
+  late final GeneratedColumn<String> attachmentId = GeneratedColumn<String>(
+    'attachment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageNumberMeta = const VerificationMeta(
+    'pageNumber',
+  );
+  @override
+  late final GeneratedColumn<int> pageNumber = GeneratedColumn<int>(
+    'page_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _encryptedPayloadMeta = const VerificationMeta(
+    'encryptedPayload',
+  );
+  @override
+  late final GeneratedColumn<String> encryptedPayload = GeneratedColumn<String>(
+    'encrypted_payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ocrSchemaVersionMeta = const VerificationMeta(
+    'ocrSchemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> ocrSchemaVersion = GeneratedColumn<int>(
+    'ocr_schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _ocrEngineMeta = const VerificationMeta(
+    'ocrEngine',
+  );
+  @override
+  late final GeneratedColumn<String> ocrEngine = GeneratedColumn<String>(
+    'ocr_engine',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('quietpaper_ocr_v1'),
+  );
+  static const VerificationMeta _ocrEngineVersionMeta = const VerificationMeta(
+    'ocrEngineVersion',
+  );
+  @override
+  late final GeneratedColumn<String> ocrEngineVersion = GeneratedColumn<String>(
+    'ocr_engine_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('1.0.0'),
+  );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('en'),
+  );
+  static const VerificationMeta _processedAtMeta = const VerificationMeta(
+    'processedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> processedAt = GeneratedColumn<DateTime>(
+    'processed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    attachmentId,
+    pageNumber,
+    encryptedPayload,
+    ocrSchemaVersion,
+    ocrEngine,
+    ocrEngineVersion,
+    language,
+    processedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attachment_ocr_pages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AttachmentOcrPageEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('attachment_id')) {
+      context.handle(
+        _attachmentIdMeta,
+        attachmentId.isAcceptableOrUnknown(
+          data['attachment_id']!,
+          _attachmentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_attachmentIdMeta);
+    }
+    if (data.containsKey('page_number')) {
+      context.handle(
+        _pageNumberMeta,
+        pageNumber.isAcceptableOrUnknown(data['page_number']!, _pageNumberMeta),
+      );
+    }
+    if (data.containsKey('encrypted_payload')) {
+      context.handle(
+        _encryptedPayloadMeta,
+        encryptedPayload.isAcceptableOrUnknown(
+          data['encrypted_payload']!,
+          _encryptedPayloadMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_encryptedPayloadMeta);
+    }
+    if (data.containsKey('ocr_schema_version')) {
+      context.handle(
+        _ocrSchemaVersionMeta,
+        ocrSchemaVersion.isAcceptableOrUnknown(
+          data['ocr_schema_version']!,
+          _ocrSchemaVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ocr_engine')) {
+      context.handle(
+        _ocrEngineMeta,
+        ocrEngine.isAcceptableOrUnknown(data['ocr_engine']!, _ocrEngineMeta),
+      );
+    }
+    if (data.containsKey('ocr_engine_version')) {
+      context.handle(
+        _ocrEngineVersionMeta,
+        ocrEngineVersion.isAcceptableOrUnknown(
+          data['ocr_engine_version']!,
+          _ocrEngineVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    }
+    if (data.containsKey('processed_at')) {
+      context.handle(
+        _processedAtMeta,
+        processedAt.isAcceptableOrUnknown(
+          data['processed_at']!,
+          _processedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_processedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {attachmentId, pageNumber};
+  @override
+  AttachmentOcrPageEntity map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AttachmentOcrPageEntity(
+      attachmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_id'],
+      )!,
+      pageNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_number'],
+      )!,
+      encryptedPayload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}encrypted_payload'],
+      )!,
+      ocrSchemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ocr_schema_version'],
+      )!,
+      ocrEngine: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_engine'],
+      )!,
+      ocrEngineVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ocr_engine_version'],
+      )!,
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      )!,
+      processedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}processed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AttachmentOcrPagesTableTable createAlias(String alias) {
+    return $AttachmentOcrPagesTableTable(attachedDatabase, alias);
+  }
+}
+
+class AttachmentOcrPageEntity extends DataClass
+    implements Insertable<AttachmentOcrPageEntity> {
+  /// Attachment canonical UUID reference
+  final String attachmentId;
+
+  /// 1-based page number (defaults to 1 for images)
+  final int pageNumber;
+
+  /// Base64-encoded encrypted binary OCR envelope (QPOC)
+  final String encryptedPayload;
+
+  /// OCR schema version (e.g. 1)
+  final int ocrSchemaVersion;
+
+  /// Engine name used for recognition
+  final String ocrEngine;
+
+  /// Engine version used for recognition
+  final String ocrEngineVersion;
+
+  /// Language code used during recognition (e.g. 'en')
+  final String language;
+
+  /// Processing completion timestamp
+  final DateTime processedAt;
+  const AttachmentOcrPageEntity({
+    required this.attachmentId,
+    required this.pageNumber,
+    required this.encryptedPayload,
+    required this.ocrSchemaVersion,
+    required this.ocrEngine,
+    required this.ocrEngineVersion,
+    required this.language,
+    required this.processedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['attachment_id'] = Variable<String>(attachmentId);
+    map['page_number'] = Variable<int>(pageNumber);
+    map['encrypted_payload'] = Variable<String>(encryptedPayload);
+    map['ocr_schema_version'] = Variable<int>(ocrSchemaVersion);
+    map['ocr_engine'] = Variable<String>(ocrEngine);
+    map['ocr_engine_version'] = Variable<String>(ocrEngineVersion);
+    map['language'] = Variable<String>(language);
+    map['processed_at'] = Variable<DateTime>(processedAt);
+    return map;
+  }
+
+  AttachmentOcrPagesTableCompanion toCompanion(bool nullToAbsent) {
+    return AttachmentOcrPagesTableCompanion(
+      attachmentId: Value(attachmentId),
+      pageNumber: Value(pageNumber),
+      encryptedPayload: Value(encryptedPayload),
+      ocrSchemaVersion: Value(ocrSchemaVersion),
+      ocrEngine: Value(ocrEngine),
+      ocrEngineVersion: Value(ocrEngineVersion),
+      language: Value(language),
+      processedAt: Value(processedAt),
+    );
+  }
+
+  factory AttachmentOcrPageEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AttachmentOcrPageEntity(
+      attachmentId: serializer.fromJson<String>(json['attachmentId']),
+      pageNumber: serializer.fromJson<int>(json['pageNumber']),
+      encryptedPayload: serializer.fromJson<String>(json['encryptedPayload']),
+      ocrSchemaVersion: serializer.fromJson<int>(json['ocrSchemaVersion']),
+      ocrEngine: serializer.fromJson<String>(json['ocrEngine']),
+      ocrEngineVersion: serializer.fromJson<String>(json['ocrEngineVersion']),
+      language: serializer.fromJson<String>(json['language']),
+      processedAt: serializer.fromJson<DateTime>(json['processedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'attachmentId': serializer.toJson<String>(attachmentId),
+      'pageNumber': serializer.toJson<int>(pageNumber),
+      'encryptedPayload': serializer.toJson<String>(encryptedPayload),
+      'ocrSchemaVersion': serializer.toJson<int>(ocrSchemaVersion),
+      'ocrEngine': serializer.toJson<String>(ocrEngine),
+      'ocrEngineVersion': serializer.toJson<String>(ocrEngineVersion),
+      'language': serializer.toJson<String>(language),
+      'processedAt': serializer.toJson<DateTime>(processedAt),
+    };
+  }
+
+  AttachmentOcrPageEntity copyWith({
+    String? attachmentId,
+    int? pageNumber,
+    String? encryptedPayload,
+    int? ocrSchemaVersion,
+    String? ocrEngine,
+    String? ocrEngineVersion,
+    String? language,
+    DateTime? processedAt,
+  }) => AttachmentOcrPageEntity(
+    attachmentId: attachmentId ?? this.attachmentId,
+    pageNumber: pageNumber ?? this.pageNumber,
+    encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+    ocrSchemaVersion: ocrSchemaVersion ?? this.ocrSchemaVersion,
+    ocrEngine: ocrEngine ?? this.ocrEngine,
+    ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
+    language: language ?? this.language,
+    processedAt: processedAt ?? this.processedAt,
+  );
+  AttachmentOcrPageEntity copyWithCompanion(
+    AttachmentOcrPagesTableCompanion data,
+  ) {
+    return AttachmentOcrPageEntity(
+      attachmentId: data.attachmentId.present
+          ? data.attachmentId.value
+          : this.attachmentId,
+      pageNumber: data.pageNumber.present
+          ? data.pageNumber.value
+          : this.pageNumber,
+      encryptedPayload: data.encryptedPayload.present
+          ? data.encryptedPayload.value
+          : this.encryptedPayload,
+      ocrSchemaVersion: data.ocrSchemaVersion.present
+          ? data.ocrSchemaVersion.value
+          : this.ocrSchemaVersion,
+      ocrEngine: data.ocrEngine.present ? data.ocrEngine.value : this.ocrEngine,
+      ocrEngineVersion: data.ocrEngineVersion.present
+          ? data.ocrEngineVersion.value
+          : this.ocrEngineVersion,
+      language: data.language.present ? data.language.value : this.language,
+      processedAt: data.processedAt.present
+          ? data.processedAt.value
+          : this.processedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentOcrPageEntity(')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('ocrSchemaVersion: $ocrSchemaVersion, ')
+          ..write('ocrEngine: $ocrEngine, ')
+          ..write('ocrEngineVersion: $ocrEngineVersion, ')
+          ..write('language: $language, ')
+          ..write('processedAt: $processedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    attachmentId,
+    pageNumber,
+    encryptedPayload,
+    ocrSchemaVersion,
+    ocrEngine,
+    ocrEngineVersion,
+    language,
+    processedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AttachmentOcrPageEntity &&
+          other.attachmentId == this.attachmentId &&
+          other.pageNumber == this.pageNumber &&
+          other.encryptedPayload == this.encryptedPayload &&
+          other.ocrSchemaVersion == this.ocrSchemaVersion &&
+          other.ocrEngine == this.ocrEngine &&
+          other.ocrEngineVersion == this.ocrEngineVersion &&
+          other.language == this.language &&
+          other.processedAt == this.processedAt);
+}
+
+class AttachmentOcrPagesTableCompanion
+    extends UpdateCompanion<AttachmentOcrPageEntity> {
+  final Value<String> attachmentId;
+  final Value<int> pageNumber;
+  final Value<String> encryptedPayload;
+  final Value<int> ocrSchemaVersion;
+  final Value<String> ocrEngine;
+  final Value<String> ocrEngineVersion;
+  final Value<String> language;
+  final Value<DateTime> processedAt;
+  final Value<int> rowid;
+  const AttachmentOcrPagesTableCompanion({
+    this.attachmentId = const Value.absent(),
+    this.pageNumber = const Value.absent(),
+    this.encryptedPayload = const Value.absent(),
+    this.ocrSchemaVersion = const Value.absent(),
+    this.ocrEngine = const Value.absent(),
+    this.ocrEngineVersion = const Value.absent(),
+    this.language = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AttachmentOcrPagesTableCompanion.insert({
+    required String attachmentId,
+    this.pageNumber = const Value.absent(),
+    required String encryptedPayload,
+    this.ocrSchemaVersion = const Value.absent(),
+    this.ocrEngine = const Value.absent(),
+    this.ocrEngineVersion = const Value.absent(),
+    this.language = const Value.absent(),
+    required DateTime processedAt,
+    this.rowid = const Value.absent(),
+  }) : attachmentId = Value(attachmentId),
+       encryptedPayload = Value(encryptedPayload),
+       processedAt = Value(processedAt);
+  static Insertable<AttachmentOcrPageEntity> custom({
+    Expression<String>? attachmentId,
+    Expression<int>? pageNumber,
+    Expression<String>? encryptedPayload,
+    Expression<int>? ocrSchemaVersion,
+    Expression<String>? ocrEngine,
+    Expression<String>? ocrEngineVersion,
+    Expression<String>? language,
+    Expression<DateTime>? processedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (attachmentId != null) 'attachment_id': attachmentId,
+      if (pageNumber != null) 'page_number': pageNumber,
+      if (encryptedPayload != null) 'encrypted_payload': encryptedPayload,
+      if (ocrSchemaVersion != null) 'ocr_schema_version': ocrSchemaVersion,
+      if (ocrEngine != null) 'ocr_engine': ocrEngine,
+      if (ocrEngineVersion != null) 'ocr_engine_version': ocrEngineVersion,
+      if (language != null) 'language': language,
+      if (processedAt != null) 'processed_at': processedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AttachmentOcrPagesTableCompanion copyWith({
+    Value<String>? attachmentId,
+    Value<int>? pageNumber,
+    Value<String>? encryptedPayload,
+    Value<int>? ocrSchemaVersion,
+    Value<String>? ocrEngine,
+    Value<String>? ocrEngineVersion,
+    Value<String>? language,
+    Value<DateTime>? processedAt,
+    Value<int>? rowid,
+  }) {
+    return AttachmentOcrPagesTableCompanion(
+      attachmentId: attachmentId ?? this.attachmentId,
+      pageNumber: pageNumber ?? this.pageNumber,
+      encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+      ocrSchemaVersion: ocrSchemaVersion ?? this.ocrSchemaVersion,
+      ocrEngine: ocrEngine ?? this.ocrEngine,
+      ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
+      language: language ?? this.language,
+      processedAt: processedAt ?? this.processedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (attachmentId.present) {
+      map['attachment_id'] = Variable<String>(attachmentId.value);
+    }
+    if (pageNumber.present) {
+      map['page_number'] = Variable<int>(pageNumber.value);
+    }
+    if (encryptedPayload.present) {
+      map['encrypted_payload'] = Variable<String>(encryptedPayload.value);
+    }
+    if (ocrSchemaVersion.present) {
+      map['ocr_schema_version'] = Variable<int>(ocrSchemaVersion.value);
+    }
+    if (ocrEngine.present) {
+      map['ocr_engine'] = Variable<String>(ocrEngine.value);
+    }
+    if (ocrEngineVersion.present) {
+      map['ocr_engine_version'] = Variable<String>(ocrEngineVersion.value);
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
+    if (processedAt.present) {
+      map['processed_at'] = Variable<DateTime>(processedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentOcrPagesTableCompanion(')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('ocrSchemaVersion: $ocrSchemaVersion, ')
+          ..write('ocrEngine: $ocrEngine, ')
+          ..write('ocrEngineVersion: $ocrEngineVersion, ')
+          ..write('language: $language, ')
+          ..write('processedAt: $processedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7167,6 +7824,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $AttachmentVariantsTableTable attachmentVariantsTable =
       $AttachmentVariantsTableTable(this);
+  late final $AttachmentOcrPagesTableTable attachmentOcrPagesTable =
+      $AttachmentOcrPagesTableTable(this);
   late final $NoteVersionsTableTable noteVersionsTable =
       $NoteVersionsTableTable(this);
   late final $DocumentsTableTable documentsTable = $DocumentsTableTable(this);
@@ -7186,6 +7845,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncQueueTable,
     attachmentsTable,
     attachmentVariantsTable,
+    attachmentOcrPagesTable,
     noteVersionsTable,
     documentsTable,
     documentOcrPagesTable,
@@ -8876,6 +9536,8 @@ typedef $$AttachmentsTableTableCreateCompanionBuilder =
       Value<String?> cloudPublicId,
       Value<String?> cloudUrl,
       Value<String?> localPath,
+      Value<String> ocrState,
+      Value<String> ocrLanguage,
       Value<int> rowid,
     });
 typedef $$AttachmentsTableTableUpdateCompanionBuilder =
@@ -8899,6 +9561,8 @@ typedef $$AttachmentsTableTableUpdateCompanionBuilder =
       Value<String?> cloudPublicId,
       Value<String?> cloudUrl,
       Value<String?> localPath,
+      Value<String> ocrState,
+      Value<String> ocrLanguage,
       Value<int> rowid,
     });
 
@@ -9003,6 +9667,16 @@ class $$AttachmentsTableTableFilterComposer
 
   ColumnFilters<String> get localPath => $composableBuilder(
     column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrState => $composableBuilder(
+    column: $table.ocrState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9110,6 +9784,16 @@ class $$AttachmentsTableTableOrderingComposer
     column: $table.localPath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get ocrState => $composableBuilder(
+    column: $table.ocrState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AttachmentsTableTableAnnotationComposer
@@ -9185,6 +9869,14 @@ class $$AttachmentsTableTableAnnotationComposer
 
   GeneratedColumn<String> get localPath =>
       $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get ocrState =>
+      $composableBuilder(column: $table.ocrState, builder: (column) => column);
+
+  GeneratedColumn<String> get ocrLanguage => $composableBuilder(
+    column: $table.ocrLanguage,
+    builder: (column) => column,
+  );
 }
 
 class $$AttachmentsTableTableTableManager
@@ -9243,6 +9935,8 @@ class $$AttachmentsTableTableTableManager
                 Value<String?> cloudPublicId = const Value.absent(),
                 Value<String?> cloudUrl = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
+                Value<String> ocrState = const Value.absent(),
+                Value<String> ocrLanguage = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentsTableCompanion(
                 id: id,
@@ -9264,6 +9958,8 @@ class $$AttachmentsTableTableTableManager
                 cloudPublicId: cloudPublicId,
                 cloudUrl: cloudUrl,
                 localPath: localPath,
+                ocrState: ocrState,
+                ocrLanguage: ocrLanguage,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9287,6 +9983,8 @@ class $$AttachmentsTableTableTableManager
                 Value<String?> cloudPublicId = const Value.absent(),
                 Value<String?> cloudUrl = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
+                Value<String> ocrState = const Value.absent(),
+                Value<String> ocrLanguage = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentsTableCompanion.insert(
                 id: id,
@@ -9308,6 +10006,8 @@ class $$AttachmentsTableTableTableManager
                 cloudPublicId: cloudPublicId,
                 cloudUrl: cloudUrl,
                 localPath: localPath,
+                ocrState: ocrState,
+                ocrLanguage: ocrLanguage,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9653,6 +10353,294 @@ typedef $$AttachmentVariantsTableTableProcessedTableManager =
         >,
       ),
       AttachmentVariantEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$AttachmentOcrPagesTableTableCreateCompanionBuilder =
+    AttachmentOcrPagesTableCompanion Function({
+      required String attachmentId,
+      Value<int> pageNumber,
+      required String encryptedPayload,
+      Value<int> ocrSchemaVersion,
+      Value<String> ocrEngine,
+      Value<String> ocrEngineVersion,
+      Value<String> language,
+      required DateTime processedAt,
+      Value<int> rowid,
+    });
+typedef $$AttachmentOcrPagesTableTableUpdateCompanionBuilder =
+    AttachmentOcrPagesTableCompanion Function({
+      Value<String> attachmentId,
+      Value<int> pageNumber,
+      Value<String> encryptedPayload,
+      Value<int> ocrSchemaVersion,
+      Value<String> ocrEngine,
+      Value<String> ocrEngineVersion,
+      Value<String> language,
+      Value<DateTime> processedAt,
+      Value<int> rowid,
+    });
+
+class $$AttachmentOcrPagesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AttachmentOcrPagesTableTable> {
+  $$AttachmentOcrPagesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrEngine => $composableBuilder(
+    column: $table.ocrEngine,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AttachmentOcrPagesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AttachmentOcrPagesTableTable> {
+  $$AttachmentOcrPagesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrEngine => $composableBuilder(
+    column: $table.ocrEngine,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AttachmentOcrPagesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AttachmentOcrPagesTableTable> {
+  $$AttachmentOcrPagesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ocrSchemaVersion => $composableBuilder(
+    column: $table.ocrSchemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ocrEngine =>
+      $composableBuilder(column: $table.ocrEngine, builder: (column) => column);
+
+  GeneratedColumn<String> get ocrEngineVersion => $composableBuilder(
+    column: $table.ocrEngineVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AttachmentOcrPagesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AttachmentOcrPagesTableTable,
+          AttachmentOcrPageEntity,
+          $$AttachmentOcrPagesTableTableFilterComposer,
+          $$AttachmentOcrPagesTableTableOrderingComposer,
+          $$AttachmentOcrPagesTableTableAnnotationComposer,
+          $$AttachmentOcrPagesTableTableCreateCompanionBuilder,
+          $$AttachmentOcrPagesTableTableUpdateCompanionBuilder,
+          (
+            AttachmentOcrPageEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $AttachmentOcrPagesTableTable,
+              AttachmentOcrPageEntity
+            >,
+          ),
+          AttachmentOcrPageEntity,
+          PrefetchHooks Function()
+        > {
+  $$AttachmentOcrPagesTableTableTableManager(
+    _$AppDatabase db,
+    $AttachmentOcrPagesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttachmentOcrPagesTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AttachmentOcrPagesTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AttachmentOcrPagesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> attachmentId = const Value.absent(),
+                Value<int> pageNumber = const Value.absent(),
+                Value<String> encryptedPayload = const Value.absent(),
+                Value<int> ocrSchemaVersion = const Value.absent(),
+                Value<String> ocrEngine = const Value.absent(),
+                Value<String> ocrEngineVersion = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                Value<DateTime> processedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentOcrPagesTableCompanion(
+                attachmentId: attachmentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                ocrSchemaVersion: ocrSchemaVersion,
+                ocrEngine: ocrEngine,
+                ocrEngineVersion: ocrEngineVersion,
+                language: language,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String attachmentId,
+                Value<int> pageNumber = const Value.absent(),
+                required String encryptedPayload,
+                Value<int> ocrSchemaVersion = const Value.absent(),
+                Value<String> ocrEngine = const Value.absent(),
+                Value<String> ocrEngineVersion = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                required DateTime processedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AttachmentOcrPagesTableCompanion.insert(
+                attachmentId: attachmentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                ocrSchemaVersion: ocrSchemaVersion,
+                ocrEngine: ocrEngine,
+                ocrEngineVersion: ocrEngineVersion,
+                language: language,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AttachmentOcrPagesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AttachmentOcrPagesTableTable,
+      AttachmentOcrPageEntity,
+      $$AttachmentOcrPagesTableTableFilterComposer,
+      $$AttachmentOcrPagesTableTableOrderingComposer,
+      $$AttachmentOcrPagesTableTableAnnotationComposer,
+      $$AttachmentOcrPagesTableTableCreateCompanionBuilder,
+      $$AttachmentOcrPagesTableTableUpdateCompanionBuilder,
+      (
+        AttachmentOcrPageEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $AttachmentOcrPagesTableTable,
+          AttachmentOcrPageEntity
+        >,
+      ),
+      AttachmentOcrPageEntity,
       PrefetchHooks Function()
     >;
 typedef $$NoteVersionsTableTableCreateCompanionBuilder =
@@ -11593,6 +12581,11 @@ class $AppDatabaseManager {
       $$AttachmentVariantsTableTableTableManager(
         _db,
         _db.attachmentVariantsTable,
+      );
+  $$AttachmentOcrPagesTableTableTableManager get attachmentOcrPagesTable =>
+      $$AttachmentOcrPagesTableTableTableManager(
+        _db,
+        _db.attachmentOcrPagesTable,
       );
   $$NoteVersionsTableTableTableManager get noteVersionsTable =>
       $$NoteVersionsTableTableTableManager(_db, _db.noteVersionsTable);
