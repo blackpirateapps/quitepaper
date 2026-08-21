@@ -429,5 +429,19 @@ void main() {
       await thirdAuthService.initialize();
       expect(thirdAuthService.currentUser, isNull);
     });
+
+    test('FirebaseAuthService.initialize() completes immediately without blocking even without API key', () async {
+      const storage = FlutterSecureStorage();
+      final authService = FirebaseAuthService(
+        secureStorage: storage,
+      );
+
+      final stopwatch = Stopwatch()..start();
+      await authService.initialize();
+      stopwatch.stop();
+
+      // Initialization must complete in less than 200ms without waiting for remote network
+      expect(stopwatch.elapsedMilliseconds, lessThan(200));
+    });
   });
 }

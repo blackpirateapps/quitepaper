@@ -95,12 +95,17 @@ class SecureKeyManager implements KeyManager {
   @override
   Future<void> initialize() async {
     try {
-      final storedJson = await _storage.read(key: _storageKeyWrappedData);
+      final results = await Future.wait([
+        _storage.read(key: _storageKeyWrappedData),
+        _storage.read(key: _storageKeyMasterKey),
+      ]);
+      final storedJson = results[0];
+      final storedMasterKey = results[1];
+
       if (storedJson != null && storedJson.isNotEmpty) {
         final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
         _cachedWrappedData = WrappedMasterKeyData.fromJson(decoded);
       }
-      final storedMasterKey = await _storage.read(key: _storageKeyMasterKey);
       if (storedMasterKey != null && storedMasterKey.isNotEmpty) {
         _cachedMasterKey = Uint8List.fromList(base64Decode(storedMasterKey));
       }

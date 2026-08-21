@@ -10,14 +10,18 @@ import 'features/settings/application/settings_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final sharedPreferences = await SharedPreferences.getInstance();
 
   final authService = FirebaseAuthService();
-  await authService.initialize();
-
   final cryptoService = DefaultCryptoService();
   final keyManager = SecureKeyManager(cryptoService: cryptoService);
-  await keyManager.initialize();
+
+  final results = await Future.wait([
+    SharedPreferences.getInstance(),
+    authService.initialize(),
+    keyManager.initialize(),
+  ]);
+
+  final sharedPreferences = results[0] as SharedPreferences;
 
   runApp(
     ProviderScope(

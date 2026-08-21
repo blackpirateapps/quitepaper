@@ -132,14 +132,12 @@ class FirebaseAuthService implements AuthService {
     }
 
     if (_apiKey.isEmpty) {
-      await fetchConfigFromBackend();
+      unawaited(fetchConfigFromBackend());
     }
 
-    // Refresh token if needed upon launch
-    if (_currentUser != null) {
-      try {
-        await getIdToken();
-      } catch (_) {}
+    // Refresh token in background if needed upon launch without blocking UI startup
+    if (_currentUser != null && _currentUser!.isTokenExpired) {
+      unawaited(getIdToken());
     }
   }
 
