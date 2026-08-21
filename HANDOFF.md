@@ -1407,6 +1407,31 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
    - Added `test/sync/fresh_device_sync_content_retention_test.dart` validating that pulled note content remains durable in SQLite throughout the entire multi-phase sync cycle and across unedited editor lifecycle events.
    - Updated tag assertion in `test/sync/conflict_resolver_test.dart` to use set-comparison (`unorderedEquals`).
 
+---
+
+## 61. Safe & Idempotent SQLite Database Schema Migrations (`duplicate column name: source`)
+
+### 1. Root Cause & Defect Analysis
+- **The Error**: Upgrading an existing app installation from an older schema version ($< 6$, such as schema v1–v5) caused Drift's database migration pipeline to fail with:
+  `SqliteException(1): while executing, duplicate column name: source, SQL logic error (code 1)`
+  `Causing statement: ALTER TABLE "documents" ADD COLUMN "source" TEXT NOT NULL DEFAULT 'scanner';`
+- **Mechanism**:
+  1. In Drift, calling `m.createTable(documentsTable)` during `from < 6` builds the table using the current Dart table definition at runtime, which already includes `source`, `ocr_state`, and `ocr_language`.
+  2. Subsequently, when the migration step `if (from < 7)` executed, it unconditionally executed `await m.addColumn(documentsTable, documentsTable.source);`, which issued an `ALTER TABLE "documents" ADD COLUMN "source" ...` on a table that already had that column created in the preceding step.
+  3. A similar latent issue existed for `noteVersionsTable` between `from < 5` and `from < 8` for provenance columns (`baseRevision`, `localParentRevision`, etc.).
+  4. When database migration failed on startup, `SyncEngine` caught the exception during its initial query and reported it to `syncState`, displaying the raw `SqliteException` string under the user's account row in Settings.
+
+### 2. Resolution & Protection Guarantees
+1. **Version-Gated Column Migration (`lib/core/database/app_database.dart`)**:
+   - `if (from < 7)` now gates column additions to `if (from >= 6)` so `source`, `ocrState`, and `ocrLanguage` are only altered on databases where `documentsTable` pre-existed prior to schema v7.
+   - `if (from < 8)` gates version provenance column additions to `if (from >= 5)`.
+2. **Defensive Idempotent Migration Helpers (`_addColumnSafely` & `_createTableSafely`)**:
+   - `_addColumnSafely(m, table, column)` queries `PRAGMA table_info(tableName)` to check column presence before issuing `ALTER TABLE` statements and catches duplicate column errors gracefully.
+   - `_createTableSafely(m, table)` queries `sqlite_master` to ensure tables are only created if not already present.
+3. **Automated Verification**:
+   - Created [`test/database/database_migration_test.dart`](file:///home/dog/git/quitepaper/test/database/database_migration_test.dart) testing schema migrations across all historic boundaries (v1 $\to$ v8, v5 $\to$ v8, v6 $\to$ v8, v7 $\to$ v8) ensuring zero runtime exceptions.
+
+
 
 
 

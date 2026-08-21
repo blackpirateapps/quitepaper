@@ -67,40 +67,68 @@ class AppDatabase extends _$AppDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            await m.addColumn(notesTable, notesTable.isArchived);
-            await m.addColumn(notesTable, notesTable.isTrashed);
-            await m.addColumn(notesTable, notesTable.deletedAt);
+            await _addColumnSafely(m, notesTable, notesTable.isArchived);
+            await _addColumnSafely(m, notesTable, notesTable.isTrashed);
+            await _addColumnSafely(m, notesTable, notesTable.deletedAt);
           }
           if (from < 3) {
-            await m.addColumn(notesTable, notesTable.serverRevision);
-            await m.addColumn(notesTable, notesTable.isDirty);
-            await m.addColumn(notesTable, notesTable.syncedAt);
-            await m.createTable(syncMetadataTable);
-            await m.createTable(syncQueueTable);
+            await _addColumnSafely(m, notesTable, notesTable.serverRevision);
+            await _addColumnSafely(m, notesTable, notesTable.isDirty);
+            await _addColumnSafely(m, notesTable, notesTable.syncedAt);
+            await _createTableSafely(m, syncMetadataTable);
+            await _createTableSafely(m, syncQueueTable);
           }
           if (from < 4) {
-            await m.createTable(attachmentsTable);
-            await m.createTable(attachmentVariantsTable);
+            await _createTableSafely(m, attachmentsTable);
+            await _createTableSafely(m, attachmentVariantsTable);
           }
           if (from < 5) {
-            await m.createTable(noteVersionsTable);
+            await _createTableSafely(m, noteVersionsTable);
           }
           if (from < 6) {
-            await m.createTable(documentsTable);
+            await _createTableSafely(m, documentsTable);
           }
           if (from < 7) {
-            await m.addColumn(documentsTable, documentsTable.source);
-            await m.addColumn(documentsTable, documentsTable.ocrState);
-            await m.addColumn(documentsTable, documentsTable.ocrLanguage);
-            await m.createTable(documentOcrPagesTable);
+            if (from >= 6) {
+              await _addColumnSafely(m, documentsTable, documentsTable.source);
+              await _addColumnSafely(m, documentsTable, documentsTable.ocrState);
+              await _addColumnSafely(
+                m,
+                documentsTable,
+                documentsTable.ocrLanguage,
+              );
+            }
+            await _createTableSafely(m, documentOcrPagesTable);
           }
           if (from < 8) {
-            await m.createTable(syncConflictsTable);
-            await m.addColumn(noteVersionsTable, noteVersionsTable.baseRevision);
-            await m.addColumn(noteVersionsTable, noteVersionsTable.localParentRevision);
-            await m.addColumn(noteVersionsTable, noteVersionsTable.remoteParentRevision);
-            await m.addColumn(noteVersionsTable, noteVersionsTable.mergeType);
-            await m.addColumn(noteVersionsTable, noteVersionsTable.resolutionSummary);
+            await _createTableSafely(m, syncConflictsTable);
+            if (from >= 5) {
+              await _addColumnSafely(
+                m,
+                noteVersionsTable,
+                noteVersionsTable.baseRevision,
+              );
+              await _addColumnSafely(
+                m,
+                noteVersionsTable,
+                noteVersionsTable.localParentRevision,
+              );
+              await _addColumnSafely(
+                m,
+                noteVersionsTable,
+                noteVersionsTable.remoteParentRevision,
+              );
+              await _addColumnSafely(
+                m,
+                noteVersionsTable,
+                noteVersionsTable.mergeType,
+              );
+              await _addColumnSafely(
+                m,
+                noteVersionsTable,
+                noteVersionsTable.resolutionSummary,
+              );
+            }
           }
         },
         beforeOpen: (details) async {
@@ -155,6 +183,54 @@ class AppDatabase extends _$AppDatabase {
           );
         },
       );
+
+  Future<void> _addColumnSafely(
+    Migrator m,
+    TableInfo table,
+    GeneratedColumn column,
+  ) async {
+    try {
+      final rows = await customSelect(
+        'PRAGMA table_info("${table.actualTableName}");',
+      ).get();
+      final columnNames = rows
+          .map((r) => r.read<String>('name').toLowerCase())
+          .toSet();
+      if (!columnNames.contains(column.name.toLowerCase())) {
+        await m.addColumn(table, column);
+      }
+    } catch (_) {
+      try {
+        await m.addColumn(table, column);
+      } catch (e) {
+        if (!e.toString().toLowerCase().contains('duplicate column name')) {
+          rethrow;
+        }
+      }
+    }
+  }
+
+  Future<void> _createTableSafely(
+    Migrator m,
+    TableInfo table,
+  ) async {
+    try {
+      final rows = await customSelect(
+        'SELECT name FROM sqlite_master WHERE type="table" AND name="${table.actualTableName}";',
+      ).get();
+      if (rows.isEmpty) {
+        await m.createTable(table);
+      }
+    } catch (_) {
+      try {
+        await m.createTable(table);
+      } catch (e) {
+        if (!e.toString().toLowerCase().contains('already exists')) {
+          rethrow;
+        }
+      }
+    }
+  }
 
   // ==========================================
   // NOTE OPERATIONS & STREAM QUERIES
