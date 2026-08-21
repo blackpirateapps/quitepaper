@@ -4,12 +4,16 @@ import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_list_tile.dart';
+import '../application/search_provider.dart';
+import 'widgets/document_search_tile.dart';
+import 'widgets/search_filter_bar.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialQuery = ''});
@@ -64,7 +68,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final query = ref.watch(searchQueryProvider);
-    final searchResultsAsync = ref.watch(searchNotesStreamProvider);
+    final searchResultsAsync = ref.watch(globalSearchResultsProvider);
+    final activeFilter = ref.watch(searchFilterProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -90,7 +95,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             fontSize: 18,
           ),
           decoration: InputDecoration(
-            hintText: 'Search notes and tags...',
+            hintText: 'Search notes, documents, OCR, tags...',
             hintStyle: AppTypography.headline.copyWith(
               color: colors.textTertiary,
               fontSize: 18,
@@ -121,79 +126,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: query.trim().isEmpty
             ? _buildInitialState(colors)
             : searchResultsAsync.when(
-                data: (notes) {
-                  if (notes.isEmpty) {
-                    return _buildEmptyResultsState(colors, query);
-                  }
-                  return ListView.builder(
-                    itemCount: notes.length,
-                    itemBuilder: (context, index) {
-                      final note = notes[index];
-                      return NoteListTile(
-                        note: note,
-                        searchQuery: query,
-                        onTap: () => _openNote(context, note),
-                        onTogglePin: () {
-                          ref
-                              .read(notesRepositoryProvider)
-                              .setPinned(note.id, !note.isPinned);
-                        },
-                        onArchive: () {
-                          final repo = ref.read(notesRepositoryProvider);
-                          repo.archiveNote(note.id);
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Note archived'),
-                              behavior: SnackBarBehavior.floating,
-                              dismissDirection: DismissDirection.horizontal,
-                              persist: false,
-                              action: SnackBarAction(
-                                label: 'Undo',
-                                onPressed: () => repo.unarchiveNote(note.id),
+                data: (results) {
+                  return Column(
+                    children: [
+                      // Filter bar for selecting category (All, Notes, Documents, Tags)
+                      SearchFilterBar(results: results),
+
+                      // Results list
+                      Expanded(
+                        child: results.isEmpty
+                            ? _buildEmptyResultsState(colors, query)
+                            : _buildResultsList(
+                                context: context,
+                                colors: colors,
+                                query: query,
+                                results: results,
+                                filter: activeFilter,
                               ),
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        },
-                        onTrash: () {
-                          final repo = ref.read(notesRepositoryProvider);
-                          repo.trashNote(note.id);
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Note moved to Trash'),
-                              behavior: SnackBarBehavior.floating,
-                              dismissDirection: DismissDirection.horizontal,
-                              persist: false,
-                              action: SnackBarAction(
-                                label: 'Undo',
-                                onPressed: () => repo.restoreFromTrash(note.id),
-                              ),
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        },
-                        onDelete: () {
-                          final repo = ref.read(notesRepositoryProvider);
-                          repo.trashNote(note.id);
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Note moved to Trash'),
-                              behavior: SnackBarBehavior.floating,
-                              dismissDirection: DismissDirection.horizontal,
-                              persist: false,
-                              action: SnackBarAction(
-                                label: 'Undo',
-                                onPressed: () => repo.restoreFromTrash(note.id),
-                              ),
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        },
-                      );
-                    },
+                      ),
+                    ],
                   );
                 },
                 loading: () => const Center(
@@ -201,12 +152,198 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
                 error: (err, _) => Center(
                   child: Text(
-                    'Error searching notes: $err',
+                    'Error searching: $err',
                     style: AppTypography.body.copyWith(color: colors.error),
                   ),
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildResultsList({
+    required BuildContext context,
+    required AppColors colors,
+    required String query,
+    required GlobalSearchResults results,
+    required SearchFilter filter,
+  }) {
+    switch (filter) {
+      case SearchFilter.notes:
+        if (results.noteMatches.isEmpty) {
+          return _buildEmptyCategoryState(colors, 'No matching notes found');
+        }
+        return ListView.builder(
+          itemCount: results.noteMatches.length,
+          itemBuilder: (context, index) {
+            return _buildNoteTile(context, results.noteMatches[index].note, query);
+          },
+        );
+
+      case SearchFilter.documents:
+        if (results.documentMatches.isEmpty) {
+          return _buildEmptyCategoryState(colors, 'No matching documents or OCR text found');
+        }
+        return ListView.builder(
+          itemCount: results.documentMatches.length,
+          itemBuilder: (context, index) {
+            return _buildDocumentTile(context, results.documentMatches[index], query);
+          },
+        );
+
+      case SearchFilter.tags:
+        final tagNotes = results.noteMatches.where((n) => n.matchedInTags).toList();
+        if (tagNotes.isEmpty) {
+          return _buildEmptyCategoryState(colors, 'No notes found matching tag query');
+        }
+        return ListView.builder(
+          itemCount: tagNotes.length,
+          itemBuilder: (context, index) {
+            return _buildNoteTile(context, tagNotes[index].note, query);
+          },
+        );
+
+      case SearchFilter.all:
+        final showSectionHeaders =
+            results.noteMatches.isNotEmpty && results.documentMatches.isNotEmpty;
+
+        return ListView(
+          children: [
+            // Notes Section
+            if (results.noteMatches.isNotEmpty) ...[
+              if (showSectionHeaders)
+                _buildSectionHeader(colors, 'NOTES', results.notesCount),
+              ...results.noteMatches.map((match) {
+                return _buildNoteTile(context, match.note, query);
+              }),
+            ],
+
+            // Documents & OCR Section
+            if (results.documentMatches.isNotEmpty) ...[
+              if (showSectionHeaders)
+                _buildSectionHeader(colors, 'DOCUMENTS & SCANNED OCR', results.documentsCount),
+              ...results.documentMatches.map((docMatch) {
+                return _buildDocumentTile(context, docMatch, query);
+              }),
+            ],
+          ],
+        );
+    }
+  }
+
+  Widget _buildSectionHeader(AppColors colors, String title, int count) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+      color: colors.background,
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: AppTypography.caption.copyWith(
+              color: colors.textSecondary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: colors.divider.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoteTile(BuildContext context, Note note, String query) {
+    return NoteListTile(
+      note: note,
+      searchQuery: query,
+      onTap: () => _openNote(context, note),
+      onTogglePin: () {
+        ref.read(notesRepositoryProvider).setPinned(note.id, !note.isPinned);
+      },
+      onArchive: () {
+        final repo = ref.read(notesRepositoryProvider);
+        repo.archiveNote(note.id);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Note archived'),
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.horizontal,
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => repo.unarchiveNote(note.id),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      },
+      onTrash: () {
+        final repo = ref.read(notesRepositoryProvider);
+        repo.trashNote(note.id);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Note moved to Trash'),
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.horizontal,
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => repo.restoreFromTrash(note.id),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      },
+      onDelete: () {
+        final repo = ref.read(notesRepositoryProvider);
+        repo.trashNote(note.id);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Note moved to Trash'),
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.horizontal,
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => repo.restoreFromTrash(note.id),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDocumentTile(BuildContext context, DocumentSearchMatch match, String query) {
+    return DocumentSearchTile(
+      match: match,
+      searchQuery: query,
+      onTap: () {
+        DocumentViewerScreen.open(
+          context,
+          documentId: match.document.id,
+          title: match.document.title,
+          initialPageIndex: match.matchedPageNumber > 0 ? match.matchedPageNumber - 1 : 0,
+        );
+      },
     );
   }
 
@@ -222,13 +359,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Type to search title, body, or tags',
+            'Type to search title, body, OCR text, or tags',
             style: AppTypography.body.copyWith(
               color: colors.textTertiary,
               fontSize: 15,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyCategoryState(AppColors colors, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Text(
+          message,
+          style: AppTypography.body.copyWith(
+            color: colors.textSecondary,
+            fontSize: 15,
+          ),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
@@ -241,7 +394,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'No notes found',
+              'No results found',
               style: AppTypography.title.copyWith(
                 color: colors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -250,10 +403,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Try another search or create a new note.',
+              'No notes, documents, or OCR text matched "$query".\nTry another search or create a new note.',
               style: AppTypography.body.copyWith(
                 color: colors.textSecondary,
-                fontSize: 15,
+                fontSize: 14.5,
+                height: 1.4,
               ),
               textAlign: TextAlign.center,
             ),

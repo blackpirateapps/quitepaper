@@ -10,6 +10,7 @@ import '../sync/sync_provider.dart';
 import 'document_processing_service.dart';
 import 'ocr_crypto.dart';
 import 'ocr_models.dart';
+import 'ocr_search_service.dart';
 import 'ocr_service.dart';
 
 /// Notifier managing persisted user OCR language preference.
@@ -75,6 +76,19 @@ final ocrCryptoProvider = Provider<OcrCrypto>((ref) {
   return OcrCrypto(cryptoService: cryptoService);
 });
 
+/// Provider for fast in-memory OCR & Document search indexing.
+final ocrSearchServiceProvider = Provider<OcrSearchService>((ref) {
+  final database = ref.watch(databaseProvider);
+  final keyManager = ref.watch(keyManagerProvider);
+  final ocrCrypto = ref.watch(ocrCryptoProvider);
+
+  return OcrSearchService(
+    database: database,
+    keyManager: keyManager,
+    ocrCrypto: ocrCrypto,
+  );
+});
+
 /// Provider for background document text extraction and OCR processing service.
 final documentProcessingServiceProvider = Provider<DocumentProcessingService>((ref) {
   final database = ref.watch(databaseProvider);
@@ -83,6 +97,7 @@ final documentProcessingServiceProvider = Provider<DocumentProcessingService>((r
   final textExtractor = ref.watch(pdfTextExtractorProvider);
   final pageRenderer = ref.watch(pdfPageRendererProvider);
   final ocrService = ref.watch(ocrServiceProvider);
+  final ocrSearchService = ref.watch(ocrSearchServiceProvider);
 
   return DocumentProcessingService(
     database: database,
@@ -91,5 +106,6 @@ final documentProcessingServiceProvider = Provider<DocumentProcessingService>((r
     textExtractor: textExtractor,
     pageRenderer: pageRenderer,
     ocrService: ocrService,
+    ocrSearchService: ocrSearchService,
   );
 });

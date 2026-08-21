@@ -1431,6 +1431,45 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 3. **Automated Verification**:
    - Created [`test/database/database_migration_test.dart`](file:///home/dog/git/quitepaper/test/database/database_migration_test.dart) testing schema migrations across all historic boundaries (v1 $\to$ v8, v5 $\to$ v8, v6 $\to$ v8, v7 $\to$ v8) ensuring zero runtime exceptions.
 
+---
+
+## 62. Global Document & OCR Full-Text Search with Category Filter Chips and Direct Page Navigation
+
+### 1. Architectural Overview & Problem Context
+- **Root Problem**: Previously, text recognized by OCR from scanned documents and PDF attachments was saved to `documentOcrPagesTable`, but was not visible in Global Search (`SearchScreen`). Additionally, standalone (unattached) documents were omitted from search entirely, and search tiles had no visual attribution or snippet extraction for OCR matches.
+- **Goals Achieved**:
+  1. **Category Filter Chips (`SearchFilterBar`)**: Added interactive filter bar (`All`, `Notes`, `Documents & OCR`, `Tags`) with live item count badges under the search bar.
+  2. **Unified Search Results & Snippet Generation**: Unified Notes and Document OCR results with keyword highlight badges, exact matched page number (`Page X`), parent note attribution (`In: <Note Title>` or `Standalone Document`), and bounded text snippets with keyword context.
+  3. **High-Performance In-Memory Decryption Cache (`OcrSearchService`)**: Decrypted OCR plaintexts are cached in RAM while `KeyManager` is unlocked. Background scan completions in `DocumentProcessingService` automatically update the cache so new scans are searchable in sub-millisecond time without repeated AES-GCM decryption passes.
+  4. **Direct Page Navigation (`DocumentViewerScreen.open(..., initialPageIndex: X)`)**: Tapping any document/OCR search result directly opens the visual document viewer at the exact 1-indexed page where the query term was found.
+
+### 2. Key Components Added & Modified
+- **Domain Layer (`lib/features/search/domain/search_result.dart`)**:
+  - `SearchFilter`: Enum (`all`, `notes`, `documents`, `tags`).
+  - `SearchResultItem`: Sealed base class.
+  - `NoteSearchMatch` & `DocumentSearchMatch`: Strongly-typed search results carrying document metadata, parent note link, matched page number, snippet, and match flags (`isOcrMatch`).
+  - `GlobalSearchResults`: Container with category count helpers and filtering methods.
+- **Application Layer (`lib/core/ocr/ocr_search_service.dart` & `lib/features/search/application/search_provider.dart`)**:
+  - `OcrSearchService`: Fast search indexing engine querying `AppDatabase.getActiveDocuments()`, inspecting document titles, resolving parent note associations, decrypting/caching OCR pages, and extracting context snippets around keywords with ellipsis boundaries.
+  - `searchFilterProvider` & `globalSearchResultsProvider`: Riverpod providers driving reactive search and filter updates.
+- **Document Viewer Integration (`lib/core/documents/presentation/document_viewer_screen.dart`)**:
+  - Added `initialPageIndex` support to `DocumentViewerScreen` and `open()` / `openUri()`, setting `_selectedPageIndex` directly to the matched page upon load.
+- **Presentation Layer**:
+  - `SearchFilterBar` (`lib/features/search/presentation/widgets/search_filter_bar.dart`): Horizontal scrollable filter pill bar with count badges.
+  - `DocumentSearchTile` (`lib/features/search/presentation/widgets/document_search_tile.dart`): Search result tile displaying PDF icon, highlighted document title, page badge, parent note indicator, OCR/Title match pill, and highlighted text snippet.
+  - `SearchScreen` (`lib/features/search/presentation/search_screen.dart`): Integrated unified results list with section headers (`NOTES` and `DOCUMENTS & SCANNED OCR`) and direct page navigation.
+
+### 3. Automated Verification & Quality
+- Added [`test/search/ocr_global_search_test.dart`](file:///home/dog/git/quitepaper/test/search/ocr_global_search_test.dart) testing:
+  - OCR matching across attached and standalone/unattached documents.
+  - Title vs. OCR match classification and snippet extraction.
+  - In-memory cache performance.
+  - Category filter switching (`All`, `Documents & OCR`).
+  - Direct navigation to matched page in `DocumentViewerScreen`.
+- Full static analysis: `flutter analyze` (0 issues).
+- Full test suite: `flutter test` (all 380 unit and widget tests passing).
+
+
 
 
 

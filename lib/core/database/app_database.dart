@@ -1467,6 +1467,16 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Get all active (non-deleted) documents
+  Future<List<DocumentEntity>> getActiveDocuments() async {
+    return (select(documentsTable)..where((d) => d.isDeleted.equals(false))).get();
+  }
+
+  /// Watch all active (non-deleted) documents
+  Stream<List<DocumentEntity>> watchActiveDocuments() {
+    return (select(documentsTable)..where((d) => d.isDeleted.equals(false))).watch();
+  }
+
   /// Get all documents (including tombstones) for backup
   Future<List<DocumentEntity>> getAllDocuments() async {
     return select(documentsTable).get();

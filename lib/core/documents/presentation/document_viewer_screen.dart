@@ -30,17 +30,20 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
     required this.documentId,
     this.title = 'Scanned Document',
     this.initialResolution,
+    this.initialPageIndex = 0,
   });
 
   final String documentId;
   final String title;
   final ResourceResolution<ResolvedDocumentInfo>? initialResolution;
+  final int initialPageIndex;
 
   static Future<String?> open(
     BuildContext context, {
     required String documentId,
     String title = 'Scanned Document',
     ResourceResolution<ResolvedDocumentInfo>? initialResolution,
+    int initialPageIndex = 0,
   }) {
     return Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -48,6 +51,7 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
           documentId: documentId,
           title: title,
           initialResolution: initialResolution,
+          initialPageIndex: initialPageIndex,
         ),
       ),
     );
@@ -57,11 +61,13 @@ class DocumentViewerScreen extends ConsumerStatefulWidget {
     BuildContext context, {
     required QuietPaperUri uri,
     String title = 'Scanned Document',
+    int initialPageIndex = 0,
   }) {
     return open(
       context,
       documentId: uri.resourceId,
       title: title,
+      initialPageIndex: initialPageIndex,
     );
   }
 
@@ -83,10 +89,15 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedPageIndex = widget.initialPageIndex >= 0 ? widget.initialPageIndex : 0;
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
       _isLoading = false;
       if (_resolution!.isAvailable && _resolution!.data != null) {
+        _selectedPageIndex = widget.initialPageIndex.clamp(
+          0,
+          (_resolution!.data!.pageCount > 0 ? _resolution!.data!.pageCount : 1) - 1,
+        );
         _rasterizePages(_resolution!.data!.pdfBytes);
       }
     } else {
@@ -102,9 +113,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final service = ref.read(documentServiceProvider);
     final res = await service.resolveDocument(widget.documentId);
     if (mounted) {
+      final pageCount = res.data?.pageCount ?? 1;
       setState(() {
         _resolution = res;
         _isLoading = false;
+        _selectedPageIndex = widget.initialPageIndex.clamp(0, pageCount > 0 ? pageCount - 1 : 0);
       });
 
       if (res.isAvailable && res.data != null) {

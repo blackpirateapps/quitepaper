@@ -8,6 +8,7 @@ import '../pdf/pdf_page_renderer.dart';
 import '../pdf/pdf_text_extractor.dart';
 import 'ocr_crypto.dart';
 import 'ocr_models.dart';
+import 'ocr_search_service.dart';
 import 'ocr_service.dart';
 
 /// Asynchronous coordinator for document text extraction, on-device OCR,
@@ -20,6 +21,7 @@ class DocumentProcessingService {
     PdfTextExtractor? textExtractor,
     PdfPageRenderer? pageRenderer,
     OcrService? ocrService,
+    this.ocrSearchService,
   }) : _ocrCrypto = ocrCrypto ?? OcrCrypto(),
        _textExtractor = textExtractor ?? const DefaultPdfTextExtractor(),
        _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer(),
@@ -31,6 +33,7 @@ class DocumentProcessingService {
   final PdfTextExtractor _textExtractor;
   final PdfPageRenderer _pageRenderer;
   final OcrService _ocrService;
+  final OcrSearchService? ocrSearchService;
 
   final Set<String> _inFlightJobIds = <String>{};
 
@@ -185,6 +188,9 @@ class DocumentProcessingService {
         }
       }
 
+      // Update in-memory search cache so new scans are immediately searchable
+      ocrSearchService?.updateDocumentCache(documentId, ocrResult.pages);
+
       await database.updateDocumentOcrState(
         documentId,
         OcrProcessingState.available.identifier,
@@ -215,6 +221,7 @@ class DocumentProcessingService {
     OcrLanguage language = OcrLanguage.english,
   }) async {
     _inFlightJobIds.remove(documentId);
+    ocrSearchService?.invalidateDocumentCache(documentId);
     await processDocument(
       documentId: documentId,
       pdfBytes: pdfBytes,
@@ -231,6 +238,7 @@ class DocumentProcessingService {
     OcrLanguage language = OcrLanguage.english,
   }) async {
     _inFlightJobIds.remove(documentId);
+    ocrSearchService?.invalidateDocumentCache(documentId);
     await processDocument(
       documentId: documentId,
       pdfBytes: pdfBytes,
