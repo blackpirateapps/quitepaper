@@ -3,6 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/search/fuzzy_search_engine.dart';
 import '../../domain/search_result.dart';
 
 /// Interactive search result tile for scanned documents and OCR text matches
@@ -23,6 +24,7 @@ class DocumentSearchTile extends StatelessWidget {
     final colors = context.appColors;
     final doc = match.document;
     final isOcr = match.isOcrMatch;
+    final isFuzzy = match.isFuzzy;
 
     return Material(
       color: Colors.transparent,
@@ -75,7 +77,7 @@ class DocumentSearchTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: _buildHighlightedText(
+                          child: _buildFuzzyHighlightedText(
                             text: doc.title,
                             query: searchQuery,
                             baseStyle: AppTypography.bodyMedium.copyWith(
@@ -140,26 +142,7 @@ class DocumentSearchTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6.0),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5.0,
-                            vertical: 1.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isOcr
-                                ? Colors.green.withValues(alpha: 0.12)
-                                : colors.accent.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(3.0),
-                          ),
-                          child: Text(
-                            isOcr ? 'OCR Match' : 'Title Match',
-                            style: TextStyle(
-                              fontSize: 10.0,
-                              fontWeight: FontWeight.w600,
-                              color: isOcr ? Colors.green : colors.accent,
-                            ),
-                          ),
-                        ),
+                        _buildMatchBadge(isOcr: isOcr, isFuzzy: isFuzzy, colors: colors),
                       ],
                     ),
 
@@ -180,7 +163,7 @@ class DocumentSearchTile extends StatelessWidget {
                             width: 0.8,
                           ),
                         ),
-                        child: _buildHighlightedText(
+                        child: _buildFuzzyHighlightedText(
                           text: match.snippet,
                           query: searchQuery,
                           baseStyle: AppTypography.bodySmall.copyWith(
@@ -204,7 +187,46 @@ class DocumentSearchTile extends StatelessWidget {
     );
   }
 
-  Widget _buildHighlightedText({
+  Widget _buildMatchBadge({
+    required bool isOcr,
+    required bool isFuzzy,
+    required AppColors colors,
+  }) {
+    String label;
+    Color badgeColor;
+
+    if (isFuzzy) {
+      label = 'Fuzzy Match';
+      badgeColor = Colors.orange;
+    } else if (isOcr) {
+      label = 'OCR Match';
+      badgeColor = Colors.green;
+    } else {
+      label = 'Title Match';
+      badgeColor = colors.accent;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 5.0,
+        vertical: 1.0,
+      ),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(3.0),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.0,
+          fontWeight: FontWeight.w600,
+          color: badgeColor,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFuzzyHighlightedText({
     required String text,
     required String? query,
     required TextStyle baseStyle,
@@ -212,7 +234,7 @@ class DocumentSearchTile extends StatelessWidget {
     required Color textColor,
     int maxLines = 1,
   }) {
-    if (query == null || query.trim().isEmpty) {
+    if (query == null || query.trim().isEmpty || text.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -221,8 +243,12 @@ class DocumentSearchTile extends StatelessWidget {
       );
     }
 
-    final cleanQuery = query.trim().replaceAll(RegExp(r'^#'), '');
-    if (cleanQuery.isEmpty) {
+    final eval = FuzzySearchEngine.evaluate(
+      query: query,
+      text: text,
+    );
+
+    if (!eval.hasMatch || eval.highlightSpans.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -231,42 +257,55 @@ class DocumentSearchTile extends StatelessWidget {
       );
     }
 
-    final pattern = RegExp(RegExp.escape(cleanQuery), caseSensitive: false);
-    final matches = pattern.allMatches(text).toList();
+    // Sort and merge overlapping spans
+    final sortedSpans = [...eval.highlightSpans]
+      ..sort((a, b) => a.start.compareTo(b.start));
 
-    if (matches.isEmpty) {
-      return Text(
-        text,
-        style: baseStyle,
-        maxLines: maxLines,
-        overflow: TextOverflow.ellipsis,
-      );
+    final mergedSpans = <TokenSpan>[];
+    for (final span in sortedSpans) {
+      if (span.start < 0 || span.end > text.length || span.start >= span.end) continue;
+      if (mergedSpans.isEmpty) {
+        mergedSpans.add(span);
+      } else {
+        final last = mergedSpans.last;
+        if (span.start <= last.end) {
+          mergedSpans[mergedSpans.length - 1] = TokenSpan(
+            start: last.start,
+            end: span.end > last.end ? span.end : last.end,
+            isExact: last.isExact && span.isExact,
+          );
+        } else {
+          mergedSpans.add(span);
+        }
+      }
     }
 
     final spans = <TextSpan>[];
-    int lastMatchEnd = 0;
+    int lastEnd = 0;
 
-    for (final match in matches) {
-      if (match.start > lastMatchEnd) {
+    for (final span in mergedSpans) {
+      if (span.start > lastEnd) {
         spans.add(TextSpan(
-          text: text.substring(lastMatchEnd, match.start),
+          text: text.substring(lastEnd, span.start),
           style: baseStyle,
         ));
       }
       spans.add(TextSpan(
-        text: text.substring(match.start, match.end),
+        text: text.substring(span.start, span.end),
         style: baseStyle.copyWith(
           color: textColor,
-          backgroundColor: highlightColor.withValues(alpha: 0.35),
+          backgroundColor: span.isExact
+              ? highlightColor.withValues(alpha: 0.35)
+              : Colors.orange.withValues(alpha: 0.28),
           fontWeight: FontWeight.w700,
         ),
       ));
-      lastMatchEnd = match.end;
+      lastEnd = span.end;
     }
 
-    if (lastMatchEnd < text.length) {
+    if (lastEnd < text.length) {
       spans.add(TextSpan(
-        text: text.substring(lastMatchEnd),
+        text: text.substring(lastEnd),
         style: baseStyle,
       ));
     }

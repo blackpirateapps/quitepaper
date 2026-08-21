@@ -1469,6 +1469,43 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - Full static analysis: `flutter analyze` (0 issues).
 - Full test suite: `flutter test` (all 380 unit and widget tests passing).
 
+---
+
+## 63. Universal Fuzzy Search & Multi-Token Relevance Ranking Engine
+
+### 1. Architectural Overview & Design Goals
+- **Objective**: Expand Global Search across Notes, Scanned OCR Text, Document Titles, and Tags with typo-tolerant fuzzy matching (e.g. `invioce` $\to$ `invoice`, `reciept` $\to$ `receipt`), multi-token OR evaluation with match coverage boosting, adaptive edit distances, and multi-token visual highlighting.
+- **Engine Architecture (`lib/core/search/fuzzy_search_engine.dart`)**:
+  1. **Damerau-Levenshtein Algorithm**: Handles single/multi-character insertions, deletions, substitutions, and adjacent transpositions.
+  2. **Adaptive Edit Distance Threshold**:
+     - Words $\le 3$ characters: 0 typos (exact substring/prefix only, avoiding false positives on short words).
+     - Words $4 - 6$ characters: 1 typo allowed.
+     - Words $\ge 7$ characters: up to 2 typos allowed.
+  3. **Relevance Scoring Model**:
+     - Exact continuous phrase match bonus: $+180$ (Title), $+140$ (Tag), $+100$ (Body/OCR).
+     - Exact token match: $+120$ (Title), $+100$ (Tag), $+60$ (Body/OCR).
+     - Fuzzy token match: Scaled by edit distance penalty ($30–90$ depending on target area).
+     - Multi-token coverage multiplier: $+50 \times \text{matchedTokensCount}$ with $+80$ all-tokens-matched bonus.
+  4. **Multi-Token & Fuzzy UI Highlighter**:
+     - Computes token boundary spans (`TokenSpan`) across search query words.
+     - Merges overlapping spans and renders distinct highlights: exact matches in accent color, fuzzy matches in soft amber/orange.
+     - Displays match quality pill (`OCR Match`, `Fuzzy Match`, `Title Match`).
+
+### 2. Components Updated
+- **Core Engine**: Added [`lib/core/search/fuzzy_search_engine.dart`](file:///home/dog/git/quitepaper/lib/core/search/fuzzy_search_engine.dart).
+- **OCR Search Service**: [`lib/core/ocr/ocr_search_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_search_service.dart) evaluates titles and decrypted OCR pages using `FuzzySearchEngine` and sorts results by relevance score.
+- **Search Provider**: [`lib/features/search/application/search_provider.dart`](file:///home/dog/git/quitepaper/lib/features/search/application/search_provider.dart) evaluates Note titles, tags, and content with `FuzzySearchEngine` in memory (unconstrained by SQL `LIKE` limitations) and ranks all matches.
+- **UI Components**:
+  - [`DocumentSearchTile`](file:///home/dog/git/quitepaper/lib/features/search/presentation/widgets/document_search_tile.dart): Multi-token and fuzzy snippet highlighting with `_buildFuzzyHighlightedText`.
+  - [`NoteListTile`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart): Multi-token and fuzzy snippet highlighting and smart preview extraction.
+
+### 3. Automated Verification & Quality
+- Added [`test/search/fuzzy_search_engine_test.dart`](file:///home/dog/git/quitepaper/test/search/fuzzy_search_engine_test.dart) testing Damerau-Levenshtein calculation, transpositions, adaptive length thresholds, and multi-token scoring.
+- Updated [`test/search/ocr_global_search_test.dart`](file:///home/dog/git/quitepaper/test/search/ocr_global_search_test.dart) testing OCR text typo matching (`invioce` $\to$ `invoice`).
+- Static analysis: `flutter analyze` (**0 warnings, 0 errors**).
+- Test suite: `flutter test` (**all 389 unit and widget tests passing**).
+
+
 
 
 

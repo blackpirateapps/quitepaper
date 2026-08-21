@@ -3,6 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/search/fuzzy_search_engine.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
@@ -210,19 +211,17 @@ class NoteListTile extends StatelessWidget {
     if (query == null || query.trim().isEmpty) {
       return note.previewSnippet;
     }
-    final cleanQuery = query.trim().replaceAll(RegExp(r'^#'), '');
-    if (cleanQuery.isEmpty) return note.previewSnippet;
 
-    final content = note.content;
-    final matchIdx = content.toLowerCase().indexOf(cleanQuery.toLowerCase());
-    if (matchIdx == -1) {
-      return note.previewSnippet;
+    final eval = FuzzySearchEngine.evaluate(
+      query: query,
+      text: note.content,
+    );
+
+    if (eval.hasMatch && eval.snippet.isNotEmpty) {
+      return eval.snippet;
     }
 
-    final start = (matchIdx - 25).clamp(0, content.length);
-    final prefix = start > 0 ? '…' : '';
-    final rawSnippet = content.substring(start).trim();
-    return '$prefix$rawSnippet'.replaceAll(RegExp(r'\s+'), ' ');
+    return note.previewSnippet;
   }
 
   Widget _buildHighlightedText({
@@ -233,7 +232,7 @@ class NoteListTile extends StatelessWidget {
     required Color textColor,
     int maxLines = 1,
   }) {
-    if (query == null || query.trim().isEmpty) {
+    if (query == null || query.trim().isEmpty || text.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -242,12 +241,12 @@ class NoteListTile extends StatelessWidget {
       );
     }
 
-    final cleanQuery = query.trim();
-    final searchPattern = cleanQuery.startsWith('#')
-        ? cleanQuery.substring(1).trim()
-        : cleanQuery;
+    final eval = FuzzySearchEngine.evaluate(
+      query: query,
+      text: text,
+    );
 
-    if (searchPattern.isEmpty) {
+    if (!eval.hasMatch || eval.highlightSpans.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -256,42 +255,55 @@ class NoteListTile extends StatelessWidget {
       );
     }
 
-    final pattern = RegExp(RegExp.escape(searchPattern), caseSensitive: false);
-    final matches = pattern.allMatches(text).toList();
+    // Sort and merge overlapping spans
+    final sortedSpans = [...eval.highlightSpans]
+      ..sort((a, b) => a.start.compareTo(b.start));
 
-    if (matches.isEmpty) {
-      return Text(
-        text,
-        style: baseStyle,
-        maxLines: maxLines,
-        overflow: TextOverflow.ellipsis,
-      );
+    final mergedSpans = <TokenSpan>[];
+    for (final span in sortedSpans) {
+      if (span.start < 0 || span.end > text.length || span.start >= span.end) continue;
+      if (mergedSpans.isEmpty) {
+        mergedSpans.add(span);
+      } else {
+        final last = mergedSpans.last;
+        if (span.start <= last.end) {
+          mergedSpans[mergedSpans.length - 1] = TokenSpan(
+            start: last.start,
+            end: span.end > last.end ? span.end : last.end,
+            isExact: last.isExact && span.isExact,
+          );
+        } else {
+          mergedSpans.add(span);
+        }
+      }
     }
 
     final spans = <TextSpan>[];
-    int lastMatchEnd = 0;
+    int lastEnd = 0;
 
-    for (final match in matches) {
-      if (match.start > lastMatchEnd) {
+    for (final span in mergedSpans) {
+      if (span.start > lastEnd) {
         spans.add(TextSpan(
-          text: text.substring(lastMatchEnd, match.start),
+          text: text.substring(lastEnd, span.start),
           style: baseStyle,
         ));
       }
       spans.add(TextSpan(
-        text: text.substring(match.start, match.end),
+        text: text.substring(span.start, span.end),
         style: baseStyle.copyWith(
           color: textColor,
-          backgroundColor: highlightColor.withValues(alpha: 0.35),
+          backgroundColor: span.isExact
+              ? highlightColor.withValues(alpha: 0.35)
+              : Colors.orange.withValues(alpha: 0.28),
           fontWeight: FontWeight.w700,
         ),
       ));
-      lastMatchEnd = match.end;
+      lastEnd = span.end;
     }
 
-    if (lastMatchEnd < text.length) {
+    if (lastEnd < text.length) {
       spans.add(TextSpan(
-        text: text.substring(lastMatchEnd),
+        text: text.substring(lastEnd),
         style: baseStyle,
       ));
     }

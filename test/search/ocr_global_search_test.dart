@@ -173,7 +173,7 @@ void main() {
   }
 
   group('OcrSearchService Tests', () {
-    test('Searches OCR text in attached and unattached documents', () async {
+    test('Searches OCR text in attached and unattached documents with exact match', () async {
       // 1. Attached document
       await db.saveNote(
         id: 'note-101',
@@ -225,6 +225,24 @@ void main() {
       expect(unattachedMatch.snippet.toLowerCase(), contains('utility invoice bill'));
     });
 
+    test('Fuzzy search finds OCR text with typos (e.g. "invioce")', () async {
+      await createDocumentWithOcr(
+        documentId: 'doc-typo-1',
+        title: 'Hardware Order Receipt',
+        noteId: null,
+        pageTexts: [
+          'Dell server invoice #1029 total \$8,900 shipped via FedEx.',
+        ],
+      );
+
+      // Search with transposition typo "invioce"
+      final matches = await searchService.searchDocuments('invioce');
+      expect(matches.length, 1);
+      expect(matches.first.document.id, 'doc-typo-1');
+      expect(matches.first.isFuzzy, isTrue);
+      expect(matches.first.snippet.toLowerCase(), contains('dell server invoice'));
+    });
+
     test('Searches document title when OCR does not match', () async {
       await createDocumentWithOcr(
         documentId: 'doc-contract-1',
@@ -264,7 +282,7 @@ void main() {
   });
 
   group('Global Search Provider & Screen UI Integration', () {
-    testWidgets('Renders SearchFilterBar and DocumentSearchTile with direct page jump', (tester) async {
+    testWidgets('Renders SearchFilterBar, fuzzy highlights, and DocumentSearchTile with direct page jump', (tester) async {
       // Setup Note and Document in DB
       await db.saveNote(
         id: 'note-ui-1',

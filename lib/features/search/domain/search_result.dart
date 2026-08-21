@@ -27,6 +27,8 @@ extension SearchFilterExtension on SearchFilter {
 /// Base sealed class for heterogeneous global search results
 sealed class SearchResultItem {
   const SearchResultItem();
+
+  double get score;
 }
 
 /// Search result representing a matched Note
@@ -36,6 +38,10 @@ class NoteSearchMatch extends SearchResultItem {
   final bool matchedInTitle;
   final bool matchedInTags;
   final bool matchedInContent;
+  final bool isFuzzy;
+  final int matchedTokensCount;
+  @override
+  final double score;
 
   const NoteSearchMatch({
     required this.note,
@@ -43,6 +49,9 @@ class NoteSearchMatch extends SearchResultItem {
     this.matchedInTitle = false,
     this.matchedInTags = false,
     this.matchedInContent = false,
+    this.isFuzzy = false,
+    this.matchedTokensCount = 1,
+    this.score = 1.0,
   });
 }
 
@@ -54,6 +63,10 @@ class DocumentSearchMatch extends SearchResultItem {
   final int matchedPageNumber; // 1-indexed page number
   final String snippet;
   final bool isOcrMatch;
+  final bool isFuzzy;
+  final int matchedTokensCount;
+  @override
+  final double score;
 
   const DocumentSearchMatch({
     required this.document,
@@ -62,6 +75,9 @@ class DocumentSearchMatch extends SearchResultItem {
     required this.matchedPageNumber,
     required this.snippet,
     required this.isOcrMatch,
+    this.isFuzzy = false,
+    this.matchedTokensCount = 1,
+    this.score = 1.0,
   });
 }
 
@@ -91,7 +107,9 @@ class GlobalSearchResults {
   List<SearchResultItem> filteredResultsForFilter(SearchFilter filter) {
     switch (filter) {
       case SearchFilter.all:
-        return [...noteMatches, ...documentMatches];
+        final combined = <SearchResultItem>[...noteMatches, ...documentMatches];
+        combined.sort((a, b) => b.score.compareTo(a.score));
+        return combined;
       case SearchFilter.notes:
         return noteMatches;
       case SearchFilter.documents:

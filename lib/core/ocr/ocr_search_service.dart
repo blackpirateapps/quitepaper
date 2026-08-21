@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../features/search/domain/search_result.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../search/fuzzy_search_engine.dart';
 import 'ocr_crypto.dart';
 import 'ocr_models.dart';
 
@@ -53,7 +54,8 @@ class OcrSearchService {
         .toList();
   }
 
-  /// Searches all active documents (attached and unattached) for matching title or OCR text.
+  /// Searches all active documents (attached and unattached) for matching title or OCR text
+  /// with typo-tolerant fuzzy matching and relevance scoring.
   Future<List<DocumentSearchMatch>> searchDocuments(String query) async {
     final clean = query.trim().toLowerCase();
     if (clean.isEmpty) return const [];
@@ -82,7 +84,11 @@ class OcrSearchService {
 
     for (final doc in activeDocuments) {
       final docTitle = doc.title;
-      final isTitleMatch = docTitle.toLowerCase().contains(clean);
+      final titleMatch = FuzzySearchEngine.evaluate(
+        query: clean,
+        text: docTitle,
+        isTitle: true,
+      );
 
       // Resolve parent note title
       String? parentNoteTitle;
@@ -136,12 +142,15 @@ class OcrSearchService {
 
       if (cachedPages != null && cachedPages.isNotEmpty) {
         for (final page in cachedPages) {
-          final pageText = page.plainText;
-          final matchIdx = pageText.toLowerCase().indexOf(clean);
+          final pageMatch = FuzzySearchEngine.evaluate(
+            query: clean,
+            text: page.plainText,
+            isTitle: false,
+          );
 
-          if (matchIdx != -1) {
+          if (pageMatch.hasMatch) {
             matchedOcrPagesCount++;
-            final snippet = _extractSnippet(pageText, matchIdx, clean.length);
+            final combinedScore = pageMatch.score + (titleMatch.hasMatch ? 40.0 : 0.0);
 
             results.add(
               DocumentSearchMatch(
@@ -149,8 +158,11 @@ class OcrSearchService {
                 parentNoteTitle: parentNoteTitle,
                 parentNoteId: effectiveNoteId,
                 matchedPageNumber: page.pageNumber,
-                snippet: snippet,
+                snippet: pageMatch.snippet,
                 isOcrMatch: true,
+                isFuzzy: pageMatch.isFuzzy,
+                matchedTokensCount: pageMatch.matchedTokensCount,
+                score: combinedScore,
               ),
             );
           }
@@ -159,7 +171,7 @@ class OcrSearchService {
 
       // If document matched via Title but had no OCR text matches on specific pages,
       // include the document as a title match
-      if (isTitleMatch && matchedOcrPagesCount == 0) {
+      if (titleMatch.hasMatch && matchedOcrPagesCount == 0) {
         results.add(
           DocumentSearchMatch(
             document: doc,
@@ -168,24 +180,17 @@ class OcrSearchService {
             matchedPageNumber: 1,
             snippet: 'Document Title: $docTitle',
             isOcrMatch: false,
+            isFuzzy: titleMatch.isFuzzy,
+            matchedTokensCount: titleMatch.matchedTokensCount,
+            score: titleMatch.score,
           ),
         );
       }
     }
 
+    // Sort document search results by descending relevance score
+    results.sort((a, b) => b.score.compareTo(a.score));
+
     return results;
-  }
-
-  /// Extracts a context snippet around the matched keyword with clean boundaries
-  String _extractSnippet(String text, int matchIndex, int matchLength) {
-    const contextRadius = 35;
-    final start = (matchIndex - contextRadius).clamp(0, text.length);
-    final end = (matchIndex + matchLength + contextRadius).clamp(0, text.length);
-
-    final prefix = start > 0 ? '…' : '';
-    final suffix = end < text.length ? '…' : '';
-
-    final raw = text.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim();
-    return '$prefix$raw$suffix';
   }
 }
