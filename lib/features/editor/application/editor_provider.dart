@@ -188,6 +188,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   Future<void> saveNow() async {
     if (!mounted) return;
+    if (!state.isDirty) return;
 
     // If note is currently locked, do not overwrite ciphertext with empty/unlocked buffer
     if (!state.isUnlocked && state.note.isPasswordProtected) {

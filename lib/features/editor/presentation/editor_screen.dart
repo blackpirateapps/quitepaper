@@ -176,6 +176,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           }
         });
       }
+    } else {
+      if (oldWidget.note.content != widget.note.content &&
+          !_contentFocusNode.hasFocus) {
+        _contentController.text = widget.note.content;
+        if (!_isTitleManuallySet && widget.note.title.isEmpty) {
+          final autoTitle = Note.deriveTitle(widget.note.content);
+          _lastAutoDerivedTitle = autoTitle;
+          _titleController.text = autoTitle;
+        }
+      }
+      if (oldWidget.note.title != widget.note.title &&
+          !_titleFocusNode.hasFocus) {
+        _titleController.text = widget.note.title;
+        _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
+      }
     }
   }
 

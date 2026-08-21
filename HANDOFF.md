@@ -1386,6 +1386,27 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
   - `test/sync/conflict_persistence_test.dart` (Drift storage across restarts).
   - `test/sync/sync_engine_conflict_test.dart` (End-to-end multi-device concurrent sync scenarios).
 
+---
+
+## 60. Fresh Device Sync Content Retention & Editor Synchronization
+
+### 1. Root Cause & Defect Mechanism
+- On clean device installs or fresh account logins, decrypted note content pulled from the cloud during `SyncEngine.syncNow()` would transiently display in `NoteListTile` before reverting to the `"No content"` placeholder.
+- **Investigation & Findings**:
+  1. The initial pull phase decrypted and inserted valid note plaintext into SQLite (`notes` table), triggering a reactive query stream emission that rendered the markdown preview snippet.
+  2. Subsequently, when unedited `EditorNotifier` instances were triggered by focus changes, app lifecycle events, or disposal, `saveNow()` executed without verifying dirty state (`isDirty`), potentially flushing unpopulated buffers to SQLite and marking notes dirty.
+  3. Additionally, in `EditorScreen.didUpdateWidget`, when a note's content was updated externally via sync pull while the editor remained mounted with the same note ID, text controllers were not updating when unfocused, leaving stale buffers susceptible to accidental flush.
+  4. The defensive tombstone null handling hypothesis was investigated and disproved: empty ciphertexts throw a MAC validation `FormatException` during decryption and skip DB insertion rather than saving empty content.
+
+### 2. Implementation & Protection Guarantees
+1. **`EditorNotifier.saveNow()` Dirty State Guard**:
+   - Added `if (!state.isDirty) return;` check at the entrance of `saveNow()` in `lib/features/editor/application/editor_provider.dart`. Unmodified notes are never rewritten to the repository or SQLite database.
+2. **`EditorScreen.didUpdateWidget` External Update Synchronization**:
+   - Enhanced `didUpdateWidget` in `lib/features/editor/presentation/editor_screen.dart` to automatically synchronize `_contentController.text` and `_titleController.text` with incoming `widget.note` updates when text fields are not actively focused by the user.
+3. **Regression Test Suite**:
+   - Added `test/sync/fresh_device_sync_content_retention_test.dart` validating that pulled note content remains durable in SQLite throughout the entire multi-phase sync cycle and across unedited editor lifecycle events.
+   - Updated tag assertion in `test/sync/conflict_resolver_test.dart` to use set-comparison (`unorderedEquals`).
+
 
 
 

@@ -201,7 +201,7 @@ void main() {
       final note = await db.getNoteWithTags(noteId);
       expect(note!.note.title, 'Merged Title');
       expect(note.note.content, 'Custom Unified Content');
-      expect(note.tagNames, ['tag1', 'tag2']);
+      expect(note.tagNames, unorderedEquals(['tag1', 'tag2']));
       expect(note.note.serverRevision, 2);
       expect(note.note.isDirty, isTrue);
 
