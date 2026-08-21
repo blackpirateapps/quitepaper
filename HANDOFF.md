@@ -1736,4 +1736,40 @@ graph TD
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Test suite: `flutter test` (**all 423 unit and widget tests passing**).
 
+---
+
+## 68. Migration to Flutter Built-in Kotlin & Subproject JVM / SDK Alignment
+
+### Problem & Symptoms
+1. **Built-in Kotlin Deprecation Warning**:
+   ```text
+   WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): receive_sharing_intent
+   Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+   ```
+2. **Inconsistent JVM Target Compatibility**:
+   ```text
+   Execution failed for task ':google_mlkit_commons:compileReleaseKotlin'.
+   > Inconsistent JVM Target Compatibility Between Java and Kotlin Tasks
+     Inconsistent JVM-target compatibility detected for tasks 'compileReleaseJavaWithJavac' (11) and 'compileReleaseKotlin' (17).
+   ```
+3. **AAR Metadata SDK Version Mismatch**:
+   ```text
+   Dependency ':flutter_plugin_android_lifecycle' requires libraries and applications that depend on it to compile against version 36 or later.
+   :file_picker is currently compiled against android-34.
+   ```
+
+### Root Cause Analysis & Solutions
+1. **Built-in Kotlin Adoption for Plugins**:
+   - Upgraded [`receive_sharing_intent`](file:///home/dog/git/quitepaper/pubspec.yaml#L62) from `1.8.1` to `^1.9.0`. The `1.9.0` release migrates to Flutter's Built-in Kotlin (dropping manual `apply plugin: 'kotlin-android'`), bumping AGP 9.2.1, Gradle 9.4.1, Kotlin 2.4.0, and JVM target 17.
+   - Upgraded [`flutter_plugin_android_lifecycle`](file:///home/dog/git/quitepaper/pubspec.yaml#L52) from `2.0.24` to `^2.0.35` for Gradle 9 and Java 17 compatibility.
+2. **JVM Target Consistency across Subprojects**:
+   - Removed aggressive `tasks.withType<KotlinCompile>()` overrides in [`android/build.gradle.kts`](file:///home/dog/git/quitepaper/android/build.gradle.kts) that previously forced Kotlin tasks to target JVM 17 while plugin subprojects (such as `google_mlkit_commons`) had their Java target set to 11.
+3. **Subproject compileSdk Alignment**:
+   - Set `compileSdk = 37` in [`android/app/build.gradle.kts`](file:///home/dog/git/quitepaper/android/app/build.gradle.kts#L18).
+   - In [`android/build.gradle.kts`](file:///home/dog/git/quitepaper/android/build.gradle.kts#L23-L33), configured `afterEvaluate` for library subprojects (`if (project.name != "app")`) to apply `android.compileSdkVersion(37)`, satisfying AAR metadata checks across third-party plugins like `file_picker`.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all 423 tests passing**).
+- Release build: `flutter build apk --release` (**built successfully in 60.4s with 0 warnings**).
 

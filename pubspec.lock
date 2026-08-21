@@ -346,10 +346,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_plugin_android_lifecycle
-      sha256: "615a505aef59b151b46bbeef55b36ce2b6ed299d160c51d84281946f0aa0ce0e"
+      sha256: "3854fe5e3bff0b113c658f260b90c95dea17c92db0f2addeac2e343dd9969785"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.24"
+    version: "2.0.35"
   flutter_riverpod:
     dependency: "direct main"
     description:
@@ -876,10 +876,10 @@ packages:
     dependency: "direct main"
     description:
       name: receive_sharing_intent
-      sha256: ec76056e4d258ad708e76d85591d933678625318e411564dcb9059048ca3a593
+      sha256: "72f229a38f2910029c11d840770c173b27072e348ef3376130b37514bc4556f6"
       url: "https://pub.dev"
     source: hosted
-    version: "1.8.1"
+    version: "1.9.0"
   record_use:
     dependency: transitive
     description:
