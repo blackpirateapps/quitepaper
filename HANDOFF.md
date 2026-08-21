@@ -1505,6 +1505,22 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 - Static analysis: `flutter analyze` (**0 warnings, 0 errors**).
 - Test suite: `flutter test` (**all 389 unit and widget tests passing**).
 
+---
+
+## 64. Release Version Bump to 1.5.1 (Build 9)
+
+### 1. Release Overview
+- **Version**: `1.5.1+9`
+- **Updated Locations**:
+  - `pubspec.yaml`: Bumped `version` from `1.5.0+8` to `1.5.1+9`.
+  - `lib/core/update/update_provider.dart`: Updated `currentVersion` to `'1.5.1'`.
+  - `lib/core/backup/backup_provider.dart` & `lib/core/backup/backup_service.dart`: Updated `appVersion` to `'1.5.1'`.
+  - `lib/features/settings/presentation/settings_screen.dart`: Updated Settings About tile display version to `1.5.1`.
+- **Quality Verification**:
+  - `flutter analyze`: 0 warnings, 0 errors.
+  - `flutter test`: All 389 tests passing.
+
+
 
 
 
