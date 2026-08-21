@@ -170,6 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_rev ON documents (user_id, server_
 CREATE INDEX IF NOT EXISTS idx_documents_note_id ON documents (note_id);
 CREATE INDEX IF NOT EXISTS idx_document_ocr_doc ON document_ocr_pages (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_ocr_user ON document_ocr_pages (user_id);
+CREATE INDEX IF NOT EXISTS idx_sync_changes_user_note_rev ON sync_changes (user_id, note_id, revision);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
 `;

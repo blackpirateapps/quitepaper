@@ -3701,6 +3701,60 @@ class $NoteVersionsTableTable extends NoteVersionsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _baseRevisionMeta = const VerificationMeta(
+    'baseRevision',
+  );
+  @override
+  late final GeneratedColumn<int> baseRevision = GeneratedColumn<int>(
+    'base_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _localParentRevisionMeta =
+      const VerificationMeta('localParentRevision');
+  @override
+  late final GeneratedColumn<int> localParentRevision = GeneratedColumn<int>(
+    'local_parent_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _remoteParentRevisionMeta =
+      const VerificationMeta('remoteParentRevision');
+  @override
+  late final GeneratedColumn<int> remoteParentRevision = GeneratedColumn<int>(
+    'remote_parent_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mergeTypeMeta = const VerificationMeta(
+    'mergeType',
+  );
+  @override
+  late final GeneratedColumn<String> mergeType = GeneratedColumn<String>(
+    'merge_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resolutionSummaryMeta = const VerificationMeta(
+    'resolutionSummary',
+  );
+  @override
+  late final GeneratedColumn<String> resolutionSummary =
+      GeneratedColumn<String>(
+        'resolution_summary',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3716,6 +3770,11 @@ class $NoteVersionsTableTable extends NoteVersionsTable
     serverRevision,
     isDirty,
     syncedAt,
+    baseRevision,
+    localParentRevision,
+    remoteParentRevision,
+    mergeType,
+    resolutionSummary,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3821,6 +3880,48 @@ class $NoteVersionsTableTable extends NoteVersionsTable
         syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
       );
     }
+    if (data.containsKey('base_revision')) {
+      context.handle(
+        _baseRevisionMeta,
+        baseRevision.isAcceptableOrUnknown(
+          data['base_revision']!,
+          _baseRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('local_parent_revision')) {
+      context.handle(
+        _localParentRevisionMeta,
+        localParentRevision.isAcceptableOrUnknown(
+          data['local_parent_revision']!,
+          _localParentRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('remote_parent_revision')) {
+      context.handle(
+        _remoteParentRevisionMeta,
+        remoteParentRevision.isAcceptableOrUnknown(
+          data['remote_parent_revision']!,
+          _remoteParentRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('merge_type')) {
+      context.handle(
+        _mergeTypeMeta,
+        mergeType.isAcceptableOrUnknown(data['merge_type']!, _mergeTypeMeta),
+      );
+    }
+    if (data.containsKey('resolution_summary')) {
+      context.handle(
+        _resolutionSummaryMeta,
+        resolutionSummary.isAcceptableOrUnknown(
+          data['resolution_summary']!,
+          _resolutionSummaryMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3882,6 +3983,26 @@ class $NoteVersionsTableTable extends NoteVersionsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
       ),
+      baseRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_revision'],
+      ),
+      localParentRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}local_parent_revision'],
+      ),
+      remoteParentRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remote_parent_revision'],
+      ),
+      mergeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merge_type'],
+      ),
+      resolutionSummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resolution_summary'],
+      ),
     );
   }
 
@@ -3906,6 +4027,11 @@ class NoteVersionEntity extends DataClass
   final int serverRevision;
   final bool isDirty;
   final DateTime? syncedAt;
+  final int? baseRevision;
+  final int? localParentRevision;
+  final int? remoteParentRevision;
+  final String? mergeType;
+  final String? resolutionSummary;
   const NoteVersionEntity({
     required this.id,
     required this.noteId,
@@ -3920,6 +4046,11 @@ class NoteVersionEntity extends DataClass
     required this.serverRevision,
     required this.isDirty,
     this.syncedAt,
+    this.baseRevision,
+    this.localParentRevision,
+    this.remoteParentRevision,
+    this.mergeType,
+    this.resolutionSummary,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3940,6 +4071,21 @@ class NoteVersionEntity extends DataClass
     map['is_dirty'] = Variable<bool>(isDirty);
     if (!nullToAbsent || syncedAt != null) {
       map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    if (!nullToAbsent || baseRevision != null) {
+      map['base_revision'] = Variable<int>(baseRevision);
+    }
+    if (!nullToAbsent || localParentRevision != null) {
+      map['local_parent_revision'] = Variable<int>(localParentRevision);
+    }
+    if (!nullToAbsent || remoteParentRevision != null) {
+      map['remote_parent_revision'] = Variable<int>(remoteParentRevision);
+    }
+    if (!nullToAbsent || mergeType != null) {
+      map['merge_type'] = Variable<String>(mergeType);
+    }
+    if (!nullToAbsent || resolutionSummary != null) {
+      map['resolution_summary'] = Variable<String>(resolutionSummary);
     }
     return map;
   }
@@ -3963,6 +4109,21 @@ class NoteVersionEntity extends DataClass
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(syncedAt),
+      baseRevision: baseRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseRevision),
+      localParentRevision: localParentRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localParentRevision),
+      remoteParentRevision: remoteParentRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteParentRevision),
+      mergeType: mergeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mergeType),
+      resolutionSummary: resolutionSummary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolutionSummary),
     );
   }
 
@@ -3985,6 +4146,17 @@ class NoteVersionEntity extends DataClass
       serverRevision: serializer.fromJson<int>(json['serverRevision']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      baseRevision: serializer.fromJson<int?>(json['baseRevision']),
+      localParentRevision: serializer.fromJson<int?>(
+        json['localParentRevision'],
+      ),
+      remoteParentRevision: serializer.fromJson<int?>(
+        json['remoteParentRevision'],
+      ),
+      mergeType: serializer.fromJson<String?>(json['mergeType']),
+      resolutionSummary: serializer.fromJson<String?>(
+        json['resolutionSummary'],
+      ),
     );
   }
   @override
@@ -4004,6 +4176,11 @@ class NoteVersionEntity extends DataClass
       'serverRevision': serializer.toJson<int>(serverRevision),
       'isDirty': serializer.toJson<bool>(isDirty),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'baseRevision': serializer.toJson<int?>(baseRevision),
+      'localParentRevision': serializer.toJson<int?>(localParentRevision),
+      'remoteParentRevision': serializer.toJson<int?>(remoteParentRevision),
+      'mergeType': serializer.toJson<String?>(mergeType),
+      'resolutionSummary': serializer.toJson<String?>(resolutionSummary),
     };
   }
 
@@ -4021,6 +4198,11 @@ class NoteVersionEntity extends DataClass
     int? serverRevision,
     bool? isDirty,
     Value<DateTime?> syncedAt = const Value.absent(),
+    Value<int?> baseRevision = const Value.absent(),
+    Value<int?> localParentRevision = const Value.absent(),
+    Value<int?> remoteParentRevision = const Value.absent(),
+    Value<String?> mergeType = const Value.absent(),
+    Value<String?> resolutionSummary = const Value.absent(),
   }) => NoteVersionEntity(
     id: id ?? this.id,
     noteId: noteId ?? this.noteId,
@@ -4035,6 +4217,17 @@ class NoteVersionEntity extends DataClass
     serverRevision: serverRevision ?? this.serverRevision,
     isDirty: isDirty ?? this.isDirty,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    baseRevision: baseRevision.present ? baseRevision.value : this.baseRevision,
+    localParentRevision: localParentRevision.present
+        ? localParentRevision.value
+        : this.localParentRevision,
+    remoteParentRevision: remoteParentRevision.present
+        ? remoteParentRevision.value
+        : this.remoteParentRevision,
+    mergeType: mergeType.present ? mergeType.value : this.mergeType,
+    resolutionSummary: resolutionSummary.present
+        ? resolutionSummary.value
+        : this.resolutionSummary,
   );
   NoteVersionEntity copyWithCompanion(NoteVersionsTableCompanion data) {
     return NoteVersionEntity(
@@ -4057,6 +4250,19 @@ class NoteVersionEntity extends DataClass
           : this.serverRevision,
       isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      baseRevision: data.baseRevision.present
+          ? data.baseRevision.value
+          : this.baseRevision,
+      localParentRevision: data.localParentRevision.present
+          ? data.localParentRevision.value
+          : this.localParentRevision,
+      remoteParentRevision: data.remoteParentRevision.present
+          ? data.remoteParentRevision.value
+          : this.remoteParentRevision,
+      mergeType: data.mergeType.present ? data.mergeType.value : this.mergeType,
+      resolutionSummary: data.resolutionSummary.present
+          ? data.resolutionSummary.value
+          : this.resolutionSummary,
     );
   }
 
@@ -4075,7 +4281,12 @@ class NoteVersionEntity extends DataClass
           ..write('deltaSummary: $deltaSummary, ')
           ..write('serverRevision: $serverRevision, ')
           ..write('isDirty: $isDirty, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('localParentRevision: $localParentRevision, ')
+          ..write('remoteParentRevision: $remoteParentRevision, ')
+          ..write('mergeType: $mergeType, ')
+          ..write('resolutionSummary: $resolutionSummary')
           ..write(')'))
         .toString();
   }
@@ -4095,6 +4306,11 @@ class NoteVersionEntity extends DataClass
     serverRevision,
     isDirty,
     syncedAt,
+    baseRevision,
+    localParentRevision,
+    remoteParentRevision,
+    mergeType,
+    resolutionSummary,
   );
   @override
   bool operator ==(Object other) =>
@@ -4112,7 +4328,12 @@ class NoteVersionEntity extends DataClass
           other.deltaSummary == this.deltaSummary &&
           other.serverRevision == this.serverRevision &&
           other.isDirty == this.isDirty &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.baseRevision == this.baseRevision &&
+          other.localParentRevision == this.localParentRevision &&
+          other.remoteParentRevision == this.remoteParentRevision &&
+          other.mergeType == this.mergeType &&
+          other.resolutionSummary == this.resolutionSummary);
 }
 
 class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
@@ -4129,6 +4350,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
   final Value<int> serverRevision;
   final Value<bool> isDirty;
   final Value<DateTime?> syncedAt;
+  final Value<int?> baseRevision;
+  final Value<int?> localParentRevision;
+  final Value<int?> remoteParentRevision;
+  final Value<String?> mergeType;
+  final Value<String?> resolutionSummary;
   final Value<int> rowid;
   const NoteVersionsTableCompanion({
     this.id = const Value.absent(),
@@ -4144,6 +4370,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
     this.serverRevision = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.localParentRevision = const Value.absent(),
+    this.remoteParentRevision = const Value.absent(),
+    this.mergeType = const Value.absent(),
+    this.resolutionSummary = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NoteVersionsTableCompanion.insert({
@@ -4160,6 +4391,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
     this.serverRevision = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.localParentRevision = const Value.absent(),
+    this.remoteParentRevision = const Value.absent(),
+    this.mergeType = const Value.absent(),
+    this.resolutionSummary = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        noteId = Value(noteId),
@@ -4179,6 +4415,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
     Expression<int>? serverRevision,
     Expression<bool>? isDirty,
     Expression<DateTime>? syncedAt,
+    Expression<int>? baseRevision,
+    Expression<int>? localParentRevision,
+    Expression<int>? remoteParentRevision,
+    Expression<String>? mergeType,
+    Expression<String>? resolutionSummary,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4195,6 +4436,13 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
       if (serverRevision != null) 'server_revision': serverRevision,
       if (isDirty != null) 'is_dirty': isDirty,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (baseRevision != null) 'base_revision': baseRevision,
+      if (localParentRevision != null)
+        'local_parent_revision': localParentRevision,
+      if (remoteParentRevision != null)
+        'remote_parent_revision': remoteParentRevision,
+      if (mergeType != null) 'merge_type': mergeType,
+      if (resolutionSummary != null) 'resolution_summary': resolutionSummary,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4213,6 +4461,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
     Value<int>? serverRevision,
     Value<bool>? isDirty,
     Value<DateTime?>? syncedAt,
+    Value<int?>? baseRevision,
+    Value<int?>? localParentRevision,
+    Value<int?>? remoteParentRevision,
+    Value<String?>? mergeType,
+    Value<String?>? resolutionSummary,
     Value<int>? rowid,
   }) {
     return NoteVersionsTableCompanion(
@@ -4229,6 +4482,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
       serverRevision: serverRevision ?? this.serverRevision,
       isDirty: isDirty ?? this.isDirty,
       syncedAt: syncedAt ?? this.syncedAt,
+      baseRevision: baseRevision ?? this.baseRevision,
+      localParentRevision: localParentRevision ?? this.localParentRevision,
+      remoteParentRevision: remoteParentRevision ?? this.remoteParentRevision,
+      mergeType: mergeType ?? this.mergeType,
+      resolutionSummary: resolutionSummary ?? this.resolutionSummary,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4275,6 +4533,21 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
+    if (baseRevision.present) {
+      map['base_revision'] = Variable<int>(baseRevision.value);
+    }
+    if (localParentRevision.present) {
+      map['local_parent_revision'] = Variable<int>(localParentRevision.value);
+    }
+    if (remoteParentRevision.present) {
+      map['remote_parent_revision'] = Variable<int>(remoteParentRevision.value);
+    }
+    if (mergeType.present) {
+      map['merge_type'] = Variable<String>(mergeType.value);
+    }
+    if (resolutionSummary.present) {
+      map['resolution_summary'] = Variable<String>(resolutionSummary.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4297,6 +4570,11 @@ class NoteVersionsTableCompanion extends UpdateCompanion<NoteVersionEntity> {
           ..write('serverRevision: $serverRevision, ')
           ..write('isDirty: $isDirty, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('localParentRevision: $localParentRevision, ')
+          ..write('remoteParentRevision: $remoteParentRevision, ')
+          ..write('mergeType: $mergeType, ')
+          ..write('resolutionSummary: $resolutionSummary, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6145,6 +6423,736 @@ class DocumentOcrPagesTableCompanion
   }
 }
 
+class $SyncConflictsTableTable extends SyncConflictsTable
+    with TableInfo<$SyncConflictsTableTable, SyncConflictEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncConflictsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES notes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _baseRevisionMeta = const VerificationMeta(
+    'baseRevision',
+  );
+  @override
+  late final GeneratedColumn<int> baseRevision = GeneratedColumn<int>(
+    'base_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _localRevisionMeta = const VerificationMeta(
+    'localRevision',
+  );
+  @override
+  late final GeneratedColumn<int> localRevision = GeneratedColumn<int>(
+    'local_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _remoteRevisionMeta = const VerificationMeta(
+    'remoteRevision',
+  );
+  @override
+  late final GeneratedColumn<int> remoteRevision = GeneratedColumn<int>(
+    'remote_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _conflictTypeMeta = const VerificationMeta(
+    'conflictType',
+  );
+  @override
+  late final GeneratedColumn<String> conflictType = GeneratedColumn<String>(
+    'conflict_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('content'),
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('detected'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resolvedAtMeta = const VerificationMeta(
+    'resolvedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> resolvedAt = GeneratedColumn<DateTime>(
+    'resolved_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resolutionRevisionMeta =
+      const VerificationMeta('resolutionRevision');
+  @override
+  late final GeneratedColumn<int> resolutionRevision = GeneratedColumn<int>(
+    'resolution_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resolutionTypeMeta = const VerificationMeta(
+    'resolutionType',
+  );
+  @override
+  late final GeneratedColumn<String> resolutionType = GeneratedColumn<String>(
+    'resolution_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dataJsonMeta = const VerificationMeta(
+    'dataJson',
+  );
+  @override
+  late final GeneratedColumn<String> dataJson = GeneratedColumn<String>(
+    'data_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    noteId,
+    baseRevision,
+    localRevision,
+    remoteRevision,
+    conflictType,
+    state,
+    createdAt,
+    resolvedAt,
+    resolutionRevision,
+    resolutionType,
+    dataJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_conflicts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncConflictEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('base_revision')) {
+      context.handle(
+        _baseRevisionMeta,
+        baseRevision.isAcceptableOrUnknown(
+          data['base_revision']!,
+          _baseRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('local_revision')) {
+      context.handle(
+        _localRevisionMeta,
+        localRevision.isAcceptableOrUnknown(
+          data['local_revision']!,
+          _localRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('remote_revision')) {
+      context.handle(
+        _remoteRevisionMeta,
+        remoteRevision.isAcceptableOrUnknown(
+          data['remote_revision']!,
+          _remoteRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conflict_type')) {
+      context.handle(
+        _conflictTypeMeta,
+        conflictType.isAcceptableOrUnknown(
+          data['conflict_type']!,
+          _conflictTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('resolved_at')) {
+      context.handle(
+        _resolvedAtMeta,
+        resolvedAt.isAcceptableOrUnknown(data['resolved_at']!, _resolvedAtMeta),
+      );
+    }
+    if (data.containsKey('resolution_revision')) {
+      context.handle(
+        _resolutionRevisionMeta,
+        resolutionRevision.isAcceptableOrUnknown(
+          data['resolution_revision']!,
+          _resolutionRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('resolution_type')) {
+      context.handle(
+        _resolutionTypeMeta,
+        resolutionType.isAcceptableOrUnknown(
+          data['resolution_type']!,
+          _resolutionTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('data_json')) {
+      context.handle(
+        _dataJsonMeta,
+        dataJson.isAcceptableOrUnknown(data['data_json']!, _dataJsonMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SyncConflictEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncConflictEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      baseRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_revision'],
+      )!,
+      localRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}local_revision'],
+      )!,
+      remoteRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remote_revision'],
+      )!,
+      conflictType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conflict_type'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      resolvedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}resolved_at'],
+      ),
+      resolutionRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}resolution_revision'],
+      ),
+      resolutionType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resolution_type'],
+      ),
+      dataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_json'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncConflictsTableTable createAlias(String alias) {
+    return $SyncConflictsTableTable(attachedDatabase, alias);
+  }
+}
+
+class SyncConflictEntity extends DataClass
+    implements Insertable<SyncConflictEntity> {
+  final String id;
+  final String noteId;
+  final int baseRevision;
+  final int localRevision;
+  final int remoteRevision;
+  final String conflictType;
+  final String state;
+  final DateTime createdAt;
+  final DateTime? resolvedAt;
+  final int? resolutionRevision;
+  final String? resolutionType;
+  final String dataJson;
+  const SyncConflictEntity({
+    required this.id,
+    required this.noteId,
+    required this.baseRevision,
+    required this.localRevision,
+    required this.remoteRevision,
+    required this.conflictType,
+    required this.state,
+    required this.createdAt,
+    this.resolvedAt,
+    this.resolutionRevision,
+    this.resolutionType,
+    required this.dataJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['note_id'] = Variable<String>(noteId);
+    map['base_revision'] = Variable<int>(baseRevision);
+    map['local_revision'] = Variable<int>(localRevision);
+    map['remote_revision'] = Variable<int>(remoteRevision);
+    map['conflict_type'] = Variable<String>(conflictType);
+    map['state'] = Variable<String>(state);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || resolvedAt != null) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt);
+    }
+    if (!nullToAbsent || resolutionRevision != null) {
+      map['resolution_revision'] = Variable<int>(resolutionRevision);
+    }
+    if (!nullToAbsent || resolutionType != null) {
+      map['resolution_type'] = Variable<String>(resolutionType);
+    }
+    map['data_json'] = Variable<String>(dataJson);
+    return map;
+  }
+
+  SyncConflictsTableCompanion toCompanion(bool nullToAbsent) {
+    return SyncConflictsTableCompanion(
+      id: Value(id),
+      noteId: Value(noteId),
+      baseRevision: Value(baseRevision),
+      localRevision: Value(localRevision),
+      remoteRevision: Value(remoteRevision),
+      conflictType: Value(conflictType),
+      state: Value(state),
+      createdAt: Value(createdAt),
+      resolvedAt: resolvedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolvedAt),
+      resolutionRevision: resolutionRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolutionRevision),
+      resolutionType: resolutionType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolutionType),
+      dataJson: Value(dataJson),
+    );
+  }
+
+  factory SyncConflictEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncConflictEntity(
+      id: serializer.fromJson<String>(json['id']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      baseRevision: serializer.fromJson<int>(json['baseRevision']),
+      localRevision: serializer.fromJson<int>(json['localRevision']),
+      remoteRevision: serializer.fromJson<int>(json['remoteRevision']),
+      conflictType: serializer.fromJson<String>(json['conflictType']),
+      state: serializer.fromJson<String>(json['state']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      resolvedAt: serializer.fromJson<DateTime?>(json['resolvedAt']),
+      resolutionRevision: serializer.fromJson<int?>(json['resolutionRevision']),
+      resolutionType: serializer.fromJson<String?>(json['resolutionType']),
+      dataJson: serializer.fromJson<String>(json['dataJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'noteId': serializer.toJson<String>(noteId),
+      'baseRevision': serializer.toJson<int>(baseRevision),
+      'localRevision': serializer.toJson<int>(localRevision),
+      'remoteRevision': serializer.toJson<int>(remoteRevision),
+      'conflictType': serializer.toJson<String>(conflictType),
+      'state': serializer.toJson<String>(state),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'resolvedAt': serializer.toJson<DateTime?>(resolvedAt),
+      'resolutionRevision': serializer.toJson<int?>(resolutionRevision),
+      'resolutionType': serializer.toJson<String?>(resolutionType),
+      'dataJson': serializer.toJson<String>(dataJson),
+    };
+  }
+
+  SyncConflictEntity copyWith({
+    String? id,
+    String? noteId,
+    int? baseRevision,
+    int? localRevision,
+    int? remoteRevision,
+    String? conflictType,
+    String? state,
+    DateTime? createdAt,
+    Value<DateTime?> resolvedAt = const Value.absent(),
+    Value<int?> resolutionRevision = const Value.absent(),
+    Value<String?> resolutionType = const Value.absent(),
+    String? dataJson,
+  }) => SyncConflictEntity(
+    id: id ?? this.id,
+    noteId: noteId ?? this.noteId,
+    baseRevision: baseRevision ?? this.baseRevision,
+    localRevision: localRevision ?? this.localRevision,
+    remoteRevision: remoteRevision ?? this.remoteRevision,
+    conflictType: conflictType ?? this.conflictType,
+    state: state ?? this.state,
+    createdAt: createdAt ?? this.createdAt,
+    resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
+    resolutionRevision: resolutionRevision.present
+        ? resolutionRevision.value
+        : this.resolutionRevision,
+    resolutionType: resolutionType.present
+        ? resolutionType.value
+        : this.resolutionType,
+    dataJson: dataJson ?? this.dataJson,
+  );
+  SyncConflictEntity copyWithCompanion(SyncConflictsTableCompanion data) {
+    return SyncConflictEntity(
+      id: data.id.present ? data.id.value : this.id,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      baseRevision: data.baseRevision.present
+          ? data.baseRevision.value
+          : this.baseRevision,
+      localRevision: data.localRevision.present
+          ? data.localRevision.value
+          : this.localRevision,
+      remoteRevision: data.remoteRevision.present
+          ? data.remoteRevision.value
+          : this.remoteRevision,
+      conflictType: data.conflictType.present
+          ? data.conflictType.value
+          : this.conflictType,
+      state: data.state.present ? data.state.value : this.state,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      resolvedAt: data.resolvedAt.present
+          ? data.resolvedAt.value
+          : this.resolvedAt,
+      resolutionRevision: data.resolutionRevision.present
+          ? data.resolutionRevision.value
+          : this.resolutionRevision,
+      resolutionType: data.resolutionType.present
+          ? data.resolutionType.value
+          : this.resolutionType,
+      dataJson: data.dataJson.present ? data.dataJson.value : this.dataJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncConflictEntity(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('localRevision: $localRevision, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('conflictType: $conflictType, ')
+          ..write('state: $state, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('resolutionRevision: $resolutionRevision, ')
+          ..write('resolutionType: $resolutionType, ')
+          ..write('dataJson: $dataJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    noteId,
+    baseRevision,
+    localRevision,
+    remoteRevision,
+    conflictType,
+    state,
+    createdAt,
+    resolvedAt,
+    resolutionRevision,
+    resolutionType,
+    dataJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncConflictEntity &&
+          other.id == this.id &&
+          other.noteId == this.noteId &&
+          other.baseRevision == this.baseRevision &&
+          other.localRevision == this.localRevision &&
+          other.remoteRevision == this.remoteRevision &&
+          other.conflictType == this.conflictType &&
+          other.state == this.state &&
+          other.createdAt == this.createdAt &&
+          other.resolvedAt == this.resolvedAt &&
+          other.resolutionRevision == this.resolutionRevision &&
+          other.resolutionType == this.resolutionType &&
+          other.dataJson == this.dataJson);
+}
+
+class SyncConflictsTableCompanion extends UpdateCompanion<SyncConflictEntity> {
+  final Value<String> id;
+  final Value<String> noteId;
+  final Value<int> baseRevision;
+  final Value<int> localRevision;
+  final Value<int> remoteRevision;
+  final Value<String> conflictType;
+  final Value<String> state;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> resolvedAt;
+  final Value<int?> resolutionRevision;
+  final Value<String?> resolutionType;
+  final Value<String> dataJson;
+  final Value<int> rowid;
+  const SyncConflictsTableCompanion({
+    this.id = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.localRevision = const Value.absent(),
+    this.remoteRevision = const Value.absent(),
+    this.conflictType = const Value.absent(),
+    this.state = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.resolvedAt = const Value.absent(),
+    this.resolutionRevision = const Value.absent(),
+    this.resolutionType = const Value.absent(),
+    this.dataJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncConflictsTableCompanion.insert({
+    required String id,
+    required String noteId,
+    this.baseRevision = const Value.absent(),
+    this.localRevision = const Value.absent(),
+    this.remoteRevision = const Value.absent(),
+    this.conflictType = const Value.absent(),
+    this.state = const Value.absent(),
+    required DateTime createdAt,
+    this.resolvedAt = const Value.absent(),
+    this.resolutionRevision = const Value.absent(),
+    this.resolutionType = const Value.absent(),
+    this.dataJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       noteId = Value(noteId),
+       createdAt = Value(createdAt);
+  static Insertable<SyncConflictEntity> custom({
+    Expression<String>? id,
+    Expression<String>? noteId,
+    Expression<int>? baseRevision,
+    Expression<int>? localRevision,
+    Expression<int>? remoteRevision,
+    Expression<String>? conflictType,
+    Expression<String>? state,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? resolvedAt,
+    Expression<int>? resolutionRevision,
+    Expression<String>? resolutionType,
+    Expression<String>? dataJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (noteId != null) 'note_id': noteId,
+      if (baseRevision != null) 'base_revision': baseRevision,
+      if (localRevision != null) 'local_revision': localRevision,
+      if (remoteRevision != null) 'remote_revision': remoteRevision,
+      if (conflictType != null) 'conflict_type': conflictType,
+      if (state != null) 'state': state,
+      if (createdAt != null) 'created_at': createdAt,
+      if (resolvedAt != null) 'resolved_at': resolvedAt,
+      if (resolutionRevision != null) 'resolution_revision': resolutionRevision,
+      if (resolutionType != null) 'resolution_type': resolutionType,
+      if (dataJson != null) 'data_json': dataJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncConflictsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? noteId,
+    Value<int>? baseRevision,
+    Value<int>? localRevision,
+    Value<int>? remoteRevision,
+    Value<String>? conflictType,
+    Value<String>? state,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? resolvedAt,
+    Value<int?>? resolutionRevision,
+    Value<String?>? resolutionType,
+    Value<String>? dataJson,
+    Value<int>? rowid,
+  }) {
+    return SyncConflictsTableCompanion(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      baseRevision: baseRevision ?? this.baseRevision,
+      localRevision: localRevision ?? this.localRevision,
+      remoteRevision: remoteRevision ?? this.remoteRevision,
+      conflictType: conflictType ?? this.conflictType,
+      state: state ?? this.state,
+      createdAt: createdAt ?? this.createdAt,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      resolutionRevision: resolutionRevision ?? this.resolutionRevision,
+      resolutionType: resolutionType ?? this.resolutionType,
+      dataJson: dataJson ?? this.dataJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (baseRevision.present) {
+      map['base_revision'] = Variable<int>(baseRevision.value);
+    }
+    if (localRevision.present) {
+      map['local_revision'] = Variable<int>(localRevision.value);
+    }
+    if (remoteRevision.present) {
+      map['remote_revision'] = Variable<int>(remoteRevision.value);
+    }
+    if (conflictType.present) {
+      map['conflict_type'] = Variable<String>(conflictType.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (resolvedAt.present) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt.value);
+    }
+    if (resolutionRevision.present) {
+      map['resolution_revision'] = Variable<int>(resolutionRevision.value);
+    }
+    if (resolutionType.present) {
+      map['resolution_type'] = Variable<String>(resolutionType.value);
+    }
+    if (dataJson.present) {
+      map['data_json'] = Variable<String>(dataJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncConflictsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('localRevision: $localRevision, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('conflictType: $conflictType, ')
+          ..write('state: $state, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('resolutionRevision: $resolutionRevision, ')
+          ..write('resolutionType: $resolutionType, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6164,6 +7172,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DocumentsTableTable documentsTable = $DocumentsTableTable(this);
   late final $DocumentOcrPagesTableTable documentOcrPagesTable =
       $DocumentOcrPagesTableTable(this);
+  late final $SyncConflictsTableTable syncConflictsTable =
+      $SyncConflictsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6179,6 +7189,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     noteVersionsTable,
     documentsTable,
     documentOcrPagesTable,
+    syncConflictsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -6202,6 +7213,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('note_versions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'notes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sync_conflicts', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -6276,6 +7294,27 @@ final class $$NotesTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _noteVersionsTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SyncConflictsTableTable, List<SyncConflictEntity>>
+  _syncConflictsTableRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.syncConflictsTable,
+        aliasName: 'notes__id__sync_conflicts__note_id',
+      );
+
+  $$SyncConflictsTableTableProcessedTableManager get syncConflictsTableRefs {
+    final manager = $$SyncConflictsTableTableTableManager(
+      $_db,
+      $_db.syncConflictsTable,
+    ).filter((f) => f.noteId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _syncConflictsTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -6393,6 +7432,31 @@ class $$NotesTableTableFilterComposer
           }) => $$NoteVersionsTableTableFilterComposer(
             $db: $db,
             $table: $db.noteVersionsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> syncConflictsTableRefs(
+    Expression<bool> Function($$SyncConflictsTableTableFilterComposer f) f,
+  ) {
+    final $$SyncConflictsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.syncConflictsTable,
+      getReferencedColumn: (t) => t.noteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SyncConflictsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.syncConflictsTable,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6572,6 +7636,32 @@ class $$NotesTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> syncConflictsTableRefs<T extends Object>(
+    Expression<T> Function($$SyncConflictsTableTableAnnotationComposer a) f,
+  ) {
+    final $$SyncConflictsTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.syncConflictsTable,
+          getReferencedColumn: (t) => t.noteId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SyncConflictsTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.syncConflictsTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$NotesTableTableTableManager
@@ -6590,6 +7680,7 @@ class $$NotesTableTableTableManager
           PrefetchHooks Function({
             bool noteTagsTableRefs,
             bool noteVersionsTableRefs,
+            bool syncConflictsTableRefs,
           })
         > {
   $$NotesTableTableTableManager(_$AppDatabase db, $NotesTableTable table)
@@ -6672,12 +7763,17 @@ class $$NotesTableTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({noteTagsTableRefs = false, noteVersionsTableRefs = false}) {
+              ({
+                noteTagsTableRefs = false,
+                noteVersionsTableRefs = false,
+                syncConflictsTableRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (noteTagsTableRefs) db.noteTagsTable,
                     if (noteVersionsTableRefs) db.noteVersionsTable,
+                    if (syncConflictsTableRefs) db.syncConflictsTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -6724,6 +7820,27 @@ class $$NotesTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (syncConflictsTableRefs)
+                        await $_getPrefetchedData<
+                          NoteEntity,
+                          $NotesTableTable,
+                          SyncConflictEntity
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NotesTableTableReferences
+                              ._syncConflictsTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NotesTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).syncConflictsTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.noteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -6747,6 +7864,7 @@ typedef $$NotesTableTableProcessedTableManager =
       PrefetchHooks Function({
         bool noteTagsTableRefs,
         bool noteVersionsTableRefs,
+        bool syncConflictsTableRefs,
       })
     >;
 typedef $$TagsTableTableCreateCompanionBuilder =
@@ -8552,6 +9670,11 @@ typedef $$NoteVersionsTableTableCreateCompanionBuilder =
       Value<int> serverRevision,
       Value<bool> isDirty,
       Value<DateTime?> syncedAt,
+      Value<int?> baseRevision,
+      Value<int?> localParentRevision,
+      Value<int?> remoteParentRevision,
+      Value<String?> mergeType,
+      Value<String?> resolutionSummary,
       Value<int> rowid,
     });
 typedef $$NoteVersionsTableTableUpdateCompanionBuilder =
@@ -8569,6 +9692,11 @@ typedef $$NoteVersionsTableTableUpdateCompanionBuilder =
       Value<int> serverRevision,
       Value<bool> isDirty,
       Value<DateTime?> syncedAt,
+      Value<int?> baseRevision,
+      Value<int?> localParentRevision,
+      Value<int?> remoteParentRevision,
+      Value<String?> mergeType,
+      Value<String?> resolutionSummary,
       Value<int> rowid,
     });
 
@@ -8672,6 +9800,31 @@ class $$NoteVersionsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get localParentRevision => $composableBuilder(
+    column: $table.localParentRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get remoteParentRevision => $composableBuilder(
+    column: $table.remoteParentRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mergeType => $composableBuilder(
+    column: $table.mergeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resolutionSummary => $composableBuilder(
+    column: $table.resolutionSummary,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$NotesTableTableFilterComposer get noteId {
     final $$NotesTableTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -8765,6 +9918,31 @@ class $$NoteVersionsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get localParentRevision => $composableBuilder(
+    column: $table.localParentRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remoteParentRevision => $composableBuilder(
+    column: $table.remoteParentRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mergeType => $composableBuilder(
+    column: $table.mergeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resolutionSummary => $composableBuilder(
+    column: $table.resolutionSummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NotesTableTableOrderingComposer get noteId {
     final $$NotesTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -8840,6 +10018,29 @@ class $$NoteVersionsTableTableAnnotationComposer
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 
+  GeneratedColumn<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get localParentRevision => $composableBuilder(
+    column: $table.localParentRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get remoteParentRevision => $composableBuilder(
+    column: $table.remoteParentRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mergeType =>
+      $composableBuilder(column: $table.mergeType, builder: (column) => column);
+
+  GeneratedColumn<String> get resolutionSummary => $composableBuilder(
+    column: $table.resolutionSummary,
+    builder: (column) => column,
+  );
+
   $$NotesTableTableAnnotationComposer get noteId {
     final $$NotesTableTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -8910,6 +10111,11 @@ class $$NoteVersionsTableTableTableManager
                 Value<int> serverRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<int?> baseRevision = const Value.absent(),
+                Value<int?> localParentRevision = const Value.absent(),
+                Value<int?> remoteParentRevision = const Value.absent(),
+                Value<String?> mergeType = const Value.absent(),
+                Value<String?> resolutionSummary = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NoteVersionsTableCompanion(
                 id: id,
@@ -8925,6 +10131,11 @@ class $$NoteVersionsTableTableTableManager
                 serverRevision: serverRevision,
                 isDirty: isDirty,
                 syncedAt: syncedAt,
+                baseRevision: baseRevision,
+                localParentRevision: localParentRevision,
+                remoteParentRevision: remoteParentRevision,
+                mergeType: mergeType,
+                resolutionSummary: resolutionSummary,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8942,6 +10153,11 @@ class $$NoteVersionsTableTableTableManager
                 Value<int> serverRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<int?> baseRevision = const Value.absent(),
+                Value<int?> localParentRevision = const Value.absent(),
+                Value<int?> remoteParentRevision = const Value.absent(),
+                Value<String?> mergeType = const Value.absent(),
+                Value<String?> resolutionSummary = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NoteVersionsTableCompanion.insert(
                 id: id,
@@ -8957,6 +10173,11 @@ class $$NoteVersionsTableTableTableManager
                 serverRevision: serverRevision,
                 isDirty: isDirty,
                 syncedAt: syncedAt,
+                baseRevision: baseRevision,
+                localParentRevision: localParentRevision,
+                remoteParentRevision: remoteParentRevision,
+                mergeType: mergeType,
+                resolutionSummary: resolutionSummary,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9872,6 +11093,486 @@ typedef $$DocumentOcrPagesTableTableProcessedTableManager =
       DocumentOcrPageEntity,
       PrefetchHooks Function()
     >;
+typedef $$SyncConflictsTableTableCreateCompanionBuilder =
+    SyncConflictsTableCompanion Function({
+      required String id,
+      required String noteId,
+      Value<int> baseRevision,
+      Value<int> localRevision,
+      Value<int> remoteRevision,
+      Value<String> conflictType,
+      Value<String> state,
+      required DateTime createdAt,
+      Value<DateTime?> resolvedAt,
+      Value<int?> resolutionRevision,
+      Value<String?> resolutionType,
+      Value<String> dataJson,
+      Value<int> rowid,
+    });
+typedef $$SyncConflictsTableTableUpdateCompanionBuilder =
+    SyncConflictsTableCompanion Function({
+      Value<String> id,
+      Value<String> noteId,
+      Value<int> baseRevision,
+      Value<int> localRevision,
+      Value<int> remoteRevision,
+      Value<String> conflictType,
+      Value<String> state,
+      Value<DateTime> createdAt,
+      Value<DateTime?> resolvedAt,
+      Value<int?> resolutionRevision,
+      Value<String?> resolutionType,
+      Value<String> dataJson,
+      Value<int> rowid,
+    });
+
+final class $$SyncConflictsTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SyncConflictsTableTable,
+          SyncConflictEntity
+        > {
+  $$SyncConflictsTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $NotesTableTable _noteIdTable(_$AppDatabase db) =>
+      db.notesTable.createAlias('sync_conflicts__note_id__notes__id');
+
+  $$NotesTableTableProcessedTableManager get noteId {
+    final $_column = $_itemColumn<String>('note_id')!;
+
+    final manager = $$NotesTableTableTableManager(
+      $_db,
+      $_db.notesTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_noteIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SyncConflictsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncConflictsTableTable> {
+  $$SyncConflictsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get localRevision => $composableBuilder(
+    column: $table.localRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conflictType => $composableBuilder(
+    column: $table.conflictType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get resolutionRevision => $composableBuilder(
+    column: $table.resolutionRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resolutionType => $composableBuilder(
+    column: $table.resolutionType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NotesTableTableFilterComposer get noteId {
+    final $$NotesTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableFilterComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SyncConflictsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncConflictsTableTable> {
+  $$SyncConflictsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get localRevision => $composableBuilder(
+    column: $table.localRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conflictType => $composableBuilder(
+    column: $table.conflictType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get resolutionRevision => $composableBuilder(
+    column: $table.resolutionRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resolutionType => $composableBuilder(
+    column: $table.resolutionType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NotesTableTableOrderingComposer get noteId {
+    final $$NotesTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SyncConflictsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncConflictsTableTable> {
+  $$SyncConflictsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get localRevision => $composableBuilder(
+    column: $table.localRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get conflictType => $composableBuilder(
+    column: $table.conflictType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get resolutionRevision => $composableBuilder(
+    column: $table.resolutionRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resolutionType => $composableBuilder(
+    column: $table.resolutionType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dataJson =>
+      $composableBuilder(column: $table.dataJson, builder: (column) => column);
+
+  $$NotesTableTableAnnotationComposer get noteId {
+    final $$NotesTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notesTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.notesTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SyncConflictsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncConflictsTableTable,
+          SyncConflictEntity,
+          $$SyncConflictsTableTableFilterComposer,
+          $$SyncConflictsTableTableOrderingComposer,
+          $$SyncConflictsTableTableAnnotationComposer,
+          $$SyncConflictsTableTableCreateCompanionBuilder,
+          $$SyncConflictsTableTableUpdateCompanionBuilder,
+          (SyncConflictEntity, $$SyncConflictsTableTableReferences),
+          SyncConflictEntity,
+          PrefetchHooks Function({bool noteId})
+        > {
+  $$SyncConflictsTableTableTableManager(
+    _$AppDatabase db,
+    $SyncConflictsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncConflictsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncConflictsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncConflictsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<int> baseRevision = const Value.absent(),
+                Value<int> localRevision = const Value.absent(),
+                Value<int> remoteRevision = const Value.absent(),
+                Value<String> conflictType = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> resolvedAt = const Value.absent(),
+                Value<int?> resolutionRevision = const Value.absent(),
+                Value<String?> resolutionType = const Value.absent(),
+                Value<String> dataJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncConflictsTableCompanion(
+                id: id,
+                noteId: noteId,
+                baseRevision: baseRevision,
+                localRevision: localRevision,
+                remoteRevision: remoteRevision,
+                conflictType: conflictType,
+                state: state,
+                createdAt: createdAt,
+                resolvedAt: resolvedAt,
+                resolutionRevision: resolutionRevision,
+                resolutionType: resolutionType,
+                dataJson: dataJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String noteId,
+                Value<int> baseRevision = const Value.absent(),
+                Value<int> localRevision = const Value.absent(),
+                Value<int> remoteRevision = const Value.absent(),
+                Value<String> conflictType = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> resolvedAt = const Value.absent(),
+                Value<int?> resolutionRevision = const Value.absent(),
+                Value<String?> resolutionType = const Value.absent(),
+                Value<String> dataJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncConflictsTableCompanion.insert(
+                id: id,
+                noteId: noteId,
+                baseRevision: baseRevision,
+                localRevision: localRevision,
+                remoteRevision: remoteRevision,
+                conflictType: conflictType,
+                state: state,
+                createdAt: createdAt,
+                resolvedAt: resolvedAt,
+                resolutionRevision: resolutionRevision,
+                resolutionType: resolutionType,
+                dataJson: dataJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SyncConflictsTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({noteId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (noteId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.noteId,
+                                referencedTable:
+                                    $$SyncConflictsTableTableReferences
+                                        ._noteIdTable(db),
+                                referencedColumn:
+                                    $$SyncConflictsTableTableReferences
+                                        ._noteIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SyncConflictsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncConflictsTableTable,
+      SyncConflictEntity,
+      $$SyncConflictsTableTableFilterComposer,
+      $$SyncConflictsTableTableOrderingComposer,
+      $$SyncConflictsTableTableAnnotationComposer,
+      $$SyncConflictsTableTableCreateCompanionBuilder,
+      $$SyncConflictsTableTableUpdateCompanionBuilder,
+      (SyncConflictEntity, $$SyncConflictsTableTableReferences),
+      SyncConflictEntity,
+      PrefetchHooks Function({bool noteId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9899,4 +11600,6 @@ class $AppDatabaseManager {
       $$DocumentsTableTableTableManager(_db, _db.documentsTable);
   $$DocumentOcrPagesTableTableTableManager get documentOcrPagesTable =>
       $$DocumentOcrPagesTableTableTableManager(_db, _db.documentOcrPagesTable);
+  $$SyncConflictsTableTableTableManager get syncConflictsTable =>
+      $$SyncConflictsTableTableTableManager(_db, _db.syncConflictsTable);
 }

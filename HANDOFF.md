@@ -1342,6 +1342,50 @@ Previously, PDF text extraction used a naive regex pattern over raw `latin1.deco
 4. **Automated Verification**:
    - Added unit tests in [`test/crypto/crypto_test.dart`](file:///home/dog/git/quitepaper/test/crypto/crypto_test.dart) asserting that `FirebaseAuthService.initialize()` completes under 200ms without blocking when the API key is not yet configured.
 
+---
+
+## 59. Production-Grade Conflict-Aware Cloud Sync & 3-Way Merge Engine
+
+### 1. Architectural Overview & Crypto-Blind Invariant
+- **Crypto-Blind Backend**: Quiet Paper maintains strict zero-knowledge encryption on the backend. The backend stores metadata revisions and XChaCha20-Poly1305 ciphertext but never sees plaintext notes.
+- **Client-Side Resolution**: All merging and conflict resolution happens on client devices after decryption.
+- **ServerHead Return in Push Conflicts**: When a push request has a stale `baseRevision`, the backend returns HTTP 200 with `SYNC_CONFLICT` and attaches the complete `serverHead` (including remote encrypted content, nonce, version numbers, and metadata).
+- **Historical Revision Lookup**: Added `GET /api/v1/sync/notes/:id/revisions/:revision` and `GET /api/v1/sync/notes/:id` to retrieve common ancestors when needed.
+
+### 2. Client-Side 3-Way Merge Strategy (`merge(BASE, LOCAL, REMOTE)`)
+1. **Title Merge (`MetadataMergeEngine`)**:
+   - `BASE == LOCAL` $\to$ `REMOTE` wins.
+   - `BASE == REMOTE` $\to$ `LOCAL` wins.
+   - `LOCAL == REMOTE` $\to$ that value.
+   - Both changed differently from `BASE` $\to$ flagged as Title Conflict (`manualRequired`).
+2. **Tags Merge (`MetadataMergeEngine`)**:
+   - Set-theoretic diffing relative to `BASE`. Independent additions from both branches are combined; independent removals are preserved.
+3. **Markdown Content Merge (`MarkdownMergeEngine`)**:
+   - Position-aligned line-level 3-way diff preserving formatting, line endings, code blocks, blockquotes, links, and `qp://asset/UUID` / `qp://document/UUID` references.
+   - Independent checklist state changes (`- [x]` vs `- [ ]`) on distinct items merge cleanly without collisions.
+   - Overlapping edits create focused `ConflictRegion` entries.
+4. **Lifecycle & Delete vs Edit**:
+   - If one device deleted a note while another edited its content relative to `BASE`, flagged as `deleteVsEdit` conflict with options: Keep edited note, Delete note, Keep both.
+5. **Keep Both**:
+   - Preserves local note and creates a new note with a distinct UUID, appending `(Conflict Copy)` to the title, copying remote content, tags, and queueing for sync.
+6. **Provenance Tracking & Drift Database Migration 8**:
+   - Upgraded `AppDatabase` to `schemaVersion => 8`.
+   - Added `SyncConflictsTable` for durable persistence across app restarts and offline periods.
+   - Added provenance columns to `NoteVersionsTable`: `baseRevision`, `localParentRevision`, `remoteParentRevision`, `mergeType`, and `resolutionSummary`.
+
+### 3. User Interface & Resolution Screens
+- **`ConflictListScreen`**: Editorial list of pending conflicts with badges and timestamps.
+- **`ConflictResolutionScreen`**: Interactive 3-way comparison sheet with region-by-region resolution ("Use Mine", "Use Server"), live editable merge preview, and "Keep Both" action.
+- **`SettingsScreen`**: Conflict review row with real-time pending count badge and review navigation.
+
+### 4. Automated Verification
+- **Backend Tests**: Vitest suite in `backend/tests/conflict.test.ts` verifying `serverHead` delivery, revision lookup, and user ownership isolation.
+- **Flutter Test Suite**:
+  - `test/sync/conflict_merge_engine_test.dart` (Metadata & Markdown 3-way merge rules).
+  - `test/sync/conflict_resolver_test.dart` (Keep Mine, Keep Theirs, Keep Both, Custom Merge, provenance).
+  - `test/sync/conflict_persistence_test.dart` (Drift storage across restarts).
+  - `test/sync/sync_engine_conflict_test.dart` (End-to-end multi-device concurrent sync scenarios).
+
 
 
 

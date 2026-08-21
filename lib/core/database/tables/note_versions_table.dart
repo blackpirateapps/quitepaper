@@ -20,6 +20,11 @@ class NoteVersionsTable extends Table {
   IntColumn get serverRevision => integer().withDefault(const Constant(0))();
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
+  IntColumn get baseRevision => integer().nullable()();
+  IntColumn get localParentRevision => integer().nullable()();
+  IntColumn get remoteParentRevision => integer().nullable()();
+  TextColumn get mergeType => text().nullable()();
+  TextColumn get resolutionSummary => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

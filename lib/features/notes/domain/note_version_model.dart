@@ -17,6 +17,11 @@ class NoteVersion {
     this.serverRevision = 0,
     this.isDirty = true,
     this.syncedAt,
+    this.baseRevision,
+    this.localParentRevision,
+    this.remoteParentRevision,
+    this.mergeType,
+    this.resolutionSummary,
   });
 
   final String id;
@@ -32,6 +37,11 @@ class NoteVersion {
   final int serverRevision;
   final bool isDirty;
   final DateTime? syncedAt;
+  final int? baseRevision;
+  final int? localParentRevision;
+  final int? remoteParentRevision;
+  final String? mergeType;
+  final String? resolutionSummary;
 
   /// Counts the total number of words in a Markdown document.
   static int countWords(String text) {
@@ -100,6 +110,11 @@ class NoteVersion {
     int? serverRevision,
     bool? isDirty,
     DateTime? syncedAt,
+    int? baseRevision,
+    int? localParentRevision,
+    int? remoteParentRevision,
+    String? mergeType,
+    String? resolutionSummary,
   }) {
     return NoteVersion(
       id: id ?? this.id,
@@ -115,6 +130,11 @@ class NoteVersion {
       serverRevision: serverRevision ?? this.serverRevision,
       isDirty: isDirty ?? this.isDirty,
       syncedAt: syncedAt ?? this.syncedAt,
+      baseRevision: baseRevision ?? this.baseRevision,
+      localParentRevision: localParentRevision ?? this.localParentRevision,
+      remoteParentRevision: remoteParentRevision ?? this.remoteParentRevision,
+      mergeType: mergeType ?? this.mergeType,
+      resolutionSummary: resolutionSummary ?? this.resolutionSummary,
     );
   }
 
@@ -132,6 +152,13 @@ class NoteVersion {
         'serverRevision': serverRevision,
         'isDirty': isDirty,
         if (syncedAt != null) 'syncedAt': syncedAt!.toIso8601String(),
+        if (baseRevision != null) 'baseRevision': baseRevision,
+        if (localParentRevision != null)
+          'localParentRevision': localParentRevision,
+        if (remoteParentRevision != null)
+          'remoteParentRevision': remoteParentRevision,
+        if (mergeType != null) 'mergeType': mergeType,
+        if (resolutionSummary != null) 'resolutionSummary': resolutionSummary,
       };
 
   factory NoteVersion.fromJson(Map<String, dynamic> json) {
@@ -156,6 +183,11 @@ class NoteVersion {
       syncedAt: json['syncedAt'] != null
           ? DateTime.tryParse(json['syncedAt'] as String)
           : null,
+      baseRevision: json['baseRevision'] as int?,
+      localParentRevision: json['localParentRevision'] as int?,
+      remoteParentRevision: json['remoteParentRevision'] as int?,
+      mergeType: json['mergeType'] as String?,
+      resolutionSummary: json['resolutionSummary'] as String?,
     );
   }
 

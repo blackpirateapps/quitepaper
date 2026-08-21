@@ -9,6 +9,7 @@ import 'tables/documents_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
+import 'tables/sync_conflicts_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
 import 'tables/tags_table.dart';
@@ -48,6 +49,7 @@ class TagWithCount {
   NoteVersionsTable,
   DocumentsTable,
   DocumentOcrPagesTable,
+  SyncConflictsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -56,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -91,6 +93,14 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(documentsTable, documentsTable.ocrState);
             await m.addColumn(documentsTable, documentsTable.ocrLanguage);
             await m.createTable(documentOcrPagesTable);
+          }
+          if (from < 8) {
+            await m.createTable(syncConflictsTable);
+            await m.addColumn(noteVersionsTable, noteVersionsTable.baseRevision);
+            await m.addColumn(noteVersionsTable, noteVersionsTable.localParentRevision);
+            await m.addColumn(noteVersionsTable, noteVersionsTable.remoteParentRevision);
+            await m.addColumn(noteVersionsTable, noteVersionsTable.mergeType);
+            await m.addColumn(noteVersionsTable, noteVersionsTable.resolutionSummary);
           }
         },
         beforeOpen: (details) async {
@@ -136,6 +146,12 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS sync_conflicts_note_idx ON sync_conflicts (note_id, state);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS sync_conflicts_state_idx ON sync_conflicts (state);',
           );
         },
       );
@@ -950,6 +966,11 @@ class AppDatabase extends _$AppDatabase {
     int serverRevision = 0,
     bool isDirty = true,
     DateTime? syncedAt,
+    int? baseRevision,
+    int? localParentRevision,
+    int? remoteParentRevision,
+    String? mergeType,
+    String? resolutionSummary,
   }) async {
     await into(noteVersionsTable).insertOnConflictUpdate(
       NoteVersionsTableCompanion.insert(
@@ -966,6 +987,11 @@ class AppDatabase extends _$AppDatabase {
         serverRevision: Value(serverRevision),
         isDirty: Value(isDirty),
         syncedAt: Value(syncedAt),
+        baseRevision: Value(baseRevision),
+        localParentRevision: Value(localParentRevision),
+        remoteParentRevision: Value(remoteParentRevision),
+        mergeType: Value(mergeType),
+        resolutionSummary: Value(resolutionSummary),
       ),
     );
   }
@@ -1041,6 +1067,128 @@ class AppDatabase extends _$AppDatabase {
         syncedAt: Value(syncedAt),
       ),
     );
+  }
+
+  // ==========================================
+  // SYNC CONFLICT OPERATIONS & STREAM QUERIES
+  // ==========================================
+
+  /// Save or update a sync conflict record
+  Future<void> saveConflict({
+    required String id,
+    required String noteId,
+    int baseRevision = 0,
+    int localRevision = 0,
+    int remoteRevision = 0,
+    String conflictType = 'content',
+    String state = 'detected',
+    required DateTime createdAt,
+    DateTime? resolvedAt,
+    int? resolutionRevision,
+    String? resolutionType,
+    String dataJson = '{}',
+  }) async {
+    await into(syncConflictsTable).insertOnConflictUpdate(
+      SyncConflictsTableCompanion.insert(
+        id: id,
+        noteId: noteId,
+        baseRevision: Value(baseRevision),
+        localRevision: Value(localRevision),
+        remoteRevision: Value(remoteRevision),
+        conflictType: Value(conflictType),
+        state: Value(state),
+        createdAt: createdAt,
+        resolvedAt: Value(resolvedAt),
+        resolutionRevision: Value(resolutionRevision),
+        resolutionType: Value(resolutionType),
+        dataJson: Value(dataJson),
+      ),
+    );
+  }
+
+  /// Get all active/pending conflicts requiring manual resolution
+  Future<List<SyncConflictEntity>> getPendingConflicts() async {
+    return (select(syncConflictsTable)
+          ..where((c) =>
+              c.state.isNotValue('resolved') & c.state.isNotValue('autoMerged'))
+          ..orderBy([(c) => OrderingTerm.desc(c.createdAt)]))
+        .get();
+  }
+
+  /// Watch active/pending conflicts requiring manual resolution
+  Stream<List<SyncConflictEntity>> watchPendingConflicts() {
+    return (select(syncConflictsTable)
+          ..where((c) =>
+              c.state.isNotValue('resolved') & c.state.isNotValue('autoMerged'))
+          ..orderBy([(c) => OrderingTerm.desc(c.createdAt)]))
+        .watch();
+  }
+
+  /// Watch count of pending conflicts
+  Stream<int> watchPendingConflictsCount() {
+    final countExp = syncConflictsTable.id.count();
+    final query = selectOnly(syncConflictsTable)
+      ..where(syncConflictsTable.state.isNotValue('resolved') &
+          syncConflictsTable.state.isNotValue('autoMerged'))
+      ..addColumns([countExp]);
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
+  /// Get pending conflict count (Future)
+  Future<int> getPendingConflictsCount() async {
+    final countExp = syncConflictsTable.id.count();
+    final query = selectOnly(syncConflictsTable)
+      ..where(syncConflictsTable.state.isNotValue('resolved') &
+          syncConflictsTable.state.isNotValue('autoMerged'))
+      ..addColumns([countExp]);
+
+    final row = await query.getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  /// Get single conflict by ID
+  Future<SyncConflictEntity?> getConflict(String id) async {
+    return (select(syncConflictsTable)..where((c) => c.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Get most recent unresolved conflict for a note
+  Future<SyncConflictEntity?> getConflictForNote(String noteId) async {
+    return (select(syncConflictsTable)
+          ..where((c) =>
+              c.noteId.equals(noteId) &
+              c.state.isNotValue('resolved') &
+              c.state.isNotValue('autoMerged'))
+          ..orderBy([(c) => OrderingTerm.desc(c.createdAt)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// Mark conflict resolved
+  Future<void> markConflictResolved(
+    String id, {
+    required int resolutionRevision,
+    required String resolutionType,
+  }) async {
+    await (update(syncConflictsTable)..where((c) => c.id.equals(id))).write(
+      SyncConflictsTableCompanion(
+        state: const Value('resolved'),
+        resolvedAt: Value(DateTime.now()),
+        resolutionRevision: Value(resolutionRevision),
+        resolutionType: Value(resolutionType),
+      ),
+    );
+  }
+
+  /// Delete conflict record
+  Future<void> deleteConflict(String id) async {
+    await (delete(syncConflictsTable)..where((c) => c.id.equals(id))).go();
+  }
+
+  /// Delete all conflicts for a note
+  Future<void> deleteConflictsForNote(String noteId) async {
+    await (delete(syncConflictsTable)..where((c) => c.noteId.equals(noteId))).go();
   }
 
   // ==========================================

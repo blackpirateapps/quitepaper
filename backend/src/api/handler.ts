@@ -1,7 +1,7 @@
 import { getDbClient, ensureDbInitialized } from '../db/client.js';
 import { requireFirebaseAuth } from '../auth/middleware.js';
 import { getEncryptionKey, putEncryptionKey } from '../keys/keyService.js';
-import { pushSyncChanges, pullSyncChanges, getLatestCursor } from '../sync/syncService.js';
+import { pushSyncChanges, pullSyncChanges, getLatestCursor, getNoteById, getHistoricalRevision } from '../sync/syncService.js';
 import {
   authorizeAttachmentUpload,
   confirmAttachmentUpload,
@@ -159,6 +159,37 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: { cursor },
+      };
+    }
+
+    // GET /api/v1/sync/notes/:id/revisions/:revision
+    const revMatch = pathname.match(/^\/api\/v1\/sync\/notes\/([0-9a-fA-F-]{36})\/revisions\/(\d+)$/);
+    if (revMatch && method === 'GET') {
+      const noteId = revMatch[1];
+      const revision = parseInt(revMatch[2], 10);
+      const revisionData = await getHistoricalRevision(db, userId, noteId, revision);
+      if (!revisionData) {
+        throw new ApiError('NOT_FOUND', `Revision ${revision} not found for note ${noteId}`, 404);
+      }
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: revisionData,
+      };
+    }
+
+    // GET /api/v1/sync/notes/:id
+    const noteMatch = pathname.match(/^\/api\/v1\/sync\/notes\/([0-9a-fA-F-]{36})$/);
+    if (noteMatch && method === 'GET') {
+      const noteId = noteMatch[1];
+      const noteData = await getNoteById(db, userId, noteId);
+      if (!noteData) {
+        throw new ApiError('NOT_FOUND', `Note ${noteId} not found`, 404);
+      }
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: noteData,
       };
     }
 

@@ -66,6 +66,13 @@ abstract class SyncApiClient {
     required int cursor,
     int limit = 100,
   });
+  Future<PullChangeItem?> getHistoricalRevision({
+    required String noteId,
+    required int revision,
+  });
+  Future<PullChangeItem?> getRemoteNote({
+    required String noteId,
+  });
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -490,5 +497,42 @@ class HttpSyncApiClient implements SyncApiClient {
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return PullVersionSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<PullChangeItem?> getHistoricalRevision({
+    required String noteId,
+    required int revision,
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/sync/notes/$noteId/revisions/$revision');
+    final res = await _client.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return PullChangeItem.fromJson(data);
+    } else if (res.statusCode == 404) {
+      return null;
+    } else {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch historical revision'));
+    }
+  }
+
+  @override
+  Future<PullChangeItem?> getRemoteNote({
+    required String noteId,
+  }) async {
+    final headers = await _authHeaders();
+    final url = Uri.parse('$_baseUrl/api/v1/sync/notes/$noteId');
+    final res = await _client.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return PullChangeItem.fromJson(data);
+    } else if (res.statusCode == 404) {
+      return null;
+    } else {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch remote note'));
+    }
   }
 }

@@ -5,6 +5,9 @@ import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
 import '../documents/document_provider.dart';
+import 'conflict/conflict_model.dart';
+import 'conflict/conflict_repository.dart';
+import 'conflict/conflict_resolver.dart';
 import 'sync_api_client.dart';
 import 'sync_engine.dart';
 import 'sync_models.dart';
@@ -46,6 +49,27 @@ final syncApiClientProvider = Provider<SyncApiClient>((ref) {
   return HttpSyncApiClient(authService: auth);
 });
 
+final conflictRepositoryProvider = Provider<ConflictRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return DriftConflictRepository(database: db);
+});
+
+final conflictResolverProvider = Provider<ConflictResolver>((ref) {
+  final db = ref.watch(databaseProvider);
+  return ConflictResolver(database: db);
+});
+
+final pendingConflictsStreamProvider =
+    StreamProvider<List<SyncConflict>>((ref) {
+  final repo = ref.watch(conflictRepositoryProvider);
+  return repo.watchPendingConflicts();
+});
+
+final pendingConflictsCountStreamProvider = StreamProvider<int>((ref) {
+  final repo = ref.watch(conflictRepositoryProvider);
+  return repo.watchPendingConflictsCount();
+});
+
 final syncEngineProvider = Provider<SyncEngine>((ref) {
   final db = ref.watch(databaseProvider);
   final crypto = ref.watch(cryptoServiceProvider);
@@ -54,6 +78,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   final api = ref.watch(syncApiClientProvider);
   final attachmentSync = ref.watch(attachmentSyncServiceProvider);
   final documentSync = ref.watch(documentSyncServiceProvider);
+  final conflictResolver = ref.watch(conflictResolverProvider);
 
   final engine = SyncEngine(
     database: db,
@@ -63,6 +88,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     apiClient: api,
     attachmentSyncService: attachmentSync,
     documentSyncService: documentSync,
+    conflictResolver: conflictResolver,
   );
 
   ref.onDispose(engine.dispose);

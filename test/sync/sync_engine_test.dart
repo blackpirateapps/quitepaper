@@ -254,6 +254,29 @@ class InMemorySyncApiClient implements SyncApiClient {
       hasMore: matching.length > limit,
     );
   }
+
+  @override
+  Future<PullChangeItem?> getHistoricalRevision({
+    required String noteId,
+    required int revision,
+  }) async {
+    return syncLog.cast<PullChangeItem?>().firstWhere(
+      (item) => item?.id == noteId && item?.revision == revision,
+      orElse: () => null,
+    );
+  }
+
+  @override
+  Future<PullChangeItem?> getRemoteNote({
+    required String noteId,
+  }) async {
+    final note = serverNotes[noteId];
+    if (note == null) return null;
+    return syncLog.cast<PullChangeItem?>().lastWhere(
+      (item) => item?.id == noteId,
+      orElse: () => null,
+    );
+  }
 }
 
 void main() {

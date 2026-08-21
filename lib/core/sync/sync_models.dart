@@ -182,28 +182,114 @@ class PushResultItem {
 }
 
 @immutable
+class ServerHeadSyncPayload {
+  const ServerHeadSyncPayload({
+    required this.revision,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+    this.isDeleted = false,
+    this.deletedAt,
+    this.archived = false,
+    this.trashed = false,
+    this.pinned = false,
+    this.folderId,
+    this.sortOrder,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final int revision;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final bool archived;
+  final bool trashed;
+  final bool pinned;
+  final String? folderId;
+  final double? sortOrder;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  factory ServerHeadSyncPayload.fromJson(Map<String, dynamic> json) {
+    return ServerHeadSyncPayload(
+      revision: json['revision'] as int? ?? 1,
+      contentCiphertext: json['contentCiphertext'] as String? ?? '',
+      contentNonce: json['contentNonce'] as String? ?? '',
+      contentVersion: json['contentVersion'] as int? ?? 1,
+      encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+      isDeleted: json['isDeleted'] as bool? ?? false,
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.tryParse(json['deletedAt'] as String)
+          : null,
+      archived: json['archived'] as bool? ?? false,
+      trashed: json['trashed'] as bool? ?? false,
+      pinned: json['pinned'] as bool? ?? false,
+      folderId: json['folderId'] as String?,
+      sortOrder: (json['sortOrder'] as num?)?.toDouble(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'revision': revision,
+        'contentCiphertext': contentCiphertext,
+        'contentNonce': contentNonce,
+        'contentVersion': contentVersion,
+        'encryptionKeyVersion': encryptionKeyVersion,
+        'isDeleted': isDeleted,
+        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+        'archived': archived,
+        'trashed': trashed,
+        'pinned': pinned,
+        if (folderId != null) 'folderId': folderId,
+        if (sortOrder != null) 'sortOrder': sortOrder,
+        if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+        if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+      };
+}
+
+@immutable
 class ConflictItem {
   const ConflictItem({
     required this.id,
+    this.noteId,
     required this.serverRevision,
     this.baseRevision,
     required this.code,
     required this.message,
+    this.serverHead,
   });
 
   final String id;
+  final String? noteId;
   final int serverRevision;
   final int? baseRevision;
   final String code;
   final String message;
+  final ServerHeadSyncPayload? serverHead;
 
   factory ConflictItem.fromJson(Map<String, dynamic> json) {
     return ConflictItem(
       id: json['id'] as String,
-      serverRevision: json['serverRevision'] as int,
+      noteId: json['noteId'] as String?,
+      serverRevision: json['serverRevision'] as int? ?? 0,
       baseRevision: json['baseRevision'] as int?,
-      code: json['code'] as String,
-      message: json['message'] as String,
+      code: json['code'] as String? ?? 'SYNC_CONFLICT',
+      message: json['message'] as String? ?? '',
+      serverHead: json['serverHead'] != null
+          ? ServerHeadSyncPayload.fromJson(
+              json['serverHead'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

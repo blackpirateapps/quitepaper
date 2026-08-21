@@ -10,12 +10,31 @@ export interface PushResultItem {
   updatedAt: string;
 }
 
+export interface ServerHeadItem {
+  revision: number;
+  contentCiphertext: string;
+  contentNonce: string;
+  contentVersion: number;
+  encryptionKeyVersion: number;
+  isDeleted: boolean;
+  deletedAt?: string | null;
+  archived?: boolean;
+  trashed?: boolean;
+  pinned?: boolean;
+  folderId?: string | null;
+  sortOrder?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ConflictItem {
   id: string;
+  noteId?: string;
   serverRevision: number;
   baseRevision?: number | null;
   code: string;
   message: string;
+  serverHead?: ServerHeadItem;
 }
 
 export interface PushResponse {
@@ -81,7 +100,10 @@ export async function pushSyncChanges(db: Client, userId: string, rawInput: unkn
   for (const change of changes) {
     // Check existing note
     const existingResult = await db.execute({
-      sql: 'SELECT revision, deleted_at, updated_at FROM notes WHERE id = ? AND user_id = ? LIMIT 1',
+      sql: `SELECT revision, deleted_at, updated_at, created_at, archived, trashed, pinned,
+                   folder_id, sort_order, content_ciphertext, content_nonce, content_version,
+                   encryption_key_version
+            FROM notes WHERE id = ? AND user_id = ? LIMIT 1`,
       args: [change.id, userId],
     });
 
@@ -90,12 +112,30 @@ export async function pushSyncChanges(db: Client, userId: string, rawInput: unkn
 
     // Conflict detection: if baseRevision is specified and smaller than existing serverRevision
     if (change.baseRevision != null && serverRevision > 0 && change.baseRevision < serverRevision) {
+      const isDeleted = existingRow.deleted_at != null || Number(existingRow.trashed) === 1;
       conflicts.push({
         id: change.id,
+        noteId: change.id,
         serverRevision,
         baseRevision: change.baseRevision,
         code: 'SYNC_CONFLICT',
         message: `Conflict detected. Server note is at revision ${serverRevision}, client base revision was ${change.baseRevision}.`,
+        serverHead: {
+          revision: serverRevision,
+          contentCiphertext: (existingRow.content_ciphertext as string) || '',
+          contentNonce: (existingRow.content_nonce as string) || '',
+          contentVersion: Number(existingRow.content_version || 1),
+          encryptionKeyVersion: Number(existingRow.encryption_key_version || 1),
+          isDeleted,
+          deletedAt: existingRow.deleted_at as string | null,
+          archived: Number(existingRow.archived) === 1,
+          trashed: Number(existingRow.trashed) === 1,
+          pinned: Number(existingRow.pinned) === 1,
+          folderId: existingRow.folder_id as string | null,
+          sortOrder: existingRow.sort_order != null ? Number(existingRow.sort_order) : null,
+          createdAt: existingRow.created_at as string,
+          updatedAt: existingRow.updated_at as string,
+        },
       });
       continue;
     }
@@ -357,4 +397,85 @@ export async function pullNoteVersions(db: Client, userId: string, rawInput: unk
     cursor: nextCursor,
     hasMore,
   };
+}
+
+export async function getNoteById(db: Client, userId: string, noteId: string): Promise<PullChangeItem | null> {
+  const result = await db.execute({
+    sql: `SELECT id, revision, created_at, updated_at, archived, trashed, pinned, folder_id, sort_order,
+                 content_ciphertext, content_nonce, content_version, encryption_key_version, deleted_at
+          FROM notes
+          WHERE id = ? AND user_id = ?
+          LIMIT 1`,
+    args: [noteId, userId],
+  });
+
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  const isDeleted = row.deleted_at != null || Number(row.trashed) === 1;
+
+  return {
+    id: row.id as string,
+    revision: Number(row.revision),
+    changeType: isDeleted ? 'delete' : 'upsert',
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    archived: Number(row.archived) === 1,
+    trashed: Number(row.trashed) === 1,
+    pinned: Number(row.pinned) === 1,
+    folderId: row.folder_id as string | null,
+    sortOrder: row.sort_order != null ? Number(row.sort_order) : null,
+    contentCiphertext: (row.content_ciphertext as string) || '',
+    contentNonce: (row.content_nonce as string) || '',
+    contentVersion: Number(row.content_version || 1),
+    encryptionKeyVersion: Number(row.encryption_key_version || 1),
+    deletedAt: row.deleted_at as string | null,
+  };
+}
+
+export async function getHistoricalRevision(db: Client, userId: string, noteId: string, revision: number): Promise<PullChangeItem | null> {
+  // First check sync_changes
+  const changeResult = await db.execute({
+    sql: `SELECT payload_json FROM sync_changes
+          WHERE user_id = ? AND note_id = ? AND revision = ?
+          LIMIT 1`,
+    args: [userId, noteId, revision],
+  });
+
+  if (changeResult.rows.length > 0) {
+    return JSON.parse(changeResult.rows[0].payload_json as string) as PullChangeItem;
+  }
+
+  // Fallback to notes table if current note matches revision
+  const noteResult = await db.execute({
+    sql: `SELECT id, revision, created_at, updated_at, archived, trashed, pinned, folder_id, sort_order,
+                 content_ciphertext, content_nonce, content_version, encryption_key_version, deleted_at
+          FROM notes
+          WHERE id = ? AND user_id = ? AND revision = ?
+          LIMIT 1`,
+    args: [noteId, userId, revision],
+  });
+
+  if (noteResult.rows.length > 0) {
+    const row = noteResult.rows[0];
+    const isDeleted = row.deleted_at != null || Number(row.trashed) === 1;
+    return {
+      id: row.id as string,
+      revision: Number(row.revision),
+      changeType: isDeleted ? 'delete' : 'upsert',
+      createdAt: row.created_at as string,
+      updatedAt: row.updated_at as string,
+      archived: Number(row.archived) === 1,
+      trashed: Number(row.trashed) === 1,
+      pinned: Number(row.pinned) === 1,
+      folderId: row.folder_id as string | null,
+      sortOrder: row.sort_order != null ? Number(row.sort_order) : null,
+      contentCiphertext: (row.content_ciphertext as string) || '',
+      contentNonce: (row.content_nonce as string) || '',
+      contentVersion: Number(row.content_version || 1),
+      encryptionKeyVersion: Number(row.encryption_key_version || 1),
+      deletedAt: row.deleted_at as string | null,
+    };
+  }
+
+  return null;
 }

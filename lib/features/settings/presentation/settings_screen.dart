@@ -22,6 +22,7 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
 import '../../sync/presentation/change_account_password_dialog.dart';
 import '../../sync/presentation/change_encryption_password_screen.dart';
+import '../../sync/presentation/conflict_list_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 import '../application/typography_provider.dart';
@@ -471,6 +472,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                     ),
                                   );
                                 } else if (resultState.status ==
+                                    SyncStatus.conflict ||
+                                    resultState.conflictsCount > 0) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Sync complete with ${resultState.conflictsCount} conflict(s) requiring review.',
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.orange.shade800,
+                                      duration: const Duration(seconds: 4),
+                                      action: SnackBarAction(
+                                        label: 'Review',
+                                        textColor: Colors.white,
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => const ConflictListScreen(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                } else if (resultState.status ==
                                     SyncStatus.synced) {
                                   final attSynced =
                                       resultState.attachmentsSynced;
@@ -503,6 +528,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                 }
                               },
                       ),
+
+                      // [CONDITIONAL] Review Conflicts Row
+                      if (syncState.conflictsCount > 0) ...[
+                        _buildDivider(colors),
+                        _SettingsRow(
+                          icon: Icons.warning_amber_rounded,
+                          iconColor: Colors.orange,
+                          title:
+                              'Review Sync Conflicts (${syncState.conflictsCount})',
+                          subtitle:
+                              'Conflicting edits need manual resolution',
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: colors.textTertiary,
+                          ),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ConflictListScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
 
                       // 4. Account Password Row (Firebase Auth)
                       _buildDivider(colors),
