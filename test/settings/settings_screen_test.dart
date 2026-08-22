@@ -21,6 +21,12 @@ import 'package:quitepaper/features/sync/presentation/change_encryption_password
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockSyncApiClient implements SyncApiClient {
+  String _baseUrl = 'https://quitepaper.vercel.app';
+  @override
+  String get baseUrl => _baseUrl;
+  @override
+  void setBaseUrl(String url) => _baseUrl = url;
+
   @override
   Future<WrappedMasterKeyData?> getKeys() async => null;
 

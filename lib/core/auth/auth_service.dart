@@ -24,7 +24,7 @@ class AuthUser {
 
   bool get isTokenExpired {
     if (tokenExpiresAt == null) return false;
-    return DateTime.now().isAfter(tokenExpiresAt!);
+    return DateTime.now().isAfter(tokenExpiresAt!.subtract(const Duration(minutes: 5)));
   }
 
   AuthUser copyWith({
@@ -110,6 +110,57 @@ class FirebaseAuthService implements AuthService {
 
   static const String _storageKeyAuthSession = 'quietpaper_auth_session_v1';
 
+  static Map<String, dynamic>? _safeParseJson(String body) {
+    final trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static String _formatAuthErrorMessage(String rawMessage, [String defaultMsg = 'Authentication failed']) {
+    final upper = rawMessage.toUpperCase();
+    if (upper.contains('INVALID_LOGIN_CREDENTIALS') ||
+        upper.contains('INVALID_PASSWORD') ||
+        upper.contains('WRONG_PASSWORD')) {
+      return 'Incorrect account login password.';
+    }
+    if (upper.contains('EMAIL_NOT_FOUND') || upper.contains('USER_NOT_FOUND')) {
+      return 'No account found with this email address.';
+    }
+    if (upper.contains('EMAIL_EXISTS')) {
+      return 'This email is already registered. Please sign in.';
+    }
+    if (upper.contains('USER_DISABLED')) {
+      return 'This account has been disabled. Please contact support.';
+    }
+    if (upper.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+      return 'Too many attempts. Please try again in a few minutes.';
+    }
+    if (upper.contains('WEAK_PASSWORD')) {
+      return 'Account password must be at least 6 characters.';
+    }
+    if (upper.contains('INVALID_EMAIL')) {
+      return 'Please enter a valid email address.';
+    }
+    if (upper.contains('TOKEN_EXPIRED') || upper.contains('CREDENTIAL_TOO_OLD_LOGIN_AGAIN')) {
+      return 'Session expired. Please sign in again.';
+    }
+    if (upper.contains('NETWORK_ERROR') || upper.contains('NETWORK-REQUEST-FAILED')) {
+      return 'Network error. Please check your internet connection.';
+    }
+    if (rawMessage.isNotEmpty && !rawMessage.startsWith('<')) {
+      return rawMessage;
+    }
+    return defaultMsg;
+  }
+
   @override
   String get apiKey => _apiKey;
 
@@ -123,9 +174,11 @@ class FirebaseAuthService implements AuthService {
     try {
       final storedJson = await _storage.read(key: _storageKeyAuthSession);
       if (storedJson != null && storedJson.isNotEmpty) {
-        final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
-        _currentUser = AuthUser.fromJson(decoded);
-        _authStateController.add(_currentUser);
+        final decoded = _safeParseJson(storedJson);
+        if (decoded != null) {
+          _currentUser = AuthUser.fromJson(decoded);
+          _authStateController.add(_currentUser);
+        }
       }
     } catch (_) {
       _currentUser = null;
@@ -165,10 +218,12 @@ class FirebaseAuthService implements AuthService {
       final url = Uri.parse('$sanitized/api/v1/config');
       final res = await _client.get(url).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final fetchedKey = data['firebaseApiKey'] as String?;
-        if (fetchedKey != null && fetchedKey.trim().isNotEmpty) {
-          _apiKey = fetchedKey.trim();
+        final data = _safeParseJson(res.body);
+        if (data != null) {
+          final fetchedKey = data['firebaseApiKey'] as String?;
+          if (fetchedKey != null && fetchedKey.trim().isNotEmpty) {
+            _apiKey = fetchedKey.trim();
+          }
         }
       }
     } catch (_) {}
@@ -189,24 +244,35 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<AuthUser> signInWithEmailAndPassword(String email, String password) async {
     if (_apiKey.isEmpty) {
-      throw StateError('Firebase API key is not configured. Supply FIREBASE_API_KEY dart-define or constructor.');
+      await fetchConfigFromBackend();
+    }
+    if (_apiKey.isEmpty) {
+      throw StateError('Firebase API key is not configured. Supply FIREBASE_API_KEY dart-define or server URL.');
     }
 
     final url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
-    final res = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email.trim(),
-        'password': password,
-        'returnSecureToken': true,
-      }),
-    );
+    final http.Response res;
+    try {
+      res = await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim(),
+          'password': password,
+          'returnSecureToken': true,
+        }),
+      );
+    } catch (netErr) {
+      throw Exception('Network error connecting to authentication service: $netErr');
+    }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode != 200) {
-      final message = data['error']?['message'] ?? 'Authentication failed';
-      throw Exception(message);
+    final data = _safeParseJson(res.body);
+    if (res.statusCode != 200 || data == null) {
+      final rawError = data?['error']?['message']?.toString() ?? '';
+      if (rawError.isNotEmpty) {
+        throw Exception(_formatAuthErrorMessage(rawError, 'Authentication failed'));
+      }
+      throw Exception('Authentication service returned an unexpected response (HTTP ${res.statusCode}). Please check your internet connection or server settings.');
     }
 
     final expiresInSeconds = int.tryParse(data['expiresIn']?.toString() ?? '3600') ?? 3600;
@@ -215,7 +281,7 @@ class FirebaseAuthService implements AuthService {
       email: data['email'] as String,
       idToken: data['idToken'] as String,
       refreshToken: data['refreshToken'] as String?,
-      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds)),
       emailVerified: data['emailVerified'] == true ||
           data['emailVerified']?.toString().toLowerCase() == 'true',
     );
@@ -229,24 +295,35 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<AuthUser> signUpWithEmailAndPassword(String email, String password) async {
     if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+    if (_apiKey.isEmpty) {
       throw StateError('Firebase API key is not configured.');
     }
 
     final url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
-    final res = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email.trim(),
-        'password': password,
-        'returnSecureToken': true,
-      }),
-    );
+    final http.Response res;
+    try {
+      res = await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim(),
+          'password': password,
+          'returnSecureToken': true,
+        }),
+      );
+    } catch (netErr) {
+      throw Exception('Network error connecting to registration service: $netErr');
+    }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode != 200) {
-      final message = data['error']?['message'] ?? 'Registration failed';
-      throw Exception(message);
+    final data = _safeParseJson(res.body);
+    if (res.statusCode != 200 || data == null) {
+      final rawError = data?['error']?['message']?.toString() ?? '';
+      if (rawError.isNotEmpty) {
+        throw Exception(_formatAuthErrorMessage(rawError, 'Registration failed'));
+      }
+      throw Exception('Registration service returned an unexpected response (HTTP ${res.statusCode}). Please check your internet connection or server settings.');
     }
 
     final expiresInSeconds = int.tryParse(data['expiresIn']?.toString() ?? '3600') ?? 3600;
@@ -255,7 +332,7 @@ class FirebaseAuthService implements AuthService {
       email: data['email'] as String,
       idToken: data['idToken'] as String,
       refreshToken: data['refreshToken'] as String?,
-      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds)),
       emailVerified: data['emailVerified'] == true ||
           data['emailVerified']?.toString().toLowerCase() == 'true',
     );
@@ -276,23 +353,31 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> sendPasswordResetEmail(String email) async {
     if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+    if (_apiKey.isEmpty) {
       throw StateError('Firebase API key is not configured.');
     }
 
     final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
-    final res = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'requestType': 'PASSWORD_RESET',
-        'email': email.trim(),
-      }),
-    );
+    final http.Response res;
+    try {
+      res = await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'requestType': 'PASSWORD_RESET',
+          'email': email.trim(),
+        }),
+      );
+    } catch (netErr) {
+      throw Exception('Network error connecting to password reset service: $netErr');
+    }
 
     if (res.statusCode != 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final message = data['error']?['message'] ?? 'Password reset failed';
-      throw Exception(message);
+      final data = _safeParseJson(res.body);
+      final rawError = data?['error']?['message']?.toString() ?? '';
+      throw Exception(_formatAuthErrorMessage(rawError, 'Password reset failed'));
     }
   }
 
@@ -303,26 +388,34 @@ class FirebaseAuthService implements AuthService {
       throw StateError('No active user session to send verification email.');
     }
     if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+    if (_apiKey.isEmpty) {
       throw StateError('Firebase API key is not configured.');
     }
 
     final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
-    final res = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'requestType': 'VERIFY_EMAIL',
-        'idToken': token,
-      }),
-    );
+    final http.Response res;
+    try {
+      res = await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'requestType': 'VERIFY_EMAIL',
+          'idToken': token,
+        }),
+      );
+    } catch (netErr) {
+      throw Exception('Network error sending verification email: $netErr');
+    }
 
     if (res.statusCode != 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final message = data['error']?['message'] as String? ?? 'Failed to send email verification';
-      if (message.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+      final data = _safeParseJson(res.body);
+      final rawError = data?['error']?['message']?.toString() ?? '';
+      if (rawError.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
         throw Exception('Too many attempts. Please try again in a few minutes.');
       }
-      throw Exception(message);
+      throw Exception(_formatAuthErrorMessage(rawError, 'Failed to send email verification'));
     }
   }
 
@@ -341,8 +434,8 @@ class FirebaseAuthService implements AuthService {
       );
 
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final users = data['users'] as List<dynamic>?;
+        final data = _safeParseJson(res.body);
+        final users = data?['users'] as List<dynamic>?;
         if (users != null && users.isNotEmpty) {
           final userData = users[0] as Map<String, dynamic>;
           final isVerified = userData['emailVerified'] == true ||
@@ -373,6 +466,9 @@ class FirebaseAuthService implements AuthService {
       throw StateError('No active user logged in.');
     }
     if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+    if (_apiKey.isEmpty) {
       throw StateError('Firebase API key is not configured.');
     }
 
@@ -388,18 +484,10 @@ class FirebaseAuthService implements AuthService {
       }),
     );
 
-    final signInData = jsonDecode(signInRes.body) as Map<String, dynamic>;
-    if (signInRes.statusCode != 200) {
-      final errorMsg = signInData['error']?['message'] as String? ?? '';
-      if (errorMsg.contains('INVALID_PASSWORD') ||
-          errorMsg.contains('INVALID_LOGIN_CREDENTIALS')) {
-        throw Exception('Incorrect current password.');
-      } else if (errorMsg.contains('NETWORK_ERROR') || errorMsg.contains('network-request-failed')) {
-        throw Exception('Network error. Please check your internet connection.');
-      } else if (errorMsg.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
-        throw Exception('Too many attempts. Please try again later.');
-      }
-      throw Exception('Incorrect current password.');
+    final signInData = _safeParseJson(signInRes.body);
+    if (signInRes.statusCode != 200 || signInData == null) {
+      final rawError = signInData?['error']?['message']?.toString() ?? '';
+      throw Exception(_formatAuthErrorMessage(rawError, 'Incorrect current password.'));
     }
 
     final freshIdToken = signInData['idToken'] as String;
@@ -416,15 +504,10 @@ class FirebaseAuthService implements AuthService {
       }),
     );
 
-    final updateData = jsonDecode(updateRes.body) as Map<String, dynamic>;
-    if (updateRes.statusCode != 200) {
-      final errorMsg = updateData['error']?['message'] as String? ?? 'Password update failed';
-      if (errorMsg.contains('WEAK_PASSWORD')) {
-        throw Exception('Password should be at least 8 characters.');
-      } else if (errorMsg.contains('CREDENTIAL_TOO_OLD_LOGIN_AGAIN') || errorMsg.contains('requires-recent-login')) {
-        throw Exception('Session expired. Please sign in again.');
-      }
-      throw Exception(errorMsg);
+    final updateData = _safeParseJson(updateRes.body);
+    if (updateRes.statusCode != 200 || updateData == null) {
+      final rawError = updateData?['error']?['message']?.toString() ?? '';
+      throw Exception(_formatAuthErrorMessage(rawError, 'Password update failed.'));
     }
 
     // 3. Update active user session
@@ -434,7 +517,7 @@ class FirebaseAuthService implements AuthService {
       email: updateData['email'] as String? ?? _currentUser!.email,
       idToken: updateData['idToken'] as String? ?? freshIdToken,
       refreshToken: updateData['refreshToken'] as String? ?? _currentUser!.refreshToken,
-      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
+      tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds)),
       emailVerified: _currentUser!.emailVerified,
     );
     await _saveUserSession(_currentUser);
@@ -449,7 +532,15 @@ class FirebaseAuthService implements AuthService {
       return _currentUser!.idToken;
     }
 
-    if (_currentUser!.refreshToken == null || _apiKey.isEmpty) {
+    if (_currentUser!.refreshToken == null) {
+      return _currentUser!.idToken;
+    }
+
+    if (_apiKey.isEmpty) {
+      await fetchConfigFromBackend();
+    }
+
+    if (_apiKey.isEmpty) {
       return _currentUser!.idToken;
     }
 
@@ -465,19 +556,21 @@ class FirebaseAuthService implements AuthService {
       );
 
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final expiresInSeconds = int.tryParse(data['expires_in']?.toString() ?? '3600') ?? 3600;
-        _currentUser = AuthUser(
-          id: data['user_id'] as String? ?? _currentUser!.id,
-          email: _currentUser!.email,
-          idToken: data['id_token'] as String,
-          refreshToken: data['refresh_token'] as String? ?? _currentUser!.refreshToken,
-          tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds - 60)),
-          emailVerified: _currentUser!.emailVerified,
-        );
-        await _saveUserSession(_currentUser);
-        _authStateController.add(_currentUser);
-        return _currentUser!.idToken;
+        final data = _safeParseJson(res.body);
+        if (data != null && data['id_token'] != null) {
+          final expiresInSeconds = int.tryParse(data['expires_in']?.toString() ?? '3600') ?? 3600;
+          _currentUser = AuthUser(
+            id: data['user_id'] as String? ?? _currentUser!.id,
+            email: _currentUser!.email,
+            idToken: data['id_token'] as String,
+            refreshToken: data['refresh_token'] as String? ?? _currentUser!.refreshToken,
+            tokenExpiresAt: DateTime.now().add(Duration(seconds: expiresInSeconds)),
+            emailVerified: _currentUser!.emailVerified,
+          );
+          await _saveUserSession(_currentUser);
+          _authStateController.add(_currentUser);
+          return _currentUser!.idToken;
+        }
       }
     } catch (_) {}
 

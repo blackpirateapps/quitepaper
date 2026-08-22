@@ -32,6 +32,12 @@ class MockAuthService implements AuthService {
 }
 
 class MockSyncApiClient implements SyncApiClient {
+  String _baseUrl = 'https://test.api';
+  @override
+  String get baseUrl => _baseUrl;
+  @override
+  void setBaseUrl(String url) => _baseUrl = url;
+
   CloudinaryUploadAuth? lastRequestedAuth;
   Map<String, dynamic>? lastConfirmedData;
 

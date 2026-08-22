@@ -1871,5 +1871,42 @@ graph TD
   - Image token replacement (`image`) for both standalone and inline asset attachments.
   - Graceful fallback for empty document links (`Document`).
 
+---
+
+## 72. Cloud Sync & Auth: Automatic 401 Firebase Token Refresh, Resilient HTML Error Handling & Dynamic Server URL
+
+### Problem & Symptoms
+1. **Expired Firebase ID Token Error in Settings**:
+   - In Settings under the logged-in profile, users received an error banner: `Failed to fetch keys: Invalid or expired Firebase ID token: Firebase ID token has expired. Get a fresh ID token from your client app and try again (auth/id-token-expired)...`.
+   - When the user's 1-hour Firebase ID token expired or was near expiry, background sync attempts failed unconditionally with HTTP 401 instead of refreshing the session transparently.
+2. **`FormatException: Unexpected character (at character 1) <!DOCTYPE html> ^` on Sign-In / Sync**:
+   - In the Cloud Sync & Sign-In screen, submitting credentials or encountering HTML error pages (such as proxy/gateway errors, captive portals, or server error pages) caused `jsonDecode` to crash with `FormatException: Unexpected character (at character 1) <!DOCTYPE html>`.
+   - The UI stripped `'Exception: '` from `'FormatException: ...'` and rendered `"FormatUnexpected character (at character 1) <!DOCTYPE html> ^"`.
+3. **Mismatched Custom Server URL**:
+   - When users configured a custom `Sync Server URL` in `SyncAuthScreen` or `SyncAuthDialog`, it was passed to `fetchConfigFromBackend()`, but `HttpSyncApiClient._baseUrl` remained hardcoded to the default URL, causing route or domain mismatches.
+
+### Root Cause Analysis & Architectural Solutions
+1. **Automatic 401 Interception & Transparent Token Refresh**:
+   - In [`HttpSyncApiClient`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart): Implemented `_sendWithAuthRetry()`. When any authenticated API endpoint receives HTTP 401 Unauthorized, it calls `authService.getIdToken(forceRefresh: true)` to obtain a fresh token from Google's SecureToken API and retries the request once before failing.
+   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Updated `getIdToken({bool forceRefresh = false})` to await `fetchConfigFromBackend()` if `_apiKey.isEmpty` before skipping token exchange.
+   - In [`AuthUser.isTokenExpired`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Added a 5-minute pre-emptive buffer (`tokenExpiresAt!.subtract(const Duration(minutes: 5))`) so near-expired tokens are renewed before making network calls.
+2. **Safe JSON Parsing & HTML Response Sanitization**:
+   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart) and [`HttpSyncApiClient`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart): Wrapped all response parsing in `_safeParseJson()` to prevent `FormatException` crashes when servers return HTML or non-JSON content.
+   - Added `_formatAuthErrorMessage()` translating raw Firebase error codes (`INVALID_LOGIN_CREDENTIALS`, `EMAIL_NOT_FOUND`, `EMAIL_EXISTS`, `USER_DISABLED`, `TOO_MANY_ATTEMPTS_TRY_LATER`, `WEAK_PASSWORD`, `INVALID_EMAIL`) to friendly user messages.
+   - In `_extractErrorMessage()`, HTML error pages are sanitized to clean messages (e.g. `Sync server is temporarily unavailable (502)`) without leaking raw HTML tags or document structures into UI error dialogs.
+3. **Dynamic Base URL Propagation**:
+   - Added `String get baseUrl` and `void setBaseUrl(String url)` on [`SyncApiClient`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart) and [`HttpSyncApiClient`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart).
+   - In [`SyncAuthScreen`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_screen.dart) and [`SyncAuthDialog`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_dialog.dart), updated `_submitSignIn()` and `_submitSignupFinal()` to call `api.setBaseUrl(serverUrl)` whenever a custom URL is provided.
+   - Updated UI error formatting with `_cleanErrorMessage()` to strip `FormatException:`, `Exception:`, and `StateError:` cleanly.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 468 tests passing**).
+- Backend test suite: `npm test` in `backend/` (**all 26 tests passing**).
+- Automated regression tests added:
+  - [`test/auth/auth_service_resiliency_test.dart`](file:///home/dog/git/quitepaper/test/auth/auth_service_resiliency_test.dart): HTML 404/500/502 handling without `FormatException`, Firebase error code translation, 5-minute pre-emptive token expiry margin, and `getIdToken(forceRefresh: true)` session refresh.
+  - [`test/sync/sync_api_client_retry_test.dart`](file:///home/dog/git/quitepaper/test/sync/sync_api_client_retry_test.dart): Automatic HTTP 401 interception & retry with fresh ID tokens, HTML error sanitization, and dynamic `setBaseUrl()` updates.
+
+
 
 

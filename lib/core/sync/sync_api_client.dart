@@ -7,6 +7,9 @@ import '../documents/document_models.dart';
 import 'sync_models.dart';
 
 abstract class SyncApiClient {
+  String get baseUrl => 'https://quitepaper.vercel.app';
+  void setBaseUrl(String url) {}
+
   Future<Map<String, dynamic>> getAccount();
   Future<WrappedMasterKeyData?> getKeys();
   Future<WrappedMasterKeyData> putKeys(WrappedMasterKeyData keyData);
@@ -80,14 +83,23 @@ class HttpSyncApiClient implements SyncApiClient {
     required this.authService,
     String? baseUrl,
     http.Client? httpClient,
-  })  : _baseUrl = baseUrl ??
+  })  : _baseUrl = (baseUrl ??
             const String.fromEnvironment('SYNC_API_URL',
-                defaultValue: 'https://quitepaper.vercel.app'),
+                defaultValue: 'https://quitepaper.vercel.app'))
+        .trim().replaceAll(RegExp(r'/+$'), ''),
         _client = httpClient ?? http.Client();
 
   final AuthService authService;
-  final String _baseUrl;
+  String _baseUrl;
   final http.Client _client;
+
+  @override
+  String get baseUrl => _baseUrl;
+
+  @override
+  void setBaseUrl(String url) {
+    _baseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
+  }
 
   Future<Map<String, String>> _authHeaders() async {
     final token = await authService.getIdToken();
@@ -100,36 +112,95 @@ class HttpSyncApiClient implements SyncApiClient {
     };
   }
 
-  String _extractErrorMessage(http.Response res, String defaultPrefix) {
-    try {
-      final errJson = jsonDecode(res.body);
-      if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-        return '$defaultPrefix: ${errJson['error']['message']}';
+  Future<http.Response> _sendWithAuthRetry(
+    Future<http.Response> Function(Map<String, String> headers) sendRequest,
+  ) async {
+    var headers = await _authHeaders();
+    var response = await sendRequest(headers);
+
+    if (response.statusCode == 401) {
+      // Intercept 401: Token might be expired or invalid on server.
+      // Force-refresh token via Firebase SecureToken API and retry once.
+      final freshToken = await authService.getIdToken(forceRefresh: true);
+      if (freshToken != null && freshToken.isNotEmpty) {
+        headers = {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $freshToken',
+        };
+        response = await sendRequest(headers);
       }
-      if (errJson is Map && errJson['message'] != null) {
-        return '$defaultPrefix: ${errJson['message']}';
+    }
+
+    return response;
+  }
+
+  static Map<String, dynamic>? _safeParseJson(String body) {
+    final trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
       }
     } catch (_) {}
-    return '$defaultPrefix (${res.statusCode}): ${res.body}';
+    return null;
+  }
+
+  String _extractErrorMessage(http.Response res, String defaultPrefix) {
+    final trimmed = res.body.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        final errJson = jsonDecode(trimmed);
+        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
+          return '$defaultPrefix: ${errJson['error']['message']}';
+        }
+        if (errJson is Map && errJson['message'] != null) {
+          return '$defaultPrefix: ${errJson['message']}';
+        }
+      } catch (_) {}
+    }
+
+    // Guard against HTML error payloads leaking into UI
+    if (trimmed.startsWith('<') ||
+        trimmed.toUpperCase().contains('<!DOCTYPE HTML') ||
+        trimmed.toUpperCase().contains('<HTML')) {
+      if (res.statusCode == 401) {
+        return '$defaultPrefix: Authentication failed (401). Please sign in again.';
+      }
+      if (res.statusCode == 404) {
+        return '$defaultPrefix: Server endpoint not found (404). Please check your sync server URL.';
+      }
+      if (res.statusCode >= 500) {
+        return '$defaultPrefix: Sync server is temporarily unavailable (${res.statusCode}). Please try again later.';
+      }
+      return '$defaultPrefix (${res.statusCode}): Server returned an unexpected HTML response';
+    }
+
+    final truncated = trimmed.length > 200 ? '${trimmed.substring(0, 200)}...' : trimmed;
+    return '$defaultPrefix (${res.statusCode}): $truncated';
   }
 
   @override
   Future<Map<String, dynamic>> getAccount() async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/account');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to get account'));
     }
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to get account: Invalid JSON response from server');
+    }
+    return data;
   }
 
   @override
   Future<WrappedMasterKeyData?> getKeys() async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/keys');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode == 404) {
       return null;
@@ -138,25 +209,31 @@ class HttpSyncApiClient implements SyncApiClient {
       throw Exception(_extractErrorMessage(res, 'Failed to fetch keys'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to fetch keys: Invalid JSON response from server');
+    }
     return WrappedMasterKeyData.fromJson(data);
   }
 
   @override
   Future<WrappedMasterKeyData> putKeys(WrappedMasterKeyData keyData) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/keys');
-    final res = await _client.put(
+    final body = jsonEncode(keyData.toJson());
+    final res = await _sendWithAuthRetry((headers) => _client.put(
       url,
       headers: headers,
-      body: jsonEncode(keyData.toJson()),
-    );
+      body: body,
+    ));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to save keys'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to save keys: Invalid JSON response from server');
+    }
     return WrappedMasterKeyData.fromJson(data);
   }
 
@@ -166,7 +243,6 @@ class HttpSyncApiClient implements SyncApiClient {
     String? idempotencyKey,
     String? deviceId,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/push');
     final body = <String, dynamic>{
       'changes': changes.map((c) => c.toJson()).toList(),
@@ -178,17 +254,21 @@ class HttpSyncApiClient implements SyncApiClient {
       body['deviceId'] = deviceId;
     }
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Push sync failed'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Push sync failed: Invalid JSON response from server');
+    }
     return PushSyncResponse.fromJson(data);
   }
 
@@ -197,38 +277,42 @@ class HttpSyncApiClient implements SyncApiClient {
     required int cursor,
     int limit = 100,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/pull');
-    final body = {
+    final body = jsonEncode({
       'cursor': cursor,
       'limit': limit,
-    };
+    });
 
-    final res = await _client.post(
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: body,
+    ));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Pull sync failed'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Pull sync failed: Invalid JSON response from server');
+    }
     return PullSyncResponse.fromJson(data);
   }
 
   @override
   Future<int> getCursor() async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/cursor');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to get cursor'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to get cursor: Invalid JSON response from server');
+    }
     return data['cursor'] as int? ?? 0;
   }
 
@@ -241,7 +325,6 @@ class HttpSyncApiClient implements SyncApiClient {
     String sha256 = '',
     String variant = 'original',
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/attachments/upload-auth');
     final body = <String, dynamic>{
       'attachmentId': attachmentId,
@@ -254,24 +337,21 @@ class HttpSyncApiClient implements SyncApiClient {
       body['noteId'] = noteId;
     }
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
-      var message = 'Failed to obtain attachment upload auth (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to obtain attachment upload auth'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to obtain attachment upload auth: Invalid JSON response');
+    }
     return CloudinaryUploadAuth.fromJson(data);
   }
 
@@ -284,7 +364,6 @@ class HttpSyncApiClient implements SyncApiClient {
     int byteSize = 0,
     String sha256 = '',
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/attachments/confirm');
     final body = <String, dynamic>{
       'attachmentId': attachmentId,
@@ -297,46 +376,39 @@ class HttpSyncApiClient implements SyncApiClient {
       body['noteId'] = noteId;
     }
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
-      var message = 'Failed to confirm attachment upload (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to confirm attachment upload'));
     }
 
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to confirm attachment upload: Invalid JSON response');
+    }
+    return data;
   }
 
   @override
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/attachments/$attachmentId');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to fetch attachment metadata: Invalid JSON response');
+      }
       return AttachmentSyncPayload.fromJson(data);
     } else if (res.statusCode == 404) {
       return null;
     } else {
-      var message = 'Failed to fetch attachment metadata (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch attachment metadata'));
     }
   }
 
@@ -350,7 +422,6 @@ class HttpSyncApiClient implements SyncApiClient {
     int pageCount = 1,
     String sha256 = '',
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/documents/upload-auth');
     final body = <String, dynamic>{
       'documentId': documentId,
@@ -364,24 +435,21 @@ class HttpSyncApiClient implements SyncApiClient {
       body['noteId'] = noteId;
     }
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
-      var message = 'Failed to obtain document upload auth (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to obtain document upload auth'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to obtain document upload auth: Invalid JSON response');
+    }
     return CloudinaryUploadAuth.fromJson(data);
   }
 
@@ -397,7 +465,6 @@ class HttpSyncApiClient implements SyncApiClient {
     int pageCount = 1,
     String sha256 = '',
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/documents/confirm');
     final body = <String, dynamic>{
       'documentId': documentId,
@@ -413,46 +480,39 @@ class HttpSyncApiClient implements SyncApiClient {
       body['noteId'] = noteId;
     }
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
-      var message = 'Failed to confirm document upload with backend (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to confirm document upload with backend'));
     }
 
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to confirm document upload: Invalid JSON response');
+    }
+    return data;
   }
 
   @override
   Future<DocumentSyncPayload?> getDocumentMetadata(String documentId) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/documents/$documentId');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to fetch document metadata: Invalid JSON response');
+      }
       return DocumentSyncPayload.fromJson(data);
     } else if (res.statusCode == 404) {
       return null;
     } else {
-      var message = 'Failed to fetch document metadata (HTTP ${res.statusCode})';
-      try {
-        final errJson = jsonDecode(res.body);
-        if (errJson is Map && errJson['error'] is Map && errJson['error']['message'] != null) {
-          message = errJson['error']['message'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch document metadata'));
     }
   }
 
@@ -461,24 +521,27 @@ class HttpSyncApiClient implements SyncApiClient {
     required List<NoteVersionSyncPayload> versions,
     String? deviceId,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/versions/push');
     final body = {
       'versions': versions.map((v) => v.toJson()).toList(),
       'deviceId': ?deviceId,
     };
 
-    final res = await _client.post(
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
       url,
       headers: headers,
-      body: jsonEncode(body),
-    );
+      body: encoded,
+    ));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to push note versions'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to push note versions: Invalid JSON response');
+    }
     return PushVersionSyncResponse.fromJson(data);
   }
 
@@ -487,15 +550,17 @@ class HttpSyncApiClient implements SyncApiClient {
     required int cursor,
     int limit = 100,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/versions/pull?cursor=$cursor&limit=$limit');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to pull note versions'));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to pull note versions: Invalid JSON response');
+    }
     return PullVersionSyncResponse.fromJson(data);
   }
 
@@ -504,12 +569,14 @@ class HttpSyncApiClient implements SyncApiClient {
     required String noteId,
     required int revision,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/notes/$noteId/revisions/$revision');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to fetch historical revision: Invalid JSON response');
+      }
       return PullChangeItem.fromJson(data);
     } else if (res.statusCode == 404) {
       return null;
@@ -522,12 +589,14 @@ class HttpSyncApiClient implements SyncApiClient {
   Future<PullChangeItem?> getRemoteNote({
     required String noteId,
   }) async {
-    final headers = await _authHeaders();
     final url = Uri.parse('$_baseUrl/api/v1/sync/notes/$noteId');
-    final res = await _client.get(url, headers: headers);
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
 
     if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to fetch remote note: Invalid JSON response');
+      }
       return PullChangeItem.fromJson(data);
     } else if (res.statusCode == 404) {
       return null;

@@ -164,6 +164,11 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
       final email = _emailController.text.trim();
       final fbPass = _fbPasswordController.text;
 
+      final serverUrl = _serverUrlController.text.trim();
+      if (serverUrl.isNotEmpty) {
+        api.setBaseUrl(serverUrl);
+      }
+
       // 1. Sign up with Firebase
       final user = await auth.signUpWithEmailAndPassword(email, fbPass);
 
@@ -192,7 +197,7 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = _cleanErrorMessage(e);
       });
     }
   }
@@ -236,8 +241,12 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
         auth.setApiKey(_apiKeyController.text.trim());
       }
 
+      final serverUrl = _serverUrlController.text.trim();
+      if (serverUrl.isNotEmpty) {
+        api.setBaseUrl(serverUrl);
+      }
+
       if (auth.apiKey.isEmpty) {
-        final serverUrl = _serverUrlController.text.trim();
         await auth.fetchConfigFromBackend(serverUrl);
       }
 
@@ -322,9 +331,15 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = _cleanErrorMessage(e);
       });
     }
+  }
+
+  String _cleanErrorMessage(Object error) {
+    var msg = error.toString();
+    msg = msg.replaceFirst(RegExp(r'^(Exception|FormatException|StateError):\s*'), '');
+    return msg.trim();
   }
 
   @override

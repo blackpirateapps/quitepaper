@@ -13,6 +13,12 @@ import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 
 class MockInMemorySyncApiClient implements SyncApiClient {
+  String _baseUrl = 'https://test.api';
+  @override
+  String get baseUrl => _baseUrl;
+  @override
+  void setBaseUrl(String url) => _baseUrl = url;
+
   WrappedMasterKeyData? storedKey;
   final Map<String, NoteSyncPayload> serverNotes = {};
   final List<PullChangeItem> syncLog = [];

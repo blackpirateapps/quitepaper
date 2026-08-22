@@ -48,6 +48,12 @@ class MockKeyManager implements KeyManager {
 }
 
 class ConflictSimulatingSyncApiClient implements SyncApiClient {
+  String _baseUrl = 'https://test.api';
+  @override
+  String get baseUrl => _baseUrl;
+  @override
+  void setBaseUrl(String url) => _baseUrl = url;
+
   final Map<String, NoteSyncPayload> serverNotes = {};
   final List<PullChangeItem> syncLog = [];
   int cursorCounter = 0;

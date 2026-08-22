@@ -31,6 +31,14 @@ class FakeHttpClient extends http.BaseClient {
 
 /// In-memory mock sync API client simulating the Vercel backend
 class InMemorySyncApiClient implements SyncApiClient {
+  String _baseUrl = 'https://test.api';
+  @override
+  String get baseUrl => _baseUrl;
+  @override
+  void setBaseUrl(String url) {
+    _baseUrl = url;
+  }
+
   WrappedMasterKeyData? storedKey;
   final Map<String, NoteSyncPayload> serverNotes = {};
   final List<PullChangeItem> syncLog = [];
