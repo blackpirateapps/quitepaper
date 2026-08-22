@@ -89,18 +89,6 @@ class SecureKeyManager implements KeyManager {
     if (_cachedMasterKey != null) {
       return _cachedMasterKey!;
     }
-    if (_cachedWrappedData == null) {
-      // Local unencrypted state: generate local master key and cache it
-      final key = _crypto.generateRandomBytes(32);
-      _cachedMasterKey = key;
-      try {
-        _storage.write(
-          key: _storageKeyMasterKey,
-          value: base64Encode(key),
-        );
-      } catch (_) {}
-      return key;
-    }
     throw StateError('KeyManager is locked. Master key is not in memory.');
   }
 

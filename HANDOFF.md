@@ -1902,11 +1902,29 @@ graph TD
 ### Verification
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Test suite: `flutter test` (**all 468 tests passing**).
+
+---
+
+## 73. Auth Error Code Extraction, 403 Troubleshooting, and Attachment Decryption State Fix
+
+### Problem Statement
+1. **Cryptic HTTP 403 Error on Sign-In**:
+   - When users encountered HTTP 403 Forbidden during sign-in (due to disabled Email/Password provider in Firebase console or Google Cloud API key restrictions), the app displayed a generic `"Authentication service returned an unexpected response (HTTP 403)"`.
+2. **"Attachment Decryption Failed" / "Image Decryption Failed" on Locked State**:
+   - When an unauthenticated or locked user viewed encrypted attachments or documents, `SecureKeyManager.getMasterKey()` generated a random 32-byte key on the fly when `_cachedWrappedData` was null, overwriting `_storageKeyMasterKey` in secure storage and attempting decryption with an invalid key.
+   - This caused MAC validation failures (`AttachmentDecryptionException` / `DocumentDecryptionException`), displaying `"Image decryption failed"` instead of properly showing the locked encryption state.
+
+### Root Cause Analysis & Architectural Solutions
+1. **Universal Auth Error Extraction & 403 Troubleshooting**:
+   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Implemented `_extractApiErrorMessage()` to parse all nested JSON error structures (`error.message`, `error.details`, `message`, `error_description`, `errors[]`, `detail`, `title`).
+   - Added specific handlers for `OPERATION_NOT_ALLOWED`, `API_KEY_SERVICE_BLOCKED`, `API_KEY_INVALID`, `PERMISSION_DENIED`, and status code 403 providing clear, actionable instructions (enabling Email/Password provider in Firebase Console or checking Google Cloud API key restrictions).
+   - In [`SyncAuthScreen`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_screen.dart) and [`SyncAuthDialog`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_dialog.dart), ensured `fetchConfigFromBackend()` is always called when custom server URLs are provided.
+2. **Strict Key Lock Invariant in KeyManager, AttachmentService, & DocumentService**:
+   - In [`SecureKeyManager`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart): Updated `getMasterKey()` to strictly throw `StateError('KeyManager is locked. Master key is not in memory.')` whenever `_cachedMasterKey == null`, preventing unintentional key generation and ciphertext corruption.
+   - In [`AttachmentService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_service.dart) and [`DocumentService`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart): Updated `resolveAsset()` and `resolveDocument()` to check `!keyManager.isUnlocked` and return `ResourceResolution.locked()` rather than attempting decryption when locked.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Flutter test suite: `flutter test` (**all 470 tests passing**).
 - Backend test suite: `npm test` in `backend/` (**all 26 tests passing**).
-- Automated regression tests added:
-  - [`test/auth/auth_service_resiliency_test.dart`](file:///home/dog/git/quitepaper/test/auth/auth_service_resiliency_test.dart): HTML 404/500/502 handling without `FormatException`, Firebase error code translation, 5-minute pre-emptive token expiry margin, and `getIdToken(forceRefresh: true)` session refresh.
-  - [`test/sync/sync_api_client_retry_test.dart`](file:///home/dog/git/quitepaper/test/sync/sync_api_client_retry_test.dart): Automatic HTTP 401 interception & retry with fresh ID tokens, HTML error sanitization, and dynamic `setBaseUrl()` updates.
-
-
-
 
