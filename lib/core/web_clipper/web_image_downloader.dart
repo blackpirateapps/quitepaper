@@ -24,13 +24,14 @@ class WebImageDownloader {
   }) async {
     final results = <String, String>{};
     final selectedCandidates = candidates.where((c) => c.isSelected).toList();
-    if (selectedCandidates.isEmpty) {
+    final listToDownload = selectedCandidates.isNotEmpty ? selectedCandidates : candidates;
+    if (listToDownload.isEmpty) {
       return results;
     }
 
     var completedCount = 0;
     const maxConcurrency = 4;
-    final queue = List<ClippedImageCandidate>.from(selectedCandidates);
+    final queue = List<ClippedImageCandidate>.from(listToDownload);
 
     Future<void> worker() async {
       while (queue.isNotEmpty) {
@@ -69,20 +70,21 @@ class WebImageDownloader {
               preferredAltText: item.altText.isNotEmpty ? item.altText : 'Image',
             );
 
-            results[item.rawUrl] = importResult.markdownSnippet;
-            results[item.resolvedUrl] = importResult.markdownSnippet;
+            final snippet = importResult.markdownSnippet;
+            _registerSnippet(results, item.rawUrl, snippet);
+            _registerSnippet(results, item.resolvedUrl, snippet);
           }
         } catch (e) {
           debugPrint('Failed to download image ${item.resolvedUrl}: $e');
         } finally {
           completedCount++;
-          onProgress?.call(completedCount, selectedCandidates.length);
+          onProgress?.call(completedCount, listToDownload.length);
         }
       }
     }
 
     final workers = List.generate(
-      maxConcurrency.clamp(1, selectedCandidates.length),
+      maxConcurrency.clamp(1, listToDownload.length),
       (_) => worker(),
     );
 
@@ -103,5 +105,23 @@ class WebImageDownloader {
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.gif')) return 'image/gif';
     return 'image/jpeg';
+  }
+
+  void _registerSnippet(Map<String, String> map, String url, String snippet) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return;
+    map[trimmed] = snippet;
+    if (trimmed.contains('?')) {
+      final base = trimmed.split('?').first;
+      if (base.isNotEmpty) {
+        map[base] = snippet;
+      }
+    }
+    try {
+      final decoded = Uri.decodeFull(trimmed);
+      if (decoded != trimmed) {
+        map[decoded] = snippet;
+      }
+    } catch (_) {}
   }
 }

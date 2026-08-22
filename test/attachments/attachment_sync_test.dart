@@ -119,6 +119,8 @@ class MockKeyManager implements KeyManager {
   @override
   bool get isUnlocked => true;
   @override
+  bool get hasKeyData => true;
+  @override
   Uint8List getMasterKey() => masterKey;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

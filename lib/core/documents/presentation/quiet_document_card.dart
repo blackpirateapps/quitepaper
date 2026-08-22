@@ -98,17 +98,20 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     if (docInfo == null) return;
 
     try {
+      final isWebSnapshot = docInfo.source == DocumentSource.webSnapshot.identifier ||
+          docInfo.source == 'web_snapshot';
       final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
-      final fileName = '${cleanTitle.isEmpty ? 'document' : cleanTitle}.pdf';
+      final ext = isWebSnapshot ? 'html' : 'pdf';
+      final fileName = '${cleanTitle.isEmpty ? (isWebSnapshot ? 'snapshot' : 'document') : cleanTitle}.$ext';
 
       // 1. Try file picker save dialog if available
       String? selectedPath;
       try {
         selectedPath = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save PDF Document',
+          dialogTitle: isWebSnapshot ? 'Save Web Snapshot' : 'Save PDF Document',
           fileName: fileName,
           type: FileType.custom,
-          allowedExtensions: ['pdf'],
+          allowedExtensions: [ext],
           bytes: docInfo.pdfBytes,
         );
       } catch (e) {
@@ -123,7 +126,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Document saved: ${p.basename(selectedPath)}'),
+              content: Text('${isWebSnapshot ? "Snapshot" : "Document"} saved: ${p.basename(selectedPath)}'),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -144,18 +147,18 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
           SnackBar(
             content: Text('Saved to ${targetDir.path}/$fileName'),
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Share',
-              onPressed: () {
-                Printing.sharePdf(bytes: docInfo.pdfBytes, filename: fileName);
-              },
-            ),
           ),
         );
       }
     } catch (e) {
-      // 3. Fallback to OS share sheet
-      await Printing.sharePdf(bytes: docInfo.pdfBytes, filename: '${docInfo.title}.pdf');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save document: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -318,7 +321,9 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                       size: 22,
                       color: colors.textSecondary,
                     ),
-                    tooltip: 'Save PDF to storage',
+                    tooltip: docInfo.source == DocumentSource.webSnapshot.identifier
+                        ? 'Save snapshot to storage'
+                        : 'Save PDF to storage',
                     onPressed: _saveToStorage,
                   ),
                 ],
@@ -364,6 +369,14 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         Icons.error_outline,
         size: 24,
         color: Colors.redAccent,
+      );
+    }
+
+    if (_resolution?.data?.source == DocumentSource.webSnapshot.identifier) {
+      return Icon(
+        Icons.language_rounded,
+        size: 28,
+        color: colors.accent,
       );
     }
 

@@ -211,6 +211,9 @@ void main() {
       await tester.tap(find.byTooltip('Close search'));
       await tester.pumpAndSettle();
       expect(find.byType(InNoteSearchBar), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
     });
 
     testWidgets('replace and replace all functionality updates content and recalculates matches',
@@ -259,6 +262,9 @@ void main() {
       // Check text is updated in editor
       expect(find.text('I love orange pie and orange juice.'), findsOneWidget);
       expect(find.text('0/0'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
     });
 
     testWidgets('pulling / swiping down at top of editor reveals in-note search',
@@ -284,6 +290,9 @@ void main() {
 
       // Search bar should now appear
       expect(find.byType(InNoteSearchBar), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
     });
 
     testWidgets('in-note search works in Markdown Preview mode with search query highlighting in real-time',
@@ -320,6 +329,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('1/1'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
     });
   });
 }

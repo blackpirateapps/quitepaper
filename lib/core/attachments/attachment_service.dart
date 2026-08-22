@@ -86,7 +86,7 @@ class AttachmentService implements AssetResolver {
       );
     }
 
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked && keyManager.hasKeyData) {
       throw StateError(
         'Quiet Paper encryption keys are locked. Unlock notebook to import attachments.',
       );
@@ -237,7 +237,7 @@ class AttachmentService implements AssetResolver {
     }
 
     // 3. Check encryption unlock status
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked && keyManager.hasKeyData) {
       return ResourceResolution.locked(
         uri,
         'Quiet Paper encryption password required to view encrypted attachment',

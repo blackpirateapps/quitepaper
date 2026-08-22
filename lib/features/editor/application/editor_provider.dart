@@ -329,6 +329,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debouncer.cancel();
     await repository.deletePermanently(state.note.id);
   }
+
+  @override
+  void dispose() {
+    _debouncer.cancel();
+    super.dispose();
+  }
 }
 
 final editorProviderFamily =

@@ -23,6 +23,9 @@ class MockKeyManager implements KeyManager {
   bool isUnlocked;
 
   @override
+  bool get hasKeyData => true;
+
+  @override
   Uint8List getMasterKey() {
     if (!isUnlocked) throw StateError('Locked');
     return masterKey;

@@ -62,7 +62,7 @@ class DocumentService implements DocumentResolver {
       );
     }
 
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked && keyManager.hasKeyData) {
       throw StateError(
         'Quiet Paper encryption keys are locked. Unlock notebook to create documents.',
       );
@@ -149,7 +149,7 @@ class DocumentService implements DocumentResolver {
       );
     }
 
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked && keyManager.hasKeyData) {
       throw StateError(
         'Quiet Paper encryption keys are locked. Unlock notebook to create documents.',
       );
@@ -385,7 +385,7 @@ class DocumentService implements DocumentResolver {
     }
 
     // 3. Check encryption unlock status
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked && keyManager.hasKeyData) {
       return ResourceResolution.locked(
         uri,
         'Quiet Paper encryption password required to unlock document',

@@ -1773,3 +1773,39 @@ graph TD
 - Test suite: `flutter test` (**all 423 tests passing**).
 - Release build: `flutter build apk --release` (**built successfully in 60.4s with 0 warnings**).
 
+---
+
+## 69. Web Clipper: Web Snapshot Viewing & Local Image Asset Link Rewriting (`qp://asset/<UUID>`)
+
+### Problem & Symptoms
+1. **Web Snapshots Unviewable**:
+   - Web snapshot documents were not saved or were failing to create on local-only unauthenticated installs due to locked key manager checks.
+   - Opening a web snapshot document from links or cards attempted to rasterize HTML bytes via `PdfPageRenderer`, causing PDF decode errors.
+   - Note editor had no prominent affordance for viewing attached web snapshots or documents while in the primary writing/edit mode.
+   - `QuietDocumentCard` displayed a PDF icon instead of a web icon and exported files as `.pdf` instead of `.html`.
+2. **Downloaded Images Remaining as Remote URLs**:
+   - When "Download Images Locally" was toggled on, image encryption failed on unauthenticated devices because `SecureKeyManager` had no master key in memory.
+   - DOM image replacement only matched exact raw URLs, failing on query parameters, relative URLs, or lazy-loading attributes (`data-src`, `data-original`).
+   - The markdown body retained remote URLs (`https://...`) instead of rewriting them to local encrypted asset links (`![alt](qp://asset/<UUID>)`).
+   - Hero lead image was rendered twice (at the top and repeated as the first image of the body).
+
+### Root Cause Analysis & Architectural Solutions
+1. **Offline/Local-First Key Auto-Provisioning**:
+   - In [`SecureKeyManager`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart): Updated `getMasterKey()` to lazily generate and securely persist a 256-bit local master key when `hasKeyData` is `false` (local unauthenticated mode).
+   - In [`setupNewKeys()`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart): Reuses any pre-existing local master key (`_cachedMasterKey ?? generateMasterKey()`) so local attachments, documents, and web snapshots remain decryptable when cloud sync is later enabled.
+   - In [`AttachmentService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_service.dart) and [`DocumentService`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart): Updated unlock preconditions to `if (!keyManager.isUnlocked && keyManager.hasKeyData)` so local unencrypted notebooks work out of the box.
+2. **Robust Image Downloading & DOM Asset Rewriting**:
+   - In [`WebImageDownloader`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_image_downloader.dart): Stores normalized URL keys (trimmed, query-stripped, URL-decoded) in `results`.
+   - In [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart): Added `_resolveAssetUri` matching logic across `img[src]`, `img[data-src]`, `img[data-original]`, and `img[data-lazy-src]`, rewriting all matched DOM images to `qp://asset/<UUID>`.
+   - In [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart): Rewrote hero lead image to `qp://asset/<UUID>` and deduplicated body hero images.
+   - In [`HtmlToMarkdownConverter`](file:///home/dog/git/quitepaper/lib/core/web_clipper/html_to_markdown_converter.dart): Sanitized image alt text and cleanly formatted `![$alt]($src)`.
+3. **Seamless Web Snapshot Viewing & Document UI Integration**:
+   - In [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart): Added `_buildAttachedResourcesBar` using `db.watchDocumentsForNote(widget.note.id)` rendering interactive Web Snapshot and Document pills below the tag bar. Tapping immediately launches [`WebSnapshotViewerScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart).
+   - In [`DocumentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart): Automatically detects `DocumentSource.webSnapshot` (`source == 'web_snapshot'`) and redirects to [`WebSnapshotViewerScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart).
+   - In [`QuietDocumentCard`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/quiet_document_card.dart): Renders `Icons.language_rounded` web icon, web snapshot subtitle, and `.html` storage export.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 425 tests passing**).
+- Automated tests added in [`test/web_clipper/web_clipper_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_service_test.dart) testing `qp://asset/<UUID>` rewriting, hero deduplication, and snapshot creation.
+

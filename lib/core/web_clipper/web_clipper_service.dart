@@ -139,10 +139,11 @@ class WebClipperService {
 
     // Handle lead hero image
     String? leadImageMarkdown;
+    String? leadAssetUri;
     if (metadata.leadImageUrl != null && metadata.leadImageUrl!.isNotEmpty) {
-      final snippet = imageSnippetsMap[metadata.leadImageUrl];
-      if (snippet != null && snippet.isNotEmpty) {
-        leadImageMarkdown = snippet;
+      leadAssetUri = _resolveAssetUri(metadata.leadImageUrl, imageSnippetsMap);
+      if (leadAssetUri != null) {
+        leadImageMarkdown = '![$effectiveTitle]($leadAssetUri)';
       } else {
         leadImageMarkdown = '![$effectiveTitle](${metadata.leadImageUrl})';
       }
@@ -151,12 +152,30 @@ class WebClipperService {
     // Rewrite inline image tags in DOM
     final imgNodes = cleanedElement.querySelectorAll('img');
     for (final img in imgNodes) {
-      final src = img.attributes['src'];
-      if (src != null && imageSnippetsMap.containsKey(src)) {
-        final snippet = imageSnippetsMap[src]!;
-        final qpMatch = RegExp(r'\((qp://asset/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
-        if (qpMatch != null) {
-          img.attributes['src'] = qpMatch.group(1)!;
+      final src = img.attributes['src'] ??
+          img.attributes['data-src'] ??
+          img.attributes['data-original'] ??
+          img.attributes['data-lazy-src'];
+      if (src != null && src.isNotEmpty) {
+        final assetUri = _resolveAssetUri(src, imageSnippetsMap);
+        if (assetUri != null) {
+          img.attributes['src'] = assetUri;
+        }
+      }
+    }
+
+    // Deduplicate lead image if it appears as the first image in body
+    if (leadImageMarkdown != null && imgNodes.isNotEmpty) {
+      final firstImg = imgNodes.first;
+      final firstImgSrc = firstImg.attributes['src'];
+      if (firstImgSrc != null &&
+          (firstImgSrc == leadAssetUri ||
+              firstImgSrc == metadata.leadImageUrl ||
+              (leadAssetUri != null && _resolveAssetUri(firstImgSrc, imageSnippetsMap) == leadAssetUri))) {
+        if (firstImg.parent?.localName == 'figure') {
+          firstImg.parent!.remove();
+        } else {
+          firstImg.remove();
         }
       }
     }
@@ -196,5 +215,39 @@ class WebClipperService {
     ));
 
     return (note: note, snapshotDocument: snapshotDoc);
+  }
+
+  String? _resolveAssetUri(String? url, Map<String, String> snippetsMap) {
+    if (url == null || url.trim().isEmpty) return null;
+    final trimmed = url.trim();
+
+    // 1. Direct match
+    if (snippetsMap.containsKey(trimmed)) {
+      final snippet = snippetsMap[trimmed]!;
+      final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
+      if (match != null) return match.group(1);
+    }
+
+    // 2. Query stripped match
+    if (trimmed.contains('?')) {
+      final base = trimmed.split('?').first;
+      if (snippetsMap.containsKey(base)) {
+        final snippet = snippetsMap[base]!;
+        final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
+        if (match != null) return match.group(1);
+      }
+    }
+
+    // 3. Fallback scan entries
+    for (final entry in snippetsMap.entries) {
+      if (entry.key == trimmed ||
+          (trimmed.contains('?') && entry.key.split('?').first == trimmed.split('?').first) ||
+          (entry.key.contains('?') && entry.key.split('?').first == trimmed)) {
+        final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(entry.value);
+        if (match != null) return match.group(1);
+      }
+    }
+
+    return null;
   }
 }

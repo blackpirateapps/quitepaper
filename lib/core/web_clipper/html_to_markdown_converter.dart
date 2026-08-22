@@ -191,7 +191,9 @@ class HtmlToMarkdownConverter {
       case 'img':
         final src = el.attributes['src']?.trim() ?? '';
         if (src.isEmpty) return '';
-        final alt = el.attributes['alt']?.trim() ?? 'Image';
+        var alt = el.attributes['alt']?.trim() ?? 'Image';
+        alt = alt.replaceAll('[', '').replaceAll(']', '').trim();
+        if (alt.isEmpty) alt = 'Image';
         return '\n\n![$alt]($src)\n\n';
 
       case 'figure':

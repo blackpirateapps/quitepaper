@@ -17,6 +17,7 @@ import '../../ocr/presentation/ocr_text_viewer_screen.dart';
 import '../../uri/quiet_paper_uri.dart';
 import '../../uri/resource_resolver.dart';
 import '../../widgets/quiet_button.dart';
+import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../document_models.dart';
 import '../document_provider.dart';
 
@@ -94,6 +95,22 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       _resolution = widget.initialResolution;
       _isLoading = false;
       if (_resolution!.isAvailable && _resolution!.data != null) {
+        if (_resolution!.data!.source == DocumentSource.webSnapshot.identifier ||
+            _resolution!.data!.source == 'web_snapshot') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => WebSnapshotViewerScreen(
+                    documentId: widget.documentId,
+                    title: _resolution!.data!.title,
+                  ),
+                ),
+              );
+            }
+          });
+          return;
+        }
         _selectedPageIndex = widget.initialPageIndex.clamp(
           0,
           (_resolution!.data!.pageCount > 0 ? _resolution!.data!.pageCount : 1) - 1,
@@ -113,6 +130,20 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final service = ref.read(documentServiceProvider);
     final res = await service.resolveDocument(widget.documentId);
     if (mounted) {
+      if (res.isAvailable && res.data != null &&
+          (res.data!.source == DocumentSource.webSnapshot.identifier ||
+              res.data!.source == 'web_snapshot')) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => WebSnapshotViewerScreen(
+              documentId: widget.documentId,
+              title: res.data!.title,
+            ),
+          ),
+        );
+        return;
+      }
+
       final pageCount = res.data?.pageCount ?? 1;
       setState(() {
         _resolution = res;

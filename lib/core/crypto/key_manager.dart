@@ -86,10 +86,22 @@ class SecureKeyManager implements KeyManager {
 
   @override
   Uint8List getMasterKey() {
-    if (_cachedMasterKey == null) {
-      throw StateError('KeyManager is locked. Master key is not in memory.');
+    if (_cachedMasterKey != null) {
+      return _cachedMasterKey!;
     }
-    return _cachedMasterKey!;
+    if (_cachedWrappedData == null) {
+      // Local unencrypted state: generate local master key and cache it
+      final key = _crypto.generateRandomBytes(32);
+      _cachedMasterKey = key;
+      try {
+        _storage.write(
+          key: _storageKeyMasterKey,
+          value: base64Encode(key),
+        );
+      } catch (_) {}
+      return key;
+    }
+    throw StateError('KeyManager is locked. Master key is not in memory.');
   }
 
   @override
@@ -122,7 +134,7 @@ class SecureKeyManager implements KeyManager {
     String? recoveryKey,
     KdfParameters kdfParameters = const KdfParameters(),
   }) async {
-    final masterKey = await _crypto.generateMasterKey();
+    final masterKey = _cachedMasterKey ?? await _crypto.generateMasterKey();
 
     // Password derivation & wrap
     final salt = _crypto.generateRandomBytes(16);

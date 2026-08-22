@@ -12,10 +12,13 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
+import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/markdown/markdown_preview.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
@@ -378,17 +381,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (_replaceQueryFocusNode.hasFocus) {
       _replaceQueryFocusNode.unfocus();
     }
+    _searchQueryController.clear();
+    _replaceQueryController.clear();
+    _searchMatches.clear();
+    _currentMatchIndex = 0;
+    _contentController.setSearchHighlight(query: null, activeRange: null);
+
     _searchAnimationController.reverse().then((_) {
       if (mounted) {
         setState(() {
           _isSearchVisible = false;
           _showReplace = false;
-          _searchQueryController.clear();
-          _replaceQueryController.clear();
-          _searchMatches.clear();
-          _currentMatchIndex = 0;
         });
-        _contentController.setSearchHighlight(query: null, activeRange: null);
       }
     });
   }
@@ -940,6 +944,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     ),
                                     const SizedBox(height: 12.0),
                                   ],
+
+                                  // Attached web snapshots / documents bar
+                                  _buildAttachedResourcesBar(context, colors),
 
                                   // Body markdown editor
                                   MarkdownEditor(
@@ -1826,4 +1833,86 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     },
   );
 }
+
+  Widget _buildAttachedResourcesBar(BuildContext context, AppColors colors) {
+    final db = ref.watch(databaseProvider);
+    return StreamBuilder<List<DocumentEntity>>(
+      stream: db.watchDocumentsForNote(widget.note.id),
+      builder: (context, snapshot) {
+        final docs = snapshot.data ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: Wrap(
+            spacing: 8.0,
+            runSpacing: 6.0,
+            children: docs.map((doc) {
+              final isWebSnapshot = doc.source == DocumentSource.webSnapshot.identifier ||
+                  doc.mimeType == 'text/html';
+              return Material(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    if (isWebSnapshot) {
+                      WebSnapshotViewerScreen.open(
+                        context,
+                        documentId: doc.id,
+                        title: doc.title,
+                      );
+                    } else {
+                      DocumentViewerScreen.open(
+                        context,
+                        documentId: doc.id,
+                        title: doc.title,
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: colors.divider, width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isWebSnapshot ? Icons.language_rounded : Icons.picture_as_pdf_rounded,
+                          size: 14,
+                          color: colors.accent,
+                        ),
+                        const SizedBox(width: 6),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 220),
+                          child: Text(
+                            isWebSnapshot ? 'Web Snapshot' : (doc.title.isNotEmpty ? doc.title : 'Document'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 12,
+                          color: colors.textTertiary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
 }
