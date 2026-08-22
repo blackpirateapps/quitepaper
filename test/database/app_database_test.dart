@@ -633,5 +633,94 @@ Ignore `#inline_code_tag` and ```#code_block```.
       expect(note.displayTitle, 'Untitled');
       expect(note.previewSnippet, '');
     });
+
+    test('renders document title and OCR text in preview without \$1', () {
+      final now = DateTime.now();
+      final docUuid = '550e8400-e29b-41d4-a716-446655440000';
+      final note = Note(
+        id: 'doc-note-1',
+        title: 'Tax Note',
+        content: '[Quarterly Financial Report](qp://document/$docUuid)\nTotal Revenue: USD 150,000 Net Profit: USD 32,000',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Tax Note');
+      expect(note.previewSnippet, 'Quarterly Financial Report Total Revenue: USD 150,000 Net Profit: USD 32,000');
+      expect(note.previewSnippet.contains(r'$1'), isFalse);
+    });
+
+    test('derives document title when note title is empty', () {
+      final now = DateTime.now();
+      final docUuid = '550e8400-e29b-41d4-a716-446655440000';
+      final note = Note(
+        id: 'doc-note-2',
+        title: '',
+        content: '[Scanned Invoice #4829](qp://document/$docUuid)\nPaid in full on January 15.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Scanned Invoice #4829');
+      expect(note.previewSnippet, 'Paid in full on January 15.');
+      expect(note.displayTitle.contains(r'$1'), isFalse);
+      expect(note.previewSnippet.contains(r'$1'), isFalse);
+    });
+
+    test('renders image as "image" in preview and title derivation without \$1', () {
+      final now = DateTime.now();
+      final assetUuid = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+      final note = Note(
+        id: 'img-note-1',
+        title: 'Vacation Photos',
+        content: '![Sunset Beach](qp://asset/$assetUuid)\nTaken at Malibu during sunset.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Vacation Photos');
+      expect(note.previewSnippet, 'image Taken at Malibu during sunset.');
+      expect(note.previewSnippet.contains(r'$1'), isFalse);
+    });
+
+    test('derives "image" title when first line is standalone image', () {
+      final now = DateTime.now();
+      final assetUuid = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+      final note = Note(
+        id: 'img-note-2',
+        title: '',
+        content: '![](qp://asset/$assetUuid)\nCaption text for the photo.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'image');
+      expect(note.previewSnippet, 'Caption text for the photo.');
+      expect(note.displayTitle.contains(r'$1'), isFalse);
+      expect(note.previewSnippet.contains(r'$1'), isFalse);
+    });
+
+    test('handles web snapshot document link formatting cleanly', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'snap-note-1',
+        title: 'Clipped Article',
+        content: '> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)\nFull article text extracted from page.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Clipped Article');
+      expect(note.previewSnippet, '🌐 Original Web Snapshot Attached • 120.0 KB — View Web Snapshot → Full article text extracted from page.');
+      expect(note.previewSnippet.contains(r'$1'), isFalse);
+    });
+
+    test('falls back gracefully to Document for empty link title', () {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'empty-doc-1',
+        title: '',
+        content: '[](qp://document/some-uuid)',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(note.displayTitle, 'Document');
+      expect(note.previewSnippet, 'Document');
+    });
   });
 }

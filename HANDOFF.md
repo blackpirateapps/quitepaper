@@ -1840,4 +1840,36 @@ graph TD
 - Test suite: `flutter test` (**all 450 tests passing**).
 - Automated tests in [`test/web_clipper/web_snapshot_generator_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_snapshot_generator_test.dart) verifying full DOM preservation, CSS inlining, relative `url(...)` rewriting, `<base>` injection, and script neutralization.
 
+---
+
+## 71. Note List Preview & Auto-Title Document / Asset / OCR Text Display Fix
+
+### Problem & Symptoms
+- Notes containing document attachments (`[Document Title](qp://document/<UUID>)`) or image attachments (`![alt](qp://asset/<UUID>)` or `![](...)`) displayed literal `$1` in the note list preview tile and search result snippets.
+- If a note had no custom title and its first line was a document link or image attachment, `Note.deriveTitle` also produced `$1` instead of extracting the human-readable document title or image indicator.
+
+### Root Cause Analysis
+- In [`Note.deriveTitle`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart) and [`Note.previewSnippet`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart), regex patterns for Markdown links (`\[(.*?)\]\(.*?\)`) and images (`!\[(.*?)\]\(.*?\)`) were stripped using Dart's `String.replaceAll(Pattern, String)` passing `r'$1'`.
+- Unlike JavaScript or PCRE regex engines, Dart's `replaceAll(Pattern, String)` treats the replacement string as a literal string value and does not perform capture group replacement. Consequently, any document or asset link was replaced with literal `"$1"`.
+
+### Architectural Solutions
+1. **`replaceAllMapped` for Markdown Images & Assets**:
+   - In [`Note.deriveTitle`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart) and [`Note.previewSnippet`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart), replaced `!\[(.*?)\]\(.*?\)` using `replaceAllMapped((match) => 'image')`.
+   - Standalone images or inline images now cleanly render as `image` (e.g. `image Taken at Malibu during sunset.`) without leaking internal URIs or `$1`.
+2. **`replaceAllMapped` for Documents & Markdown Links**:
+   - Replaced `\[(.*?)\]\(.*?\)` with `replaceAllMapped((match) { final text = match.group(1)?.trim() ?? ''; return text.isNotEmpty ? text : 'Document'; })`.
+   - Document links (e.g. `[Quarterly Financial Report](qp://document/<UUID>)`) extract their exact document title (`Quarterly Financial Report`), followed seamlessly by any subsequent note or OCR text lines. Empty document links fall back gracefully to `Document`.
+3. **Whitespace Normalization**:
+   - Added `.replaceAll(RegExp(r'\s+'), ' ')` to ensure token replacements never leave awkward double spaces.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Automated tests added to [`test/database/app_database_test.dart`](file:///home/dog/git/quitepaper/test/database/app_database_test.dart) in `group('Note Model Auto-Title & Snippet Tests')` testing:
+  - Document title extraction in note previews.
+  - Multi-line document title and OCR text combinations.
+  - Derived document titles for untitled notes.
+  - Image token replacement (`image`) for both standalone and inline asset attachments.
+  - Graceful fallback for empty document links (`Document`).
+
+
 

@@ -62,8 +62,13 @@ class Note {
         .replaceAll(RegExp(r'^>\s*'), '')
         .replaceAll(RegExp(r'^[-*+]\s+'), '')
         .replaceAll(RegExp(r'^\d+\.\s+'), '')
-        .replaceAll(RegExp(r'\[(.*?)\]\(.*?\)'), r'$1')
+        .replaceAllMapped(RegExp(r'!\[(.*?)\]\(.*?\)'), (match) => 'image')
+        .replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (match) {
+          final text = match.group(1)?.trim() ?? '';
+          return text.isNotEmpty ? text : 'Document';
+        })
         .replaceAll(RegExp(r'[*_~`]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (cleanFirstLine.isNotEmpty) {
       final words = cleanFirstLine
@@ -109,9 +114,13 @@ class Note {
           .replaceAll(RegExp(r'^>\s*'), '')
           .replaceAll(RegExp(r'^[-*+]\s+'), '')
           .replaceAll(RegExp(r'^\d+\.\s+'), '')
-          .replaceAll(RegExp(r'!\[(.*?)\]\(.*?\)'), r'$1')
-          .replaceAll(RegExp(r'\[(.*?)\]\(.*?\)'), r'$1')
+          .replaceAllMapped(RegExp(r'!\[(.*?)\]\(.*?\)'), (match) => 'image')
+          .replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (match) {
+            final text = match.group(1)?.trim() ?? '';
+            return text.isNotEmpty ? text : 'Document';
+          })
           .replaceAll(RegExp(r'[*_~`#]'), '')
+          .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
       if (clean.isNotEmpty) {
         cleanLines.add(clean);
