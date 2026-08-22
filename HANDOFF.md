@@ -1980,3 +1980,22 @@ graph TD
 - Test suite: `flutter test` (**all 472 tests passing**).
 - Backend test suite: `npm test` in `backend/` (**all 26 tests passing**).
 
+---
+
+## 76. Release Version Bump to 1.5.2 (Build 10)
+
+### 1. Release Scope
+- Bumped application release version across all client packages, build configurations, and UI metadata from `1.5.1+9` to `1.5.2+10`.
+
+### 2. Files Updated
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): Bumped `version` to `1.5.2+10`.
+- [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): Updated `appVersion` to `'1.5.2'`.
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): Updated default `appVersion` parameter to `'1.5.2'`.
+- [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): Updated `currentVersion` to `'1.5.2'`.
+- [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Updated Settings About tile subtitle to `'Version 1.5.2 • Offline-first • End-to-End Encrypted Sync'`.
+
+### 3. Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 472 tests passing**).
+
+
