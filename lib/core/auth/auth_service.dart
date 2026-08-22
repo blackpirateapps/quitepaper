@@ -340,8 +340,8 @@ class FirebaseAuthService implements AuthService {
       throw StateError('Firebase API key is not configured. Supply FIREBASE_API_KEY dart-define or server URL.');
     }
 
-    final url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
-    final http.Response res;
+    var url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
+    http.Response res;
     try {
       res = await _client.post(
         url,
@@ -356,7 +356,35 @@ class FirebaseAuthService implements AuthService {
       throw Exception('Network error connecting to authentication service: $netErr');
     }
 
-    final data = _safeParseJson(res.body);
+    var data = _safeParseJson(res.body);
+
+    // Auto-retry once with refreshed backend config if API key was rejected with 400/403
+    if (res.statusCode != 200) {
+      final rawError = (data is Map ? (data['error']?['message'] ?? data['error']) : null)?.toString() ?? '';
+      if (rawError.toUpperCase().contains('API_KEY') ||
+          rawError.toUpperCase().contains('API KEY') ||
+          rawError.toUpperCase().contains('FORBIDDEN') ||
+          res.statusCode == 403) {
+        final currentKey = _apiKey;
+        await fetchConfigFromBackend();
+        if (_apiKey.isNotEmpty && _apiKey != currentKey) {
+          try {
+            url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
+            res = await _client.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'email': email.trim(),
+                'password': password,
+                'returnSecureToken': true,
+              }),
+            );
+            data = _safeParseJson(res.body);
+          } catch (_) {}
+        }
+      }
+    }
+
     if (res.statusCode != 200 || data is! Map<String, dynamic> || data['idToken'] == null) {
       final err = _extractApiErrorMessage(
         data,
@@ -393,8 +421,8 @@ class FirebaseAuthService implements AuthService {
       throw StateError('Firebase API key is not configured.');
     }
 
-    final url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
-    final http.Response res;
+    var url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
+    http.Response res;
     try {
       res = await _client.post(
         url,
@@ -409,7 +437,34 @@ class FirebaseAuthService implements AuthService {
       throw Exception('Network error connecting to registration service: $netErr');
     }
 
-    final data = _safeParseJson(res.body);
+    var data = _safeParseJson(res.body);
+
+    if (res.statusCode != 200) {
+      final rawError = (data is Map ? (data['error']?['message'] ?? data['error']) : null)?.toString() ?? '';
+      if (rawError.toUpperCase().contains('API_KEY') ||
+          rawError.toUpperCase().contains('API KEY') ||
+          rawError.toUpperCase().contains('FORBIDDEN') ||
+          res.statusCode == 403) {
+        final currentKey = _apiKey;
+        await fetchConfigFromBackend();
+        if (_apiKey.isNotEmpty && _apiKey != currentKey) {
+          try {
+            url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
+            res = await _client.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'email': email.trim(),
+                'password': password,
+                'returnSecureToken': true,
+              }),
+            );
+            data = _safeParseJson(res.body);
+          } catch (_) {}
+        }
+      }
+    }
+
     if (res.statusCode != 200 || data is! Map<String, dynamic> || data['idToken'] == null) {
       final err = _extractApiErrorMessage(
         data,
@@ -453,8 +508,8 @@ class FirebaseAuthService implements AuthService {
       throw StateError('Firebase API key is not configured.');
     }
 
-    final url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
-    final http.Response res;
+    var url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
+    http.Response res;
     try {
       res = await _client.post(
         url,
@@ -468,8 +523,34 @@ class FirebaseAuthService implements AuthService {
       throw Exception('Network error connecting to password reset service: $netErr');
     }
 
+    var data = _safeParseJson(res.body);
+
     if (res.statusCode != 200) {
-      final data = _safeParseJson(res.body);
+      final rawError = (data is Map ? (data['error']?['message'] ?? data['error']) : null)?.toString() ?? '';
+      if (rawError.toUpperCase().contains('API_KEY') ||
+          rawError.toUpperCase().contains('API KEY') ||
+          rawError.toUpperCase().contains('FORBIDDEN') ||
+          res.statusCode == 403) {
+        final currentKey = _apiKey;
+        await fetchConfigFromBackend();
+        if (_apiKey.isNotEmpty && _apiKey != currentKey) {
+          try {
+            url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
+            res = await _client.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'requestType': 'PASSWORD_RESET',
+                'email': email.trim(),
+              }),
+            );
+            data = _safeParseJson(res.body);
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (res.statusCode != 200) {
       final err = _extractApiErrorMessage(
         data,
         res.body,
