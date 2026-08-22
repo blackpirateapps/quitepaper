@@ -57,14 +57,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: flutter build apk --split-per-abi --release
 
-      - name: Build Universal APK
-        env:
-          KEYSTORE_FILE: ${{ secrets.KEYSTORE_BASE64 != '' && 'upload-keystore.jks' || '' }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: flutter build apk --release
-
       - name: Organize & Name Release APKs
         run: |
           mkdir -p release-artifacts
@@ -74,7 +66,6 @@ jobs:
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-artifacts/quiet-paper-${V}-arm64-v8a.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/quiet-paper-${V}-armeabi-v7a.apk
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-artifacts/quiet-paper-${V}-x86_64.apk
-          cp build/app/outputs/flutter-apk/app-release.apk release-artifacts/quiet-paper-${V}-universal.apk
 
           echo "Generated APKs:"
           ls -la release-artifacts/
@@ -100,14 +91,6 @@ jobs:
         with:
           name: quiet-paper-${{ steps.version.outputs.version }}-x86_64
           path: release-artifacts/quiet-paper-${{ steps.version.outputs.version }}-x86_64.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload Universal APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: quiet-paper-${{ steps.version.outputs.version }}-universal
-          path: release-artifacts/quiet-paper-${{ steps.version.outputs.version }}-universal.apk
           if-no-files-found: error
           retention-days: 30
 

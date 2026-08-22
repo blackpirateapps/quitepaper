@@ -1925,6 +1925,25 @@ graph TD
 
 ### Verification
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
-- Flutter test suite: `flutter test` (**all 470 tests passing**).
 - Backend test suite: `npm test` in `backend/` (**all 26 tests passing**).
 
+---
+
+## 74. Build Android APK Workflow Optimization: Universal APK Removal
+
+### Problem Statement
+- The GitHub Actions workflow `Build Android APK` ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml)) executed two separate build commands on every commit:
+  1. `flutter build apk --split-per-abi --release` (producing `arm64-v8a`, `armeabi-v7a`, and `x86_64` APKs)
+  2. `flutter build apk --release` (re-building the monolithic universal APK)
+- Building the universal APK redundantly doubled CI build duration and consumed unnecessary artifact storage.
+
+### Changes Implemented
+- In [`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml):
+  - Removed `Build Universal APK` step.
+  - Removed copying of `app-release.apk` into `quiet-paper-${V}-universal.apk`.
+  - Removed `Upload Universal APK artifact` step.
+  - Retained split architecture artifacts (`arm64-v8a`, `armeabi-v7a`, `x86_64`) and the combined `all-apks` bundle.
+
+### Verification
+- Validated YAML syntax with `python3 -c "import yaml; yaml.safe_load(...)"`.
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
