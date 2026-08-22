@@ -147,7 +147,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
   void removeTag(String tag) {
     final normalized = TagParser.normalizeTag(tag);
     final updatedTags = state.note.tags.where((t) => t != normalized).toList();
+    final newTitle = TagParser.removeTagFromText(state.note.title, normalized);
+    final newContent =
+        TagParser.removeTagFromText(state.note.content, normalized);
     final updated = state.note.copyWith(
+      title: newTitle,
+      content: newContent,
       tags: updatedTags,
       updatedAt: DateTime.now(),
     );

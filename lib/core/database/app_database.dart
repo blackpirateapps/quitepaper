@@ -407,8 +407,10 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      // Extract and sync tags if tags list is not passed, or sync provided tags
-      final extractedTags = tags ?? TagParser.extractTags('$title\n$content');
+      // Extract and sync tags if tags list is empty or not passed, or sync provided tags
+      final extractedTags = (tags != null && tags.isNotEmpty)
+          ? tags
+          : TagParser.extractTags('$title\n$content');
       await _syncNoteTags(id, extractedTags);
     });
   }

@@ -15,7 +15,8 @@ class WebClipperScanner {
   })  : _httpClient = httpClient ?? http.Client(),
         _extractor = extractor ?? const ArticleExtractor(),
         _markdownConverter = markdownConverter ?? const HtmlToMarkdownConverter(),
-        _snapshotGenerator = snapshotGenerator ?? const WebSnapshotGenerator();
+        _snapshotGenerator = snapshotGenerator ??
+            WebSnapshotGenerator(httpClient: httpClient ?? http.Client());
 
   final http.Client _httpClient;
   final ArticleExtractor _extractor;
@@ -67,9 +68,10 @@ class WebClipperScanner {
       leadImageMarkdown: leadImageMarkdown,
     );
 
-    final preliminarySnapshotHtml = _snapshotGenerator.generateHtmlSnapshot(
-      cleanedElement: extracted.cleanedElement,
+    final preliminarySnapshotHtml = await _snapshotGenerator.generateHtmlSnapshot(
+      rawHtml: rawHtml,
       metadata: extracted.metadata,
+      cleanedElement: extracted.cleanedElement,
     );
 
     final markdownSizeEstimate = utf8.encode(preliminaryMarkdown).length;

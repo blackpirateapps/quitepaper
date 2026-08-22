@@ -190,7 +190,7 @@ class DriftNotesRepository implements NotesRepository {
       isArchived: note.isArchived,
       isTrashed: note.isTrashed,
       deletedAt: note.deletedAt,
-      tags: note.tags.isNotEmpty ? note.tags : null,
+      tags: note.tags,
     );
 
     // Sync any renamed document titles referenced inside the note's markdown body

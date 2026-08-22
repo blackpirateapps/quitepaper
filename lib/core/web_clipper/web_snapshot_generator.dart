@@ -1,103 +1,207 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:html/dom.dart' as dom;
-import 'package:intl/intl.dart';
+import 'package:html/parser.dart' as html_parser;
+import 'package:http/http.dart' as http;
 import 'web_clipper_models.dart';
 
-/// Generates self-contained, sanitized offline HTML/CSS snapshot documents
-/// adapting to Quiet Paper's warm editorial palette.
+/// Generates self-contained, authentic offline HTML/CSS snapshot documents
+/// that preserve original webpage styling, layout, typography, and assets.
 class WebSnapshotGenerator {
-  const WebSnapshotGenerator();
+  WebSnapshotGenerator({
+    this.httpClient,
+  });
 
-  /// Generates a standalone HTML document string from [cleanedElement] and [metadata].
-  String generateHtmlSnapshot({
-    required dom.Element cleanedElement,
+  final http.Client? httpClient;
+
+  /// Generates a standalone HTML document string preserving authentic browser styling.
+  Future<String> generateHtmlSnapshot({
+    required String rawHtml,
     required ExtractedArticleMetadata metadata,
+    dom.Element? cleanedElement,
     Map<String, String> localImageSources = const <String, String>{},
-  }) {
-    // Clone element to avoid mutating original DOM
-    final elementClone = cleanedElement.clone(true);
+  }) async {
+    dom.Document document;
 
-    // Rewrite image sources to local assets if present
-    if (localImageSources.isNotEmpty) {
-      final imgNodes = elementClone.querySelectorAll('img');
-      for (final img in imgNodes) {
-        final src = img.attributes['src'];
-        if (src != null && localImageSources.containsKey(src)) {
-          img.attributes['src'] = localImageSources[src]!;
+    if (rawHtml.trim().isNotEmpty) {
+      document = html_parser.parse(rawHtml);
+    } else if (cleanedElement != null) {
+      document = html_parser.parse(
+        '<!DOCTYPE html><html lang="en"><head><title>${_htmlEscape(metadata.title)}</title></head><body></body></html>',
+      );
+      document.body?.append(cleanedElement.clone(true));
+    } else {
+      document = html_parser.parse(
+        '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${_htmlEscape(metadata.title)}</title></head><body><h1>${_htmlEscape(metadata.title)}</h1></body></html>',
+      );
+    }
+
+    // 1. Ensure <head> element exists
+    var head = document.head;
+    if (head == null) {
+      head = dom.Element.tag('head');
+      document.documentElement?.nodes.insert(0, head);
+    }
+
+    // 2. Ensure <meta charset="utf-8">
+    if (head.querySelector('meta[charset]') == null) {
+      final charsetMeta = dom.Element.tag('meta')..attributes['charset'] = 'utf-8';
+      head.nodes.insert(0, charsetMeta);
+    }
+
+    // 3. Ensure responsive viewport meta tag
+    if (head.querySelector('meta[name="viewport"]') == null) {
+      final viewportMeta = dom.Element.tag('meta')
+        ..attributes['name'] = 'viewport'
+        ..attributes['content'] = 'width=device-width, initial-scale=1.0';
+      head.append(viewportMeta);
+    }
+
+    // 4. Ensure <base href="${metadata.sourceUrl}">
+    final existingBase = head.querySelector('base');
+    if (existingBase != null) {
+      final existingHref = existingBase.attributes['href']?.trim();
+      if (existingHref == null || existingHref.isEmpty) {
+        existingBase.attributes['href'] = metadata.sourceUrl;
+      }
+    } else {
+      final baseElement = dom.Element.tag('base')
+        ..attributes['href'] = metadata.sourceUrl;
+      head.nodes.insert(0, baseElement);
+    }
+
+    // 5. Download and inline external CSS stylesheets
+    final linkNodes = document.querySelectorAll(
+      'link[rel="stylesheet"], link[rel="Stylesheet"], link[rel="STYLESHEET"]',
+    );
+    final client = httpClient;
+
+    if (client != null && linkNodes.isNotEmpty) {
+      final cssFutures = <Future<void>>[];
+
+      for (final link in linkNodes) {
+        final href = link.attributes['href']?.trim();
+        if (href == null || href.isEmpty) continue;
+
+        final resolvedCssUrl = _resolveUrl(metadata.sourceUrl, href);
+
+        cssFutures.add(() async {
+          try {
+            final uri = Uri.tryParse(resolvedCssUrl);
+            if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
+              final res = await client.get(
+                uri,
+                headers: {
+                  'User-Agent':
+                      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+                  'Accept': 'text/css,*/*;q=0.1',
+                },
+              ).timeout(const Duration(seconds: 8));
+
+              if (res.statusCode >= 200 && res.statusCode < 300 && res.body.trim().isNotEmpty) {
+                final inlinedCss = _rewriteCssUrls(res.body, resolvedCssUrl);
+                final styleElement = dom.Element.tag('style')
+                  ..attributes['data-source-href'] = resolvedCssUrl
+                  ..text = '\n/* Inlined from $resolvedCssUrl */\n$inlinedCss\n';
+                link.replaceWith(styleElement);
+                return;
+              }
+            }
+          } catch (_) {
+            // Leave link tag pointing to absolute URL on failure
+          }
+          link.attributes['href'] = resolvedCssUrl;
+        }());
+      }
+
+      if (cssFutures.isNotEmpty) {
+        await Future.wait(cssFutures);
+      }
+    } else {
+      // Resolve relative stylesheet URLs to absolute URLs
+      for (final link in linkNodes) {
+        final href = link.attributes['href']?.trim();
+        if (href != null && href.isNotEmpty) {
+          link.attributes['href'] = _resolveUrl(metadata.sourceUrl, href);
         }
       }
     }
 
-    final dateFormatted = metadata.publishedDate != null
-        ? DateFormat('MMMM d, yyyy').format(metadata.publishedDate!)
-        : null;
-
-    final htmlBuffer = StringBuffer();
-    htmlBuffer.writeln('<!DOCTYPE html>');
-    htmlBuffer.writeln('<html lang="en">');
-    htmlBuffer.writeln('<head>');
-    htmlBuffer.writeln('  <meta charset="utf-8">');
-    htmlBuffer.writeln('  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">');
-    htmlBuffer.writeln('  <title>${_htmlEscape(metadata.title)}</title>');
-    htmlBuffer.writeln('  <style>');
-    htmlBuffer.writeln(_baseCssStyles);
-    htmlBuffer.writeln('  </style>');
-    htmlBuffer.writeln('</head>');
-    htmlBuffer.writeln('<body>');
-    htmlBuffer.writeln('  <div class="qp-article-container">');
-
-    // Article Header
-    htmlBuffer.writeln('    <header class="qp-header">');
-    htmlBuffer.writeln('      <div class="qp-domain-badge">${_htmlEscape(metadata.domain)}</div>');
-    htmlBuffer.writeln('      <h1 class="qp-title">${_htmlEscape(metadata.title)}</h1>');
-    htmlBuffer.writeln('      <div class="qp-byline">');
-    if (metadata.author != null && metadata.author!.trim().isNotEmpty) {
-      htmlBuffer.writeln('        <span class="qp-author">By ${_htmlEscape(metadata.author!.trim())}</span>');
-    }
-    if (dateFormatted != null) {
-      htmlBuffer.writeln('        <span class="qp-date">• $dateFormatted</span>');
-    }
-    htmlBuffer.writeln('      </div>');
-    htmlBuffer.writeln('    </header>');
-
-    // Lead Hero Image (if found)
-    if (metadata.leadImageUrl != null && metadata.leadImageUrl!.isNotEmpty) {
-      final leadSrc = localImageSources[metadata.leadImageUrl] ?? metadata.leadImageUrl!;
-      htmlBuffer.writeln('    <div class="qp-hero-image">');
-      htmlBuffer.writeln('      <img src="${_htmlEscape(leadSrc)}" alt="Featured image" loading="lazy">');
-      htmlBuffer.writeln('    </div>');
+    // 6. Neutralize active JavaScript scripts for security & deterministic offline rendering
+    final scriptNodes = document.querySelectorAll('script');
+    for (final script in scriptNodes) {
+      script.remove();
     }
 
-    // Article Content Body
-    htmlBuffer.writeln('    <main class="qp-content">');
-    htmlBuffer.writeln(elementClone.innerHtml);
-    htmlBuffer.writeln('    </main>');
+    // Remove inline JavaScript event handlers (onclick, onerror, onload, etc.)
+    final allElements = document.querySelectorAll('*');
+    for (final el in allElements) {
+      final inlineEventAttrs = el.attributes.keys
+          .where((k) => k.toString().toLowerCase().startsWith('on'))
+          .toList();
+      for (final attr in inlineEventAttrs) {
+        el.attributes.remove(attr);
+      }
+    }
 
-    // Footer Attribution
-    htmlBuffer.writeln('    <footer class="qp-footer">');
-    htmlBuffer.writeln('      <p>Clipped with <a href="${_htmlEscape(metadata.sourceUrl)}" target="_blank" rel="noopener">Quiet Paper</a></p>');
-    htmlBuffer.writeln('    </footer>');
+    // 7. Rewrite image sources to local assets if mapped, otherwise resolve relative URLs
+    final imgNodes = document.querySelectorAll('img');
+    for (final img in imgNodes) {
+      final src = img.attributes['src']?.trim();
+      if (src != null && src.isNotEmpty) {
+        final resolved = _resolveUrl(metadata.sourceUrl, src);
+        if (localImageSources.containsKey(src)) {
+          img.attributes['src'] = localImageSources[src]!;
+        } else if (localImageSources.containsKey(resolved)) {
+          img.attributes['src'] = localImageSources[resolved]!;
+        } else if (!src.startsWith('data:') && !src.startsWith('qp://')) {
+          img.attributes['src'] = resolved;
+        }
+      }
+    }
 
-    htmlBuffer.writeln('  </div>');
-    htmlBuffer.writeln('</body>');
-    htmlBuffer.writeln('</html>');
-
-    return htmlBuffer.toString();
+    return document.outerHtml;
   }
 
   /// Generates the UTF-8 encoded bytes of the snapshot.
-  Uint8List generateSnapshotBytes({
-    required dom.Element cleanedElement,
+  Future<Uint8List> generateSnapshotBytes({
+    required String rawHtml,
     required ExtractedArticleMetadata metadata,
+    dom.Element? cleanedElement,
     Map<String, String> localImageSources = const <String, String>{},
-  }) {
-    final html = generateHtmlSnapshot(
-      cleanedElement: cleanedElement,
+  }) async {
+    final html = await generateHtmlSnapshot(
+      rawHtml: rawHtml,
       metadata: metadata,
+      cleanedElement: cleanedElement,
       localImageSources: localImageSources,
     );
     return Uint8List.fromList(utf8.encode(html));
+  }
+
+  String _resolveUrl(String baseUrl, String relativeUrl) {
+    try {
+      final baseUri = Uri.parse(baseUrl);
+      final resolved = baseUri.resolve(relativeUrl);
+      return resolved.toString();
+    } catch (_) {
+      return relativeUrl;
+    }
+  }
+
+  String _rewriteCssUrls(String css, String cssUrl) {
+    return css.replaceAllMapped(
+      RegExp(
+        r'''url\(\s*['"]?(?!data:|http:\/\/|https:\/\/|\/\/|#)([^'")]+)['"]?\s*\)''',
+        caseSensitive: false,
+      ),
+      (match) {
+        final rawRelative = match.group(1)?.trim();
+        if (rawRelative == null || rawRelative.isEmpty) return match.group(0)!;
+        final absolute = _resolveUrl(cssUrl, rawRelative);
+        return 'url("$absolute")';
+      },
+    );
   }
 
   String _htmlEscape(String text) {
@@ -108,226 +212,4 @@ class WebSnapshotGenerator {
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
   }
-
-  static const String _baseCssStyles = '''
-:root {
-  --qp-bg: #F7F6F2;
-  --qp-text: #1D1C1A;
-  --qp-text-secondary: #6B6860;
-  --qp-text-tertiary: #9C988F;
-  --qp-surface: #FFFFFF;
-  --qp-divider: #E6E4DD;
-  --qp-accent: #E06C53;
-  --qp-code-bg: #EFECE6;
-  --qp-max-width: 720px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --qp-bg: #1D1C1A;
-    --qp-text: #E8E6DF;
-    --qp-text-secondary: #A8A59D;
-    --qp-text-tertiary: #6E6B64;
-    --qp-surface: #242320;
-    --qp-divider: #2C2A27;
-    --qp-accent: #E87A63;
-    --qp-code-bg: #282623;
-  }
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background-color: var(--qp-bg);
-  color: var(--qp-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
-  font-size: 17px;
-  line-height: 1.68;
-  letter-spacing: -0.011em;
-  padding: 24px 16px 48px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.qp-article-container {
-  max-width: var(--qp-max-width);
-  margin: 0 auto;
-}
-
-.qp-header {
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--qp-divider);
-}
-
-.qp-domain-badge {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--qp-accent);
-  margin-bottom: 12px;
-}
-
-.qp-title {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.022em;
-  margin-bottom: 12px;
-  color: var(--qp-text);
-}
-
-.qp-byline {
-  font-size: 14px;
-  color: var(--qp-text-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.qp-hero-image {
-  margin: 20px 0 28px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--qp-divider);
-}
-
-.qp-hero-image img {
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: cover;
-  max-height: 420px;
-}
-
-.qp-content {
-  color: var(--qp-text);
-}
-
-.qp-content h1,
-.qp-content h2,
-.qp-content h3,
-.qp-content h4,
-.qp-content h5,
-.qp-content h6 {
-  color: var(--qp-text);
-  font-weight: 700;
-  line-height: 1.35;
-  margin: 32px 0 14px;
-}
-
-.qp-content h1 { font-size: 24px; }
-.qp-content h2 { font-size: 21px; }
-.qp-content h3 { font-size: 19px; }
-.qp-content h4 { font-size: 17px; }
-
-.qp-content p {
-  margin-bottom: 18px;
-}
-
-.qp-content a {
-  color: var(--qp-accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.qp-content blockquote {
-  border-left: 3px solid var(--qp-accent);
-  margin: 20px 0;
-  padding: 8px 0 8px 18px;
-  color: var(--qp-text-secondary);
-  font-style: italic;
-}
-
-.qp-content ul,
-.qp-content ol {
-  margin: 16px 0 20px 24px;
-}
-
-.qp-content li {
-  margin-bottom: 8px;
-}
-
-.qp-content img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  margin: 16px 0;
-  display: block;
-  border: 1px solid var(--qp-divider);
-}
-
-.qp-content figure {
-  margin: 20px 0;
-}
-
-.qp-content figcaption {
-  font-size: 13px;
-  color: var(--qp-text-tertiary);
-  text-align: center;
-  margin-top: 6px;
-  font-style: italic;
-}
-
-.qp-content code {
-  background-color: var(--qp-code-bg);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.9em;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-}
-
-.qp-content pre {
-  background-color: var(--qp-code-bg);
-  padding: 14px 16px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 20px 0;
-  border: 1px solid var(--qp-divider);
-}
-
-.qp-content pre code {
-  padding: 0;
-  background: transparent;
-}
-
-.qp-content table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 24px 0;
-  font-size: 15px;
-}
-
-.qp-content th,
-.qp-content td {
-  border: 1px solid var(--qp-divider);
-  padding: 10px 12px;
-  text-align: left;
-}
-
-.qp-content th {
-  background-color: var(--qp-surface);
-  font-weight: 600;
-}
-
-.qp-footer {
-  margin-top: 48px;
-  padding-top: 20px;
-  border-top: 1px solid var(--qp-divider);
-  font-size: 13px;
-  color: var(--qp-text-tertiary);
-  text-align: center;
-}
-
-.qp-footer a {
-  color: var(--qp-accent);
-  text-decoration: none;
-}
-''';
 }

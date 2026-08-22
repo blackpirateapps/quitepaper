@@ -38,6 +38,7 @@ import '../../scanner/presentation/document_scanner_screen.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
 import '../../../core/utils/font_family_helper.dart';
+import '../../../core/utils/tag_parser.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -232,6 +233,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _contentController.value = result;
       _onContentChanged();
     }
+  }
+
+  void _onRemoveTag(String tag) {
+    final normalized = TagParser.normalizeTag(tag);
+    final currentTitle = _titleController.text;
+    final currentContent = _contentController.text;
+
+    final newTitle = TagParser.removeTagFromText(currentTitle, normalized);
+    final newContent = TagParser.removeTagFromText(currentContent, normalized);
+
+    if (newTitle != currentTitle) {
+      _titleController.text = newTitle;
+    }
+    if (newContent != currentContent) {
+      _contentController.text = newContent;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+    }
+
+    ref.read(editorProviderFamily(_editorParams).notifier).removeTag(tag);
   }
 
   Future<void> _commitSessionVersionIfNeeded() async {
@@ -873,7 +893,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       : note.title,
                                   tags: note.tags,
                                   onAddTag: editorNotifier.addTag,
-                                  onRemoveTag: editorNotifier.removeTag,
+                                  onRemoveTag: _onRemoveTag,
                                   scrollController: _scrollController,
                                   searchQuery: _isSearchVisible
                                       ? _searchQueryController.text
@@ -940,7 +960,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     TagEditorBar(
                                       tags: note.tags,
                                       onAddTag: editorNotifier.addTag,
-                                      onRemoveTag: editorNotifier.removeTag,
+                                      onRemoveTag: _onRemoveTag,
                                     ),
                                     const SizedBox(height: 12.0),
                                   ],

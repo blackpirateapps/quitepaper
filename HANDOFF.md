@@ -1809,3 +1809,35 @@ graph TD
 - Test suite: `flutter test` (**all 425 tests passing**).
 - Automated tests added in [`test/web_clipper/web_clipper_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_service_test.dart) testing `qp://asset/<UUID>` rewriting, hero deduplication, and snapshot creation.
 
+---
+
+## 70. Web Clipper: Authentic Web Snapshot Bundling with Inlined CSS Assets & Browser Styling Preservation
+
+### Problem & Symptoms
+- Previously, `WebSnapshotGenerator` bundled the stripped reader-mode article body (`cleanedElement`) and wrapped it in a synthetic Quiet Paper template (`.qp-article-container` with editorial typography and colors).
+- As a result, opening the **Web Snapshot (`qp://document/<UUID>`)** rendered a stripped reader-view with Quiet Paper theme styling rather than preserving the authentic look and feel of the original webpage as viewed on a web browser.
+- External stylesheets (`<link rel="stylesheet">`) were discarded, and relative background images and font references broke when viewed offline.
+
+### Root Cause Analysis & Architectural Solutions
+1. **Full Original Webpage HTML Archiving**:
+   - In [`WebSnapshotGenerator`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_snapshot_generator.dart): Updated `generateHtmlSnapshot` and `generateSnapshotBytes` to accept the full `rawHtml` from the webpage scan.
+   - Parses the complete DOM tree with `html_parser.parse(rawHtml)`, preserving all original elements, layouts, headers, sidebars, typography, and styling rules.
+2. **Asynchronous External CSS Download & Inlining**:
+   - In [`WebSnapshotGenerator`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_snapshot_generator.dart): Discovers all `<link rel="stylesheet">` nodes and concurrently downloads their CSS content via HTTP client.
+   - Re-writes relative `url(...)` declarations in downloaded stylesheets (such as background images and web fonts) into absolute URLs using `_rewriteCssUrls`.
+   - Inlines the fetched CSS directly into `<style data-source-href="...">` tags, producing a self-contained offline bundle.
+3. **Base URL Resolution & Viewport Injection**:
+   - Injects `<base href="${metadata.sourceUrl}">` and `<meta name="viewport" content="width=device-width, initial-scale=1.0">` into `<head>` to ensure relative assets and responsive layout rules behave predictably in offline environments.
+4. **Sandboxed Security & Script Neutralization**:
+   - Strips all `<script>` tags and inline JavaScript event handlers (`onclick`, `onerror`, `onload`, etc.) to prevent analytics trackers, popups, paywall blockers, or broken client-side JS from executing.
+5. **Seamless Pipeline Integration**:
+   - In [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): Passes `httpClient` to `WebSnapshotGenerator` and awaits `generateHtmlSnapshot` during pre-scan for accurate bundle size estimates.
+   - In [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart): Passes `scanResult.rawHtml` and downloaded image asset mappings to `generateSnapshotBytes`.
+   - In [`WebSnapshotViewerScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart): Extracts `<base href="...">` and passes `baseUrl` to `controller.loadHtmlString(html, baseUrl: baseUrl)`.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 450 tests passing**).
+- Automated tests in [`test/web_clipper/web_snapshot_generator_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_snapshot_generator_test.dart) verifying full DOM preservation, CSS inlining, relative `url(...)` rewriting, `<base>` injection, and script neutralization.
+
+

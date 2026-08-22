@@ -105,7 +105,12 @@ class _WebSnapshotViewerScreenState
     try {
       final controller = WebViewController();
       controller.setJavaScriptMode(JavaScriptMode.disabled);
-      controller.loadHtmlString(html);
+      final baseMatch = RegExp(
+        r'''<base\s+[^>]*href=["']([^"']+)["']''',
+        caseSensitive: false,
+      ).firstMatch(html);
+      final baseUrl = baseMatch?.group(1) ?? widget.sourceUrl;
+      controller.loadHtmlString(html, baseUrl: baseUrl);
       _webViewController = controller;
     } catch (e) {
       debugPrint('WebView initialization failed: $e');

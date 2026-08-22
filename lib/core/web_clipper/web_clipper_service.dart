@@ -28,7 +28,7 @@ class WebClipperService {
                 ? WebImageDownloader(attachmentService: attachmentService)
                 : null),
         _markdownConverter = markdownConverter ?? const HtmlToMarkdownConverter(),
-        _snapshotGenerator = snapshotGenerator ?? const WebSnapshotGenerator();
+        _snapshotGenerator = snapshotGenerator ?? WebSnapshotGenerator();
 
   final NotesRepository notesRepository;
   final AttachmentService? attachmentService;
@@ -112,9 +112,11 @@ class WebClipperService {
       ));
 
       try {
-        final snapshotBytes = _snapshotGenerator.generateSnapshotBytes(
-          cleanedElement: cleanedElement,
+        final snapshotBytes = await _snapshotGenerator.generateSnapshotBytes(
+          rawHtml: scanResult.rawHtml,
           metadata: metadata,
+          cleanedElement: cleanedElement,
+          localImageSources: imageSnippetsMap,
         );
 
         final docResult = await documentService!.createWebSnapshotDocument(
