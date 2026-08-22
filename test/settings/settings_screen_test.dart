@@ -83,6 +83,15 @@ class FakeSyncEngine implements SyncEngine {
   }
 
   @override
+  Future<void> resetSyncCursor() async {}
+
+  @override
+  Future<void> fullResync() async {
+    await resetSyncCursor();
+    await syncNow();
+  }
+
+  @override
   void dispose() {
     _controller.close();
   }

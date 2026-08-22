@@ -5,6 +5,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
@@ -58,6 +59,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
     final auth = ref.read(authServiceProvider);
     if (auth.apiKey.isNotEmpty) {
       _apiKeyController.text = auth.apiKey;
+    } else {
+      _apiKeyController.text = FirebaseAuthService.defaultFirebaseApiKey;
     }
   }
 
@@ -141,27 +144,25 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       final api = ref.read(syncApiClientProvider);
       final engine = ref.read(syncEngineProvider);
 
-      if (_apiKeyController.text.trim().isNotEmpty) {
-        auth.setApiKey(_apiKeyController.text.trim());
-      }
-
       final serverUrl = _serverUrlController.text.trim();
       if (serverUrl.isNotEmpty) {
         api.setBaseUrl(serverUrl);
       }
 
-      if (_apiKeyController.text.trim().isEmpty) {
+      if (_apiKeyController.text.trim().isNotEmpty) {
+        auth.setApiKey(_apiKeyController.text.trim());
+      } else {
         await auth.fetchConfigFromBackend(serverUrl);
+        if (mounted && auth.apiKey.isNotEmpty) {
+          _apiKeyController.text = auth.apiKey;
+        }
       }
 
       if (auth.apiKey.isEmpty) {
-        setState(() {
-          _isLoading = false;
-          _showAdvancedSettings = true;
-          _errorMessage =
-              'Firebase API key not found. Please expand Server Settings below or set FIREBASE_API_KEY in Vercel.';
-        });
-        return;
+        auth.setApiKey(FirebaseAuthService.defaultFirebaseApiKey);
+        if (mounted) {
+          _apiKeyController.text = auth.apiKey;
+        }
       }
 
       final email = _emailController.text.trim();
@@ -185,7 +186,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       // 4. Upload wrapped key metadata to server
       await api.putKeys(wrappedKey);
 
-      // 5. Trigger initial sync
+      // 5. Reset cursor & trigger initial sync
+      await engine.resetSyncCursor();
       engine.syncNow();
 
       setState(() {
@@ -235,27 +237,25 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       final api = ref.read(syncApiClientProvider);
       final engine = ref.read(syncEngineProvider);
 
-      if (_apiKeyController.text.trim().isNotEmpty) {
-        auth.setApiKey(_apiKeyController.text.trim());
-      }
-
       final serverUrl = _serverUrlController.text.trim();
       if (serverUrl.isNotEmpty) {
         api.setBaseUrl(serverUrl);
       }
 
-      if (_apiKeyController.text.trim().isEmpty) {
+      if (_apiKeyController.text.trim().isNotEmpty) {
+        auth.setApiKey(_apiKeyController.text.trim());
+      } else {
         await auth.fetchConfigFromBackend(serverUrl);
+        if (mounted && auth.apiKey.isNotEmpty) {
+          _apiKeyController.text = auth.apiKey;
+        }
       }
 
       if (auth.apiKey.isEmpty) {
-        setState(() {
-          _isLoading = false;
-          _showAdvancedSettings = true;
-          _errorMessage =
-              'Firebase API key not found. Please expand Server Settings below or set FIREBASE_API_KEY in Vercel.';
-        });
-        return;
+        auth.setApiKey(FirebaseAuthService.defaultFirebaseApiKey);
+        if (mounted) {
+          _apiKeyController.text = auth.apiKey;
+        }
       }
 
       // Sign in with Firebase
@@ -316,6 +316,8 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
         rethrow;
       }
 
+      // Reset sync cursor on fresh login to guarantee pulling all cloud notes
+      await engine.resetSyncCursor();
       engine.syncNow();
 
       if (_generatedRecoveryKey == null && mounted) {

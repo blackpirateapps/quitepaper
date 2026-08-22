@@ -73,6 +73,17 @@ class SyncEngine {
     });
   }
 
+  /// Resets the sync cursor to 0 to trigger a full resync of all cloud notes
+  Future<void> resetSyncCursor() async {
+    await database.resetSyncCursors();
+  }
+
+  /// Triggers a full resync from cursor 0
+  Future<void> fullResync() async {
+    await resetSyncCursor();
+    await syncNow();
+  }
+
   /// Runs immediate push & pull synchronization
   Future<void> syncNow() async {
     if (_isSyncing) return;

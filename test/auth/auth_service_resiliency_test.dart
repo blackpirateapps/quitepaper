@@ -218,6 +218,38 @@ void main() {
       );
     });
 
+    test('FirebaseAuthService initializes with default canonical API key when no key is supplied', () {
+      final auth = FirebaseAuthService();
+      expect(auth.apiKey, FirebaseAuthService.defaultFirebaseApiKey);
+    });
+
+    test('signInWithEmailAndPassword maps UNREGISTERED_CALLERS error clearly', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'code': 403,
+              'message': "Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this API.",
+              'status': 'PERMISSION_DENIED',
+            }
+          }),
+          403,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final auth = FirebaseAuthService(
+        apiKey: 'invalid-key',
+        httpClient: client,
+      );
+
+      expect(
+        () => auth.signInWithEmailAndPassword('user@test.com', 'password123'),
+        throwsA(predicate((e) =>
+            e.toString().contains('Firebase API key is missing or not configured.'))),
+      );
+    });
+
     test('getIdToken forceRefresh contacts SecureToken API and updates session', () async {
       final client = MockHttpClient((request) async {
         if (request.url.host == 'securetoken.googleapis.com') {

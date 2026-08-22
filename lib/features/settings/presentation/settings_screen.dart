@@ -184,6 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     if (confirmed == true && context.mounted) {
       await ref.read(authServiceProvider).signOut();
       await ref.read(keyManagerProvider).clearLocalKeys();
+      await ref.read(syncEngineProvider).resetSyncCursor();
     }
   }
 

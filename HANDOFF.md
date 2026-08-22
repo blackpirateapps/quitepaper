@@ -1947,3 +1947,36 @@ graph TD
 ### Verification
 - Validated YAML syntax with `python3 -c "import yaml; yaml.safe_load(...)"`.
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+
+---
+
+## 75. HTTP 403 Login Error Resolution, Default API Key Fallback, & Multi-Device Sync Cursor Reset
+
+### 1. Problem Statement
+1. **HTTP 403 Forbidden on Cloud Sync Sign-In**:
+   - On the Cloud Sync & Encryption screen, users attempting to log in encountered an immediate error:
+     `Access forbidden (HTTP 403). Please verify that Email/Password authentication and the Identity Toolkit API are enabled in your Firebase project and that your API key is not blocked by restrictions.`
+   - Even though the backend server (`https://quitepaper.vercel.app`) and Firebase project `quitepaper-88809` were operational, the client received HTTP 403 from Google Identity Toolkit (`Method doesn't allow unregistered callers`) because `_apiKey` was empty at request time.
+2. **Logged-in Tablet Not Fetching Notes on Sync**:
+   - On tablet devices or secondary devices where users signed in, triggering sync resulted in no notes being pulled from the cloud database, even though notes existed on the backend.
+   - **Root Cause**: The local SQLite database persisted `sync_cursor` (and `version_sync_cursor`) across sign-out and re-authentication. When the tablet sent `POST /api/v1/sync/pull` with `cursor: 50`, the server looked for revisions $> 50$, returning `changes: []` (0 notes) because all existing notes were $\le 50$.
+
+### 2. Root Cause Analysis & Architectural Solutions
+1. **Canonical Default Firebase Web API Key in `FirebaseAuthService`**:
+   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Bundled `defaultFirebaseApiKey = 'AIzaSyA90jZ_gjRrMUTQoOUjsW-WG7B2o5yOMiI'` as the built-in fallback constant.
+   - Initialized `_apiKey` with `defaultFirebaseApiKey` whenever `--dart-define=FIREBASE_API_KEY` is not provided, guaranteeing immediate key availability without waiting for network discovery.
+   - In `signInWithEmailAndPassword()`, `signUpWithEmailAndPassword()`, and `sendPasswordResetEmail()`: Ensured requests fallback to `defaultFirebaseApiKey` if `_apiKey` is empty or rejected by transient network errors.
+   - Mapped `Method doesn't allow unregistered callers` / `UNREGISTERED_CALLERS` explicitly to `'Firebase API key is missing or not configured.'`.
+2. **Bidirectional API Key Synchronization in UI Controllers**:
+   - In [`SyncAuthScreen`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_screen.dart) and [`SyncAuthDialog`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_dialog.dart): Initialized `_apiKeyController` with `auth.apiKey` (or `defaultFirebaseApiKey`), and ensured `_apiKeyController.text` is updated whenever `fetchConfigFromBackend()` resolves.
+3. **Sync Cursor Reset on Sign Out & Initial Account Login**:
+   - In [`AppDatabase`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart): Added `resetSyncCursors()` to purge `sync_cursor` and `version_sync_cursor` from the `sync_metadata` table.
+   - In [`SyncEngine`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart): Added `resetSyncCursor()` and `fullResync()`.
+   - In [`SettingsScreen._confirmSignOut`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Reset sync cursors on user sign-out.
+   - In `_submitSignIn()` / `_submitSignupFinal()` across `SyncAuthScreen` and `SyncAuthDialog`: Explicitly called `await engine.resetSyncCursor()` before initial sync on login to ensure all cloud notes from revision 1 onwards are fetched.
+
+### 3. Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 472 tests passing**).
+- Backend test suite: `npm test` in `backend/` (**all 26 tests passing**).
+

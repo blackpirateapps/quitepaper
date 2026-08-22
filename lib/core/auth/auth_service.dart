@@ -92,12 +92,17 @@ abstract class AuthService {
 
 /// Universal Firebase Auth client using official Firebase REST Auth API with persistent secure storage
 class FirebaseAuthService implements AuthService {
+  static const String defaultFirebaseApiKey = 'AIzaSyA90jZ_gjRrMUTQoOUjsW-WG7B2o5yOMiI';
+
   FirebaseAuthService({
     String? apiKey,
     http.Client? httpClient,
     FlutterSecureStorage? secureStorage,
-  })  : _apiKey = apiKey ??
-            const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: ''),
+  })  : _apiKey = (apiKey != null && apiKey.trim().isNotEmpty)
+            ? apiKey.trim()
+            : (const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '').trim().isNotEmpty
+                ? const String.fromEnvironment('FIREBASE_API_KEY').trim()
+                : defaultFirebaseApiKey),
         _client = httpClient ?? http.Client(),
         _storage = secureStorage ??
             const FlutterSecureStorage(
@@ -200,6 +205,11 @@ class FirebaseAuthService implements AuthService {
     if (upper.contains('OPERATION_NOT_ALLOWED')) {
       return 'Email/Password sign-in is disabled in your Firebase project. Please enable Email/Password provider in the Firebase Authentication console.';
     }
+    if (upper.contains('UNREGISTERED CALLERS') ||
+        upper.contains('UNREGISTERED_CALLERS') ||
+        upper.contains('CALLERS WITHOUT ESTABLISHED IDENTITY')) {
+      return 'Firebase API key is missing or not configured. Please check your Server & Firebase API Settings.';
+    }
     if (upper.contains('API_KEY_SERVICE_BLOCKED') ||
         upper.contains('API_KEY_INVALID') ||
         upper.contains('API KEY NOT VALID') ||
@@ -229,9 +239,10 @@ class FirebaseAuthService implements AuthService {
     }
     if (upper == 'FORBIDDEN' || upper == 'ACCESS_DENIED' || statusCode == 403) {
       if (rawMessage.isNotEmpty &&
-          rawMessage.length > 20 &&
+          rawMessage.length > 10 &&
           !rawMessage.startsWith('<') &&
-          !upper.startsWith('FORBIDDEN')) {
+          upper != 'FORBIDDEN' &&
+          upper != 'ACCESS_DENIED') {
         return rawMessage;
       }
       return 'Access forbidden (HTTP 403). Please verify that Email/Password authentication and the Identity Toolkit API are enabled in your Firebase project and that your API key is not blocked by restrictions.';
@@ -256,7 +267,8 @@ class FirebaseAuthService implements AuthService {
 
   @override
   void setApiKey(String key) {
-    _apiKey = key.trim();
+    final trimmed = key.trim();
+    _apiKey = trimmed.isNotEmpty ? trimmed : defaultFirebaseApiKey;
   }
 
   @override
@@ -337,7 +349,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      throw StateError('Firebase API key is not configured. Supply FIREBASE_API_KEY dart-define or server URL.');
+      _apiKey = defaultFirebaseApiKey;
     }
 
     var url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
@@ -358,15 +370,21 @@ class FirebaseAuthService implements AuthService {
 
     var data = _safeParseJson(res.body);
 
-    // Auto-retry once with refreshed backend config if API key was rejected with 400/403
+    // Auto-retry once with refreshed backend config or default fallback key if API key was rejected with 400/403
     if (res.statusCode != 200) {
       final rawError = (data is Map ? (data['error']?['message'] ?? data['error']) : null)?.toString() ?? '';
       if (rawError.toUpperCase().contains('API_KEY') ||
           rawError.toUpperCase().contains('API KEY') ||
           rawError.toUpperCase().contains('FORBIDDEN') ||
+          rawError.toUpperCase().contains('UNREGISTERED') ||
           res.statusCode == 403) {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
+        if (_apiKey.isEmpty || _apiKey == currentKey) {
+          if (currentKey != defaultFirebaseApiKey) {
+            _apiKey = defaultFirebaseApiKey;
+          }
+        }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {
           try {
             url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
@@ -418,7 +436,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      throw StateError('Firebase API key is not configured.');
+      _apiKey = defaultFirebaseApiKey;
     }
 
     var url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
@@ -444,9 +462,15 @@ class FirebaseAuthService implements AuthService {
       if (rawError.toUpperCase().contains('API_KEY') ||
           rawError.toUpperCase().contains('API KEY') ||
           rawError.toUpperCase().contains('FORBIDDEN') ||
+          rawError.toUpperCase().contains('UNREGISTERED') ||
           res.statusCode == 403) {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
+        if (_apiKey.isEmpty || _apiKey == currentKey) {
+          if (currentKey != defaultFirebaseApiKey) {
+            _apiKey = defaultFirebaseApiKey;
+          }
+        }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {
           try {
             url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
@@ -505,7 +529,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      throw StateError('Firebase API key is not configured.');
+      _apiKey = defaultFirebaseApiKey;
     }
 
     var url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
@@ -530,9 +554,15 @@ class FirebaseAuthService implements AuthService {
       if (rawError.toUpperCase().contains('API_KEY') ||
           rawError.toUpperCase().contains('API KEY') ||
           rawError.toUpperCase().contains('FORBIDDEN') ||
+          rawError.toUpperCase().contains('UNREGISTERED') ||
           res.statusCode == 403) {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
+        if (_apiKey.isEmpty || _apiKey == currentKey) {
+          if (currentKey != defaultFirebaseApiKey) {
+            _apiKey = defaultFirebaseApiKey;
+          }
+        }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {
           try {
             url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');

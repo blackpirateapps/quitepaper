@@ -639,6 +639,15 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Resets sync cursors in sync metadata to force clean initial pull or re-sync
+  Future<void> resetSyncCursors() async {
+    await (delete(syncMetadataTable)
+          ..where((t) =>
+              t.key.equals('sync_cursor') |
+              t.key.equals('version_sync_cursor')))
+        .go();
+  }
+
   /// Enqueue sync operation (e.g. permanent deletion tombstone)
   Future<void> enqueueSyncOperation(String noteId, String operation) async {
     const uuid = Uuid();
