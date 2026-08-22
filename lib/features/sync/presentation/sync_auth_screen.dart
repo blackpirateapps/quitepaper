@@ -146,8 +146,12 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
         auth.setApiKey(_apiKeyController.text.trim());
       }
 
-      if (auth.apiKey.isEmpty) {
-        final serverUrl = _serverUrlController.text.trim();
+      final serverUrl = _serverUrlController.text.trim();
+      if (serverUrl.isNotEmpty) {
+        api.setBaseUrl(serverUrl);
+      }
+
+      if (_apiKeyController.text.trim().isEmpty) {
         await auth.fetchConfigFromBackend(serverUrl);
       }
 
@@ -163,11 +167,6 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
 
       final email = _emailController.text.trim();
       final fbPass = _fbPasswordController.text;
-
-      final serverUrl = _serverUrlController.text.trim();
-      if (serverUrl.isNotEmpty) {
-        api.setBaseUrl(serverUrl);
-      }
 
       // 1. Sign up with Firebase
       final user = await auth.signUpWithEmailAndPassword(email, fbPass);
@@ -246,7 +245,7 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
         api.setBaseUrl(serverUrl);
       }
 
-      if (auth.apiKey.isEmpty) {
+      if (_apiKeyController.text.trim().isEmpty) {
         await auth.fetchConfigFromBackend(serverUrl);
       }
 

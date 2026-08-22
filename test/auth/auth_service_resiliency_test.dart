@@ -88,7 +88,7 @@ void main() {
         () => auth.signInWithEmailAndPassword('user@test.com', 'password123'),
         throwsA(predicate((e) {
           final str = e.toString();
-          return str.contains('Authentication service returned an unexpected response (HTTP 502)') &&
+          return str.contains('Authentication service is temporarily unavailable (HTTP 502)') &&
               !str.contains('FormatException') &&
               !str.contains('<!DOCTYPE');
         })),
@@ -121,6 +121,53 @@ void main() {
       );
     });
 
+    test('signInWithEmailAndPassword maps 403 OPERATION_NOT_ALLOWED to actionable message', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'code': 403,
+              'message': 'OPERATION_NOT_ALLOWED',
+            }
+          }),
+          403,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final auth = FirebaseAuthService(
+        apiKey: 'test-api-key',
+        httpClient: client,
+      );
+
+      expect(
+        () => auth.signInWithEmailAndPassword('user@test.com', 'password123'),
+        throwsA(predicate((e) =>
+            e.toString().contains('Email/Password sign-in is disabled in your Firebase project'))),
+      );
+    });
+
+    test('signInWithEmailAndPassword maps generic 403 to clear troubleshooting guidance', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response(
+          'Forbidden',
+          403,
+          headers: {'content-type': 'text/plain'},
+        );
+      });
+
+      final auth = FirebaseAuthService(
+        apiKey: 'test-api-key',
+        httpClient: client,
+      );
+
+      expect(
+        () => auth.signInWithEmailAndPassword('user@test.com', 'password123'),
+        throwsA(predicate((e) =>
+            e.toString().contains('Access forbidden (HTTP 403). Please verify that Email/Password authentication'))),
+      );
+    });
+
     test('signUpWithEmailAndPassword handles HTML error pages without FormatException', () async {
       final client = MockHttpClient((request) async {
         return http.Response(
@@ -139,7 +186,7 @@ void main() {
         () => auth.signUpWithEmailAndPassword('user@test.com', 'password123'),
         throwsA(predicate((e) {
           final str = e.toString();
-          return str.contains('Registration service returned an unexpected response (HTTP 500)') &&
+          return str.contains('Authentication service is temporarily unavailable (HTTP 500)') &&
               !str.contains('FormatException') &&
               !str.contains('<html>');
         })),

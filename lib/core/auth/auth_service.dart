@@ -110,21 +110,69 @@ class FirebaseAuthService implements AuthService {
 
   static const String _storageKeyAuthSession = 'quietpaper_auth_session_v1';
 
-  static Map<String, dynamic>? _safeParseJson(String body) {
+  static dynamic _safeParseJson(String body) {
     final trimmed = body.trim();
-    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
       return null;
     }
     try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
+      return jsonDecode(trimmed);
     } catch (_) {}
     return null;
   }
 
-  static String _formatAuthErrorMessage(String rawMessage, [String defaultMsg = 'Authentication failed']) {
+  static String _extractApiErrorMessage(
+    dynamic data,
+    String rawBody,
+    int statusCode, [
+    String defaultFallback = 'Authentication failed',
+  ]) {
+    String candidate = '';
+
+    if (data is Map) {
+      final errorField = data['error'];
+      if (errorField is String && errorField.trim().isNotEmpty) {
+        candidate = errorField.trim();
+      } else if (errorField is Map) {
+        final msg = errorField['message'] ?? errorField['error_description'] ?? errorField['details'];
+        if (msg != null && msg.toString().trim().isNotEmpty) {
+          candidate = msg.toString().trim();
+        }
+      }
+
+      if (candidate.isEmpty) {
+        final messageField = data['message'] ?? data['error_description'] ?? data['title'] ?? data['detail'];
+        if (messageField != null && messageField.toString().trim().isNotEmpty) {
+          candidate = messageField.toString().trim();
+        }
+      }
+
+      if (candidate.isEmpty) {
+        final errorsField = data['errors'];
+        if (errorsField is List && errorsField.isNotEmpty) {
+          final first = errorsField.first;
+          if (first is String && first.trim().isNotEmpty) {
+            candidate = first.trim();
+          } else if (first is Map && first['message'] != null) {
+            candidate = first['message'].toString().trim();
+          }
+        }
+      }
+    } else if (data is String && data.trim().isNotEmpty) {
+      candidate = data.trim();
+    }
+
+    if (candidate.isEmpty) {
+      final trimmed = rawBody.trim();
+      if (trimmed.isNotEmpty && !trimmed.startsWith('<') && trimmed.length < 300) {
+        candidate = trimmed;
+      }
+    }
+
+    return _formatAuthErrorMessage(candidate, statusCode, defaultFallback);
+  }
+
+  static String _formatAuthErrorMessage(String rawMessage, [int statusCode = 400, String defaultMsg = 'Authentication failed']) {
     final upper = rawMessage.toUpperCase();
     if (upper.contains('INVALID_LOGIN_CREDENTIALS') ||
         upper.contains('INVALID_PASSWORD') ||
@@ -149,14 +197,56 @@ class FirebaseAuthService implements AuthService {
     if (upper.contains('INVALID_EMAIL')) {
       return 'Please enter a valid email address.';
     }
+    if (upper.contains('OPERATION_NOT_ALLOWED')) {
+      return 'Email/Password sign-in is disabled in your Firebase project. Please enable Email/Password provider in the Firebase Authentication console.';
+    }
+    if (upper.contains('API_KEY_SERVICE_BLOCKED') ||
+        upper.contains('API_KEY_INVALID') ||
+        upper.contains('API KEY NOT VALID') ||
+        upper.contains('API_KEY_EXPIRED') ||
+        upper.contains('API_KEY_ANDROID_APP_BLOCKED')) {
+      return 'Invalid or restricted Firebase API key. Ensure Identity Toolkit API is allowed for this API key in Google Cloud Console.';
+    }
+    if (upper.contains('REQUESTS FROM THIS') ||
+        upper.contains('REQUESTS TO THIS API') ||
+        upper.contains('ARE BLOCKED') ||
+        upper.contains('BLOCKED BY CLIENT')) {
+      return 'Google Cloud API key restrictions are blocking this request. In Google Cloud Console, ensure the API key allows Identity Toolkit API calls from this application.';
+    }
+    if (upper.contains('PERMISSION_DENIED') ||
+        upper.contains('IDENTITY TOOLKIT API HAS NOT BEEN USED') ||
+        upper.contains('SERVICE_DISABLED')) {
+      return 'Identity Toolkit API is disabled in your Google Cloud / Firebase project. Please enable it in Google Cloud Console.';
+    }
+    if (upper.contains('CONFIGURATION_NOT_FOUND') || upper.contains('PROJECT_NOT_FOUND')) {
+      return 'Firebase project or auth configuration not found. Please check your project configuration.';
+    }
     if (upper.contains('TOKEN_EXPIRED') || upper.contains('CREDENTIAL_TOO_OLD_LOGIN_AGAIN')) {
       return 'Session expired. Please sign in again.';
     }
     if (upper.contains('NETWORK_ERROR') || upper.contains('NETWORK-REQUEST-FAILED')) {
       return 'Network error. Please check your internet connection.';
     }
+    if (upper == 'FORBIDDEN' || upper == 'ACCESS_DENIED' || statusCode == 403) {
+      if (rawMessage.isNotEmpty &&
+          rawMessage.length > 20 &&
+          !rawMessage.startsWith('<') &&
+          !upper.startsWith('FORBIDDEN')) {
+        return rawMessage;
+      }
+      return 'Access forbidden (HTTP 403). Please verify that Email/Password authentication and the Identity Toolkit API are enabled in your Firebase project and that your API key is not blocked by restrictions.';
+    }
     if (rawMessage.isNotEmpty && !rawMessage.startsWith('<')) {
       return rawMessage;
+    }
+    if (statusCode == 401) {
+      return 'Authentication failed (HTTP 401). Invalid credentials or expired session.';
+    }
+    if (statusCode == 404) {
+      return 'Authentication endpoint not found (HTTP 404). Please verify your sync server URL.';
+    }
+    if (statusCode >= 500) {
+      return 'Authentication service is temporarily unavailable (HTTP $statusCode). Please try again later.';
     }
     return defaultMsg;
   }
@@ -175,7 +265,7 @@ class FirebaseAuthService implements AuthService {
       final storedJson = await _storage.read(key: _storageKeyAuthSession);
       if (storedJson != null && storedJson.isNotEmpty) {
         final decoded = _safeParseJson(storedJson);
-        if (decoded != null) {
+        if (decoded is Map<String, dynamic>) {
           _currentUser = AuthUser.fromJson(decoded);
           _authStateController.add(_currentUser);
         }
@@ -219,7 +309,7 @@ class FirebaseAuthService implements AuthService {
       final res = await _client.get(url).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final data = _safeParseJson(res.body);
-        if (data != null) {
+        if (data is Map<String, dynamic>) {
           final fetchedKey = data['firebaseApiKey'] as String?;
           if (fetchedKey != null && fetchedKey.trim().isNotEmpty) {
             _apiKey = fetchedKey.trim();
@@ -267,12 +357,14 @@ class FirebaseAuthService implements AuthService {
     }
 
     final data = _safeParseJson(res.body);
-    if (res.statusCode != 200 || data == null) {
-      final rawError = data?['error']?['message']?.toString() ?? '';
-      if (rawError.isNotEmpty) {
-        throw Exception(_formatAuthErrorMessage(rawError, 'Authentication failed'));
-      }
-      throw Exception('Authentication service returned an unexpected response (HTTP ${res.statusCode}). Please check your internet connection or server settings.');
+    if (res.statusCode != 200 || data is! Map<String, dynamic> || data['idToken'] == null) {
+      final err = _extractApiErrorMessage(
+        data,
+        res.body,
+        res.statusCode,
+        'Authentication failed (HTTP ${res.statusCode})',
+      );
+      throw Exception(err);
     }
 
     final expiresInSeconds = int.tryParse(data['expiresIn']?.toString() ?? '3600') ?? 3600;
@@ -318,12 +410,14 @@ class FirebaseAuthService implements AuthService {
     }
 
     final data = _safeParseJson(res.body);
-    if (res.statusCode != 200 || data == null) {
-      final rawError = data?['error']?['message']?.toString() ?? '';
-      if (rawError.isNotEmpty) {
-        throw Exception(_formatAuthErrorMessage(rawError, 'Registration failed'));
-      }
-      throw Exception('Registration service returned an unexpected response (HTTP ${res.statusCode}). Please check your internet connection or server settings.');
+    if (res.statusCode != 200 || data is! Map<String, dynamic> || data['idToken'] == null) {
+      final err = _extractApiErrorMessage(
+        data,
+        res.body,
+        res.statusCode,
+        'Registration failed (HTTP ${res.statusCode})',
+      );
+      throw Exception(err);
     }
 
     final expiresInSeconds = int.tryParse(data['expiresIn']?.toString() ?? '3600') ?? 3600;
@@ -376,8 +470,13 @@ class FirebaseAuthService implements AuthService {
 
     if (res.statusCode != 200) {
       final data = _safeParseJson(res.body);
-      final rawError = data?['error']?['message']?.toString() ?? '';
-      throw Exception(_formatAuthErrorMessage(rawError, 'Password reset failed'));
+      final err = _extractApiErrorMessage(
+        data,
+        res.body,
+        res.statusCode,
+        'Password reset failed (HTTP ${res.statusCode})',
+      );
+      throw Exception(err);
     }
   }
 
@@ -411,11 +510,13 @@ class FirebaseAuthService implements AuthService {
 
     if (res.statusCode != 200) {
       final data = _safeParseJson(res.body);
-      final rawError = data?['error']?['message']?.toString() ?? '';
-      if (rawError.contains('TOO_MANY_ATTEMPTS_TRY_LATER')) {
-        throw Exception('Too many attempts. Please try again in a few minutes.');
-      }
-      throw Exception(_formatAuthErrorMessage(rawError, 'Failed to send email verification'));
+      final err = _extractApiErrorMessage(
+        data,
+        res.body,
+        res.statusCode,
+        'Failed to send email verification (HTTP ${res.statusCode})',
+      );
+      throw Exception(err);
     }
   }
 
@@ -435,22 +536,24 @@ class FirebaseAuthService implements AuthService {
 
       if (res.statusCode == 200) {
         final data = _safeParseJson(res.body);
-        final users = data?['users'] as List<dynamic>?;
-        if (users != null && users.isNotEmpty) {
-          final userData = users[0] as Map<String, dynamic>;
-          final isVerified = userData['emailVerified'] == true ||
-              userData['emailVerified']?.toString().toLowerCase() == 'true';
-          _currentUser = AuthUser(
-            id: userData['localId'] as String? ?? _currentUser!.id,
-            email: userData['email'] as String? ?? _currentUser!.email,
-            idToken: _currentUser!.idToken,
-            refreshToken: _currentUser!.refreshToken,
-            tokenExpiresAt: _currentUser!.tokenExpiresAt,
-            emailVerified: isVerified,
-          );
-          await _saveUserSession(_currentUser);
-          _authStateController.add(_currentUser);
-          return _currentUser;
+        if (data is Map<String, dynamic>) {
+          final users = data['users'] as List<dynamic>?;
+          if (users != null && users.isNotEmpty) {
+            final userData = users[0] as Map<String, dynamic>;
+            final isVerified = userData['emailVerified'] == true ||
+                userData['emailVerified']?.toString().toLowerCase() == 'true';
+            _currentUser = AuthUser(
+              id: userData['localId'] as String? ?? _currentUser!.id,
+              email: userData['email'] as String? ?? _currentUser!.email,
+              idToken: _currentUser!.idToken,
+              refreshToken: _currentUser!.refreshToken,
+              tokenExpiresAt: _currentUser!.tokenExpiresAt,
+              emailVerified: isVerified,
+            );
+            await _saveUserSession(_currentUser);
+            _authStateController.add(_currentUser);
+            return _currentUser;
+          }
         }
       }
     } catch (_) {}
@@ -485,9 +588,14 @@ class FirebaseAuthService implements AuthService {
     );
 
     final signInData = _safeParseJson(signInRes.body);
-    if (signInRes.statusCode != 200 || signInData == null) {
-      final rawError = signInData?['error']?['message']?.toString() ?? '';
-      throw Exception(_formatAuthErrorMessage(rawError, 'Incorrect current password.'));
+    if (signInRes.statusCode != 200 || signInData is! Map<String, dynamic> || signInData['idToken'] == null) {
+      final err = _extractApiErrorMessage(
+        signInData,
+        signInRes.body,
+        signInRes.statusCode,
+        'Incorrect current password.',
+      );
+      throw Exception(err);
     }
 
     final freshIdToken = signInData['idToken'] as String;
@@ -505,9 +613,14 @@ class FirebaseAuthService implements AuthService {
     );
 
     final updateData = _safeParseJson(updateRes.body);
-    if (updateRes.statusCode != 200 || updateData == null) {
-      final rawError = updateData?['error']?['message']?.toString() ?? '';
-      throw Exception(_formatAuthErrorMessage(rawError, 'Password update failed.'));
+    if (updateRes.statusCode != 200 || updateData is! Map<String, dynamic>) {
+      final err = _extractApiErrorMessage(
+        updateData,
+        updateRes.body,
+        updateRes.statusCode,
+        'Password update failed (HTTP ${updateRes.statusCode}).',
+      );
+      throw Exception(err);
     }
 
     // 3. Update active user session
