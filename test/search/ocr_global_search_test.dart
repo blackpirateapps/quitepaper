@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/attachments/presentation/image_viewer_modal.dart';
 import 'package:quitepaper/core/documents/presentation/document_viewer_screen.dart';
 import 'package:quitepaper/core/ocr/ocr_crypto.dart';
 import 'package:quitepaper/core/ocr/ocr_models.dart';
@@ -15,6 +16,7 @@ import 'package:quitepaper/core/ocr/ocr_search_service.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/search/application/search_provider.dart';
 import 'package:quitepaper/features/search/presentation/search_screen.dart';
 import 'package:quitepaper/features/search/presentation/widgets/document_search_tile.dart';
@@ -173,6 +175,59 @@ void main() {
     }
   }
 
+  Future<void> createAttachmentWithOcr({
+    required String attachmentId,
+    String? noteId,
+    required String text,
+  }) async {
+    final now = DateTime.now();
+    await db.saveAttachment(
+      id: attachmentId,
+      noteId: noteId,
+      createdAt: now,
+      updatedAt: now,
+      ocrState: 'available',
+      ocrLanguage: 'en',
+    );
+
+    final ocrDoc = OcrDocument(
+      documentId: attachmentId,
+      language: OcrLanguage.english,
+      engine: 'test_engine',
+      engineVersion: '1.0.0',
+      schemaVersion: 1,
+      processedAt: now,
+      pages: [
+        OcrPage(
+          pageNumber: 1,
+          plainText: text,
+          width: 800,
+          height: 1200,
+          blocks: [
+            OcrBlock(
+              text: text,
+              bounds: NormalizedRect.full,
+              lines: [],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final encrypted = await ocrCrypto.encryptOcrDocument(
+      ocrDocument: ocrDoc,
+      masterKeyBytes: masterKey,
+    );
+
+    await db.saveAttachmentOcrPage(
+      attachmentId: attachmentId,
+      pageNumber: 1,
+      encryptedPayload: base64Encode(encrypted),
+      language: 'en',
+      processedAt: now,
+    );
+  }
+
   group('OcrSearchService Tests', () {
     test('Searches OCR text in attached and unattached documents with exact match', () async {
       // 1. Attached document
@@ -210,7 +265,7 @@ void main() {
       expect(matches.length, 2);
 
       // Match 1: Attached document on page 2
-      final attachedMatch = matches.firstWhere((m) => m.document.id == 'doc-invoice-1');
+      final attachedMatch = matches.firstWhere((m) => m.id == 'doc-invoice-1');
       expect(attachedMatch.matchedPageNumber, 2);
       expect(attachedMatch.parentNoteTitle, 'Q3 Financial Review');
       expect(attachedMatch.parentNoteId, 'note-101');
@@ -218,7 +273,7 @@ void main() {
       expect(attachedMatch.snippet.toLowerCase(), contains('invoice #9842'));
 
       // Match 2: Unattached document on page 1
-      final unattachedMatch = matches.firstWhere((m) => m.document.id == 'doc-unattached-1');
+      final unattachedMatch = matches.firstWhere((m) => m.id == 'doc-unattached-1');
       expect(unattachedMatch.matchedPageNumber, 1);
       expect(unattachedMatch.parentNoteTitle, isNull);
       expect(unattachedMatch.parentNoteId, isNull);
@@ -239,7 +294,7 @@ void main() {
       // Search with transposition typo "invioce"
       final matches = await searchService.searchDocuments('invioce');
       expect(matches.length, 1);
-      expect(matches.first.document.id, 'doc-typo-1');
+      expect(matches.first.id, 'doc-typo-1');
       expect(matches.first.isFuzzy, isTrue);
       expect(matches.first.snippet.toLowerCase(), contains('dell server invoice'));
     });
@@ -256,7 +311,7 @@ void main() {
 
       final matches = await searchService.searchDocuments('Agreement');
       expect(matches.length, 1);
-      expect(matches.first.document.id, 'doc-contract-1');
+      expect(matches.first.id, 'doc-contract-1');
       expect(matches.first.isOcrMatch, isFalse);
       expect(matches.first.matchedPageNumber, 1);
     });
@@ -280,10 +335,35 @@ void main() {
       expect(secondMatches.length, 1);
       expect(secondMatches.first.snippet.toLowerCase(), contains('deep neural networks'));
     });
+
+    test('Searches OCR text in image attachments with exact and fuzzy matching', () async {
+      await db.saveNote(
+        id: 'note-att-1',
+        title: 'Monthly Expenses',
+        content: 'Attached receipt for coffee.',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isPinned: false,
+      );
+
+      await createAttachmentWithOcr(
+        attachmentId: 'att-starbucks-1',
+        noteId: 'note-att-1',
+        text: 'Starbucks Coffee\nCaramel Macchiato \$6.25\nStore #4829',
+      );
+
+      final matches = await searchService.searchDocuments('Macchiato');
+      expect(matches.length, 1);
+      expect(matches.first.id, 'att-starbucks-1');
+      expect(matches.first.isAttachment, isTrue);
+      expect(matches.first.parentNoteTitle, 'Monthly Expenses');
+      expect(matches.first.parentNoteId, 'note-att-1');
+      expect(matches.first.snippet.toLowerCase(), contains('caramel macchiato'));
+    });
   });
 
   group('Global Search Provider & Screen UI Integration', () {
-    testWidgets('Renders SearchFilterBar, fuzzy highlights, and DocumentSearchTile with direct page jump', (tester) async {
+    testWidgets('Renders SearchFilterBar, fuzzy highlights, DocumentSearchTile, and surfaces parent note in Notes', (tester) async {
       // Setup Note and Document in DB
       await db.saveNote(
         id: 'note-ui-1',
@@ -336,22 +416,36 @@ void main() {
       // Verify SearchFilterBar exists
       expect(find.byType(SearchFilterBar), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
+      expect(find.text('Notes'), findsOneWidget);
       expect(find.text('Documents & OCR'), findsOneWidget);
 
-      // Verify DocumentSearchTile exists with Page 2 badge and OCR snippet
+      // Dual surfacing in "All" view: Both NoteListTile and DocumentSearchTile appear
       expect(find.byType(DocumentSearchTile), findsOneWidget);
       expect(find.text('System Blueprint'), findsOneWidget);
       expect(find.text('Page 2'), findsOneWidget);
       expect(find.text('OCR Match'), findsOneWidget);
       expect(find.text('In: Project Roadmap'), findsOneWidget);
 
-      // Tap filter chip "Documents & OCR"
+      expect(find.byType(NoteListTile), findsOneWidget);
+      expect(find.text('Project Roadmap'), findsOneWidget);
+
+      // Tap filter chip "Notes" -> NoteListTile remains visible
+      await tester.tap(find.text('Notes'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(container.read(searchFilterProvider), SearchFilter.notes);
+      expect(find.byType(NoteListTile), findsOneWidget);
+      expect(find.byType(DocumentSearchTile), findsNothing);
+
+      // Tap filter chip "Documents & OCR" -> DocumentSearchTile is visible
       await tester.tap(find.text('Documents & OCR'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(container.read(searchFilterProvider), SearchFilter.documents);
       expect(find.byType(DocumentSearchTile), findsOneWidget);
+      expect(find.byType(NoteListTile), findsNothing);
 
       // Tap the document tile to verify it triggers DocumentViewerScreen
       await tester.tap(find.byType(DocumentSearchTile));
@@ -359,6 +453,66 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(DocumentViewerScreen), findsOneWidget);
+    });
+
+    testWidgets('Surfaces Image Attachment OCR match and opens ImageViewerModal on tap', (tester) async {
+      await db.saveNote(
+        id: 'note-img-test',
+        title: 'Hardware Receipts',
+        content: 'Receipts for office setup.',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isPinned: false,
+      );
+
+      await createAttachmentWithOcr(
+        attachmentId: 'att-logitech-1',
+        noteId: 'note-img-test',
+        text: 'Best Buy\nLogitech MX Master 3S Wireless Mouse\nPrice: \$99.99',
+      );
+
+      final notesRepo = DriftNotesRepository(db, keyManager, ocrCrypto);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          notesRepositoryProvider.overrideWithValue(notesRepo),
+          keyManagerProvider.overrideWithValue(keyManager),
+          ocrCryptoProvider.overrideWithValue(ocrCrypto),
+          ocrSearchServiceProvider.overrideWithValue(searchService),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: SearchScreen(initialQuery: 'Logitech'),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+
+      // Verify DocumentSearchTile shows image OCR match
+      expect(find.byType(DocumentSearchTile), findsOneWidget);
+      expect(find.text('Image Attachment'), findsOneWidget);
+      expect(find.text('Image OCR Match'), findsOneWidget);
+      expect(find.text('In: Hardware Receipts'), findsOneWidget);
+
+      // Verify parent note appears under NoteListTile
+      expect(find.byType(NoteListTile), findsOneWidget);
+      expect(find.text('Hardware Receipts'), findsOneWidget);
+
+      // Tap Image tile -> triggers ImageViewerModal
+      await tester.tap(find.byType(DocumentSearchTile));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(ImageViewerModal), findsOneWidget);
     });
   });
 }

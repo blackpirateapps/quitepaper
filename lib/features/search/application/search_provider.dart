@@ -37,10 +37,19 @@ final globalSearchResultsProvider = StreamProvider<GlobalSearchResults>((ref) as
     return;
   }
 
-  // 2. Tier 1: Candidate retrieval via SQLite FTS5 (prefix + trigram)
+  // 2. Tier 1: Candidate retrieval via SQLite FTS5 (prefix + trigram) and Decrypted OCR
   final candidateNoteIds = await db.searchNoteCandidateIds(compiledQuery, limit: 200);
-  final noteCandidates = await db.getSearchCandidatesByIds(candidateNoteIds);
   final ocrCandidates = await ocrSearchService.getOcrPageCandidates();
+
+  // Pre-fetch parent notes of OCR candidates so they are evaluated and surfaced in note matches
+  final ocrParentNoteIds = ocrCandidates
+      .map((c) => c.parentNoteId)
+      .where((id) => id != null && id.isNotEmpty)
+      .cast<String>()
+      .toSet();
+
+  final allCandidateNoteIds = {...candidateNoteIds, ...ocrParentNoteIds}.toList();
+  final noteCandidates = await db.getSearchCandidatesByIds(allCandidateNoteIds);
 
   // 3. Tier 2: Background Isolate scoring, highlighting, and snippet generation
   final isolateRequest = SearchIsolateRequest(
@@ -95,6 +104,7 @@ final globalSearchResultsProvider = StreamProvider<GlobalSearchResults>((ref) as
             matchedInTitle: matchDto.matchedInTitle,
             matchedInContent: matchDto.matchedInContent,
             matchedInTags: matchDto.matchedInTags,
+            matchedInOcr: matchDto.matchedInOcr,
             isFuzzy: matchDto.isFuzzy,
             matchedTokensCount: matchDto.matchedTokensCount,
             score: matchDto.score,
@@ -104,30 +114,56 @@ final globalSearchResultsProvider = StreamProvider<GlobalSearchResults>((ref) as
     }
   }
 
-  // 6. Hydrate Document domain models
+  // 6. Hydrate Document and Image Attachment domain models
   final documentMatches = <DocumentSearchMatch>[];
   if (isolateResponse.documentMatches.isNotEmpty) {
     final activeDocs = await db.getActiveDocuments();
+    final activeAttachments = await db.getActiveAttachments();
     final docsById = {for (var d in activeDocs) d.id: d};
+    final attachmentsById = {for (var a in activeAttachments) a.id: a};
 
     for (final matchDto in isolateResponse.documentMatches) {
-      final docEntity = docsById[matchDto.documentId];
-      if (docEntity != null) {
-        documentMatches.add(
-          DocumentSearchMatch(
-            document: docEntity,
-            parentNoteTitle: matchDto.parentNoteTitle,
-            parentNoteId: matchDto.parentNoteId,
-            matchedPageNumber: matchDto.matchedPageNumber,
-            snippet: matchDto.snippet,
-            snippetHighlightSpans: matchDto.snippetHighlightSpans,
-            titleHighlightSpans: matchDto.titleHighlightSpans,
-            isOcrMatch: matchDto.isOcrMatch,
-            isFuzzy: matchDto.isFuzzy,
-            matchedTokensCount: matchDto.matchedTokensCount,
-            score: matchDto.score,
-          ),
-        );
+      if (matchDto.isAttachment) {
+        final attId = matchDto.attachmentId ?? matchDto.documentId;
+        final attEntity = attachmentsById[attId];
+        if (attEntity != null) {
+          documentMatches.add(
+            DocumentSearchMatch(
+              attachment: attEntity,
+              title: 'Image Attachment',
+              parentNoteTitle: matchDto.parentNoteTitle,
+              parentNoteId: matchDto.parentNoteId,
+              matchedPageNumber: matchDto.matchedPageNumber,
+              snippet: matchDto.snippet,
+              snippetHighlightSpans: matchDto.snippetHighlightSpans,
+              titleHighlightSpans: matchDto.titleHighlightSpans,
+              isOcrMatch: matchDto.isOcrMatch,
+              isFuzzy: matchDto.isFuzzy,
+              matchedTokensCount: matchDto.matchedTokensCount,
+              score: matchDto.score,
+            ),
+          );
+        }
+      } else {
+        final docEntity = docsById[matchDto.documentId];
+        if (docEntity != null) {
+          documentMatches.add(
+            DocumentSearchMatch(
+              document: docEntity,
+              title: docEntity.title,
+              parentNoteTitle: matchDto.parentNoteTitle,
+              parentNoteId: matchDto.parentNoteId,
+              matchedPageNumber: matchDto.matchedPageNumber,
+              snippet: matchDto.snippet,
+              snippetHighlightSpans: matchDto.snippetHighlightSpans,
+              titleHighlightSpans: matchDto.titleHighlightSpans,
+              isOcrMatch: matchDto.isOcrMatch,
+              isFuzzy: matchDto.isFuzzy,
+              matchedTokensCount: matchDto.matchedTokensCount,
+              score: matchDto.score,
+            ),
+          );
+        }
       }
     }
   }

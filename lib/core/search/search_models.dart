@@ -133,6 +133,8 @@ class OcrPageCandidateDto {
     this.parentNoteTitle,
     this.parentNoteId,
   });
+
+  bool get isAttachment => attachmentId != null && attachmentId!.isNotEmpty;
 }
 
 /// Isolate request carrying query and candidate lists.
@@ -164,6 +166,7 @@ class NoteSearchMatchDto {
   final bool matchedInTitle;
   final bool matchedInContent;
   final bool matchedInTags;
+  final bool matchedInOcr;
   final bool isFuzzy;
   final int matchedTokensCount;
 
@@ -176,6 +179,7 @@ class NoteSearchMatchDto {
     this.matchedInTitle = false,
     this.matchedInContent = false,
     this.matchedInTags = false,
+    this.matchedInOcr = false,
     this.isFuzzy = false,
     this.matchedTokensCount = 1,
   });
@@ -213,6 +217,8 @@ class DocumentSearchMatchDto {
     this.matchedTokensCount = 1,
     required this.score,
   });
+
+  bool get isAttachment => attachmentId != null && attachmentId!.isNotEmpty;
 }
 
 /// Complete response from background search worker.

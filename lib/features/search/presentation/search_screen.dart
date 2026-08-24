@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/attachments/presentation/image_viewer_modal.dart';
 import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -370,12 +371,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       match: match,
       searchQuery: query,
       onTap: () {
-        DocumentViewerScreen.open(
-          context,
-          documentId: match.document.id,
-          title: match.document.title,
-          initialPageIndex: match.matchedPageNumber > 0 ? match.matchedPageNumber - 1 : 0,
-        );
+        if (match.isAttachment && match.attachment != null) {
+          ImageViewerModal.open(
+            context,
+            assetId: match.attachment!.id,
+            altText: match.title,
+          );
+        } else if (match.document != null) {
+          DocumentViewerScreen.open(
+            context,
+            documentId: match.document!.id,
+            title: match.document!.title,
+            initialPageIndex: match.matchedPageNumber > 0 ? match.matchedPageNumber - 1 : 0,
+          );
+        }
       },
     );
   }

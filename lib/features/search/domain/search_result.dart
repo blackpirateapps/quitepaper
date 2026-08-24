@@ -43,6 +43,7 @@ class NoteSearchMatch extends SearchResultItem {
   final bool matchedInTitle;
   final bool matchedInTags;
   final bool matchedInContent;
+  final bool matchedInOcr;
   final bool isFuzzy;
   final int matchedTokensCount;
   @override
@@ -56,15 +57,18 @@ class NoteSearchMatch extends SearchResultItem {
     this.matchedInTitle = false,
     this.matchedInTags = false,
     this.matchedInContent = false,
+    this.matchedInOcr = false,
     this.isFuzzy = false,
     this.matchedTokensCount = 1,
     this.score = 1.0,
   });
 }
 
-/// Search result representing a matched Document or Document OCR text page
+/// Search result representing a matched Document or Image Attachment OCR text page
 class DocumentSearchMatch extends SearchResultItem {
-  final DocumentEntity document;
+  final DocumentEntity? document;
+  final AttachmentEntity? attachment;
+  final String title;
   final String? parentNoteTitle;
   final String? parentNoteId;
   final int matchedPageNumber; // 1-indexed page number
@@ -78,7 +82,9 @@ class DocumentSearchMatch extends SearchResultItem {
   final double score;
 
   const DocumentSearchMatch({
-    required this.document,
+    this.document,
+    this.attachment,
+    this.title = '',
     this.parentNoteTitle,
     this.parentNoteId,
     required this.matchedPageNumber,
@@ -90,6 +96,16 @@ class DocumentSearchMatch extends SearchResultItem {
     this.matchedTokensCount = 1,
     this.score = 1.0,
   });
+
+  String get displayTitle {
+    if (title.isNotEmpty) return title;
+    if (document != null) return document!.title;
+    if (attachment != null) return 'Image Attachment';
+    return 'Document';
+  }
+
+  bool get isAttachment => attachment != null;
+  String get id => document?.id ?? attachment?.id ?? '';
 }
 
 /// Aggregated container holding all categorized search results

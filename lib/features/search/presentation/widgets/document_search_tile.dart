@@ -21,7 +21,8 @@ class DocumentSearchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final doc = match.document;
+    final isAttachment = match.isAttachment;
+    final title = match.displayTitle;
     final isOcr = match.isOcrMatch;
     final isFuzzy = match.isFuzzy;
 
@@ -45,22 +46,22 @@ class DocumentSearchTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Document leading icon badge
+              // Document/Attachment leading icon badge
               Container(
                 width: 42,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: colors.accent.withValues(alpha: 0.12),
+                  color: (isAttachment ? Colors.teal : colors.accent).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                   border: Border.all(
-                    color: colors.accent.withValues(alpha: 0.3),
+                    color: (isAttachment ? Colors.teal : colors.accent).withValues(alpha: 0.3),
                     width: 1.0,
                   ),
                 ),
                 alignment: Alignment.center,
                 child: Icon(
-                  Icons.picture_as_pdf_rounded,
-                  color: colors.accent,
+                  isAttachment ? Icons.image_outlined : Icons.picture_as_pdf_rounded,
+                  color: isAttachment ? Colors.teal : colors.accent,
                   size: 24,
                 ),
               ),
@@ -77,7 +78,7 @@ class DocumentSearchTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: _buildFuzzyHighlightedText(
-                            text: doc.title,
+                            text: title,
                             query: searchQuery,
                             precomputedSpans: match.titleHighlightSpans,
                             baseStyle: AppTypography.bodyMedium.copyWith(
@@ -91,28 +92,29 @@ class DocumentSearchTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6.0,
-                            vertical: 2.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: BorderRadius.circular(4.0),
-                            border: Border.all(
-                              color: colors.divider.withValues(alpha: 0.8),
-                              width: 0.8,
+                        if (!isAttachment)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6.0,
+                              vertical: 2.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(4.0),
+                              border: Border.all(
+                                color: colors.divider.withValues(alpha: 0.8),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              'Page ${match.matchedPageNumber}',
+                              style: AppTypography.caption.copyWith(
+                                color: colors.textSecondary,
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                          child: Text(
-                            'Page ${match.matchedPageNumber}',
-                            style: AppTypography.caption.copyWith(
-                              color: colors.textSecondary,
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 3.0),
@@ -123,7 +125,7 @@ class DocumentSearchTile extends StatelessWidget {
                         Icon(
                           match.parentNoteTitle != null
                               ? Icons.description_outlined
-                              : Icons.insert_drive_file_outlined,
+                              : (isAttachment ? Icons.image_outlined : Icons.insert_drive_file_outlined),
                           size: 13,
                           color: colors.textTertiary,
                         ),
@@ -132,7 +134,7 @@ class DocumentSearchTile extends StatelessWidget {
                           child: Text(
                             match.parentNoteTitle != null
                                 ? 'In: ${match.parentNoteTitle}'
-                                : 'Standalone Document',
+                                : (isAttachment ? 'Standalone Image' : 'Standalone Document'),
                             style: AppTypography.caption.copyWith(
                               color: colors.textSecondary,
                               fontSize: 12.0,
@@ -142,7 +144,12 @@ class DocumentSearchTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6.0),
-                        _buildMatchBadge(isOcr: isOcr, isFuzzy: isFuzzy, colors: colors),
+                        _buildMatchBadge(
+                          isAttachment: isAttachment,
+                          isOcr: isOcr,
+                          isFuzzy: isFuzzy,
+                          colors: colors,
+                        ),
                       ],
                     ),
 
@@ -189,6 +196,7 @@ class DocumentSearchTile extends StatelessWidget {
   }
 
   Widget _buildMatchBadge({
+    required bool isAttachment,
     required bool isOcr,
     required bool isFuzzy,
     required AppColors colors,
@@ -199,6 +207,9 @@ class DocumentSearchTile extends StatelessWidget {
     if (isFuzzy) {
       label = 'Fuzzy Match';
       badgeColor = Colors.orange;
+    } else if (isAttachment) {
+      label = 'Image OCR Match';
+      badgeColor = Colors.teal;
     } else if (isOcr) {
       label = 'OCR Match';
       badgeColor = Colors.green;

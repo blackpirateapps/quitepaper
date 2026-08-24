@@ -73,7 +73,8 @@ class OcrSearchService {
   /// Retrieves lightweight isolate-safe OCR page candidate DTOs for background worker evaluation.
   Future<List<OcrPageCandidateDto>> getOcrPageCandidates() async {
     final activeDocuments = await database.getActiveDocuments();
-    if (activeDocuments.isEmpty) return const [];
+    final activeAttachments = await database.getActiveAttachments();
+    if (activeDocuments.isEmpty && activeAttachments.isEmpty) return const [];
 
     final candidates = <OcrPageCandidateDto>[];
     final noteTitleCache = <String, String>{};
@@ -93,6 +94,7 @@ class OcrSearchService {
       } catch (_) {}
     }
 
+    // 1. Process Document OCR pages (PDFs)
     for (final doc in activeDocuments) {
       String? parentNoteTitle;
       String? effectiveNoteId = doc.noteId;
@@ -165,17 +167,82 @@ class OcrSearchService {
       }
     }
 
+    // 2. Process Attachment OCR pages (Images / Receipts / Photos)
+    for (final att in activeAttachments) {
+      String? parentNoteTitle;
+      String? effectiveNoteId = att.noteId;
+
+      if (effectiveNoteId != null && effectiveNoteId.isNotEmpty) {
+        parentNoteTitle = noteTitleCache[effectiveNoteId];
+      } else {
+        for (final note in activeNotes) {
+          if (note.content.contains('qp://asset/${att.id}') ||
+              note.content.contains('qp://attachment/${att.id}')) {
+            effectiveNoteId = note.id;
+            parentNoteTitle = note.title.isNotEmpty ? note.title : 'Untitled Note';
+            break;
+          }
+        }
+      }
+
+      List<_CachedOcrPage>? cachedPages = _attachmentOcrCache[att.id];
+      if (cachedPages == null && isUnlocked && masterKey != null) {
+        try {
+          final ocrRows = await database.getAttachmentOcrPages(att.id);
+          if (ocrRows.isNotEmpty) {
+            final decryptedPages = <_CachedOcrPage>[];
+            for (final row in ocrRows) {
+              try {
+                final encryptedBytes = base64Decode(row.encryptedPayload);
+                final ocrDoc = await _ocrCrypto.decryptOcrDocument(
+                  encryptedEnvelopeBytes: encryptedBytes,
+                  masterKeyBytes: masterKey,
+                  documentId: att.id,
+                  shallow: true,
+                );
+                for (final p in ocrDoc.pages) {
+                  decryptedPages.add(_CachedOcrPage(
+                    pageNumber: p.pageNumber,
+                    plainText: p.plainText,
+                  ));
+                }
+              } catch (_) {}
+            }
+            _attachmentOcrCache[att.id] = decryptedPages;
+            cachedPages = decryptedPages;
+          }
+        } catch (_) {}
+      }
+
+      if (cachedPages != null && cachedPages.isNotEmpty) {
+        for (final page in cachedPages) {
+          candidates.add(
+            OcrPageCandidateDto(
+              documentId: '',
+              attachmentId: att.id,
+              pageNumber: page.pageNumber,
+              plainText: page.plainText,
+              documentTitle: 'Image Attachment',
+              parentNoteTitle: parentNoteTitle,
+              parentNoteId: effectiveNoteId,
+            ),
+          );
+        }
+      }
+    }
+
     return candidates;
   }
 
-  /// Searches all active documents (attached and unattached) for matching title or OCR text
+  /// Searches all active documents and attachments for matching title or OCR text
   /// with typo-tolerant fuzzy matching and relevance scoring.
   Future<List<DocumentSearchMatch>> searchDocuments(String query) async {
     final clean = query.trim().toLowerCase();
     if (clean.isEmpty) return const [];
 
     final activeDocuments = await database.getActiveDocuments();
-    if (activeDocuments.isEmpty) return const [];
+    final activeAttachments = await database.getActiveAttachments();
+    if (activeDocuments.isEmpty && activeAttachments.isEmpty) return const [];
 
     final results = <DocumentSearchMatch>[];
     final noteTitleCache = <String, String>{};
@@ -196,6 +263,7 @@ class OcrSearchService {
       } catch (_) {}
     }
 
+    // 1. Search PDF Documents
     for (final doc in activeDocuments) {
       final docTitle = doc.title;
       final titleMatch = FuzzySearchEngine.evaluate(
@@ -227,7 +295,6 @@ class OcrSearchService {
       List<_CachedOcrPage>? cachedPages = _ocrCache[doc.id];
 
       if (cachedPages == null && isUnlocked && masterKey != null) {
-        // Load & decrypt document OCR pages into cache
         try {
           final ocrRows = await database.getDocumentOcrPages(doc.id);
           if (ocrRows.isNotEmpty) {
@@ -284,8 +351,6 @@ class OcrSearchService {
         }
       }
 
-      // If document matched via Title but had no OCR text matches on specific pages,
-      // include the document as a title match
       if (titleMatch.hasMatch && matchedOcrPagesCount == 0) {
         results.add(
           DocumentSearchMatch(
@@ -300,6 +365,81 @@ class OcrSearchService {
             score: titleMatch.score,
           ),
         );
+      }
+    }
+
+    // 2. Search Image Attachments OCR
+    for (final att in activeAttachments) {
+      String? parentNoteTitle;
+      String? effectiveNoteId = att.noteId;
+
+      if (effectiveNoteId != null && effectiveNoteId.isNotEmpty) {
+        parentNoteTitle = noteTitleCache[effectiveNoteId];
+      } else {
+        for (final note in activeNotes) {
+          if (note.content.contains('qp://asset/${att.id}') ||
+              note.content.contains('qp://attachment/${att.id}')) {
+            effectiveNoteId = note.id;
+            parentNoteTitle = note.title.isNotEmpty ? note.title : 'Untitled Note';
+            break;
+          }
+        }
+      }
+
+      List<_CachedOcrPage>? cachedPages = _attachmentOcrCache[att.id];
+      if (cachedPages == null && isUnlocked && masterKey != null) {
+        try {
+          final ocrRows = await database.getAttachmentOcrPages(att.id);
+          if (ocrRows.isNotEmpty) {
+            final decryptedPages = <_CachedOcrPage>[];
+            for (final row in ocrRows) {
+              try {
+                final encryptedBytes = base64Decode(row.encryptedPayload);
+                final ocrDoc = await _ocrCrypto.decryptOcrDocument(
+                  encryptedEnvelopeBytes: encryptedBytes,
+                  masterKeyBytes: masterKey,
+                  documentId: att.id,
+                  shallow: true,
+                );
+                for (final p in ocrDoc.pages) {
+                  decryptedPages.add(_CachedOcrPage(
+                    pageNumber: p.pageNumber,
+                    plainText: p.plainText,
+                  ));
+                }
+              } catch (_) {}
+            }
+            _attachmentOcrCache[att.id] = decryptedPages;
+            cachedPages = decryptedPages;
+          }
+        } catch (_) {}
+      }
+
+      if (cachedPages != null && cachedPages.isNotEmpty) {
+        for (final page in cachedPages) {
+          final pageMatch = FuzzySearchEngine.evaluate(
+            query: clean,
+            text: page.plainText,
+            isTitle: false,
+          );
+
+          if (pageMatch.hasMatch) {
+            results.add(
+              DocumentSearchMatch(
+                attachment: att,
+                title: 'Image Attachment',
+                parentNoteTitle: parentNoteTitle,
+                parentNoteId: effectiveNoteId,
+                matchedPageNumber: page.pageNumber,
+                snippet: pageMatch.snippet,
+                isOcrMatch: true,
+                isFuzzy: pageMatch.isFuzzy,
+                matchedTokensCount: pageMatch.matchedTokensCount,
+                score: pageMatch.score,
+              ),
+            );
+          }
+        }
       }
     }
 

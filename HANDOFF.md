@@ -2170,4 +2170,38 @@ To ensure consistent text recognition, accurate spatial bounding boxes, and unif
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Automated tests: `flutter test` (**all 493 tests passing**).
 
+---
+
+## 81. Unified Global Search for Image Attachments & Document OCR with Dual Result Surfacing
+
+### 1. Problem & Root-Cause Diagnosis
+Prior to this update, global search only indexed note markdown/titles via SQLite FTS5 and only queried `documentsTable` for PDF OCR text. This resulted in two critical search failures:
+1. **Attachment OCR Omission**: Decrypted OCR candidates in `OcrSearchService` only loaded PDF documents from `database.getActiveDocuments()`, completely omitting image attachments stored in `attachmentsTable` and `attachment_ocr_pages`.
+2. **Parent Note Starvation**: Because OCR text is encrypted client-side with XChaCha20-Poly1305, notes whose match was exclusively inside an attached image or PDF were never returned as candidate note IDs from SQLite FTS5. As a result, the parent note did not appear in the "Notes" tab or "All" tab.
+3. **Attachment Hydration Gap**: `globalSearchResultsProvider` only hydrated matches from `documentsTable`, silently dropping isolate search matches originating from image attachments (`attachmentId`).
+
+### 2. Architectural Solution & Implementation
+- **Unified OCR Candidate Generation ([`lib/core/ocr/ocr_search_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_search_service.dart))**:
+  - `getOcrPageCandidates()` and `searchDocuments()` query both `database.getActiveDocuments()` and `database.getActiveAttachments()`.
+  - Maintains separate in-memory decrypted text caches (`_ocrCache` for documents and `_attachmentOcrCache` for attachments) while unlocked.
+  - Automatically resolves parent notes for attachments via `att.noteId` or inline asset markdown references (`qp://asset/<UUID>` or `qp://attachment/<UUID>`).
+- **Isolate Candidate Pre-Fetching & Dual Surfacing ([`lib/features/search/application/search_provider.dart`](file:///home/dog/git/quitepaper/lib/features/search/application/search_provider.dart))**:
+  - In Tier 1, all parent note IDs referenced by OCR candidates are collected and merged with FTS5 candidate note IDs before executing the background search isolate.
+  - In `searchIsolateWorker` ([`lib/core/search/search_worker.dart`](file:///home/dog/git/quitepaper/lib/core/search/search_worker.dart)), when an OCR page matches and its parent note hasn't already matched via title/body/tags, an OCR-attributed `NoteSearchMatchDto` (`matchedInOcr: true`) is synthesized with the OCR match snippet and highlight spans.
+  - Hydrates both `DocumentEntity` and `AttachmentEntity` instances into `DocumentSearchMatch`.
+- **UI & Presentation ([`lib/features/search/presentation/widgets/document_search_tile.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/widgets/document_search_tile.dart), [`lib/features/search/presentation/search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart))**:
+  - `DocumentSearchTile` dynamically adapts for Image Attachments: displays image badge with `Icons.image_outlined`, Teal palette, and `"Image OCR Match"` badge.
+  - Tapping an image search tile opens `ImageViewerModal.open` with full pinch-to-zoom and interactive live-text selection.
+  - Tapping a document search tile opens `DocumentViewerScreen.open` with direct page navigation.
+  - Dual surfacing allows users to see the result under "Documents & OCR", under "Notes" (parent note with OCR preview snippet), and under "All".
+
+### 3. Verification & Test Suite
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Automated tests: `flutter test` (**all 495 tests passing**).
+- Added comprehensive unit and widget tests in [`test/search/ocr_global_search_test.dart`](file:///home/dog/git/quitepaper/test/search/ocr_global_search_test.dart) covering:
+  - Attachment OCR exact and fuzzy search.
+  - Dual result surfacing (parent note in Notes tab + document/image in Documents tab).
+  - Tap interaction routing to `ImageViewerModal` and `DocumentViewerScreen`.
+
+
 
