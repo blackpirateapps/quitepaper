@@ -268,6 +268,71 @@ source: https://untrusted-site.org/very/long/path/with/parameters?token=xyz
       expect(find.textContaining('highlighted text'), findsOneWidget);
       expect(find.textContaining('Here is some'), findsOneWidget);
     });
+
+    testWidgets('preserves single line breaks within paragraph by default (softLineBreak: true)',
+        (tester) async {
+      const markdown = 'First line\nSecond line';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: markdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find RichText or Text widget containing the rendered paragraph
+      final richTextFinder = find.byType(RichText);
+      final richTexts = tester.widgetList<RichText>(richTextFinder);
+      final plainTexts = richTexts.map((r) => r.text.toPlainText()).toList();
+
+      expect(plainTexts.any((t) => t.contains('First line\nSecond line')), isTrue);
+      expect(plainTexts.any((t) => t.contains('First line Second line')), isFalse);
+    });
+
+    testWidgets('collapses single line breaks to spaces when softLineBreak: false',
+        (tester) async {
+      const markdown = 'First line\nSecond line';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: markdown,
+            softLineBreak: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final richTextFinder = find.byType(RichText);
+      final richTexts = tester.widgetList<RichText>(richTextFinder);
+      final plainTexts = richTexts.map((r) => r.text.toPlainText()).toList();
+
+      expect(plainTexts.any((t) => t.contains('First line Second line')), isTrue);
+      expect(plainTexts.any((t) => t.contains('First line\nSecond line')), isFalse);
+    });
+
+    testWidgets('preserves single line breaks with inline formatting and in shrinkWrap mode',
+        (tester) async {
+      const markdown = 'Alpha line\n**Beta line**\nGamma line';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const SingleChildScrollView(
+            child: QuietMarkdownPreview(
+              markdownData: markdown,
+              shrinkWrap: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Beta line'), findsOneWidget);
+      expect(find.textContaining('Alpha line'), findsOneWidget);
+      expect(find.textContaining('Gamma line'), findsOneWidget);
+    });
   });
 }
 

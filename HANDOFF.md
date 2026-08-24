@@ -227,6 +227,7 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 - **Automatic Filtering**: Any unrecognized frontmatter keys (such as `status`, `rating`, `id`, `aliases`, or custom YAML attributes) are automatically omitted/hidden from the preview.
 - **Bear Aesthetic Properties Card**: Displayed in a warm `colors.surface` container with subtle borders (`colors.divider`), rounded corners (`AppRadii.borderMd`), muted 14dp monochrome icons (`colors.textTertiary`), fixed-width aligned labels (80dp, `AppTypography.caption`), and comfortable row dividers.
 - **Verbatim Storage Preservation**: Full frontmatter raw text remains 100% intact in edit mode, local Drift SQLite database, and end-to-end encrypted sync payloads.
+- **Single Line Break Rendering (`softLineBreak: true`)**: Single `\n` line breaks in notes are preserved visually as line breaks instead of collapsing into spaces, matching the editor experience. Callers can override `softLineBreak: false` if standard CommonMark collapsing is required.
 
 ---
 
@@ -1997,5 +1998,30 @@ graph TD
 ### 3. Verification
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Test suite: `flutter test` (**all 472 tests passing**).
+
+---
+
+## 77. Markdown Preview Soft Line Breaks Support (`softLineBreak: true`)
+
+### 1. Problem Statement
+- In Markdown Preview mode (`QuietMarkdownPreview`), single line breaks (`\n`) between lines of text were collapsed into spaces (`' '`), requiring two consecutive line breaks (`\n\n`) to break text.
+- This caused multiline content (such as addresses, poetry, short lists, and step-by-step instructions) to render as single joined paragraphs when previewing, contradicting the editor's line break behavior.
+
+### 2. Root Cause Analysis
+- `QuietMarkdownPreview` uses `MarkdownBody` from `flutter_markdown`.
+- In `flutter_markdown`, `MarkdownWidget` / `MarkdownBody` defaults `softLineBreak` to `false`.
+- When `softLineBreak: false`, `MarkdownBuilder` strips soft line breaks via `text.replaceAll(RegExp(r' ?\n *'), ' ')` (the CommonMark specification).
+- When `softLineBreak: true`, `MarkdownBuilder` preserves `\n` characters in `TextSpan`, rendering actual line breaks on a single `\n`.
+- `QuietMarkdownPreview` did not specify `softLineBreak`, thus inheriting `softLineBreak: false` across all chunk renderers.
+
+### 3. Solution
+- Added `this.softLineBreak = true` parameter and field to `QuietMarkdownPreview` in [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart).
+- Passed `softLineBreak: widget.softLineBreak` to all 4 `MarkdownBody` instantiations (empty placeholders, shrinkwrapped chunks, and virtualized `ListView` chunks).
+- Added comprehensive test coverage in [`test/markdown/markdown_preview_test.dart`](file:///home/dog/git/quitepaper/test/markdown/markdown_preview_test.dart) verifying single newline preservation, backwards-compatible disabling (`softLineBreak: false`), and inline formatted spans.
+
+### 4. Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 475 tests passing**).
+
 
 

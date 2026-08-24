@@ -40,6 +40,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.searchQuery,
     this.onDocumentRenamed,
     this.onInsertText,
+    this.softLineBreak = true,
   });
 
   final String markdownData;
@@ -57,6 +58,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final String? searchQuery;
   final void Function(String documentId, String newTitle)? onDocumentRenamed;
   final void Function(String text)? onInsertText;
+  final bool softLineBreak;
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -388,6 +390,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
+              softLineBreak: widget.softLineBreak,
             ),
           ],
         );
@@ -409,6 +412,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
+                softLineBreak: widget.softLineBreak,
               ),
             ),
           ],
@@ -444,6 +448,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,
                 onTapLink: effectiveOnTapLink,
+                softLineBreak: widget.softLineBreak,
               );
             }
             return MarkdownBody(
@@ -457,6 +462,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
               onTapLink: effectiveOnTapLink,
+              softLineBreak: widget.softLineBreak,
             );
           }
 
