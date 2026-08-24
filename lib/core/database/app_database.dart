@@ -1,5 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+import '../search/search_index_projection.dart';
+import '../search/search_models.dart';
+import '../search/search_tokenizer.dart';
 import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
 import 'tables/attachment_ocr_pages_table.dart';
@@ -61,12 +64,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+          await _createFts5TablesAndTriggers();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -140,9 +144,14 @@ class AppDatabase extends _$AppDatabase {
             }
             await _createTableSafely(m, attachmentOcrPagesTable);
           }
+          if (from < 10) {
+            await _createFts5TablesAndTriggers();
+            await _backfillSearchIndex();
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
+          await _createFts5TablesAndTriggers();
           await customStatement(
             'CREATE INDEX IF NOT EXISTS notes_lifecycle_idx ON notes (is_archived, is_trashed, is_pinned, updated_at);',
           );
@@ -246,6 +255,240 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // ==========================================
+  // FTS5 SEARCH INDEX & RETRIEVAL OPERATIONS
+  // ==========================================
+
+  Future<void> _createFts5TablesAndTriggers() async {
+    try {
+      await customStatement('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS note_search_prefix USING fts5(
+            note_id UNINDEXED,
+            title,
+            body_text,
+            tags,
+            tokenize = 'unicode61 remove_diacritics 2'
+        );
+      ''');
+    } catch (_) {}
+
+    try {
+      await customStatement('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS note_search_trigram USING fts5(
+            note_id UNINDEXED,
+            title,
+            body_text,
+            tags,
+            tokenize = 'trigram'
+        );
+      ''');
+    } catch (_) {}
+
+    try {
+      await customStatement('''
+        CREATE TRIGGER IF NOT EXISTS trg_notes_fts_delete AFTER DELETE ON notes
+        BEGIN
+          DELETE FROM note_search_prefix WHERE note_id = old.id;
+          DELETE FROM note_search_trigram WHERE note_id = old.id;
+        END;
+      ''');
+    } catch (_) {}
+  }
+
+  Future<void> _backfillSearchIndex() async {
+    try {
+      final activeNotes = await (select(notesTable)..where((n) => n.isTrashed.equals(false))).get();
+      if (activeNotes.isEmpty) return;
+
+      final noteIds = activeNotes.map((n) => n.id).toList();
+      final tagsMap = await getTagsForNoteIds(noteIds);
+
+      for (final note in activeNotes) {
+        final tags = (tagsMap[note.id] ?? []).map((t) => t.name).toList();
+        final projection = SearchIndexProjection.project(
+          noteId: note.id,
+          title: note.title,
+          content: note.content,
+          tags: tags,
+          isTrashed: note.isTrashed,
+          deletedAt: note.deletedAt,
+        );
+
+        if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
+          await customStatement(
+            'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          );
+          await customStatement(
+            'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          );
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Updates or inserts a note into both FTS5 search indexes atomically.
+  Future<void> indexNoteForSearch(String noteId) async {
+    try {
+      final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+      if (note == null || note.isTrashed || note.deletedAt != null) {
+        await removeNoteFromSearchIndex(noteId);
+        return;
+      }
+
+      final tags = await _getTagsForNote(noteId);
+      final tagNames = tags.map((t) => t.name).toList();
+
+      final projection = SearchIndexProjection.project(
+        noteId: note.id,
+        title: note.title,
+        content: note.content,
+        tags: tagNames,
+        isTrashed: note.isTrashed,
+        deletedAt: note.deletedAt,
+      );
+
+      await customStatement(
+        'DELETE FROM note_search_prefix WHERE note_id = ?;',
+        [noteId],
+      );
+      await customStatement(
+        'DELETE FROM note_search_trigram WHERE note_id = ?;',
+        [noteId],
+      );
+
+      if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
+        await customStatement(
+          'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+          [projection.noteId, projection.title, projection.bodyText, projection.tags],
+        );
+        await customStatement(
+          'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+          [projection.noteId, projection.title, projection.bodyText, projection.tags],
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Removes a note from both FTS5 search indexes.
+  Future<void> removeNoteFromSearchIndex(String noteId) async {
+    try {
+      await customStatement(
+        'DELETE FROM note_search_prefix WHERE note_id = ?;',
+        [noteId],
+      );
+      await customStatement(
+        'DELETE FROM note_search_trigram WHERE note_id = ?;',
+        [noteId],
+      );
+    } catch (_) {}
+  }
+
+  /// Completely clears and repopulates both FTS search indexes in a single transaction.
+  Future<void> rebuildSearchIndex() async {
+    await transaction(() async {
+      try {
+        await customStatement('DELETE FROM note_search_prefix;');
+        await customStatement('DELETE FROM note_search_trigram;');
+      } catch (_) {}
+      await _backfillSearchIndex();
+    });
+  }
+
+  /// Tier 1 candidate retrieval: queries prefix and trigram FTS5 indexes and merges candidate note IDs.
+  Future<List<String>> searchNoteCandidateIds(
+    CompiledSearchQuery query, {
+    int limit = 200,
+  }) async {
+    if (query.isEmpty) return const [];
+
+    final candidateIds = <String>{};
+
+    // 1. Prefix query in note_search_prefix
+    if (query.ftsPrefixExpression.isNotEmpty) {
+      try {
+        final rows = await customSelect(
+          'SELECT note_id FROM note_search_prefix WHERE note_search_prefix MATCH ? ORDER BY rank LIMIT ?;',
+          variables: [
+            Variable.withString(query.ftsPrefixExpression),
+            Variable.withInt(limit),
+          ],
+        ).get();
+        for (final row in rows) {
+          final id = row.read<String>('note_id');
+          candidateIds.add(id);
+        }
+      } catch (_) {}
+    }
+
+    // 2. Trigram query in note_search_trigram (for substring matches like 'part' in 'counterpart')
+    if (query.isTrigramEligible && query.ftsTrigramExpression.isNotEmpty && candidateIds.length < limit) {
+      try {
+        final trigramLimit = limit - candidateIds.length;
+        final rows = await customSelect(
+          'SELECT note_id FROM note_search_trigram WHERE note_search_trigram MATCH ? ORDER BY rank LIMIT ?;',
+          variables: [
+            Variable.withString(query.ftsTrigramExpression),
+            Variable.withInt(trigramLimit),
+          ],
+        ).get();
+        for (final row in rows) {
+          final id = row.read<String>('note_id');
+          candidateIds.add(id);
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback for very short queries (1-2 chars) or if FTS returns zero results
+    if (candidateIds.isEmpty && query.cleanQuery.isNotEmpty) {
+      try {
+        final pattern = '%${query.cleanQuery}%';
+        final rows = await customSelect(
+          'SELECT id FROM notes WHERE is_trashed = 0 AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) LIMIT ?;',
+          variables: [
+            Variable.withString(pattern),
+            Variable.withString(pattern),
+            Variable.withInt(limit),
+          ],
+        ).get();
+        for (final row in rows) {
+          candidateIds.add(row.read<String>('id'));
+        }
+      } catch (_) {}
+    }
+
+    return candidateIds.toList();
+  }
+
+  /// Fetches minimal SearchCandidateDto records for candidate IDs to pass across isolate boundaries.
+  Future<List<SearchCandidateDto>> getSearchCandidatesByIds(List<String> noteIds) async {
+    if (noteIds.isEmpty) return const [];
+
+    final rows = await (select(notesTable)
+          ..where((n) => n.id.isIn(noteIds) & n.isTrashed.equals(false)))
+        .get();
+
+    if (rows.isEmpty) return const [];
+
+    final actualIds = rows.map((n) => n.id).toList();
+    final tagsMap = await getTagsForNoteIds(actualIds);
+
+    return rows.map((n) {
+      final tags = (tagsMap[n.id] ?? []).map((t) => t.name).toList();
+      return SearchCandidateDto(
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        tags: tags,
+        updatedAt: n.updatedAt,
+        isPinned: n.isPinned,
+        isArchived: n.isArchived,
+        isPasswordProtected: SearchIndexProjection.isPasswordProtected(n.content),
+      );
+    }).toList();
+  }
+
+  // ==========================================
   // NOTE OPERATIONS & STREAM QUERIES
   // ==========================================
 
@@ -342,7 +585,7 @@ class AppDatabase extends _$AppDatabase {
       if (notesList.isEmpty) return [];
 
       final noteIds = notesList.map((n) => n.id).toList();
-      final tagsByNoteId = await _getTagsForNoteIds(noteIds);
+      final tagsByNoteId = await getTagsForNoteIds(noteIds);
 
       return notesList.map((note) {
         return NoteWithTags(
@@ -413,6 +656,38 @@ class AppDatabase extends _$AppDatabase {
           ? tags
           : TagParser.extractTags('$title\n$content');
       await _syncNoteTags(id, extractedTags);
+
+      // Atomic FTS5 Search Index Maintenance
+      await customStatement(
+        'DELETE FROM note_search_prefix WHERE note_id = ?;',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM note_search_trigram WHERE note_id = ?;',
+        [id],
+      );
+
+      if (!isTrashed && deletedAt == null) {
+        final projection = SearchIndexProjection.project(
+          noteId: id,
+          title: title,
+          content: content,
+          tags: extractedTags,
+          isTrashed: isTrashed,
+          deletedAt: deletedAt,
+        );
+
+        if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
+          await customStatement(
+            'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          );
+          await customStatement(
+            'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          );
+        }
+      }
     });
   }
 
@@ -454,28 +729,34 @@ class AppDatabase extends _$AppDatabase {
 
   /// Move note to Trash: trashed = true, archived = false, records deletedAt
   Future<void> trashNote(String noteId) async {
-    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
-      NotesTableCompanion(
-        isTrashed: const Value(true),
-        isArchived: const Value(false),
-        deletedAt: Value(DateTime.now()),
-        isDirty: const Value(true),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    await transaction(() async {
+      await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+        NotesTableCompanion(
+          isTrashed: const Value(true),
+          isArchived: const Value(false),
+          deletedAt: Value(DateTime.now()),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await removeNoteFromSearchIndex(noteId);
+    });
   }
 
   /// Restore note from Trash: trashed = false, archived = false, deletedAt = null
   Future<void> restoreFromTrash(String noteId) async {
-    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
-      NotesTableCompanion(
-        isTrashed: const Value(false),
-        isArchived: const Value(false),
-        deletedAt: const Value(null),
-        isDirty: const Value(true),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    await transaction(() async {
+      await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+        NotesTableCompanion(
+          isTrashed: const Value(false),
+          isArchived: const Value(false),
+          deletedAt: const Value(null),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await indexNoteForSearch(noteId);
+    });
   }
 
   /// Permanent hard deletion of a single note
@@ -483,6 +764,7 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
+      await removeNoteFromSearchIndex(noteId);
       await _cleanupOrphanedTags();
       // Record permanent delete in sync queue so server registers deletion
       if (enqueueSync) {
@@ -500,6 +782,9 @@ class AppDatabase extends _$AppDatabase {
       final trashedIds = trashedNotes.map((n) => n.id).toList();
 
       if (trashedIds.isNotEmpty) {
+        for (final id in trashedIds) {
+          await removeNoteFromSearchIndex(id);
+        }
         await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
         await _cleanupOrphanedTags();
@@ -543,35 +828,48 @@ class AppDatabase extends _$AppDatabase {
   /// Batch trash
   Future<void> trashNotes(List<String> noteIds) async {
     if (noteIds.isEmpty) return;
-    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
-      NotesTableCompanion(
-        isTrashed: const Value(true),
-        isArchived: const Value(false),
-        deletedAt: Value(DateTime.now()),
-        isDirty: const Value(true),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    await transaction(() async {
+      await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+        NotesTableCompanion(
+          isTrashed: const Value(true),
+          isArchived: const Value(false),
+          deletedAt: Value(DateTime.now()),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      for (final id in noteIds) {
+        await removeNoteFromSearchIndex(id);
+      }
+    });
   }
 
   /// Batch restore
   Future<void> restoreNotes(List<String> noteIds) async {
     if (noteIds.isEmpty) return;
-    await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
-      NotesTableCompanion(
-        isTrashed: const Value(false),
-        isArchived: const Value(false),
-        deletedAt: const Value(null),
-        isDirty: const Value(true),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    await transaction(() async {
+      await (update(notesTable)..where((n) => n.id.isIn(noteIds))).write(
+        NotesTableCompanion(
+          isTrashed: const Value(false),
+          isArchived: const Value(false),
+          deletedAt: const Value(null),
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      for (final id in noteIds) {
+        await indexNoteForSearch(id);
+      }
+    });
   }
 
   /// Batch permanent deletion
   Future<void> deletePermanentlyBatch(List<String> noteIds, {bool enqueueSync = true}) async {
     if (noteIds.isEmpty) return;
     await transaction(() async {
+      for (final id in noteIds) {
+        await removeNoteFromSearchIndex(id);
+      }
       await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
       await _cleanupOrphanedTags();
@@ -600,7 +898,7 @@ class AppDatabase extends _$AppDatabase {
     if (dirtyEntities.isEmpty) return [];
 
     final ids = dirtyEntities.map((n) => n.id).toList();
-    final tagsMap = await _getTagsForNoteIds(ids);
+    final tagsMap = await getTagsForNoteIds(ids);
 
     return dirtyEntities.map((n) {
       return NoteWithTags(note: n, tags: tagsMap[n.id] ?? []);
@@ -775,7 +1073,7 @@ class AppDatabase extends _$AppDatabase {
     return rows.map((row) => row.readTable(tagsTable)).toList();
   }
 
-  Future<Map<String, List<TagEntity>>> _getTagsForNoteIds(
+  Future<Map<String, List<TagEntity>>> getTagsForNoteIds(
       List<String> noteIds) async {
     if (noteIds.isEmpty) return {};
 

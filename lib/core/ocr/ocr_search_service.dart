@@ -70,6 +70,104 @@ class OcrSearchService {
         .toList();
   }
 
+  /// Retrieves lightweight isolate-safe OCR page candidate DTOs for background worker evaluation.
+  Future<List<OcrPageCandidateDto>> getOcrPageCandidates() async {
+    final activeDocuments = await database.getActiveDocuments();
+    if (activeDocuments.isEmpty) return const [];
+
+    final candidates = <OcrPageCandidateDto>[];
+    final noteTitleCache = <String, String>{};
+
+    final activeNotes = await (database.select(database.notesTable)
+          ..where((n) => n.isTrashed.equals(false)))
+        .get();
+    for (final note in activeNotes) {
+      noteTitleCache[note.id] = note.title.isNotEmpty ? note.title : 'Untitled Note';
+    }
+
+    final isUnlocked = keyManager.isUnlocked;
+    Uint8List? masterKey;
+    if (isUnlocked) {
+      try {
+        masterKey = keyManager.getMasterKey();
+      } catch (_) {}
+    }
+
+    for (final doc in activeDocuments) {
+      String? parentNoteTitle;
+      String? effectiveNoteId = doc.noteId;
+
+      if (effectiveNoteId != null && effectiveNoteId.isNotEmpty) {
+        parentNoteTitle = noteTitleCache[effectiveNoteId];
+      } else {
+        for (final note in activeNotes) {
+          if (note.content.contains('qp://document/${doc.id}')) {
+            effectiveNoteId = note.id;
+            parentNoteTitle = note.title.isNotEmpty ? note.title : 'Untitled Note';
+            break;
+          }
+        }
+      }
+
+      List<_CachedOcrPage>? cachedPages = _ocrCache[doc.id];
+      if (cachedPages == null && isUnlocked && masterKey != null) {
+        try {
+          final ocrRows = await database.getDocumentOcrPages(doc.id);
+          if (ocrRows.isNotEmpty) {
+            final decryptedPages = <_CachedOcrPage>[];
+            for (final row in ocrRows) {
+              try {
+                final encryptedBytes = base64Decode(row.encryptedPayload);
+                final ocrDoc = await _ocrCrypto.decryptOcrDocument(
+                  encryptedEnvelopeBytes: encryptedBytes,
+                  masterKeyBytes: masterKey,
+                  documentId: doc.id,
+                  shallow: true,
+                );
+                for (final p in ocrDoc.pages) {
+                  decryptedPages.add(_CachedOcrPage(
+                    pageNumber: p.pageNumber,
+                    plainText: p.plainText,
+                  ));
+                }
+              } catch (_) {}
+            }
+            _ocrCache[doc.id] = decryptedPages;
+            cachedPages = decryptedPages;
+          }
+        } catch (_) {}
+      }
+
+      if (cachedPages != null && cachedPages.isNotEmpty) {
+        for (final page in cachedPages) {
+          candidates.add(
+            OcrPageCandidateDto(
+              documentId: doc.id,
+              pageNumber: page.pageNumber,
+              plainText: page.plainText,
+              documentTitle: doc.title,
+              parentNoteTitle: parentNoteTitle,
+              parentNoteId: effectiveNoteId,
+            ),
+          );
+        }
+      } else {
+        candidates.add(
+          OcrPageCandidateDto(
+            documentId: doc.id,
+            pageNumber: 1,
+            plainText: '',
+            documentTitle: doc.title,
+            parentNoteTitle: parentNoteTitle,
+            parentNoteId: effectiveNoteId,
+          ),
+        );
+      }
+    }
+
+    return candidates;
+  }
+
   /// Searches all active documents (attached and unattached) for matching title or OCR text
   /// with typo-tolerant fuzzy matching and relevance scoring.
   Future<List<DocumentSearchMatch>> searchDocuments(String query) async {

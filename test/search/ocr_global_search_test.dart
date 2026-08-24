@@ -14,6 +14,7 @@ import 'package:quitepaper/core/ocr/ocr_provider.dart';
 import 'package:quitepaper/core/ocr/ocr_search_service.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/search/application/search_provider.dart';
 import 'package:quitepaper/features/search/presentation/search_screen.dart';
 import 'package:quitepaper/features/search/presentation/widgets/document_search_tile.dart';
@@ -296,7 +297,7 @@ void main() {
 
       await createDocumentWithOcr(
         documentId: 'doc-ui-1',
-        title: 'Architecture Blueprint',
+        title: 'System Blueprint',
         noteId: 'note-ui-1',
         pageTexts: [
           'Page 1: System overview diagram.',
@@ -304,9 +305,11 @@ void main() {
         ],
       );
 
+      final notesRepo = DriftNotesRepository(db, keyManager, ocrCrypto);
       final container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(db),
+          notesRepositoryProvider.overrideWithValue(notesRepo),
           keyManagerProvider.overrideWithValue(keyManager),
           ocrCryptoProvider.overrideWithValue(ocrCrypto),
           ocrSearchServiceProvider.overrideWithValue(searchService),
@@ -322,8 +325,13 @@ void main() {
         ),
       );
 
-      // Allow debouncer and stream to settle
-      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+      // Post-frame callback triggers searchQueryProvider update
+      await tester.pump();
+      // Allow debouncer and background search isolate to complete
+      await tester.runAsync(() async {
+        await Future.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
 
       // Verify SearchFilterBar exists
       expect(find.byType(SearchFilterBar), findsOneWidget);
@@ -332,14 +340,15 @@ void main() {
 
       // Verify DocumentSearchTile exists with Page 2 badge and OCR snippet
       expect(find.byType(DocumentSearchTile), findsOneWidget);
-      expect(find.text('Architecture Blueprint'), findsOneWidget);
+      expect(find.text('System Blueprint'), findsOneWidget);
       expect(find.text('Page 2'), findsOneWidget);
       expect(find.text('OCR Match'), findsOneWidget);
       expect(find.text('In: Project Roadmap'), findsOneWidget);
 
       // Tap filter chip "Documents & OCR"
       await tester.tap(find.text('Documents & OCR'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(container.read(searchFilterProvider), SearchFilter.documents);
       expect(find.byType(DocumentSearchTile), findsOneWidget);

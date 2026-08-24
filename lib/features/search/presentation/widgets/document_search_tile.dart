@@ -3,7 +3,6 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
-import '../../../../core/search/fuzzy_search_engine.dart';
 import '../../domain/search_result.dart';
 
 /// Interactive search result tile for scanned documents and OCR text matches
@@ -80,6 +79,7 @@ class DocumentSearchTile extends StatelessWidget {
                           child: _buildFuzzyHighlightedText(
                             text: doc.title,
                             query: searchQuery,
+                            precomputedSpans: match.titleHighlightSpans,
                             baseStyle: AppTypography.bodyMedium.copyWith(
                               color: colors.textPrimary,
                               fontWeight: FontWeight.w600,
@@ -166,6 +166,7 @@ class DocumentSearchTile extends StatelessWidget {
                         child: _buildFuzzyHighlightedText(
                           text: match.snippet,
                           query: searchQuery,
+                          precomputedSpans: match.snippetHighlightSpans,
                           baseStyle: AppTypography.bodySmall.copyWith(
                             color: colors.textPrimary,
                             fontSize: 12.5,
@@ -232,9 +233,10 @@ class DocumentSearchTile extends StatelessWidget {
     required TextStyle baseStyle,
     required Color highlightColor,
     required Color textColor,
+    List<TokenSpanDto>? precomputedSpans,
     int maxLines = 1,
   }) {
-    if (query == null || query.trim().isEmpty || text.isEmpty) {
+    if (text.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -243,12 +245,8 @@ class DocumentSearchTile extends StatelessWidget {
       );
     }
 
-    final eval = FuzzySearchEngine.evaluate(
-      query: query,
-      text: text,
-    );
-
-    if (!eval.hasMatch || eval.highlightSpans.isEmpty) {
+    final rawSpans = precomputedSpans ?? const <TokenSpanDto>[];
+    if (rawSpans.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -258,10 +256,9 @@ class DocumentSearchTile extends StatelessWidget {
     }
 
     // Sort and merge overlapping spans
-    final sortedSpans = [...eval.highlightSpans]
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final sortedSpans = [...rawSpans]..sort((a, b) => a.start.compareTo(b.start));
 
-    final mergedSpans = <TokenSpan>[];
+    final mergedSpans = <TokenSpanDto>[];
     for (final span in sortedSpans) {
       if (span.start < 0 || span.end > text.length || span.start >= span.end) continue;
       if (mergedSpans.isEmpty) {
@@ -269,7 +266,7 @@ class DocumentSearchTile extends StatelessWidget {
       } else {
         final last = mergedSpans.last;
         if (span.start <= last.end) {
-          mergedSpans[mergedSpans.length - 1] = TokenSpan(
+          mergedSpans[mergedSpans.length - 1] = TokenSpanDto(
             start: last.start,
             end: span.end > last.end ? span.end : last.end,
             isExact: last.isExact && span.isExact,
@@ -278,6 +275,15 @@ class DocumentSearchTile extends StatelessWidget {
           mergedSpans.add(span);
         }
       }
+    }
+
+    if (mergedSpans.isEmpty) {
+      return Text(
+        text,
+        style: baseStyle,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+      );
     }
 
     final spans = <TextSpan>[];

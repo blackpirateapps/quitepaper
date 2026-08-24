@@ -1,6 +1,12 @@
 import 'dart:math';
+import 'markdown_offset_mapper.dart';
+import 'search_models.dart';
+import 'search_tokenizer.dart';
 
-/// Representation of a highlightable text span with character offsets
+export 'search_models.dart';
+export 'search_tokenizer.dart';
+
+/// Representation of a highlightable text span with character offsets.
 class TokenSpan {
   final int start;
   final int end;
@@ -11,16 +17,20 @@ class TokenSpan {
     required this.end,
     required this.isExact,
   });
+
+  TokenSpanDto toDto() => TokenSpanDto(start: start, end: end, isExact: isExact);
 }
 
-/// Result of matching a query against a text segment
+/// Result of matching a query against a text segment.
 class TextMatchResult {
   final double score;
   final int matchedTokensCount;
   final bool isFuzzy;
   final bool hasExactPhrase;
-  final List<TokenSpan> highlightSpans;
+  final List<TokenSpanDto> highlightSpans;
   final String snippet;
+  final int? bestMatchOffset;
+  final int? bestMatchLength;
 
   const TextMatchResult({
     required this.score,
@@ -29,6 +39,8 @@ class TextMatchResult {
     required this.hasExactPhrase,
     required this.highlightSpans,
     required this.snippet,
+    this.bestMatchOffset,
+    this.bestMatchLength,
   });
 
   static const TextMatchResult none = TextMatchResult(
@@ -43,36 +55,50 @@ class TextMatchResult {
   bool get hasMatch => score > 0.0;
 }
 
-/// High-performance fuzzy and multi-token search engine with adaptive edit distance
-/// and relevance scoring.
+/// High-performance, pure computational search & ranking engine.
+///
+/// Features bounded Damerau-Levenshtein calculation, zero-allocation row buffers,
+/// multi-tier scoring hierarchy, and Markdown-safe offset mapping.
 class FuzzySearchEngine {
   const FuzzySearchEngine();
 
-  /// Computes Damerau-Levenshtein distance (insertions, deletions, substitutions, transpositions)
-  static int damerauLevenshtein(String a, String b) {
+  /// Calculates Damerau-Levenshtein distance with length pruning and zero 2D array allocation.
+  static int damerauLevenshtein(String a, String b, {int maxDistance = 2}) {
     final la = a.length;
     final lb = b.length;
-    if (la == 0) return lb;
-    if (lb == 0) return la;
 
-    final d = List.generate(la + 1, (_) => List<int>.filled(lb + 1, 0));
+    if (la == 0) return lb <= maxDistance ? lb : maxDistance + 1;
+    if (lb == 0) return la <= maxDistance ? la : maxDistance + 1;
 
-    for (var i = 0; i <= la; i++) {
-      d[i][0] = i;
+    // 1. Length difference pruning
+    if ((la - lb).abs() > maxDistance) {
+      return maxDistance + 1;
     }
+
+    // 2. Exact match fast path
+    if (a == b) return 0;
+
+    // 3. Fast single-row buffer allocation
+    var prev2 = List<int>.filled(lb + 1, 0);
+    var prev = List<int>.filled(lb + 1, 0);
+    var curr = List<int>.filled(lb + 1, 0);
+
     for (var j = 0; j <= lb; j++) {
-      d[0][j] = j;
+      prev[j] = j;
     }
 
     for (var i = 1; i <= la; i++) {
+      curr[0] = i;
+      var minRowVal = curr[0];
+
       for (var j = 1; j <= lb; j++) {
         final cost = a[i - 1] == b[j - 1] ? 0 : 1;
 
-        var minVal = min(
-          d[i - 1][j] + 1, // deletion
+        var val = min(
+          prev[j] + 1, // deletion
           min(
-            d[i][j - 1] + 1, // insertion
-            d[i - 1][j - 1] + cost, // substitution
+            curr[j - 1] + 1, // insertion
+            prev[j - 1] + cost, // substitution
           ),
         );
 
@@ -81,17 +107,30 @@ class FuzzySearchEngine {
             j > 1 &&
             a[i - 1] == b[j - 2] &&
             a[i - 2] == b[j - 1]) {
-          minVal = min(minVal, d[i - 2][j - 2] + 1);
+          val = min(val, prev2[j - 2] + 1);
         }
 
-        d[i][j] = minVal;
+        curr[j] = val;
+        if (val < minRowVal) minRowVal = val;
       }
+
+      // Early termination if entire row exceeds threshold
+      if (minRowVal > maxDistance) {
+        return maxDistance + 1;
+      }
+
+      // Rotate row buffers
+      final temp = prev2;
+      prev2 = prev;
+      prev = curr;
+      curr = temp;
     }
 
-    return d[la][lb];
+    final finalDist = prev[lb];
+    return finalDist <= maxDistance ? finalDist : maxDistance + 1;
   }
 
-  /// Returns maximum allowable edit distance based on token length:
+  /// Maximum allowable edit distance based on token length:
   /// - 1-3 chars: 0 (exact match only)
   /// - 4-6 chars: 1 typo allowed
   /// - 7+ chars: 2 typos allowed
@@ -101,22 +140,18 @@ class FuzzySearchEngine {
     return 2;
   }
 
-  /// Tokenizes a string into lowercased search words
+  /// Tokenizes a string into lowercased search words.
   static List<String> tokenize(String input) {
-    return input
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s#]'), ' ')
-        .split(RegExp(r'\s+'))
-        .where((t) => t.isNotEmpty)
-        .toList();
+    return SearchTokenizer.tokenize(input);
   }
 
-  /// Evaluates query against a target text and calculates relevance score
+  /// Evaluates query against a text segment with field-specific weighting.
   static TextMatchResult evaluate({
     required String query,
     required String text,
     bool isTitle = false,
     bool isTag = false,
+    SearchRankingConfig config = const SearchRankingConfig(),
   }) {
     final cleanQuery = query.trim().toLowerCase();
     if (cleanQuery.isEmpty || text.trim().isEmpty) {
@@ -131,25 +166,29 @@ class FuzzySearchEngine {
     int matchedTokensCount = 0;
     bool hasFuzzy = false;
     bool hasExactPhrase = false;
-    final spans = <TokenSpan>[];
+    final spans = <TokenSpanDto>[];
     int? bestMatchOffset;
+    int? bestMatchLength;
 
-    // 1. Exact continuous phrase match bonus (especially for multi-word queries)
+    // 1. Exact continuous phrase match check
     final exactPhraseIdx = lowerText.indexOf(cleanQuery);
     if (exactPhraseIdx != -1) {
       hasExactPhrase = true;
       if (queryTokens.length > 1) {
-        totalScore += isTitle ? 180.0 : (isTag ? 140.0 : 100.0);
+        totalScore += isTitle
+            ? config.exactPhraseTitle
+            : (isTag ? config.exactPhraseTag : config.exactPhraseBody);
       }
-      spans.add(TokenSpan(
+      spans.add(TokenSpanDto(
         start: exactPhraseIdx,
         end: exactPhraseIdx + cleanQuery.length,
         isExact: true,
       ));
       bestMatchOffset = exactPhraseIdx;
+      bestMatchLength = cleanQuery.length;
     }
 
-    // 2. Tokenized word by word matching
+    // 2. Tokenized word-by-word matching
     final wordRegex = RegExp(r'\b[\w#]+\b');
     final wordMatches = wordRegex.allMatches(text).toList();
 
@@ -160,66 +199,71 @@ class FuzzySearchEngine {
       final maxDistance = maxAllowedEditDistance(cleanQToken.length);
       bool tokenMatched = false;
       int bestDistance = 999;
-      TokenSpan? bestSpanForToken;
-      bool isExactTokenMatch = false;
+      TokenSpanDto? bestSpanForToken;
+      var matchType = _MatchType.none;
 
-      // First check substring containment in target text
+      // Check exact substring containment in text
       final subIdx = lowerText.indexOf(cleanQToken);
       if (subIdx != -1) {
         tokenMatched = true;
-        isExactTokenMatch = true;
-        bestSpanForToken = TokenSpan(
+        matchType = _MatchType.exact;
+        bestSpanForToken = TokenSpanDto(
           start: subIdx,
           end: subIdx + cleanQToken.length,
           isExact: true,
         );
         bestMatchOffset ??= subIdx;
+        bestMatchLength ??= cleanQToken.length;
       } else {
-        // Evaluate against distinct words using Damerau-Levenshtein
+        // Evaluate against individual words
         for (final m in wordMatches) {
           final word = m.group(0)!.toLowerCase().replaceAll(RegExp(r'^#'), '');
           if (word.isEmpty) continue;
 
-          // Prefix match check
+          // Prefix match
           if (word.startsWith(cleanQToken)) {
             tokenMatched = true;
-            isExactTokenMatch = true;
-            bestSpanForToken = TokenSpan(
+            matchType = _MatchType.prefix;
+            bestSpanForToken = TokenSpanDto(
               start: m.start,
               end: m.start + cleanQToken.length,
               isExact: true,
             );
             bestMatchOffset ??= m.start;
+            bestMatchLength ??= cleanQToken.length;
             break;
           }
 
-          // Infix match check
+          // Infix / substring match
           if (word.contains(cleanQToken)) {
             tokenMatched = true;
-            isExactTokenMatch = true;
+            matchType = _MatchType.substring;
             final inWordIdx = word.indexOf(cleanQToken);
-            bestSpanForToken = TokenSpan(
+            bestSpanForToken = TokenSpanDto(
               start: m.start + inWordIdx,
               end: m.start + inWordIdx + cleanQToken.length,
               isExact: true,
             );
-            bestMatchOffset ??= m.start;
+            bestMatchOffset ??= m.start + inWordIdx;
+            bestMatchLength ??= cleanQToken.length;
             break;
           }
 
-          // Fuzzy edit distance check (only if length differences are within bound)
-          if ((word.length - cleanQToken.length).abs() <= maxDistance) {
-            final distance = damerauLevenshtein(cleanQToken, word);
+          // Bounded fuzzy match (only if length bounds allow)
+          if (maxDistance > 0 && (word.length - cleanQToken.length).abs() <= maxDistance) {
+            final distance = damerauLevenshtein(cleanQToken, word, maxDistance: maxDistance);
             if (distance <= maxDistance && distance < bestDistance) {
               bestDistance = distance;
               tokenMatched = true;
               hasFuzzy = true;
-              bestSpanForToken = TokenSpan(
+              matchType = (distance == 1) ? _MatchType.fuzzy1 : _MatchType.fuzzy2;
+              bestSpanForToken = TokenSpanDto(
                 start: m.start,
                 end: m.end,
                 isExact: false,
               );
               bestMatchOffset ??= m.start;
+              bestMatchLength ??= m.end - m.start;
             }
           }
         }
@@ -231,24 +275,34 @@ class FuzzySearchEngine {
           spans.add(bestSpanForToken);
         }
 
-        if (isExactTokenMatch) {
-          if (isTitle) {
-            totalScore += 120.0;
-          } else if (isTag) {
-            totalScore += 100.0;
-          } else {
-            totalScore += 60.0;
-          }
-        } else {
-          // Fuzzy match score scaled by distance
-          final penalty = bestDistance * 15.0;
-          if (isTitle) {
-            totalScore += max(30.0, 90.0 - penalty);
-          } else if (isTag) {
-            totalScore += max(25.0, 75.0 - penalty);
-          } else {
-            totalScore += max(15.0, 45.0 - penalty);
-          }
+        switch (matchType) {
+          case _MatchType.exact:
+            totalScore += isTitle
+                ? config.exactTokenTitle
+                : (isTag ? config.exactTokenTag : config.exactTokenBody);
+            break;
+          case _MatchType.prefix:
+            totalScore += isTitle
+                ? config.prefixTitle
+                : (isTag ? config.prefixTag : config.prefixBody);
+            break;
+          case _MatchType.substring:
+            totalScore += isTitle
+                ? config.substringTitle
+                : (isTag ? config.substringTag : config.substringBody);
+            break;
+          case _MatchType.fuzzy1:
+            totalScore += isTitle
+                ? config.fuzzyDist1Title
+                : (isTag ? config.fuzzyDist1Tag : config.fuzzyDist1Body);
+            break;
+          case _MatchType.fuzzy2:
+            totalScore += isTitle
+                ? config.fuzzyDist2Title
+                : (isTag ? config.fuzzyDist2Tag : config.fuzzyDist2Body);
+            break;
+          case _MatchType.none:
+            break;
         }
       }
     }
@@ -257,18 +311,25 @@ class FuzzySearchEngine {
       return TextMatchResult.none;
     }
 
-    // Multi-token coverage bonus (rewards items containing more matching query terms)
-    totalScore += matchedTokensCount * 50.0;
+    // Multi-token coverage rewards
+    totalScore += matchedTokensCount * config.perMatchedTokenBonus;
     if (matchedTokensCount == queryTokens.length) {
-      totalScore += 80.0; // All query tokens matched bonus
+      totalScore += config.allTokensMatchedBonus;
     }
 
-    // Extract context snippet
-    final snippet = _extractSnippet(
-      text: text,
-      focusOffset: bestMatchOffset ?? 0,
-      focusLength: cleanQuery.length,
-    );
+    String snippet = '';
+    if (bestMatchOffset != null) {
+      final snippetRes = MarkdownOffsetMapper.extractSnippet(
+        text: text,
+        focusOffset: bestMatchOffset,
+        focusLength: bestMatchLength ?? cleanQuery.length,
+        normalizedSpans: spans,
+        contextRadius: config.snippetContextRadius,
+      );
+      snippet = snippetRes.snippet;
+    } else if (text.isNotEmpty) {
+      snippet = text.length > 120 ? '${text.substring(0, 117)}…' : text;
+    }
 
     return TextMatchResult(
       score: totalScore,
@@ -277,24 +338,172 @@ class FuzzySearchEngine {
       hasExactPhrase: hasExactPhrase,
       highlightSpans: spans,
       snippet: snippet,
+      bestMatchOffset: bestMatchOffset,
+      bestMatchLength: bestMatchLength,
     );
   }
 
-  static String _extractSnippet({
-    required String text,
-    required int focusOffset,
-    required int focusLength,
-    int contextRadius = 40,
+  /// Evaluates a Note candidate DTO producing NoteSearchMatchDto or null if no match.
+  static NoteSearchMatchDto? evaluateCandidate({
+    required SearchCandidateDto candidate,
+    required CompiledSearchQuery query,
+    SearchRankingConfig config = const SearchRankingConfig(),
   }) {
-    if (text.isEmpty) return '';
+    if (query.isEmpty) return null;
 
-    final start = (focusOffset - contextRadius).clamp(0, text.length);
-    final end = (focusOffset + focusLength + contextRadius).clamp(0, text.length);
+    final titleMatch = evaluate(
+      query: query.cleanQuery,
+      text: candidate.title,
+      isTitle: true,
+      config: config,
+    );
 
-    final prefix = start > 0 ? '…' : '';
-    final suffix = end < text.length ? '…' : '';
+    final tagsText = candidate.tags.map((t) => '#$t $t').join(' ');
+    final tagMatch = evaluate(
+      query: query.cleanQuery,
+      text: tagsText,
+      isTag: true,
+      config: config,
+    );
 
-    final raw = text.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim();
-    return '$prefix$raw$suffix';
+    // Normalize markdown content for accurate body evaluation and offset mapping
+    final normalized = MarkdownOffsetMapper.normalize(candidate.content);
+    final contentMatch = evaluate(
+      query: query.cleanQuery,
+      text: normalized.normalizedText,
+      isTitle: false,
+      config: config,
+    );
+
+    if (!titleMatch.hasMatch && !tagMatch.hasMatch && !contentMatch.hasMatch) {
+      return null;
+    }
+
+    var totalScore = titleMatch.score + tagMatch.score + contentMatch.score;
+
+    // Recency decay boost (up to 15 points for recent notes)
+    final daysSinceUpdate = DateTime.now().difference(candidate.updatedAt).inDays;
+    if (daysSinceUpdate >= 0) {
+      final recencyBoost = config.recencyMaxBonus / (1.0 + (daysSinceUpdate / 30.0));
+      totalScore += recencyBoost;
+    }
+
+    // Pinned note boost
+    if (candidate.isPinned) {
+      totalScore += 10.0;
+    }
+
+    final isFuzzy = titleMatch.isFuzzy || tagMatch.isFuzzy || contentMatch.isFuzzy;
+    final maxTokensMatched = max(
+      titleMatch.matchedTokensCount,
+      max(tagMatch.matchedTokensCount, contentMatch.matchedTokensCount),
+    );
+
+    // Generate bounded snippet
+    String finalSnippet = '';
+    List<TokenSpanDto> snippetSpans = const [];
+
+    if (contentMatch.hasMatch && contentMatch.bestMatchOffset != null) {
+      final snippetRes = MarkdownOffsetMapper.extractSnippet(
+        text: normalized.normalizedText,
+        focusOffset: contentMatch.bestMatchOffset!,
+        focusLength: contentMatch.bestMatchLength ?? query.cleanQuery.length,
+        normalizedSpans: contentMatch.highlightSpans,
+        contextRadius: config.snippetContextRadius,
+      );
+      finalSnippet = snippetRes.snippet;
+      snippetSpans = snippetRes.highlightSpans;
+    } else {
+      // Fallback snippet from note preview
+      final previewText = normalized.normalizedText.length > 120
+          ? '${normalized.normalizedText.substring(0, 117).trim()}…'
+          : normalized.normalizedText;
+      finalSnippet = previewText;
+    }
+
+    return NoteSearchMatchDto(
+      noteId: candidate.id,
+      score: totalScore,
+      snippet: finalSnippet,
+      titleHighlightSpans: titleMatch.highlightSpans,
+      snippetHighlightSpans: snippetSpans,
+      matchedInTitle: titleMatch.hasMatch,
+      matchedInContent: contentMatch.hasMatch,
+      matchedInTags: tagMatch.hasMatch,
+      isFuzzy: isFuzzy,
+      matchedTokensCount: maxTokensMatched,
+    );
   }
+
+  /// Evaluates an OCR page candidate producing DocumentSearchMatchDto or null if no match.
+  static DocumentSearchMatchDto? evaluateOcrPage({
+    required OcrPageCandidateDto candidate,
+    required CompiledSearchQuery query,
+    SearchRankingConfig config = const SearchRankingConfig(),
+  }) {
+    if (query.isEmpty) return null;
+
+    final titleMatch = evaluate(
+      query: query.cleanQuery,
+      text: candidate.documentTitle,
+      isTitle: true,
+      config: config,
+    );
+
+    final pageMatch = evaluate(
+      query: query.cleanQuery,
+      text: candidate.plainText,
+      isTitle: false,
+      config: config,
+    );
+
+    if (!titleMatch.hasMatch && !pageMatch.hasMatch) {
+      return null;
+    }
+
+    final totalScore = pageMatch.score + (titleMatch.hasMatch ? 40.0 : 0.0);
+    final isOcrMatch = pageMatch.hasMatch;
+
+    String snippet = '';
+    List<TokenSpanDto> snippetSpans = const [];
+
+    if (pageMatch.hasMatch && pageMatch.bestMatchOffset != null) {
+      final snippetRes = MarkdownOffsetMapper.extractSnippet(
+        text: candidate.plainText,
+        focusOffset: pageMatch.bestMatchOffset!,
+        focusLength: pageMatch.bestMatchLength ?? query.cleanQuery.length,
+        normalizedSpans: pageMatch.highlightSpans,
+        contextRadius: config.snippetContextRadius,
+      );
+      snippet = snippetRes.snippet;
+      snippetSpans = snippetRes.highlightSpans;
+    } else {
+      snippet = 'Document Title: ${candidate.documentTitle}';
+    }
+
+    return DocumentSearchMatchDto(
+      documentId: candidate.documentId,
+      attachmentId: candidate.attachmentId,
+      documentTitle: candidate.documentTitle,
+      parentNoteTitle: candidate.parentNoteTitle,
+      parentNoteId: candidate.parentNoteId,
+      matchedPageNumber: candidate.pageNumber,
+      snippet: snippet,
+      snippetHighlightSpans: snippetSpans,
+      titleHighlightSpans: titleMatch.highlightSpans,
+      isOcrMatch: isOcrMatch,
+      isFuzzy: pageMatch.isFuzzy || titleMatch.isFuzzy,
+      matchedTokensCount: max(pageMatch.matchedTokensCount, titleMatch.matchedTokensCount),
+      score: totalScore,
+    );
+  }
+}
+
+enum _MatchType {
+  none,
+  exact,
+  prefix,
+  substring,
+  fuzzy1,
+  fuzzy2,
 }

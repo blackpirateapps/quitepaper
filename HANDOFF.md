@@ -2059,3 +2059,88 @@ graph TD
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Automated tests: `flutter test` (**all 477 tests passing**).
 - Added comprehensive unit tests in [`test/documents/ocr_processing_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/ocr_processing_service_test.dart) and widget tests in [`test/ocr/ocr_text_viewer_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ocr_text_viewer_test.dart).
+
+---
+
+## 79. Two-Tier SQLite FTS5 + Background Isolate Universal Search Engine
+
+### 1. Overview & Architecture
+Quiet Paper previously performed linear, unindexed, in-memory scans across all active notes on the UI isolate, repeatedly computing Damerau-Levenshtein edit distances on raw Markdown strings and recalculating matches inside visible note tiles during scroll.
+
+Phase 2 replaces this with a production-grade **Two-Tier Search Engine**:
+- **Tier 1 (SQLite FTS5 Candidate Recall)**: Queries dual SQLite FTS5 virtual tables (`note_search_prefix` and `note_search_trigram`) in Drift to retrieve up to 200 candidate note IDs in under $5\text{ms}$.
+- **Tier 2 (Background Isolate Ranking & Highlighting)**: Dispatches pure Dart DTOs (`SearchIsolateRequest`) to a background isolate worker (`searchIsolateWorker` via `Isolate.run()`). The worker executes multi-tier fuzzy scoring (exact phrase, exact token, prefix, substring, bounded Damerau-Levenshtein distance), Markdown syntax stripping with 1:1 source-to-display offset mapping, and snippet generation with relative highlight spans.
+- **Zero UI-Thread Computation**: `NoteListTile` and `DocumentSearchTile` render precomputed highlight spans (`titleHighlightSpans`, `snippetHighlightSpans`) and precomputed snippets directly, eliminating all search calculations and regex parsing from the UI thread.
+
+```mermaid
+flowchart TD
+    UI[User types query in SearchScreen] --> Debounce[Debouncer: 150ms]
+    Debounce --> QueryProv[searchQueryProvider]
+    QueryProv --> SearchProv[globalSearchResultsProvider]
+    
+    subgraph Tier1 [Tier 1: SQLite FTS5 Candidate Retrieval]
+        SearchProv --> FtsCompile[SearchTokenizer.compileQuery]
+        FtsCompile --> FtsPrefix[note_search_prefix MATCH 'query*']
+        FtsCompile --> FtsTrigram[note_search_trigram MATCH 'query']
+        FtsPrefix --> MergeIds[Candidate ID Deduplication & Limits]
+        FtsTrigram --> MergeIds
+        MergeIds --> FetchDto[getSearchCandidatesByIds: returns SearchCandidateDto list]
+    end
+    
+    subgraph Tier2 [Tier 2: Background Isolate Worker]
+        FetchDto --> IsolateRun[Isolate.run: searchIsolateWorker]
+        IsolateRun --> StripMd[MarkdownOffsetMapper: syntax strip & 1:1 map]
+        StripMd --> FuzzyRank[FuzzySearchEngine: DP edit distance & multi-tier scoring]
+        FuzzyRank --> SnippetGen[extractSnippet: bounded context & relative spans]
+        SnippetGen --> SortDedupe[Deterministic sorting: score -> token count -> ID]
+        SortDedupe --> RetDto[SearchIsolateResponse: NoteSearchMatchDto & DocumentSearchMatchDto]
+    end
+    
+    Tier2 --> Hydrate[Hydrate domain NoteSearchMatch with precomputed spans]
+    Hydrate --> TileRender[NoteListTile / DocumentSearchTile render precomputed spans]
+```
+
+### 2. SQLite Schema Migration (v9 $\rightarrow$ v10) & FTS5 Virtual Tables
+- **Dual FTS5 Index Tables**:
+  - `note_search_prefix`: Uses `unicode61 remove_diacritics 2` for fast exact and prefix queries (`"sync"*`).
+  - `note_search_trigram`: Uses `trigram` for arbitrary infix and substring queries $\ge 3$ characters (`"part"` matching `"counterpart"`).
+- **SQLite Triggers & Mutation Hooks**:
+  - Added `notes_fts_insert`, `notes_fts_update`, and `notes_fts_delete` triggers.
+  - Added atomic database indexing methods: `indexNoteForSearch()`, `removeNoteFromSearchIndex()`, and `rebuildSearchIndex()`.
+  - Integrated search index consistency across all Drift mutation methods (`saveNote`, `trashNote`, `restoreFromTrash`, `deletePermanently`, `emptyTrash`, and batch operations).
+- **Schema Migration Backfill**:
+  - Upgrades schema v9 to v10 by creating virtual tables, triggers, and executing a full index backfill for all active (non-trashed) notes.
+
+### 3. Concurrency, DTOs & Monotonic Request ID Protection
+- **Pure Isolate Boundary**:
+  - Defined immutable DTOs in [`lib/core/search/search_models.dart`](file:///home/dog/git/quitepaper/lib/core/search/search_models.dart): `SearchCandidateDto`, `OcrPageCandidateDto`, `SearchIsolateRequest`, `NoteSearchMatchDto`, `DocumentSearchMatchDto`, and `SearchIsolateResponse`.
+  - No database cursors, `BuildContext`, or `ChangeNotifier` instances cross isolate boundaries.
+- **Race Condition Prevention**:
+  - `globalSearchResultsProvider` increments a monotonic `_searchGenerationId` on every query change. Out-of-order responses from slow background workers are safely discarded.
+
+### 4. Markdown Offset Mapping & Zero-Allocation Fuzzy Ranking
+- **Markdown-Safe Offset Mapping ([`lib/core/search/markdown_offset_mapper.dart`](file:///home/dog/git/quitepaper/lib/core/search/markdown_offset_mapper.dart))**:
+  - Strips Markdown syntax (headings, bold, italic, code, blockquotes, bullets, links, images, frontmatter) while maintaining an exact 1:1 `normalizedToSourceMap`.
+  - Highlights calculated against normalized display text map accurately back to source offsets without corrupting Markdown formatting or splitting multibyte characters.
+  - `extractSnippet()` extracts bounded whole-word snippets ($\approx 80$ characters radius) and converts matched absolute spans into snippet-relative `TokenSpanDto` ranges.
+- **Fuzzy Search Engine ([`lib/core/search/fuzzy_search_engine.dart`](file:///home/dog/git/quitepaper/lib/core/search/fuzzy_search_engine.dart))**:
+  - Replaced $O(N \times M)$ full matrix allocations with a zero-allocation 1D single-row DP buffer for Damerau-Levenshtein edit distance.
+  - Length-bounded threshold pruning ($\le 3$ chars: exact match only; $4-6$ chars: max distance 1; $\ge 7$ chars: max distance 2).
+  - Scoring hierarchy: Exact Phrase ($200\text{pt}$) $>$ Exact Token ($140\text{pt}$) $>$ Prefix ($80\text{pt}$) $>$ Substring ($70\text{pt}$) $>$ Fuzzy Dist 1 ($40\text{pt}$) $>$ Fuzzy Dist 2 ($20\text{pt}$), with Title $>$ Tag $>$ Content weighting, multi-token match bonuses, and recency boosts.
+
+### 5. Privacy & Zero-Knowledge Invariants
+- **Trashed Notes**: Excluded from FTS tables and Tier 1 recall.
+- **Password-Protected Notes**: Detected via `SearchIndexProjection.isPasswordProtected(content)` (`<!-- quiet-paper-encrypted-note-v1:...`). The encrypted body is never indexed in SQLite FTS5; only unencrypted metadata/title is indexed.
+- **Encrypted Document & Image OCR**: Plaintext OCR is never written into unencrypted persistent SQLite FTS tables. OCR page candidates are evaluated in-memory/in-isolate during authenticated sessions only.
+
+### 6. Verification & Test Suite
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 505 tests passing**).
+- New test suites created:
+  - [`test/search/search_tokenizer_test.dart`](file:///home/dog/git/quitepaper/test/search/search_tokenizer_test.dart): Tokenizer sanitization & query compiler unit tests.
+  - [`test/search/markdown_offset_mapper_test.dart`](file:///home/dog/git/quitepaper/test/search/markdown_offset_mapper_test.dart): Markdown stripping, 1:1 mapping, and snippet generation unit tests.
+  - [`test/search/search_index_projection_test.dart`](file:///home/dog/git/quitepaper/test/search/search_index_projection_test.dart): Privacy, encryption, and tagging projection unit tests.
+  - [`test/search/fuzzy_search_engine_test.dart`](file:///home/dog/git/quitepaper/test/search/fuzzy_search_engine_test.dart): Edit distance, fuzzy scoring hierarchy, and snippet tests.
+  - [`test/search/search_worker_test.dart`](file:///home/dog/git/quitepaper/test/search/search_worker_test.dart): Concurrency isolation and background worker execution tests.
+  - [`test/search/fts5_database_search_test.dart`](file:///home/dog/git/quitepaper/test/search/fts5_database_search_test.dart): Schema v10 FTS5 virtual tables, prefix/trigram matching, and lifecycle synchronization integration tests.
+

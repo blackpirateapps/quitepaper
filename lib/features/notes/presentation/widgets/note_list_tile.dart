@@ -3,7 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
-import '../../../../core/search/fuzzy_search_engine.dart';
+import '../../../../core/search/search_models.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
@@ -15,6 +15,9 @@ class NoteListTile extends StatelessWidget {
     required this.note,
     required this.onTap,
     this.searchQuery,
+    this.precomputedSnippet,
+    this.titleHighlightSpans,
+    this.snippetHighlightSpans,
     this.onTogglePin,
     this.onArchive,
     this.onUnarchive,
@@ -32,6 +35,9 @@ class NoteListTile extends StatelessWidget {
   final Note note;
   final VoidCallback onTap;
   final String? searchQuery;
+  final String? precomputedSnippet;
+  final List<TokenSpanDto>? titleHighlightSpans;
+  final List<TokenSpanDto>? snippetHighlightSpans;
   final VoidCallback? onTogglePin;
   final VoidCallback? onArchive;
   final VoidCallback? onUnarchive;
@@ -123,6 +129,7 @@ class NoteListTile extends StatelessWidget {
                           child: _buildHighlightedText(
                             text: note.displayTitle,
                             query: searchQuery,
+                            precomputedSpans: titleHighlightSpans,
                             baseStyle: AppTypography.bodyMedium.copyWith(
                               color: note.hasCustomTitle
                                   ? colors.textPrimary
@@ -152,6 +159,7 @@ class NoteListTile extends StatelessWidget {
                       _buildHighlightedText(
                         text: preview,
                         query: searchQuery,
+                        precomputedSpans: snippetHighlightSpans,
                         baseStyle: AppTypography.bodySmall.copyWith(
                           color: colors.textSecondary,
                           height: 1.35,
@@ -208,19 +216,9 @@ class NoteListTile extends StatelessWidget {
   }
 
   String _getEffectivePreview(Note note, String? query) {
-    if (query == null || query.trim().isEmpty) {
-      return note.previewSnippet;
+    if (precomputedSnippet != null && precomputedSnippet!.isNotEmpty) {
+      return precomputedSnippet!;
     }
-
-    final eval = FuzzySearchEngine.evaluate(
-      query: query,
-      text: note.content,
-    );
-
-    if (eval.hasMatch && eval.snippet.isNotEmpty) {
-      return eval.snippet;
-    }
-
     return note.previewSnippet;
   }
 
@@ -230,9 +228,10 @@ class NoteListTile extends StatelessWidget {
     required TextStyle baseStyle,
     required Color highlightColor,
     required Color textColor,
+    List<TokenSpanDto>? precomputedSpans,
     int maxLines = 1,
   }) {
-    if (query == null || query.trim().isEmpty || text.isEmpty) {
+    if (text.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -241,12 +240,8 @@ class NoteListTile extends StatelessWidget {
       );
     }
 
-    final eval = FuzzySearchEngine.evaluate(
-      query: query,
-      text: text,
-    );
-
-    if (!eval.hasMatch || eval.highlightSpans.isEmpty) {
+    final rawSpans = precomputedSpans ?? const <TokenSpanDto>[];
+    if (rawSpans.isEmpty) {
       return Text(
         text,
         style: baseStyle,
@@ -256,10 +251,9 @@ class NoteListTile extends StatelessWidget {
     }
 
     // Sort and merge overlapping spans
-    final sortedSpans = [...eval.highlightSpans]
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final sortedSpans = [...rawSpans]..sort((a, b) => a.start.compareTo(b.start));
 
-    final mergedSpans = <TokenSpan>[];
+    final mergedSpans = <TokenSpanDto>[];
     for (final span in sortedSpans) {
       if (span.start < 0 || span.end > text.length || span.start >= span.end) continue;
       if (mergedSpans.isEmpty) {
@@ -267,7 +261,7 @@ class NoteListTile extends StatelessWidget {
       } else {
         final last = mergedSpans.last;
         if (span.start <= last.end) {
-          mergedSpans[mergedSpans.length - 1] = TokenSpan(
+          mergedSpans[mergedSpans.length - 1] = TokenSpanDto(
             start: last.start,
             end: span.end > last.end ? span.end : last.end,
             isExact: last.isExact && span.isExact,
@@ -276,6 +270,15 @@ class NoteListTile extends StatelessWidget {
           mergedSpans.add(span);
         }
       }
+    }
+
+    if (mergedSpans.isEmpty) {
+      return Text(
+        text,
+        style: baseStyle,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+      );
     }
 
     final spans = <TextSpan>[];

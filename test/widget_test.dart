@@ -9,6 +9,7 @@ import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -396,18 +397,30 @@ void main() {
     // Type query
     await tester.enterText(find.byType(TextField), 'architect');
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await Future.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
 
-    expect(find.text('Architectural Blueprint'), findsOneWidget);
-    expect(find.text('Grocery list'), findsNothing);
+    expect(find.byType(NoteListTile), findsOneWidget);
+    expect(
+      (tester.widget<NoteListTile>(find.byType(NoteListTile))).note.title,
+      'Architectural Blueprint',
+    );
 
     // Search by tag
     await tester.enterText(find.byType(TextField), 'food');
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await Future.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
 
-    expect(find.text('Grocery list'), findsOneWidget);
-    expect(find.text('Architectural Blueprint'), findsNothing);
+    expect(find.byType(NoteListTile), findsOneWidget);
+    expect(
+      (tester.widget<NoteListTile>(find.byType(NoteListTile))).note.title,
+      'Grocery list',
+    );
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));

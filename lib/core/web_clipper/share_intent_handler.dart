@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -11,7 +12,7 @@ class ShareIntentHandler {
 
   /// Initializes share intent listeners and checks initial share intent on launch.
   static void initialize(GlobalKey<NavigatorState> navigatorKey) {
-    if (_initialized || kIsWeb) return;
+    if (_initialized || kIsWeb || Platform.environment.containsKey('FLUTTER_TEST')) return;
     _initialized = true;
 
     try {

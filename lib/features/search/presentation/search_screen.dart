@@ -176,7 +176,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return ListView.builder(
           itemCount: results.noteMatches.length,
           itemBuilder: (context, index) {
-            return _buildNoteTile(context, results.noteMatches[index].note, query);
+            final match = results.noteMatches[index];
+            return _buildNoteTile(
+              context,
+              match.note,
+              query,
+              matchedSnippet: match.matchedSnippet,
+              titleHighlightSpans: match.titleHighlightSpans,
+              snippetHighlightSpans: match.snippetHighlightSpans,
+            );
           },
         );
 
@@ -199,7 +207,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return ListView.builder(
           itemCount: tagNotes.length,
           itemBuilder: (context, index) {
-            return _buildNoteTile(context, tagNotes[index].note, query);
+            final match = tagNotes[index];
+            return _buildNoteTile(
+              context,
+              match.note,
+              query,
+              matchedSnippet: match.matchedSnippet,
+              titleHighlightSpans: match.titleHighlightSpans,
+              snippetHighlightSpans: match.snippetHighlightSpans,
+            );
           },
         );
 
@@ -214,7 +230,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               if (showSectionHeaders)
                 _buildSectionHeader(colors, 'NOTES', results.notesCount),
               ...results.noteMatches.map((match) {
-                return _buildNoteTile(context, match.note, query);
+                return _buildNoteTile(
+                  context,
+                  match.note,
+                  query,
+                  matchedSnippet: match.matchedSnippet,
+                  titleHighlightSpans: match.titleHighlightSpans,
+                  snippetHighlightSpans: match.snippetHighlightSpans,
+                );
               }),
             ],
 
@@ -267,10 +290,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildNoteTile(BuildContext context, Note note, String query) {
+  Widget _buildNoteTile(
+    BuildContext context,
+    Note note,
+    String query, {
+    String? matchedSnippet,
+    List<TokenSpanDto>? titleHighlightSpans,
+    List<TokenSpanDto>? snippetHighlightSpans,
+  }) {
     return NoteListTile(
       note: note,
       searchQuery: query,
+      precomputedSnippet: matchedSnippet,
+      titleHighlightSpans: titleHighlightSpans,
+      snippetHighlightSpans: snippetHighlightSpans,
       onTap: () => _openNote(context, note),
       onTogglePin: () {
         ref.read(notesRepositoryProvider).setPinned(note.id, !note.isPinned);

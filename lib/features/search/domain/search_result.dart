@@ -1,5 +1,8 @@
 import '../../../core/database/app_database.dart';
+import '../../../core/search/search_models.dart';
 import '../../notes/domain/note_model.dart';
+
+export '../../../core/search/search_models.dart' show TokenSpanDto;
 
 /// Available filter categories for global search
 enum SearchFilter {
@@ -35,6 +38,8 @@ sealed class SearchResultItem {
 class NoteSearchMatch extends SearchResultItem {
   final Note note;
   final String? matchedSnippet;
+  final List<TokenSpanDto> titleHighlightSpans;
+  final List<TokenSpanDto> snippetHighlightSpans;
   final bool matchedInTitle;
   final bool matchedInTags;
   final bool matchedInContent;
@@ -46,6 +51,8 @@ class NoteSearchMatch extends SearchResultItem {
   const NoteSearchMatch({
     required this.note,
     this.matchedSnippet,
+    this.titleHighlightSpans = const [],
+    this.snippetHighlightSpans = const [],
     this.matchedInTitle = false,
     this.matchedInTags = false,
     this.matchedInContent = false,
@@ -62,6 +69,8 @@ class DocumentSearchMatch extends SearchResultItem {
   final String? parentNoteId;
   final int matchedPageNumber; // 1-indexed page number
   final String snippet;
+  final List<TokenSpanDto> snippetHighlightSpans;
+  final List<TokenSpanDto> titleHighlightSpans;
   final bool isOcrMatch;
   final bool isFuzzy;
   final int matchedTokensCount;
@@ -74,6 +83,8 @@ class DocumentSearchMatch extends SearchResultItem {
     this.parentNoteId,
     required this.matchedPageNumber,
     required this.snippet,
+    this.snippetHighlightSpans = const [],
+    this.titleHighlightSpans = const [],
     required this.isOcrMatch,
     this.isFuzzy = false,
     this.matchedTokensCount = 1,
