@@ -223,6 +223,17 @@ class OcrWord {
       confidence: (json['confidence'] as num?)?.toDouble(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OcrWord &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          bounds == other.bounds;
+
+  @override
+  int get hashCode => Object.hash(text, bounds);
 }
 
 /// A line of recognized words with normalized geometry.
@@ -262,6 +273,17 @@ class OcrLine {
           .toList(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OcrLine &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          bounds == other.bounds;
+
+  @override
+  int get hashCode => Object.hash(text, bounds);
 }
 
 /// A coherent block/paragraph of recognized lines with normalized geometry.
@@ -301,6 +323,17 @@ class OcrBlock {
           .toList(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OcrBlock &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          bounds == other.bounds;
+
+  @override
+  int get hashCode => Object.hash(text, bounds);
 }
 
 /// Recognized text and structured hierarchy for a single document page.

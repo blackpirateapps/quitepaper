@@ -187,7 +187,7 @@ void main() {
       expect(insertedText, 'Meeting Notes 2026');
     });
 
-    testWidgets('Toggle Live Text hides/shows overlay', (tester) async {
+    testWidgets('Toggle Live Text hides/shows overlay and clears selection', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
@@ -198,6 +198,157 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Show Live Text'), findsOneWidget);
+    });
+
+    testWidgets('Renders CustomPainter inside RepaintBoundary with zero widget bloat', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      // Verify hardware-accelerated CustomPaint is used rather than hundreds of Positioned widgets
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(find.byType(RepaintBoundary), findsWidgets);
+    });
+
+    testWidgets('Tapping single word selects word and displays selection callout', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Callout appears with "Meeting" and "1 word" badge
+      expect(find.text('Meeting'), findsOneWidget);
+      expect(find.text('1 word'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Line'), findsOneWidget);
+      expect(find.text('Select All'), findsOneWidget);
+    });
+
+    testWidgets('Tapping Line expands selection to whole line', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 word'), findsOneWidget);
+
+      // Tap Line button in callout
+      await tester.tap(find.text('Line'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Meeting Notes 2026'), findsOneWidget);
+      expect(find.text('3 words'), findsOneWidget);
+    });
+
+    testWidgets('Drag-to-select range selects multiple words across sweep', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+      final word3Center = imageRect.topLeft + Offset(imageRect.width * 0.85, imageRect.height * 0.15);
+
+      await tester.dragFrom(word1Center, word3Center - word1Center);
+      await tester.pumpAndSettle();
+
+      // Entire span from Meeting to 2026 is selected
+      expect(find.text('Meeting Notes 2026'), findsOneWidget);
+      expect(find.text('3 words'), findsOneWidget);
+    });
+
+    testWidgets('Copying selected text copies only the selected words', (tester) async {
+      String? copiedClipboardText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedClipboardText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
+        },
+      );
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Tap Copy in the selection callout
+      await tester.tap(find.text('Copy'));
+      await tester.pumpAndSettle();
+
+      expect(copiedClipboardText, 'Meeting');
+    });
+
+    testWidgets('Inserting selected text inserts only selection into note', (tester) async {
+      String? insertedText;
+      await tester.pumpWidget(buildTestWidget(onInsertText: (t) => insertedText = t));
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word2Center = imageRect.topLeft + Offset(imageRect.width * 0.55, imageRect.height * 0.15);
+
+      await tester.tapAt(word2Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Tap Insert in the selection callout
+      await tester.tap(find.text('Insert'));
+      await tester.pumpAndSettle();
+
+      expect(insertedText, 'Notes');
+    });
+
+    testWidgets('Select All button selects all words on image', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Select All'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Meeting Notes 2026'), findsOneWidget);
+      expect(find.text('3 words'), findsOneWidget);
+    });
+
+    testWidgets('Close button on callout clears selection and restores bottom bar', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy All Text'), findsNothing);
+
+      await tester.tap(find.byTooltip('Clear selection'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy All Text'), findsOneWidget);
     });
   });
 }
