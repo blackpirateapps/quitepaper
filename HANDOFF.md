@@ -2281,6 +2281,24 @@ When users opened the Image OCR viewer (`ImageViewerModal`), two major defects d
   - Clipboard copy and editor note insertion of selected multi-word text.
   - Selection clearing and bottom action bar restoration.
 
+---
+
+## 84. Release Version Bump to 1.5.3 (Build 11)
+
+### Overview
+- Bumped application release version across all client packages, build configurations, and UI metadata from `1.5.2+10` to `1.5.3+11`.
+- Synchronized all 5 canonical locations defined in [Section 17](#17-app-version-bump-checklist):
+  - [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): Bumped `version` to `1.5.3+11`.
+  - [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): Updated `currentVersion` to `'1.5.3'`.
+  - [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): Updated `appVersion` to `'1.5.3'`.
+  - [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): Updated default `appVersion` parameter to `'1.5.3'`.
+  - [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Updated Settings About tile subtitle to `'Version 1.5.3 • Offline-first • End-to-End Encrypted Sync'`.
+
+### Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Full test suite: `flutter test` (**all 504 tests passing**).
+
+
 
 
 
