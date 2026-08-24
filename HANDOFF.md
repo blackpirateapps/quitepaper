@@ -2144,3 +2144,30 @@ flowchart TD
   - [`test/search/search_worker_test.dart`](file:///home/dog/git/quitepaper/test/search/search_worker_test.dart): Concurrency isolation and background worker execution tests.
   - [`test/search/fts5_database_search_test.dart`](file:///home/dog/git/quitepaper/test/search/fts5_database_search_test.dart): Schema v10 FTS5 virtual tables, prefix/trigram matching, and lifecycle synchronization integration tests.
 
+---
+
+## 80. Universal On-Device OCR Pipeline & PDF Text Layer Extraction Removal
+
+### 1. Motivation & Policy
+Previously, Quiet Paper included a pure-Dart PDF text stream extractor (`DefaultPdfTextExtractor`) that attempted to extract embedded text layers directly from PDF content streams instead of running computer vision OCR.
+To ensure consistent text recognition, accurate spatial bounding boxes, and uniform processing across all scanned and imported PDF documents, embedded text layer extraction was removed. All PDF documents are now processed universally through the on-device page rasterization and machine learning / CV OCR engine.
+
+### 2. Codebase Refactoring & Deletions
+- **Deleted `lib/core/pdf/pdf_text_extractor.dart`**: Removed pure-Dart PDF tokenizer, object parser, CMap decoder, and text stream extractor (~2,660 lines).
+- **Deleted `test/pdf/pdf_text_extractor_test.dart`**: Removed text layer unit tests.
+- **Refactored `DocumentProcessingService` ([`lib/core/ocr/document_processing_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/document_processing_service.dart))**:
+  - Removed `PdfTextExtractor` dependency and constructor parameter.
+  - Removed the embedded PDF text layer inspection step in `processDocument`.
+  - All PDF documents (both scanner and imported) are rasterized at 150 DPI with `_pageRenderer.renderPages` and processed via `_ocrService.recognizePage`.
+  - Structured OCR pages are client-side encrypted with the user's Master Key and atomically saved to Drift SQLite database.
+- **Updated `ocr_provider.dart` ([`lib/core/ocr/ocr_provider.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_provider.dart))**:
+  - Removed `pdfTextExtractorProvider` and cleaned up `documentProcessingServiceProvider`.
+- **Updated Test Suites ([`test/documents/ocr_processing_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/ocr_processing_service_test.dart))**:
+  - Removed `FakePdfTextExtractor`.
+  - Validated that both imported PDFs and scanner documents run directly through on-device OCR recognition.
+
+### 3. Verification
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Automated tests: `flutter test` (**all 493 tests passing**).
+
+

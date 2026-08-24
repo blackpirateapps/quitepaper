@@ -5,7 +5,6 @@ import '../../features/settings/application/settings_provider.dart';
 import '../image_processing/image_processor.dart';
 import '../pdf/pdf_generator.dart';
 import '../pdf/pdf_page_renderer.dart';
-import '../pdf/pdf_text_extractor.dart';
 import '../sync/sync_provider.dart';
 import 'document_processing_service.dart';
 import 'ocr_crypto.dart';
@@ -59,11 +58,6 @@ final pdfPageRendererProvider = Provider<PdfPageRenderer>((ref) {
   return const DefaultPdfPageRenderer();
 });
 
-/// Provider for extracting embedded text layer from PDF documents.
-final pdfTextExtractorProvider = Provider<PdfTextExtractor>((ref) {
-  return const DefaultPdfTextExtractor();
-});
-
 /// Provider for on-device OCR recognition engine.
 final ocrServiceProvider = Provider<OcrService>((ref) {
   final renderer = ref.watch(pdfPageRendererProvider);
@@ -89,12 +83,11 @@ final ocrSearchServiceProvider = Provider<OcrSearchService>((ref) {
   );
 });
 
-/// Provider for background document text extraction and OCR processing service.
+/// Provider for background document on-device OCR processing service.
 final documentProcessingServiceProvider = Provider<DocumentProcessingService>((ref) {
   final database = ref.watch(databaseProvider);
   final keyManager = ref.watch(keyManagerProvider);
   final ocrCrypto = ref.watch(ocrCryptoProvider);
-  final textExtractor = ref.watch(pdfTextExtractorProvider);
   final pageRenderer = ref.watch(pdfPageRendererProvider);
   final ocrService = ref.watch(ocrServiceProvider);
   final ocrSearchService = ref.watch(ocrSearchServiceProvider);
@@ -103,7 +96,6 @@ final documentProcessingServiceProvider = Provider<DocumentProcessingService>((r
     database: database,
     keyManager: keyManager,
     ocrCrypto: ocrCrypto,
-    textExtractor: textExtractor,
     pageRenderer: pageRenderer,
     ocrService: ocrService,
     ocrSearchService: ocrSearchService,

@@ -5,39 +5,35 @@ import '../database/app_database.dart';
 import '../documents/document_crypto.dart';
 import '../documents/document_models.dart';
 import '../pdf/pdf_page_renderer.dart';
-import '../pdf/pdf_text_extractor.dart';
 import 'ocr_crypto.dart';
 import 'ocr_models.dart';
 import 'ocr_search_service.dart';
 import 'ocr_service.dart';
 
-/// Asynchronous coordinator for document text extraction, on-device OCR,
+/// Asynchronous coordinator for on-device OCR document processing,
 /// client-side encryption of OCR data, and recovery across app restarts.
 class DocumentProcessingService {
   DocumentProcessingService({
     required this.database,
     required this.keyManager,
     OcrCrypto? ocrCrypto,
-    PdfTextExtractor? textExtractor,
     PdfPageRenderer? pageRenderer,
     OcrService? ocrService,
     this.ocrSearchService,
   }) : _ocrCrypto = ocrCrypto ?? OcrCrypto(),
-       _textExtractor = textExtractor ?? const DefaultPdfTextExtractor(),
        _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer(),
        _ocrService = ocrService ?? const DefaultOcrService();
 
   final AppDatabase database;
   final KeyManager keyManager;
   final OcrCrypto _ocrCrypto;
-  final PdfTextExtractor _textExtractor;
   final PdfPageRenderer _pageRenderer;
   final OcrService _ocrService;
   final OcrSearchService? ocrSearchService;
 
   final Set<String> _inFlightJobIds = <String>{};
 
-  /// Asynchronously processes a document (text extraction or ML OCR) in the background.
+  /// Asynchronously processes a document with on-device OCR in the background.
   Future<void> processDocument({
     required String documentId,
     required Uint8List pdfBytes,
@@ -64,78 +60,42 @@ class DocumentProcessingService {
       );
 
       final pdfSha256 = DocumentCrypto.computeSha256(pdfBytes);
-      OcrDocument? ocrResult;
 
-      // 1. Inspect for existing usable embedded PDF text layer first
-      try {
-        debugPrint('[QuietPaper OCR] Checking for embedded PDF text layer...');
-        final extraction = await _textExtractor.extractText(pdfBytes);
-        if (extraction.hasUsableText && extraction.pages.isNotEmpty) {
-          debugPrint(
-            '[QuietPaper OCR] Found embedded text layer with ${extraction.pages.length} pages.',
-          );
-          ocrResult = OcrDocument(
-            documentId: documentId,
-            language: language,
-            engine: 'quietpaper_pdf_extractor',
-            engineVersion: '1.0.0',
-            schemaVersion: 1,
-            processedAt: DateTime.now(),
-            sourceDocumentSha256: pdfSha256,
-            pages: extraction.pages,
-          );
-        } else if (extraction.timedOut) {
-          debugPrint(
-            '[QuietPaper OCR] Embedded PDF text extraction reached its safety limit. Falling back to OCR.',
-          );
-        } else {
-          debugPrint(
-            '[QuietPaper OCR] No usable embedded PDF text layer found. Falling back to OCR.',
-          );
-        }
-      } catch (extractErr) {
-        debugPrint(
-          '[QuietPaper OCR] Text extraction fallback to OCR: $extractErr',
-        );
-      }
+      // Rasterize PDF pages at 150 DPI and run on-device OCR for all documents
+      debugPrint(
+        '[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...',
+      );
+      final renderedPages = await _pageRenderer.renderPages(
+        pdfBytes,
+        dpi: 150.0,
+      );
+      debugPrint(
+        '[QuietPaper OCR] Rasterized ${renderedPages.length} pages. Starting text recognition...',
+      );
+      final ocrPages = <OcrPage>[];
 
-      // 2. If no text layer found or scanned document, run on-device OCR
-      if (ocrResult == null) {
-        debugPrint(
-          '[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...',
-        );
-        final renderedPages = await _pageRenderer.renderPages(
-          pdfBytes,
-          dpi: 150.0,
-        );
-        debugPrint(
-          '[QuietPaper OCR] Rasterized ${renderedPages.length} pages. Starting text recognition...',
-        );
-        final ocrPages = <OcrPage>[];
-
-        for (final rendered in renderedPages) {
-          final ocrPage = await _ocrService.recognizePage(
-            rendered.imageBytes,
-            pageNumber: rendered.pageNumber,
-            language: language,
-          );
-          ocrPages.add(ocrPage);
-          debugPrint(
-            '[QuietPaper OCR] Page ${rendered.pageNumber} recognized (${ocrPage.blocks.length} blocks, ${ocrPage.plainText.length} chars).',
-          );
-        }
-
-        ocrResult = OcrDocument(
-          documentId: documentId,
+      for (final rendered in renderedPages) {
+        final ocrPage = await _ocrService.recognizePage(
+          rendered.imageBytes,
+          pageNumber: rendered.pageNumber,
           language: language,
-          engine: 'quietpaper_ml_ocr',
-          engineVersion: '1.0.0',
-          schemaVersion: 1,
-          processedAt: DateTime.now(),
-          sourceDocumentSha256: pdfSha256,
-          pages: ocrPages,
+        );
+        ocrPages.add(ocrPage);
+        debugPrint(
+          '[QuietPaper OCR] Page ${rendered.pageNumber} recognized (${ocrPage.blocks.length} blocks, ${ocrPage.plainText.length} chars).',
         );
       }
+
+      final ocrResult = OcrDocument(
+        documentId: documentId,
+        language: language,
+        engine: 'quietpaper_ml_ocr',
+        engineVersion: '1.0.0',
+        schemaVersion: 1,
+        processedAt: DateTime.now(),
+        sourceDocumentSha256: pdfSha256,
+        pages: ocrPages,
+      );
 
       // 3. Encrypt structured OCR pages client-side using Master Key and atomically save
       if (keyManager.isUnlocked) {
