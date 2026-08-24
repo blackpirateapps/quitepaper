@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:drift/drift.dart' hide Column;
 import '../../features/search/domain/search_result.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
@@ -40,20 +40,26 @@ class OcrSearchService {
   /// In-memory decrypted OCR text cache: attachmentId -> list of pages
   final Map<String, List<_CachedOcrPage>> _attachmentOcrCache = {};
 
+  /// In-memory cached candidate DTO list for instantaneous (0ms) global search candidate retrieval
+  List<OcrPageCandidateDto>? _cachedCandidates;
+
   /// Invalidate cache for a specific document (e.g. on OCR retry or document deletion)
   void invalidateDocumentCache(String documentId) {
     _ocrCache.remove(documentId);
+    _cachedCandidates = null;
   }
 
   /// Invalidate cache for a specific attachment (e.g. on OCR retry or deletion)
   void invalidateAttachmentCache(String attachmentId) {
     _attachmentOcrCache.remove(attachmentId);
+    _cachedCandidates = null;
   }
 
   /// Invalidate entire in-memory cache (e.g. on notebook lock or account sign-out)
   void clearCache() {
     _ocrCache.clear();
     _attachmentOcrCache.clear();
+    _cachedCandidates = null;
   }
 
   /// Directly update cache with newly recognized OCR pages from DocumentProcessingService
@@ -61,6 +67,7 @@ class OcrSearchService {
     _ocrCache[documentId] = pages
         .map((p) => _CachedOcrPage(pageNumber: p.pageNumber, plainText: p.plainText))
         .toList();
+    _cachedCandidates = null;
   }
 
   /// Directly update cache with newly recognized OCR pages from AttachmentProcessingService
@@ -68,22 +75,41 @@ class OcrSearchService {
     _attachmentOcrCache[attachmentId] = pages
         .map((p) => _CachedOcrPage(pageNumber: p.pageNumber, plainText: p.plainText))
         .toList();
+    _cachedCandidates = null;
   }
 
   /// Retrieves lightweight isolate-safe OCR page candidate DTOs for background worker evaluation.
+  /// Returns in 0ms on cache hits without database queries or main-thread cryptographic overhead.
   Future<List<OcrPageCandidateDto>> getOcrPageCandidates() async {
+    if (_cachedCandidates != null) {
+      return _cachedCandidates!;
+    }
+
     final activeDocuments = await database.getActiveDocuments();
     final activeAttachments = await database.getActiveAttachments();
-    if (activeDocuments.isEmpty && activeAttachments.isEmpty) return const [];
+    if (activeDocuments.isEmpty && activeAttachments.isEmpty) {
+      _cachedCandidates = const [];
+      return _cachedCandidates!;
+    }
 
     final candidates = <OcrPageCandidateDto>[];
     final noteTitleCache = <String, String>{};
 
-    final activeNotes = await (database.select(database.notesTable)
-          ..where((n) => n.isTrashed.equals(false)))
-        .get();
-    for (final note in activeNotes) {
-      noteTitleCache[note.id] = note.title.isNotEmpty ? note.title : 'Untitled Note';
+    // Efficiently query only the parent notes referenced by active documents and attachments
+    final referencedNoteIds = <String>{
+      for (final d in activeDocuments)
+        if (d.noteId != null && d.noteId!.isNotEmpty) d.noteId!,
+      for (final a in activeAttachments)
+        if (a.noteId != null && a.noteId!.isNotEmpty) a.noteId!,
+    };
+
+    if (referencedNoteIds.isNotEmpty) {
+      final parentNotes = await (database.select(database.notesTable)
+            ..where((n) => n.id.isIn(referencedNoteIds) & n.isTrashed.equals(false)))
+          .get();
+      for (final note in parentNotes) {
+        noteTitleCache[note.id] = note.title.isNotEmpty ? note.title : 'Untitled Note';
+      }
     }
 
     final isUnlocked = keyManager.isUnlocked;
@@ -96,20 +122,8 @@ class OcrSearchService {
 
     // 1. Process Document OCR pages (PDFs)
     for (final doc in activeDocuments) {
-      String? parentNoteTitle;
-      String? effectiveNoteId = doc.noteId;
-
-      if (effectiveNoteId != null && effectiveNoteId.isNotEmpty) {
-        parentNoteTitle = noteTitleCache[effectiveNoteId];
-      } else {
-        for (final note in activeNotes) {
-          if (note.content.contains('qp://document/${doc.id}')) {
-            effectiveNoteId = note.id;
-            parentNoteTitle = note.title.isNotEmpty ? note.title : 'Untitled Note';
-            break;
-          }
-        }
-      }
+      final parentNoteTitle = doc.noteId != null ? noteTitleCache[doc.noteId] : null;
+      final effectiveNoteId = doc.noteId;
 
       List<_CachedOcrPage>? cachedPages = _ocrCache[doc.id];
       if (cachedPages == null && isUnlocked && masterKey != null) {
@@ -169,21 +183,8 @@ class OcrSearchService {
 
     // 2. Process Attachment OCR pages (Images / Receipts / Photos)
     for (final att in activeAttachments) {
-      String? parentNoteTitle;
-      String? effectiveNoteId = att.noteId;
-
-      if (effectiveNoteId != null && effectiveNoteId.isNotEmpty) {
-        parentNoteTitle = noteTitleCache[effectiveNoteId];
-      } else {
-        for (final note in activeNotes) {
-          if (note.content.contains('qp://asset/${att.id}') ||
-              note.content.contains('qp://attachment/${att.id}')) {
-            effectiveNoteId = note.id;
-            parentNoteTitle = note.title.isNotEmpty ? note.title : 'Untitled Note';
-            break;
-          }
-        }
-      }
+      final parentNoteTitle = att.noteId != null ? noteTitleCache[att.noteId] : null;
+      final effectiveNoteId = att.noteId;
 
       List<_CachedOcrPage>? cachedPages = _attachmentOcrCache[att.id];
       if (cachedPages == null && isUnlocked && masterKey != null) {
@@ -231,7 +232,8 @@ class OcrSearchService {
       }
     }
 
-    return candidates;
+    _cachedCandidates = List.unmodifiable(candidates);
+    return _cachedCandidates!;
   }
 
   /// Searches all active documents and attachments for matching title or OCR text

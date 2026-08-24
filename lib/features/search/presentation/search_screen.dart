@@ -126,10 +126,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       body: SafeArea(
         child: query.trim().isEmpty
             ? _buildInitialState(colors)
-            : searchResultsAsync.when(
-                data: (results) {
+            : () {
+                final results = searchResultsAsync.valueOrNull;
+                final isLoading = searchResultsAsync.isLoading;
+
+                if (results != null) {
                   return Column(
                     children: [
+                      if (isLoading)
+                        LinearProgressIndicator(
+                          minHeight: 2.0,
+                          backgroundColor: Colors.transparent,
+                          color: colors.accent,
+                        )
+                      else
+                        const SizedBox(height: 2.0),
+
                       // Filter bar for selecting category (All, Notes, Documents, Tags)
                       SearchFilterBar(results: results),
 
@@ -147,17 +159,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                     ],
                   );
-                },
-                loading: () => const Center(
-                  child: CircularProgressIndicator.adaptive(),
-                ),
-                error: (err, _) => Center(
-                  child: Text(
-                    'Error searching: $err',
-                    style: AppTypography.body.copyWith(color: colors.error),
-                  ),
-                ),
-              ),
+                }
+
+                if (isLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator.adaptive(),
+                  );
+                }
+
+                if (searchResultsAsync.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error searching: ${searchResultsAsync.error}',
+                      style: AppTypography.body.copyWith(color: colors.error),
+                    ),
+                  );
+                }
+
+                return _buildInitialState(colors);
+              }(),
       ),
     );
   }

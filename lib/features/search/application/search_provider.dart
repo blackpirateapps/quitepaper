@@ -1,6 +1,7 @@
 import 'dart:isolate';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/database/app_database.dart';
 import '../../../core/ocr/ocr_provider.dart';
 import '../../../core/search/fuzzy_search_engine.dart';
 import '../../../core/search/search_worker.dart';
@@ -117,10 +118,34 @@ final globalSearchResultsProvider = StreamProvider<GlobalSearchResults>((ref) as
   // 6. Hydrate Document and Image Attachment domain models
   final documentMatches = <DocumentSearchMatch>[];
   if (isolateResponse.documentMatches.isNotEmpty) {
-    final activeDocs = await db.getActiveDocuments();
-    final activeAttachments = await db.getActiveAttachments();
-    final docsById = {for (var d in activeDocs) d.id: d};
-    final attachmentsById = {for (var a in activeAttachments) a.id: a};
+    final docIds = isolateResponse.documentMatches
+        .where((m) => !m.isAttachment)
+        .map((m) => m.documentId)
+        .toList();
+    final attIds = isolateResponse.documentMatches
+        .where((m) => m.isAttachment)
+        .map((m) => m.attachmentId ?? m.documentId)
+        .toList();
+
+    final docsById = <String, DocumentEntity>{};
+    if (docIds.isNotEmpty) {
+      final docEntities = await (db.select(db.documentsTable)
+            ..where((d) => d.id.isIn(docIds) & d.isDeleted.equals(false)))
+          .get();
+      for (final doc in docEntities) {
+        docsById[doc.id] = doc;
+      }
+    }
+
+    final attachmentsById = <String, AttachmentEntity>{};
+    if (attIds.isNotEmpty) {
+      final attEntities = await (db.select(db.attachmentsTable)
+            ..where((a) => a.id.isIn(attIds) & a.isDeleted.equals(false)))
+          .get();
+      for (final att in attEntities) {
+        attachmentsById[att.id] = att;
+      }
+    }
 
     for (final matchDto in isolateResponse.documentMatches) {
       if (matchDto.isAttachment) {

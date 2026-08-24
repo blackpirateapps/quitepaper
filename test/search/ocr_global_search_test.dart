@@ -360,6 +360,26 @@ void main() {
       expect(matches.first.parentNoteId, 'note-att-1');
       expect(matches.first.snippet.toLowerCase(), contains('caramel macchiato'));
     });
+
+    test('getOcrPageCandidates caches DTO list and invalidates on mutations', () async {
+      await createAttachmentWithOcr(
+        attachmentId: 'att-cache-test',
+        text: 'Receipt with unique keyword quantum computing',
+      );
+
+      // Pass 1: builds candidates
+      final candidates1 = await searchService.getOcrPageCandidates();
+      expect(candidates1.any((c) => c.plainText.contains('quantum')), isTrue);
+
+      // Pass 2: returns identical cached instance (0ms)
+      final candidates2 = await searchService.getOcrPageCandidates();
+      expect(identical(candidates1, candidates2), isTrue);
+
+      // Invalidation clears cache
+      searchService.invalidateAttachmentCache('att-cache-test');
+      final candidates3 = await searchService.getOcrPageCandidates();
+      expect(identical(candidates1, candidates3), isFalse);
+    });
   });
 
   group('Global Search Provider & Screen UI Integration', () {
