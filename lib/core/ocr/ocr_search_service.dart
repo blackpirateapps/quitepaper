@@ -141,6 +141,7 @@ class OcrSearchService {
                   encryptedEnvelopeBytes: encryptedBytes,
                   masterKeyBytes: masterKey,
                   documentId: doc.id,
+                  shallow: true,
                 );
                 for (final p in ocrDoc.pages) {
                   decryptedPages.add(_CachedOcrPage(

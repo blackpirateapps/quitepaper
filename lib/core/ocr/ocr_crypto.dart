@@ -96,6 +96,7 @@ class OcrCrypto {
     required Uint8List encryptedEnvelopeBytes,
     required Uint8List masterKeyBytes,
     required String documentId,
+    bool shallow = false,
   }) async {
     final decryptedBytes = await decryptRawOcrBytes(
       encryptedEnvelopeBytes: encryptedEnvelopeBytes,
@@ -106,7 +107,7 @@ class OcrCrypto {
     try {
       final jsonString = utf8.decode(decryptedBytes);
       final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
-      return OcrDocument.fromJson(jsonMap);
+      return OcrDocument.fromJson(jsonMap, shallow: shallow);
     } catch (e) {
       throw OcrDecryptionException('Failed to deserialize decrypted OCR JSON: $e');
     }

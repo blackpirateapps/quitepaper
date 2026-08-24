@@ -356,6 +356,18 @@ class OcrPage {
           .toList(),
     );
   }
+
+  /// Fast shallow parser that extracts page text and geometry without instantiating child blocks/lines/words.
+  factory OcrPage.fromJsonShallow(Map<String, dynamic> json) {
+    return OcrPage(
+      pageNumber: json['pageNumber'] as int? ?? 1,
+      plainText: json['plainText'] as String? ?? '',
+      width: json['width'] as int? ?? 0,
+      height: json['height'] as int? ?? 0,
+      source: OcrSource.fromIdentifier(json['source'] as String?),
+      blocks: const [],
+    );
+  }
 }
 
 /// Complete document OCR dataset containing all pages and metadata.
@@ -428,7 +440,7 @@ class OcrDocument {
         'pages': pages.map((p) => p.toJson()).toList(),
       };
 
-  factory OcrDocument.fromJson(Map<String, dynamic> json) {
+  factory OcrDocument.fromJson(Map<String, dynamic> json, {bool shallow = false}) {
     final rawPages = json['pages'] as List? ?? [];
     return OcrDocument(
       documentId: json['documentId'] as String? ?? '',
@@ -441,8 +453,53 @@ class OcrDocument {
       sourceDocumentSha256: json['sourceDocumentSha256'] as String?,
       pages: rawPages
           .whereType<Map>()
-          .map((p) => OcrPage.fromJson(Map<String, dynamic>.from(p)))
+          .map((p) => shallow
+              ? OcrPage.fromJsonShallow(Map<String, dynamic>.from(p))
+              : OcrPage.fromJson(Map<String, dynamic>.from(p)))
           .toList(),
     );
   }
+}
+
+/// Lightweight document OCR metadata summary returned without decrypting full document page payloads.
+@immutable
+class OcrDocumentMetadata {
+  const OcrDocumentMetadata({
+    required this.documentId,
+    required this.pageCount,
+    this.language = OcrLanguage.english,
+    this.engine = 'quietpaper_ocr_v1',
+    this.engineVersion = '1.0.0',
+    this.schemaVersion = 1,
+    required this.processedAt,
+    this.pageNumbers = const [],
+    this.sourceDocumentSha256,
+  });
+
+  /// Canonical document UUID.
+  final String documentId;
+
+  /// Total number of OCR pages recorded for this document.
+  final int pageCount;
+
+  /// Language used during OCR recognition.
+  final OcrLanguage language;
+
+  /// Engine name used for recognition.
+  final String engine;
+
+  /// Engine version used for recognition.
+  final String engineVersion;
+
+  /// OCR schema version.
+  final int schemaVersion;
+
+  /// Timestamp when OCR processing completed.
+  final DateTime processedAt;
+
+  /// Ordered list of available 1-based page numbers.
+  final List<int> pageNumbers;
+
+  /// Source PDF SHA-256 hash if recorded.
+  final String? sourceDocumentSha256;
 }

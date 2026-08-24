@@ -217,5 +217,47 @@ void main() {
       expect(find.text('OCR Text Unavailable'), findsOneWidget);
       expect(find.textContaining('No OCR text available'), findsOneWidget);
     });
+
+    testWidgets('Displays Jump to Page option in menu for multi-page documents and navigates smoothly', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            documentProcessingServiceProvider.overrideWithValue(processingService),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: const OcrTextViewerScreen(
+              documentId: testDocId,
+              title: 'Invoice Document',
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Open overflow menu
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jump to Page'), findsOneWidget);
+
+      // Tap Jump to Page
+      await tester.tap(find.text('Jump to Page'));
+      await tester.pumpAndSettle();
+
+      // Verify dialog appears
+      expect(find.text('Enter page number (1 – 2):'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Jump'), findsOneWidget);
+
+      // Enter target page 2
+      await tester.enterText(find.byType(TextField), '2');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Jump'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Page 2'), findsOneWidget);
+    });
   });
 }

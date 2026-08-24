@@ -177,8 +177,7 @@ void main() {
 
       // Tap the View OCR Text icon button in AppBar
       await tester.tap(find.byIcon(Icons.article_outlined));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
 
       expect(find.byType(OcrTextViewerScreen), findsOneWidget);
       expect(find.textContaining('Sample OCR Content Inside Document'), findsOneWidget);

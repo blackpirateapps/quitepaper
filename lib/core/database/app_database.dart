@@ -14,6 +14,7 @@ import 'tables/sync_conflicts_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
 import 'tables/tags_table.dart';
+import '../ocr/ocr_models.dart';
 
 part 'app_database.g.dart';
 
@@ -1565,6 +1566,45 @@ class AppDatabase extends _$AppDatabase {
           ..where((p) => p.documentId.equals(documentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
         .get();
+  }
+
+  /// Get a single OCR page record for a document by page number
+  Future<DocumentOcrPageEntity?> getDocumentOcrPage(String documentId, int pageNumber) async {
+    return (select(documentOcrPagesTable)
+          ..where((p) => p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+        .getSingleOrNull();
+  }
+
+  /// Get total count of OCR pages for a document
+  Future<int> getDocumentOcrPageCount(String documentId) async {
+    final countExp = documentOcrPagesTable.pageNumber.count();
+    final query = selectOnly(documentOcrPagesTable)
+      ..addColumns([countExp])
+      ..where(documentOcrPagesTable.documentId.equals(documentId));
+    final result = await query.map((row) => row.read(countExp)).getSingle();
+    return result ?? 0;
+  }
+
+  /// Get lightweight OCR metadata summary for a document without loading encrypted payloads
+  Future<OcrDocumentMetadata?> getDocumentOcrMetadata(String documentId) async {
+    final rows = await (select(documentOcrPagesTable)
+          ..where((p) => p.documentId.equals(documentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .get();
+
+    if (rows.isEmpty) return null;
+
+    final first = rows.first;
+    return OcrDocumentMetadata(
+      documentId: documentId,
+      pageCount: rows.length,
+      language: OcrLanguage.fromCode(first.language),
+      engine: first.ocrEngine,
+      engineVersion: first.ocrEngineVersion,
+      schemaVersion: first.ocrSchemaVersion,
+      processedAt: first.processedAt,
+      pageNumbers: rows.map((r) => r.pageNumber).toList(),
+    );
   }
 
   /// Watch all OCR page records for a document ordered by page number

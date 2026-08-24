@@ -247,8 +247,78 @@ class DocumentProcessingService {
     );
   }
 
+  /// Returns lightweight document OCR metadata summary without decrypting page payloads.
+  Future<OcrDocumentMetadata?> getDocumentOcrMetadata(String documentId) async {
+    return database.getDocumentOcrMetadata(documentId);
+  }
+
+  /// Decrypts and returns a single structured [OcrPage] for [documentId] on-demand.
+  Future<OcrPage?> getDecryptedOcrPage(
+    String documentId,
+    int pageNumber, {
+    bool shallow = false,
+  }) async {
+    if (!keyManager.isUnlocked) return null;
+
+    final row = await database.getDocumentOcrPage(documentId, pageNumber);
+    if (row == null) return null;
+
+    final masterKey = keyManager.getMasterKey();
+    try {
+      final encryptedBytes = base64Decode(row.encryptedPayload);
+      final decryptedDoc = await _ocrCrypto.decryptOcrDocument(
+        encryptedEnvelopeBytes: encryptedBytes,
+        masterKeyBytes: masterKey,
+        documentId: documentId,
+        shallow: shallow,
+      );
+      return decryptedDoc.pages.isNotEmpty ? decryptedDoc.pages.first : null;
+    } catch (e) {
+      debugPrint('Failed to decrypt OCR page $pageNumber for doc $documentId: $e');
+      return null;
+    }
+  }
+
+  /// Memory-safe streaming extraction of full formatted OCR text across all document pages.
+  Future<String> getDecryptedOcrFormattedCopyText(String documentId) async {
+    if (!keyManager.isUnlocked) return '';
+
+    final rows = await database.getDocumentOcrPages(documentId);
+    if (rows.isEmpty) return '';
+
+    final masterKey = keyManager.getMasterKey();
+    final buffer = StringBuffer();
+
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      try {
+        final encryptedBytes = base64Decode(row.encryptedPayload);
+        final decryptedDoc = await _ocrCrypto.decryptOcrDocument(
+          encryptedEnvelopeBytes: encryptedBytes,
+          masterKeyBytes: masterKey,
+          documentId: documentId,
+          shallow: true,
+        );
+
+        for (final page in decryptedDoc.pages) {
+          if (buffer.isNotEmpty) buffer.writeln('\n');
+          buffer.writeln('Page ${page.pageNumber}');
+          buffer.writeln('================================\n');
+          buffer.writeln(page.plainText.trim());
+        }
+      } catch (e) {
+        debugPrint('Failed to extract plain text for OCR page ${row.pageNumber}: $e');
+      }
+    }
+
+    return buffer.toString().trim();
+  }
+
   /// Decrypts and returns the full structured [OcrDocument] for [documentId].
-  Future<OcrDocument?> getDecryptedOcrDocument(String documentId) async {
+  Future<OcrDocument?> getDecryptedOcrDocument(
+    String documentId, {
+    bool shallow = false,
+  }) async {
     if (!keyManager.isUnlocked) return null;
 
     final rows = await database.getDocumentOcrPages(documentId);
@@ -270,6 +340,7 @@ class DocumentProcessingService {
           encryptedEnvelopeBytes: encryptedBytes,
           masterKeyBytes: masterKey,
           documentId: documentId,
+          shallow: shallow,
         );
 
         engine = decryptedDoc.engine;

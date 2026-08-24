@@ -194,8 +194,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   Future<void> _copyOcrText() async {
     final service = ref.read(documentProcessingServiceProvider);
-    final ocrDoc = await service.getDecryptedOcrDocument(widget.documentId);
-    if (ocrDoc == null || ocrDoc.pages.isEmpty) {
+    final copyText = await service.getDecryptedOcrFormattedCopyText(widget.documentId);
+    if (copyText.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -207,7 +207,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       return;
     }
 
-    await Clipboard.setData(ClipboardData(text: ocrDoc.formattedCopyText));
+    await Clipboard.setData(ClipboardData(text: copyText));
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(

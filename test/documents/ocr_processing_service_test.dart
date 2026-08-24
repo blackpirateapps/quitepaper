@@ -270,5 +270,44 @@ void main() {
       expect(doc2?.fullPlainText, contains('Updated Regenerated Text'));
       expect(doc2?.pages.length, equals(1));
     });
+
+    test('getDocumentOcrMetadata, getDecryptedOcrPage, and getDecryptedOcrFormattedCopyText support lazy single-page access', () async {
+      processingService = DocumentProcessingService(
+        database: database,
+        keyManager: keyManager,
+        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+        textExtractor: FakePdfTextExtractor(hasText: true, mockText: 'Page One Content'),
+        pageRenderer: FakePdfPageRenderer(),
+        ocrService: FakeOcrService(),
+      );
+
+      await processingService.processDocument(
+        documentId: testDocId,
+        pdfBytes: samplePdfBytes,
+        source: DocumentSource.importedPdf,
+      );
+
+      // Verify metadata query without full payload decryption
+      final meta = await processingService.getDocumentOcrMetadata(testDocId);
+      expect(meta, isNotNull);
+      expect(meta?.pageCount, equals(1));
+      expect(meta?.language, equals(OcrLanguage.english));
+      expect(meta?.pageNumbers, equals([1]));
+
+      // Verify single page decryption
+      final page1 = await processingService.getDecryptedOcrPage(testDocId, 1);
+      expect(page1, isNotNull);
+      expect(page1?.pageNumber, equals(1));
+      expect(page1?.plainText, equals('Page One Content'));
+
+      // Non-existent page returns null
+      final page99 = await processingService.getDecryptedOcrPage(testDocId, 99);
+      expect(page99, isNull);
+
+      // Verify streaming formatted copy text
+      final copyText = await processingService.getDecryptedOcrFormattedCopyText(testDocId);
+      expect(copyText, contains('Page 1'));
+      expect(copyText, contains('Page One Content'));
+    });
   });
 }
