@@ -8,6 +8,7 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../domain/note_model.dart';
+import '../../../export/presentation/export_note_sheet.dart';
 
 class NoteListTile extends StatelessWidget {
   const NoteListTile({
@@ -336,7 +337,23 @@ class NoteListTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (note.isTrashed) ...[
-                  // Trashed note context menu: Restore, Delete Permanently
+                  // Trashed note context menu: Export, Restore, Delete Permanently
+                  ListTile(
+                    leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      ExportNoteSheet.show(context, note: note);
+                    },
+                  ),
                   ListTile(
                     leading: Icon(
                       Icons.restore_rounded,
@@ -373,7 +390,23 @@ class NoteListTile extends StatelessWidget {
                     },
                   ),
                 ] else if (note.isArchived) ...[
-                  // Archived note context menu: Unarchive, Move to Trash
+                  // Archived note context menu: Export, Unarchive, Move to Trash
+                  ListTile(
+                    leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      ExportNoteSheet.show(context, note: note);
+                    },
+                  ),
                   ListTile(
                     leading: Icon(
                       Icons.unarchive_outlined,
@@ -411,7 +444,23 @@ class NoteListTile extends StatelessWidget {
                     },
                   ),
                 ] else ...[
-                  // Active note context menu: Pin/Unpin, Archive, Move to Trash
+                  // Active note context menu: Export, Pin/Unpin, Archive, Move to Trash
+                  ListTile(
+                    leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      ExportNoteSheet.show(context, note: note);
+                    },
+                  ),
                   if (onTogglePin != null)
                     ListTile(
                       leading: Icon(

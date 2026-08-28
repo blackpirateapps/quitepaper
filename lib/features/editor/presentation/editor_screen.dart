@@ -39,6 +39,7 @@ import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
+import '../../export/presentation/export_note_sheet.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -1350,6 +1351,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                   ListTile(
                     leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      final currentNoteSnapshot = note.copyWith(
+                        title: _titleController.text,
+                        content: _contentController.text,
+                      );
+                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
                       Icons.history_rounded,
                       color: colors.textSecondary,
                     ),
@@ -1532,7 +1553,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ],
                 ],
                 if (note.isTrashed) ...[
-                  // Trash actions: Restore, Delete Permanently
+                  // Trash actions: Export, Restore, Delete Permanently
+                  ListTile(
+                    leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      final currentNoteSnapshot = note.copyWith(
+                        title: _titleController.text,
+                        content: _contentController.text,
+                      );
+                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
+                    },
+                  ),
                   ListTile(
                     leading: Icon(
                       Icons.restore_rounded,
@@ -1641,7 +1682,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     },
                   ),
                 ] else if (note.isArchived) ...[
-                  // Archive actions: Unarchive, Move to Trash
+                  // Archive actions: Export, Unarchive, Move to Trash
+                  ListTile(
+                    leading: Icon(
+                      Icons.ios_share_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Export note',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      final currentNoteSnapshot = note.copyWith(
+                        title: _titleController.text,
+                        content: _contentController.text,
+                      );
+                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
+                    },
+                  ),
                   ListTile(
                     leading: Icon(
                       Icons.unarchive_outlined,

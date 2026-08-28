@@ -2427,9 +2427,91 @@ To achieve enterprise-grade storage efficiency while strictly preserving **zero-
 
 ### 4. Verification & Health
 - **Static Analysis**: `flutter analyze` (**0 errors, 0 warnings, No issues found**).
-- **Flutter Tests**: `flutter test` (**all 542 tests passing**).
+- **Flutter Tests**: `flutter test` (**all 576 tests passing**).
 - **Backend Tests**: `npm test` (**all 37 Vitest tests passing across 9 test files**).
 - **TypeScript Build**: `npm run build` (**clean build**).
+
+---
+
+## 21. Individual Note Export & Portable Package (.qpnote) System
+
+Quiet Paper includes a production-grade, extensible **Individual Note Export System** and **Portable Note Package (`.qpnote`) Container System**, providing users with full data ownership, interoperability, and multi-format document sharing.
+
+### 1. Export Architecture & Philosophy
+- **Authoritative Source of Truth**: Canonical note body is standard **Markdown**. No secondary JSON/Delta/AST source of truth.
+- **Strict Read-Only Guarantee**: Export operations never mutate notes, sync metadata, database revisions, or search indices.
+- **Immutable Snapshotting**: Construct an immutable `NoteExportSnapshot` before starting export, capturing note attributes, resolved binary attachments, documents, and structured OCR datasets.
+- **Temporary Workspace Isolation**: Export artifacts are assembled in isolated temporary workspaces (`quietpaper_export_<UUID>`) and safely cleaned up in `finally` blocks.
+
+### 2. Supported Export Formats
+1. **Markdown (`.md`)**:
+   - Preserves canonical Markdown text (headings, lists, checkboxes `- [x]`, tables, blockquotes, code blocks).
+   - Optional YAML frontmatter metadata header (`title`, `created`, `updated`, `tags`, `pinned`, `archived`).
+   - Local relative attachment URL rewriting (`attachments/filename.png`) or remote preservation.
+   - Optional OCR appendix.
+2. **Searchable Vector PDF (`.pdf`)**:
+   - Text-based searchable vector PDF generated using `package:pdf` (not rasterized screenshots).
+   - Elegant typography, document headers, metadata cards, proportional headings (H1-H6), task checkboxes, code blocks with monospaced font and card container, blockquotes with accent borders, embedded images with pagination.
+3. **Standalone HTML5 (`.html`)**:
+   - Self-contained, responsive HTML5 document with editorial styling inspired by Bear Notes.
+   - Syntax-styled code blocks, tables, task lists, and custom inline highlights (`==text==`).
+   - Embedded image attachments as Base64 data URIs (`data:image/png;base64,...`) or relative references.
+   - Comprehensive XSS sanitization.
+4. **Clean Plain Text (`.txt`)**:
+   - Converts Markdown into clean, human-readable plain text.
+   - Formats tasks as `☑` / `☐`, bullet lists as `•`, quotes with left borders, images as `[Image: Alt]`, links as `Title (url)`.
+5. **Microsoft Word OpenXML (`.docx`)**:
+   - Standards-compliant WordprocessingML package generated via pure Dart `package:archive` (`[Content_Types].xml`, `_rels/.rels`, `word/document.xml`, `word/styles.xml`, `word/_rels/document.xml.rels`).
+   - Opens natively in Microsoft Word, LibreOffice, Apple Pages, and Google Docs with full formatting.
+6. **Quiet Paper Note Package (`.qpnote`)**:
+   - Versioned full-fidelity ZIP container for complete note portability:
+     - `manifest.json`: schema version 1, SHA-256 integrity hashes for all files, resource maps.
+     - `note.md`: canonical Markdown.
+     - `metadata.json`: note metadata, tags, timestamps, pin/archive/trash states.
+     - `attachments/`: decrypted binary assets and documents.
+     - `ocr/`: structured OCR transcripts per document/attachment (`manifest.json`, `page-001.txt`).
+     - Optional package encryption with Argon2id + XChaCha20-Poly1305 authenticated envelope.
+
+### 3. Security & Validation
+- **Password-Protected Notes**: Verified and decrypted via `ExportSecurityGuard` and `NoteSecurityService` before snapshot generation; rejects unauthorized exports with structured security exceptions.
+- **Zip-Slip & Path Traversal Prevention**: `QpNoteValidator` strictly rejects relative paths with `..`, absolute paths, leading slashes, and drive identifiers.
+- **SHA-256 Integrity Verification**: Validates checksums for all contents during package inspection.
+
+### 4. UI & Sharing Integration
+- **Editorial Export Bottom Sheet (`ExportNoteSheet`)**: Format selection pills, live progress phases, expandable advanced options (metadata, attachments, OCR, link strategy), and password unlock prompt.
+- **Actions**: Direct "Save File" (via SAF/file picker) and "Share" (via native system share sheet with `share_plus`).
+- **Entry Points**: Available in `EditorScreen` overflow menu (`⋯` -> `Export note`) and `NoteListTile` context menu on long-press (for active, archived, and trashed notes).
+- **User Preferences**: Automatically remembers last selected format and option toggles in `SharedPreferences`.
+
+### 5. File Inventory
+- **Domain**:
+  - `lib/features/export/domain/export_models.dart`: Formats, options, requests, results, warnings, snapshot models.
+- **Application & Exporters**:
+  - `lib/features/export/application/filename_generator.dart`: Filename sanitization, length truncation, Windows reserved names handling, collision resolution.
+  - `lib/features/export/application/export_security_guard.dart`: Password unlock verification and path safety.
+  - `lib/features/export/application/attachment_export_resolver.dart`: Attachment and PDF document resolver.
+  - `lib/features/export/application/ocr_export_resolver.dart`: OCR extraction and dataset formatting.
+  - `lib/features/export/application/note_link_resolver.dart`: Internal note URI transformer.
+  - `lib/features/export/application/exporters/markdown_exporter.dart`: Markdown exporter.
+  - `lib/features/export/application/exporters/plain_text_exporter.dart`: Plain text exporter.
+  - `lib/features/export/application/exporters/html_exporter.dart`: Standalone HTML5 exporter.
+  - `lib/features/export/application/exporters/pdf_exporter.dart`: Vector PDF exporter.
+  - `lib/features/export/application/exporters/docx_exporter.dart`: Microsoft Word OpenXML exporter.
+  - `lib/features/export/application/exporters/qpnote_exporter.dart`: Full-fidelity `.qpnote` package builder.
+  - `lib/features/export/application/qpnote_validator.dart`: Package security and integrity validator.
+  - `lib/features/export/application/export_service.dart`: Main coordinator and progress manager.
+  - `lib/features/export/application/export_provider.dart`: Riverpod providers and preference notifier.
+- **Presentation**:
+  - `lib/features/export/presentation/export_note_sheet.dart`: Export modal sheet with format selector and options.
+- **Tests**:
+  - `test/features/export/filename_generator_test.dart`
+  - `test/features/export/export_security_guard_test.dart`
+  - `test/features/export/markdown_and_plaintext_exporter_test.dart`
+  - `test/features/export/rich_documents_exporter_test.dart`
+  - `test/features/export/qpnote_package_and_validator_test.dart`
+  - `test/features/export/export_service_test.dart`
+  - `test/features/export/export_note_sheet_test.dart`
+
 
 
 
