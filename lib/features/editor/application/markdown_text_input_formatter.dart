@@ -13,6 +13,58 @@ import 'package:flutter/services.dart';
 class MarkdownTextInputFormatter extends TextInputFormatter {
   const MarkdownTextInputFormatter();
 
+  static final _emptyChecklistRegex =
+      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])\s*$');
+  static final _emptyUnorderedRegex = RegExp(r'^(\s*)([-*+])\s*$');
+  static final _emptyOrderedRegex = RegExp(r'^(\s*)(\d+)[\.\)]\s*$');
+  static final _emptyQuoteRegex = RegExp(r'^(\s*)>\s*$');
+  static final _checklistRegex =
+      RegExp(r'^(\s*)([-*+]\s*\[)[ xX](\]\s+)');
+  static final _unorderedRegex = RegExp(r'^(\s*)([-*+])\s+');
+  static final _orderedRegex = RegExp(r'^(\s*)(\d+)([\.\)])\s+');
+  static final _quoteRegex = RegExp(r'^(\s*)>\s*');
+
+  /// Fast backward search to determine if [offset] is inside a fenced code block (``` or ~~~).
+  /// Avoids scanning multi-megabyte document substrings with multiline RegExp on every Enter keypress.
+  static bool _isInsideCodeBlock(String text, int offset) {
+    if (offset <= 0 || text.isEmpty) return false;
+    if (!text.contains('```') && !text.contains('~~~')) return false;
+
+    var fenceCount = 0;
+    var pos = offset - 1;
+    while (pos >= 0) {
+      final idxBacktick = text.lastIndexOf('```', pos);
+      final idxTilde = text.lastIndexOf('~~~', pos);
+      final nextIdx = max(idxBacktick, idxTilde);
+      if (nextIdx == -1) break;
+
+      // Check if nextIdx is at the start of its line (preceded only by optional whitespace)
+      var lineStart = 0;
+      if (nextIdx > 0) {
+        final prevNewline = text.lastIndexOf('\n', nextIdx - 1);
+        if (prevNewline != -1) {
+          lineStart = prevNewline + 1;
+        }
+      }
+      var isValidFence = true;
+      for (var i = lineStart; i < nextIdx; i++) {
+        if (text[i] != ' ' && text[i] != '\t') {
+          isValidFence = false;
+          break;
+        }
+      }
+
+      if (isValidFence) {
+        fenceCount++;
+      }
+
+      if (lineStart == 0) break;
+      pos = lineStart - 1;
+    }
+
+    return fenceCount % 2 != 0;
+  }
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
@@ -110,21 +162,18 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // Check if cursor is inside a fenced code block (``` or ~~~)
-    final textBeforeCursor = oldValue.text.substring(0, insertedOffset);
-    final fenceMatches = RegExp(r'^\s*(```|~~~)', multiLine: true).allMatches(textBeforeCursor);
-    if (fenceMatches.length % 2 != 0) {
+    if (_isInsideCodeBlock(oldValue.text, insertedOffset)) {
       // Inside code block: standard Enter behavior with no list/quote continuation
       return newValue;
     }
 
     // Find the line preceding the newline insertion
-    final lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
+    final lastNewlineIndex = oldValue.text.lastIndexOf('\n', insertedOffset > 0 ? insertedOffset - 1 : 0);
     final lineStart = lastNewlineIndex == -1 ? 0 : lastNewlineIndex + 1;
-    final currentLine = textBeforeCursor.substring(lineStart);
+    final currentLine = oldValue.text.substring(lineStart, insertedOffset);
 
     // 4. Empty checklist marker: "- [ ]", "- [x]", "* [ ]", "+ [ ]" -> clear checklist
-    final emptyChecklistMatch =
-        RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])\s*$').firstMatch(currentLine);
+    final emptyChecklistMatch = _emptyChecklistRegex.firstMatch(currentLine);
     if (emptyChecklistMatch != null) {
       final lineEnd = oldValue.text.indexOf('\n', lineStart);
       final actualLineEnd = lineEnd == -1 ? oldValue.text.length : lineEnd;
@@ -136,7 +185,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 5. Empty unordered list bullet: "- ", "* ", "+ " -> clear bullet
-    final emptyUnorderedMatch = RegExp(r'^(\s*)([-*+])\s*$').firstMatch(currentLine);
+    final emptyUnorderedMatch = _emptyUnorderedRegex.firstMatch(currentLine);
     if (emptyUnorderedMatch != null) {
       final lineEnd = oldValue.text.indexOf('\n', lineStart);
       final actualLineEnd = lineEnd == -1 ? oldValue.text.length : lineEnd;
@@ -148,7 +197,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 6. Empty ordered list marker: "1. ", "2. " -> clear marker
-    final emptyOrderedMatch = RegExp(r'^(\s*)(\d+)[\.\)]\s*$').firstMatch(currentLine);
+    final emptyOrderedMatch = _emptyOrderedRegex.firstMatch(currentLine);
     if (emptyOrderedMatch != null) {
       final lineEnd = oldValue.text.indexOf('\n', lineStart);
       final actualLineEnd = lineEnd == -1 ? oldValue.text.length : lineEnd;
@@ -160,7 +209,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 7. Empty blockquote: "> " -> clear quote
-    final emptyQuoteMatch = RegExp(r'^(\s*)>\s*$').firstMatch(currentLine);
+    final emptyQuoteMatch = _emptyQuoteRegex.firstMatch(currentLine);
     if (emptyQuoteMatch != null) {
       final lineEnd = oldValue.text.indexOf('\n', lineStart);
       final actualLineEnd = lineEnd == -1 ? oldValue.text.length : lineEnd;
@@ -172,8 +221,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 8. Non-empty checklist item: continue with uncompleted checklist "- [ ] "
-    final checklistMatch =
-        RegExp(r'^(\s*)([-*+]\s*\[)[ xX](\]\s+)').firstMatch(currentLine);
+    final checklistMatch = _checklistRegex.firstMatch(currentLine);
     if (checklistMatch != null) {
       final indent = checklistMatch.group(1) ?? '';
       final continuation = '$indent- [ ] ';
@@ -190,7 +238,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 9. Non-empty unordered list item: continue "- "
-    final unorderedMatch = RegExp(r'^(\s*)([-*+])\s+').firstMatch(currentLine);
+    final unorderedMatch = _unorderedRegex.firstMatch(currentLine);
     if (unorderedMatch != null) {
       final indent = unorderedMatch.group(1) ?? '';
       final marker = unorderedMatch.group(2) ?? '-';
@@ -208,7 +256,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 10. Non-empty ordered list item: continue with incremented number
-    final orderedMatch = RegExp(r'^(\s*)(\d+)([\.\)])\s+').firstMatch(currentLine);
+    final orderedMatch = _orderedRegex.firstMatch(currentLine);
     if (orderedMatch != null) {
       final indent = orderedMatch.group(1) ?? '';
       final numberStr = orderedMatch.group(2) ?? '1';
@@ -228,7 +276,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     }
 
     // 11. Non-empty blockquote: continue "> "
-    final quoteMatch = RegExp(r'^(\s*)>\s*').firstMatch(currentLine);
+    final quoteMatch = _quoteRegex.firstMatch(currentLine);
     if (quoteMatch != null) {
       final indent = quoteMatch.group(1) ?? '';
       final continuation = '$indent> ';

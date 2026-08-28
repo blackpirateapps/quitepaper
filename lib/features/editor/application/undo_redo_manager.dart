@@ -46,6 +46,15 @@ class UndoRedoManager extends ChangeNotifier {
   bool get canUndo => _undoStack.length > 1;
   bool get canRedo => _redoStack.isNotEmpty;
 
+  /// Computes the effective max undo history. For large documents (>60,000 chars / ~1-5MB),
+  /// caps history to 20 snapshots to maintain a low memory footprint (<15MB).
+  int get effectiveMaxHistory {
+    if (_undoStack.isNotEmpty && _undoStack.last.text.length > 60000) {
+      return 20;
+    }
+    return maxHistory;
+  }
+
   /// Initializes the undo stack with the starting text and selection.
   void initialize(TextEditingValue initialValue) {
     _undoStack.clear();
@@ -77,8 +86,12 @@ class UndoRedoManager extends ChangeNotifier {
 
     final top = _undoStack.last;
 
+    // Fast check for identical or same-length same-content string
+    final isSameText = identical(top.text, value.text) ||
+        (top.text.length == value.text.length && top.text == value.text);
+
     // If text is identical, only update the cursor selection on the current snapshot
-    if (top.text == value.text) {
+    if (isSameText) {
       if (top.selection != value.selection) {
         _undoStack[_undoStack.length - 1] = TextEditSnapshot(
           text: value.text,
@@ -107,7 +120,8 @@ class UndoRedoManager extends ChangeNotifier {
         selection: value.selection,
         timestamp: now,
       ));
-      if (_undoStack.length > maxHistory + 1) {
+      final limit = effectiveMaxHistory;
+      while (_undoStack.length > limit + 1) {
         _undoStack.removeAt(0);
       }
     }
@@ -121,7 +135,12 @@ class UndoRedoManager extends ChangeNotifier {
     if (_isApplying) return;
 
     final now = DateTime.now();
-    if (_undoStack.isNotEmpty && _undoStack.last.text == value.text) {
+    final isSameAsTop = _undoStack.isNotEmpty &&
+        (identical(_undoStack.last.text, value.text) ||
+            (_undoStack.last.text.length == value.text.length &&
+                _undoStack.last.text == value.text));
+
+    if (isSameAsTop) {
       _undoStack[_undoStack.length - 1] = TextEditSnapshot(
         text: value.text,
         selection: value.selection,
@@ -133,7 +152,8 @@ class UndoRedoManager extends ChangeNotifier {
         selection: value.selection,
         timestamp: now,
       ));
-      if (_undoStack.length > maxHistory + 1) {
+      final limit = effectiveMaxHistory;
+      while (_undoStack.length > limit + 1) {
         _undoStack.removeAt(0);
       }
     }

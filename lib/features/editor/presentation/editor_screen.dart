@@ -437,7 +437,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final lowerText = text.toLowerCase();
     final lowerQuery = query.toLowerCase();
     var start = 0;
-    while (start < lowerText.length) {
+    const maxSearchMatches = 1000;
+    while (start < lowerText.length && matches.length < maxSearchMatches) {
       final index = lowerText.indexOf(lowerQuery, start);
       if (index == -1) break;
       matches.add(TextRange(start: index, end: index + query.length));

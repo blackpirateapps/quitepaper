@@ -9,6 +9,7 @@ class MarkdownEditingController extends TextEditingController {
   MarkdownEditingController({
     super.text,
     this.styles,
+    this.maxStyledCharacters = MarkdownParser.defaultMaxStyledCharacters,
     this._searchQuery,
     this._activeSearchRange,
   });
@@ -16,6 +17,9 @@ class MarkdownEditingController extends TextEditingController {
   /// Optional static styles override. If null, styles will dynamically adapt to
   /// the active [AppColors] from the build context.
   MarkdownStyles? styles;
+
+  /// Maximum character count threshold for full AST Markdown styling.
+  int maxStyledCharacters;
 
   String? _searchQuery;
   String? get searchQuery => _searchQuery;
@@ -67,6 +71,7 @@ class MarkdownEditingController extends TextEditingController {
       composingRange: composingRange,
       searchQuery: _searchQuery,
       activeSearchRange: _activeSearchRange,
+      maxStyledCharacters: maxStyledCharacters,
     );
   }
 }

@@ -29,29 +29,35 @@ abstract final class TagParser {
     return sorted;
   }
 
+  static final RegExp _inlineCodeRegex = RegExp(r'`[^`\n]*`');
+
   /// Fast line-by-line strip of code blocks and inline code without regex backtracking
   static String _stripCodeBlocks(String text) {
     if (!text.contains('`')) return text;
 
     final buffer = StringBuffer();
-    final lines = text.split('\n');
     var inCodeBlock = false;
+    var start = 0;
+    final len = text.length;
 
-    for (final line in lines) {
+    while (start <= len) {
+      final newline = text.indexOf('\n', start);
+      final lineEnd = newline == -1 ? len : newline;
+      final line = text.substring(start, lineEnd);
       final trimmed = line.trim();
+
       if (trimmed.startsWith('```')) {
         inCodeBlock = !inCodeBlock;
-        continue;
+      } else if (!inCodeBlock) {
+        if (line.contains('`')) {
+          buffer.writeln(line.replaceAll(_inlineCodeRegex, ' '));
+        } else {
+          buffer.writeln(line);
+        }
       }
-      if (inCodeBlock) continue;
 
-      if (line.contains('`')) {
-        // Strip inline backticks cleanly
-        final strippedLine = line.replaceAll(RegExp(r'`[^`\n]*`'), ' ');
-        buffer.writeln(strippedLine);
-      } else {
-        buffer.writeln(line);
-      }
+      if (newline == -1) break;
+      start = newline + 1;
     }
 
     return buffer.toString();

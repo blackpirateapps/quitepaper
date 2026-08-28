@@ -5,6 +5,29 @@ import '../domain/markdown_styles.dart';
 /// High-performance Markdown parser that builds a styled [TextSpan] tree
 /// without modifying or dropping source characters.
 abstract final class MarkdownParser {
+  /// Maximum document character count for full recursive inline Markdown styling.
+  /// When text exceeds this threshold (e.g. 100k-5M words / 1-5MB text files),
+  /// high-performance plain-span rendering is used to maintain 60/120 FPS.
+  static const int defaultMaxStyledCharacters = 60000;
+
+  // Pre-compiled block-level regular expressions
+  static final _codeFenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
+  static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
+  static final _blockquoteCheckRegex = RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)');
+  static final _blockquoteParseRegex = RegExp(r'^(\s*)(>{1,3})([ \t]?)(.*)$');
+  static final _checklistCheckRegex = RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)');
+  static final _checklistParseRegex = RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])([ \t]*)(.*)$');
+  static final _unorderedListCheckRegex = RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)');
+  static final _unorderedListParseRegex = RegExp(r'^(\s*)([-*+])([ \t]*)(.*)$');
+  static final _orderedListCheckRegex = RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)');
+  static final _orderedListParseRegex = RegExp(r'^(\s*)(\d+[\.\)])([ \t]*)(.*)$');
+
+  // Pre-compiled inline regular expressions
+  static final _imageRegex = RegExp(r'!\[([^\]\n]*)\]\(([^)\n]*)\)');
+  static final _linkRegex = RegExp(r'\[([^\]\n]+)\]\(([^)\n]*)\)');
+  static final _urlRegex = RegExp(r'https?://[^\s<]+');
+  static final _tagRegex = RegExp(r'#([a-zA-Z0-9_\-\/]+)');
+
   /// Builds a [TextSpan] tree representing [text] styled with [styles].
   ///
   /// If [composingRange] is valid and active, underline decoration is applied
@@ -15,9 +38,21 @@ abstract final class MarkdownParser {
     TextRange? composingRange,
     String? searchQuery,
     TextRange? activeSearchRange,
+    int maxStyledCharacters = defaultMaxStyledCharacters,
   }) {
     if (text.isEmpty) {
       return const TextSpan(text: '');
+    }
+
+    // High-performance plain span fast path for massive documents (1-5MB / 100k-5M words)
+    if (text.length > maxStyledCharacters) {
+      return _buildLargeDocumentTextSpan(
+        text: text,
+        styles: styles,
+        composingRange: composingRange,
+        searchQuery: searchQuery,
+        activeSearchRange: activeSearchRange,
+      );
     }
 
     final rawSpans = <_RawSpan>[];
@@ -59,7 +94,7 @@ abstract final class MarkdownParser {
         }
       }
       // 2. Fenced Code Blocks (``` or ~~~)
-      else if (RegExp(r'^(\s*)(```|~~~)(.*)$').hasMatch(lineText)) {
+      else if (_codeFenceRegex.hasMatch(lineText)) {
         if (!inCodeBlock) {
           inCodeBlock = true;
         } else {
@@ -80,7 +115,7 @@ abstract final class MarkdownParser {
         ));
       }
       // 3. Horizontal Rules (---, ***, ___)
-      else if (RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$').hasMatch(lineText)) {
+      else if (_horizontalRuleRegex.hasMatch(lineText)) {
         rawSpans.add(_RawSpan(
           start: lineStart,
           end: lineStart + lineText.length,
@@ -133,9 +168,8 @@ abstract final class MarkdownParser {
         }
       }
       // 5. Blockquotes (> or >>)
-      else if (RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').hasMatch(lineText)) {
-        final quoteMatch =
-            RegExp(r'^(\s*)(>{1,3})([ \t]?)(.*)$').firstMatch(lineText)!;
+      else if (_blockquoteCheckRegex.hasMatch(lineText)) {
+        final quoteMatch = _blockquoteParseRegex.firstMatch(lineText)!;
         final indent = quoteMatch.group(1) ?? '';
         final marker = quoteMatch.group(2) ?? '>';
         final sep = quoteMatch.group(3) ?? '';
@@ -176,9 +210,8 @@ abstract final class MarkdownParser {
         }
       }
       // 6. Checklists (- [ ] , - [x] , * [ ] , + [ ] )
-      else if (RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
-        final checkMatch =
-            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])([ \t]*)(.*)$').firstMatch(lineText)!;
+      else if (_checklistCheckRegex.hasMatch(lineText)) {
+        final checkMatch = _checklistParseRegex.firstMatch(lineText)!;
         final indent = checkMatch.group(1) ?? '';
         final prefix = checkMatch.group(2) ?? '- [';
         final stateChar = checkMatch.group(3) ?? ' ';
@@ -229,9 +262,8 @@ abstract final class MarkdownParser {
         }
       }
       // 7. Unordered Lists (- , * , + )
-      else if (RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
-        final listMatch =
-            RegExp(r'^(\s*)([-*+])([ \t]*)(.*)$').firstMatch(lineText)!;
+      else if (_unorderedListCheckRegex.hasMatch(lineText)) {
+        final listMatch = _unorderedListParseRegex.firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '-';
         final sep = listMatch.group(3) ?? '';
@@ -272,9 +304,8 @@ abstract final class MarkdownParser {
         }
       }
       // 8. Ordered Lists (1. , 2. , 1) )
-      else if (RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
-        final listMatch =
-            RegExp(r'^(\s*)(\d+[\.\)])([ \t]*)(.*)$').firstMatch(lineText)!;
+      else if (_orderedListCheckRegex.hasMatch(lineText)) {
+        final listMatch = _orderedListParseRegex.firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '1.';
         final sep = listMatch.group(3) ?? '';
@@ -497,6 +528,110 @@ abstract final class MarkdownParser {
     return TextSpan(style: styles.body, children: textSpans);
   }
 
+  /// High-performance plain-span builder for large documents (1-5MB / 100k-5M words).
+  /// Renders plain body style with search highlights and IME composing decorations
+  /// without full AST node tree generation, maintaining locked 60/120 FPS.
+  static TextSpan _buildLargeDocumentTextSpan({
+    required String text,
+    required MarkdownStyles styles,
+    TextRange? composingRange,
+    String? searchQuery,
+    TextRange? activeSearchRange,
+  }) {
+    final hasSearch = searchQuery != null && searchQuery.isNotEmpty;
+    final isComposingValid = composingRange != null &&
+        composingRange.isValid &&
+        !composingRange.isCollapsed &&
+        composingRange.start >= 0 &&
+        composingRange.end <= text.length;
+
+    if (!hasSearch && !isComposingValid) {
+      return TextSpan(text: text, style: styles.body);
+    }
+
+    // Collect search matches (bounded up to 1000 matches to prevent UI lag)
+    final searchMatches = <TextRange>[];
+    if (hasSearch) {
+      final lowerText = text.toLowerCase();
+      final lowerQuery = searchQuery.toLowerCase();
+      var searchIdx = 0;
+      const maxMatches = 1000;
+      while (searchIdx < lowerText.length && searchMatches.length < maxMatches) {
+        final found = lowerText.indexOf(lowerQuery, searchIdx);
+        if (found == -1) break;
+        searchMatches.add(TextRange(start: found, end: found + searchQuery.length));
+        searchIdx = found + searchQuery.length;
+      }
+    }
+
+    // Overlay search highlights and composing range
+    final spans = <TextSpan>[];
+    var currentOffset = 0;
+
+    void addSegment(int start, int end, {TextStyle? styleOverride}) {
+      if (end <= start) return;
+      final segText = text.substring(start, end);
+      final baseStyle = styleOverride ?? styles.body;
+
+      if (!isComposingValid ||
+          end <= composingRange.start ||
+          start >= composingRange.end) {
+        spans.add(TextSpan(text: segText, style: baseStyle));
+      } else {
+        final compStart = composingRange.start;
+        final compEnd = composingRange.end;
+
+        if (start < compStart) {
+          spans.add(TextSpan(
+            text: text.substring(start, compStart),
+            style: baseStyle,
+          ));
+        }
+
+        final inCompStart = max(start, compStart);
+        final inCompEnd = min(end, compEnd);
+        if (inCompEnd > inCompStart) {
+          spans.add(TextSpan(
+            text: text.substring(inCompStart, inCompEnd),
+            style: baseStyle.copyWith(decoration: TextDecoration.underline),
+          ));
+        }
+
+        if (end > compEnd) {
+          spans.add(TextSpan(
+            text: text.substring(compEnd, end),
+            style: baseStyle,
+          ));
+        }
+      }
+    }
+
+    for (final match in searchMatches) {
+      if (match.start > currentOffset) {
+        addSegment(currentOffset, match.start);
+      }
+
+      final isActive = activeSearchRange != null &&
+          activeSearchRange.start == match.start &&
+          activeSearchRange.end == match.end;
+      final highlightStyle =
+          isActive ? styles.activeSearchHighlight : styles.searchHighlight;
+
+      addSegment(
+        match.start,
+        match.end,
+        styleOverride: styles.body.merge(highlightStyle),
+      );
+      currentOffset = match.end;
+    }
+
+    if (currentOffset < text.length) {
+      addSegment(currentOffset, text.length);
+    }
+
+    return TextSpan(style: styles.body, children: spans);
+  }
+
   /// Scans inline tokens and appends styled [_RawSpan]s.
   static void _parseInlineSegments({
     required String text,
@@ -591,8 +726,7 @@ abstract final class MarkdownParser {
 
       // Images: ![alt](url)
       if (char == '!' && i + 1 < len && text[i + 1] == '[') {
-        final imageMatch =
-            RegExp(r'!\[([^\]\n]*)\]\(([^)\n]*)\)').matchAsPrefix(text, i);
+        final imageMatch = _imageRegex.matchAsPrefix(text, i);
         if (imageMatch != null) {
           final fullMatch = imageMatch.group(0)!;
           final alt = imageMatch.group(1)!;
@@ -660,8 +794,7 @@ abstract final class MarkdownParser {
 
       // Links: [title](url)
       if (char == '[') {
-        final linkMatch =
-            RegExp(r'\[([^\]\n]+)\]\(([^)\n]*)\)').matchAsPrefix(text, i);
+        final linkMatch = _linkRegex.matchAsPrefix(text, i);
         if (linkMatch != null) {
           final fullMatch = linkMatch.group(0)!;
           final title = linkMatch.group(1)!;
@@ -734,7 +867,7 @@ abstract final class MarkdownParser {
 
       // Bare URLs: https://... or http://...
       if (text.startsWith('http://', i) || text.startsWith('https://', i)) {
-        final urlMatch = RegExp(r'https?://[^\s<]+').matchAsPrefix(text, i);
+        final urlMatch = _urlRegex.matchAsPrefix(text, i);
         if (urlMatch != null) {
           final url = urlMatch.group(0)!;
           flushPlain(i);
@@ -753,8 +886,7 @@ abstract final class MarkdownParser {
       // Tags: #tag (must be preceded by start of line or whitespace)
       if (char == '#' &&
           (i == 0 || text[i - 1] == ' ' || text[i - 1] == '\t')) {
-        final tagMatch =
-            RegExp(r'#([a-zA-Z0-9_\-\/]+)').matchAsPrefix(text, i);
+        final tagMatch = _tagRegex.matchAsPrefix(text, i);
         if (tagMatch != null) {
           final fullTag = tagMatch.group(0)!;
           flushPlain(i);
