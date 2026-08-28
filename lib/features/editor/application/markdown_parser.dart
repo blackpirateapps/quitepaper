@@ -92,6 +92,7 @@ abstract final class MarkdownParser {
       else if (_tryParseHeading(lineText) case final headingInfo?) {
         final indentLen = headingInfo.indentLength;
         final hashCount = headingInfo.hashCount;
+        final sepLen = headingInfo.separatorLength;
         final level = hashCount;
         final headingStyle = styles.getHeadingStyle(level);
 
@@ -106,20 +107,20 @@ abstract final class MarkdownParser {
           currentOffset += indentLen;
         }
 
-        // Heading marker (e.g. "##") - inherits heading font metrics to prevent baseline shifts
+        // Heading marker (e.g. "## ") - inherits exact heading font metrics to prevent baseline and font-instance shifts
         final markerStyle = headingStyle.copyWith(
           color: styles.headingMarker.color,
-          fontWeight: styles.headingMarker.fontWeight,
         );
+        final totalMarkerLen = hashCount + sepLen;
         rawSpans.add(_RawSpan(
           start: currentOffset,
-          end: currentOffset + hashCount,
-          text: lineText.substring(indentLen, indentLen + hashCount),
+          end: currentOffset + totalMarkerLen,
+          text: lineText.substring(indentLen, indentLen + totalMarkerLen),
           style: markerStyle,
         ));
-        currentOffset += hashCount;
+        currentOffset += totalMarkerLen;
 
-        final remainderStart = indentLen + hashCount;
+        final remainderStart = indentLen + totalMarkerLen;
         if (remainderStart < lineText.length) {
           final remainder = lineText.substring(remainderStart);
           _parseInlineSegments(
@@ -132,12 +133,13 @@ abstract final class MarkdownParser {
         }
       }
       // 5. Blockquotes (> or >>)
-      // 5. Blockquotes (> or >>)
       else if (RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').hasMatch(lineText)) {
         final quoteMatch =
-            RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)(>{1,3})([ \t]?)(.*)$').firstMatch(lineText)!;
         final indent = quoteMatch.group(1) ?? '';
         final marker = quoteMatch.group(2) ?? '>';
+        final sep = quoteMatch.group(3) ?? '';
+        final content = quoteMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -154,18 +156,18 @@ abstract final class MarkdownParser {
           color: styles.blockquoteMarker.color,
           fontWeight: styles.blockquoteMarker.fontWeight,
         );
+        final markerWithSep = '$marker$sep';
         rawSpans.add(_RawSpan(
           start: currentOffset,
-          end: currentOffset + marker.length,
-          text: marker,
+          end: currentOffset + markerWithSep.length,
+          text: markerWithSep,
           style: markerStyle,
         ));
-        currentOffset += marker.length;
+        currentOffset += markerWithSep.length;
 
-        final remainder = lineText.substring(indent.length + marker.length);
-        if (remainder.isNotEmpty) {
+        if (content.isNotEmpty) {
           _parseInlineSegments(
-            text: remainder,
+            text: content,
             baseOffset: currentOffset,
             baseStyle: styles.blockquote,
             styles: styles,
@@ -176,11 +178,13 @@ abstract final class MarkdownParser {
       // 6. Checklists (- [ ] , - [x] , * [ ] , + [ ] )
       else if (RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final checkMatch =
-            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])([ \t]*)(.*)$').firstMatch(lineText)!;
         final indent = checkMatch.group(1) ?? '';
         final prefix = checkMatch.group(2) ?? '- [';
         final stateChar = checkMatch.group(3) ?? ' ';
         final closeBracket = checkMatch.group(4) ?? ']';
+        final sep = checkMatch.group(5) ?? '';
+        final content = checkMatch.group(6) ?? '';
         final isChecked = (stateChar == 'x' || stateChar == 'X');
 
         var currentOffset = lineStart;
@@ -194,21 +198,31 @@ abstract final class MarkdownParser {
           currentOffset += indent.length;
         }
 
-        final markerText = '$prefix$stateChar$closeBracket';
+        final markerBaseStyle = isChecked ? styles.taskTextCompleted : styles.body;
+        final markerColor = isChecked
+            ? styles.checklistMarkerChecked.color
+            : styles.checklistMarker.color;
+        final markerFontWeight = isChecked
+            ? (styles.checklistMarkerChecked.fontWeight ?? FontWeight.w600)
+            : (styles.checklistMarker.fontWeight ?? FontWeight.w600);
+
+        final markerText = '$prefix$stateChar$closeBracket$sep';
         rawSpans.add(_RawSpan(
           start: currentOffset,
           end: currentOffset + markerText.length,
           text: markerText,
-          style: isChecked ? styles.checklistMarkerChecked : styles.checklistMarker,
+          style: markerBaseStyle.copyWith(
+            color: markerColor,
+            fontWeight: markerFontWeight,
+          ),
         ));
         currentOffset += markerText.length;
 
-        final remainder = lineText.substring(indent.length + markerText.length);
-        if (remainder.isNotEmpty) {
+        if (content.isNotEmpty) {
           _parseInlineSegments(
-            text: remainder,
+            text: content,
             baseOffset: currentOffset,
-            baseStyle: isChecked ? styles.taskTextCompleted : styles.body,
+            baseStyle: markerBaseStyle,
             styles: styles,
             spans: rawSpans,
           );
@@ -217,9 +231,11 @@ abstract final class MarkdownParser {
       // 7. Unordered Lists (- , * , + )
       else if (RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final listMatch =
-            RegExp(r'^(\s*)([-*+])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)([-*+])([ \t]*)(.*)$').firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '-';
+        final sep = listMatch.group(3) ?? '';
+        final content = listMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -232,18 +248,22 @@ abstract final class MarkdownParser {
           currentOffset += indent.length;
         }
 
+        final markerStyle = styles.body.copyWith(
+          color: styles.listMarker.color,
+          fontWeight: styles.listMarker.fontWeight ?? FontWeight.w600,
+        );
+        final markerWithSep = '$marker$sep';
         rawSpans.add(_RawSpan(
           start: currentOffset,
-          end: currentOffset + marker.length,
-          text: marker,
-          style: styles.listMarker,
+          end: currentOffset + markerWithSep.length,
+          text: markerWithSep,
+          style: markerStyle,
         ));
-        currentOffset += marker.length;
+        currentOffset += markerWithSep.length;
 
-        final remainder = lineText.substring(indent.length + marker.length);
-        if (remainder.isNotEmpty) {
+        if (content.isNotEmpty) {
           _parseInlineSegments(
-            text: remainder,
+            text: content,
             baseOffset: currentOffset,
             baseStyle: styles.body,
             styles: styles,
@@ -254,9 +274,11 @@ abstract final class MarkdownParser {
       // 8. Ordered Lists (1. , 2. , 1) )
       else if (RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)').hasMatch(lineText)) {
         final listMatch =
-            RegExp(r'^(\s*)(\d+[\.\)])(?:([ \t]+.*)|$)').firstMatch(lineText)!;
+            RegExp(r'^(\s*)(\d+[\.\)])([ \t]*)(.*)$').firstMatch(lineText)!;
         final indent = listMatch.group(1) ?? '';
         final marker = listMatch.group(2) ?? '1.';
+        final sep = listMatch.group(3) ?? '';
+        final content = listMatch.group(4) ?? '';
 
         var currentOffset = lineStart;
         if (indent.isNotEmpty) {
@@ -269,18 +291,22 @@ abstract final class MarkdownParser {
           currentOffset += indent.length;
         }
 
+        final markerStyle = styles.body.copyWith(
+          color: styles.listMarker.color,
+          fontWeight: styles.listMarker.fontWeight ?? FontWeight.w600,
+        );
+        final markerWithSep = '$marker$sep';
         rawSpans.add(_RawSpan(
           start: currentOffset,
-          end: currentOffset + marker.length,
-          text: marker,
-          style: styles.listMarker,
+          end: currentOffset + markerWithSep.length,
+          text: markerWithSep,
+          style: markerStyle,
         ));
-        currentOffset += marker.length;
+        currentOffset += markerWithSep.length;
 
-        final remainder = lineText.substring(indent.length + marker.length);
-        if (remainder.isNotEmpty) {
+        if (content.isNotEmpty) {
           _parseInlineSegments(
-            text: remainder,
+            text: content,
             baseOffset: currentOffset,
             baseStyle: styles.body,
             styles: styles,
@@ -482,6 +508,8 @@ abstract final class MarkdownParser {
     var i = 0;
     final len = text.length;
     var plainStart = 0;
+    final syntaxMarkerStyle =
+        baseStyle.copyWith(color: styles.syntaxMarker.color);
 
     void flushPlain(int end) {
       if (end > plainStart) {
@@ -507,7 +535,7 @@ abstract final class MarkdownParser {
             start: baseOffset + i,
             end: baseOffset + i + 1,
             text: '\\',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
           spans.add(_RawSpan(
             start: baseOffset + i + 1,
@@ -582,7 +610,7 @@ abstract final class MarkdownParser {
             start: baseOffset + i,
             end: baseOffset + i + 2,
             text: '![',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           // Alt text
@@ -603,7 +631,7 @@ abstract final class MarkdownParser {
             start: baseOffset + openParenStart,
             end: baseOffset + urlStart,
             text: '](',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           // URL / Asset URI
@@ -621,7 +649,7 @@ abstract final class MarkdownParser {
             start: baseOffset + urlEnd,
             end: baseOffset + matchEnd,
             text: ')',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           i = matchEnd;
@@ -652,7 +680,7 @@ abstract final class MarkdownParser {
             start: baseOffset + i,
             end: baseOffset + openBracketEnd,
             text: '[',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           final isDocumentLink = url.startsWith('qp://document/');
@@ -677,7 +705,7 @@ abstract final class MarkdownParser {
             start: baseOffset + titleEnd,
             end: baseOffset + closeBracketParenEnd,
             text: '](',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           // URL
@@ -695,7 +723,7 @@ abstract final class MarkdownParser {
             start: baseOffset + urlEnd,
             end: baseOffset + matchEnd,
             text: ')',
-            style: styles.syntaxMarker,
+            style: syntaxMarkerStyle,
           ));
 
           i = matchEnd;
@@ -757,7 +785,7 @@ abstract final class MarkdownParser {
               start: baseOffset + i,
               end: baseOffset + i + 3,
               text: delimiter,
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             _parseInlineSegments(
@@ -772,7 +800,7 @@ abstract final class MarkdownParser {
               start: baseOffset + closeIndex,
               end: baseOffset + closeIndex + 3,
               text: delimiter,
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             i = closeIndex + 3;
@@ -797,7 +825,7 @@ abstract final class MarkdownParser {
               start: baseOffset + i,
               end: baseOffset + i + 2,
               text: delimiter,
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             _parseInlineSegments(
@@ -812,7 +840,7 @@ abstract final class MarkdownParser {
               start: baseOffset + closeIndex,
               end: baseOffset + closeIndex + 2,
               text: delimiter,
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             i = closeIndex + 2;
@@ -836,7 +864,7 @@ abstract final class MarkdownParser {
               start: baseOffset + i,
               end: baseOffset + i + 2,
               text: '~~',
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             _parseInlineSegments(
@@ -851,7 +879,7 @@ abstract final class MarkdownParser {
               start: baseOffset + closeIndex,
               end: baseOffset + closeIndex + 2,
               text: '~~',
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             i = closeIndex + 2;
@@ -875,7 +903,7 @@ abstract final class MarkdownParser {
               start: baseOffset + i,
               end: baseOffset + i + 2,
               text: '==',
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             _parseInlineSegments(
@@ -890,7 +918,7 @@ abstract final class MarkdownParser {
               start: baseOffset + closeIndex,
               end: baseOffset + closeIndex + 2,
               text: '==',
-              style: styles.syntaxMarker,
+              style: syntaxMarkerStyle,
             ));
 
             i = closeIndex + 2;
@@ -919,7 +947,7 @@ abstract final class MarkdownParser {
                 start: baseOffset + i,
                 end: baseOffset + i + 1,
                 text: delimiter,
-                style: styles.syntaxMarker,
+                style: syntaxMarkerStyle,
               ));
 
               _parseInlineSegments(
@@ -934,7 +962,7 @@ abstract final class MarkdownParser {
                 start: baseOffset + closeIndex,
                 end: baseOffset + closeIndex + 1,
                 text: delimiter,
-                style: styles.syntaxMarker,
+                style: syntaxMarkerStyle,
               ));
 
               i = closeIndex + 1;
@@ -1032,9 +1060,14 @@ abstract final class MarkdownParser {
     if (hashCount >= 1 &&
         hashCount <= 6 &&
         (i == len || lineText[i] == ' ' || lineText[i] == '\t')) {
+      var sepEnd = i;
+      while (sepEnd < len && (lineText[sepEnd] == ' ' || lineText[sepEnd] == '\t')) {
+        sepEnd++;
+      }
       return _HeadingLineInfo(
         indentLength: indentEnd,
         hashCount: hashCount,
+        separatorLength: sepEnd - i,
       );
     }
     return null;
@@ -1044,10 +1077,12 @@ abstract final class MarkdownParser {
 class _HeadingLineInfo {
   final int indentLength;
   final int hashCount;
+  final int separatorLength;
 
   const _HeadingLineInfo({
     required this.indentLength,
     required this.hashCount,
+    required this.separatorLength,
   });
 }
 

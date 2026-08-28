@@ -640,24 +640,31 @@ Quiet Paper features a comprehensive typography engine that allows users to cust
 
 ---
 
-## 26. WYSIWYG Heading Whitespace Loss & FUTO Android IME Composing Fix
+## 26. WYSIWYG Heading Whitespace Loss & Custom Font Typography IME Fix
 
 ### Problem & Root Cause
-On Android devices (specifically tablets running predictive or on-device voice/neural IMEs such as FUTO Keyboard), typing headings (`#`, `# Hello `, `# Hello world`) exhibited whitespace drops, collapsed whitespace spans, and frozen caret advancement:
-1. **Regex Re-parsing & Spans Boundary Fragmentation**: The heading parser previously used regex capture groups (`^(\s*)(#{1,6})(?:([ \t])(.*)|$)`), extracting hashes, separator whitespace, and content into distinct captures. When reassembled, typed spaces immediately following hashes or between words could become isolated into standalone whitespace-only `TextSpan`s.
-2. **IME Composing Underline Collision**: Android IMEs maintain an active composing range across active tokens. When composing range decoration (`TextDecoration.underline`) was applied across fragmented spans or whitespace-only spans, text layout engines could treat trailing/boundary spaces as zero-width or defer their caret offset calculation.
-3. **Inadequate Text-Only Test Coverage**: Previous unit tests asserted `TextSpan.toPlainText()`, which only verified string presence without verifying `RenderEditable` layout metrics, glyph boundaries, or caret X-position advancement during live IME composition.
+On Android devices (specifically tablets and phones running predictive or neural IMEs such as FUTO Keyboard or Gboard), typing headings (`#`, `# Hello `, `# Hello world`) exhibited whitespace drops, collapsed whitespace spans, and frozen caret advancement:
+1. **Isolated Separator Spans & Span Boundary Fragmentation**: In heading parsing, hashes (`#` to `######`) were styled with `markerStyle` (`styles.headingMarker.color`, `FontWeight.w500`), while the whitespace immediately following hashes was passed into the remainder parser with `headingStyle` (`FontWeight.w700`, negative tracking `-0.3` for H1). Because `markerStyle != headingStyle`, adjacent span merging could not merge `#` and `' '`, isolating the space into a standalone 1-character `TextSpan`.
+2. **Custom Typography Font Shaper Collision**: While default typography (`fontFamily: null`) fell back smoothly to system fonts, selecting any custom font (bundled APK fonts like `Inter`, `Lora`, `Merriweather`, `JetBrains Mono`, Google Fonts like `Poppins`, `Playfair Display`, or custom TTF/OTF fonts) caused font-instance switching across the span boundary between `#` (`w500`) and `' '` (`w700`). Under Android IME composing underline (`TextDecoration.underline`), HarfBuzz/Skia text shaping collapsed the isolated space glyph or froze the caret offset at the hash boundary.
+3. **Inline Delimiter Font Dropping**: Inside headings, markdown delimiters (`**`, `*`, `~`, `==`, `[`, `]`) were styled using `styles.syntaxMarker` (default 18sp body font without heading font size or family), causing baseline shifts and metric mismatches.
 
-### Architectural Solution & Heading-Span Invariants
-- **Single-Pass Source-Slice Heading Scanner** ([`lib/features/editor/application/markdown_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart)):
-  - Replaced double-regex matching with a deterministic single-pass scanner (`_tryParseHeading`).
-  - Scans indentation, counts 1–6 `#` hash markers, and validates heading separator whitespace in $O(N)$ linear time.
-  - Passes the exact remaining source—including leading separators, consecutive spaces, and trailing whitespace—directly into `_parseInlineSegments` with exact absolute offsets.
-  - Maintains the **source-contiguous heading run invariant**: the heading content remainder is emitted as a contiguous source slice without artificial boundary splitting, preserving exact character indices and font metrics.
-- **Composing-Range Compatibility**:
-  - Marker styling inherits identical font size, line height, and baseline metrics from the target heading level (`styles.getHeadingStyle(level)`), avoiding font-metric jumping.
-  - Active Android composing underline decorations are applied seamlessly across contiguous span slices without zero-width whitespace collapses.
-- **Widget-Level Regression Coverage** ([`test/editor/markdown_editor_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_editor_widget_test.dart) & [`test/editor/markdown_parser_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_parser_test.dart)):
+### Architectural Solution & Unified Block Prefix Invariant
+- **Unified Prefix Token Run Invariant** ([`lib/features/editor/application/markdown_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart)):
+  - `_tryParseHeading` measures both `hashCount` (1–6) and `separatorLength` (whitespace immediately following hashes).
+  - The heading marker run encapsulates the hashes AND the separator whitespace (e.g. `"# "`, `"## "`, `"#  "`) as a single, contiguous `_RawSpan` with `markerStyle`.
+  - The heading content remainder (if any) starts cleanly at the first actual content character (e.g. `"Hello"`), so there is NEVER an isolated standalone single-space span between `#` and the text.
+  - If the line is only `"# "` or `"#  "`, it produces a single contiguous span with `markerStyle`—zero span fragmentation, zero font boundary jumping, zero caret offset freezing during Android IME composition.
+- **Metric Harmonization for Marker Style**:
+  - `markerStyle` inherits the exact font family, font size, line height, letter spacing, and font weight as `headingStyle`, varying only in `color: styles.headingMarker.color`.
+- **Unified Block Prefix Invariant Across Block Types**:
+  - Applied the same unified prefix token run invariant across Blockquotes (`> `), Checklists (`- [ ] `, `- [x] `), Unordered Lists (`- `, `* `, `+ `), and Ordered Lists (`1. `, `2. `) to ensure complete typographic stability across all block structures.
+- **Heading Inline Syntax Marker Styling**:
+  - Delimiters within headings inherit `baseStyle.copyWith(color: styles.syntaxMarker.color)` so they retain the heading's font family, font size, and metrics.
+- **Comprehensive Automated Regression Coverage** ([`test/editor/markdown_editor_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_editor_widget_test.dart) & [`test/editor/markdown_parser_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_parser_test.dart)):
+  - Verified parameterized typing across ALL bundled fonts (`Inter`, `Roboto`, `Lora`, `Merriweather`, `Open Sans`, `Lato`, `JetBrains Mono`, `Fira Code`), system fonts (`serif`, `monospace`), and Google Fonts (`Poppins`, `Playfair Display`).
+  - Verified incremental typing of `#`, `# `, `#  `, `#   `, `#    ` advances caret (`caretRect.left > previousCaretX`) and preserves text.
+  - Verified typing `# Hello `, `# Hello  `, `# Hello   ` advances caret at every space.
+  - Verified typing all heading levels (`#` through `######`) with composing ranges.
 ---
 
 ## 27. End-to-End Encrypted Images & Attachments Architecture

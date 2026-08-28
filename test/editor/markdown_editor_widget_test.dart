@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/application/markdown_editing_controller.dart';
+import 'package:quitepaper/features/editor/domain/markdown_styles.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
+import 'package:quitepaper/features/settings/domain/typography_settings.dart';
 
 void main() {
   Widget buildTestEditor({
@@ -264,6 +266,180 @@ void main() {
             }
             previousCaretX = caretRect.left;
           }
+        }
+      });
+    });
+
+    group('Custom Typography Font Regression Tests', () {
+      final testFonts = [
+        'Inter',
+        'Roboto',
+        'Lora',
+        'Merriweather',
+        'Open Sans',
+        'Lato',
+        'JetBrains Mono',
+        'Fira Code',
+        'serif',
+        'monospace',
+        'Poppins',
+      ];
+
+      for (final font in testFonts) {
+        testWidgets('typing "# " with custom font "$font" preserves whitespace and advances caret', (tester) async {
+          final typography = TypographySettings(
+            headingFontFamily: font,
+            bodyFontFamily: font,
+          );
+          final styles = MarkdownStyles.fromColors(
+            AppColors.light,
+            typography: typography,
+          );
+          final controller = MarkdownEditingController(styles: styles);
+          final focusNode = FocusNode();
+
+          await tester.pumpWidget(buildTestEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ));
+
+          focusNode.requestFocus();
+          await tester.pump();
+
+          const sequence = ['#', '# ', '#  ', '#   ', '#    '];
+          double previousCaretX = -1.0;
+
+          for (var i = 0; i < sequence.length; i++) {
+            final text = sequence[i];
+            controller.value = TextEditingValue(
+              text: text,
+              selection: TextSelection.collapsed(offset: text.length),
+              composing: TextRange(start: 0, end: text.length),
+            );
+            await tester.pump();
+
+            expect(controller.text, equals(text));
+
+            final renderEditable = tester.state<EditableTextState>(find.byType(EditableText)).renderEditable;
+            expect(renderEditable.text!.toPlainText(), equals(text));
+
+            final caretRect = renderEditable.getLocalRectForCaret(TextPosition(offset: text.length));
+            expect(caretRect.height, greaterThan(0));
+            if (previousCaretX >= 0) {
+              expect(caretRect.left, greaterThan(previousCaretX),
+                  reason: 'Font "$font": Caret must advance after typing "$text" (step $i)');
+            }
+            previousCaretX = caretRect.left;
+          }
+        });
+
+        testWidgets('typing "# Hello " with custom font "$font" preserves trailing spaces and advances caret', (tester) async {
+          final typography = TypographySettings(
+            headingFontFamily: font,
+            bodyFontFamily: font,
+          );
+          final styles = MarkdownStyles.fromColors(
+            AppColors.light,
+            typography: typography,
+          );
+          final controller = MarkdownEditingController(styles: styles);
+          final focusNode = FocusNode();
+
+          await tester.pumpWidget(buildTestEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ));
+
+          focusNode.requestFocus();
+          await tester.pump();
+
+          final sequence = [
+            ('#', const TextRange(start: 0, end: 1)),
+            ('# ', const TextRange(start: 0, end: 2)),
+            ('# H', const TextRange(start: 2, end: 3)),
+            ('# He', const TextRange(start: 2, end: 4)),
+            ('# Hel', const TextRange(start: 2, end: 5)),
+            ('# Hell', const TextRange(start: 2, end: 6)),
+            ('# Hello', const TextRange(start: 2, end: 7)),
+            ('# Hello ', const TextRange(start: 2, end: 8)),
+            ('# Hello  ', const TextRange(start: 2, end: 9)),
+            ('# Hello   ', const TextRange(start: 2, end: 10)),
+          ];
+
+          double previousCaretX = -1.0;
+
+          for (var i = 0; i < sequence.length; i++) {
+            final (text, composing) = sequence[i];
+            controller.value = TextEditingValue(
+              text: text,
+              selection: TextSelection.collapsed(offset: text.length),
+              composing: composing,
+            );
+            await tester.pump();
+
+            expect(controller.text, equals(text));
+
+            final renderEditable = tester.state<EditableTextState>(find.byType(EditableText)).renderEditable;
+            expect(renderEditable.text!.toPlainText(), equals(text));
+
+            final caretRect = renderEditable.getLocalRectForCaret(TextPosition(offset: text.length));
+            expect(caretRect.height, greaterThan(0));
+            if (previousCaretX >= 0) {
+              expect(caretRect.left, greaterThan(previousCaretX),
+                  reason: 'Font "$font": Caret must advance after step $i: "$text"');
+            }
+            previousCaretX = caretRect.left;
+          }
+        });
+      }
+
+      testWidgets('distinct heading and body fonts advance caret cleanly without metric jumping', (tester) async {
+        final typography = const TypographySettings(
+          headingFontFamily: 'Playfair Display',
+          bodyFontFamily: 'Inter',
+          fontSize: 20.0,
+          lineHeight: 1.8,
+          letterSpacing: 0.5,
+        );
+        final styles = MarkdownStyles.fromColors(
+          AppColors.light,
+          typography: typography,
+        );
+        final controller = MarkdownEditingController(styles: styles);
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(buildTestEditor(
+          controller: controller,
+          focusNode: focusNode,
+        ));
+
+        focusNode.requestFocus();
+        await tester.pump();
+
+        const sequence = ['#', '# ', '# H', '# He', '# Hel', '# Hell', '# Hello', '# Hello ', '# Hello  '];
+        double previousCaretX = -1.0;
+
+        for (var i = 0; i < sequence.length; i++) {
+          final text = sequence[i];
+          controller.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+            composing: TextRange(start: 0, end: text.length),
+          );
+          await tester.pump();
+
+          expect(controller.text, equals(text));
+
+          final renderEditable = tester.state<EditableTextState>(find.byType(EditableText)).renderEditable;
+          expect(renderEditable.text!.toPlainText(), equals(text));
+
+          final caretRect = renderEditable.getLocalRectForCaret(TextPosition(offset: text.length));
+          expect(caretRect.height, greaterThan(0));
+          if (previousCaretX >= 0) {
+            expect(caretRect.left, greaterThan(previousCaretX),
+                reason: 'Distinct fonts: Caret must advance after typing "$text" (step $i)');
+          }
+          previousCaretX = caretRect.left;
         }
       });
     });

@@ -44,14 +44,14 @@ void main() {
 
       final children = span.children!;
       expect(children, isNotEmpty);
-      // Hash marker
+      // Hash marker with unified separator
       final hashSpan = children.first as TextSpan;
-      expect(hashSpan.text, equals('#'));
+      expect(hashSpan.text, equals('# '));
       expect(hashSpan.style?.color, equals(styles.headingMarker.color));
 
-      // Title text
+      // Title text (content starts cleanly without leading space)
       final textSpan = children.last as TextSpan;
-      expect(textSpan.text, equals(' Big Title'));
+      expect(textSpan.text, equals('Big Title'));
       expect(textSpan.style?.fontSize, equals(styles.heading1.fontSize));
       expect(textSpan.style?.fontWeight, equals(styles.heading1.fontWeight));
     });
@@ -78,14 +78,14 @@ void main() {
         expect(span.toPlainText(), equals(text));
         final children = span.children!;
         final hashSpan = children.first as TextSpan;
-        expect(hashSpan.text, equals(hashes));
+        expect(hashSpan.text, equals('$hashes '));
         expect(hashSpan.style?.color, equals(styles.headingMarker.color));
 
         final expectedHeadingStyle = styles.getHeadingStyle(level);
         expect(hashSpan.style?.fontSize, equals(expectedHeadingStyle.fontSize));
 
         final contentSpan = children.last as TextSpan;
-        expect(contentSpan.text, equals(' Heading level $level'));
+        expect(contentSpan.text, equals('Heading level $level'));
         expect(contentSpan.style?.fontSize, equals(expectedHeadingStyle.fontSize));
         expect(contentSpan.style?.fontWeight, equals(expectedHeadingStyle.fontWeight));
       }
@@ -103,14 +103,9 @@ void main() {
       expect(span.toPlainText(), equals(text));
       final children = span.children!;
       final hashSpan = children.first as TextSpan;
-      expect(hashSpan.text, equals('#'));
+      expect(hashSpan.text, equals('#   '));
       expect(hashSpan.style?.decoration, equals(TextDecoration.underline));
-
-      // The composing spaces part
-      final compSpacesSpan = children[1] as TextSpan;
-      expect(compSpacesSpan.text, equals('   '));
-      expect(compSpacesSpan.style?.decoration, equals(TextDecoration.underline));
-      expect(compSpacesSpan.style?.fontSize, equals(styles.heading1.fontSize));
+      expect(hashSpan.style?.fontSize, equals(styles.heading1.fontSize));
 
       // The uncomposed text part
       final titleSpan = children.last as TextSpan;
@@ -225,12 +220,12 @@ void main() {
       expect(span.toPlainText(), equals(text));
 
       final todoMarkerSpan = span.children!.firstWhere(
-        (s) => (s as TextSpan).text == '- [ ]',
+        (s) => (s as TextSpan).text == '- [ ] ',
       ) as TextSpan;
       expect(todoMarkerSpan.style?.color, equals(styles.checklistMarker.color));
 
       final doneMarkerSpan = span.children!.firstWhere(
-        (s) => (s as TextSpan).text == '- [x]',
+        (s) => (s as TextSpan).text == '- [x] ',
       ) as TextSpan;
       expect(doneMarkerSpan.style?.color, equals(styles.checklistMarkerChecked.color));
     });
