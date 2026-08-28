@@ -66,7 +66,7 @@ class QpNoteValidator {
 
     try {
       final bytes = await file.readAsBytes();
-      return validatePackageBytes(bytes, packagePassword: packagePassword);
+      return await validatePackageBytes(bytes, packagePassword: packagePassword);
     } catch (e) {
       return QpNoteValidationResult(
         isValid: false,
