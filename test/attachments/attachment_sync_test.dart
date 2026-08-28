@@ -30,7 +30,7 @@ class MockAuthService implements AuthService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class MockSyncApiClient implements SyncApiClient {
+class MockSyncApiClient extends SyncApiClient {
   CloudinaryUploadAuth? lastRequestedAuth;
   Map<String, dynamic>? lastConfirmedData;
 

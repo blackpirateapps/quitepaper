@@ -226,8 +226,17 @@ class SyncEngine {
       var hasMore = true;
 
       while (hasMore) {
-        final pullResponse =
-            await apiClient.pullChanges(cursor: currentCursor, limit: 50);
+        PullSyncResponse pullResponse;
+        try {
+          pullResponse =
+              await apiClient.pullChanges(cursor: currentCursor, limit: 50);
+        } on SyncCursorExpiredException catch (exp) {
+          debugPrint('Sync cursor expired ($exp). Resetting cursor for full resync...');
+          await resetSyncCursor();
+          currentCursor = 0;
+          pullResponse =
+              await apiClient.pullChanges(cursor: 0, limit: 50);
+        }
 
         for (final change in pullResponse.changes) {
           final conflictEntity =
@@ -682,6 +691,48 @@ class SyncEngine {
         attachmentsUploaded += docResult.uploadedCount;
         attachmentsFailed += docResult.failedCount;
         attachmentErrors.addAll(docResult.errors);
+      }
+
+      // 6. REFERENCE PROJECTIONS SYNC: Send active and trashed resource references to server
+      try {
+        final allNotes = await database.getAllNotesRaw();
+        final references = <SyncReferenceItem>[];
+        for (final n in allNotes) {
+          final content = n.content;
+          final assetMatches = RegExp(
+            r'qp://asset/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+          ).allMatches(content);
+          for (final m in assetMatches) {
+            final id = m.group(1);
+            if (id != null) {
+              references.add(SyncReferenceItem(
+                resourceType: 'attachment',
+                resourceId: id,
+                noteId: n.id,
+              ));
+            }
+          }
+
+          final docMatches = RegExp(
+            r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+          ).allMatches(content);
+          for (final m in docMatches) {
+            final id = m.group(1);
+            if (id != null) {
+              references.add(SyncReferenceItem(
+                resourceType: 'document',
+                resourceId: id,
+                noteId: n.id,
+              ));
+            }
+          }
+        }
+
+        if (references.isNotEmpty) {
+          await apiClient.syncReferences(references: references);
+        }
+      } catch (refErr) {
+        debugPrint('Reference projection sync error: $refErr');
       }
 
       final pendingConflicts = await database.getPendingConflictsCount();

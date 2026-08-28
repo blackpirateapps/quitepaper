@@ -762,6 +762,7 @@ class AppDatabase extends _$AppDatabase {
   /// Permanent hard deletion of a single note
   Future<void> deletePermanently(String noteId, {bool enqueueSync = true}) async {
     await transaction(() async {
+      await (delete(noteVersionsTable)..where((v) => v.noteId.equals(noteId))).go();
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
       await removeNoteFromSearchIndex(noteId);
@@ -785,6 +786,7 @@ class AppDatabase extends _$AppDatabase {
         for (final id in trashedIds) {
           await removeNoteFromSearchIndex(id);
         }
+        await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(trashedIds))).go();
         await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
         await _cleanupOrphanedTags();
@@ -870,6 +872,7 @@ class AppDatabase extends _$AppDatabase {
       for (final id in noteIds) {
         await removeNoteFromSearchIndex(id);
       }
+      await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(noteIds))).go();
       await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
       await _cleanupOrphanedTags();
@@ -885,6 +888,12 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteNote(String noteId, {bool enqueueSync = true}) async {
     await deletePermanently(noteId, enqueueSync: enqueueSync);
   }
+
+  Future<List<NoteEntity>> getAllNotesRaw() async => select(notesTable).get();
+  Future<List<AttachmentEntity>> getAllAttachmentsRaw() async => select(attachmentsTable).get();
+  Future<List<DocumentEntity>> getAllDocumentsRaw() async => select(documentsTable).get();
+  Future<void> deleteAttachmentLocal(String id) async => (delete(attachmentsTable)..where((t) => t.id.equals(id))).go();
+  Future<void> deleteDocumentLocal(String id) async => (delete(documentsTable)..where((t) => t.id.equals(id))).go();
 
   // ==========================================
   // SYNC OPERATIONS & QUERIES

@@ -1,7 +1,19 @@
 import { getDbClient, ensureDbInitialized } from '../db/client.js';
 import { requireFirebaseAuth } from '../auth/middleware.js';
 import { getEncryptionKey, putEncryptionKey } from '../keys/keyService.js';
-import { pushSyncChanges, pullSyncChanges, getLatestCursor, getNoteById, getHistoricalRevision } from '../sync/syncService.js';
+import {
+  pushSyncChanges,
+  pullSyncChanges,
+  getLatestCursor,
+  getNoteById,
+  getHistoricalRevision,
+  updateAttachmentReferences,
+  destroyNoteAndExclusiveResources,
+  getStorageResources,
+  deleteStorageResource,
+} from '../sync/syncService.js';
+import { profileUserStorage } from '../gc/storageProfiler.js';
+import { runGarbageCollection, getSafeSyncBoundary } from '../gc/garbageCollector.js';
 import {
   authorizeAttachmentUpload,
   confirmAttachmentUpload,
@@ -127,6 +139,16 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // POST /api/v1/sync/references (Client reference projection update)
+    if (pathname === '/api/v1/sync/references' && method === 'POST') {
+      const refResult = await updateAttachmentReferences(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: refResult,
+      };
+    }
+
     // POST /api/v1/sync/versions/push
     if (pathname === '/api/v1/sync/versions/push' && method === 'POST') {
       const { pushNoteVersions } = await import('../sync/syncService.js');
@@ -159,6 +181,62 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: { cursor },
+      };
+    }
+
+    // POST /api/v1/notes/:id/permanent-delete
+    const permDelMatch = pathname.match(/^\/api\/v1\/notes\/([0-9a-fA-F-]{36})\/permanent-delete$/);
+    if (permDelMatch && method === 'POST') {
+      const noteId = permDelMatch[1];
+      const result = await destroyNoteAndExclusiveResources(db, userId, noteId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    }
+
+    // GET /api/v1/storage/profile
+    if (pathname === '/api/v1/storage/profile' && method === 'GET') {
+      const safeBoundary = await getSafeSyncBoundary(db, userId);
+      const profile = await profileUserStorage(db, userId, safeBoundary);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: profile,
+      };
+    }
+
+    // POST /api/v1/storage/gc (Run Garbage Collection / Dry Run)
+    if (pathname === '/api/v1/storage/gc' && method === 'POST') {
+      const gcResult = await runGarbageCollection(db, userId, req.body || {});
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: gcResult,
+      };
+    }
+
+    // GET /api/v1/storage/resources (List attached and orphaned resources)
+    if (pathname === '/api/v1/storage/resources' && method === 'GET') {
+      const resources = await getStorageResources(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: resources,
+      };
+    }
+
+    // DELETE /api/v1/storage/resources/:type/:id (User-initiated deletion of orphaned resource)
+    const delResMatch = pathname.match(/^\/api\/v1\/storage\/resources\/(attachment|document)\/([0-9a-fA-F-]{36})$/);
+    if (delResMatch && method === 'DELETE') {
+      const resType = delResMatch[1] as 'attachment' | 'document';
+      const resId = delResMatch[2];
+      const result = await deleteStorageResource(db, userId, resType, resId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
       };
     }
 

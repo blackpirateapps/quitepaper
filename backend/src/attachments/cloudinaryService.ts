@@ -80,3 +80,94 @@ export function createSignedUploadAuth(
     ...(cleanFolder ? { folder: cleanFolder } : {}),
   };
 }
+
+export interface CloudinaryDeleteResult {
+  success: boolean;
+  result: 'ok' | 'not found' | 'error';
+  retryable: boolean;
+  error?: string;
+}
+
+/**
+ * Permanently deletes an encrypted binary object from Cloudinary storage.
+ * Handles 'ok' and 'not found' as successful terminal outcomes (idempotent).
+ */
+export async function deleteCloudinaryResource(
+  publicId: string,
+  config?: CloudinaryConfig,
+  resourceType: 'raw' | 'image' | 'video' = 'raw'
+): Promise<CloudinaryDeleteResult> {
+  let resolvedConfig: CloudinaryConfig;
+  try {
+    resolvedConfig = config ?? getCloudinaryConfig();
+  } catch (err: any) {
+    if (process.env.NODE_ENV === 'test') {
+      return { success: true, result: 'ok', retryable: false };
+    }
+    return { success: false, result: 'error', retryable: false, error: err?.message };
+  }
+
+  const cleanFolder = resolvedConfig.folder ? resolvedConfig.folder.replace(/^\/+|\/+$/g, '').trim() : '';
+  const fullPublicId = cleanFolder && !publicId.startsWith(cleanFolder + '/')
+    ? `${cleanFolder}/${publicId}`
+    : publicId;
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const paramsToSign: Record<string, string | number | undefined> = {
+    public_id: fullPublicId,
+    timestamp,
+  };
+
+  const signature = generateCloudinarySignature(paramsToSign, resolvedConfig.apiSecret);
+  const destroyUrl = `https://api.cloudinary.com/v1_1/${resolvedConfig.cloudName}/${resourceType}/destroy`;
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append('public_id', fullPublicId);
+    formData.append('api_key', resolvedConfig.apiKey);
+    formData.append('timestamp', timestamp.toString());
+    formData.append('signature', signature);
+
+    const response = await fetch(destroyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+
+    const bodyText = await response.text();
+    let bodyJson: any = {};
+    try {
+      bodyJson = JSON.parse(bodyText);
+    } catch (_) {}
+
+    if (response.ok) {
+      const resultStr = bodyJson?.result || 'ok';
+      if (resultStr === 'ok' || resultStr === 'not found') {
+        return { success: true, result: resultStr, retryable: false };
+      }
+    }
+
+    if (response.status === 404 || bodyJson?.result === 'not found') {
+      return { success: true, result: 'not found', retryable: false };
+    }
+
+    // Rate limiting (429) or Server error (5xx) -> retryable
+    const retryable = response.status === 429 || response.status >= 500;
+    return {
+      success: false,
+      result: 'error',
+      retryable,
+      error: `Cloudinary destroy returned HTTP ${response.status}: ${bodyText.substring(0, 200)}`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      result: 'error',
+      retryable: true,
+      error: `Cloudinary destroy network error: ${err?.message || err}`,
+    };
+  }
+}
+

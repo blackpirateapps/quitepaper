@@ -26,6 +26,7 @@ import '../../sync/presentation/conflict_list_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 import '../application/typography_provider.dart';
+import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -665,6 +666,93 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           MaterialPageRoute(
                             builder: (_) =>
                                 const TypographySettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // Section: Storage & Attachments
+                // ==========================================
+                _buildSectionHeader(context, 'Storage & Attachments'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsInfoTile(
+                      icon: Icons.cloud_done_rounded,
+                      iconColor: colors.accent,
+                      title: 'Zero-Knowledge Cloud Storage',
+                      description:
+                          'Encrypted assets, notes, and PDF documents are retained securely in cloud storage. Maintenance runs automatically across active devices.',
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.pie_chart_outline_rounded,
+                      title: 'Storage & Cleanup',
+                      subtitle: 'Storage breakdown, GC maintenance, and reclaimable space',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const StorageManagementScreen(initialTab: 0),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.attachment_rounded,
+                      title: 'Attached Assets',
+                      subtitle: 'Active images & scanned documents',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const StorageManagementScreen(initialTab: 1),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.delete_sweep_outlined,
+                      title: 'Orphaned Assets',
+                      subtitle: 'Unreferenced cloud assets pending destruction',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const StorageManagementScreen(initialTab: 2),
                           ),
                         );
                       },

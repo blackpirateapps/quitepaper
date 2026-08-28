@@ -76,6 +76,62 @@ abstract class SyncApiClient {
   Future<PullChangeItem?> getRemoteNote({
     required String noteId,
   });
+  Future<void> syncReferences({
+    required List<SyncReferenceItem> references,
+    String? deviceId,
+  }) async {}
+  Future<StorageProfileReport> getStorageProfile() async {
+    return const StorageProfileReport(
+      userId: '',
+      generatedAt: '',
+      totalEstimatedBytes: 0,
+      totalReclaimableBytes: 0,
+      safeSyncBoundaryRevision: 0,
+      activeDevicesCount: 0,
+      staleDevicesCount: 0,
+      expiredDevicesCount: 0,
+      tables: {},
+    );
+  }
+  Future<GcExecutionSummary> runGarbageCollection({
+    bool dryRun = false,
+    int batchSize = 100,
+  }) async {
+    return const GcExecutionSummary(
+      runId: '',
+      userId: '',
+      dryRun: false,
+      startedAt: '',
+      finishedAt: '',
+      durationMs: 0,
+      safeSyncBoundaryRevision: 0,
+      syncChangesDeleted: 0,
+      noteVersionsDeleted: 0,
+      idempotencyKeysDeleted: 0,
+      orphanedAttachmentsIdentified: 0,
+      orphanedDocumentsIdentified: 0,
+      destructionJobsCreated: 0,
+      destructionJobsProcessed: 0,
+      destructionJobsCompleted: 0,
+      destructionJobsFailed: 0,
+      tombstonesCleaned: 0,
+      estimatedBytesReclaimed: 0,
+    );
+  }
+  Future<StorageResourcesResponse> getStorageResources() async {
+    return const StorageResourcesResponse(
+      attached: [],
+      orphaned: [],
+      totalAttachedCount: 0,
+      totalOrphanedCount: 0,
+      totalStorageBytes: 0,
+    );
+  }
+  Future<void> deleteStorageResource({
+    required String resourceType,
+    required String resourceId,
+  }) async {}
+  Future<void> permanentDeleteNote(String noteId) async {}
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -288,6 +344,19 @@ class HttpSyncApiClient implements SyncApiClient {
       headers: headers,
       body: body,
     ));
+
+    if (res.statusCode == 410) {
+      final parsed = _safeParseJson(res.body);
+      final errCode = parsed?['error']?['code'] as String?;
+      final details = parsed?['error']?['details'] as Map<String, dynamic>?;
+      if (errCode == 'SYNC_CURSOR_EXPIRED' || details?['cursorExpired'] == true) {
+        throw SyncCursorExpiredException(
+          message: parsed?['error']?['message'] as String? ?? 'Sync cursor has expired',
+          minRetainedRevision: details?['minRetainedRevision'] as int? ?? 0,
+          currentRevision: details?['currentRevision'] as int? ?? 0,
+        );
+      }
+    }
 
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Pull sync failed'));
@@ -602,6 +671,111 @@ class HttpSyncApiClient implements SyncApiClient {
       return null;
     } else {
       throw Exception(_extractErrorMessage(res, 'Failed to fetch remote note'));
+    }
+  }
+
+  @override
+  Future<void> syncReferences({
+    required List<SyncReferenceItem> references,
+    String? deviceId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/sync/references');
+    final body = jsonEncode({
+      'deviceId': ?deviceId,
+      'references': references.map((r) => r.toJson()).toList(),
+    });
+
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+      url,
+      headers: headers,
+      body: body,
+    ));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to synchronize resource references'));
+    }
+  }
+
+  @override
+  Future<StorageProfileReport> getStorageProfile() async {
+    final url = Uri.parse('$_baseUrl/api/v1/storage/profile');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch storage profile'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to fetch storage profile: Invalid JSON response');
+    }
+    return StorageProfileReport.fromJson(data);
+  }
+
+  @override
+  Future<GcExecutionSummary> runGarbageCollection({
+    bool dryRun = false,
+    int batchSize = 100,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/storage/gc');
+    final body = jsonEncode({
+      'dryRun': dryRun,
+      'batchSize': batchSize,
+    });
+
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+      url,
+      headers: headers,
+      body: body,
+    ));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to execute garbage collection'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to execute garbage collection: Invalid JSON response');
+    }
+    return GcExecutionSummary.fromJson(data);
+  }
+
+  @override
+  Future<StorageResourcesResponse> getStorageResources() async {
+    final url = Uri.parse('$_baseUrl/api/v1/storage/resources');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch storage resources'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to fetch storage resources: Invalid JSON response');
+    }
+    return StorageResourcesResponse.fromJson(data);
+  }
+
+  @override
+  Future<void> deleteStorageResource({
+    required String resourceType,
+    required String resourceId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/storage/resources/$resourceType/$resourceId');
+    final res = await _sendWithAuthRetry((headers) => _client.delete(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to delete storage resource'));
+    }
+  }
+
+  @override
+  Future<void> permanentDeleteNote(String noteId) async {
+    final url = Uri.parse('$_baseUrl/api/v1/notes/$noteId/permanent-delete');
+    final res = await _sendWithAuthRetry((headers) => _client.post(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to permanently delete note'));
     }
   }
 }

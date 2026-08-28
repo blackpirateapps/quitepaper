@@ -31,7 +31,7 @@ class MockAuthService implements AuthService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class MockSyncApiClient implements SyncApiClient {
+class MockSyncApiClient extends SyncApiClient {
   String _baseUrl = 'https://test.api';
   @override
   String get baseUrl => _baseUrl;

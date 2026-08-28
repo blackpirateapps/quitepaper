@@ -12,7 +12,7 @@ import 'package:quitepaper/features/editor/application/editor_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 
-class MockInMemorySyncApiClient implements SyncApiClient {
+class MockInMemorySyncApiClient extends SyncApiClient {
   String _baseUrl = 'https://test.api';
   @override
   String get baseUrl => _baseUrl;

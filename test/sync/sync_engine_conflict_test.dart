@@ -47,7 +47,7 @@ class MockKeyManager implements KeyManager {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class ConflictSimulatingSyncApiClient implements SyncApiClient {
+class ConflictSimulatingSyncApiClient extends SyncApiClient {
   String _baseUrl = 'https://test.api';
   @override
   String get baseUrl => _baseUrl;

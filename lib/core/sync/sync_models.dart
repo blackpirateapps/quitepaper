@@ -357,7 +357,7 @@ class PullChangeItem {
   final int encryptionKeyVersion;
   final DateTime? deletedAt;
 
-  bool get isDeleted => changeType == 'delete' || deletedAt != null;
+  bool get isDeleted => changeType == 'delete';
 
   factory PullChangeItem.fromJson(Map<String, dynamic> json) {
     return PullChangeItem(
@@ -543,3 +543,271 @@ class PullVersionSyncResponse {
     );
   }
 }
+
+class SyncCursorExpiredException implements Exception {
+  const SyncCursorExpiredException({
+    required this.message,
+    this.minRetainedRevision = 0,
+    this.currentRevision = 0,
+  });
+
+  final String message;
+  final int minRetainedRevision;
+  final int currentRevision;
+
+  @override
+  String toString() => message;
+}
+
+@immutable
+class SyncReferenceItem {
+  const SyncReferenceItem({
+    required this.resourceType,
+    required this.resourceId,
+    required this.noteId,
+  });
+
+  final String resourceType; // 'attachment' | 'document'
+  final String resourceId;
+  final String noteId;
+
+  Map<String, dynamic> toJson() => {
+        'resourceType': resourceType,
+        'resourceId': resourceId,
+        'noteId': noteId,
+      };
+
+  factory SyncReferenceItem.fromJson(Map<String, dynamic> json) {
+    return SyncReferenceItem(
+      resourceType: json['resourceType'] as String,
+      resourceId: json['resourceId'] as String,
+      noteId: json['noteId'] as String,
+    );
+  }
+}
+
+@immutable
+class StorageTableMetric {
+  const StorageTableMetric({
+    required this.rowCount,
+    required this.approximatePayloadBytes,
+    this.oldestTimestamp,
+    this.newestTimestamp,
+    required this.eligibleRowCount,
+    required this.estimatedReclaimableBytes,
+  });
+
+  final int rowCount;
+  final int approximatePayloadBytes;
+  final String? oldestTimestamp;
+  final String? newestTimestamp;
+  final int eligibleRowCount;
+  final int estimatedReclaimableBytes;
+
+  factory StorageTableMetric.fromJson(Map<String, dynamic> json) {
+    return StorageTableMetric(
+      rowCount: json['rowCount'] as int? ?? 0,
+      approximatePayloadBytes: json['approximatePayloadBytes'] as int? ?? 0,
+      oldestTimestamp: json['oldestTimestamp'] as String?,
+      newestTimestamp: json['newestTimestamp'] as String?,
+      eligibleRowCount: json['eligibleRowCount'] as int? ?? 0,
+      estimatedReclaimableBytes: json['estimatedReclaimableBytes'] as int? ?? 0,
+    );
+  }
+}
+
+@immutable
+class StorageProfileReport {
+  const StorageProfileReport({
+    required this.userId,
+    required this.generatedAt,
+    required this.totalEstimatedBytes,
+    required this.totalReclaimableBytes,
+    required this.safeSyncBoundaryRevision,
+    required this.activeDevicesCount,
+    required this.staleDevicesCount,
+    required this.expiredDevicesCount,
+    required this.tables,
+  });
+
+  final String userId;
+  final String generatedAt;
+  final int totalEstimatedBytes;
+  final int totalReclaimableBytes;
+  final int safeSyncBoundaryRevision;
+  final int activeDevicesCount;
+  final int staleDevicesCount;
+  final int expiredDevicesCount;
+  final Map<String, StorageTableMetric> tables;
+
+  factory StorageProfileReport.fromJson(Map<String, dynamic> json) {
+    final rawTables = json['tables'] as Map<String, dynamic>? ?? {};
+    final parsedTables = <String, StorageTableMetric>{};
+    for (final entry in rawTables.entries) {
+      if (entry.value is Map<String, dynamic>) {
+        parsedTables[entry.key] = StorageTableMetric.fromJson(entry.value as Map<String, dynamic>);
+      }
+    }
+
+    return StorageProfileReport(
+      userId: json['userId'] as String? ?? '',
+      generatedAt: json['generatedAt'] as String? ?? '',
+      totalEstimatedBytes: json['totalEstimatedBytes'] as int? ?? 0,
+      totalReclaimableBytes: json['totalReclaimableBytes'] as int? ?? 0,
+      safeSyncBoundaryRevision: json['safeSyncBoundaryRevision'] as int? ?? 0,
+      activeDevicesCount: json['activeDevicesCount'] as int? ?? 0,
+      staleDevicesCount: json['staleDevicesCount'] as int? ?? 0,
+      expiredDevicesCount: json['expiredDevicesCount'] as int? ?? 0,
+      tables: parsedTables,
+    );
+  }
+}
+
+@immutable
+class StorageResourceItem {
+  const StorageResourceItem({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.mimeType,
+    required this.byteSize,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.status,
+    this.orphanedAt,
+    required this.isEligibleForDeletion,
+    this.parentNoteId,
+    this.cloudUrl,
+  });
+
+  final String id;
+  final String type; // 'attachment' | 'document'
+  final String title;
+  final String mimeType;
+  final int byteSize;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String status; // 'referenced' | 'orphaned' | 'pending_deletion'
+  final DateTime? orphanedAt;
+  final bool isEligibleForDeletion;
+  final String? parentNoteId;
+  final String? cloudUrl;
+
+  factory StorageResourceItem.fromJson(Map<String, dynamic> json) {
+    return StorageResourceItem(
+      id: json['id'] as String,
+      type: json['type'] as String? ?? 'attachment',
+      title: json['title'] as String? ?? '',
+      mimeType: json['mimeType'] as String? ?? '',
+      byteSize: json['byteSize'] as int? ?? 0,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      status: json['status'] as String? ?? 'referenced',
+      orphanedAt: json['orphanedAt'] != null ? DateTime.tryParse(json['orphanedAt'] as String) : null,
+      isEligibleForDeletion: json['isEligibleForDeletion'] as bool? ?? false,
+      parentNoteId: json['parentNoteId'] as String?,
+      cloudUrl: json['cloudUrl'] as String?,
+    );
+  }
+}
+
+@immutable
+class StorageResourcesResponse {
+  const StorageResourcesResponse({
+    required this.attached,
+    required this.orphaned,
+    required this.totalAttachedCount,
+    required this.totalOrphanedCount,
+    required this.totalStorageBytes,
+  });
+
+  final List<StorageResourceItem> attached;
+  final List<StorageResourceItem> orphaned;
+  final int totalAttachedCount;
+  final int totalOrphanedCount;
+  final int totalStorageBytes;
+
+  factory StorageResourcesResponse.fromJson(Map<String, dynamic> json) {
+    final rawAttached = json['attached'] as List? ?? [];
+    final rawOrphaned = json['orphaned'] as List? ?? [];
+    return StorageResourcesResponse(
+      attached: rawAttached.map((e) => StorageResourceItem.fromJson(e as Map<String, dynamic>)).toList(),
+      orphaned: rawOrphaned.map((e) => StorageResourceItem.fromJson(e as Map<String, dynamic>)).toList(),
+      totalAttachedCount: json['totalAttachedCount'] as int? ?? 0,
+      totalOrphanedCount: json['totalOrphanedCount'] as int? ?? 0,
+      totalStorageBytes: json['totalStorageBytes'] as int? ?? 0,
+    );
+  }
+}
+
+@immutable
+class GcExecutionSummary {
+  const GcExecutionSummary({
+    required this.runId,
+    required this.userId,
+    required this.dryRun,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.durationMs,
+    required this.safeSyncBoundaryRevision,
+    required this.syncChangesDeleted,
+    required this.noteVersionsDeleted,
+    required this.idempotencyKeysDeleted,
+    required this.orphanedAttachmentsIdentified,
+    required this.orphanedDocumentsIdentified,
+    required this.destructionJobsCreated,
+    required this.destructionJobsProcessed,
+    required this.destructionJobsCompleted,
+    required this.destructionJobsFailed,
+    required this.tombstonesCleaned,
+    required this.estimatedBytesReclaimed,
+    this.profile,
+  });
+
+  final String runId;
+  final String userId;
+  final bool dryRun;
+  final String startedAt;
+  final String finishedAt;
+  final int durationMs;
+  final int safeSyncBoundaryRevision;
+  final int syncChangesDeleted;
+  final int noteVersionsDeleted;
+  final int idempotencyKeysDeleted;
+  final int orphanedAttachmentsIdentified;
+  final int orphanedDocumentsIdentified;
+  final int destructionJobsCreated;
+  final int destructionJobsProcessed;
+  final int destructionJobsCompleted;
+  final int destructionJobsFailed;
+  final int tombstonesCleaned;
+  final int estimatedBytesReclaimed;
+  final StorageProfileReport? profile;
+
+  factory GcExecutionSummary.fromJson(Map<String, dynamic> json) {
+    return GcExecutionSummary(
+      runId: json['runId'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+      dryRun: json['dryRun'] as bool? ?? false,
+      startedAt: json['startedAt'] as String? ?? '',
+      finishedAt: json['finishedAt'] as String? ?? '',
+      durationMs: json['durationMs'] as int? ?? 0,
+      safeSyncBoundaryRevision: json['safeSyncBoundaryRevision'] as int? ?? 0,
+      syncChangesDeleted: json['syncChangesDeleted'] as int? ?? 0,
+      noteVersionsDeleted: json['noteVersionsDeleted'] as int? ?? 0,
+      idempotencyKeysDeleted: json['idempotencyKeysDeleted'] as int? ?? 0,
+      orphanedAttachmentsIdentified: json['orphanedAttachmentsIdentified'] as int? ?? 0,
+      orphanedDocumentsIdentified: json['orphanedDocumentsIdentified'] as int? ?? 0,
+      destructionJobsCreated: json['destructionJobsCreated'] as int? ?? 0,
+      destructionJobsProcessed: json['destructionJobsProcessed'] as int? ?? 0,
+      destructionJobsCompleted: json['destructionJobsCompleted'] as int? ?? 0,
+      destructionJobsFailed: json['destructionJobsFailed'] as int? ?? 0,
+      tombstonesCleaned: json['tombstonesCleaned'] as int? ?? 0,
+      estimatedBytesReclaimed: json['estimatedBytesReclaimed'] as int? ?? 0,
+      profile: json['profile'] != null
+          ? StorageProfileReport.fromJson(json['profile'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+

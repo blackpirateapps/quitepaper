@@ -66,12 +66,35 @@ export const noteChangeSchema = z.object({
 export const pushSyncSchema = z.object({
   idempotencyKey: z.string().min(8).max(128).optional(),
   deviceId: z.string().max(128).optional(),
+  clientVersion: z.string().max(64).optional(),
+  lastAcknowledgedRevision: z.number().int().min(0).optional(),
   changes: z.array(noteChangeSchema).min(1).max(100), // Max 100 changes per batch
 });
 
 export const pullSyncSchema = z.object({
   cursor: z.number().int().min(0).default(0),
   limit: z.number().int().min(1).max(200).default(100),
+  deviceId: z.string().max(128).optional(),
+  clientVersion: z.string().max(64).optional(),
+});
+
+export const syncReferencesSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  references: z.array(
+    z.object({
+      resourceType: z.enum(['attachment', 'document']),
+      resourceId: z.string().uuid(),
+      noteId: z.string().uuid(),
+    })
+  ).max(500),
+});
+
+export const gcOptionsSchema = z.object({
+  dryRun: z.boolean().default(false),
+  batchSize: z.number().int().min(1).max(500).default(100),
+  orphanGracePeriodDays: z.number().min(0).default(14),
+  staleDeviceDays: z.number().min(1).default(30),
+  expiredDeviceDays: z.number().min(1).default(90),
 });
 
 export const uploadAuthRequestSchema = z.object({
@@ -148,6 +171,8 @@ export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
 export type PullSyncInput = z.infer<typeof pullSyncSchema>;
+export type SyncReferencesInput = z.infer<typeof syncReferencesSchema>;
+export type GcOptionsInput = z.infer<typeof gcOptionsSchema>;
 export type UploadAuthRequestInput = z.infer<typeof uploadAuthRequestSchema>;
 export type ConfirmAttachmentInput = z.infer<typeof confirmAttachmentSchema>;
 export type UploadDocumentAuthRequestInput = z.infer<typeof uploadDocumentAuthRequestSchema>;

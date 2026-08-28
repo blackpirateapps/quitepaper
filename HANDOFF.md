@@ -2345,6 +2345,93 @@ When users opened the Image OCR viewer (`ImageViewerModal`), two major defects d
   - Verified in-note search highlights and IME composing decorations in massive notes.
   - Verified tag extraction across 1 MB text runs smoothly with index-based scanning.
 
+---
+
+## 86. Cloud Storage Lifecycle, Synchronized Trash, GC Engine & Storage Management Architecture
+
+### 1. Architectural Scope & Problem Statement
+Prior to this enhancement, moving a note to Trash was handled through simple soft deletion or local-only purge, sync revision logs (`sync_changes`) grew without bounds, note version histories accumulated indefinitely, and image/PDF uploads orphaned by edits or note deletions remained in Cloudinary and the cloud database indefinitely.
+
+To achieve enterprise-grade storage efficiency while strictly preserving **zero-knowledge crypto-blindness**, **offline-first local durability**, and **multi-device synchronization**, we designed and implemented a comprehensive Cloud Storage Lifecycle and Garbage Collection subsystem based on `garbage.md`.
+
+### 2. Core Subsystems & Semantics
+
+#### A. Synchronized Trash & Multi-Device Restore
+- Moving a note to Trash (`isTrashed: true`, `deletedAt: <timestamp>`) is synchronized across all active devices via `POST /api/v1/sync/push` and `GET /api/v1/sync/pull`.
+- Trashed notes retain full end-to-end encrypted ciphertext and attached assets forever until explicit permanent deletion.
+- Restoring a note from Trash (`isTrashed: false`, `deletedAt: null`) is synchronized across devices.
+
+#### B. Permanent Deletion & Resource Destruction
+- Permanent deletion (`POST /api/v1/notes/:id/permanent-delete` or local purge with `isDeleted: true` push):
+  1. Zeros out / destroys note ciphertext and metadata.
+  2. Immediately purges exclusive historical note versions (`note_versions`).
+  3. Drops attachment and document references from `attachment_references`.
+  4. Automatically transitions exclusive attachments and scanned documents to `status: 'orphaned'`.
+  5. Appends a lightweight tombstone to `sync_changes` (`change_type = 'delete'`) so other active devices receive deletion notices.
+  6. Enqueues durable `destruction_jobs` for immediate Cloudinary deletion.
+
+#### C. Active Device Checkpoints & Safe Sync Boundary
+- Devices register their last acknowledged revision via `deviceId` on push/pull.
+- `sync_devices` maintains `last_acknowledged_revision` and `last_active_at`.
+- Devices inactive $>90$ days are marked expired and excluded from boundary calculations.
+- `safeSyncBoundaryRevision`: Minimum acknowledged revision across active devices ($\le 30$ days).
+- Sync log entries (`sync_changes`) strictly older than `safeSyncBoundaryRevision` are safely pruned during GC.
+- If a stale device reconnects with `cursor < earliest_retained_revision`, the backend responds with HTTP 410 `SYNC_CURSOR_EXPIRED`. The client catches `SyncCursorExpiredException`, resets its local cursor to 0, and cleanly pulls the current state of active and trashed notes without data corruption.
+
+#### D. Note Version & Idempotency Pruning
+- Note versions are pruned down to the 50 most recent revisions per note, while retaining versions created within the last 30 days. Permanently deleted notes have all versions pruned.
+- Expired idempotency keys in `sync_idempotency_keys` older than 7 days are pruned.
+
+#### E. Reference Projections & Orphan Resurrection
+- Client projects all active and trashed image and document references (`qp://asset/<UUID>` and `qp://document/<UUID>`) via `POST /api/v1/sync/references`.
+- Attachments and documents with 0 references are transitioned to `status: 'orphaned'`, setting `orphaned_at = CURRENT_TIMESTAMP`.
+- If an orphan is re-referenced in a note before destruction, it is automatically resurrected to `status: 'referenced'`.
+- After a 14-day safety grace period, unreferenced orphans are queued for destruction.
+
+#### F. Cloudinary Destruction Queue
+- `destruction_jobs` manages reliable Cloudinary API asset destruction with SHA-1 signed HMAC requests.
+- Handles HTTP 200/ok and HTTP 404/not found as idempotent successes.
+- Exponential backoff retry logic for transient rate-limit or network errors.
+
+#### G. Storage Profiler & Dry-Run GC
+- `GET /api/v1/storage/profile`: Returns per-table row counts, approximate byte sizes, and estimated reclaimable space.
+- `POST /api/v1/storage/gc` with `dryRun: true`: Analyzes candidate items and returns expected savings without mutating data.
+- `POST /api/v1/storage/gc` with `dryRun: false`: Executes incremental batched cleanup with transaction isolation.
+
+#### H. Flutter Storage Management UI
+- **iOS Grouped Table Styling**: Built with `AppColors`, `AppRadii`, and `AppTypography`.
+- Integrated directly into `SettingsScreen` under **STORAGE & ATTACHMENTS**:
+  - **Storage & Cleanup**: Overview summary card, table metric breakdowns, and interactive Dry-Run analysis & Cleanup modal.
+  - **Attached Assets**: View all active and trashed cloud images and scanned documents with viewer integration.
+  - **Orphaned Assets**: Inspect unreferenced assets, deletion eligibility status (grace period vs eligible), and manual one-tap deletion with confirmation.
+
+### 3. File Summary
+- **Backend**:
+  - `backend/migrations/007_storage_lifecycle_and_gc.sql` & `backend/src/db/migrate.ts`: Database tables and migration logic.
+  - `backend/src/attachments/cloudinaryService.ts`: Cloudinary deletion service.
+  - `backend/src/gc/storageProfiler.ts`: Storage breakdown and estimation engine.
+  - `backend/src/gc/destructionJobProcessor.ts`: Cloudinary and DB destruction queue.
+  - `backend/src/gc/garbageCollector.ts`: Safe boundary GC engine.
+  - `backend/src/sync/syncService.ts`: Checkpoints, reference sync, cursor expiration, permanent deletion.
+  - `backend/src/api/handler.ts`: API endpoints for storage, GC, references, resources.
+  - `backend/tests/lifecycle.test.ts` & `backend/tests/gc.test.ts`: Vitest test suites (11 tests).
+- **Flutter**:
+  - `lib/core/sync/sync_models.dart`: Storage profile, resource models, `SyncCursorExpiredException`.
+  - `lib/core/sync/sync_api_client.dart`: API client storage, GC, reference, and deletion methods.
+  - `lib/core/sync/sync_engine.dart`: Reference sync on write/pull, cursor reset on expiration.
+  - `lib/core/database/app_database.dart`: Raw queries, local attachment/document deletions, version purges.
+  - `lib/core/storage/storage_management_service.dart`: Riverpod providers for storage and GC.
+  - `lib/features/settings/presentation/storage_management_screen.dart`: iOS grouped table storage screen.
+  - `lib/features/settings/presentation/settings_screen.dart`: Settings section integration.
+  - `test/storage/storage_management_test.dart` & `test/sync/storage_lifecycle_sync_test.dart`: Complete unit & widget tests.
+
+### 4. Verification & Health
+- **Static Analysis**: `flutter analyze` (**0 errors, 0 warnings, No issues found**).
+- **Flutter Tests**: `flutter test` (**all 542 tests passing**).
+- **Backend Tests**: `npm test` (**all 37 Vitest tests passing across 9 test files**).
+- **TypeScript Build**: `npm run build` (**clean build**).
+
+
 
 
 
