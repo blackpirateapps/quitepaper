@@ -180,331 +180,755 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
+    final displayTitle = widget.note.displayTitle.isNotEmpty
+        ? widget.note.displayTitle
+        : 'Untitled Note';
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.background,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.lg,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header drag handle & title
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: colors.textTertiary.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(2),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Top Drag Handle
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(
+                        top: AppSpacing.xs,
+                        bottom: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.textTertiary.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: colors.accent.withValues(alpha: 0.12),
-                        borderRadius: AppRadii.borderMd,
-                      ),
-                      child: Icon(
-                        Icons.ios_share_rounded,
-                        color: colors.accent,
-                        size: 22,
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            color: colors.accent.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.ios_share_rounded,
+                            color: colors.accent,
+                            size: 17,
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Export Note',
+                                style: AppTypography.title.copyWith(
+                                  color: colors.textPrimary,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textSecondary,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        QuietIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: 'Close',
+                          onPressed: _isExporting ? null : () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Section Header: FORMAT
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+                    child: Text(
+                      'FORMAT',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+
+                  // Single Grouped Format Surface
+                  _GroupedContainer(
+                    colors: colors,
+                    children: [
+                      _FormatRow(
+                        title: 'Markdown',
+                        subtitle: '.md · Portable Markdown',
+                        icon: Icons.article_outlined,
+                        isSelected: _selectedFormat == ExportFormat.markdown,
+                        colors: colors,
+                        isFirst: true,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.markdown),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'PDF',
+                        subtitle: '.pdf · Searchable Document',
+                        icon: Icons.picture_as_pdf_outlined,
+                        isSelected: _selectedFormat == ExportFormat.pdf,
+                        colors: colors,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.pdf),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'HTML',
+                        subtitle: '.html · Standalone Web Page',
+                        icon: Icons.language_rounded,
+                        isSelected: _selectedFormat == ExportFormat.html,
+                        colors: colors,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.html),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'Plain Text',
+                        subtitle: '.txt · Clean Plain Text',
+                        icon: Icons.text_snippet_outlined,
+                        isSelected: _selectedFormat == ExportFormat.plainText,
+                        colors: colors,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.plainText),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'Microsoft Word',
+                        subtitle: '.docx · Microsoft Word',
+                        icon: Icons.description_outlined,
+                        isSelected: _selectedFormat == ExportFormat.docx,
+                        colors: colors,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.docx),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'Quiet Paper Package',
+                        subtitle: '.qpnote · Full-Fidelity Note',
+                        icon: Icons.inventory_2_outlined,
+                        isSelected: _selectedFormat == ExportFormat.qpnote,
+                        colors: colors,
+                        isSpecial: true,
+                        isLast: true,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.qpnote),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Advanced Options Expander Row
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _showAdvanced = !_showAdvanced;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: colors.divider.withValues(alpha: 0.6),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            'Export Note',
-                            style: AppTypography.title.copyWith(
-                              color: colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Advanced Options',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.note.displayTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.caption.copyWith(
-                              color: colors.textSecondary,
+                          Icon(
+                            _showAdvanced
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            size: 20,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Format-Specific Advanced Options
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: _showAdvanced
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
+                            child: _buildFormatSpecificOptions(colors),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+
+                  // Error Banner
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: colors.error.withValues(alpha: 0.25),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 18,
+                            color: colors.error,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: AppTypography.caption.copyWith(
+                                color: colors.error,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    QuietIconButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Close',
-                      onPressed: _isExporting ? null : () => Navigator.of(context).pop(),
-                    ),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
 
-                // Format Selection Grid
-                Text(
-                  'EXPORT FORMAT',
-                  style: AppTypography.caption.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
-                    color: colors.textTertiary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-
-                GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: AppSpacing.sm,
-                  mainAxisSpacing: AppSpacing.sm,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 2.3,
-                  children: [
-                    _buildFormatTile(
-                      format: ExportFormat.markdown,
-                      icon: Icons.article_outlined,
-                      subtitle: '.md (Portable Markdown)',
-                      colors: colors,
-                    ),
-                    _buildFormatTile(
-                      format: ExportFormat.pdf,
-                      icon: Icons.picture_as_pdf_outlined,
-                      subtitle: '.pdf (Searchable Document)',
-                      colors: colors,
-                    ),
-                    _buildFormatTile(
-                      format: ExportFormat.html,
-                      icon: Icons.language_rounded,
-                      subtitle: '.html (Standalone Webpage)',
-                      colors: colors,
-                    ),
-                    _buildFormatTile(
-                      format: ExportFormat.plainText,
-                      icon: Icons.text_snippet_outlined,
-                      subtitle: '.txt (Clean Plain Text)',
-                      colors: colors,
-                    ),
-                    _buildFormatTile(
-                      format: ExportFormat.docx,
-                      icon: Icons.description_outlined,
-                      subtitle: '.docx (Microsoft Word)',
-                      colors: colors,
-                    ),
-                    _buildFormatTile(
-                      format: ExportFormat.qpnote,
-                      icon: Icons.inventory_2_outlined,
-                      subtitle: '.qpnote (Full Package)',
-                      colors: colors,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Advanced Options Expandable
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _showAdvanced = !_showAdvanced;
-                    });
-                  },
-                  borderRadius: AppRadii.borderMd,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: AppRadii.borderMd,
-                      border: Border.all(color: colors.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.tune_rounded,
-                          size: 18,
-                          color: colors.textSecondary,
+                  // Progress Banner during active export
+                  if (_isExporting && _progressState != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colors.accent.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: colors.accent.withValues(alpha: 0.2),
+                          width: 0.8,
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            'Advanced Options',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w600,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 13,
+                                height: 13,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colors.accent,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _progressState!.effectiveMessage,
+                                  style: AppTypography.caption.copyWith(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: _progressState!.progress > 0
+                                  ? _progressState!.progress
+                                  : null,
+                              minHeight: 3,
+                              backgroundColor: colors.divider.withValues(alpha: 0.4),
+                              color: colors.accent,
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Action Buttons: Save File & Share
+                  Row(
+                    children: [
+                      Expanded(
+                        child: QuietButton(
+                          label: 'Save File',
+                          icon: Icons.folder_open_rounded,
+                          variant: QuietButtonVariant.secondary,
+                          isLoading: _isExporting &&
+                              _progressState?.phase != ExportPhase.sharing,
+                          onPressed: _isExporting
+                              ? null
+                              : () => _handleExport(isShare: false),
                         ),
-                        Icon(
-                          _showAdvanced
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          color: colors.textTertiary,
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: QuietButton(
+                          label: 'Share',
+                          icon: Icons.share_rounded,
+                          variant: QuietButtonVariant.primary,
+                          isLoading: _isExporting &&
+                              _progressState?.phase == ExportPhase.sharing,
+                          onPressed: _isExporting
+                              ? null
+                              : () => _handleExport(isShare: true),
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRowDivider(AppColors colors) {
+    return Divider(
+      color: colors.divider.withValues(alpha: 0.45),
+      height: 1,
+      thickness: 0.8,
+      indent: 48,
+      endIndent: 0,
+    );
+  }
+
+  Widget _buildFormatSpecificOptions(AppColors colors) {
+    switch (_selectedFormat) {
+      case ExportFormat.markdown:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'YAML frontmatter with dates, tags, and pinned state',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Rewrite local relative asset links in attachments folder',
+              value: _includeAttachments,
+              colors: colors,
+              onChanged: (val) => setState(() => _includeAttachments = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Append searchable scan transcripts at end of file',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.pdf:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Header card with note dates, tags, and attributes',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Embed image attachments directly into PDF pages',
+              value: _includeAttachments,
+              colors: colors,
+              onChanged: (val) => setState(() => _includeAttachments = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Append searchable scan transcripts to PDF',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.html:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Editorial header card with creation dates and tags',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Embed images inline as self-contained Base64 data URIs',
+              value: _includeAttachments,
+              colors: colors,
+              onChanged: (val) => setState(() => _includeAttachments = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Append recognized scan text in transcript sections',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.plainText:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Plain text header summary with dates and tags',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Append OCR transcripts at bottom of plain text',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.docx:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Document properties, header table, and tag chips',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Embed pictures and drawings directly in Word document',
+              value: _includeAttachments,
+              colors: colors,
+              onChanged: (val) => setState(() => _includeAttachments = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Append OCR transcript sections to Word document',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.qpnote:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Preserve tags, timestamps, and note ID in metadata.json',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Pack all attached images and documents into package',
+              value: _includeAttachments,
+              colors: colors,
+              onChanged: (val) => setState(() => _includeAttachments = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include OCR recognized text',
+              subtitle: 'Pack structured OCR transcripts into ocr/ folder',
+              value: _includeOcr,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _buildOptionDivider(AppColors colors) {
+    return Divider(
+      color: colors.divider.withValues(alpha: 0.4),
+      height: 1,
+      thickness: 0.8,
+      indent: 16,
+      endIndent: 16,
+    );
+  }
+}
+
+/// A container card mimicking Quiet Paper's iOS/Bear grouped table sections.
+class _GroupedContainer extends StatelessWidget {
+  const _GroupedContainer({
+    required this.colors,
+    required this.children,
+  });
+
+  final AppColors colors;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(
+          color: colors.divider.withValues(alpha: 0.6),
+          width: 0.8,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+}
+
+/// A clickable format option row inside the unified grouped format selector.
+class _FormatRow extends StatelessWidget {
+  const _FormatRow({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isSelected,
+    required this.colors,
+    required this.onTap,
+    this.isSpecial = false,
+    this.isFirst = false,
+    this.isLast = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isSelected;
+  final AppColors colors;
+  final VoidCallback? onTap;
+  final bool isSpecial;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      selected: isSelected,
+      button: true,
+      child: Material(
+        color: isSelected
+            ? colors.accent.withValues(alpha: 0.08)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.vertical(
+            top: isFirst ? const Radius.circular(12) : Radius.zero,
+            bottom: isLast ? const Radius.circular(12) : Radius.zero,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: isSelected ? colors.accent : colors.textSecondary,
                     ),
                   ),
                 ),
-
-                if (_showAdvanced) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: AppRadii.borderMd,
-                      border: Border.all(color: colors.divider),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSwitchRow(
-                          title: 'Include metadata',
-                          subtitle: 'Embed dates, tags, and notebook attributes',
-                          value: _includeMetadata,
-                          onChanged: (val) => setState(() => _includeMetadata = val),
-                          colors: colors,
-                        ),
-                        const Divider(height: 16),
-                        _buildSwitchRow(
-                          title: 'Include attachments',
-                          subtitle: 'Embed images and attached documents',
-                          value: _includeAttachments,
-                          onChanged: (val) => setState(() => _includeAttachments = val),
-                          colors: colors,
-                        ),
-                        const Divider(height: 16),
-                        _buildSwitchRow(
-                          title: 'Include OCR recognized text',
-                          subtitle: 'Include searchable transcripts of scans',
-                          value: _includeOcr,
-                          onChanged: (val) => setState(() => _includeOcr = val),
-                          colors: colors,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Error Banner
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.error.withValues(alpha: 0.1),
-                      borderRadius: AppRadii.borderMd,
-                      border: Border.all(color: colors.error.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline_rounded, size: 18, color: colors.error),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: AppTypography.caption.copyWith(color: colors.error),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Progress Banner during active export
-                if (_isExporting && _progressState != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.accent.withValues(alpha: 0.08),
-                      borderRadius: AppRadii.borderMd,
-                      border: Border.all(color: colors.accent.withValues(alpha: 0.2)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: colors.accent,
+                const SizedBox(width: 12.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: isSelected
+                                    ? colors.accent
+                                    : colors.textPrimary,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                fontSize: 15.0,
                               ),
                             ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              _progressState!.effectiveMessage,
-                              style: AppTypography.caption.copyWith(
-                                color: colors.textPrimary,
-                                fontWeight: FontWeight.w600,
+                          ),
+                          if (isSpecial) ...[
+                            const SizedBox(width: 8.0),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6.0,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4.0),
+                              ),
+                              child: Text(
+                                'Recommended',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.accent,
+                                  fontSize: 10.0,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
                               ),
                             ),
                           ],
+                        ],
+                      ),
+                      const SizedBox(height: 2.0),
+                      Text(
+                        subtitle,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 12.0,
+                          height: 1.35,
                         ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: _progressState!.progress > 0 ? _progressState!.progress : null,
-                          backgroundColor: colors.divider,
-                          color: colors.accent,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Action Buttons: Save to File & Share
-                Row(
-                  children: [
-                    Expanded(
-                      child: QuietButton(
-                        label: 'Save File',
-                        icon: Icons.folder_open_rounded,
-                        variant: QuietButtonVariant.tonal,
-                        isLoading: _isExporting && _progressState?.phase != ExportPhase.sharing,
-                        onPressed: _isExporting ? null : () => _handleExport(isShare: false),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: QuietButton(
-                        label: 'Share',
-                        icon: Icons.share_rounded,
-                        variant: QuietButtonVariant.primary,
-                        isLoading: _isExporting && _progressState?.phase == ExportPhase.sharing,
-                        onPressed: _isExporting ? null : () => _handleExport(isShare: true),
-                      ),
-                    ),
-                  ],
                 ),
+                const SizedBox(width: 8.0),
+                if (isSelected)
+                  Icon(
+                    Icons.check_rounded,
+                    size: 20,
+                    color: colors.accent,
+                  )
+                else
+                  const SizedBox(width: 20),
               ],
             ),
           ),
@@ -512,113 +936,72 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
       ),
     );
   }
+}
 
-  Widget _buildFormatTile({
-    required ExportFormat format,
-    required IconData icon,
-    required String subtitle,
-    required AppColors colors,
-  }) {
-    final isSelected = _selectedFormat == format;
+/// A switch row inside the grouped options container.
+class _OptionRow extends StatelessWidget {
+  const _OptionRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.colors,
+    required this.onChanged,
+    this.isFirst = false,
+    this.isLast = false,
+  });
 
-    return InkWell(
-      onTap: _isExporting
-          ? null
-          : () {
-              setState(() {
-                _selectedFormat = format;
-              });
-            },
-      borderRadius: AppRadii.borderMd,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.accent.withValues(alpha: 0.12)
-              : colors.surface,
-          borderRadius: AppRadii.borderMd,
-          border: Border.all(
-            color: isSelected ? colors.accent : colors.divider,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? colors.accent : colors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    format.displayName,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: isSelected ? colors.accent : colors.textPrimary,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textTertiary,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+  final String title;
+  final String subtitle;
+  final bool value;
+  final AppColors colors;
+  final ValueChanged<bool> onChanged;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16.0,
+        vertical: 10.0,
       ),
-    );
-  }
-
-  Widget _buildSwitchRow({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-    required AppColors colors,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: AppTypography.bodySmall.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                  ),
                 ),
-              ),
-              Text(
-                subtitle,
-                style: AppTypography.caption.copyWith(
-                  color: colors.textTertiary,
-                  fontSize: 11.5,
+                const SizedBox(height: 2.0),
+                Text(
+                  subtitle,
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textTertiary,
+                    fontSize: 11.5,
+                    height: 1.3,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Switch.adaptive(
-          value: value,
-          activeThumbColor: colors.accent,
-          activeTrackColor: colors.accent.withValues(alpha: 0.4),
-          onChanged: _isExporting ? null : onChanged,
-        ),
-      ],
+          const SizedBox(width: 12.0),
+          Switch.adaptive(
+            value: value,
+            activeThumbColor: colors.accent,
+            activeTrackColor: colors.accent.withValues(alpha: 0.4),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 }

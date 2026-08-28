@@ -2478,8 +2478,14 @@ Quiet Paper includes a production-grade, extensible **Individual Note Export Sys
 - **SHA-256 Integrity Verification**: Validates checksums for all contents during package inspection.
 
 ### 4. UI & Sharing Integration
-- **Editorial Export Bottom Sheet (`ExportNoteSheet`)**: Format selection pills, live progress phases, expandable advanced options (metadata, attachments, OCR, link strategy), and password unlock prompt.
-- **Actions**: Direct "Save File" (via SAF/file picker) and "Share" (via native system share sheet with `share_plus`).
+- **Editorial Unified Format Selector (`ExportNoteSheet`)**:
+  - Replaces generic multi-card grid with a single, calm **iOS/Bear-inspired grouped format surface** (`FORMAT`).
+  - Typography-led design with restrained 20dp monochrome icons, clear titles (`Markdown`, `PDF`, `HTML`, `Plain Text`, `Microsoft Word`, `Quiet Paper Package`), and concise metadata subtitles (`.md · Portable Markdown`, `.pdf · Searchable Document`, `.html · Standalone Web Page`, `.txt · Clean Plain Text`, `.docx · Microsoft Word`, `.qpnote · Full-Fidelity Note`).
+  - Subtle warm selected state (`colors.accent.withValues(alpha: 0.08)`) with a clean trailing checkmark.
+  - Subtle `Recommended` badge for Quiet Paper Package.
+  - Expandable **Format-Aware Advanced Options** in a grouped surface revealing only options relevant to the currently selected export format (frontmatter metadata, embedded attachments, OCR transcripts).
+  - Compact, balanced action footer with secondary **Save File** (platform file picker) and primary accented **Share** (`share_plus`).
+  - Responsive layout with defensive scrolling and max-width constraints (`maxWidth: 580`) on tablets.
 - **Entry Points**: Available in `EditorScreen` overflow menu (`⋯` -> `Export note`) and `NoteListTile` context menu on long-press (for active, archived, and trashed notes).
 - **User Preferences**: Automatically remembers last selected format and option toggles in `SharedPreferences`.
 
@@ -2502,7 +2508,7 @@ Quiet Paper includes a production-grade, extensible **Individual Note Export Sys
   - `lib/features/export/application/export_service.dart`: Main coordinator and progress manager.
   - `lib/features/export/application/export_provider.dart`: Riverpod providers and preference notifier.
 - **Presentation**:
-  - `lib/features/export/presentation/export_note_sheet.dart`: Export modal sheet with format selector and options.
+  - `lib/features/export/presentation/export_note_sheet.dart`: Redesigned editorial modal sheet with unified grouped format selector and format-aware advanced options.
 - **Tests**:
   - `test/features/export/filename_generator_test.dart`
   - `test/features/export/export_security_guard_test.dart`
