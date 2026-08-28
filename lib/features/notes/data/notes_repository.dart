@@ -4,8 +4,11 @@ import '../../../core/database/app_database.dart';
 import '../../../core/ocr/ocr_crypto.dart';
 import '../domain/note_model.dart';
 import '../domain/note_version_model.dart';
+import '../domain/notes_query.dart';
+import 'notes_query_executor.dart';
 
 abstract class NotesRepository {
+  Future<NotesQueryResult> executeNotesQuery(NotesQuery query);
   Stream<List<Note>> watchNotes({
     bool isArchived = false,
     bool isTrashed = false,
@@ -53,6 +56,12 @@ class DriftNotesRepository implements NotesRepository {
   final AppDatabase _db;
   final KeyManager? _keyManager;
   final OcrCrypto? _ocrCrypto;
+  late final NotesQueryExecutor _queryExecutor = NotesQueryExecutor(_db);
+
+  @override
+  Future<NotesQueryResult> executeNotesQuery(NotesQuery query) {
+    return _queryExecutor.execute(query);
+  }
 
   Note _mapToDomain(NoteWithTags entity) {
     return Note(

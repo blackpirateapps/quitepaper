@@ -6,6 +6,8 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
+import '../../notes/application/notes_query_provider.dart';
+import '../../notes/application/saved_filters_provider.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
@@ -151,6 +153,7 @@ class SidebarView extends ConsumerWidget {
                         ref.read(currentDestinationProvider.notifier).state =
                             AppDestination.allNotes;
                         ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
                         onItemSelected?.call();
                       },
                     ),
@@ -164,6 +167,7 @@ class SidebarView extends ConsumerWidget {
                         ref.read(currentDestinationProvider.notifier).state =
                             AppDestination.pinned;
                         ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
                         onItemSelected?.call();
                       },
                     ),
@@ -177,6 +181,7 @@ class SidebarView extends ConsumerWidget {
                         ref.read(currentDestinationProvider.notifier).state =
                             AppDestination.archive;
                         ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
                         onItemSelected?.call();
                       },
                     ),
@@ -190,7 +195,35 @@ class SidebarView extends ConsumerWidget {
                         ref.read(currentDestinationProvider.notifier).state =
                             AppDestination.trash;
                         ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
                         onItemSelected?.call();
+                      },
+                    ),
+
+                    // SMART VIEWS Section (if any saved views exist)
+                    Builder(
+                      builder: (ctx) {
+                        final savedFilters = ref.watch(savedFiltersProvider);
+                        if (savedFilters.isEmpty) return const SizedBox.shrink();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: AppSpacing.md),
+                            _buildSectionHeader(context, 'SMART VIEWS'),
+                            ...savedFilters.map((sv) {
+                              return SidebarItem(
+                                icon: Icons.bookmark_border_rounded,
+                                label: sv.name,
+                                onTap: () {
+                                  ref.read(notesQueryProvider.notifier).setFilters(sv.query.filter);
+                                  ref.read(notesQueryProvider.notifier).setSort(sv.query.sort);
+                                  onItemSelected?.call();
+                                },
+                              );
+                            }),
+                          ],
+                        );
                       },
                     ),
 

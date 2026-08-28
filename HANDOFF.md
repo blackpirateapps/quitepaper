@@ -2512,6 +2512,115 @@ Quiet Paper includes a production-grade, extensible **Individual Note Export Sys
   - `test/features/export/export_service_test.dart`
   - `test/features/export/export_note_sheet_test.dart`
 
+---
+
+## 14. Notes Sorting, Multi-Category Filtering, Keyset Infinite Scroll & Smart Views
+
+### 1. Architectural Overview
+Quiet Paper features a deterministic query and pagination engine designed to provide instant, fluid navigation over large note libraries without UI stutter or memory bloat. Queries are executed entirely in SQLite via Drift with mathematical keyset pagination cursors.
+
+```
+┌────────────────────────────────────────────────────────┐
+│ UI Layer                                               │
+│ • NotesScreen (Phone & Tablet)                         │
+│ • NotesSortSheet (Grouped table ordering)              │
+│ • NotesFilterSheet (Tags, Dates, Content, Attachments) │
+│ • ActiveFilterChips (+N overflow, one-tap removal)     │
+│ • SavedFiltersSheet (Smart views management)           │
+└───────────────────────────▲────────────────────────────┘
+                            │
+┌───────────────────────────┴────────────────────────────┐
+│ Application / Riverpod Layer                           │
+│ • notesSortPreferenceProvider (SharedPreferences)      │
+│ • notesQueryProvider (Active query, generation IDs)    │
+│ • notesCollectionProvider (Prefetch, deduplication)    │
+│ • groupedNotesCollectionProvider (Date/pinned groups)  │
+│ • savedFiltersProvider (Smart views CRUD)              │
+└───────────────────────────▲────────────────────────────┘
+                            │
+┌───────────────────────────┴────────────────────────────┐
+│ Data & SQLite Engine Layer                             │
+│ • NotesQueryExecutor (Drift SQL, WHERE predicates)     │
+│ • Drift Keyset Pagination (WHERE (k < cursor_k)...)    │
+│ • Deterministic Tie-Breakers (LOWER(title), id ASC)   │
+│ • Batch Tag Hydration (getTagsForNoteIds)              │
+│ • Drift tableUpdates Reactive Subscriptions            │
+└────────────────────────────────────────────────────────┘
+```
+
+### 2. Domain Models
+- **`NotesSort` (`lib/features/notes/domain/notes_sort.dart`)**:
+  - Primary sort fields: `updated` (Recently Updated), `created` (Recently Created), `title` (Title).
+  - Sort directions: `descending` (Newest First / Z → A), `ascending` (Oldest First / A → Z).
+  - Partition flag: `pinnedFirst` (keeps pinned notes pinned to top in active library context).
+- **`NotesFilter` (`lib/features/notes/domain/notes_filter.dart`)**:
+  - Context isolation: `active`, `archive`, `trash`.
+  - Tag filtering: `tags` set, `tagMatchMode` (`all` for AND intersection, `any` for OR union), `untaggedOnly`.
+  - State filtering: `pinnedOnly`.
+  - Date intervals (`DateFilterRange`): `today`, `yesterday`, `last7Days`, `last30Days`, `thisYear`, `custom`. All ranges computed as local calendar half-open intervals `[start, endExclusive)`.
+  - Content-derived predicates: `hasCode` (``` or `), `hasChecklist` (`- [ ]` or `- [x]`), `hasIncompleteTasks`, `hasCompletedTasks`, `hasLinks` (`http://`, `https://`, `qp://`, `](`).
+  - Attachment relationships: `hasAttachments`, `hasImages`, `hasDocuments`, `hasOcr` (`ocrState = 'available'`).
+  - Security filtering: `all`, `protectedOnly` (`<!-- quiet-paper-encrypted-note-v1:`), `unprotectedOnly`.
+  - Aggregation helpers: `activeFilterCount`, `hasAdvancedFilters`, `clearAdvancedFilters(keepTags: bool)`.
+- **`NotesCursor` (`lib/features/notes/domain/notes_cursor.dart`)**:
+  - Keyset state containing `lastNoteId`, `lastUpdatedAt`, `lastCreatedAt`, `lastTitle`, `lastIsPinned`.
+- **`NotesQuery` (`lib/features/notes/domain/notes_query.dart`)**:
+  - Immutable specification with `limit` (default 40, clamped 1..100), `generation` ID for stale request protection, `resetPagination()`, `nextPage()`, and versioned JSON serialization.
+- **`SavedFilter` (`lib/features/notes/domain/saved_filter.dart`)**:
+  - Smart view entity storing name, query definition (without cursor), creation, and update timestamps.
+
+### 3. Database Keyset Query Engine (`NotesQueryExecutor`)
+- **Deterministic Keyset Predicates**:
+  - For Updated DESC: `(updatedAt < cursorUpdatedAt) | (updatedAt = cursorUpdatedAt & id > cursorId)`.
+  - For Created DESC: `(createdAt < cursorCreatedAt) | (createdAt = cursorCreatedAt & id > cursorId)`.
+  - For Title ASC: `(LOWER(title) > cursorTitle) | (LOWER(title) = cursorTitle & ((updatedAt < cursorUpdatedAt) | (updatedAt = cursorUpdatedAt & id > cursorId)))`.
+  - For `pinnedFirst` partition:
+    - If cursor note is pinned: next row can be `isPinned == false` OR (`isPinned == true` AND sortCondition).
+    - If cursor note is unpinned: next row must be `isPinned == false` AND sortCondition.
+- **Performance & Invariants**:
+  - O(1) page transitions: avoids `OFFSET` scan penalties on large datasets.
+  - Zero N+1 queries: hydrates all note tags in a single batch query via `getTagsForNoteIds`.
+  - Read-only operations: never alters note contents, dirty flags, or sync revisions.
+
+### 4. Application & UI Presentation
+- **`NotesSortSheet`**: iOS grouped table bottom sheet for selecting sort field, direction, and pinned-first switch.
+- **`NotesFilterSheet`**: Multi-category filter modal with tag search, match mode toggle, date range pickers, content and attachment toggles, and "Save as Smart View" action.
+- **`ActiveFilterChips`**: Compact horizontal chip row displaying active predicates with individual `×` dismissal, overflow `+N more` pill, and `Clear all` action.
+- **`SavedFiltersSheet`**: Modal sheet to browse, apply with one tap, rename, and delete saved smart views. Also integrated directly into the sidebar navigation.
+- **`NotesScreen` & Infinite Scroll**:
+  - Keyset prefetch triggered automatically when user scrolls within 800dp of bottom.
+  - Top overscroll swipe-to-search retained without gesture interference.
+  - Live synchronization via Drift `tableUpdates` so edits from `EditorScreen` or background sync update the list in real-time.
+
+### 5. File Inventory
+- **Domain**:
+  - `lib/features/notes/domain/notes_sort.dart`
+  - `lib/features/notes/domain/notes_filter.dart`
+  - `lib/features/notes/domain/notes_cursor.dart`
+  - `lib/features/notes/domain/notes_query.dart`
+  - `lib/features/notes/domain/saved_filter.dart`
+- **Data**:
+  - `lib/features/notes/data/notes_query_executor.dart`
+  - `lib/features/notes/data/notes_repository.dart`
+- **Application**:
+  - `lib/features/notes/application/notes_query_provider.dart`
+  - `lib/features/notes/application/saved_filters_provider.dart`
+- **Presentation**:
+  - `lib/features/notes/presentation/widgets/notes_sort_sheet.dart`
+  - `lib/features/notes/presentation/widgets/notes_filter_sheet.dart`
+  - `lib/features/notes/presentation/widgets/active_filter_chips.dart`
+  - `lib/features/notes/presentation/widgets/saved_filters_sheet.dart`
+  - `lib/features/notes/presentation/widgets/notes_loading_more_indicator.dart`
+  - `lib/features/notes/presentation/widgets/note_empty_state.dart`
+  - `lib/features/notes/presentation/notes_screen.dart`
+  - `lib/features/sidebar/presentation/sidebar_view.dart`
+- **Tests**:
+  - `test/notes/notes_domain_test.dart`
+  - `test/notes/notes_query_database_test.dart`
+  - `test/notes/notes_filter_and_sort_ui_test.dart`
+  - `test/widget_test.dart`
+
+
 
 
 

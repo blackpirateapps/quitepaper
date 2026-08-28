@@ -6,6 +6,9 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/backup/backup_provider.dart';
+import '../../../core/update/update_dialog.dart';
+import '../../../core/update/update_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_fab.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -16,14 +19,17 @@ import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import '../application/notes_provider.dart';
+import '../application/notes_query_provider.dart';
 import '../data/notes_repository.dart';
+import '../domain/note_group.dart';
 import '../domain/note_model.dart';
-import '../../../core/backup/backup_provider.dart';
-import '../../../core/update/update_dialog.dart';
-import '../../../core/update/update_provider.dart';
+import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
 import 'widgets/note_list_tile.dart';
+import 'widgets/notes_filter_sheet.dart';
+import 'widgets/notes_loading_more_indicator.dart';
+import 'widgets/notes_sort_sheet.dart';
 import 'widgets/tags_filter_bar.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
@@ -37,7 +43,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   String? _selectedNoteIdForTablet;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
-
   bool _shouldAutoFocusTablet = false;
 
   @override
@@ -133,8 +138,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget _buildPhoneLayout(BuildContext context, AppColors colors) {
     final destination = ref.watch(currentDestinationProvider);
     final selectedTag = ref.watch(selectedTagFilterProvider);
-    final groupedNotesAsync = ref.watch(groupedNotesStreamProvider);
     final repository = ref.watch(notesRepositoryProvider);
+    final collectionState = ref.watch(notesCollectionProvider);
+    final groups = ref.watch(groupedNotesCollectionProvider);
+    final query = ref.watch(notesQueryProvider);
 
     final title = _getDestinationTitle(destination, selectedTag);
 
@@ -192,6 +199,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     GestureDetector(
                       onTap: () {
                         ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).setTag(null);
                       },
                       child: Icon(
                         Icons.close_rounded,
@@ -203,6 +211,34 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 ],
               ),
               actions: [
+                QuietIconButton(
+                  icon: Icons.swap_vert_rounded,
+                  tooltip: 'Sort notes',
+                  onPressed: () => NotesSortSheet.show(context),
+                ),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    QuietIconButton(
+                      icon: Icons.filter_list_rounded,
+                      tooltip: 'Filter notes',
+                      onPressed: () => NotesFilterSheet.show(context),
+                    ),
+                    if (query.filter.hasAdvancedFilters)
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: colors.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 QuietIconButton(
                   icon: Icons.search_rounded,
                   tooltip: 'Search notes',
@@ -243,10 +279,27 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               }
             },
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (destination == AppDestination.allNotes ||
                     destination == AppDestination.tag)
                   const TagsFilterBar(),
+                const ActiveFilterChips(),
+                if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: 4.0,
+                    ),
+                    child: Text(
+                      '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (notification) {
@@ -263,36 +316,47 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         _openSearchScreen(context);
                         return true;
                       }
+                      // Keyset-based prefetch threshold: 800dp from bottom
+                      if (notification.metrics.extentAfter < 800) {
+                        ref.read(notesCollectionProvider.notifier).loadMore();
+                      }
                       return false;
                     },
-                    child: groupedNotesAsync.when(
-                      data: (groups) {
-                        if (groups.isEmpty) {
-                          return NoteEmptyState(
-                            onCreateNote: () => _createAndOpenNote(context),
-                            destination: destination,
-                            tagFilter: selectedTag,
-                          );
-                        }
-
-                        return ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 96),
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: _calculateTotalItemCount(groups),
-                          itemBuilder: (context, index) {
-                            return _buildGroupedItem(context, groups, index);
-                          },
-                        );
-                      },
-                      loading: () => const Center(
-                        child: CircularProgressIndicator.adaptive(),
-                      ),
-                      error: (err, _) => Center(
-                        child: Text(
-                          'Error loading notes: $err',
-                          style: AppTypography.body.copyWith(color: colors.error),
-                        ),
-                      ),
+                    child: RefreshIndicator(
+                      color: colors.accent,
+                      backgroundColor: colors.surface,
+                      onRefresh: () => ref.read(notesCollectionProvider.notifier).refresh(),
+                      child: collectionState.initialLoading
+                          ? const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            )
+                          : (groups.isEmpty && collectionState.notes.isEmpty)
+                              ? NoteEmptyState(
+                                  onCreateNote: () => _createAndOpenNote(context),
+                                  destination: destination,
+                                  tagFilter: selectedTag,
+                                  hasActiveFilters: query.filter.hasAdvancedFilters,
+                                  onClearFilters: () => ref
+                                      .read(notesQueryProvider.notifier)
+                                      .clearAllFilters(),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.only(bottom: 96),
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  itemCount: _calculateTotalItemCount(groups) + 1,
+                                  itemBuilder: (context, index) {
+                                    if (index == _calculateTotalItemCount(groups)) {
+                                      return NotesLoadingMoreIndicator(
+                                        loadingMore: collectionState.loadingMore,
+                                        error: collectionState.error,
+                                        onRetry: () => ref
+                                            .read(notesCollectionProvider.notifier)
+                                            .retry(),
+                                      );
+                                    }
+                                    return _buildGroupedItem(context, groups, index);
+                                  },
+                                ),
                     ),
                   ),
                 ),
@@ -336,13 +400,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       ),
       actions: [
         if (destination == AppDestination.trash) ...[
-          // Trash multi-actions: Restore, Delete Permanently
           QuietIconButton(
             icon: Icons.restore_rounded,
             tooltip: 'Restore selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
               await repository.restoreNotes(ids);
+              for (final id in ids) {
+                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+              }
               _exitMultiSelect();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -364,6 +430,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   await PermanentDeleteDialog.show(context, count: count);
               if (confirmed) {
                 await repository.deletePermanentlyBatch(ids);
+                for (final id in ids) {
+                  ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+                }
                 _exitMultiSelect();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).clearSnackBars();
@@ -378,13 +447,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
           ),
         ] else if (destination == AppDestination.archive) ...[
-          // Archive multi-actions: Unarchive, Move to Trash
           QuietIconButton(
             icon: Icons.unarchive_outlined,
             tooltip: 'Unarchive selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
               await repository.unarchiveNotes(ids);
+              for (final id in ids) {
+                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+              }
               _exitMultiSelect();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -403,6 +474,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
               await repository.trashNotes(ids);
+              for (final id in ids) {
+                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+              }
               _exitMultiSelect();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -416,13 +490,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
           ),
         ] else ...[
-          // Active multi-actions: Archive, Move to Trash
           QuietIconButton(
             icon: Icons.archive_outlined,
             tooltip: 'Archive selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
               await repository.archiveNotes(ids);
+              for (final id in ids) {
+                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+              }
               _exitMultiSelect();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -441,6 +517,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
               await repository.trashNotes(ids);
+              for (final id in ids) {
+                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+              }
               _exitMultiSelect();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -462,19 +541,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget _buildTabletLayout(BuildContext context, AppColors colors) {
     final destination = ref.watch(currentDestinationProvider);
     final selectedTag = ref.watch(selectedTagFilterProvider);
-    final groupedNotesAsync = ref.watch(groupedNotesStreamProvider);
-    final allNotesAsync = ref.watch(filteredNotesStreamProvider);
+    final collectionState = ref.watch(notesCollectionProvider);
+    final groups = ref.watch(groupedNotesCollectionProvider);
+    final query = ref.watch(notesQueryProvider);
     final title = _getDestinationTitle(destination, selectedTag);
 
     // Watch active note if one is selected in tablet mode
     Note? activeNote;
     if (_selectedNoteIdForTablet != null) {
-      allNotesAsync.whenData((notes) {
-        final matches = notes.where((n) => n.id == _selectedNoteIdForTablet);
-        if (matches.isNotEmpty) {
-          activeNote = matches.first;
-        }
-      });
+      final matches = collectionState.notes.where((n) => n.id == _selectedNoteIdForTablet);
+      if (matches.isNotEmpty) {
+        activeNote = matches.first;
+      }
     }
 
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
@@ -535,135 +613,188 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         }
                       },
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                        // Middle Pane Top bar
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: AppSpacing.sm,
-                          ),
-                          child: Row(
-                            children: [
-                              QuietIconButton(
-                                icon: isNavSidebarVisible
-                                    ? Icons.menu_open_rounded
-                                    : Icons.view_sidebar_outlined,
-                                tooltip: isNavSidebarVisible
-                                    ? 'Hide navigation'
-                                    : 'Show navigation',
-                                onPressed: () {
-                                  ref
-                                      .read(isNavSidebarVisibleProvider.notifier)
-                                      .state = !isNavSidebarVisible;
-                                },
-                              ),
-                              const SizedBox(width: 4.0),
-                              Expanded(
-                                child: Text(
-                                  title,
-                                  style: AppTypography.title.copyWith(
-                                    color: colors.textPrimary,
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                              QuietIconButton(
-                                icon: Icons.search_rounded,
-                                tooltip: 'Search notes',
-                                onPressed: () => _openSearchScreen(context),
-                              ),
-                              if (destination == AppDestination.trash) ...[
+                          // Middle Pane Top bar
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.sm,
+                            ),
+                            child: Row(
+                              children: [
                                 QuietIconButton(
-                                  icon: Icons.delete_sweep_outlined,
-                                  tooltip: 'Empty trash',
-                                  onPressed: () => _confirmEmptyTrash(context),
-                                ),
-                              ],
-                              QuietIconButton(
-                                icon: Icons.add_rounded,
-                                tooltip: 'New note',
-                                isActive: true,
-                                onPressed: () => _createAndOpenNoteTablet(),
-                              ),
-                              if (activeNote != null)
-                                QuietIconButton(
-                                  icon: Icons.fullscreen_rounded,
-                                  tooltip: 'Hide note list',
+                                  icon: isNavSidebarVisible
+                                      ? Icons.menu_open_rounded
+                                      : Icons.view_sidebar_outlined,
+                                  tooltip: isNavSidebarVisible
+                                      ? 'Hide navigation'
+                                      : 'Show navigation',
                                   onPressed: () {
                                     ref
-                                        .read(isNoteListVisibleProvider.notifier)
-                                        .state = false;
+                                        .read(isNavSidebarVisibleProvider.notifier)
+                                        .state = !isNavSidebarVisible;
                                   },
                                 ),
-                            ],
-                          ),
-                        ),
-                        if (destination == AppDestination.allNotes ||
-                            destination == AppDestination.tag) ...[
-                          const TagsFilterBar(),
-                        ],
-                        Divider(color: colors.divider, height: 1),
-                        Expanded(
-                          child: NotificationListener<ScrollNotification>(
-                            onNotification: (notification) {
-                              if (notification is OverscrollNotification &&
-                                  notification.overscroll < -15) {
-                                _openSearchScreen(context);
-                                return true;
-                              }
-                              if (notification is ScrollUpdateNotification &&
-                                  notification.metrics.pixels <= 0 &&
-                                  notification.scrollDelta != null &&
-                                  notification.scrollDelta! < -12 &&
-                                  notification.dragDetails != null) {
-                                _openSearchScreen(context);
-                                return true;
-                              }
-                              return false;
-                            },
-                            child: groupedNotesAsync.when(
-                              data: (groups) {
-                                if (groups.isEmpty) {
-                                  return NoteEmptyState(
-                                    onCreateNote: () => _createAndOpenNoteTablet(),
-                                    destination: destination,
-                                    tagFilter: selectedTag,
-                                  );
-                                }
-
-                                return ListView.builder(
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  itemCount: _calculateTotalItemCount(groups),
-                                  itemBuilder: (context, index) {
-                                    return _buildGroupedItem(
-                                      context,
-                                      groups,
-                                      index,
-                                      isTablet: true,
-                                    );
-                                  },
-                                );
-                              },
-                              loading: () => const Center(
-                                child: CircularProgressIndicator.adaptive(),
-                              ),
-                              error: (err, _) => Center(
-                                child: Text(
-                                  'Error: $err',
-                                  style: AppTypography.body.copyWith(
-                                    color: colors.error,
+                                const SizedBox(width: 4.0),
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: AppTypography.title.copyWith(
+                                      color: colors.textPrimary,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                   ),
+                                ),
+                                QuietIconButton(
+                                  icon: Icons.swap_vert_rounded,
+                                  tooltip: 'Sort notes',
+                                  onPressed: () => NotesSortSheet.show(context),
+                                ),
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    QuietIconButton(
+                                      icon: Icons.filter_list_rounded,
+                                      tooltip: 'Filter notes',
+                                      onPressed: () => NotesFilterSheet.show(context),
+                                    ),
+                                    if (query.filter.hasAdvancedFilters)
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: BoxDecoration(
+                                            color: colors.accent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                QuietIconButton(
+                                  icon: Icons.search_rounded,
+                                  tooltip: 'Search notes',
+                                  onPressed: () => _openSearchScreen(context),
+                                ),
+                                if (destination == AppDestination.trash) ...[
+                                  QuietIconButton(
+                                    icon: Icons.delete_sweep_outlined,
+                                    tooltip: 'Empty trash',
+                                    onPressed: () => _confirmEmptyTrash(context),
+                                  ),
+                                ],
+                                QuietIconButton(
+                                  icon: Icons.add_rounded,
+                                  tooltip: 'New note',
+                                  isActive: true,
+                                  onPressed: () => _createAndOpenNoteTablet(),
+                                ),
+                                if (activeNote != null)
+                                  QuietIconButton(
+                                    icon: Icons.fullscreen_rounded,
+                                    tooltip: 'Hide note list',
+                                    onPressed: () {
+                                      ref
+                                          .read(isNoteListVisibleProvider.notifier)
+                                          .state = false;
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (destination == AppDestination.allNotes ||
+                              destination == AppDestination.tag) ...[
+                            const TagsFilterBar(),
+                          ],
+                          const ActiveFilterChips(),
+                          if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: 2.0,
+                              ),
+                              child: Text(
+                                '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textTertiary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
+                          Divider(color: colors.divider, height: 1),
+                          Expanded(
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                if (notification is OverscrollNotification &&
+                                    notification.overscroll < -15) {
+                                  _openSearchScreen(context);
+                                  return true;
+                                }
+                                if (notification is ScrollUpdateNotification &&
+                                    notification.metrics.pixels <= 0 &&
+                                    notification.scrollDelta != null &&
+                                    notification.scrollDelta! < -12 &&
+                                    notification.dragDetails != null) {
+                                  _openSearchScreen(context);
+                                  return true;
+                                }
+                                if (notification.metrics.extentAfter < 800) {
+                                  ref.read(notesCollectionProvider.notifier).loadMore();
+                                }
+                                return false;
+                              },
+                              child: RefreshIndicator(
+                                color: colors.accent,
+                                backgroundColor: colors.surface,
+                                onRefresh: () => ref.read(notesCollectionProvider.notifier).refresh(),
+                                child: collectionState.initialLoading
+                                    ? const Center(
+                                        child: CircularProgressIndicator.adaptive(),
+                                      )
+                                    : (groups.isEmpty && collectionState.notes.isEmpty)
+                                        ? NoteEmptyState(
+                                            onCreateNote: () => _createAndOpenNoteTablet(),
+                                            destination: destination,
+                                            tagFilter: selectedTag,
+                                            hasActiveFilters: query.filter.hasAdvancedFilters,
+                                            onClearFilters: () => ref
+                                                .read(notesQueryProvider.notifier)
+                                                .clearAllFilters(),
+                                          )
+                                        : ListView.builder(
+                                            physics: const AlwaysScrollableScrollPhysics(),
+                                            itemCount: _calculateTotalItemCount(groups) + 1,
+                                            itemBuilder: (context, index) {
+                                              if (index == _calculateTotalItemCount(groups)) {
+                                                return NotesLoadingMoreIndicator(
+                                                  loadingMore: collectionState.loadingMore,
+                                                  error: collectionState.error,
+                                                  onRetry: () => ref
+                                                      .read(notesCollectionProvider.notifier)
+                                                      .retry(),
+                                                );
+                                              }
+                                              return _buildGroupedItem(
+                                                context,
+                                                groups,
+                                                index,
+                                                isTablet: true,
+                                              );
+                                            },
+                                          ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ),
@@ -673,13 +804,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             Expanded(
               child: activeNote != null
                   ? KeyedSubtree(
-                      key: ValueKey(activeNote!.id),
+                      key: ValueKey(activeNote.id),
                       child: EditorScreen(
-                        note: activeNote!,
+                        note: activeNote,
                         autoFocusBody: _shouldAutoFocusTablet &&
-                            _selectedNoteIdForTablet == activeNote!.id,
+                            _selectedNoteIdForTablet == activeNote.id,
                         initialPreviewMode: !(_shouldAutoFocusTablet &&
-                            _selectedNoteIdForTablet == activeNote!.id),
+                            _selectedNoteIdForTablet == activeNote.id),
                         onClose: () {
                           setState(() {
                             _selectedNoteIdForTablet = null;
@@ -741,18 +872,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
   }
 
-  int _calculateTotalItemCount(List<dynamic> groups) {
+  int _calculateTotalItemCount(List<NoteGroup> groups) {
     var count = 0;
     for (final g in groups) {
       count += 1; // Section header
-      count += (g.notes.length as int); // Notes in this group
+      count += g.notes.length; // Notes in this group
     }
     return count;
   }
 
   Widget _buildGroupedItem(
     BuildContext context,
-    List<dynamic> groups,
+    List<NoteGroup> groups,
     int index, {
     bool isTablet = false,
   }) {
@@ -772,7 +903,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
       final noteIndex = index - accumulated;
       if (noteIndex < group.notes.length) {
-        final note = group.notes[noteIndex] as Note;
+        final note = group.notes[noteIndex];
         final isSelected = isTablet && _selectedNoteIdForTablet == note.id;
         final isItemMultiSelected = _selectedNoteIds.contains(note.id);
 
@@ -852,10 +983,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               }
             } else {
               if (direction == DismissDirection.startToEnd) {
-                // Swiped to right side -> Archive
                 _archiveNoteWithUndo(note);
               } else {
-                // Swiped to left side -> Trash
                 _trashNoteWithUndo(note);
               }
             }
@@ -880,9 +1009,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ref.read(currentDestinationProvider.notifier).state =
                   AppDestination.tag;
               ref.read(selectedTagFilterProvider.notifier).state = tag;
+              ref.read(notesQueryProvider.notifier).setTag(tag);
             },
             onTogglePin: () {
               repository.setPinned(note.id, !note.isPinned);
+              ref.read(notesCollectionProvider.notifier).refresh();
             },
             onArchive: () {
               _archiveNoteWithUndo(note);
@@ -905,7 +1036,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         );
       }
-      accumulated += (group.notes.length as int);
+      accumulated += group.notes.length;
     }
 
     return const SizedBox.shrink();
@@ -950,6 +1081,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
 
     await ref.read(notesRepositoryProvider).saveNote(newNote);
+    ref.read(notesCollectionProvider.notifier).refresh();
 
     if (context.mounted) {
       Navigator.of(context).push(
@@ -983,6 +1115,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
 
     await ref.read(notesRepositoryProvider).saveNote(newNote);
+    ref.read(notesCollectionProvider.notifier).refresh();
 
     setState(() {
       _selectedNoteIdForTablet = newNote.id;
@@ -993,6 +1126,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _archiveNoteWithUndo(Note note) {
     final repository = ref.read(notesRepositoryProvider);
     repository.archiveNote(note.id);
+    ref.read(notesCollectionProvider.notifier).removeLocalNote(note.id);
 
     if (_selectedNoteIdForTablet == note.id) {
       setState(() {
@@ -1011,6 +1145,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           label: 'Undo',
           onPressed: () {
             repository.unarchiveNote(note.id);
+            ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),
         duration: const Duration(seconds: 3),
@@ -1021,6 +1156,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _unarchiveNoteWithUndo(Note note) {
     final repository = ref.read(notesRepositoryProvider);
     repository.unarchiveNote(note.id);
+    ref.read(notesCollectionProvider.notifier).removeLocalNote(note.id);
 
     if (_selectedNoteIdForTablet == note.id) {
       setState(() {
@@ -1039,6 +1175,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           label: 'Undo',
           onPressed: () {
             repository.archiveNote(note.id);
+            ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),
         duration: const Duration(seconds: 3),
@@ -1049,6 +1186,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _trashNoteWithUndo(Note note) {
     final repository = ref.read(notesRepositoryProvider);
     repository.trashNote(note.id);
+    ref.read(notesCollectionProvider.notifier).removeLocalNote(note.id);
 
     if (_selectedNoteIdForTablet == note.id) {
       setState(() {
@@ -1067,6 +1205,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           label: 'Undo',
           onPressed: () {
             repository.restoreFromTrash(note.id);
+            ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),
         duration: const Duration(seconds: 3),
@@ -1077,6 +1216,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _restoreNoteWithUndo(Note note) {
     final repository = ref.read(notesRepositoryProvider);
     repository.restoreFromTrash(note.id);
+    ref.read(notesCollectionProvider.notifier).removeLocalNote(note.id);
 
     if (_selectedNoteIdForTablet == note.id) {
       setState(() {
@@ -1095,6 +1235,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           label: 'Undo',
           onPressed: () {
             repository.trashNote(note.id);
+            ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),
         duration: const Duration(seconds: 3),
@@ -1105,6 +1246,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _deletePermanently(Note note) {
     final repository = ref.read(notesRepositoryProvider);
     repository.deletePermanently(note.id);
+    ref.read(notesCollectionProvider.notifier).removeLocalNote(note.id);
 
     if (_selectedNoteIdForTablet == note.id) {
       setState(() {
@@ -1138,6 +1280,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final confirmed = await PermanentDeleteDialog.show(context, count: count);
     if (confirmed) {
       await ref.read(notesRepositoryProvider).emptyTrash();
+      ref.read(notesCollectionProvider.notifier).refresh();
       setState(() {
         _selectedNoteIdForTablet = null;
       });

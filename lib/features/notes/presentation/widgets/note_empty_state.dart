@@ -11,11 +11,15 @@ class NoteEmptyState extends StatelessWidget {
     required this.onCreateNote,
     this.destination = AppDestination.allNotes,
     this.tagFilter,
+    this.hasActiveFilters = false,
+    this.onClearFilters,
   });
 
   final VoidCallback onCreateNote;
   final AppDestination destination;
   final String? tagFilter;
+  final bool hasActiveFilters;
+  final VoidCallback? onClearFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +28,14 @@ class NoteEmptyState extends StatelessWidget {
     String title;
     String subtitle;
     bool showCreateButton = true;
+    bool showClearFiltersButton = false;
 
-    if (tagFilter != null && tagFilter!.isNotEmpty) {
+    if (hasActiveFilters) {
+      title = 'No notes match these filters';
+      subtitle = 'Try adjusting or clearing your active filters.';
+      showCreateButton = false;
+      showClearFiltersButton = true;
+    } else if (tagFilter != null && tagFilter!.isNotEmpty) {
       title = 'No notes with #$tagFilter';
       subtitle = 'Start writing something with this tag.';
     } else {
@@ -85,7 +95,15 @@ class NoteEmptyState extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  if (showCreateButton) ...[
+                  if (showClearFiltersButton && onClearFilters != null) ...[
+                    const SizedBox(height: AppSpacing.xl),
+                    QuietButton(
+                      label: 'Clear filters',
+                      icon: Icons.filter_alt_off_rounded,
+                      variant: QuietButtonVariant.secondary,
+                      onPressed: onClearFilters,
+                    ),
+                  ] else if (showCreateButton) ...[
                     const SizedBox(height: AppSpacing.xl),
                     QuietButton(
                       label: 'Create note',
