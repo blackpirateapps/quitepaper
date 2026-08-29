@@ -2686,3 +2686,92 @@ The Notes list is for reading, browsing, and composing notes. The controls above
 
 
 
+
+---
+
+## 26. Production PDF Export Renderer (Markdown Semantics, Unicode Correctness, Embedded TrueType Fonts & Flow Layout)
+
+### Problem & Root Causes
+The per-note PDF export subsystem was previously producing visually degraded PDFs with raw unformatted Markdown text, tofu/replacement glyphs for normal Unicode punctuation, poor pagination, and excessive empty space. Thorough inspection revealed three distinct root causes:
+
+1. **Helvetica / Type 1 Font Encoding Limitation**:
+   - The exporter used PDF standard Type 1 fonts (`pw.Font.helvetica()`, `pw.Font.courier()`), which are strictly limited to Latin-1/WinAnsi.
+   - Any character outside Latin-1 (smart quotes `‘ ’ “ ”`, en/em dashes `– —`, ellipsis `…`, currency symbols `€ £ ¥ ₹`, accents `café, naïve, résumé`, and mathematical symbols `• © ® ° ± ≤ ≥ → ←`) failed glyph lookup, logging `Helvetica has no Unicode support` and rendering replacement boxes/tofu or underscores.
+2. **Flattened Markdown Semantics**:
+   - `_parseMarkdownToPdfWidgets` performed line-by-line regex splitting without parsing inline formatting.
+   - Inline formatting (`**bold**`, `*italic*`, `***bold italic***`, `~~strikethrough~~`, `==highlight==`, `` `inline code` ``, `[links](url)`, `#tags`) was completely ignored inside paragraphs, headings, blockquotes, and lists.
+   - Ordered lists (`1. Item`) were unparsed, nested list indentation was lost, and GFM tables were flattened.
+3. **Disjoint Line Widgets & Excessive Whitespace**:
+   - Multi-line paragraphs were split into individual `pw.Padding` widgets per line with vertical padding added after every line, inflating paragraph height and causing pathological blank areas and premature page breaks.
+
+### Solution & Architectural Design
+
+Quiet Paper adheres strictly to **Markdown as the single canonical source of truth**. The PDF export pipeline cleanly translates canonical Markdown into a high-fidelity vector PDF:
+
+```text
+Canonical Markdown
+        ↓
+PdfMarkdownParser (Semantic block & recursive inline parser)
+        ↓
+Structured PDF Document Model (PdfBlock & PdfInlineRun)
+        ↓
+PdfDocumentBuilder & PdfCodeHighlighter
+        ↓
+PdfFontManager (Embedded TrueType fonts with full Unicode coverage)
+        ↓
+Vector Searchable & Selectable PDF
+```
+
+#### 1. Embedded TrueType Font Management (`lib/core/pdf/pdf_font_manager.dart`)
+- Loads genuine TrueType fonts directly from bundled assets (`assets/fonts/Inter-Regular.ttf`, `assets/fonts/Inter-Italic.ttf`, `assets/fonts/Roboto-Bold.ttf`, `assets/fonts/JetBrainsMono-Regular.ttf`, `assets/fonts/JetBrainsMono-Italic.ttf`).
+- Implements TrueType magic-byte validation (`isTrueTypeFont`) to filter out WOFF/WOFF2 web fonts and ensure only true TTF/OTF tables are passed to the PDF font engine.
+- Supports dual loading: via `rootBundle` in Flutter runtime and file-system relative paths in headless test environments.
+- Provides fallback hierarchy to ensure 100% offline deterministic rendering without network calls to Google Fonts.
+
+#### 2. Semantic Markdown Block & Inline Model (`lib/core/pdf/pdf_markdown_models.dart`)
+- **Blocks**:
+  - `PdfHeadingBlock`: level (1..6) and styled inlines.
+  - `PdfParagraphBlock`: multi-line inlines preserving soft line breaks.
+  - `PdfListBlock`: unordered/ordered items with hierarchical `indentLevel` (0..N).
+  - `PdfChecklistBlock`: items with `isChecked` boolean, inlines, and `indentLevel`.
+  - `PdfBlockquoteBlock`: inlines with left accent border.
+  - `PdfCodeBlock`: language and preserved whitespace code lines.
+  - `PdfTableBlock`: headers, column alignments (left, center, right), and cell inlines.
+  - `PdfImageBlock`: alt text, URI, and resolved image bytes.
+  - `PdfHorizontalRuleBlock`: divider rule.
+- **Inlines (`PdfInlineRun`)**:
+  - Full composability for bold, italic, bold-italic, strikethrough, highlight (`==text==`), inline code (`` `code` ``), clickable links (`[text](url)` and bare URLs), and `#tags`.
+
+#### 3. Semantic Markdown Parser (`lib/core/pdf/pdf_markdown_parser.dart`)
+- Strips YAML frontmatter at document start.
+- Groups consecutive non-empty lines into single `PdfParagraphBlock`s, preserving Quiet Paper's `softLineBreak: true` semantics.
+- Recursively parses inline styling with support for escapes (`\*`, `\_`, `\``, `\#`, `\[`, `\]`, `\(`, `\)`, `\~`, `\=`, `\\`).
+- Detects and parses GFM tables with column delimiter alignment (`:---`, `:---:`, `---:`).
+- Parses nested lists and checklists by computing indent levels from leading whitespace.
+
+#### 4. Document-Grade Syntax Highlighting (`lib/core/pdf/pdf_code_highlighter.dart`)
+- Deterministic tokenization for Dart, JS/TS, Python, SQL, JSON, YAML, and generic code.
+- Restrained, document-ready color palette for keywords (purple), types (blue), strings (green), comments (muted grey italic), and numbers (amber).
+
+#### 5. Document Layout & MultiPage Flow (`lib/core/pdf/pdf_document_builder.dart`)
+- **Typography Scale**: Clean editorial heading hierarchy (H1 18pt, H2 15pt, H3 13pt, H4 11.5pt, H5 10.5pt, H6 9.5pt) with `keepWithNext: true`.
+- **Checklists**: Rendered with custom rounded checkbox widgets (amber fill with white checkmark for completed tasks, stroked box for open tasks; completed text styled with strikethrough and muted color).
+- **Blockquotes**: Left border (2.8pt solid `#D97706`), italic typography, and comfortable padding.
+- **GFM Tables**: Styled with `#F3F2EE` header background, cell alignments, and borders.
+- **Images**: Proportional scaling constrained to page margins (`maxWidth: 460, maxHeight: 280`), centered in flow, with non-fatal placeholder warning if image is unavailable.
+- **Links**: Rendered with `#B45309` underline and clickable `pw.AnnotationUrl` metadata.
+- **Page Options**: Fully respects `PdfExportOptions` (`pageSize`, `includeMetadata`, `showTags`, `showDates`, `includeAttachments`, `includeOcr`).
+
+### File Inventory
+- **Core PDF Subsystem**:
+  - `lib/core/pdf/pdf_font_manager.dart` (TrueType font loader, validator, cache, and typography resolver).
+  - `lib/core/pdf/pdf_markdown_models.dart` (semantic block and inline run data models).
+  - `lib/core/pdf/pdf_markdown_parser.dart` (Markdown block and recursive inline parser).
+  - `lib/core/pdf/pdf_code_highlighter.dart` (syntax highlighter for code blocks).
+  - `lib/core/pdf/pdf_document_builder.dart` (PDF widget layout engine).
+- **Exporter**:
+  - `lib/features/export/application/exporters/pdf_exporter.dart` (orchestrator with export options, page size resolution, multi-page layout).
+- **Tests**:
+  - `test/features/export/pdf_export_render_verification_test.dart` (comprehensive verification test suite covering Section 54 representative fixture, Section 30 Unicode glyphs, Section 22 GFM tables, multi-page pagination, and export options).
+  - `test/features/export/rich_documents_exporter_test.dart` (updated vector PDF exporter tests).
+
