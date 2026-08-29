@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,18 +80,39 @@ void main() {
       await tester.tap(find.text('Open Sort'));
       await tester.pumpAndSettle();
 
-      expect(find.text('SORT BY'), findsOneWidget);
+      expect(find.text('Sort Notes'), findsOneWidget);
       expect(find.text('Recently Updated'), findsOneWidget);
       expect(find.text('Recently Created'), findsOneWidget);
       expect(find.text('Title'), findsOneWidget);
+      expect(find.text('Keep Pinned on Top'), findsOneWidget);
+
+      // Default active sort has direction badge
+      expect(find.text('Newest First'), findsOneWidget);
 
       // Tap Recently Created
       await tester.tap(find.text('Recently Created'));
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(tester.element(find.byType(NotesSortSheet)));
-      final currentSort = container.read(notesQueryProvider).sort;
+      var currentSort = container.read(notesQueryProvider).sort;
       expect(currentSort.field, SortField.created);
+      expect(currentSort.direction, SortDirection.descending);
+
+      // Tap Recently Created again to flip direction to Oldest First
+      await tester.tap(find.text('Recently Created'));
+      await tester.pumpAndSettle();
+
+      currentSort = container.read(notesQueryProvider).sort;
+      expect(currentSort.field, SortField.created);
+      expect(currentSort.direction, SortDirection.ascending);
+      expect(find.text('Oldest First'), findsOneWidget);
+
+      // Toggle Keep Pinned on Top
+      await tester.tap(find.byType(CupertinoSwitch));
+      await tester.pumpAndSettle();
+
+      currentSort = container.read(notesQueryProvider).sort;
+      expect(currentSort.pinnedFirst, false);
 
       await finishTest(tester);
     });

@@ -2658,15 +2658,23 @@ The Notes list is for reading, browsing, and composing notes. The controls above
    - Result count (`183 notes`) styled with muted, subtle typography attached directly to the top of the notes list.
    - Removed artificial horizontal dividers above the list so notes begin higher in the viewport.
 
+8. **Redesigned Sort By Modal (`NotesSortSheet`)**:
+   - Replaced multiple nested container cards with a single unified, compact Apple Settings / Bear style rounded card.
+   - Reduced sheet height by over 50% with an editorial drag handle and clean title ("Sort Notes").
+   - Inline direction badge (`_DirectionBadge`) showing active order (`↓ Newest first`, `↑ Oldest first`, `A → Z`, `Z → A`).
+   - Interactive tap-to-flip: Tapping an inactive field selects it; tapping an already active field instantly toggles its direction with haptic feedback.
+   - Integrated "Keep Pinned on Top" `CupertinoSwitch` row as the bottom item of the card.
+
 ### File Inventory
 - **Domain**:
   - `lib/features/notes/domain/notes_filter.dart` (added `advancedFilterCount` getter).
 - **Presentation Widgets**:
+  - `lib/features/notes/presentation/widgets/notes_sort_sheet.dart` (compact single-card sort sheet with inline tap-to-flip direction badges).
   - `lib/features/notes/presentation/widgets/notes_filter_button.dart` (reusable filter icon with numeric badge and accessibility semantics).
   - `lib/features/notes/presentation/widgets/active_filter_chips.dart` (decongested, zero-height when empty, deduplicated, collapsed `+N`).
   - `lib/features/notes/presentation/notes_screen.dart` (title invariant, responsive header collapse, streamlined result count).
 - **Tests**:
-  - `test/notes/notes_filter_and_sort_ui_test.dart` (comprehensive UI tests for header invariance, filter badge, tag deduplication, responsive middle pane).
+  - `test/notes/notes_filter_and_sort_ui_test.dart` (comprehensive UI tests for header invariance, filter badge, tag deduplication, sort sheet field selection, tap-to-flip direction toggling, and pin switch).
   - `test/widget_test.dart` (updated overflow menu navigation for settings).
 
 

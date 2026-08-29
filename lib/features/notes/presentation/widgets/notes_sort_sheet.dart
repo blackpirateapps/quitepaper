@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
@@ -10,7 +11,7 @@ import '../../application/notes_query_provider.dart';
 import '../../domain/notes_filter.dart';
 import '../../domain/notes_sort.dart';
 
-/// Modal bottom sheet for configuring primary ordering and direction
+/// Compact, editorial modal bottom sheet for configuring note ordering, direction, and pin behavior
 class NotesSortSheet extends ConsumerWidget {
   const NotesSortSheet({super.key});
 
@@ -40,7 +41,7 @@ class NotesSortSheet extends ConsumerWidget {
             border: Border.all(color: colors.divider, width: 0.8),
           ),
           padding: const EdgeInsets.only(
-            top: AppSpacing.md,
+            top: AppSpacing.sm,
             bottom: AppSpacing.xl,
             left: AppSpacing.lg,
             right: AppSpacing.lg,
@@ -52,17 +53,29 @@ class NotesSortSheet extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Subtle Drag Handle
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        color: colors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
                   // Header Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'SORT BY',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textSecondary,
+                        'Sort Notes',
+                        style: AppTypography.title.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 1.1,
-                          fontSize: 12,
                         ),
                       ),
                       QuietIconButton(
@@ -72,7 +85,7 @@ class NotesSortSheet extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.md),
 
                   if (isTrash) ...[
                     // Trash context info
@@ -97,94 +110,86 @@ class NotesSortSheet extends ConsumerWidget {
                       ),
                     ),
                   ] else ...[
-                    // Primary Sort Field Group
+                    // Unified Single Inset Group Container
                     _SortGroupContainer(
                       children: [
+                        // 1. Recently Updated
                         _SortRow(
                           title: 'Recently Updated',
-                          isSelected: sort.field == SortField.updated,
+                          field: SortField.updated,
+                          currentSort: sort,
                           onTap: () {
-                            ref.read(notesQueryProvider.notifier).setSort(
-                                  sort.copyWith(field: SortField.updated),
-                                );
+                            if (sort.field == SortField.updated) {
+                              final nextDir = sort.direction == SortDirection.descending
+                                  ? SortDirection.ascending
+                                  : SortDirection.descending;
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(direction: nextDir),
+                                  );
+                            } else {
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(
+                                      field: SortField.updated,
+                                      direction: SortDirection.descending,
+                                    ),
+                                  );
+                            }
                           },
                         ),
-                        Divider(color: colors.divider, height: 1, indent: 16),
+                        Divider(color: colors.divider, height: 1, indent: 40),
+
+                        // 2. Recently Created
                         _SortRow(
                           title: 'Recently Created',
-                          isSelected: sort.field == SortField.created,
+                          field: SortField.created,
+                          currentSort: sort,
                           onTap: () {
-                            ref.read(notesQueryProvider.notifier).setSort(
-                                  sort.copyWith(field: SortField.created),
-                                );
+                            if (sort.field == SortField.created) {
+                              final nextDir = sort.direction == SortDirection.descending
+                                  ? SortDirection.ascending
+                                  : SortDirection.descending;
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(direction: nextDir),
+                                  );
+                            } else {
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(
+                                      field: SortField.created,
+                                      direction: SortDirection.descending,
+                                    ),
+                                  );
+                            }
                           },
                         ),
-                        Divider(color: colors.divider, height: 1, indent: 16),
+                        Divider(color: colors.divider, height: 1, indent: 40),
+
+                        // 3. Title
                         _SortRow(
                           title: 'Title',
-                          isSelected: sort.field == SortField.title,
+                          field: SortField.title,
+                          currentSort: sort,
                           onTap: () {
-                            ref.read(notesQueryProvider.notifier).setSort(
-                                  sort.copyWith(field: SortField.title),
-                                );
+                            if (sort.field == SortField.title) {
+                              final nextDir = sort.direction == SortDirection.ascending
+                                  ? SortDirection.descending
+                                  : SortDirection.ascending;
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(direction: nextDir),
+                                  );
+                            } else {
+                              ref.read(notesQueryProvider.notifier).setSort(
+                                    sort.copyWith(
+                                      field: SortField.title,
+                                      direction: SortDirection.ascending,
+                                    ),
+                                  );
+                            }
                           },
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
 
-                    // Sort Direction Header
-                    Text(
-                      'DIRECTION',
-                      style: AppTypography.caption.copyWith(
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.1,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-
-                    // Sort Direction Group
-                    _SortGroupContainer(
-                      children: [
-                        _SortRow(
-                          title: SortDirection.descending.getDisplayName(sort.field),
-                          isSelected: sort.direction == SortDirection.descending,
-                          onTap: () {
-                            ref.read(notesQueryProvider.notifier).setSort(
-                                  sort.copyWith(direction: SortDirection.descending),
-                                );
-                          },
-                        ),
-                        Divider(color: colors.divider, height: 1, indent: 16),
-                        _SortRow(
-                          title: SortDirection.ascending.getDisplayName(sort.field),
-                          isSelected: sort.direction == SortDirection.ascending,
-                          onTap: () {
-                            ref.read(notesQueryProvider.notifier).setSort(
-                                  sort.copyWith(direction: SortDirection.ascending),
-                                );
-                          },
-                        ),
-                      ],
-                    ),
-
-                    if (query.context == NotesContext.active) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      // Pinned Group
-                      Text(
-                        'PINNED NOTES',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.1,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      _SortGroupContainer(
-                        children: [
+                        // 4. Keep Pinned on Top (Active context only)
+                        if (query.context == NotesContext.active) ...[
+                          Divider(color: colors.divider, height: 1, indent: 40),
                           Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: AppSpacing.md,
@@ -192,6 +197,7 @@ class NotesSortSheet extends ConsumerWidget {
                             ),
                             child: Row(
                               children: [
+                                const SizedBox(width: 24 + AppSpacing.xs),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +210,7 @@ class NotesSortSheet extends ConsumerWidget {
                                         ),
                                       ),
                                       Text(
-                                        'Show pinned notes at the beginning of the list',
+                                        'Show pinned notes at the beginning',
                                         style: AppTypography.caption.copyWith(
                                           color: colors.textTertiary,
                                         ),
@@ -216,6 +222,7 @@ class NotesSortSheet extends ConsumerWidget {
                                   value: sort.pinnedFirst,
                                   activeTrackColor: colors.accent,
                                   onChanged: (val) {
+                                    HapticFeedback.selectionClick();
                                     ref.read(notesQueryProvider.notifier).setSort(
                                           sort.copyWith(pinnedFirst: val),
                                         );
@@ -225,8 +232,8 @@ class NotesSortSheet extends ConsumerWidget {
                             ),
                           ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -264,47 +271,121 @@ class _SortGroupContainer extends StatelessWidget {
 class _SortRow extends StatelessWidget {
   const _SortRow({
     required this.title,
-    required this.isSelected,
+    required this.field,
+    required this.currentSort,
     required this.onTap,
   });
 
   final String title;
-  final bool isSelected;
+  final SortField field;
+  final NotesSort currentSort;
   final VoidCallback onTap;
+
+  bool get isSelected => currentSort.field == field;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final direction = isSelected
+        ? currentSort.direction
+        : (field == SortField.title ? SortDirection.ascending : SortDirection.descending);
+    final directionLabel = direction.getDisplayName(field);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
-            vertical: 14.0,
+            vertical: 13.0,
           ),
           child: Row(
             children: [
+              // Checkmark icon
+              SizedBox(
+                width: 24,
+                child: isSelected
+                    ? Icon(
+                        Icons.check_rounded,
+                        size: 20,
+                        color: colors.accent,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   title,
                   style: AppTypography.body.copyWith(
-                    color: isSelected ? colors.accentDark : colors.textPrimary,
+                    color: isSelected ? colors.textPrimary : colors.textSecondary,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
               ),
               if (isSelected)
-                Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: colors.accent,
+                _DirectionBadge(
+                  label: directionLabel,
+                  isDescending: direction == SortDirection.descending,
+                  isTitle: field == SortField.title,
                 ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DirectionBadge extends StatelessWidget {
+  const _DirectionBadge({
+    required this.label,
+    required this.isDescending,
+    required this.isTitle,
+  });
+
+  final String label;
+  final bool isDescending;
+  final bool isTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    IconData icon;
+    if (isTitle) {
+      icon = isDescending ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+    } else {
+      icon = isDescending ? Icons.south_rounded : Icons.north_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 13,
+            color: colors.accentDark,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              color: colors.accentDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
