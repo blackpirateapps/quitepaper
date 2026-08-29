@@ -4,12 +4,19 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
+import '../../application/markdown_table_controller.dart';
+import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
+import '../../domain/markdown_table.dart';
+import '../../domain/markdown_table_position.dart';
 import 'link_prompt_dialog.dart';
+import 'table/markdown_table_editor.dart';
+import 'table/markdown_table_view.dart';
 
 /// A dedicated, distraction-free Markdown editor widget.
 /// Renders dynamic Markdown visual styling while preserving exact underlying Markdown source.
-class MarkdownEditor extends StatelessWidget {
+/// Seamlessly provides a hybrid spreadsheet editing experience for Markdown tables.
+class MarkdownEditor extends StatefulWidget {
   const MarkdownEditor({
     super.key,
     required this.controller,
@@ -20,6 +27,7 @@ class MarkdownEditor extends StatelessWidget {
     this.onChanged,
     this.scrollPadding = const EdgeInsets.all(20.0),
     this.readOnly = false,
+    this.searchQuery,
   });
 
   final MarkdownEditingController controller;
@@ -30,20 +38,105 @@ class MarkdownEditor extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final EdgeInsets scrollPadding;
   final bool readOnly;
+  final String? searchQuery;
+
+  @override
+  State<MarkdownEditor> createState() => _MarkdownEditorState();
+}
+
+class _MarkdownEditorState extends State<MarkdownEditor> {
+  static const _tableParser = MarkdownTableParser();
+
+  MarkdownTable? _activeTable;
+  MarkdownTableController? _activeTableController;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(MarkdownEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+      _syncActiveTableWithDocument();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    _activeTableController?.dispose();
+    _activeTableController = null;
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    _syncActiveTableWithDocument();
+  }
+
+  void _syncActiveTableWithDocument() {
+    if (_activeTable != null) {
+      final docText = widget.controller.text;
+      final reloaded = _tableParser.findTableAtOffset(docText, _activeTable!.sourceStart);
+      if (reloaded != null) {
+        _activeTable = reloaded;
+        _activeTableController?.updateTableProjection(reloaded);
+      } else {
+        // Table was deleted or malformed
+        _deactivateTable();
+      }
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _activateTable(MarkdownTable table, [TablePosition? position]) {
+    if (widget.readOnly) return;
+
+    _activeTableController?.dispose();
+
+    _activeTable = table;
+    _activeTableController = MarkdownTableController(
+      table: table,
+      getDocumentValue: () => widget.controller.value,
+      onUpdateDocument: (newVal) {
+        widget.controller.value = newVal;
+        widget.onChanged?.call(newVal.text);
+      },
+      initialPosition: position ?? const TablePosition(row: 0, column: 0),
+      styles: widget.controller.styles,
+    );
+
+    setState(() {});
+  }
+
+  void _deactivateTable() {
+    _activeTableController?.dispose();
+    _activeTableController = null;
+    _activeTable = null;
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
-    final updated = action(value: controller.value);
-    controller.value = updated;
-    onChanged?.call(controller.text);
-    if (!focusNode.hasFocus) {
-      focusNode.requestFocus();
+    final updated = action(value: widget.controller.value);
+    widget.controller.value = updated;
+    widget.onChanged?.call(widget.controller.text);
+    if (!widget.focusNode.hasFocus) {
+      widget.focusNode.requestFocus();
     }
   }
 
   Future<void> _promptLink(BuildContext context) async {
-    final selection = controller.selection;
-    final text = controller.text;
-    String initialTitle = '';
+    final selection = widget.controller.selection;
+    final text = widget.controller.text;
+    var initialTitle = '';
     if (selection.isValid && !selection.isCollapsed) {
       final selStart = selection.start;
       final selEnd = selection.end;
@@ -57,20 +150,20 @@ class MarkdownEditor extends StatelessWidget {
 
     if (result != null) {
       final updated = MarkdownFormatter.createLink(
-        value: controller.value,
+        value: widget.controller.value,
         url: result.url,
         title: result.title,
       );
-      controller.value = updated;
-      onChanged?.call(controller.text);
-      if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
+      widget.controller.value = updated;
+      widget.onChanged?.call(widget.controller.text);
+      if (!widget.focusNode.hasFocus) {
+        widget.focusNode.requestFocus();
       }
     }
   }
 
   void _handleTap() {
-    final val = controller.value;
+    final val = widget.controller.value;
     final text = val.text;
     final sel = val.selection;
     if (!sel.isValid) return;
@@ -78,7 +171,15 @@ class MarkdownEditor extends StatelessWidget {
     final cursor = sel.start;
     if (cursor < 0 || cursor > text.length) return;
 
-    // Find line surrounding tap
+    // Check if tapped inside a table
+    final table = _tableParser.findTableAtOffset(text, cursor);
+    if (table != null && !widget.readOnly) {
+      final pos = table.findPositionAtSourceOffset(cursor) ?? const TablePosition(row: 0, column: 0);
+      _activateTable(table, pos);
+      return;
+    }
+
+    // Find line surrounding tap for checklist toggling
     var lineStart = 0;
     if (cursor > 0) {
       lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
@@ -92,17 +193,16 @@ class MarkdownEditor extends StatelessWidget {
     final match = RegExp(r'^(\s*[-*+]\s*\[)([ xX])(\])').firstMatch(line);
     if (match != null) {
       final markerEnd = lineStart + match.end;
-      // If tapped in the marker region (e.g. within "- [ ]")
       if (cursor <= markerEnd + 1) {
         final state = match.group(2);
         final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
         final stateOffset = lineStart + (match.group(1)?.length ?? 3);
         final newText = text.replaceRange(stateOffset, stateOffset + 1, newState);
-        controller.value = TextEditingValue(
+        widget.controller.value = TextEditingValue(
           text: newText,
           selection: sel,
         );
-        onChanged?.call(newText);
+        widget.onChanged?.call(newText);
       }
     }
   }
@@ -110,119 +210,59 @@ class MarkdownEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final text = widget.controller.text;
 
+    // Fast path: Check for tables
+    final tables = _tableParser.findTables(text);
+
+    // If no tables exist or in large-document plain mode, render normal single TextField
+    if (tables.isEmpty || text.length > 60000) {
+      return _buildSingleTextField(context, colors);
+    }
+
+    // Segmented hybrid table view
+    return _buildSegmentedTableEditor(context, colors, tables);
+  }
+
+  Widget _buildSingleTextField(BuildContext context, AppColors colors) {
     return CallbackShortcuts(
       bindings: {
-        // Bold: Ctrl+B / Cmd+B
         const SingleActivator(LogicalKeyboardKey.keyB, control: true): () =>
             _applyFormat(MarkdownFormatter.toggleBold),
         const SingleActivator(LogicalKeyboardKey.keyB, meta: true): () =>
             _applyFormat(MarkdownFormatter.toggleBold),
-
-        // Italic: Ctrl+I / Cmd+I
         const SingleActivator(LogicalKeyboardKey.keyI, control: true): () =>
             _applyFormat(MarkdownFormatter.toggleItalic),
         const SingleActivator(LogicalKeyboardKey.keyI, meta: true): () =>
             _applyFormat(MarkdownFormatter.toggleItalic),
-
-        // Strikethrough: Ctrl+Shift+X / Cmd+Shift+X
         const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): () =>
             _applyFormat(MarkdownFormatter.toggleStrikethrough),
         const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): () =>
             _applyFormat(MarkdownFormatter.toggleStrikethrough),
-
-        // Inline Code: Ctrl+` / Cmd+`
         const SingleActivator(LogicalKeyboardKey.backquote, control: true): () =>
             _applyFormat(MarkdownFormatter.toggleInlineCode),
         const SingleActivator(LogicalKeyboardKey.backquote, meta: true): () =>
             _applyFormat(MarkdownFormatter.toggleInlineCode),
-
-        // Link: Ctrl+K / Cmd+K
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>
             _promptLink(context),
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () =>
             _promptLink(context),
       },
       child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        readOnly: readOnly,
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        readOnly: widget.readOnly,
         cursorColor: colors.accent,
-        style: (controller.styles?.body ?? AppTypography.editorBody).copyWith(
+        style: (widget.controller.styles?.body ?? AppTypography.editorBody).copyWith(
           color: colors.textPrimary,
         ),
         inputFormatters: const [
           MarkdownTextInputFormatter(),
         ],
         onTap: _handleTap,
-        contextMenuBuilder: (context, editableTextState) {
-          final buttonItems = editableTextState.contextMenuButtonItems;
-          final isSelectionActive =
-              !editableTextState.textEditingValue.selection.isCollapsed;
-
-          if (isSelectionActive) {
-            // Prepend selection formatting buttons to the context menu
-            final formattingButtons = [
-              ContextMenuButtonItem(
-                label: 'Bold',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _applyFormat(MarkdownFormatter.toggleBold);
-                },
-              ),
-              ContextMenuButtonItem(
-                label: 'Italic',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _applyFormat(MarkdownFormatter.toggleItalic);
-                },
-              ),
-              ContextMenuButtonItem(
-                label: 'Strike',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _applyFormat(MarkdownFormatter.toggleStrikethrough);
-                },
-              ),
-              ContextMenuButtonItem(
-                label: 'Code',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _applyFormat(MarkdownFormatter.toggleInlineCode);
-                },
-              ),
-              ContextMenuButtonItem(
-                label: 'Link',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _promptLink(context);
-                },
-              ),
-              ContextMenuButtonItem(
-                label: 'Checklist',
-                onPressed: () {
-                  ContextMenuController.removeAny();
-                  _applyFormat(MarkdownFormatter.toggleChecklist);
-                },
-              ),
-            ];
-
-            return AdaptiveTextSelectionToolbar.buttonItems(
-              anchors: editableTextState.contextMenuAnchors,
-              buttonItems: [
-                ...formattingButtons,
-                ...buttonItems,
-              ],
-            );
-          }
-
-          return AdaptiveTextSelectionToolbar.buttonItems(
-            anchors: editableTextState.contextMenuAnchors,
-            buttonItems: buttonItems,
-          );
-        },
+        contextMenuBuilder: _buildContextMenu,
         decoration: InputDecoration(
-          hintText: hintText,
+          hintText: widget.hintText,
           hintStyle: AppTypography.editorBody.copyWith(
             color: colors.textTertiary.withValues(alpha: 0.4),
           ),
@@ -233,11 +273,304 @@ class MarkdownEditor extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
         ),
         maxLines: null,
-        keyboardType: keyboardType,
-        textCapitalization: textCapitalization,
-        onChanged: onChanged,
-        scrollPadding: scrollPadding,
+        keyboardType: widget.keyboardType,
+        textCapitalization: widget.textCapitalization,
+        onChanged: widget.onChanged,
+        scrollPadding: widget.scrollPadding,
       ),
+    );
+  }
+
+  Widget _buildSegmentedTableEditor(
+    BuildContext context,
+    AppColors colors,
+    List<MarkdownTable> tables,
+  ) {
+    final text = widget.controller.text;
+    final children = <Widget>[];
+
+    var currentOffset = 0;
+
+    for (var i = 0; i < tables.length; i++) {
+      final table = tables[i];
+
+      // 1. Text segment before this table
+      if (table.sourceStart > currentOffset) {
+        final textBefore = text.substring(currentOffset, table.sourceStart);
+        final segmentStart = currentOffset;
+        final segmentEnd = table.sourceStart;
+
+        children.add(
+          _TextSegmentField(
+            key: ValueKey('seg_${segmentStart}_$segmentEnd'),
+            initialText: textBefore,
+            styles: widget.controller.styles,
+            readOnly: widget.readOnly,
+            hintText: currentOffset == 0 ? widget.hintText : '',
+            searchQuery: widget.searchQuery,
+            onTap: _handleTap,
+            onChanged: (newSegText) {
+              final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
+              widget.controller.value = TextEditingValue(
+                text: newFullText,
+                selection: TextSelection.collapsed(offset: segmentStart + newSegText.length),
+              );
+              widget.onChanged?.call(newFullText);
+            },
+          ),
+        );
+      }
+
+      // 2. Table segment
+      final isActiveTable = _activeTable != null &&
+          _activeTable!.sourceStart == table.sourceStart;
+
+      if (isActiveTable && _activeTableController != null) {
+        children.add(
+          MarkdownTableEditor(
+            key: ValueKey('table_editor_${table.sourceStart}'),
+            controller: _activeTableController!,
+            styles: widget.controller.styles,
+            searchQuery: widget.searchQuery,
+            onClose: _deactivateTable,
+          ),
+        );
+      } else {
+        children.add(
+          MarkdownTableView(
+            key: ValueKey('table_view_${table.sourceStart}'),
+            table: table,
+            styles: widget.controller.styles,
+            readOnly: widget.readOnly,
+            searchQuery: widget.searchQuery,
+            onCellTap: (pos) => _activateTable(table, pos),
+          ),
+        );
+      }
+
+      currentOffset = table.sourceEnd;
+    }
+
+    // 3. Trailing text segment after last table
+    if (currentOffset < text.length) {
+      final trailingText = text.substring(currentOffset);
+      final segmentStart = currentOffset;
+      final segmentEnd = text.length;
+
+      children.add(
+        _TextSegmentField(
+          key: ValueKey('seg_${segmentStart}_$segmentEnd'),
+          initialText: trailingText,
+          styles: widget.controller.styles,
+          readOnly: widget.readOnly,
+          hintText: '',
+          searchQuery: widget.searchQuery,
+          onTap: _handleTap,
+          onChanged: (newSegText) {
+            final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
+            widget.controller.value = TextEditingValue(
+              text: newFullText,
+              selection: TextSelection.collapsed(offset: segmentStart + newSegText.length),
+            );
+            widget.onChanged?.call(newFullText);
+          },
+        ),
+      );
+    } else if (tables.isNotEmpty && currentOffset == text.length && !widget.readOnly) {
+      // Empty slot at bottom to continue writing after table
+      children.add(
+        _TextSegmentField(
+          key: const ValueKey('seg_bottom_empty'),
+          initialText: '',
+          styles: widget.controller.styles,
+          readOnly: widget.readOnly,
+          hintText: 'Continue writing...',
+          searchQuery: widget.searchQuery,
+          onChanged: (newSegText) {
+            final newFullText = '$text\n\n$newSegText';
+            widget.controller.value = TextEditingValue(
+              text: newFullText,
+              selection: TextSelection.collapsed(offset: newFullText.length),
+            );
+            widget.onChanged?.call(newFullText);
+          },
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
+    );
+  }
+
+  Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
+    final buttonItems = editableTextState.contextMenuButtonItems;
+    final isSelectionActive =
+        !editableTextState.textEditingValue.selection.isCollapsed;
+
+    if (isSelectionActive) {
+      final formattingButtons = [
+        ContextMenuButtonItem(
+          label: 'Bold',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleBold);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Italic',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleItalic);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Strike',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleStrikethrough);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Code',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleInlineCode);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Link',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _promptLink(context);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Checklist',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleChecklist);
+          },
+        ),
+      ];
+
+      return AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: editableTextState.contextMenuAnchors,
+        buttonItems: [
+          ...formattingButtons,
+          ...buttonItems,
+        ],
+      );
+    }
+
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+}
+
+/// A lightweight text segment editor for non-table regions surrounding Markdown tables.
+class _TextSegmentField extends StatefulWidget {
+  const _TextSegmentField({
+    super.key,
+    required this.initialText,
+    required this.styles,
+    required this.readOnly,
+    required this.hintText,
+    required this.onChanged,
+    this.searchQuery,
+    this.onTap,
+  });
+
+  final String initialText;
+  final dynamic styles;
+  final bool readOnly;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final String? searchQuery;
+  final VoidCallback? onTap;
+
+  @override
+  State<_TextSegmentField> createState() => _TextSegmentFieldState();
+}
+
+class _TextSegmentFieldState extends State<_TextSegmentField> {
+  late final MarkdownEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MarkdownEditingController(
+      text: widget.initialText,
+      styles: widget.styles,
+    );
+    _focusNode = FocusNode();
+    _controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(_TextSegmentField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialText != widget.initialText &&
+        widget.initialText != _controller.text) {
+      _controller.text = widget.initialText;
+    }
+    if (oldWidget.styles != widget.styles) {
+      _controller.styles = widget.styles;
+    }
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      _controller.searchQuery = widget.searchQuery;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (_controller.text != widget.initialText) {
+      widget.onChanged(_controller.text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      readOnly: widget.readOnly,
+      cursorColor: colors.accent,
+      style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
+        color: colors.textPrimary,
+      ),
+      inputFormatters: const [
+        MarkdownTextInputFormatter(),
+      ],
+      onTap: widget.onTap,
+      decoration: InputDecoration(
+        hintText: widget.hintText,
+        hintStyle: AppTypography.editorBody.copyWith(
+          color: colors.textTertiary.withValues(alpha: 0.4),
+        ),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        isDense: true,
+        contentPadding: EdgeInsets.zero,
+      ),
+      maxLines: null,
+      keyboardType: TextInputType.multiline,
+      textCapitalization: TextCapitalization.sentences,
     );
   }
 }

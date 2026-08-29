@@ -11,6 +11,7 @@ class FormattingToolbar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onTagPressed,
+    this.onTablePressed,
     this.onImagePressed,
     this.onScanPressed,
     this.onPdfPressed,
@@ -24,6 +25,7 @@ class FormattingToolbar extends StatelessWidget {
 
   final TextEditingController controller;
   final VoidCallback onTagPressed;
+  final VoidCallback? onTablePressed;
   final VoidCallback? onImagePressed;
   final VoidCallback? onScanPressed;
   final VoidCallback? onPdfPressed;
@@ -179,6 +181,12 @@ class FormattingToolbar extends StatelessWidget {
             tooltip: 'Link ([title](url))',
             onPressed: () => _handleLink(context),
           ),
+          if (onTablePressed != null)
+            _ToolbarButton(
+              icon: Icons.table_chart_outlined,
+              tooltip: 'Insert table',
+              onPressed: onTablePressed!,
+            ),
           if (onImagePressed != null)
             _ToolbarButton(
               icon: Icons.image_outlined,

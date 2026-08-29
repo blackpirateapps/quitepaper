@@ -2812,4 +2812,73 @@ Previously, dragging or overscrolling downward in the notes list triggered Flutt
 - **Tests**:
   - `test/features/notes/gestures_test.dart` (comprehensive tests for pull-down past threshold, spring-back below threshold, tablet split-view search, AppBar search tap, and zero `RefreshIndicator` verification).
 
+---
+
+## 48. Hybrid Markdown Table Editor Subsystem (`table.md`)
+
+Quiet Paper includes a production-ready **Hybrid Markdown Table Editor** following the complete specification of `table.md`. The editor provides a spreadsheet-like visual editing experience (cells, rows, columns, alignment, Tab/Shift+Tab navigation, Enter behavior, +Row/+Col, delete, inline formatting, copy/paste, undo/redo) while preserving the non-negotiable architectural invariant: **Markdown remains the single canonical source of truth** (zero database migrations, zero JSON/Delta AST stores).
+
+### 1. Invariants & Security Architecture
+- **Markdown As Canonical Truth**: Notes with tables are stored strictly as clean GitHub-Flavored Markdown tables (`| Header 1 | Header 2 |\n| --- | --- |\n| A | B |`). No proprietary JSON structures or intermediate ASTs are persisted.
+- **Zero-Knowledge Compatibility**: Because tables are pure Markdown strings, end-to-end encryption (`XChaCha20-Poly1305`), local SQLite storage (`Drift`), `.qpbackup` exports, and cloud sync require zero schema modifications.
+- **Single Active Table Principle**: At any moment, at most ONE table is actively being edited with `MarkdownTableEditor`. All other tables in the document render as lightweight, high-performance visual projections (`MarkdownTableView`) with zero controller overhead.
+- **Large Document Scalability**: Notes exceeding 60,000 characters automatically bypass multi-segment overhead, maintaining smooth 60fps typing while supporting interactive table activation upon tap.
+
+### 2. Domain Models (`lib/features/editor/domain/`)
+- `MarkdownTableAlignment`: Enum representing column alignment (`none`, `left`, `center`, `right`) with Flutter `textAlign`, `alignment`, and `toDelimiterString()`.
+- `TablePosition`: Immutable 2D grid position `(row, column)` where row 0 is header and rows 1..N are body rows.
+- `MarkdownTableCell`: Immutable model holding `rowIndex`, `columnIndex`, `rawText`, `trimmedText`, `sourceStart`, `sourceEnd`, `contentStart`, `contentEnd`.
+- `MarkdownTableRow`: Holds `rowIndex`, `isHeader`, `isDelimiter`, `cells`, `sourceStart`, `sourceEnd`, `rawLine`.
+- `MarkdownTable`: Holds `sourceStart`, `sourceEnd`, `headerRow`, `delimiterRow`, `bodyRows`, `alignments`, `columnCount`, `rowCount`, and spatial query methods (`getCell`, `getAlignment`, `findPositionAtSourceOffset`, `containsOffset`).
+
+### 3. Application & Parser Subsystem (`lib/features/editor/application/`)
+- **`MarkdownTableParser`**:
+  - Deterministically scans Markdown text line-by-line while skipping code fences (`` ``` `` / `~~~`).
+  - Correctly ignores escaped pipes (`\|`) and pipes within inline code (`` `a|b` `` and ```` ``a|b`` ````).
+  - Handles leading/trailing pipe variations as well as tables without outer pipes (`A | B\n---|---\nC | D`).
+  - Maps 1:1 character source offsets for every cell and table boundary.
+- **`MarkdownTableFormatter`**:
+  - Pure functional transformations returning updated `TextEditingValue`:
+    - `insertTable({required TextEditingValue value, int rows = 3, int columns = 3})`
+    - `updateCell({required TextEditingValue value, required MarkdownTable table, required int row, required int column, required String newCellText})`
+    - `addRow({required TextEditingValue value, required MarkdownTable table, required int afterRowIndex})`
+    - `deleteRow({required TextEditingValue value, required MarkdownTable table, required int rowIndex})`
+    - `addColumn({required TextEditingValue value, required MarkdownTable table, required int afterColumnIndex})`
+    - `deleteColumn({required TextEditingValue value, required MarkdownTable table, required int columnIndex})`
+    - `setColumnAlignment({required TextEditingValue value, required MarkdownTable table, required int columnIndex, required MarkdownTableAlignment alignment})`
+    - `deleteTable({required TextEditingValue value, required MarkdownTable table})`
+    - `escapeCellContent(String text)`
+- **`MarkdownTableController`**:
+  - Manages active table state, active cell focus, cell `MarkdownEditingController`, and navigation.
+  - Exposes `moveToNextCell({bool createRowIfLast = true})`, `moveToPreviousCell()`, `moveToCellAbove()`, `moveToCellBelow()`, `addRowBelow()`, `addRowAbove()`, `addColumnRight()`, `addColumnLeft()`, `setColumnAlignment()`, `deleteCurrentRow()`, `deleteCurrentColumn()`, `deleteTable()`.
+
+### 4. Presentation & UI Components (`lib/features/editor/presentation/widgets/table/`)
+- **`MarkdownTableView`**:
+  - Lightweight visual representation for inactive tables and read-only mode.
+  - Renders styled Markdown inlines inside cells using `MarkdownParser.buildTextSpan`.
+  - Column width management (`140dp` default) with horizontal scrolling.
+  - Tapping any cell triggers `onCellTap(TablePosition)` to activate hybrid editing.
+- **`MarkdownTableEditor`**:
+  - Spreadsheet editing surface with subtle `1.5px` accent border around active cell and translucent accent tint.
+  - Inline `TextField` with `MarkdownTextInputFormatter` and context menu.
+  - Hardware keyboard bindings: `Tab` (advance cell / create row), `Shift+Tab` (previous cell), `Enter` (next row in column), `Escape` (exit table mode).
+  - Formatting shortcuts: `Ctrl+B`/`Cmd+B` (bold), `Ctrl+I`/`Cmd+I` (italic), `Ctrl+Shift+X`/`Cmd+Shift+X` (strike), `Ctrl+\`` (code), `Ctrl+K` (link).
+- **`MarkdownTableToolbar`**:
+  - Floating/contextual header toolbar with `+Row`, `+Col`, column alignment toggle (`Left`/`Center`/`Right`), `⋯` More, and `✓` Done buttons.
+- **`MarkdownTableActionSheet`**:
+  - Mobile bottom sheet with full operations (Add row above/below, Add col left/right, Alignment chips, Delete row, Delete col, Delete table).
+- **`TableInsertDialog`**:
+  - Modal dialog with steppers for configuring and inserting $N \times M$ tables.
+
+### 5. Editor & Screen Integration
+- **`FormattingToolbar`**: Table button (`Icons.table_chart_outlined`, tooltip: `'Insert table'`) opens `TableInsertDialog` and inserts table at caret.
+- **`MarkdownEditor`**: Automatically segments notes containing tables, rendering `MarkdownTableView` for inactive tables and `MarkdownTableEditor` for the single active table.
+- **`EditorScreen`**: Overflow menu includes "Insert table", and `UndoRedoManager` captures atomic snapshots for every table mutation.
+
+### 6. Test Suite
+- `test/editor/markdown_table_parser_test.dart` (GFM tables, outer pipes, escaped pipes, code fences, empty cells, incomplete typing tolerance, source offset mappings).
+- `test/editor/markdown_table_formatter_test.dart` (pure functional transformations: `insertTable`, `updateCell`, `addRow`, `deleteRow`, `addColumn`, `deleteColumn`, `setColumnAlignment`, `deleteTable`).
+- `test/editor/markdown_table_widget_test.dart` (widget & interaction tests for `MarkdownTableView`, `MarkdownTableEditor`, `TableInsertDialog`, and hybrid `MarkdownEditor` document integration).
+
+
 

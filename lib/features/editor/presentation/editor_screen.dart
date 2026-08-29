@@ -24,6 +24,7 @@ import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
+import '../application/markdown_table_formatter.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -31,6 +32,7 @@ import 'widgets/formatting_toolbar.dart';
 import 'widgets/in_note_search_bar.dart';
 import 'widgets/markdown_editor.dart';
 import 'widgets/password_unlock_view.dart';
+import 'widgets/table/table_insert_dialog.dart';
 import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
@@ -975,6 +977,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     readOnly: editorState.isReadOnly,
+                                    searchQuery: _isSearchVisible
+                                        ? _searchQueryController.text
+                                        : null,
                                   ),
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
@@ -1022,6 +1027,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       _contentFocusNode.requestFocus();
                     }
                   },
+                  onTablePressed: _handleInsertTable,
                   onImagePressed: _handleInsertImage,
                   onScanPressed: _handleScanDocument,
                   onPdfPressed: _handleAttachPdf,
@@ -1046,6 +1052,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       });
       _contentController.text = newText;
       _undoRedoManager.pushAtomicEdit(_contentController.value);
+    }
+  }
+
+  Future<void> _handleInsertTable() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+
+    final result = await TableInsertDialog.show(context);
+    if (result != null) {
+      final updated = MarkdownTableFormatter.insertTable(
+        value: _contentController.value,
+        rows: result.rows,
+        columns: result.columns,
+      );
+      _contentController.value = updated;
+      _undoRedoManager.pushAtomicEdit(updated);
+      _onContentChanged();
+
+      if (!_contentFocusNode.hasFocus) {
+        _contentFocusNode.requestFocus();
+      }
     }
   }
 
@@ -1330,6 +1357,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       onTap: () {
                         Navigator.of(ctx).pop();
                         _handleScanDocument();
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.table_chart_outlined,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Insert table',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _handleInsertTable();
                       },
                     ),
                   ],
