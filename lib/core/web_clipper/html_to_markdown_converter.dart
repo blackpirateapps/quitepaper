@@ -16,6 +16,27 @@ class HtmlToMarkdownConverter {
     int? snapshotSizeBytes,
     String? leadImageMarkdown,
   }) {
+    final bodyMarkdown = _convertNode(cleanedElement).trim();
+    return convertWithBody(
+      bodyMarkdown: bodyMarkdown,
+      metadata: metadata,
+      tags: tags,
+      snapshotDocumentId: snapshotDocumentId,
+      snapshotSizeBytes: snapshotSizeBytes,
+      leadImageMarkdown: leadImageMarkdown,
+    );
+  }
+
+  /// Converts the [metadata] and raw [bodyMarkdown] into full markdown with YAML frontmatter,
+  /// hero image header, and structured typography.
+  String convertWithBody({
+    required String bodyMarkdown,
+    required ExtractedArticleMetadata metadata,
+    List<String> tags = const <String>[],
+    String? snapshotDocumentId,
+    int? snapshotSizeBytes,
+    String? leadImageMarkdown,
+  }) {
     final buffer = StringBuffer();
 
     // 1. YAML Frontmatter
@@ -63,9 +84,8 @@ class HtmlToMarkdownConverter {
       buffer.writeln();
     }
 
-    // 4. Convert DOM Children to Markdown
-    final bodyMarkdown = _convertNode(cleanedElement).trim();
-    buffer.write(bodyMarkdown);
+    // 4. Body Markdown
+    buffer.write(bodyMarkdown.trim());
     buffer.writeln();
 
     return buffer.toString();

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'package:quitepaper/core/web_clipper/web_clipper_models.dart';
 import 'package:quitepaper/core/web_clipper/web_clipper_scanner.dart';
 import 'package:quitepaper/core/web_clipper/web_clipper_service.dart';
 import 'package:quitepaper/core/web_clipper/web_image_downloader.dart';
+import 'package:quitepaper/core/web_clipper/web_snapshot_generator.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 
@@ -329,6 +331,103 @@ void main() {
       // Count occurrences of qp://asset/ in content
       final matches = RegExp(r'qp:\/\/asset\/[a-zA-Z0-9_\-]+').allMatches(content);
       expect(matches.length, 1, reason: 'Hero image must appear exactly once without duplicate in body');
+    });
+
+    test('clips article scanned via Reader Fallback with image downloads and offline snapshot', () async {
+      final repository = InMemoryNotesRepository();
+      final fakeAttachmentService = FakeAttachmentService();
+      final fakeDocumentService = FakeDocumentService();
+
+      final mockClient = MockClient((request) async {
+        final url = request.url.toString();
+
+        if (request.method == 'HEAD') {
+          return http.Response('', 200, headers: {'content-length': '250000'});
+        }
+
+        if (url.endsWith('.jpg') || url.endsWith('.png')) {
+          return http.Response.bytes(
+            Uint8List.fromList([255, 216, 255, 0, 1, 2]),
+            200,
+            headers: {'content-type': 'image/jpeg'},
+          );
+        }
+
+        // Direct request returns 403 Forbidden
+        if (url.contains('gatesnotes.com') && !url.contains('r.jina.ai')) {
+          return http.Response('Access Denied', 403);
+        }
+
+        // Reader Fallback endpoint
+        if (url.contains('r.jina.ai')) {
+          final jsonPayload = json.encode({
+            'data': {
+              'title': 'The choices we make about AI now are critical | Bill Gates',
+              'description': 'AI will either be the greatest equalizer ever invented, or the worst source of injustice.',
+              'url': 'https://www.gatesnotes.com/ai-article',
+              'content': '''## The turbulent AI era is here.
+
+AI will either be the greatest equalizer ever invented, or the worst source of injustice.
+
+![AI Brain Concept](https://images.gatesnotes.com/brain.jpg)
+
+We need a plan to ensure that the good outweighs the bad.''',
+              'metadata': {
+                'author': 'Bill Gates',
+                'og:image': 'https://images.gatesnotes.com/lead_hero.jpg',
+                'og:site_name': 'gatesnotes.com',
+                'article:published_time': '2026-08-26T12:00:00Z',
+              },
+            },
+          });
+          return http.Response(jsonPayload, 200, headers: {'content-type': 'application/json'});
+        }
+
+        return http.Response('Not Found', 404);
+      });
+
+      final scanner = WebClipperScanner(httpClient: mockClient);
+      final imageDownloader = WebImageDownloader(
+        attachmentService: fakeAttachmentService,
+        httpClient: mockClient,
+      );
+      final snapshotGenerator = WebSnapshotGenerator(httpClient: mockClient);
+
+      final service = WebClipperService(
+        notesRepository: repository,
+        attachmentService: fakeAttachmentService,
+        documentService: fakeDocumentService,
+        scanner: scanner,
+        imageDownloader: imageDownloader,
+        snapshotGenerator: snapshotGenerator,
+      );
+
+      final scanResult = await service.scanUrl('https://www.gatesnotes.com/ai-article');
+      expect(scanResult.metadata.title, 'The choices we make about AI now are critical');
+      expect(scanResult.metadata.author, 'Bill Gates');
+      expect(scanResult.metadata.domain, 'gatesnotes.com');
+
+      final clipResult = await service.clipArticle(
+        scanResult: scanResult,
+        options: const WebClipperOptions(
+          saveHtmlSnapshot: true,
+          downloadImages: true,
+          tags: ['technology', 'ai'],
+        ),
+      );
+
+      final note = clipResult.note;
+      expect(note.title, 'The choices we make about AI now are critical');
+      expect(note.tags, contains('clipped'));
+      expect(note.tags, contains('gatesnotes.com'));
+      expect(note.tags, contains('technology'));
+      expect(note.tags, contains('ai'));
+      expect(note.content, contains('title: "The choices we make about AI now are critical"'));
+      expect(note.content, contains('author: "Bill Gates"'));
+      expect(note.content, contains('The turbulent AI era is here'));
+      expect(note.content, contains('qp://asset/'));
+      expect(clipResult.snapshotDocument, isNotNull);
+      expect(fakeDocumentService.createdSnapshots.length, 1);
     });
   });
 }

@@ -2880,5 +2880,39 @@ Quiet Paper includes a production-ready **Hybrid Markdown Table Editor** followi
 - `test/editor/markdown_table_formatter_test.dart` (pure functional transformations: `insertTable`, `updateCell`, `addRow`, `deleteRow`, `addColumn`, `deleteColumn`, `setColumnAlignment`, `deleteTable`).
 - `test/editor/markdown_table_widget_test.dart` (widget & interaction tests for `MarkdownTableView`, `MarkdownTableEditor`, `TableInsertDialog`, and hybrid `MarkdownEditor` document integration).
 
+---
+
+## 72. Web Clipper: Multi-Tier Resilient Scraping Pipeline & 403 Forbidden Reader Fallback
+
+### Problem & Symptoms
+- Clipping articles from websites protected by Content Delivery Networks / Web Application Firewalls (such as Akamai Bot Manager, Cloudflare Turnstile / Bot Management, Incapsula, Datadome), including `https://www.gatesnotes.com/work/make-ai-work-for-everyone/reader/a-turbulent-ai-era-and-critical-choices-to-make?WT.mc_id=20260826_ai-overture-2026-med-med`, failed immediately with `HTTP 403: Failed to fetch webpage`.
+- Additionally, Single Page Applications (Next.js, React, Vue) return client-side rendered HTML skeletons (e.g. `<div id="__next"></div>`) where initial text content is empty or negligible without JavaScript execution.
+- `WebClipperScanner` previously lacked fallback mechanisms and immediately halted upon any HTTP status code outside 200–299.
+
+### Root Cause Analysis & Architectural Solutions
+1. **Modern Browser Navigation Headers (Tier 1)**:
+   - In [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): Removed custom non-standard User-Agent tokens (`QuietPaper/1.5`) that triggered bot filters.
+   - Configured realistic modern browser headers (`User-Agent`, `Accept`, `Accept-Language`, `Sec-Fetch-Dest`, `Sec-Fetch-Mode`, `Sec-Fetch-Site`, `Sec-Fetch-User`, `Upgrade-Insecure-Requests: 1`).
+   - If direct HTTP fetch returns HTTP 200 and substantial extracted content ($\ge 10$ text characters), the scanner proceeds immediately via direct extraction.
+2. **Automatic High-Performance Reader Fallback Engine (Tier 2)**:
+   - In [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): When direct requests encounter WAF blocks (HTTP 403, 401, 429, 500, 502, 503, 504), network/handshake exceptions, or empty JS SPA shells, the scanner automatically falls back to the Reader Engine (`https://r.jina.ai/<targetUrl>`) with `Accept: application/json` and `X-Return-Format: markdown`.
+   - Reader proxy executes a serverless headless browser session, bypasses Akamai/Cloudflare challenges, runs Next.js/React hydration, and returns structured JSON containing clean Markdown, article title, summary, author byline, OpenGraph images, and publish dates.
+3. **Markdown & DOM Image Candidate Discovery**:
+   - In [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): Discovers all inline Markdown images (`![alt](url)`) and OpenGraph lead images into `ClippedImageCandidate` objects, probing each candidate for size estimates via HEAD requests.
+   - Cleans redundant Markdown title headers and extracts author bylines from title suffixes (`"Title | Author"`).
+4. **Synthetic DOM Compilation & Snapshot Generation**:
+   - Compiles a clean semantic HTML container from the markdown body and metadata to populate `cleanedArticleHtml` and `rawHtml`.
+   - In [`HtmlToMarkdownConverter`](file:///home/dog/git/quitepaper/lib/core/web_clipper/html_to_markdown_converter.dart): Added `convertWithBody` enabling seamless compilation with YAML frontmatter, hero images, and snapshot reference banners.
+   - Preserves offline HTML snapshot generation in [`WebSnapshotGenerator`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_snapshot_generator.dart) and local asset rewriting (`qp://asset/<UUID>`) in [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart).
+5. **Clear, Explanatory Error Messaging (Tier 3)**:
+   - Formats user-friendly explanations when sites are strictly behind authentication paywalls or when both direct fetch and reader fallback fail.
+
+### Automated Verification
+- Added comprehensive unit tests in [`test/web_clipper/web_clipper_scanner_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_scanner_test.dart) testing direct 200 OK, Akamai 403 fallback (Gates Notes mock), rate-limiting 429 fallback, empty JS SPA fallback, and descriptive error handling.
+- Added end-to-end service test in [`test/web_clipper/web_clipper_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_service_test.dart) verifying clipping, image downloading, snapshot generation, and note creation via Reader Fallback.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all 658 tests passing**).
+
+
 
 
