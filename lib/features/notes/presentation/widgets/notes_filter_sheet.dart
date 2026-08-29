@@ -189,9 +189,13 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
     final activeCount = _draftFilter.activeFilterCount;
     final isTrash = query.context == NotesContext.trash;
 
-    return Center(
+    return Align(
+      alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 580),
+        constraints: BoxConstraints(
+          maxWidth: 580,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,

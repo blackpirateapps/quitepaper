@@ -28,9 +28,13 @@ class SavedFiltersSheet extends ConsumerWidget {
     final colors = context.appColors;
     final savedFilters = ref.watch(savedFiltersProvider);
 
-    return Center(
+    return Align(
+      alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
+        constraints: BoxConstraints(
+          maxWidth: 540,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,

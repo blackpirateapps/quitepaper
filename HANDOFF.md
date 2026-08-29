@@ -2917,10 +2917,35 @@ Quiet Paper includes a production-ready **Hybrid Markdown Table Editor** followi
 
 ### Automated Verification
 - Added comprehensive unit tests in [`test/web_clipper/web_clipper_scanner_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_scanner_test.dart) testing direct 200 OK, Akamai 403 fallback (Gates Notes mock), rate-limiting 429 fallback, empty JS SPA fallback, and descriptive error handling.
-- Added end-to-end service test in [`test/web_clipper/web_clipper_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clipper_service_test.dart) verifying clipping, image downloading, snapshot generation, and note creation via Reader Fallback.
+---
+
+## 73. Modal Bottom Sheet Positioning & Bottom Anchoring Fix
+
+### Problem & Symptoms
+- When opening **Sort Notes** (`NotesSortSheet`), **Export Note** (`ExportNoteSheet`), or **Saved Smart Views** (`SavedFiltersSheet`), the sheet appeared floating directly in the vertical center of the device screen like a modal dialog box, leaving large transparent empty spaces above and below.
+- Furthermore, on large tablet/desktop viewports, **Filters** (`NotesFilterSheet`) also centered vertically when content did not fill the full vertical screen height.
+
+### Root Cause Analysis
+- `NotesSortSheet.show()`, `ExportNoteSheet.show()`, `SavedFiltersSheet.show()`, and `NotesFilterSheet.show()` invoke `showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent)`.
+- Inside the respective widget `build()` methods, the root widget returned was `Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: ...), child: Container(...)))`.
+- Because `isScrollControlled: true` provides vertical constraints with `maxHeight: screenHeight`, `Center` expanded to fill the entire available vertical screen space.
+- Because `NotesSortSheet` (~250–300dp) and default `ExportNoteSheet` (~400dp) have compact intrinsic content heights, `Center` centered the container in the vertical middle of the screen.
+
+### Architectural Solution
+1. **`Align(alignment: Alignment.bottomCenter, ...)` Architecture**:
+   - Replaced `Center` with `Align(alignment: Alignment.bottomCenter, child: ConstrainedBox(...))` across all 4 sheets:
+     - [`NotesSortSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/notes_sort_sheet.dart): `maxWidth: 540`, `maxHeight: MediaQuery.of(context).size.height * 0.85`.
+     - [`ExportNoteSheet`](file:///home/dog/git/quitepaper/lib/features/export/presentation/export_note_sheet.dart): `maxWidth: 580`, `maxHeight: MediaQuery.of(context).size.height * 0.90`.
+     - [`SavedFiltersSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/saved_filters_sheet.dart): `maxWidth: 540`, `maxHeight: MediaQuery.of(context).size.height * 0.85`.
+     - [`NotesFilterSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/notes_filter_sheet.dart): `maxWidth: 580`, `maxHeight: MediaQuery.of(context).size.height * 0.90`.
+2. **Responsive Positioning across Form Factors**:
+   - **Phones**: The sheets take 100% width, slide in from the bottom, and remain firmly anchored to the bottom edge with top-only corner radii (`BorderRadius.vertical(top: AppRadii.rLg)`).
+   - **Tablets / Desktops**: The sheets are horizontally centered within their `maxWidth` boundary (540dp / 580dp), slide up smoothly from the bottom, and rest on the bottom edge.
+3. **Defensive Scroll Bounds & Gesture Safety**:
+   - Added defensive `maxHeight` bounds (`0.85` or `0.90` of screen height) ensuring that when keyboard or expanded format options are active, content scrolls comfortably within `SingleChildScrollView` while respecting safe area insets.
+
+### Automated Verification
+- Added widget tests in [`test/notes/notes_filter_and_sort_ui_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart) asserting bottom-anchored alignment and tablet max-width constraints for `NotesSortSheet`.
+- Added widget tests in [`test/features/export/export_note_sheet_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_note_sheet_test.dart) asserting bottom-anchored alignment on phone and tablet viewports for `ExportNoteSheet`.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
-- Test suite: `flutter test` (**all 658 tests passing**).
-
-
-
-
+- Test suite: `flutter test` (**all 662 tests passing**).

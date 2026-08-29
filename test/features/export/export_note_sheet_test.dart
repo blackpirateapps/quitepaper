@@ -329,5 +329,34 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('anchors to the bottom of the screen on both phone and tablet viewports', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final note = Note(
+        id: 'test-bottom-anchor',
+        title: 'Bottom Anchor Test',
+        content: 'Content.',
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 1, 1),
+      );
+
+      await tester.pumpWidget(createWidgetUnderTest(note));
+      await tester.pumpAndSettle();
+
+      final sheetContainer = find.descendant(
+        of: find.byType(ExportNoteSheet),
+        matching: find.byType(Container),
+      ).first;
+
+      final rect = tester.getRect(sheetContainer);
+      expect(rect.bottom, equals(900));
+      expect(rect.width, lessThanOrEqualTo(580));
+    });
   });
 }

@@ -114,9 +114,50 @@ void main() {
       currentSort = container.read(notesQueryProvider).sort;
       expect(currentSort.pinnedFirst, false);
 
-      await finishTest(tester);
+        // Verify bottom alignment: sheet container rests on the bottom edge of the screen
+        final screenHeight = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+        final sheetContainer = find.descendant(
+          of: find.byType(NotesSortSheet),
+          matching: find.byType(Container),
+        ).first;
+        expect(tester.getRect(sheetContainer).bottom, equals(screenHeight));
+
+        await finishTest(tester);
+      });
+
+      testWidgets('anchors to the bottom and respects maxWidth on tablet viewport', (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          createTestWidget(
+            child: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => NotesSortSheet.show(context),
+                child: const Text('Open Sort'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Sort'));
+        await tester.pumpAndSettle();
+
+        final sheetContainer = find.descendant(
+          of: find.byType(NotesSortSheet),
+          matching: find.byType(Container),
+        ).first;
+        final rect = tester.getRect(sheetContainer);
+        expect(rect.bottom, equals(800));
+        expect(rect.width, lessThanOrEqualTo(540));
+
+        await finishTest(tester);
+      });
     });
-  });
 
   group('NotesFilterSheet Widget Tests', () {
     testWidgets('renders sections and allows toggling content filter and applying', (tester) async {

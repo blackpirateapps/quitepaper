@@ -184,9 +184,13 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
         ? widget.note.displayTitle
         : 'Untitled Note';
 
-    return Center(
+    return Align(
+      alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 580),
+        constraints: BoxConstraints(
+          maxWidth: 580,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: colors.background,
