@@ -130,6 +130,36 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           color: colors.textPrimary,
         ),
       ),
+      h4: FontFamilyHelper.getTextStyle(
+        fontFamily: headingFont,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading4Size,
+          fontWeight: FontWeight.w700,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
+      ),
+      h5: FontFamilyHelper.getTextStyle(
+        fontFamily: headingFont,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading5Size,
+          fontWeight: FontWeight.w700,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
+      ),
+      h6: FontFamilyHelper.getTextStyle(
+        fontFamily: headingFont,
+        baseStyle: TextStyle(
+          fontSize: typography.scaledHeading6Size,
+          fontWeight: FontWeight.w700,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
+      ),
       p: FontFamilyHelper.getTextStyle(
         fontFamily: bodyFont,
         baseStyle: TextStyle(
@@ -205,8 +235,26 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           decorationColor: colors.accent.withValues(alpha: 0.5),
         ),
       ),
-      tableHead: AppTypography.bodySmallMedium.copyWith(color: colors.textPrimary),
-      tableBody: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+      tableHead: FontFamilyHelper.getTextStyle(
+        fontFamily: headingFont,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize * 0.9,
+          fontWeight: FontWeight.w600,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
+      ),
+      tableBody: FontFamilyHelper.getTextStyle(
+        fontFamily: bodyFont,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize * 0.9,
+          fontWeight: FontWeight.w400,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textPrimary,
+        ),
+      ),
       tableBorder: TableBorder.all(color: colors.divider, width: 1),
       tableHeadAlign: TextAlign.left,
       tablePadding: const EdgeInsets.all(AppSpacing.sm),

@@ -28,6 +28,7 @@ class MarkdownEditor extends StatefulWidget {
     this.scrollPadding = const EdgeInsets.all(20.0),
     this.readOnly = false,
     this.searchQuery,
+    this.onActiveTargetChanged,
   });
 
   final MarkdownEditingController controller;
@@ -39,6 +40,7 @@ class MarkdownEditor extends StatefulWidget {
   final EdgeInsets scrollPadding;
   final bool readOnly;
   final String? searchQuery;
+  final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -101,7 +103,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _activeTableController?.dispose();
 
     _activeTable = table;
-    _activeTableController = MarkdownTableController(
+    final controller = MarkdownTableController(
       table: table,
       getDocumentValue: () => widget.controller.value,
       onUpdateDocument: (newVal) {
@@ -111,6 +113,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       initialPosition: position ?? const TablePosition(row: 0, column: 0),
       styles: widget.controller.styles,
     );
+    _activeTableController = controller;
+
+    widget.onActiveTargetChanged?.call(
+      controller.cellController,
+      controller.cellFocusNode,
+    );
 
     setState(() {});
   }
@@ -119,6 +127,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _activeTableController?.dispose();
     _activeTableController = null;
     _activeTable = null;
+    widget.onActiveTargetChanged?.call(
+      widget.controller,
+      widget.focusNode,
+    );
     if (mounted) {
       setState(() {});
     }
@@ -259,7 +271,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         inputFormatters: const [
           MarkdownTextInputFormatter(),
         ],
-        onTap: _handleTap,
+        onTap: () {
+          widget.onActiveTargetChanged?.call(widget.controller, widget.focusNode);
+          _handleTap();
+        },
         contextMenuBuilder: _buildContextMenu,
         decoration: InputDecoration(
           hintText: widget.hintText,
@@ -308,6 +323,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             readOnly: widget.readOnly,
             hintText: currentOffset == 0 ? widget.hintText : '',
             searchQuery: widget.searchQuery,
+            onActiveTarget: widget.onActiveTargetChanged,
             onTap: _handleTap,
             onChanged: (newSegText) {
               final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
@@ -365,6 +381,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: '',
           searchQuery: widget.searchQuery,
+          onActiveTarget: widget.onActiveTargetChanged,
           onTap: _handleTap,
           onChanged: (newSegText) {
             final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
@@ -386,6 +403,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: 'Continue writing...',
           searchQuery: widget.searchQuery,
+          onActiveTarget: widget.onActiveTargetChanged,
           onChanged: (newSegText) {
             final newFullText = '$text\n\n$newSegText';
             widget.controller.value = TextEditingValue(
@@ -483,6 +501,7 @@ class _TextSegmentField extends StatefulWidget {
     required this.onChanged,
     this.searchQuery,
     this.onTap,
+    this.onActiveTarget,
   });
 
   final String initialText;
@@ -492,6 +511,7 @@ class _TextSegmentField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final String? searchQuery;
   final VoidCallback? onTap;
+  final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTarget;
 
   @override
   State<_TextSegmentField> createState() => _TextSegmentFieldState();
@@ -509,7 +529,14 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       styles: widget.styles,
     );
     _focusNode = FocusNode();
+    _focusNode.addListener(_handleFocusChanged);
     _controller.addListener(_onTextChanged);
+  }
+
+  void _handleFocusChanged() {
+    if (_focusNode.hasFocus) {
+      widget.onActiveTarget?.call(_controller, _focusNode);
+    }
   }
 
   @override
@@ -529,6 +556,7 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChanged);
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _focusNode.dispose();
@@ -556,7 +584,10 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       inputFormatters: const [
         MarkdownTextInputFormatter(),
       ],
-      onTap: widget.onTap,
+      onTap: () {
+        widget.onActiveTarget?.call(_controller, _focusNode);
+        widget.onTap?.call();
+      },
       decoration: InputDecoration(
         hintText: widget.hintText,
         hintStyle: AppTypography.editorBody.copyWith(

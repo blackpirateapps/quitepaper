@@ -87,6 +87,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   bool _isTitleManuallySet = false;
   String _lastAutoDerivedTitle = '';
 
+  TextEditingController? _activeTargetController;
+  FocusNode? _activeTargetFocusNode;
+
   @override
   void initState() {
     super.initState();
@@ -104,6 +107,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentController = MarkdownEditingController(text: widget.note.content);
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
+    _activeTargetController = _contentController;
+    _activeTargetFocusNode = _contentFocusNode;
     _scrollController = ScrollController();
 
     _undoRedoManager = UndoRedoManager();
@@ -217,6 +222,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _onFocusChanged() {
+    if (_contentFocusNode.hasFocus) {
+      _activeTargetController = _contentController;
+      _activeTargetFocusNode = _contentFocusNode;
+    }
     if (!_titleFocusNode.hasFocus && !_contentFocusNode.hasFocus) {
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
     }
@@ -980,6 +989,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     searchQuery: _isSearchVisible
                                         ? _searchQueryController.text
                                         : null,
+                                    onActiveTargetChanged: (ctrl, fn) {
+                                      if (mounted) {
+                                        setState(() {
+                                          _activeTargetController = ctrl;
+                                          _activeTargetFocusNode = fn;
+                                        });
+                                      }
+                                    },
                                   ),
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
@@ -1004,15 +1021,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               // Floating/Docked formatting toolbar (only in active edit mode)
               if (!editorState.isPreviewMode && !editorState.isReadOnly)
                 FormattingToolbar(
-                  controller: _contentController,
-                  focusNode: _contentFocusNode,
+                  controller: _activeTargetController ?? _contentController,
+                  focusNode: _activeTargetFocusNode ?? _contentFocusNode,
                   canUndo: _undoRedoManager.canUndo,
                   canRedo: _undoRedoManager.canRedo,
                   onUndo: _undo,
                   onRedo: _redo,
-                  onApplyAtomicEdit: (val) => _undoRedoManager.pushAtomicEdit(val),
+                  onApplyAtomicEdit: (val) {
+                    if ((_activeTargetController ?? _contentController) != _contentController) {
+                      _undoRedoManager.pushAtomicEdit(_contentController.value);
+                    } else {
+                      _undoRedoManager.pushAtomicEdit(val);
+                    }
+                  },
                   onTagPressed: () {
-                    final val = _contentController.value;
+                    final ctrl = _activeTargetController ?? _contentController;
+                    final fn = _activeTargetFocusNode ?? _contentFocusNode;
+                    final val = ctrl.value;
                     final text = val.text;
                     final sel = val.selection;
                     final start = sel.isValid ? sel.start : text.length;
@@ -1021,10 +1046,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       text: newText,
                       selection: TextSelection.collapsed(offset: start + 1),
                     );
-                    _contentController.value = updated;
-                    _undoRedoManager.pushAtomicEdit(updated);
-                    if (!_contentFocusNode.hasFocus) {
-                      _contentFocusNode.requestFocus();
+                    ctrl.value = updated;
+                    if (ctrl != _contentController) {
+                      _undoRedoManager.pushAtomicEdit(_contentController.value);
+                    } else {
+                      _undoRedoManager.pushAtomicEdit(updated);
+                    }
+                    if (!fn.hasFocus) {
+                      fn.requestFocus();
                     }
                   },
                   onTablePressed: _handleInsertTable,

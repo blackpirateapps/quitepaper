@@ -2871,14 +2871,22 @@ Quiet Paper includes a production-ready **Hybrid Markdown Table Editor** followi
   - Modal dialog with steppers for configuring and inserting $N \times M$ tables.
 
 ### 5. Editor & Screen Integration
-- **`FormattingToolbar`**: Table button (`Icons.table_chart_outlined`, tooltip: `'Insert table'`) opens `TableInsertDialog` and inserts table at caret.
-- **`MarkdownEditor`**: Automatically segments notes containing tables, rendering `MarkdownTableView` for inactive tables and `MarkdownTableEditor` for the single active table.
-- **`EditorScreen`**: Overflow menu includes "Insert table", and `UndoRedoManager` captures atomic snapshots for every table mutation.
+- **`FormattingToolbar`**:
+  - Dynamically routes formatting actions (Bold, Italic, Strikethrough, Code, Link, Checklist, Quotes, Lists, Headings, Tags) to the active editing target (`_activeTargetController` & `_activeTargetFocusNode`) via `MarkdownEditor.onActiveTargetChanged`.
+  - When text is selected inside an active table cell, tapping toolbar formatting buttons modifies the cell controller directly, syncing the new formatted cell text atomically to the document and recording an undo/redo snapshot.
+  - Table button (`Icons.table_chart_outlined`, tooltip: `'Insert table'`) opens `TableInsertDialog` and inserts table at caret.
+- **`MarkdownEditor`**:
+  - Automatically segments notes containing tables, rendering `MarkdownTableView` for inactive tables and `MarkdownTableEditor` for the single active table.
+  - Exposes `onActiveTargetChanged` to coordinate active focus and controller targeting between document body, text segments, and table cells.
+- **`QuietMarkdownPreview`**:
+  - Markdown preview `MarkdownStyleSheet` wires `tableHead` and `tableBody` directly with `FontFamilyHelper.getTextStyle(fontFamily: headingFont / bodyFont, ...)`, ensuring tables rendered in preview mode fully respect custom fonts configured in Typography settings.
+- **`EditorScreen`**:
+  - Overflow menu includes "Insert table", and `UndoRedoManager` captures atomic snapshots for every table mutation.
 
 ### 6. Test Suite
 - `test/editor/markdown_table_parser_test.dart` (GFM tables, outer pipes, escaped pipes, code fences, empty cells, incomplete typing tolerance, source offset mappings).
 - `test/editor/markdown_table_formatter_test.dart` (pure functional transformations: `insertTable`, `updateCell`, `addRow`, `deleteRow`, `addColumn`, `deleteColumn`, `setColumnAlignment`, `deleteTable`).
-- `test/editor/markdown_table_widget_test.dart` (widget & interaction tests for `MarkdownTableView`, `MarkdownTableEditor`, `TableInsertDialog`, and hybrid `MarkdownEditor` document integration).
+- `test/editor/markdown_table_widget_test.dart` (widget & interaction tests for `MarkdownTableView`, `MarkdownTableEditor`, `TableInsertDialog`, hybrid `MarkdownEditor` document integration, `FormattingToolbar` cell text formatting, and preview mode custom font table rendering).
 
 ---
 

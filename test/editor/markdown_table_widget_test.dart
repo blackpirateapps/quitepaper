@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/core/markdown/markdown_preview.dart';
 import 'package:quitepaper/features/editor/application/markdown_editing_controller.dart';
 import 'package:quitepaper/features/editor/application/markdown_table_controller.dart';
 import 'package:quitepaper/features/editor/application/markdown_table_parser.dart';
 import 'package:quitepaper/features/editor/domain/markdown_styles.dart';
 import 'package:quitepaper/features/editor/domain/markdown_table_position.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_view.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/table_insert_dialog.dart';
+import 'package:quitepaper/features/settings/application/typography_provider.dart';
+import 'package:quitepaper/features/settings/domain/typography_settings.dart';
+
+class _MockTypographyNotifier extends TypographySettingsNotifier {
+  _MockTypographyNotifier(TypographySettings settings) : super(null) {
+    state = settings;
+  }
+}
 
 void main() {
   const parser = MarkdownTableParser();
@@ -219,6 +230,127 @@ Hello world!
 
       docController.dispose();
       focusNode.dispose();
+    });
+
+    testWidgets('formatting toolbar properly formats selected text inside active table cell', (tester) async {
+      final docController = MarkdownEditingController(
+        text: '''
+# Note
+
+| Col 1 | Col 2 |
+| --- | --- |
+| Fruit | Apple |
+''',
+        styles: MarkdownStyles.fromColors(AppColors.light),
+      );
+      final focusNode = FocusNode();
+
+      TextEditingController? activeCtrl = docController;
+      FocusNode? activeFn = focusNode;
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (ctx, setState) {
+            return wrapWithTheme(
+              Column(
+                children: [
+                  Expanded(
+                    child: MarkdownEditor(
+                      controller: docController,
+                      focusNode: focusNode,
+                      onActiveTargetChanged: (ctrl, fn) {
+                        setState(() {
+                          activeCtrl = ctrl;
+                          activeFn = fn;
+                        });
+                      },
+                    ),
+                  ),
+                  FormattingToolbar(
+                    controller: activeCtrl ?? docController,
+                    focusNode: activeFn ?? focusNode,
+                    onTagPressed: () {},
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on 'Apple' cell to activate table editor
+      await tester.tap(find.text('Apple', findRichText: true));
+      await tester.pumpAndSettle();
+
+      expect(activeCtrl, isNot(equals(docController)));
+      expect(activeCtrl!.text, 'Apple');
+
+      // Select 'Apple' in the cell
+      activeCtrl!.selection = const TextSelection(baseOffset: 0, extentOffset: 5);
+      await tester.pumpAndSettle();
+
+      // Tap 'B' (Bold) button in FormattingToolbar
+      await tester.tap(find.text('B'));
+      await tester.pumpAndSettle();
+
+      // Verify active cell and full document reflect bold formatting
+      expect(activeCtrl!.text, '**Apple**');
+      expect(docController.text.contains('| Fruit | **Apple** |'), isTrue);
+
+      // Now select 'Apple' inside the bold marker (2..7) and apply Strikethrough
+      activeCtrl!.selection = const TextSelection(baseOffset: 2, extentOffset: 7);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('S'));
+      await tester.pumpAndSettle();
+
+      expect(activeCtrl!.text, '**~~Apple~~**');
+      expect(docController.text.contains('| Fruit | **~~Apple~~** |'), isTrue);
+
+      docController.dispose();
+      focusNode.dispose();
+    });
+  });
+
+  group('MarkdownPreview - Table Custom Font Tests', () {
+    testWidgets('table in markdown preview respects typography custom fonts', (tester) async {
+      const markdown = '''
+| Header | Value |
+| --- | --- |
+| Key | Data |
+''';
+      final container = ProviderContainer(
+        overrides: [
+          typographySettingsProvider.overrideWith(
+            (ref) => _MockTypographyNotifier(
+              const TypographySettings(
+                headingFontFamily: 'Lora',
+                bodyFontFamily: 'Lora',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: wrapWithTheme(
+            const QuietMarkdownPreview(
+              markdownData: markdown,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Header', findRichText: true), findsOneWidget);
+      expect(find.text('Value', findRichText: true), findsOneWidget);
+      expect(find.text('Key', findRichText: true), findsOneWidget);
+      expect(find.text('Data', findRichText: true), findsOneWidget);
+
+      container.dispose();
     });
   });
 }
