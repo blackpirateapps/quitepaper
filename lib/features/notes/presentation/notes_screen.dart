@@ -27,6 +27,7 @@ import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
 import 'widgets/note_list_tile.dart';
+import 'widgets/notes_filter_button.dart';
 import 'widgets/notes_filter_sheet.dart';
 import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
@@ -84,6 +85,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 
+
   void _exitMultiSelect() {
     setState(() {
       _isMultiSelecting = false;
@@ -104,10 +106,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     });
   }
 
-  String _getDestinationTitle(AppDestination destination, String? selectedTag) {
-    if (selectedTag != null && selectedTag.isNotEmpty) {
-      return '#$selectedTag';
-    }
+  String _getDestinationTitle(AppDestination destination) {
     switch (destination) {
       case AppDestination.allNotes:
         return 'Notes';
@@ -143,7 +142,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
 
-    final title = _getDestinationTitle(destination, selectedTag);
+    final title = _getDestinationTitle(destination);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -179,36 +178,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   },
                 ),
               ),
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      style: AppTypography.title.copyWith(
-                        color: colors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (selectedTag != null && destination != AppDestination.tag) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    GestureDetector(
-                      onTap: () {
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).setTag(null);
-                      },
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 16,
-                        color: colors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ],
+              title: Text(
+                title,
+                style: AppTypography.title.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               actions: [
                 QuietIconButton(
@@ -216,54 +194,77 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   tooltip: 'Sort notes',
                   onPressed: () => NotesSortSheet.show(context),
                 ),
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    QuietIconButton(
-                      icon: Icons.filter_list_rounded,
-                      tooltip: 'Filter notes',
-                      onPressed: () => NotesFilterSheet.show(context),
-                    ),
-                    if (query.filter.hasAdvancedFilters)
-                      Positioned(
-                        top: 10,
-                        right: 10,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: colors.accent,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
+                NotesFilterButton(
+                  advancedFilterCount: query.filter.advancedFilterCount,
+                  onPressed: () => NotesFilterSheet.show(context),
                 ),
                 QuietIconButton(
                   icon: Icons.search_rounded,
                   tooltip: 'Search notes',
                   onPressed: () => _openSearchScreen(context),
                 ),
-                if (destination == AppDestination.trash) ...[
-                  QuietIconButton(
-                    icon: Icons.delete_sweep_outlined,
-                    tooltip: 'Empty trash',
-                    onPressed: () => _confirmEmptyTrash(context),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded, size: 20),
+                  tooltip: 'More options',
+                  color: colors.surface,
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadii.borderMd,
+                    side: BorderSide(color: colors.divider, width: 0.8),
                   ),
-                ],
-                QuietIconButton(
-                  icon: Icons.language_rounded,
-                  tooltip: 'Clip webpage',
-                  onPressed: () => WebClipDialog.show(context),
-                ),
-                QuietIconButton(
-                  icon: Icons.settings_outlined,
-                  tooltip: 'Settings',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                    );
+                  onSelected: (val) {
+                    if (val == 'clip') {
+                      WebClipDialog.show(context);
+                    } else if (val == 'settings') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                      );
+                    } else if (val == 'empty_trash') {
+                      _confirmEmptyTrash(context);
+                    }
                   },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'clip',
+                      child: Row(
+                        children: [
+                          Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            'Clip webpage',
+                            style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (destination == AppDestination.trash)
+                      PopupMenuItem(
+                        value: 'empty_trash',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'Empty trash',
+                              style: AppTypography.bodySmall.copyWith(color: colors.error),
+                            ),
+                          ],
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'settings',
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            'Settings',
+                            style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
@@ -544,7 +545,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
-    final title = _getDestinationTitle(destination, selectedTag);
+    final title = _getDestinationTitle(destination);
 
     // Watch active note if one is selected in tablet mode
     Note? activeNote;
@@ -619,105 +620,193 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
                             ),
-                            child: Row(
-                              children: [
-                                QuietIconButton(
-                                  icon: isNavSidebarVisible
-                                      ? Icons.menu_open_rounded
-                                      : Icons.view_sidebar_outlined,
-                                  tooltip: isNavSidebarVisible
-                                      ? 'Hide navigation'
-                                      : 'Show navigation',
-                                  onPressed: () {
-                                    ref
-                                        .read(isNavSidebarVisibleProvider.notifier)
-                                        .state = !isNavSidebarVisible;
-                                  },
-                                ),
-                                const SizedBox(width: 4.0),
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    style: AppTypography.title.copyWith(
-                                      color: colors.textPrimary,
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                ),
-                                QuietIconButton(
-                                  icon: Icons.swap_vert_rounded,
-                                  tooltip: 'Sort notes',
-                                  onPressed: () => NotesSortSheet.show(context),
-                                ),
-                                Stack(
-                                  alignment: Alignment.center,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final availableWidth = constraints.maxWidth;
+                                final isVeryNarrow = availableWidth < 300;
+
+                                return Row(
                                   children: [
                                     QuietIconButton(
-                                      icon: Icons.filter_list_rounded,
-                                      tooltip: 'Filter notes',
-                                      onPressed: () => NotesFilterSheet.show(context),
+                                      icon: isNavSidebarVisible
+                                          ? Icons.menu_open_rounded
+                                          : Icons.view_sidebar_outlined,
+                                      tooltip: isNavSidebarVisible
+                                          ? 'Hide navigation'
+                                          : 'Show navigation',
+                                      onPressed: () {
+                                        ref
+                                            .read(isNavSidebarVisibleProvider.notifier)
+                                            .state = !isNavSidebarVisible;
+                                      },
                                     ),
-                                    if (query.filter.hasAdvancedFilters)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          width: 7,
-                                          height: 7,
-                                          decoration: BoxDecoration(
-                                            color: colors.accent,
-                                            shape: BoxShape.circle,
+                                    const SizedBox(width: 4.0),
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        style: AppTypography.title.copyWith(
+                                          color: colors.textPrimary,
+                                          fontSize: 19,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    if (!isVeryNarrow) ...[
+                                      QuietIconButton(
+                                        icon: Icons.swap_vert_rounded,
+                                        tooltip: 'Sort notes',
+                                        onPressed: () => NotesSortSheet.show(context),
+                                      ),
+                                      NotesFilterButton(
+                                        advancedFilterCount: query.filter.advancedFilterCount,
+                                        onPressed: () => NotesFilterSheet.show(context),
+                                      ),
+                                      QuietIconButton(
+                                        icon: Icons.search_rounded,
+                                        tooltip: 'Search notes',
+                                        onPressed: () => _openSearchScreen(context),
+                                      ),
+                                    ],
+                                    QuietIconButton(
+                                      icon: Icons.add_rounded,
+                                      tooltip: 'New note',
+                                      isActive: true,
+                                      onPressed: () => _createAndOpenNoteTablet(),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                                      tooltip: 'More actions',
+                                      color: colors.surface,
+                                      elevation: 3,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: AppRadii.borderMd,
+                                        side: BorderSide(color: colors.divider, width: 0.8),
+                                      ),
+                                      onSelected: (val) {
+                                        if (val == 'sort') {
+                                          NotesSortSheet.show(context);
+                                        } else if (val == 'filter') {
+                                          NotesFilterSheet.show(context);
+                                        } else if (val == 'search') {
+                                          _openSearchScreen(context);
+                                        } else if (val == 'clip') {
+                                          WebClipDialog.show(context);
+                                        } else if (val == 'hide_list') {
+                                          ref
+                                              .read(isNoteListVisibleProvider.notifier)
+                                              .state = false;
+                                        } else if (val == 'empty_trash') {
+                                          _confirmEmptyTrash(context);
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        if (isVeryNarrow) ...[
+                                          PopupMenuItem(
+                                            value: 'sort',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.swap_vert_rounded, size: 18, color: colors.textSecondary),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(
+                                                  'Sort notes',
+                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'filter',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.filter_list_rounded, size: 18, color: colors.textSecondary),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(
+                                                  query.filter.advancedFilterCount > 0
+                                                      ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                                      : 'Filter notes',
+                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'search',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.search_rounded, size: 18, color: colors.textSecondary),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(
+                                                  'Search notes',
+                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                        PopupMenuItem(
+                                          value: 'clip',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                                              const SizedBox(width: AppSpacing.sm),
+                                              Text(
+                                                'Clip webpage',
+                                                style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ),
+                                        if (activeNote != null)
+                                          PopupMenuItem(
+                                            value: 'hide_list',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.fullscreen_rounded, size: 18, color: colors.textSecondary),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(
+                                                  'Hide note list',
+                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        if (destination == AppDestination.trash)
+                                          PopupMenuItem(
+                                            value: 'empty_trash',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(
+                                                  'Empty trash',
+                                                  style: AppTypography.bodySmall.copyWith(color: colors.error),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ],
-                                ),
-                                QuietIconButton(
-                                  icon: Icons.search_rounded,
-                                  tooltip: 'Search notes',
-                                  onPressed: () => _openSearchScreen(context),
-                                ),
-                                if (destination == AppDestination.trash) ...[
-                                  QuietIconButton(
-                                    icon: Icons.delete_sweep_outlined,
-                                    tooltip: 'Empty trash',
-                                    onPressed: () => _confirmEmptyTrash(context),
-                                  ),
-                                ],
-                                QuietIconButton(
-                                  icon: Icons.add_rounded,
-                                  tooltip: 'New note',
-                                  isActive: true,
-                                  onPressed: () => _createAndOpenNoteTablet(),
-                                ),
-                                if (activeNote != null)
-                                  QuietIconButton(
-                                    icon: Icons.fullscreen_rounded,
-                                    tooltip: 'Hide note list',
-                                    onPressed: () {
-                                      ref
-                                          .read(isNoteListVisibleProvider.notifier)
-                                          .state = false;
-                                    },
-                                  ),
-                              ],
+                                );
+                              },
                             ),
                           ),
                           if (destination == AppDestination.allNotes ||
                               destination == AppDestination.tag) ...[
                             const TagsFilterBar(),
                           ],
-                          const ActiveFilterChips(),
+                          const ActiveFilterChips(horizontalPadding: AppSpacing.md),
                           if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: 2.0,
+                              padding: const EdgeInsets.only(
+                                left: AppSpacing.md,
+                                right: AppSpacing.md,
+                                top: 2.0,
+                                bottom: 4.0,
                               ),
                               child: Text(
                                 '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
@@ -728,7 +817,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 ),
                               ),
                             ),
-                          Divider(color: colors.divider, height: 1),
                           Expanded(
                             child: NotificationListener<ScrollNotification>(
                               onNotification: (notification) {

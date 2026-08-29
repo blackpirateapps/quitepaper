@@ -12,7 +12,9 @@ import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/domain/notes_filter.dart';
 import 'package:quitepaper/features/notes/domain/notes_query.dart';
 import 'package:quitepaper/features/notes/domain/notes_sort.dart';
+import 'package:quitepaper/features/notes/presentation/notes_screen.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/active_filter_chips.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/notes_filter_button.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/notes_filter_sheet.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/notes_sort_sheet.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/saved_filters_sheet.dart';
@@ -33,6 +35,13 @@ void main() {
   tearDown(() async {
     await db.close();
   });
+
+  Future<void> finishTest(WidgetTester tester) async {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
+  }
 
   Widget createTestWidget({
     Widget? child,
@@ -82,6 +91,8 @@ void main() {
       final container = ProviderScope.containerOf(tester.element(find.byType(NotesSortSheet)));
       final currentSort = container.read(notesQueryProvider).sort;
       expect(currentSort.field, SortField.created);
+
+      await finishTest(tester);
     });
   });
 
@@ -112,16 +123,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('FILTERS'), findsOneWidget);
-      expect(find.text('Has Checklists'), findsOneWidget);
+      expect(find.text('TAGS'), findsOneWidget);
 
-      // Scroll to and toggle Has Code
-      await tester.ensureVisible(find.text('Has Code'));
+      // Scroll and Tap Has Code filter
+      await tester.scrollUntilVisible(
+        find.text('Has Code'),
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Has Code'));
       await tester.pumpAndSettle();
 
-      // Scroll to and tap Apply Filters
-      await tester.ensureVisible(find.text('Apply Filters'));
+      // Scroll and Tap Apply Filters
+      await tester.scrollUntilVisible(
+        find.text('Apply Filters'),
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Apply Filters'));
       await tester.pumpAndSettle();
@@ -129,11 +148,79 @@ void main() {
       final container = ProviderScope.containerOf(tester.element(find.text('Open Filter')));
       final currentFilter = container.read(notesQueryProvider).filter;
       expect(currentFilter.contentFilters.contains(ContentFilter.hasCode), true);
-      await tester.pump(const Duration(milliseconds: 100));
+      
+      await finishTest(tester);
+    });
+  });
+
+  group('NotesFilterButton Widget Tests', () {
+    testWidgets('displays clean icon when count is 0 and badge when count > 0', (tester) async {
+      var tapped = false;
+
+      // Zero active filters
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NotesFilterButton(
+              onPressed: () => tapped = true,
+              advancedFilterCount: 0,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.filter_list_rounded), findsOneWidget);
+      expect(find.text('0'), findsNothing);
+
+      // Tap button
+      await tester.tap(find.byType(NotesFilterButton));
+      expect(tapped, true);
+
+      // Two active filters
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NotesFilterButton(
+              onPressed: () {},
+              advancedFilterCount: 2,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('2'), findsOneWidget);
+      expect(find.byTooltip('Filter notes, 2 active filters'), findsOneWidget);
+
+      await finishTest(tester);
     });
   });
 
   group('ActiveFilterChips Widget Tests', () {
+    testWidgets('takes 0 space when only standard tag is selected (no duplication)', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: const Column(
+            children: [
+              ActiveFilterChips(),
+            ],
+          ),
+        ),
+      );
+
+      final element = tester.element(find.byType(ActiveFilterChips));
+      final container = ProviderScope.containerOf(element);
+
+      // Set only 1 tag filter (from tag bar)
+      container.read(notesQueryProvider.notifier).setTag('simplenote');
+      await tester.pumpAndSettle();
+
+      // Should not duplicate the tag or show Clear row
+      expect(find.text('#simplenote'), findsNothing);
+      expect(find.text('Clear'), findsNothing);
+
+      await finishTest(tester);
+    });
+
     testWidgets('renders active chips and removes individual filter on tap', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
@@ -160,13 +247,102 @@ void main() {
 
       expect(find.text('Untagged'), findsOneWidget);
       expect(find.text('Code'), findsOneWidget);
-      expect(find.text('Clear'), findsOneWidget);
+      expect(find.text('Clear'), findsNothing);
 
-      // Tap Clear to reset
-      await tester.tap(find.text('Clear'));
+      // Remove Code filter by tapping close icon
+      await tester.tap(find.bySemanticsLabel('Remove Code filter'));
       await tester.pumpAndSettle();
 
-      expect(container.read(notesQueryProvider).filter.isEmpty, true);
+      expect(container.read(notesQueryProvider).filter.contentFilters.contains(ContentFilter.hasCode), false);
+      expect(container.read(notesQueryProvider).filter.untaggedOnly, true);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('collapses to max 2 chips plus +N when many advanced filters active', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: const Column(
+            children: [
+              ActiveFilterChips(),
+            ],
+          ),
+        ),
+      );
+
+      final element = tester.element(find.byType(ActiveFilterChips));
+      final container = ProviderScope.containerOf(element);
+
+      // Set 4 advanced filters
+      container.read(notesQueryProvider.notifier).setFilters(
+            const NotesFilter(
+              untaggedOnly: true,
+              pinnedOnly: true,
+              contentFilters: {ContentFilter.hasCode, ContentFilter.hasChecklist},
+            ),
+          );
+
+      await tester.pumpAndSettle();
+
+      // Should render at most 2 chips + '+2'
+      expect(find.text('Untagged'), findsOneWidget);
+      expect(find.text('Pinned only'), findsOneWidget);
+      expect(find.text('+2'), findsOneWidget);
+      expect(find.byTooltip('2 additional filters active. Tap to view all filters.'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+  });
+
+  group('Responsive NotesScreen Header Tests', () {
+    testWidgets('header title remains Notes when a tag filter is active', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        createTestWidget(
+          child: const NotesScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(tester.element(find.byType(NotesScreen)));
+      container.read(selectedTagFilterProvider.notifier).state = 'simplenote';
+      container.read(notesQueryProvider.notifier).setTag('simplenote');
+      await tester.pumpAndSettle();
+
+      // Title must remain Notes, not #simplenote
+      expect(find.text('Notes'), findsOneWidget);
+      expect(find.byIcon(Icons.close_rounded), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tablet middle pane collapses gracefully on narrow constraints', (tester) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        createTestWidget(
+          child: const NotesScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notes'), findsWidgets);
+      expect(find.byType(NotesFilterButton), findsOneWidget);
+      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+
+      await finishTest(tester);
     });
   });
 
@@ -210,6 +386,8 @@ void main() {
       final currentQuery = container.read(notesQueryProvider);
       expect(currentQuery.filter.tags, const {'work'});
       expect(currentQuery.filter.pinnedOnly, true);
+
+      await finishTest(tester);
     });
   });
 }

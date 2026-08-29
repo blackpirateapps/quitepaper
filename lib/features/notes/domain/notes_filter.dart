@@ -371,6 +371,20 @@ class NotesFilter {
       attachmentFilters.isNotEmpty ||
       securityFilter != SecurityFilter.all;
 
+  /// Count of active advanced filter categories (excluding standard single tag-bar selection)
+  int get advancedFilterCount {
+    var count = 0;
+    if (tags.length > 1) count += (tags.length - 1);
+    if (untaggedOnly) count++;
+    if (pinnedOnly) count++;
+    if (createdRange != null) count++;
+    if (modifiedRange != null) count++;
+    count += contentFilters.length;
+    count += attachmentFilters.length;
+    if (securityFilter != SecurityFilter.all) count++;
+    return count;
+  }
+
   /// Count of active filter categories
   int get activeFilterCount {
     var count = 0;

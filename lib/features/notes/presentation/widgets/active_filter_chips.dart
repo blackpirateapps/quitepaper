@@ -8,9 +8,20 @@ import '../../application/notes_query_provider.dart';
 import '../../domain/notes_filter.dart';
 import 'notes_filter_sheet.dart';
 
-/// Renders compact removable chips for active query filters above the note list
+/// Renders a compact, contextual summary of active advanced query filters.
+///
+/// Invariants:
+/// - Takes 0 vertical space when no advanced filters are active.
+/// - Never duplicates the active tag from the tag bar.
+/// - Does not display a redundant standalone Clear button.
+/// - Collapses to at most 2 chips plus an accessible `+N` pill to avoid pushing note content down.
 class ActiveFilterChips extends ConsumerWidget {
-  const ActiveFilterChips({super.key});
+  const ActiveFilterChips({
+    super.key,
+    this.horizontalPadding = AppSpacing.lg,
+  });
+
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,20 +29,23 @@ class ActiveFilterChips extends ConsumerWidget {
     final query = ref.watch(notesQueryProvider);
     final filter = query.filter;
 
-    if (filter.isEmpty) {
+    if (!filter.hasAdvancedFilters) {
       return const SizedBox.shrink();
     }
 
     final chips = <_FilterChipData>[];
 
-    // Tags
-    for (final tag in filter.tags) {
-      chips.add(
-        _FilterChipData(
-          label: '#$tag',
-          onRemove: () => ref.read(notesQueryProvider.notifier).removeFilterTag(tag),
-        ),
-      );
+    // Extra tags beyond the primary selected tag (e.g., if multiple tags selected in Filter Sheet)
+    if (filter.tags.length > 1) {
+      final extraTags = filter.tags.skip(1);
+      for (final tag in extraTags) {
+        chips.add(
+          _FilterChipData(
+            label: '#$tag',
+            onRemove: () => ref.read(notesQueryProvider.notifier).removeFilterTag(tag),
+          ),
+        );
+      }
     }
 
     // Untagged
@@ -114,74 +128,60 @@ class ActiveFilterChips extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    // Display at most 4 individual chips, then +N
-    const maxVisibleChips = 4;
+    // Display at most 2 individual chips, then +N
+    const maxVisibleChips = 2;
     final visibleChips = chips.take(maxVisibleChips).toList();
     final overflowCount = chips.length - visibleChips.length;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: 6.0,
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: 2.0,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ...visibleChips.map((chip) => Padding(
-                        padding: const EdgeInsets.only(right: 6.0),
-                        child: _ActiveChipWidget(
-                          label: chip.label,
-                          onRemove: chip.onRemove,
-                        ),
-                      )),
-                  if (overflowCount > 0) ...[
-                    Material(
-                      color: colors.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadii.borderSm,
-                        side: BorderSide(color: colors.divider, width: 0.8),
-                      ),
-                      child: InkWell(
-                        onTap: () => NotesFilterSheet.show(context),
-                        borderRadius: AppRadii.borderSm,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Text(
-                            '+$overflowCount more',
-                            style: AppTypography.caption.copyWith(
-                              color: colors.accent,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11.5,
-                            ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...visibleChips.map((chip) => Padding(
+                  padding: const EdgeInsets.only(right: 6.0),
+                  child: _ActiveChipWidget(
+                    label: chip.label,
+                    onRemove: chip.onRemove,
+                  ),
+                )),
+            if (overflowCount > 0)
+              Semantics(
+                label: '$overflowCount additional filters active',
+                button: true,
+                child: Tooltip(
+                  message: '$overflowCount additional filters active. Tap to view all filters.',
+                  child: Material(
+                    color: colors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadii.borderSm,
+                      side: BorderSide(color: colors.divider, width: 0.8),
+                    ),
+                    child: InkWell(
+                      onTap: () => NotesFilterSheet.show(context),
+                      borderRadius: AppRadii.borderSm,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        child: Text(
+                          '+$overflowCount',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.accent,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11.5,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          GestureDetector(
-            onTap: () => ref.read(notesQueryProvider.notifier).clearAllFilters(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Text(
-                'Clear',
-                style: AppTypography.caption.copyWith(
-                  color: colors.textTertiary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11.5,
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -219,7 +219,7 @@ class _ActiveChipWidget extends StatelessWidget {
           width: 0.8,
         ),
       ),
-      padding: const EdgeInsets.only(left: 8, top: 3, bottom: 3, right: 4),
+      padding: const EdgeInsets.only(left: 7, top: 2.5, bottom: 2.5, right: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -232,12 +232,16 @@ class _ActiveChipWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 3),
-          GestureDetector(
-            onTap: onRemove,
-            child: Icon(
-              Icons.close_rounded,
-              size: 14,
-              color: colors.accentDark.withValues(alpha: 0.7),
+          Semantics(
+            label: 'Remove $label filter',
+            button: true,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Icon(
+                Icons.close_rounded,
+                size: 13,
+                color: colors.accentDark.withValues(alpha: 0.7),
+              ),
             ),
           ),
         ],

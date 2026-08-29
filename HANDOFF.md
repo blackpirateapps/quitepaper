@@ -2626,6 +2626,50 @@ Quiet Paper features a deterministic query and pagination engine designed to pro
   - `test/notes/notes_filter_and_sort_ui_test.dart`
   - `test/widget_test.dart`
 
+---
+
+## 25. Notes List Sort/Filter UI Decongestion & Responsive Redesign
+
+### Architectural & Design Principles
+The Notes list is for reading, browsing, and composing notes. The controls above the notes are tools, not primary content. To provide a spacious, calm, and Bear-inspired editorial experience across phone and split-view tablet layouts, the control layers have been restructured and decongested:
+
+1. **Title Invariant**:
+   - Header titles remain canonical: `Notes` (All Notes), `Pinned`, `Archive`, `Trash`, `Tags`.
+   - Selecting a tag in the horizontal tag bar highlights the tag chip and filters the list, but **never overwrites** the destination title to `#tag`.
+2. **Tag Filter Deduplication**:
+   - The selected tag from `TagsFilterBar` is already prominently highlighted and promoted to index 1.
+   - It is **never duplicated** as an active filter chip in `ActiveFilterChips`.
+3. **No Standalone Clear Row**:
+   - Removed persistent `Clear` text action row beneath the tag bar. Advanced filters are cleared or dismissed individually or through the filter modal.
+4. **Contextual Active Filter Summary (`ActiveFilterChips`)**:
+   - Displays only advanced filter predicates (date intervals, content types, attachments, security, extra tag intersections).
+   - Zero vertical height (`SizedBox.shrink()`) when no advanced filters are active.
+   - When 1–2 advanced filters are active: rendered as compact, editorial tonal chips with one-tap `×` removal.
+   - When 3+ advanced filters are active: displays at most 2 chips and collapses remaining into a `+N` pill with accessibility tooltips and tap-to-open `NotesFilterSheet`.
+5. **Subtle Filter Badge (`NotesFilterButton`)**:
+   - Clean, standard icon button when `advancedFilterCount == 0`.
+   - Displays a refined numeric pill badge containing the active count when `advancedFilterCount > 0`.
+   - Provides screen-reader semantics announcing active filter count.
+6. **Responsive Header Controls**:
+   - Wrapped the tablet middle pane header in `LayoutBuilder`.
+   - When middle pane width is constrained (< 300dp), primary actions (Navigation, Title, New Note) remain visible while secondary tools (Sort, Filter, Search, Web Clipper, Hide list, Empty trash) collapse into an overflow `PopupMenuButton` (`⋯`), preventing title truncation and icon collisions.
+   - Phone `AppBar` provides Sort, Filter (with badge), Search, and an overflow menu for Web Clipper, Settings, and Empty Trash.
+7. **Elevated Note Presentation**:
+   - Result count (`183 notes`) styled with muted, subtle typography attached directly to the top of the notes list.
+   - Removed artificial horizontal dividers above the list so notes begin higher in the viewport.
+
+### File Inventory
+- **Domain**:
+  - `lib/features/notes/domain/notes_filter.dart` (added `advancedFilterCount` getter).
+- **Presentation Widgets**:
+  - `lib/features/notes/presentation/widgets/notes_filter_button.dart` (reusable filter icon with numeric badge and accessibility semantics).
+  - `lib/features/notes/presentation/widgets/active_filter_chips.dart` (decongested, zero-height when empty, deduplicated, collapsed `+N`).
+  - `lib/features/notes/presentation/notes_screen.dart` (title invariant, responsive header collapse, streamlined result count).
+- **Tests**:
+  - `test/notes/notes_filter_and_sort_ui_test.dart` (comprehensive UI tests for header invariance, filter badge, tag deduplication, responsive middle pane).
+  - `test/widget_test.dart` (updated overflow menu navigation for settings).
+
+
 
 
 

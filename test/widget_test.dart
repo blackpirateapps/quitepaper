@@ -437,8 +437,10 @@ void main() {
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Tap Settings icon
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    // Tap more options -> Settings
+    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsOneWidget);
@@ -467,8 +469,10 @@ void main() {
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Tap Settings icon
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    // Tap more options -> Settings
+    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
