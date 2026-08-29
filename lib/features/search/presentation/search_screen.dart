@@ -517,3 +517,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 }
+
+/// Custom top-slide and fade transition route for opening SearchScreen seamlessly.
+class SearchPageRoute<T> extends PageRouteBuilder<T> {
+  SearchPageRoute({required WidgetBuilder builder, super.settings})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
+          transitionDuration: const Duration(milliseconds: 260),
+          reverseTransitionDuration: const Duration(milliseconds: 220),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, -0.06),
+                end: Offset.zero,
+              ).animate(curved),
+              child: FadeTransition(
+                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+                child: child,
+              ),
+            );
+          },
+        );
+}

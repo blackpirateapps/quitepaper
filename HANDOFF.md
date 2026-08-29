@@ -2775,3 +2775,41 @@ Vector Searchable & Selectable PDF
   - `test/features/export/pdf_export_render_verification_test.dart` (comprehensive verification test suite covering Section 54 representative fixture, Section 30 Unicode glyphs, Section 22 GFM tables, multi-page pagination, and export options).
   - `test/features/export/rich_documents_exporter_test.dart` (updated vector PDF exporter tests).
 
+---
+
+## 27. Bear Notes-Style Pull-Down Search Reveal Animation
+
+### Problem & Motivation
+Previously, dragging or overscrolling downward in the notes list triggered Flutter's Material `RefreshIndicator` circular spinner before abruptly pushing a full-screen `MaterialPageRoute` route to `SearchScreen`. This caused visual stutter and felt disjointed from Quiet Paper's editorial, distraction-free writing experience.
+
+### Architectural & UX Enhancements
+1. **Interactive Elastic Translation (`PullDownSearchReveal`)**:
+   - Implemented [`PullDownSearchReveal`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/pull_down_search_reveal.dart) wrapping the phone layout and tablet middle notes column.
+   - When pulling down at the top of the notes list (`scrollOffset <= 0`), the entire screen/pane (App Bar, Tags Filter bar, active filter chips, note count, and list) translates smoothly downward with an elastic rubber-band resistance curve:
+     $$\Delta y_{\text{visual}} = \Delta y_{\text{drag}} \times 0.55 \times (1.0 - 0.45 \cdot (\text{offset} / \text{maxOffset}))$$
+2. **Revealed Editorial Search Header**:
+   - Positioned at the top behind the sliding content.
+   - Styled as a calm, rounded container (`colors.surface`, `AppRadii.borderMd`, subtle border `colors.divider`) featuring the search glyph (`Icons.search_rounded`) and placeholder text.
+   - Opacity and subtle scale interpolation ($0.90 \to 1.0$) dynamically reflect the pull progress.
+3. **Threshold & Spring-Back Physics**:
+   - When pulling past the activation threshold ($70\text{dp}$), a subtle haptic feedback (`HapticFeedback.lightImpact()`) triggers and the header displays an active "Release" indicator.
+   - **On Release Above Threshold**: Navigates seamlessly to [`SearchScreen`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart) with auto-focused keyboard via [`SearchPageRoute`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart).
+   - **On Release Below Threshold**: An `AnimationController` smoothly springs the view back to rest position ($y = 0$) using `Curves.easeOutCubic` (260ms).
+4. **Complete Elimination of Refresh Indicator**:
+   - Removed all `RefreshIndicator` spinners from notes list views.
+   - Notes list uses `BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics())` on both phone and tablet for smooth physical overscroll.
+   - Background zero-knowledge cloud synchronization operates silently via `SyncEngine` without interrupting the user.
+5. **Unified Top-Slide Page Route (`SearchPageRoute`)**:
+   - Created a custom route transition with subtle slide down (`Offset(0, -0.06) -> Offset.zero`) and opacity fade curve for both pull-down gesture activation and AppBar Search button taps.
+6. **Responsive Tablet Support**:
+   - Middle notes column on tablet split-view is wrapped in `PullDownSearchReveal(isTabletPane: true)`, providing identical pull-down search reveal in multi-pane mode.
+
+### File Inventory
+- **Presentation**:
+  - `lib/features/notes/presentation/widgets/pull_down_search_reveal.dart` (reusable interactive pull-down search reveal wrapper).
+  - `lib/features/notes/presentation/notes_screen.dart` (integration in phone and tablet layouts, removal of `RefreshIndicator`, bouncing scroll physics).
+  - `lib/features/search/presentation/search_screen.dart` (added `SearchPageRoute` top-slide and fade transition).
+- **Tests**:
+  - `test/features/notes/gestures_test.dart` (comprehensive tests for pull-down past threshold, spring-back below threshold, tablet split-view search, AppBar search tap, and zero `RefreshIndicator` verification).
+
+

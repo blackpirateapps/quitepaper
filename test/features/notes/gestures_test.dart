@@ -6,6 +6,7 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/presentation/notes_screen.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/pull_down_search_reveal.dart';
 import 'package:quitepaper/features/search/presentation/search_screen.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
@@ -32,6 +33,11 @@ void main() {
     tester.view.devicePixelRatio = 3.0; // 360 x 800 logical dp
   }
 
+  void setTabletSize(WidgetTester tester) {
+    tester.view.physicalSize = const Size(2048, 1536);
+    tester.view.devicePixelRatio = 2.0; // 1024 x 768 logical dp
+  }
+
   Future<void> finishTest(WidgetTester tester) async {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
@@ -52,8 +58,8 @@ void main() {
     );
   }
 
-  group('NotesScreen Gestures (Swipe down to search & Swipe from left for sidebar)', () {
-    testWidgets('pulling down on notes list triggers SearchScreen navigation',
+  group('NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar)', () {
+    testWidgets('pulling down on notes list past threshold triggers SearchScreen navigation',
         (tester) async {
       setPhoneSize(tester);
 
@@ -74,13 +80,48 @@ void main() {
 
       expect(find.text('Morning Thoughts'), findsOneWidget);
       expect(find.byType(SearchScreen), findsNothing);
+      expect(find.byType(PullDownSearchReveal), findsOneWidget);
 
-      // Drag down on notes list
-      await tester.drag(find.text('Morning Thoughts'), const Offset(0, 300));
+      // Drag down on notes list past threshold
+      await tester.drag(find.text('Morning Thoughts'), const Offset(0, 250));
       await tester.pumpAndSettle();
 
       // SearchScreen should now be opened
       expect(find.byType(SearchScreen), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('pulling down below threshold springs back and does not open SearchScreen',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-note-spring',
+          title: 'Spring Test',
+          content: 'Should spring back when small pull.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Spring Test'), findsOneWidget);
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Micro drag down (small offset < threshold of 70)
+      await tester.drag(find.text('Spring Test'), const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      // SearchScreen should not be opened
+      expect(find.byType(SearchScreen), findsNothing);
+      expect(find.text('Spring Test'), findsOneWidget);
 
       await finishTest(tester);
     });
@@ -101,6 +142,71 @@ void main() {
       await tester.pumpAndSettle();
 
       // SearchScreen should be opened
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('verifies zero RefreshIndicator widgets are present on NotesScreen',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      // Confirm no Material RefreshIndicator spinner exists on NotesScreen
+      expect(find.byType(RefreshIndicator), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('pulling down on tablet split-view triggers SearchScreen navigation',
+        (tester) async {
+      setTabletSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-note-tablet',
+          title: 'Tablet Note',
+          content: 'Tablet layout testing.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tablet Note'), findsOneWidget);
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Drag down on tablet notes column
+      await tester.drag(find.text('Tablet Note'), const Offset(0, 250));
+      await tester.pumpAndSettle();
+
+      // SearchScreen should be opened
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tapping Search icon in AppBar opens SearchScreen',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Tap search icon in AppBar
+      await tester.tap(find.byTooltip('Search notes'));
+      await tester.pumpAndSettle();
+
       expect(find.byType(SearchScreen), findsOneWidget);
 
       await finishTest(tester);
