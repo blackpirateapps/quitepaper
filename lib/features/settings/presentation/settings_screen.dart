@@ -26,8 +26,11 @@ import '../../sync/presentation/conflict_list_screen.dart';
 import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 import '../application/typography_provider.dart';
+import '../../../core/maintenance/maintenance_models.dart';
+import '../../../core/maintenance/maintenance_provider.dart';
 import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
+import 'widgets/maintenance_progress_sheet.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -247,6 +250,139 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           _isCheckingForUpdates = false;
         });
       }
+    }
+  }
+
+  Future<void> _handleDownloadAllAttachments(BuildContext context) async {
+    await MaintenanceProgressSheet.show(
+      context,
+      taskType: MaintenanceTaskType.downloadAttachments,
+    );
+  }
+
+  Future<void> _handleRerunOcrForAll(BuildContext context) async {
+    final keyManager = ref.read(keyManagerProvider);
+    if (!keyManager.isUnlocked) {
+      final colors = context.appColors;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: Text(
+            'Encryption Locked',
+            style: AppTypography.headline.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            'Quiet Paper encryption keys are locked. Please unlock your notebook to extract text and re-run OCR on attachments.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    await MaintenanceProgressSheet.show(
+      context,
+      taskType: MaintenanceTaskType.rerunOcr,
+    );
+  }
+
+  Future<void> _handleRebuildSearchIndex(BuildContext context) async {
+    final colors = context.appColors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+        ),
+        title: Text(
+          'Rebuild Search Index',
+          style: AppTypography.headline.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'This will rebuild full-text search indexes and refresh OCR candidate caches across all notes. Your note contents will not be modified.',
+          style: AppTypography.bodySmall.copyWith(
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.bodySmallMedium.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Rebuild',
+              style: AppTypography.bodySmallMedium.copyWith(
+                color: colors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final maintenanceService = ref.read(attachmentMaintenanceServiceProvider);
+      await maintenanceService.rebuildSearchIndex();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Search index rebuilt successfully'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to rebuild search index: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: colors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -756,6 +892,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           ),
                         );
                       },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // Section: Advanced
+                // ==========================================
+                _buildSectionHeader(context, 'Advanced'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.cloud_download_outlined,
+                      title: 'Download All Attachments',
+                      subtitle:
+                          'Download all media and documents from cloud for offline access',
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () => _handleDownloadAllAttachments(context),
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.document_scanner_outlined,
+                      title: 'Rerun OCR for All Files',
+                      subtitle:
+                          'Extract text from all local scanned documents and image attachments',
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () => _handleRerunOcrForAll(context),
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.manage_search_rounded,
+                      title: 'Rebuild Search Index',
+                      subtitle:
+                          'Refresh full-text and OCR indexes for notes and attachments',
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () => _handleRebuildSearchIndex(context),
                     ),
                   ],
                 ),

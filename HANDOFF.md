@@ -3532,3 +3532,65 @@ Tags are navigation and filter contexts, not destination screens. Selecting a ta
   - All existing tag database, dialog, and UI tests pass.
   - Added comprehensive 3-pane workspace navigation tests in [`tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart) covering sidebar selection, middle-pane TagBrowserView rendering, TagContextHeader actions, and mobile back navigation.
 
+---
+
+## 77. Advanced Maintenance Subsystem: Eager Attachment Sync, Batch OCR & Search Index Rebuild
+
+### Problem & Motivation
+When a user syncs notes for the first time on a new or secondary device, note text and attachment/document metadata are pulled from the cloud, but the binary encrypted assets (.enc / .qpd) stored in Cloudinary are not downloaded eagerly. As a consequence:
+1. Attachments remain unavailable locally until the user opens the specific note referencing each asset.
+2. Text recognition (OCR) for scanned PDFs and photo attachments has not yet run on the new device, resulting in incomplete global search results for queries targeting text contained within images or documents.
+
+### Architecture & Key Components
+
+#### 1. Maintenance Domain & Cancellation (`lib/core/maintenance/maintenance_models.dart`)
+- **`MaintenanceTaskType`**: Categorizes tasks into `downloadAttachments`, `rerunOcr`, and `rebuildSearchIndex`.
+- **`MaintenancePhase`**: Lifecycle state tracking (`idle`, `preparing`, `downloading`, `runningOcr`, `rebuildingIndex`, `completed`, `cancelled`, `failed`).
+- **`MaintenanceProgress`**: Immutable progress state tracking `taskType`, `phase`, `totalItems`, `completedItems`, `failedItems`, `currentItemName`, `currentPage`, `totalPages`, `statusMessage`, and `errorMessages`.
+- **`MaintenanceCancellationToken`**: Cooperative cancellation mechanism allowing users to abort running tasks safely without leaving partial or corrupted files.
+
+#### 2. Central Maintenance Service (`lib/core/maintenance/attachment_maintenance_service.dart`)
+- **`downloadAllAttachments`**:
+  - Scans all active non-deleted `attachments` and `documents` records in Drift SQLite.
+  - Identifies files having valid `cloudUrl`s that are missing locally on disk.
+  - Sequentially streams encrypted ciphertext downloads directly from Cloudinary using `CloudinaryClient.downloadEncryptedBytes`.
+  - Persists payloads to app-private storage via `AttachmentLocalStorage.saveEncryptedBytes` and `DocumentLocalStorage.saveEncryptedBytes`.
+  - Updates database records with the verified `localPath`.
+  - Emits real-time progress callbacks and isolates per-file network errors without terminating the queue.
+- **`rerunOcrForAll`**:
+  - Requires user's Master Key to be unlocked (`keyManager.isUnlocked`).
+  - Discovers all active image attachments (`kind == 'image'` or MIME `image/*`) and scanned/imported PDF documents.
+  - In accordance with user preferences, automatically downloads missing cloud files on-the-fly before recognition.
+  - Decrypts files client-side with Master Key.
+  - Recognizes text page-by-page using `OcrService.recognizePage`.
+  - Encrypts structured OCR datasets (`OcrDocument`) with `XChaCha20-Poly1305` and persists to `attachment_ocr_pages` / `document_ocr_pages`.
+  - Automatically updates and warms in-memory candidate caches in `OcrSearchService`.
+- **`rebuildSearchIndex`**:
+  - Atomically truncates and repopulates SQLite FTS5 prefix and trigram virtual tables (`note_search_prefix`, `note_search_trigram`) in a single database transaction.
+  - Flushes `OcrSearchService` caches.
+
+#### 3. Defensive Crash-Prevention Engineering
+- **Page-by-Page Streaming**: Multi-page PDF rasterization and OCR recognition are processed page-by-page. After each page, intermediate bitmap bytes are dereferenced, and an explicit event loop delay (`Future.delayed(Duration(milliseconds: 20-30))`) yields execution to Dart's event loop to allow garbage collection and prevent Out-Of-Memory (OOM) process termination.
+- **Defensive Error Boundaries**: Every individual file download, decryption, rasterization, and OCR step is isolated within its own `try-catch` block. Failing or malformed files are recorded in `failedItems` with error details, allowing the remaining items in the queue to finish successfully.
+- **Cryptographic Guards**: If the user's notebook encryption keys are locked, `rerunOcrForAll` safely alerts the user to unlock the notebook rather than failing with cryptic crypto exceptions.
+
+#### 4. Editorial Progress Sheet & Settings Integration
+- **`MaintenanceProgressSheet` (`lib/features/settings/presentation/widgets/maintenance_progress_sheet.dart`)**:
+  - Editorial bottom sheet modal styled with `AppColors.surface`, `AppRadii.xl` top rounding, and `AppTypography`.
+  - Renders live task icon, title, detailed item status, and a smooth `LinearProgressIndicator`.
+  - Displays dynamic item and percentage counters.
+  - Features an active "Cancel" button while running and a primary "Done" button upon completion.
+- **`SettingsScreen` (`lib/features/settings/presentation/settings_screen.dart`)**:
+  - Added an **ADVANCED** section positioned immediately below **Storage & Attachments**.
+  - Contains 3 iOS Grouped Table style rows:
+    1. **Download All Attachments** (`Icons.cloud_download_outlined`)
+    2. **Rerun OCR for All Files** (`Icons.document_scanner_outlined`)
+    3. **Rebuild Search Index** (`Icons.manage_search_rounded`) — prompts editorial confirmation dialog, rebuilds indexes atomically, and provides floating SnackBar feedback.
+
+### Quality Verification
+- **Automated Service Unit Tests**: [`test/maintenance/attachment_maintenance_service_test.dart`](file:///home/dog/git/quitepaper/test/maintenance/attachment_maintenance_service_test.dart) (7 tests verifying missing file detection, eager downloading, error resilience, cancellation, master key guards, image/PDF OCR pipeline, and search index rebuild).
+- **Automated Settings Widget Tests**: [`test/settings/advanced_maintenance_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/advanced_maintenance_settings_test.dart) (5 tests verifying section rendering, tapping download sheet, locked encryption dialog, OCR progress sheet, and search index rebuild confirmation).
+- **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
+- **Full Test Suite**: `flutter test` (**864 / 864 tests passing**).
+
+
