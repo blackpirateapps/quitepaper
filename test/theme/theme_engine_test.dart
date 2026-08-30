@@ -12,6 +12,7 @@ import 'package:quitepaper/core/widgets/intelligent_heading_scrollbar.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/sidebar/presentation/widgets/sidebar_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -135,8 +136,8 @@ void main() {
       expect(colors.textDisabled, equals(const Color(0xFF9A9994)));
       expect(colors.scrollbar, equals(const Color(0xFF9DA1AA)));
       expect(colors.scrollbarActive, equals(const Color(0xFF60646D)));
-      expect(colors.accent, equals(const Color(0xFF666BD3)));
-      expect(colors.accentLight, equals(const Color(0xFFD8DAFF)));
+      expect(colors.accent, equals(const Color(0xFF3B82F6)));
+      expect(colors.accentLight, equals(const Color(0xFFDBEAFE)));
       expect(colors.sidebarBackground, equals(const Color(0xFF202329)));
       expect(colors.sidebarSelected, equals(const Color(0xFF353A43)));
     });
@@ -154,9 +155,9 @@ void main() {
       expect(colors.textTertiary, equals(const Color(0xFF8D939D)));
       expect(colors.textMuted, equals(const Color(0xFF8D939D)));
       expect(colors.scrollbar, equals(const Color(0xFF777D88)));
-      expect(colors.scrollbarActive, equals(const Color(0xFFA99AFF)));
-      expect(colors.accent, equals(const Color(0xFF8570E8)));
-      expect(colors.accentLight, equals(const Color(0xFFA99AFF)));
+      expect(colors.scrollbarActive, equals(const Color(0xFF93C5FD)));
+      expect(colors.accent, equals(const Color(0xFF60A5FA)));
+      expect(colors.accentLight, equals(const Color(0xFF93C5FD)));
       expect(colors.sidebarBackground, equals(const Color(0xFF11151A)));
       expect(colors.sidebarSelected, equals(const Color(0xFF1F2630)));
     });
@@ -212,22 +213,22 @@ void main() {
   });
 
   group('4. Syntax Highlighting Theme Adaptation', () {
-    test('Warm Paper Light derives restrained indigo-sage syntax theme', () {
+    test('Warm Paper Light derives restrained slate blue syntax theme', () {
       final syntaxTheme = SyntaxTheme.fromColors(AppColors.warmPaperLight);
       final keywordStyle = syntaxTheme.styleFor(SyntaxTokenType.keyword);
       final stringStyle = syntaxTheme.styleFor(SyntaxTokenType.string);
 
-      expect(keywordStyle.color, equals(const Color(0xFF5B4FA8)));
-      expect(stringStyle.color, equals(const Color(0xFF2E7D47)));
+      expect(keywordStyle.color, equals(const Color(0xFF2563EB)));
+      expect(stringStyle.color, equals(const Color(0xFF16A34A)));
     });
 
-    test('Midnight Paper Dark derives luminous slate lavender syntax theme', () {
+    test('Midnight Paper Dark derives luminous slate blue syntax theme', () {
       final syntaxTheme = SyntaxTheme.fromColors(AppColors.midnightPaperDark);
       final keywordStyle = syntaxTheme.styleFor(SyntaxTokenType.keyword);
       final stringStyle = syntaxTheme.styleFor(SyntaxTokenType.string);
 
-      expect(keywordStyle.color, equals(const Color(0xFFA99AFF)));
-      expect(stringStyle.color, equals(const Color(0xFF5EEAD4)));
+      expect(keywordStyle.color, equals(const Color(0xFF60A5FA)));
+      expect(stringStyle.color, equals(const Color(0xFF4ADE80)));
     });
   });
 
@@ -320,6 +321,53 @@ void main() {
       await tester.tap(find.text('Dark'));
       await tester.pumpAndSettle();
       expect(prefs.getString('app_appearance_mode'), equals('dark'));
+    });
+  });
+
+  group('7. Sidebar Dark Contrast & Item Legibility', () {
+    testWidgets('SidebarItem renders high-contrast count badge when selected in Warm Paper Light',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.warmPaperLight(),
+          home: Scaffold(
+            body: Container(
+              color: AppColors.warmPaperLight.sidebarBackground,
+              child: Column(
+                children: [
+                  SidebarItem(
+                    icon: Icons.description_outlined,
+                    label: 'All Notes',
+                    count: 428,
+                    isSelected: true,
+                    onTap: () {},
+                  ),
+                  SidebarItem(
+                    icon: Icons.push_pin_outlined,
+                    label: 'Pinned',
+                    count: 1,
+                    isSelected: false,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final countFinder = find.text('428');
+      expect(countFinder, findsOneWidget);
+
+      final textWidget = tester.widget<Text>(countFinder);
+      expect(textWidget.style?.color, equals(const Color(0xFFE5E7EB)));
+      expect(textWidget.style?.fontWeight, equals(FontWeight.w600));
+
+      final unselectedCountFinder = find.text('1');
+      expect(unselectedCountFinder, findsOneWidget);
+      final unselectedTextWidget = tester.widget<Text>(unselectedCountFinder);
+      expect(unselectedTextWidget.style?.color, equals(const Color(0xFF9CA3AF)));
     });
   });
 }

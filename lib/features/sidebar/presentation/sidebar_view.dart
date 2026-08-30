@@ -56,6 +56,7 @@ class SidebarView extends ConsumerWidget {
     final searchBgColor = isSidebarDark ? colors.sidebarSelected : colors.background;
     final searchHintColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textTertiary;
     final searchIconColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
+    final sidebarDividerColor = isSidebarDark ? const Color(0xFF2D333B) : colors.divider;
 
     return Container(
       color: colors.sidebarBackground,
@@ -152,7 +153,7 @@ class SidebarView extends ConsumerWidget {
             // Scrollable navigation list (Library + Tags)
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                padding: const EdgeInsets.fromLTRB(0, AppSpacing.xs, 0, AppSpacing.sm),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -398,7 +399,17 @@ class SidebarView extends ConsumerWidget {
             ),
 
             // Bottom Divider & Actions
-            Divider(color: colors.divider, height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 2.0,
+              ),
+              child: Divider(
+                color: sidebarDividerColor,
+                height: 1,
+                thickness: 0.8,
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Column(

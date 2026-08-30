@@ -34,11 +34,15 @@ class SidebarItem extends StatelessWidget {
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
     final defaultTextColor = isSidebarDark ? const Color(0xFFF1F2F4) : colors.textPrimary;
     final defaultSecondaryColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
-    final defaultTertiaryColor = isSidebarDark ? const Color(0xFF6B7280) : colors.textTertiary;
+    final defaultTertiaryColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textTertiary;
 
     final textColor = isSelected
         ? (isSidebarDark ? Colors.white : colors.textPrimary)
         : (isDestructive ? colors.error : defaultTextColor);
+
+    final countColor = isSelected
+        ? (isSidebarDark ? const Color(0xFFE5E7EB) : colors.textPrimary)
+        : defaultTertiaryColor;
 
     final iconColor = isSelected
         ? colors.accent
@@ -103,7 +107,7 @@ class SidebarItem extends StatelessWidget {
                       Text(
                         '$count',
                         style: AppTypography.caption.copyWith(
-                          color: isSelected ? colors.textSecondary : defaultTertiaryColor,
+                          color: countColor,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                           fontSize: 13,
                         ),

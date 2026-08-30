@@ -766,7 +766,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     _SettingsRow(
                       icon: Icons.auto_awesome_outlined,
                       title: 'Warm Paper',
-                      subtitle: 'Warm ivory & midnight slate with serene indigo accent',
+                      subtitle: 'Warm ivory & midnight slate with serene slate blue accent',
                       trailing: _buildThemePreviewSwatches(
                         context: context,
                         colors: isDark ? AppColors.midnightPaperDark : AppColors.warmPaperLight,

@@ -150,7 +150,7 @@ class SyntaxTheme {
 
     // Curated, editorial color tokens harmonious with each theme family
     final plainColor = colors.textPrimary;
-    final isWarm = colors.accent == const Color(0xFF666BD3) || colors.accent == const Color(0xFF8570E8);
+    final isWarm = colors.accent == const Color(0xFF3B82F6) || colors.accent == const Color(0xFF60A5FA);
 
     final Color keywordColor;
     final Color stringColor;
@@ -172,25 +172,25 @@ class SyntaxTheme {
     if (isWarm) {
       if (isDark) {
         // Midnight Paper Dark
-        keywordColor = const Color(0xFFA99AFF); // Lavender
-        stringColor = const Color(0xFF5EEAD4); // Luminous teal
+        keywordColor = const Color(0xFF60A5FA); // Luminous blue
+        stringColor = const Color(0xFF4ADE80); // Luminous teal-green
         numberColor = const Color(0xFFFCD34D); // Soft amber
         functionColor = const Color(0xFF93C5FD); // Soft sky
-        typeColor = const Color(0xFF67E8F9); // Light cyan
+        typeColor = const Color(0xFF38BDF8); // Light cyan
         constantColor = const Color(0xFFF472B6); // Rose
         propertyColor = const Color(0xFF2DD4BF); // Teal
-        builtinColor = const Color(0xFFC084FC); // Violet
+        builtinColor = const Color(0xFF818CF8); // Periwinkle blue
         literalColor = const Color(0xFFFB923C); // Warm Orange
       } else {
         // Warm Paper Light
-        keywordColor = const Color(0xFF5B4FA8); // Restrained indigo violet
-        stringColor = const Color(0xFF2E7D47); // Forest sage
+        keywordColor = const Color(0xFF2563EB); // Restrained slate blue
+        stringColor = const Color(0xFF16A34A); // Forest sage
         numberColor = const Color(0xFFB45309); // Amber ochre
-        functionColor = const Color(0xFF3F63B8); // Slate blue
-        typeColor = const Color(0xFF0F766E); // Deep teal
+        functionColor = const Color(0xFF0284C7); // Sky slate blue
+        typeColor = const Color(0xFF0D9488); // Deep teal
         constantColor = const Color(0xFF9D174D); // Muted rose
-        propertyColor = const Color(0xFF1E6B7B); // Muted cyan
-        builtinColor = const Color(0xFF6366F1); // Indigo
+        propertyColor = const Color(0xFF0284C7); // Muted cyan blue
+        builtinColor = const Color(0xFF4F46E5); // Indigo blue
         literalColor = const Color(0xFFC2410C); // Terracotta
       }
     } else {

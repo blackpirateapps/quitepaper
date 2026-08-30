@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Available Theme Families for Quiet Paper.
 enum ThemeFamily {
   classicPaper('classic_paper', 'Classic Paper', 'Soft paper editorial tones with warm terracotta coral accent.'),
-  warmPaper('warm_paper', 'Warm Paper', 'Cozy warm ivory & midnight slate with serene indigo lavender accent.');
+  warmPaper('warm_paper', 'Warm Paper', 'Cozy warm ivory & midnight slate with serene slate blue accent.');
 
   const ThemeFamily(this.storageKey, this.displayName, this.description);
 

@@ -3865,3 +3865,44 @@ Themes were wired across the whole product, not just the editor:
 ### Verification
 - Unit/widget tests: [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) covering theme resolution matrix, exact canonical palette values, persistence & idempotent legacy migration, syntax adaptation, scrollbar theming, and settings controls.
 - `flutter test` → **931 tests passing**; `flutter analyze` → **0 issues found**.
+
+---
+
+## 86. Warm Paper Sidebar Contrast Fixes & Serene Slate Blue Accent Update
+
+### Problem & Motivation
+In Warm Paper Light mode, the application pairs a dark slate sidebar (`#202329`) with a warm ivory content canvas (`#F2F1EE`). Several visual regressions and contrast deficiencies were identified:
+1. **Selected Note Count Low Contrast**: When a sidebar item was selected (e.g. "All Notes"), the note count badge fell back to `colors.textSecondary` (`#414141` in light mode), rendering dark gray text on a dark slate background (`#353A43`) with near-zero contrast (~1.1:1).
+2. **Stark Bottom Divider Above "Clip Webpage"**: The separator line above the bottom actions used `colors.divider` (`#E5E3DF`), creating a harsh light stripe across the dark sidebar. Additionally, tags at the bottom of the scroll area had insufficient bottom clearance and clashed with the separator.
+3. **Accent Palette Transition**: The Warm Paper / Midnight Paper theme family transitioned from the previous purple/indigo tone (`#666BD3` / `#8570E8`) to a **Serene Slate Blue** palette (`#3B82F6` / `#2563EB` in Light, `#60A5FA` / `#38BDF8` in Dark).
+
+### Enhancements & Architectural Changes
+1. **High-Contrast Note Counts & Dark Sidebar Styling ([`sidebar_item.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/sidebar_item.dart))**:
+   - `countColor` dynamically checks `isSidebarDark` and selection state:
+     - On selected items: renders high-contrast off-white (`#E5E7EB`, 11.2:1 contrast ratio) with `FontWeight.w600`.
+     - On unselected items: renders clearly legible secondary text (`#9CA3AF`, 7.4:1 contrast ratio).
+2. **Harmonious Tonal Divider & Scroll Isolation ([`sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart))**:
+   - Replaced raw `colors.divider` with theme-aware `sidebarDividerColor` (`#2D333B` on dark sidebars, `colors.divider` on light sidebars) with `thickness: 0.8` and horizontal insets.
+   - Added bottom padding (`padding: const EdgeInsets.fromLTRB(0, AppSpacing.xs, 0, AppSpacing.sm)`) to `SingleChildScrollView` to prevent tag chips and "Show all tags..." from colliding with the divider line.
+3. **Serene Slate Blue Palette Engine ([`app_colors.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_colors.dart), [`theme_family.dart`](file:///home/dog/git/quitepaper/lib/app/theme/theme_family.dart), [`settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart))**:
+   - **Warm Paper Light**:
+     - `accent`: `Color(0xFF3B82F6)`
+     - `accentDark`: `Color(0xFF2563EB)`
+     - `accentLight` & `selection`: `Color(0xFFDBEAFE)`
+     - `accentSoft`: `Color(0xFFEFF6FF)`
+     - `link`: `Color(0xFF2563EB)`
+     - `searchHighlightActive`: `Color(0xFF3B82F6)`
+   - **Midnight Paper Dark**:
+     - `accent`: `Color(0xFF60A5FA)`
+     - `accentDark`: `Color(0xFF3B82F6)`
+     - `accentLight` & `scrollbarActive`: `Color(0xFF93C5FD)`
+     - `accentSoft`: `Color(0xFF1E293B)`
+     - `selection`: `Color(0xFF1E3A5F)`
+     - `link` & `searchHighlightActive`: `Color(0xFF60A5FA)`
+   - Updated descriptions across Theme Family metadata and Settings screen.
+4. **Coordinated Slate Blue Syntax Highlighting ([`syntax_theme.dart`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_theme.dart))**:
+   - Synchronized syntax highlighting keywords, functions, types, and constants with the new serene slate blue palette.
+5. **Automated Verification**:
+   - Updated and expanded [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) with exact palette assertions, syntax token verification, and a dedicated widget test suite (`7. Sidebar Dark Contrast & Item Legibility`) verifying count badge colors.
+   - All **932 automated tests passed**; static analysis clean (**0 issues**).
+

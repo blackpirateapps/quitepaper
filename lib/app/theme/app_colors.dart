@@ -213,7 +213,7 @@ class AppColors extends ThemeExtension<AppColors> {
   static const light = classicLight;
   static const dark = classicDark;
 
-  /// Warm Paper — Light (Canonical warm editorial palette)
+  /// Warm Paper — Light (Canonical warm editorial palette with serene slate blue accent)
   static const warmPaperLight = AppColors(
     background: Color(0xFFF2F1EE),
     surface: Color(0xFFFFFFFF),
@@ -229,12 +229,12 @@ class AppColors extends ThemeExtension<AppColors> {
     iconPrimary: Color(0xFF202124),
     iconSecondary: Color(0xFF414141),
     iconMuted: Color(0xFF777777),
-    selection: Color(0xFFD8DAFF),
-    focus: Color(0xFF666BD3),
-    accent: Color(0xFF666BD3),
-    accentLight: Color(0xFFD8DAFF),
-    accentDark: Color(0xFF4F53B7),
-    accentSoft: Color(0xFFEAEBFF),
+    selection: Color(0xFFDBEAFE),
+    focus: Color(0xFF3B82F6),
+    accent: Color(0xFF3B82F6),
+    accentLight: Color(0xFFDBEAFE),
+    accentDark: Color(0xFF2563EB),
+    accentSoft: Color(0xFFEFF6FF),
     scrollbar: Color(0xFF9DA1AA),
     scrollbarActive: Color(0xFF60646D),
     sidebarBackground: Color(0xFF202329),
@@ -244,9 +244,9 @@ class AppColors extends ThemeExtension<AppColors> {
     codeBackground: Color(0xFFF5F4F1),
     codeBorder: Color(0xFFE5E3DF),
     codeText: Color(0xFF202124),
-    link: Color(0xFF666BD3),
+    link: Color(0xFF2563EB),
     searchHighlight: Color(0xFFFFE082),
-    searchHighlightActive: Color(0xFF666BD3),
+    searchHighlightActive: Color(0xFF3B82F6),
     tagBackground: Color(0xFFF5F4F1),
     tagText: Color(0xFF414141),
     success: Color(0xFF4E9A51),
@@ -255,7 +255,7 @@ class AppColors extends ThemeExtension<AppColors> {
     info: Color(0xFF3B82F6),
   );
 
-  /// Midnight Paper — Dark (Canonical dark slate lavender palette)
+  /// Midnight Paper — Dark (Canonical dark slate blue palette)
   static const midnightPaperDark = AppColors(
     background: Color(0xFF11151A),
     surface: Color(0xFF171C22),
@@ -271,14 +271,14 @@ class AppColors extends ThemeExtension<AppColors> {
     iconPrimary: Color(0xFFF1F2F4),
     iconSecondary: Color(0xFFC5C8CE),
     iconMuted: Color(0xFF8D939D),
-    selection: Color(0xFF332F54),
-    focus: Color(0xFF8570E8),
-    accent: Color(0xFF8570E8),
-    accentLight: Color(0xFFA99AFF),
-    accentDark: Color(0xFF9F8EFF),
-    accentSoft: Color(0xFF2E274A),
+    selection: Color(0xFF1E3A5F),
+    focus: Color(0xFF60A5FA),
+    accent: Color(0xFF60A5FA),
+    accentLight: Color(0xFF93C5FD),
+    accentDark: Color(0xFF3B82F6),
+    accentSoft: Color(0xFF1E293B),
     scrollbar: Color(0xFF777D88),
-    scrollbarActive: Color(0xFFA99AFF),
+    scrollbarActive: Color(0xFF93C5FD),
     sidebarBackground: Color(0xFF11151A),
     sidebarSelected: Color(0xFF1F2630),
     editorBackground: Color(0xFF11151A),
@@ -286,9 +286,9 @@ class AppColors extends ThemeExtension<AppColors> {
     codeBackground: Color(0xFF171C22),
     codeBorder: Color(0xFF303741),
     codeText: Color(0xFFF1F2F4),
-    link: Color(0xFF8570E8),
+    link: Color(0xFF60A5FA),
     searchHighlight: Color(0xFF594519),
-    searchHighlightActive: Color(0xFF8570E8),
+    searchHighlightActive: Color(0xFF60A5FA),
     tagBackground: Color(0xFF222932),
     tagText: Color(0xFFC5C8CE),
     success: Color(0xFF5CB85C),
