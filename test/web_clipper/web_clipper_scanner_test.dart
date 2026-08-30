@@ -186,5 +186,43 @@ A core principle underlying the Gates Foundation's work is closing the innovatio
         )),
       );
     });
+
+    test('filters UI navigation icons, SVGs, and tracking pixels from markdown image discovery', () async {
+      final mockClient = MockClient((request) async {
+        final url = request.url.toString();
+
+        if (url.contains('r.jina.ai')) {
+          final payload = json.encode({
+            'data': {
+              'title': 'Sample Article with Assets | Example Author',
+              'description': 'An article with many UI icons and photos.',
+              'url': 'https://example.com/asset-test',
+              'content': '''
+![Close Icon](https://example.com/icons/icon_Close.svg)
+![Hamburger Menu](https://example.com/Hamburger.svg)
+![Logo Stack](https://example.com/LogoStack.svg)
+![Tracker Pixel](https://example.com/tracker.png?1x1)
+![Real Photo 1](https://example.com/editorial_photo_1.jpg)
+![Real Photo 2](https://example.com/editorial_photo_2.png)
+''',
+            },
+          });
+          return http.Response(payload, 200, headers: {'content-type': 'application/json'});
+        }
+
+        // Direct fetch returns 403 to trigger reader fallback
+        return http.Response('Access Denied', 403);
+      });
+
+      final scanner = WebClipperScanner(httpClient: mockClient);
+      final result = await scanner.scanUrl('https://example.com/asset-test');
+
+      expect(result.images.length, 2);
+      expect(result.images.any((img) => img.rawUrl.contains('editorial_photo_1.jpg')), isTrue);
+      expect(result.images.any((img) => img.rawUrl.contains('editorial_photo_2.png')), isTrue);
+      expect(result.images.any((img) => img.rawUrl.contains('icon_Close.svg')), isFalse);
+      expect(result.images.any((img) => img.rawUrl.contains('Hamburger.svg')), isFalse);
+      expect(result.images.any((img) => img.rawUrl.contains('tracker.png')), isFalse);
+    });
   });
 }

@@ -44,10 +44,11 @@ class WebImageDownloader {
 
           final response = await _httpClient.get(
             uri,
-            headers: {
+            headers: const {
               'User-Agent':
-                  'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36 QuietPaper/1.5',
-              'Accept': 'image/webp,image/png,image/jpeg,image/*;q=0.8',
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
             },
           ).timeout(const Duration(seconds: 15));
 

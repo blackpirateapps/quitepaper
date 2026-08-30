@@ -122,13 +122,11 @@ class WebClipperScanner {
 
     final readerResponse = await _httpClient.get(
       readerUri,
-      headers: {
+      headers: const {
         'Accept': 'application/json',
-        'User-Agent': _browserHeaders['User-Agent']!,
-        'X-No-Cache': 'true',
         'X-Return-Format': 'markdown',
       },
-    ).timeout(const Duration(seconds: 25));
+    ).timeout(const Duration(seconds: 20));
 
     if (readerResponse.statusCode < 200 || readerResponse.statusCode >= 300) {
       throw Exception('Reader service returned HTTP ${readerResponse.statusCode}');
@@ -363,7 +361,7 @@ class WebClipperScanner {
     for (final match in matches) {
       final alt = match.group(1)?.trim() ?? '';
       final rawSrc = match.group(2)?.trim() ?? '';
-      if (rawSrc.isEmpty) continue;
+      if (rawSrc.isEmpty || _isIgnoredAltText(alt)) continue;
 
       final resolved = _resolveUrl(rawSrc, sourceUri);
       if (seenUrls.contains(resolved) || !_isValidImageUrl(resolved)) continue;
@@ -377,9 +375,24 @@ class WebClipperScanner {
         estimatedSizeBytes: 250 * 1024,
       ));
       seenUrls.add(resolved);
+
+      // Bound discovery to the top 25 highest quality content images
+      if (images.length >= 25) {
+        break;
+      }
     }
 
     return images;
+  }
+
+  bool _isIgnoredAltText(String alt) {
+    final lower = alt.toLowerCase().trim();
+    return lower.contains('icon') ||
+        lower.contains('logo') ||
+        lower.contains('close') ||
+        lower.contains('arrow') ||
+        lower.contains('hamburger') ||
+        lower.contains('menu');
   }
 
   String _resolveUrl(String url, Uri baseUri) {
@@ -394,10 +407,28 @@ class WebClipperScanner {
   }
 
   bool _isValidImageUrl(String url) {
-    if (url.isEmpty) return false;
-    if (url.startsWith('data:image/svg+xml')) return false;
-    if (url.contains('tracker') || url.contains('1x1') || url.contains('pixel') || url.contains('adsct')) return false;
-    return url.startsWith('http://') || url.startsWith('https://');
+    final lower = url.toLowerCase().trim();
+    if (lower.isEmpty) return false;
+    if (lower.startsWith('data:image/svg') ||
+        lower.endsWith('.svg') ||
+        lower.contains('.svg?') ||
+        lower.contains('.svg#')) {
+      return false;
+    }
+    if (lower.contains('tracker') ||
+        lower.contains('1x1') ||
+        lower.contains('pixel') ||
+        lower.contains('adsct') ||
+        lower.contains('beacon')) {
+      return false;
+    }
+    if (lower.contains('icon_') ||
+        lower.contains('/icons/') ||
+        lower.contains('hamburger') ||
+        lower.contains('logostack')) {
+      return false;
+    }
+    return lower.startsWith('http://') || lower.startsWith('https://');
   }
 
   String _htmlEscape(String text) {
@@ -459,37 +490,42 @@ class WebClipperScanner {
   Future<List<ClippedImageCandidate>> _probeImages(
     List<ClippedImageCandidate> rawCandidates,
   ) async {
-    final probed = <ClippedImageCandidate>[];
+    if (rawCandidates.isEmpty) return const [];
 
-    for (final candidate in rawCandidates) {
-      var size = candidate.estimatedSizeBytes;
+    final candidatesToProbe = rawCandidates.take(20).toList();
+    final remaining = rawCandidates.skip(20).toList();
 
-      try {
-        final uri = Uri.tryParse(candidate.resolvedUrl);
-        if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
-          final headRes = await _httpClient.head(
-            uri,
-            headers: {
-              'User-Agent': _browserHeaders['User-Agent']!,
-            },
-          ).timeout(const Duration(seconds: 3));
+    final probed = await Future.wait(
+      candidatesToProbe.map((candidate) async {
+        var size = candidate.estimatedSizeBytes;
 
-          final cl = headRes.headers['content-length'];
-          if (cl != null) {
-            final parsedCl = int.tryParse(cl);
-            if (parsedCl != null && parsedCl > 0) {
-              size = parsedCl;
+        try {
+          final uri = Uri.tryParse(candidate.resolvedUrl);
+          if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
+            final headRes = await _httpClient.head(
+              uri,
+              headers: {
+                'User-Agent': _browserHeaders['User-Agent']!,
+              },
+            ).timeout(const Duration(milliseconds: 1500));
+
+            final cl = headRes.headers['content-length'];
+            if (cl != null) {
+              final parsedCl = int.tryParse(cl);
+              if (parsedCl != null && parsedCl > 0) {
+                size = parsedCl;
+              }
             }
           }
+        } catch (_) {
+          // Fallback to default estimate if HEAD fails
         }
-      } catch (_) {
-        // Fallback to default estimate if HEAD fails
-      }
 
-      probed.add(candidate.copyWith(estimatedSizeBytes: size));
-    }
+        return candidate.copyWith(estimatedSizeBytes: size);
+      }),
+    );
 
-    return probed;
+    return [...probed, ...remaining];
   }
 
   String _decodeBody(http.Response response) {
