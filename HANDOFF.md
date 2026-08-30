@@ -3614,3 +3614,20 @@ In commit `2f0679e`, support was added for persisting generic attachment metadat
    - Backend Vitest test suite (`backend/tests/attachments.test.ts`, `lifecycle.test.ts`, `gc.test.ts`, etc.): **10/10 test files passing (40/40 tests)**.
    - Flutter Static Analysis: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
    - Flutter Test Suite: `flutter test` (**867 / 867 tests passing**).
+
+---
+
+## 79. Release Version Bump to 1.5.4 (Build 12)
+
+- Bumped application release version across all client packages, build configurations, export handlers, and UI metadata from `1.5.3+11` to `1.5.4+12`.
+- Synchronized version configurations:
+  - [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): Bumped `version` to `1.5.4+12`.
+  - [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): Updated `currentVersion` to `'1.5.4'`.
+  - [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): Updated `appVersion` to `'1.5.4'`.
+  - [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): Updated default `appVersion` parameter to `'1.5.4'`.
+  - [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart): Updated manifest and encrypted envelope `appVersion` to `'1.5.4'`.
+  - [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Updated Settings About tile subtitle to `'Version 1.5.4 • Offline-first • End-to-End Encrypted Sync'`.
+- Verified quality:
+  - `flutter analyze` passed with 0 issues.
+  - `flutter test` passed with 867/867 tests passing.
+
