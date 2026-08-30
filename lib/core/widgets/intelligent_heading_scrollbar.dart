@@ -592,7 +592,7 @@ class _IntelligentHeadingScrollbarState extends State<IntelligentHeadingScrollba
                         onVerticalDragCancel: () => _onDragEnd(DragEndDetails()),
                         onTapDown: (d) => _onTrackTap(d, trackHeight, thumbHeight),
                         child: Container(
-                          width: 32.0, // Generous invisible touch/pointer target
+                          width: 36.0, // Generous invisible touch/pointer target
                           color: Colors.transparent,
                           alignment: Alignment.topRight,
                           child: FadeTransition(
