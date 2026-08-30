@@ -48,7 +48,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
   final int advancedFilterCount;
 
   @override
-  Size get preferredSize => const Size.fromHeight(54);
+  Size get preferredSize => const Size.fromHeight(52);
 
   Future<void> _handleRename(BuildContext context, WidgetRef ref, Tag tag) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
@@ -200,18 +200,22 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
       fallback: tag?.isPinned == true ? Icons.push_pin_rounded : Icons.tag_rounded,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        final isVeryNarrow = availableWidth < 310;
+    return Container(
+      color: colors.background,
+      child: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth;
+            final isVeryNarrow = availableWidth < 310;
 
-        return Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: colors.background,
-          ),
-          child: Row(
+            return Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: colors.background,
+              ),
+              child: Row(
             children: [
               if (onOpenDrawer != null)
                 QuietIconButton(
@@ -449,6 +453,8 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
           ),
         );
       },
-    );
+    ),
+  ),
+);
   }
 }

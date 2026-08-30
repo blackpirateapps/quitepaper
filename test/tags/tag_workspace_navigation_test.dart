@@ -34,6 +34,7 @@ void main() {
   Future<void> finishTest(WidgetTester tester) async {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    tester.view.resetPadding();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
   }
@@ -266,6 +267,29 @@ void main() {
       final container = ProviderScope.containerOf(tester.element(find.byType(NotesScreen)));
       expect(container.read(currentDestinationProvider), AppDestination.allNotes);
       expect(container.read(selectedTagFilterProvider), isNull);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('TagContextHeader on mobile respects top status bar padding and does not overlap', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = const FakeViewPadding(top: 48.0);
+
+      await tester.pumpWidget(
+        createWorkspaceTestApp(
+          initialDestination: AppDestination.tag,
+          initialTag: 'blog',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TagContextHeader), findsOneWidget);
+      final menuButtonTopLeft = tester.getTopLeft(find.byTooltip('Open navigation'));
+      expect(menuButtonTopLeft.dy, greaterThanOrEqualTo(48.0));
+
+      final tagTextTopLeft = tester.getTopLeft(find.text('#blog').first);
+      expect(tagTextTopLeft.dy, greaterThanOrEqualTo(48.0));
 
       await finishTest(tester);
     });

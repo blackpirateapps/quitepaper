@@ -262,7 +262,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     ? _buildMultiSelectAppBar(context, colors, destination, repository)
                     : destination == AppDestination.tag
                         ? PreferredSize(
-                        preferredSize: const Size.fromHeight(54),
+                        preferredSize: const Size.fromHeight(52),
                         child: Builder(
                           builder: (scaffoldCtx) => TagContextHeader(
                             tagName: selectedTag ?? 'tag',

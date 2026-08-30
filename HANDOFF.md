@@ -3631,3 +3631,22 @@ In commit `2f0679e`, support was added for persisting generic attachment metadat
   - `flutter analyze` passed with 0 issues.
   - `flutter test` passed with 867/867 tests passing.
 
+---
+
+## 80. Fix TagContextHeader Status Bar Overlap on Mobile Tag Pages
+
+### Problem & Root Cause
+On mobile viewports when navigating to an individual tag page (`destination == AppDestination.tag`), `NotesScreen` mounted `TagContextHeader` in `Scaffold.appBar` via `PreferredSize(preferredSize: const Size.fromHeight(52), child: Builder(...))`. Because `TagContextHeader` previously returned a raw `Container(height: 52, ...)` without a `SafeArea(bottom: false, ...)`, `Scaffold` positioned the header at `y = 0` (the physical top of the screen), causing the navigation icon, `#tag` title, and action icons to collide directly with the Android system status bar (clock, Wi-Fi, battery icons).
+
+### Solution
+1. **Status Bar SafeArea Wrapping (`lib/features/tags/presentation/widgets/tag_context_header.dart`)**:
+   - Wrapped `TagContextHeader` in an outer `Container(color: colors.background)` and `SafeArea(bottom: false, child: ...)`.
+   - On mobile phones where `TagContextHeader` serves as `Scaffold.appBar`, the `SafeArea` automatically shifts the inner 52dp toolbar down by `MediaQuery.paddingOf(context).top`, painting the status bar area cleanly with `colors.background`.
+   - On tablets where `TagContextHeader` resides in the middle pane under `Scaffold.body`'s `SafeArea`, top padding is `0.0`, ensuring no redundant padding or layout displacement.
+   - Updated `preferredSize` to `Size.fromHeight(52)` and aligned `notes_screen.dart`'s `PreferredSize` widget.
+2. **Automated Verification**:
+   - Added widget test `TagContextHeader on mobile respects top status bar padding and does not overlap` in `test/tags/tag_workspace_navigation_test.dart` simulating a `FakeViewPadding(top: 48.0)` and verifying header elements are positioned at `dy >= 48.0`.
+   - Static Analysis: `flutter analyze` (**0 issues found**).
+   - Test Suite: `flutter test` (**868 / 868 tests passing**).
+
+
