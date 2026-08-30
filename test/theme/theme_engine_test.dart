@@ -130,9 +130,9 @@ void main() {
       expect(colors.divider, equals(const Color(0xFFE5E3DF)));
       expect(colors.border, equals(const Color(0xFFE5E3DF)));
       expect(colors.textPrimary, equals(const Color(0xFF202124)));
-      expect(colors.textSecondary, equals(const Color(0xFF414141)));
-      expect(colors.textTertiary, equals(const Color(0xFF777777)));
-      expect(colors.textMuted, equals(const Color(0xFF777777)));
+      expect(colors.textSecondary, equals(const Color(0xFF5F6368)));
+      expect(colors.textTertiary, equals(const Color(0xFF8C8B87)));
+      expect(colors.textMuted, equals(const Color(0xFF8C8B87)));
       expect(colors.textDisabled, equals(const Color(0xFF9A9994)));
       expect(colors.scrollbar, equals(const Color(0xFF9DA1AA)));
       expect(colors.scrollbarActive, equals(const Color(0xFF60646D)));
@@ -140,6 +140,8 @@ void main() {
       expect(colors.accentLight, equals(const Color(0xFFDBEAFE)));
       expect(colors.sidebarBackground, equals(const Color(0xFF202329)));
       expect(colors.sidebarSelected, equals(const Color(0xFF353A43)));
+      expect(colors.tagBackground, equals(const Color(0xFFE5E3DD)));
+      expect(colors.tagText, equals(const Color(0xFF5F6368)));
     });
 
     test('Midnight Paper Dark canonical palette matches specification', () {

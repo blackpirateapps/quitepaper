@@ -14,14 +14,14 @@ abstract final class AppTypography {
 
   static const TextStyle title = TextStyle(
     fontSize: 24,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w600,
     height: 30 / 24,
     letterSpacing: -0.3,
   );
 
   static const TextStyle headline = TextStyle(
     fontSize: 20,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w500,
     height: 26 / 20,
     letterSpacing: -0.2,
   );
@@ -58,7 +58,7 @@ abstract final class AppTypography {
 
   static const TextStyle caption = TextStyle(
     fontSize: 12,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w400,
     height: 17 / 12,
     letterSpacing: 0.2,
   );
@@ -114,7 +114,7 @@ abstract final class AppTypography {
   // Tag styling
   static const TextStyle tag = TextStyle(
     fontSize: 13,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w400,
     height: 18 / 13,
     letterSpacing: 0.1,
   );

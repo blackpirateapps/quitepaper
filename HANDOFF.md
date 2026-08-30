@@ -3933,4 +3933,32 @@ Integrated the open-source **iA Writer Quattro** typeface ([`iaolo/iA-Fonts`](ht
    - Updated [`test/core/fonts/font_cache_manager_test.dart`](file:///home/dog/git/quitepaper/test/core/fonts/font_cache_manager_test.dart) and [`test/settings/typography_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/typography_settings_test.dart) covering downloading, alias registration, preset presence, and typography persistence.
    - All **933 Flutter automated tests** and **42 backend tests** pass with zero warnings/errors.
 
+---
+
+## 87. Warm Paper Typography Weight Refinement & Natural Tag Chip Styling
+
+### Problem & Motivation
+1. **Perceived Boldness in UI Fonts**: In Warm Paper Light mode, `textSecondary` was configured as a dense dark charcoal (`#414141`), which produced heavy contrast on the `#F2F1EE` warm canvas. Coupled with semi-bold UI font weights (`w700`/`w600`/`w500`) across titles, headlines, captions, and note list cards, text appeared excessively bold and visually heavy.
+2. **Awkward Tag Backgrounds in Light Mode**: `tagBackground` was previously `#F5F4F1` (an off-white shade lighter than the canvas), creating muddy, pale patches with dark text `#414141` on note list cards and inside notes.
+
+### Architectural & Visual Enhancements
+1. **Calm, Editorial Typography ([`app_colors.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_colors.dart), [`app_typography.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_typography.dart), [`note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart))**:
+   - Softened `textSecondary` and `iconSecondary` from `#414141` to a refined editorial slate gray (`#5F6368`).
+   - Softened `textTertiary` and `iconMuted` to `#8C8B87`.
+   - Adjusted `AppTypography` weights:
+     - `title`: `FontWeight.w600` (from `w700`)
+     - `headline`: `FontWeight.w500` (from `w600`)
+     - `caption`: `FontWeight.w400` (from `w500`)
+     - `tag`: `FontWeight.w400` (from `w500`)
+   - Refined `NoteListTile` title style to `FontWeight.w500` and `fontSize: 16.0`.
+2. **Natural Warm Paper Tag Chips ([`app_colors.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_colors.dart), [`quiet_tag_chip.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_tag_chip.dart), [`markdown_styles.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_styles.dart))**:
+   - Updated `tagBackground` in Warm Paper Light to `#E5E3DD` (a natural, darker tonal paper shade) with `tagText: #5F6368`.
+   - Tags sit naturally on the `#F2F1EE` canvas across note list tiles, tag editor bars, and preview screens.
+   - Refined `QuietTagChip` label weight to `FontWeight.w400` (unselected) and `FontWeight.w500` (selected).
+   - In `MarkdownStyles`, tuned inline `#tag` font weight to `FontWeight.w500`.
+3. **Automated Verification**:
+   - Updated palette assertions in [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart).
+   - All **933 automated tests passed**; static analysis clean (**0 issues**).
+
+
 

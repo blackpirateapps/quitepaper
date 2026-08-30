@@ -135,8 +135,8 @@ class NoteListTile extends StatelessWidget {
                               color: note.hasCustomTitle
                                   ? colors.textPrimary
                                   : colors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16.5,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 16.0,
                             ),
                             highlightColor: colors.accent,
                             textColor: colors.textPrimary,

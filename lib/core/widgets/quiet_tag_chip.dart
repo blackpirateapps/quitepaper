@@ -59,7 +59,7 @@ class QuietTagChip extends StatelessWidget {
           displayTag,
           style: AppTypography.tag.copyWith(
             color: textColor,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
           ),
         ),
         if (onDelete != null) ...[

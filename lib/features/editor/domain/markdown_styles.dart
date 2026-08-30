@@ -211,7 +211,7 @@ class MarkdownStyles {
       linkUrl: TextStyle(color: colors.textTertiary.withValues(alpha: 0.7)),
       tag: AppTypography.tag.copyWith(
         color: colors.accent,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
       syntaxMarker: TextStyle(
         color: colors.textTertiary.withValues(alpha: 0.6),
