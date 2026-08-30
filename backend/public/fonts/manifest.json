@@ -72,6 +72,18 @@
         { "variant": "regular", "weight": 400, "style": "normal", "file": "FiraCode/FiraCode-Regular.ttf", "size": 260364 },
         { "variant": "bold", "weight": 700, "style": "normal", "file": "FiraCode/FiraCode-Bold.ttf", "size": 23040 }
       ]
+    },
+    {
+      "family": "San Francisco",
+      "category": "Sans-serif",
+      "variants": [
+        { "variant": "displayRegular", "weight": 400, "style": "normal", "file": "SanFrancisco/SF-Pro-Display-Regular.otf", "size": 298944 },
+        { "variant": "displayBold", "weight": 700, "style": "normal", "file": "SanFrancisco/SF-Pro-Display-Bold.otf", "size": 334728 },
+        { "variant": "displayItalic", "weight": 400, "style": "italic", "file": "SanFrancisco/SF-Pro-Display-RegularItalic.otf", "size": 148740 },
+        { "variant": "textRegular", "weight": 400, "style": "normal", "file": "SanFrancisco/SF-Pro-Text-Regular.otf", "size": 310148 },
+        { "variant": "textBold", "weight": 700, "style": "normal", "file": "SanFrancisco/SF-Pro-Text-Bold.otf", "size": 341844 },
+        { "variant": "textItalic", "weight": 400, "style": "italic", "file": "SanFrancisco/SF-Pro-Text-RegularItalic.otf", "size": 168992 }
+      ]
     }
   ]
 }

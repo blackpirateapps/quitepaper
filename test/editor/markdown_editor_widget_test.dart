@@ -272,6 +272,7 @@ void main() {
 
     group('Custom Typography Font Regression Tests', () {
       final testFonts = [
+        'San Francisco',
         'Inter',
         'Roboto',
         'Lora',

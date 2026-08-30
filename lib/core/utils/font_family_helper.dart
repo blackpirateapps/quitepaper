@@ -7,6 +7,7 @@ import '../fonts/font_cache_manager.dart';
 class FontFamilyHelper {
   /// Font families available on-demand from the backend.
   static const Set<String> hostedFonts = {
+    'San Francisco',
     'Inter',
     'Roboto',
     'Lora',
@@ -19,6 +20,46 @@ class FontFamilyHelper {
 
   /// Backwards-compatibility alias for hosted fonts
   static const Set<String> bundledFonts = hostedFonts;
+
+  /// Resolves the effective font family to use for headings, titles, and display elements.
+  /// When [family] is 'San Francisco' or 'SF Pro', resolves to 'SF Pro Display'.
+  static String? resolveHeadingFontFamily(String? family) {
+    if (family == null || family.isEmpty || family == 'System Sans') {
+      return null;
+    }
+    final lower = family.toLowerCase().trim();
+    if (lower == 'san francisco' ||
+        lower == 'sf pro' ||
+        lower == 'sf' ||
+        lower == 'sf pro display' ||
+        lower == 'san francisco display') {
+      return 'SF Pro Display';
+    }
+    if (lower == 'system serif' || lower == 'serif') {
+      return 'serif';
+    }
+    return family;
+  }
+
+  /// Resolves the effective font family to use for body text, blockquotes, lists, and tables.
+  /// When [family] is 'San Francisco' or 'SF Pro', resolves to 'SF Pro Text'.
+  static String? resolveBodyFontFamily(String? family) {
+    if (family == null || family.isEmpty || family == 'System Sans') {
+      return null;
+    }
+    final lower = family.toLowerCase().trim();
+    if (lower == 'san francisco' ||
+        lower == 'sf pro' ||
+        lower == 'sf' ||
+        lower == 'sf pro text' ||
+        lower == 'san francisco text') {
+      return 'SF Pro Text';
+    }
+    if (lower == 'system serif' || lower == 'serif') {
+      return 'serif';
+    }
+    return family;
+  }
 
   /// Curated list of popular Google Fonts with display names and categories.
   static const List<GoogleFontEntry> popularGoogleFonts = [
@@ -83,6 +124,15 @@ class FontFamilyHelper {
     if (fontFamily == 'Monospace' || fontFamily == 'monospace') {
       return baseStyle.copyWith(fontFamily: 'monospace');
     }
+
+    final lower = fontFamily.toLowerCase().trim();
+    if (lower == 'san francisco' || lower == 'sf pro') {
+      if (FontCacheManager.instance.registeredFamilies.contains('SF Pro Text') ||
+          FontCacheManager.instance.isFontCached('San Francisco')) {
+        return baseStyle.copyWith(fontFamily: 'SF Pro Text');
+      }
+    }
+
     if (FontCacheManager.instance.registeredFamilies.contains(fontFamily) ||
         FontCacheManager.instance.isFontCached(fontFamily)) {
       return baseStyle.copyWith(fontFamily: fontFamily);

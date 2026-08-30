@@ -101,8 +101,12 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final colors = context.appColors;
     final typography = ref.watch(typographySettingsProvider);
 
-    final headingFont = typography.headingFontFamily ?? typography.bodyFontFamily;
-    final bodyFont = typography.bodyFontFamily;
+    final headingFont = FontFamilyHelper.resolveHeadingFontFamily(
+      typography.headingFontFamily ?? typography.bodyFontFamily,
+    );
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(
+      typography.bodyFontFamily,
+    );
     final codeFont = typography.codeFontFamily ?? 'monospace';
     final baseFontSize = typography.fontSize;
     final baseHeight = typography.lineHeight;

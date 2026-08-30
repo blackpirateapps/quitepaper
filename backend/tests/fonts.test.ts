@@ -18,6 +18,11 @@ describe('Fonts Manifest API', () => {
     expect(inter).toBeDefined();
     expect(inter.category).toBe('Sans-serif');
     expect(inter.variants.length).toBeGreaterThanOrEqual(2);
+
+    const sf = res.body.fonts.find((f: any) => f.family === 'San Francisco');
+    expect(sf).toBeDefined();
+    expect(sf.category).toBe('Sans-serif');
+    expect(sf.variants.length).toBe(6);
   });
 
   it('supports GET /fonts/manifest.json route', async () => {

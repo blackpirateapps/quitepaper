@@ -81,7 +81,9 @@ class PdfFontManager {
     final candidatePaths = [
       assetPath,
       'backend/public/fonts/$family/$filename.ttf',
+      'backend/public/fonts/$family/$filename.otf',
       'backend/public/fonts/$filename.ttf',
+      'backend/public/fonts/$filename.otf',
       if (!assetPath.startsWith('assets/')) 'assets/$assetPath',
       assetPath.replaceFirst(RegExp(r'^assets/'), ''),
     ];
@@ -130,6 +132,11 @@ class PdfFontManager {
     // Determine body font asset family
     String bodyPrefix;
     switch (requestedBodyFamily?.toLowerCase()) {
+      case 'san francisco':
+      case 'sf pro':
+      case 'sanfrancisco':
+        bodyPrefix = 'SanFrancisco';
+        break;
       case 'roboto':
         bodyPrefix = 'Roboto';
         break;
@@ -168,12 +175,16 @@ class PdfFontManager {
 
     // 1. Resolve Body Regular
     pw.Font? bodyRegular = await loadFontOrNull('$bodyPrefix-Regular.ttf');
+    bodyRegular ??= await loadFontOrNull('$bodyPrefix-TextRegular.otf');
+    bodyRegular ??= await loadFontOrNull('SF-Pro-Text-Regular.otf');
     bodyRegular ??= await loadFontOrNull('Inter-Regular.ttf');
     bodyRegular ??= await loadFontOrNull('Roboto-Regular.ttf');
     bodyRegular ??= (isSerif ? pw.Font.times() : pw.Font.helvetica());
 
     // 2. Resolve Body Bold
     pw.Font? bodyBold = await loadFontOrNull('$bodyPrefix-Bold.ttf');
+    bodyBold ??= await loadFontOrNull('$bodyPrefix-TextBold.otf');
+    bodyBold ??= await loadFontOrNull('SF-Pro-Text-Bold.otf');
     if (bodyBold == null && bodyPrefix != 'Roboto') {
       bodyBold = await loadFontOrNull('Roboto-Bold.ttf');
     }
@@ -181,10 +192,13 @@ class PdfFontManager {
 
     // 3. Resolve Body Italic
     pw.Font? bodyItalic = await loadFontOrNull('$bodyPrefix-Italic.ttf');
+    bodyItalic ??= await loadFontOrNull('$bodyPrefix-TextItalic.otf');
+    bodyItalic ??= await loadFontOrNull('SF-Pro-Text-RegularItalic.otf');
     bodyItalic ??= await loadFontOrNull('Inter-Italic.ttf');
     bodyItalic ??= (isSerif ? pw.Font.timesItalic() : pw.Font.helveticaOblique());
 
     pw.Font? bodyBoldItalic = await loadFontOrNull('$bodyPrefix-BoldItalic.ttf');
+    bodyBoldItalic ??= await loadFontOrNull('$bodyPrefix-TextBoldItalic.otf');
     bodyBoldItalic ??= (isSerif ? pw.Font.timesBoldItalic() : pw.Font.helveticaBoldOblique());
 
     // 4. Resolve Code Regular

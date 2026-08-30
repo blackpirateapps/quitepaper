@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/core/utils/font_family_helper.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 
@@ -99,6 +100,12 @@ void main() {
       notifier.setCodeFontFamily('JetBrains Mono');
       expect(notifier.state.codeFontFamily, equals('JetBrains Mono'));
 
+      notifier.setHeadingFontFamily('San Francisco');
+      expect(notifier.state.headingFontFamily, equals('San Francisco'));
+
+      notifier.setBodyFontFamily('San Francisco');
+      expect(notifier.state.bodyFontFamily, equals('San Francisco'));
+
       notifier.resetToDefault();
       expect(notifier.state.fontSize, equals(18.0));
       expect(notifier.state.lineHeight, equals(1.6));
@@ -106,6 +113,25 @@ void main() {
       expect(notifier.state.headingFontFamily, isNull);
       expect(notifier.state.bodyFontFamily, isNull);
       expect(notifier.state.codeFontFamily, equals('monospace'));
+    });
+
+    test('CuratedFonts contains San Francisco in heading and body presets', () {
+      expect(CuratedFonts.headingPresets, contains('San Francisco'));
+      expect(CuratedFonts.bodyPresets, contains('San Francisco'));
+    });
+
+    test('FontFamilyHelper correctly resolves optical sizes for San Francisco', () {
+      expect(FontFamilyHelper.resolveHeadingFontFamily('San Francisco'), equals('SF Pro Display'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily('SF Pro'), equals('SF Pro Display'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily('SF Pro Display'), equals('SF Pro Display'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily('Inter'), equals('Inter'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily(null), isNull);
+
+      expect(FontFamilyHelper.resolveBodyFontFamily('San Francisco'), equals('SF Pro Text'));
+      expect(FontFamilyHelper.resolveBodyFontFamily('SF Pro'), equals('SF Pro Text'));
+      expect(FontFamilyHelper.resolveBodyFontFamily('SF Pro Text'), equals('SF Pro Text'));
+      expect(FontFamilyHelper.resolveBodyFontFamily('Lora'), equals('Lora'));
+      expect(FontFamilyHelper.resolveBodyFontFamily(null), isNull);
     });
   });
 }

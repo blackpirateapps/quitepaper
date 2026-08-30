@@ -206,6 +206,18 @@ class FontCacheManager {
         HostedFontVariant(variant: 'bold', weight: 700, style: 'normal', file: 'FiraCode/FiraCode-Bold.ttf', size: 23040),
       ],
     ),
+    HostedFontEntry(
+      family: 'San Francisco',
+      category: 'Sans-serif',
+      variants: [
+        HostedFontVariant(variant: 'displayRegular', weight: 400, style: 'normal', file: 'SanFrancisco/SF-Pro-Display-Regular.otf', size: 298944),
+        HostedFontVariant(variant: 'displayBold', weight: 700, style: 'normal', file: 'SanFrancisco/SF-Pro-Display-Bold.otf', size: 334728),
+        HostedFontVariant(variant: 'displayItalic', weight: 400, style: 'italic', file: 'SanFrancisco/SF-Pro-Display-RegularItalic.otf', size: 148740),
+        HostedFontVariant(variant: 'textRegular', weight: 400, style: 'normal', file: 'SanFrancisco/SF-Pro-Text-Regular.otf', size: 310148),
+        HostedFontVariant(variant: 'textBold', weight: 700, style: 'normal', file: 'SanFrancisco/SF-Pro-Text-Bold.otf', size: 341844),
+        HostedFontVariant(variant: 'textItalic', weight: 400, style: 'italic', file: 'SanFrancisco/SF-Pro-Text-RegularItalic.otf', size: 168992),
+      ],
+    ),
   ];
 
   /// Resolves the local fonts storage directory.
@@ -247,7 +259,7 @@ class FontCacheManager {
       final groupedByFamily = <String, List<File>>{};
       for (final file in fontFiles) {
         final filename = p.basenameWithoutExtension(file.path);
-        // Normalize name, e.g. "Inter-Regular" or "Lora-Bold" or "JetBrainsMono-Regular"
+        // Normalize name, e.g. "Inter-Regular" or "Lora-Bold" or "JetBrainsMono-Regular" or "SanFrancisco-DisplayRegular"
         final parts = filename.split('-');
         final family = _normalizeFamilyName(parts.first);
         groupedByFamily.putIfAbsent(family, () => []).add(file);
@@ -273,15 +285,25 @@ class FontCacheManager {
         return 'Fira Code';
       case 'opensans':
         return 'Open Sans';
+      case 'sanfrancisco':
+      case 'sfpro':
+      case 'sfprodisplay':
+      case 'sfprotext':
+      case 'sf':
+        return 'San Francisco';
       default:
         return raw;
     }
   }
 
-  String _sanitizeFileName(String family, String variant) {
+  String _sanitizeFileName(String family, String variant, {String ext = '.ttf'}) {
     final cleanFamily = family.replaceAll(' ', '');
-    final cleanVariant = variant[0].toUpperCase() + variant.substring(1).toLowerCase();
-    return '$cleanFamily-$cleanVariant.ttf';
+    final cleanVariant = variant.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    final capitalized = cleanVariant.isNotEmpty
+        ? cleanVariant[0].toUpperCase() + cleanVariant.substring(1)
+        : 'Regular';
+    final cleanExt = ext.startsWith('.') ? ext : '.$ext';
+    return '$cleanFamily-$capitalized$cleanExt';
   }
 
   /// Checks if a font family is cached locally on disk.
@@ -289,8 +311,17 @@ class FontCacheManager {
     if (_registeredFamilies.contains(family)) return true;
     final dir = _resolvedFontsDir ?? customStorageDir;
     if (dir == null) return false;
-    final regularFile = File(p.join(dir.path, _sanitizeFileName(family, 'regular')));
-    return regularFile.existsSync();
+    if (family.toLowerCase() == 'san francisco' || family.toLowerCase() == 'sf pro') {
+      final sfDisplay = File(p.join(dir.path, _sanitizeFileName('San Francisco', 'displayRegular', ext: '.otf')));
+      final sfText = File(p.join(dir.path, _sanitizeFileName('San Francisco', 'textRegular', ext: '.otf')));
+      final sfDisplayAlt = File(p.join(dir.path, 'SanFrancisco-DisplayRegular.otf'));
+      final sfTextAlt = File(p.join(dir.path, 'SanFrancisco-TextRegular.otf'));
+      return (sfDisplay.existsSync() || sfDisplayAlt.existsSync()) &&
+             (sfText.existsSync() || sfTextAlt.existsSync());
+    }
+    final regularTtf = File(p.join(dir.path, _sanitizeFileName(family, 'regular', ext: '.ttf')));
+    final regularOtf = File(p.join(dir.path, _sanitizeFileName(family, 'regular', ext: '.otf')));
+    return regularTtf.existsSync() || regularOtf.existsSync();
   }
 
   /// Returns the download status of a font family.
@@ -319,17 +350,44 @@ class FontCacheManager {
     final dir = _resolvedFontsDir ?? customStorageDir;
     if (dir == null) return null;
 
+    for (final ext in ['.ttf', '.otf']) {
+      final candidate = File(p.join(dir.path, _sanitizeFileName(family, variant, ext: ext)));
+      if (candidate.existsSync()) return candidate;
 
-    final candidate = File(p.join(dir.path, _sanitizeFileName(family, variant)));
-    if (candidate.existsSync()) return candidate;
+      // Try alternate subdirectory structure
+      final subCandidate = File(p.join(dir.path, family.replaceAll(' ', ''), '$family-$variant$ext'));
+      if (subCandidate.existsSync()) return subCandidate;
 
-    // Try alternate subdirectory structure
-    final subCandidate = File(p.join(dir.path, family.replaceAll(' ', ''), '$family-$variant.ttf'));
-    if (subCandidate.existsSync()) return subCandidate;
+      final fallbackRegular = File(p.join(dir.path, _sanitizeFileName(family, 'regular', ext: ext)));
+      if (fallbackRegular.existsSync()) return fallbackRegular;
+    }
 
-    // If looking for bold or italic and only regular exists, return regular
-    final fallbackRegular = File(p.join(dir.path, _sanitizeFileName(family, 'regular')));
-    if (fallbackRegular.existsSync()) return fallbackRegular;
+    if (family.toLowerCase() == 'san francisco' || family.toLowerCase() == 'sf pro') {
+      final isDisplay = variant.toLowerCase().contains('display');
+      final isBold = variant.toLowerCase().contains('bold');
+      final isItalic = variant.toLowerCase().contains('italic');
+
+      String targetVariant;
+      if (isDisplay) {
+        if (isBold) {
+          targetVariant = 'DisplayBold';
+        } else if (isItalic) {
+          targetVariant = 'DisplayItalic';
+        } else {
+          targetVariant = 'DisplayRegular';
+        }
+      } else {
+        if (isBold) {
+          targetVariant = 'TextBold';
+        } else if (isItalic) {
+          targetVariant = 'TextItalic';
+        } else {
+          targetVariant = 'TextRegular';
+        }
+      }
+      final sfFile = File(p.join(dir.path, 'SanFrancisco-$targetVariant.otf'));
+      if (sfFile.existsSync()) return sfFile;
+    }
 
     return null;
   }
@@ -373,7 +431,8 @@ class FontCacheManager {
       var completedVariants = 0;
 
       for (final variant in entry.variants) {
-        final targetFileName = _sanitizeFileName(family, variant.variant);
+        final ext = p.extension(variant.file).isNotEmpty ? p.extension(variant.file) : '.ttf';
+        final targetFileName = _sanitizeFileName(family, variant.variant, ext: ext);
         final targetFile = File(p.join(dir.path, targetFileName));
 
         if (!await targetFile.exists()) {
@@ -414,6 +473,52 @@ class FontCacheManager {
   Future<void> _registerFilesIntoEngine(String family, List<File> files) async {
     if (files.isEmpty) return;
     try {
+      if (family.toLowerCase() == 'san francisco' ||
+          family.toLowerCase() == 'sf pro' ||
+          family.toLowerCase() == 'sanfrancisco') {
+        final displayFiles = files.where((f) {
+          final name = p.basename(f.path).toLowerCase();
+          return name.contains('display');
+        }).toList();
+        final textFiles = files.where((f) {
+          final name = p.basename(f.path).toLowerCase();
+          return name.contains('text') || !name.contains('display');
+        }).toList();
+
+        if (displayFiles.isNotEmpty) {
+          final displayLoader = FontLoader('SF Pro Display');
+          for (final file in displayFiles) {
+            final bytes = await file.readAsBytes();
+            displayLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+          }
+          await displayLoader.load();
+          _registeredFamilies.add('SF Pro Display');
+          _registeredFamilies.add('San Francisco Display');
+        }
+
+        if (textFiles.isNotEmpty) {
+          final textLoader = FontLoader('SF Pro Text');
+          for (final file in textFiles) {
+            final bytes = await file.readAsBytes();
+            textLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+          }
+          await textLoader.load();
+
+          final sfLoader = FontLoader('San Francisco');
+          for (final file in textFiles) {
+            final bytes = await file.readAsBytes();
+            sfLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+          }
+          await sfLoader.load();
+
+          _registeredFamilies.add('SF Pro Text');
+          _registeredFamilies.add('San Francisco Text');
+          _registeredFamilies.add('San Francisco');
+          _registeredFamilies.add('SF Pro');
+        }
+        return;
+      }
+
       final fontLoader = FontLoader(family);
       for (final file in files) {
         final bytes = await file.readAsBytes();

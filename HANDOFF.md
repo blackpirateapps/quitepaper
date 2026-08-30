@@ -3763,6 +3763,57 @@ An **intelligent heading-aware scrollbar** was engineered for Quiet Paper, combi
    - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
    - Full Test Suite: `flutter test` (**907 / 907 tests passing, 100% pass rate**).
 
+---
+
+## 84. Apple San Francisco (SF Pro) Font Integration & Automatic Optical Sizing Architecture
+
+### Overview & Motivation
+Apple's **San Francisco** (`SF Pro`) is a clean, neutral neo-grotesque sans-serif typeface designed with distinct optical sizes:
+1. **SF Pro Display**: Optimized for large display text and headings ($\ge 20\text{pt}$), featuring tighter tracking, higher contrast, and refined curves.
+2. **SF Pro Text**: Optimized for smaller body text ($< 20\text{pt}$), featuring wider tracking, open counters, and larger x-height for maximum reading comfort and legibility.
+
+To elevate Quiet Paper's editorial writing aesthetic, San Francisco Pro was added to the curated typography pipeline with automatic optical size switching between headings/titles and body text.
+
+### Key Architectural & Implementation Components
+
+1. **Backend CDN Hosting & Catalog Manifest** ([`backend/public/fonts/SanFrancisco/`](file:///home/dog/git/quitepaper/backend/public/fonts/SanFrancisco/)):
+   - Extracted 6 core TrueType/OpenType binaries from the SF Pro suite:
+     - `SF-Pro-Display-Regular.otf` (400 normal)
+     - `SF-Pro-Display-Bold.otf` (700 normal)
+     - `SF-Pro-Display-RegularItalic.otf` (400 italic)
+     - `SF-Pro-Text-Regular.otf` (400 normal)
+     - `SF-Pro-Text-Bold.otf` (700 normal)
+     - `SF-Pro-Text-RegularItalic.otf` (400 italic)
+   - Registered in [`backend/public/fonts/manifest.json`](file:///home/dog/git/quitepaper/backend/public/fonts/manifest.json) under family `"San Francisco"`.
+
+2. **Optical Size Resolution Helper** ([`lib/core/utils/font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart)):
+   - Added `'San Francisco'` to `FontFamilyHelper.hostedFonts`.
+   - `resolveHeadingFontFamily(family)`: Dynamically maps `'San Francisco'` / `'SF Pro'` to `'SF Pro Display'` for `#` through `######` headings, document titles, and display previews.
+   - `resolveBodyFontFamily(family)`: Dynamically maps `'San Francisco'` / `'SF Pro'` to `'SF Pro Text'` for editor body copy, paragraphs, blockquotes, lists, and checklists.
+
+3. **Font Cache Manager & Multi-Family Engine Registration** ([`lib/core/fonts/font_cache_manager.dart`](file:///home/dog/git/quitepaper/lib/core/fonts/font_cache_manager.dart)):
+   - Extended `defaultHostedFonts` with 6 San Francisco display and text variants.
+   - Enhanced `downloadAndRegisterFont` to download both `.otf` and `.ttf` formats.
+   - Enhanced `_registerFilesIntoEngine` when registering `'San Francisco'`:
+     - Registers Display font files into Flutter's `FontLoader` under `'SF Pro Display'` and `'San Francisco Display'`.
+     - Registers Text font files under `'SF Pro Text'`, `'San Francisco Text'`, and `'San Francisco'`.
+   - On app startup, `FontCacheManager.initialize()` scans local storage, re-registers both families into the engine, and marks `'San Francisco'` as cached for instant offline writing.
+
+4. **Editor & Preview Integration**:
+   - [`MarkdownStyles.fromColors`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_styles.dart): Resolves headings with `resolveHeadingFontFamily()` and body/blockquotes with `resolveBodyFontFamily()`.
+   - [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart): Renders note title using `resolveHeadingFontFamily(typography.headingFontFamily ?? typography.bodyFontFamily)`.
+   - [`MarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart): Resolves heading and body font families using optical size resolvers.
+   - [`FontPickerSheet`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart): Displays curated presets including "San Francisco" with live optical size preview matching picker type (Display for Heading picker, Text for Body picker).
+   - [`PdfFontManager`](file:///home/dog/git/quitepaper/lib/core/pdf/pdf_font_manager.dart): Maps San Francisco to `SF-Pro-Text-*.otf` for body copy and `SF-Pro-Display-*.otf` for bold heading/title export.
+
+5. **Automated Verification**:
+   - Backend tests: [`backend/tests/fonts.test.ts`](file:///home/dog/git/quitepaper/backend/tests/fonts.test.ts) (verifying San Francisco manifest entry with 6 variants).
+   - Unit tests: [`test/core/fonts/font_cache_manager_test.dart`](file:///home/dog/git/quitepaper/test/core/fonts/font_cache_manager_test.dart) (verifying 9 curated families, San Francisco downloading, and optical registration).
+   - Settings tests: [`test/settings/typography_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/typography_settings_test.dart) (verifying heading/body presets and optical resolution).
+   - Editor widget tests: [`test/editor/markdown_editor_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_editor_widget_test.dart) (verifying typing and whitespace caret behavior with San Francisco).
+   - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+
+
 
 
 

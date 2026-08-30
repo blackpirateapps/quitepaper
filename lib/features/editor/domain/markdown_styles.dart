@@ -95,8 +95,11 @@ class MarkdownStyles {
     final headingFont = typo.headingFontFamily ?? bodyFont;
     final codeFont = typo.codeFontFamily ?? 'monospace';
 
+    final effectiveHeadingFont = FontFamilyHelper.resolveHeadingFontFamily(headingFont);
+    final effectiveBodyFont = FontFamilyHelper.resolveBodyFontFamily(bodyFont);
+
     final effectiveBody = FontFamilyHelper.getTextStyle(
-      fontFamily: bodyFont,
+      fontFamily: effectiveBodyFont,
       baseStyle: (baseStyle ?? AppTypography.editorBody).copyWith(
         color: colors.textPrimary,
         fontSize: baseFontSize,
@@ -107,7 +110,7 @@ class MarkdownStyles {
 
     TextStyle headingStyle(double size, FontWeight weight, double tracking) {
       return FontFamilyHelper.getTextStyle(
-        fontFamily: headingFont,
+        fontFamily: effectiveHeadingFont,
         baseStyle: TextStyle(
           fontSize: size,
           fontWeight: weight,
@@ -174,7 +177,7 @@ class MarkdownStyles {
         color: colors.textTertiary.withValues(alpha: 0.7),
       ),
       blockquote: FontFamilyHelper.getTextStyle(
-        fontFamily: bodyFont,
+        fontFamily: effectiveBodyFont,
         baseStyle: TextStyle(
           fontSize: baseFontSize,
           fontStyle: FontStyle.italic,

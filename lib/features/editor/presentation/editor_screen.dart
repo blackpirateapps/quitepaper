@@ -947,8 +947,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     readOnly: editorState.isReadOnly,
                                     cursorColor: colors.accent,
                                     style: FontFamilyHelper.getTextStyle(
-                                      fontFamily: typography.headingFontFamily ??
-                                          typography.bodyFontFamily,
+                                      fontFamily: FontFamilyHelper.resolveHeadingFontFamily(
+                                        typography.headingFontFamily ??
+                                            typography.bodyFontFamily,
+                                      ),
                                       baseStyle: TextStyle(
                                         fontSize: typography.scaledTitleSize,
                                         fontWeight: FontWeight.w700,
@@ -960,8 +962,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     decoration: InputDecoration(
                                       hintText: 'Title',
                                       hintStyle: FontFamilyHelper.getTextStyle(
-                                        fontFamily: typography.headingFontFamily ??
-                                            typography.bodyFontFamily,
+                                        fontFamily: FontFamilyHelper.resolveHeadingFontFamily(
+                                          typography.headingFontFamily ??
+                                              typography.bodyFontFamily,
+                                        ),
                                         baseStyle: TextStyle(
                                           fontSize: typography.scaledTitleSize,
                                           fontWeight: FontWeight.w700,

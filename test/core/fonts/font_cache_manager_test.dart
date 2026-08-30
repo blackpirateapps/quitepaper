@@ -22,12 +22,13 @@ void main() {
   });
 
   group('FontCacheManager', () {
-    test('defaultHostedFonts contains 8 curated font families', () {
+    test('defaultHostedFonts contains 9 curated font families', () {
       final fonts = FontCacheManager.defaultHostedFonts;
-      expect(fonts.length, equals(8));
+      expect(fonts.length, equals(9));
 
       final families = fonts.map((f) => f.family).toSet();
       expect(families, containsAll([
+        'San Francisco',
         'Inter',
         'Roboto',
         'Lora',
@@ -172,6 +173,39 @@ void main() {
       final success = await manager.downloadAndRegisterFont('Lora');
       expect(success, isFalse);
       expect(manager.getStatus('Lora'), equals(FontDownloadStatus.error));
+    });
+
+    test('downloadAndRegisterFont downloads San Francisco variants and registers display and text families', () async {
+      final mockClient = http_testing.MockClient((request) async {
+        return http.Response.bytes(
+          utf8.encode('mock sf font data'),
+          200,
+          headers: {'content-type': 'font/otf'},
+        );
+      });
+
+      final manager = FontCacheManager(
+        baseUrl: 'https://test-server.example',
+        customStorageDir: tempDir,
+        httpClient: mockClient,
+      );
+
+      double reportedProgress = 0.0;
+      final success = await manager.downloadAndRegisterFont(
+        'San Francisco',
+        onProgress: (p) => reportedProgress = p,
+      );
+
+      expect(success, isTrue);
+      expect(reportedProgress, equals(1.0));
+      expect(manager.isFontCached('San Francisco'), isTrue);
+      expect(manager.getStatus('San Francisco'), equals(FontDownloadStatus.cached));
+      expect(manager.registeredFamilies, containsAll(['SF Pro Display', 'SF Pro Text', 'San Francisco']));
+
+      final displayFile = File('${tempDir.path}/SanFrancisco-DisplayRegular.otf');
+      final textFile = File('${tempDir.path}/SanFrancisco-TextRegular.otf');
+      expect(await displayFile.exists(), isTrue);
+      expect(await textFile.exists(), isTrue);
     });
 
     test('loadCustomFontFromFile copies local file to font cache', () async {

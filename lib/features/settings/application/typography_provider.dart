@@ -19,6 +19,7 @@ class CuratedFonts {
   static const List<String> headingPresets = [
     'System Sans',
     'System Serif',
+    'San Francisco',
     'Inter',
     'Roboto',
     'Lora',
@@ -32,6 +33,7 @@ class CuratedFonts {
   static const List<String> bodyPresets = [
     'System Sans',
     'System Serif',
+    'San Francisco',
     'Inter',
     'Roboto',
     'Lora',
@@ -104,9 +106,13 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
   }
 
   void _ensureFontLoaded(String family) {
-    if (FontCacheManager.instance.findHostedFont(family) != null) {
-      if (!FontCacheManager.instance.isFontCached(family)) {
-        FontCacheManager.instance.downloadAndRegisterFont(family).catchError((_) => false);
+    String queryFamily = family;
+    if (family == 'SF Pro Display' || family == 'SF Pro Text' || family == 'SF Pro') {
+      queryFamily = 'San Francisco';
+    }
+    if (FontCacheManager.instance.findHostedFont(queryFamily) != null) {
+      if (!FontCacheManager.instance.isFontCached(queryFamily)) {
+        FontCacheManager.instance.downloadAndRegisterFont(queryFamily).catchError((_) => false);
       }
     }
   }

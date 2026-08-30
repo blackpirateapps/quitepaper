@@ -281,8 +281,12 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                           (font == 'System Serif' && widget.currentFont == 'serif') ||
                           (font == 'Monospace' && widget.currentFont == 'monospace');
 
+                      final previewFamily = widget.type == FontPickerType.heading
+                          ? FontFamilyHelper.resolveHeadingFontFamily(font)
+                          : FontFamilyHelper.resolveBodyFontFamily(font);
+
                       final fontStyle = FontFamilyHelper.getTextStyle(
-                        fontFamily: font,
+                        fontFamily: previewFamily,
                         baseStyle: TextStyle(
                           fontSize: 16,
                           color: isSelected
