@@ -218,6 +218,16 @@ class FontCacheManager {
         HostedFontVariant(variant: 'textItalic', weight: 400, style: 'italic', file: 'SanFrancisco/SF-Pro-Text-RegularItalic.otf', size: 168992),
       ],
     ),
+    HostedFontEntry(
+      family: 'iA Writer Quattro',
+      category: 'Hybrid',
+      variants: [
+        HostedFontVariant(variant: 'regular', weight: 400, style: 'normal', file: 'iAWriterQuattro/iAWriterQuattro-Regular.ttf', size: 119772),
+        HostedFontVariant(variant: 'italic', weight: 400, style: 'italic', file: 'iAWriterQuattro/iAWriterQuattro-Italic.ttf', size: 105028),
+        HostedFontVariant(variant: 'bold', weight: 700, style: 'normal', file: 'iAWriterQuattro/iAWriterQuattro-Bold.ttf', size: 120404),
+        HostedFontVariant(variant: 'boldItalic', weight: 700, style: 'italic', file: 'iAWriterQuattro/iAWriterQuattro-BoldItalic.ttf', size: 104520),
+      ],
+    ),
   ];
 
   /// Resolves the local fonts storage directory.
@@ -291,6 +301,10 @@ class FontCacheManager {
       case 'sfprotext':
       case 'sf':
         return 'San Francisco';
+      case 'iawriterquattro':
+      case 'iawriterquattros':
+      case 'quattro':
+        return 'iA Writer Quattro';
       default:
         return raw;
     }
@@ -318,6 +332,12 @@ class FontCacheManager {
       final sfTextAlt = File(p.join(dir.path, 'SanFrancisco-TextRegular.otf'));
       return (sfDisplay.existsSync() || sfDisplayAlt.existsSync()) &&
              (sfText.existsSync() || sfTextAlt.existsSync());
+    }
+    if (family.toLowerCase() == 'ia writer quattro' || family.toLowerCase() == 'quattro') {
+      final qReg = File(p.join(dir.path, _sanitizeFileName('iA Writer Quattro', 'regular', ext: '.ttf')));
+      final qRegAlt = File(p.join(dir.path, 'iAWriterQuattro-Regular.ttf'));
+      final qRegS = File(p.join(dir.path, 'iAWriterQuattroS-Regular.ttf'));
+      return qReg.existsSync() || qRegAlt.existsSync() || qRegS.existsSync();
     }
     final regularTtf = File(p.join(dir.path, _sanitizeFileName(family, 'regular', ext: '.ttf')));
     final regularOtf = File(p.join(dir.path, _sanitizeFileName(family, 'regular', ext: '.otf')));
@@ -387,6 +407,30 @@ class FontCacheManager {
       }
       final sfFile = File(p.join(dir.path, 'SanFrancisco-$targetVariant.otf'));
       if (sfFile.existsSync()) return sfFile;
+    }
+
+    if (family.toLowerCase() == 'ia writer quattro' || family.toLowerCase() == 'quattro') {
+      final isBold = variant.toLowerCase().contains('bold');
+      final isItalic = variant.toLowerCase().contains('italic');
+      String variantName;
+      if (isBold && isItalic) {
+        variantName = 'BoldItalic';
+      } else if (isBold) {
+        variantName = 'Bold';
+      } else if (isItalic) {
+        variantName = 'Italic';
+      } else {
+        variantName = 'Regular';
+      }
+      for (final name in [
+        'iAWriterQuattro-$variantName.ttf',
+        'iAWriterQuattroS-$variantName.ttf',
+        'iAWriterQuattro-Regular.ttf',
+        'iAWriterQuattroS-Regular.ttf',
+      ]) {
+        final f = File(p.join(dir.path, name));
+        if (f.existsSync()) return f;
+      }
     }
 
     return null;
@@ -516,6 +560,28 @@ class FontCacheManager {
           _registeredFamilies.add('San Francisco');
           _registeredFamilies.add('SF Pro');
         }
+        return;
+      }
+
+      if (family.toLowerCase() == 'ia writer quattro' ||
+          family.toLowerCase() == 'iawriterquattro' ||
+          family.toLowerCase() == 'quattro') {
+        final quattroLoader = FontLoader('iA Writer Quattro');
+        for (final file in files) {
+          final bytes = await file.readAsBytes();
+          quattroLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+        }
+        await quattroLoader.load();
+
+        final aliasLoader = FontLoader('Quattro');
+        for (final file in files) {
+          final bytes = await file.readAsBytes();
+          aliasLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+        }
+        await aliasLoader.load();
+
+        _registeredFamilies.add('iA Writer Quattro');
+        _registeredFamilies.add('Quattro');
         return;
       }
 

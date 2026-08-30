@@ -153,6 +153,11 @@ class PdfFontManager {
       case 'lato':
         bodyPrefix = 'Lato';
         break;
+      case 'ia writer quattro':
+      case 'iawriterquattro':
+      case 'quattro':
+        bodyPrefix = 'iAWriterQuattro';
+        break;
       case 'inter':
       default:
         bodyPrefix = 'Inter';
@@ -165,6 +170,11 @@ class PdfFontManager {
       case 'fira code':
       case 'firacode':
         codePrefix = 'FiraCode';
+        break;
+      case 'ia writer quattro':
+      case 'iawriterquattro':
+      case 'quattro':
+        codePrefix = 'iAWriterQuattro';
         break;
       case 'jetbrains mono':
       case 'jetbrainsmono':

@@ -23,6 +23,15 @@ describe('Fonts Manifest API', () => {
     expect(sf).toBeDefined();
     expect(sf.category).toBe('Sans-serif');
     expect(sf.variants.length).toBe(6);
+
+    const quattro = res.body.fonts.find((f: any) => f.family === 'iA Writer Quattro');
+    expect(quattro).toBeDefined();
+    expect(quattro.category).toBe('Hybrid');
+    expect(quattro.variants.length).toBe(4);
+    expect(quattro.variants.map((v: any) => v.variant)).toContain('regular');
+    expect(quattro.variants.map((v: any) => v.variant)).toContain('italic');
+    expect(quattro.variants.map((v: any) => v.variant)).toContain('bold');
+    expect(quattro.variants.map((v: any) => v.variant)).toContain('boldItalic');
   });
 
   it('supports GET /fonts/manifest.json route', async () => {

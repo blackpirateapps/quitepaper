@@ -115,21 +115,28 @@ void main() {
       expect(notifier.state.codeFontFamily, equals('monospace'));
     });
 
-    test('CuratedFonts contains San Francisco in heading and body presets', () {
+    test('CuratedFonts contains San Francisco and iA Writer Quattro in heading and body presets', () {
       expect(CuratedFonts.headingPresets, contains('San Francisco'));
+      expect(CuratedFonts.headingPresets, contains('iA Writer Quattro'));
       expect(CuratedFonts.bodyPresets, contains('San Francisco'));
+      expect(CuratedFonts.bodyPresets, contains('iA Writer Quattro'));
+      expect(CuratedFonts.codePresets, contains('iA Writer Quattro'));
     });
 
-    test('FontFamilyHelper correctly resolves optical sizes for San Francisco', () {
+    test('FontFamilyHelper correctly resolves optical sizes for San Francisco and iA Writer Quattro', () {
       expect(FontFamilyHelper.resolveHeadingFontFamily('San Francisco'), equals('SF Pro Display'));
       expect(FontFamilyHelper.resolveHeadingFontFamily('SF Pro'), equals('SF Pro Display'));
       expect(FontFamilyHelper.resolveHeadingFontFamily('SF Pro Display'), equals('SF Pro Display'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily('iA Writer Quattro'), equals('iA Writer Quattro'));
+      expect(FontFamilyHelper.resolveHeadingFontFamily('Quattro'), equals('iA Writer Quattro'));
       expect(FontFamilyHelper.resolveHeadingFontFamily('Inter'), equals('Inter'));
       expect(FontFamilyHelper.resolveHeadingFontFamily(null), isNull);
 
       expect(FontFamilyHelper.resolveBodyFontFamily('San Francisco'), equals('SF Pro Text'));
       expect(FontFamilyHelper.resolveBodyFontFamily('SF Pro'), equals('SF Pro Text'));
       expect(FontFamilyHelper.resolveBodyFontFamily('SF Pro Text'), equals('SF Pro Text'));
+      expect(FontFamilyHelper.resolveBodyFontFamily('iA Writer Quattro'), equals('iA Writer Quattro'));
+      expect(FontFamilyHelper.resolveBodyFontFamily('Quattro'), equals('iA Writer Quattro'));
       expect(FontFamilyHelper.resolveBodyFontFamily('Lora'), equals('Lora'));
       expect(FontFamilyHelper.resolveBodyFontFamily(null), isNull);
     });

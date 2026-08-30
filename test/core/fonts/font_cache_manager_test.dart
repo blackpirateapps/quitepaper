@@ -22,9 +22,9 @@ void main() {
   });
 
   group('FontCacheManager', () {
-    test('defaultHostedFonts contains 9 curated font families', () {
+    test('defaultHostedFonts contains 10 curated font families', () {
       final fonts = FontCacheManager.defaultHostedFonts;
-      expect(fonts.length, equals(9));
+      expect(fonts.length, equals(10));
 
       final families = fonts.map((f) => f.family).toSet();
       expect(families, containsAll([
@@ -37,6 +37,7 @@ void main() {
         'Lato',
         'JetBrains Mono',
         'Fira Code',
+        'iA Writer Quattro',
       ]));
     });
 
@@ -206,6 +207,44 @@ void main() {
       final textFile = File('${tempDir.path}/SanFrancisco-TextRegular.otf');
       expect(await displayFile.exists(), isTrue);
       expect(await textFile.exists(), isTrue);
+    });
+
+    test('downloadAndRegisterFont downloads iA Writer Quattro variants and registers alias Quattro', () async {
+      final mockClient = http_testing.MockClient((request) async {
+        return http.Response.bytes(
+          utf8.encode('mock quattro font data'),
+          200,
+          headers: {'content-type': 'font/ttf'},
+        );
+      });
+
+      final manager = FontCacheManager(
+        baseUrl: 'https://test-server.example',
+        customStorageDir: tempDir,
+        httpClient: mockClient,
+      );
+
+      double reportedProgress = 0.0;
+      final success = await manager.downloadAndRegisterFont(
+        'iA Writer Quattro',
+        onProgress: (p) => reportedProgress = p,
+      );
+
+      expect(success, isTrue);
+      expect(reportedProgress, equals(1.0));
+      expect(manager.isFontCached('iA Writer Quattro'), isTrue);
+      expect(manager.isFontCached('Quattro'), isTrue);
+      expect(manager.getStatus('iA Writer Quattro'), equals(FontDownloadStatus.cached));
+      expect(manager.registeredFamilies, containsAll(['iA Writer Quattro', 'Quattro']));
+
+      final regularFile = File('${tempDir.path}/iAWriterQuattro-Regular.ttf');
+      final italicFile = File('${tempDir.path}/iAWriterQuattro-Italic.ttf');
+      final boldFile = File('${tempDir.path}/iAWriterQuattro-Bold.ttf');
+      final boldItalicFile = File('${tempDir.path}/iAWriterQuattro-BoldItalic.ttf');
+      expect(await regularFile.exists(), isTrue);
+      expect(await italicFile.exists(), isTrue);
+      expect(await boldFile.exists(), isTrue);
+      expect(await boldItalicFile.exists(), isTrue);
     });
 
     test('loadCustomFontFromFile copies local file to font cache', () async {

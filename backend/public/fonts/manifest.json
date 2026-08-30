@@ -84,6 +84,16 @@
         { "variant": "textBold", "weight": 700, "style": "normal", "file": "SanFrancisco/SF-Pro-Text-Bold.otf", "size": 341844 },
         { "variant": "textItalic", "weight": 400, "style": "italic", "file": "SanFrancisco/SF-Pro-Text-RegularItalic.otf", "size": 168992 }
       ]
+    },
+    {
+      "family": "iA Writer Quattro",
+      "category": "Hybrid",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "iAWriterQuattro/iAWriterQuattro-Regular.ttf", "size": 119772 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "iAWriterQuattro/iAWriterQuattro-Italic.ttf", "size": 105028 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "iAWriterQuattro/iAWriterQuattro-Bold.ttf", "size": 120404 },
+        { "variant": "boldItalic", "weight": 700, "style": "italic", "file": "iAWriterQuattro/iAWriterQuattro-BoldItalic.ttf", "size": 104520 }
+      ]
     }
   ]
 }

@@ -16,6 +16,8 @@ class FontFamilyHelper {
     'Lato',
     'JetBrains Mono',
     'Fira Code',
+    'iA Writer Quattro',
+    'Quattro',
   };
 
   /// Backwards-compatibility alias for hosted fonts
@@ -34,6 +36,11 @@ class FontFamilyHelper {
         lower == 'sf pro display' ||
         lower == 'san francisco display') {
       return 'SF Pro Display';
+    }
+    if (lower == 'ia writer quattro' ||
+        lower == 'iawriterquattro' ||
+        lower == 'quattro') {
+      return 'iA Writer Quattro';
     }
     if (lower == 'system serif' || lower == 'serif') {
       return 'serif';
@@ -54,6 +61,11 @@ class FontFamilyHelper {
         lower == 'sf pro text' ||
         lower == 'san francisco text') {
       return 'SF Pro Text';
+    }
+    if (lower == 'ia writer quattro' ||
+        lower == 'iawriterquattro' ||
+        lower == 'quattro') {
+      return 'iA Writer Quattro';
     }
     if (lower == 'system serif' || lower == 'serif') {
       return 'serif';
@@ -130,6 +142,14 @@ class FontFamilyHelper {
       if (FontCacheManager.instance.registeredFamilies.contains('SF Pro Text') ||
           FontCacheManager.instance.isFontCached('San Francisco')) {
         return baseStyle.copyWith(fontFamily: 'SF Pro Text');
+      }
+    }
+
+    if (lower == 'ia writer quattro' || lower == 'quattro') {
+      if (FontCacheManager.instance.registeredFamilies.contains('iA Writer Quattro') ||
+          FontCacheManager.instance.registeredFamilies.contains('Quattro') ||
+          FontCacheManager.instance.isFontCached('iA Writer Quattro')) {
+        return baseStyle.copyWith(fontFamily: 'iA Writer Quattro');
       }
     }
 

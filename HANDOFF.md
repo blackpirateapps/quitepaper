@@ -3906,3 +3906,31 @@ In Warm Paper Light mode, the application pairs a dark slate sidebar (`#202329`)
    - Updated and expanded [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) with exact palette assertions, syntax token verification, and a dedicated widget test suite (`7. Sidebar Dark Contrast & Item Legibility`) verifying count badge colors.
    - All **932 automated tests passed**; static analysis clean (**0 issues**).
 
+---
+
+## 32. iA Writer Quattro Typography Integration & CDN Font Delivery
+
+### Overview
+Integrated the open-source **iA Writer Quattro** typeface ([`iaolo/iA-Fonts`](https://github.com/iaolo/iA-Fonts)) into Quiet Paper's typography presets, edge CDN font distribution system, on-demand font cache manager, and PDF export pipeline.
+
+### Architectural Enhancements
+1. **Backend CDN & Manifest Asset Hosting ([`backend/public/fonts/iAWriterQuattro/`](file:///home/dog/git/quitepaper/backend/public/fonts/iAWriterQuattro/), [`backend/public/fonts/manifest.json`](file:///home/dog/git/quitepaper/backend/public/fonts/manifest.json))**:
+   - Hosted the 4 canonical static TrueType (`.ttf`) variants (`iAWriterQuattro-Regular.ttf`, `iAWriterQuattro-Italic.ttf`, `iAWriterQuattro-Bold.ttf`, `iAWriterQuattro-BoldItalic.ttf`) under Vercel's global edge CDN with `Cache-Control: public, max-age=31536000, immutable`.
+   - Updated font manifest to expose `"family": "iA Writer Quattro"`, `"category": "Hybrid"`, and byte size metadata via `/api/v1/fonts` and `/fonts/manifest.json`.
+2. **On-Demand Font Cache Manager & Engine Registration ([`lib/core/fonts/font_cache_manager.dart`](file:///home/dog/git/quitepaper/lib/core/fonts/font_cache_manager.dart))**:
+   - Added `HostedFontEntry` for `iA Writer Quattro` in `FontCacheManager.defaultHostedFonts`.
+   - Updated `_normalizeFamilyName`, `isFontCached`, and `getCachedFontFile` to recognize `iA Writer Quattro`, `iawriterquattro`, `iawriterquattros`, and `quattro`.
+   - Dynamically registers both canonical `'iA Writer Quattro'` and `'Quattro'` aliases into Flutter's `FontLoader` engine upon downloading or loading from disk cache.
+3. **Font Family Helper & Typography Presets ([`lib/core/utils/font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart), [`lib/features/settings/application/typography_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/typography_provider.dart))**:
+   - Added `iA Writer Quattro` and `Quattro` to `FontFamilyHelper.hostedFonts`.
+   - Updated `resolveHeadingFontFamily`, `resolveBodyFontFamily`, and `getTextStyle` to resolve `iA Writer Quattro` seamlessly.
+   - Added `iA Writer Quattro` to `CuratedFonts.headingPresets`, `CuratedFonts.bodyPresets`, and `CuratedFonts.codePresets`.
+   - Updated `TypographySettingsNotifier._ensureFontLoaded` to trigger background downloads for `iA Writer Quattro` and `Quattro`.
+4. **Embedded PDF Generation Support ([`lib/core/pdf/pdf_font_manager.dart`](file:///home/dog/git/quitepaper/lib/core/pdf/pdf_font_manager.dart))**:
+   - Added prefix resolution for `iA Writer Quattro` and `quattro` in `PdfFontManager.resolveTypographyTheme`, embedding the cached TrueType binary directly into exported PDF documents.
+5. **Automated Verification**:
+   - Updated [`backend/tests/fonts.test.ts`](file:///home/dog/git/quitepaper/backend/tests/fonts.test.ts) to verify manifest API responses.
+   - Updated [`test/core/fonts/font_cache_manager_test.dart`](file:///home/dog/git/quitepaper/test/core/fonts/font_cache_manager_test.dart) and [`test/settings/typography_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/typography_settings_test.dart) covering downloading, alias registration, preset presence, and typography persistence.
+   - All **933 Flutter automated tests** and **42 backend tests** pass with zero warnings/errors.
+
+

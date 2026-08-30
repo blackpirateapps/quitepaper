@@ -20,6 +20,7 @@ class CuratedFonts {
     'System Sans',
     'System Serif',
     'San Francisco',
+    'iA Writer Quattro',
     'Inter',
     'Roboto',
     'Lora',
@@ -34,6 +35,7 @@ class CuratedFonts {
     'System Sans',
     'System Serif',
     'San Francisco',
+    'iA Writer Quattro',
     'Inter',
     'Roboto',
     'Lora',
@@ -48,6 +50,7 @@ class CuratedFonts {
     'Monospace',
     'JetBrains Mono',
     'Fira Code',
+    'iA Writer Quattro',
     'Source Code Pro',
     'Inconsolata',
     'Roboto Mono',
@@ -109,6 +112,8 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     String queryFamily = family;
     if (family == 'SF Pro Display' || family == 'SF Pro Text' || family == 'SF Pro') {
       queryFamily = 'San Francisco';
+    } else if (family == 'Quattro') {
+      queryFamily = 'iA Writer Quattro';
     }
     if (FontCacheManager.instance.findHostedFont(queryFamily) != null) {
       if (!FontCacheManager.instance.isFontCached(queryFamily)) {
