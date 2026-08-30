@@ -9,6 +9,9 @@ import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
+import '../../../../core/markdown/markdown_helper.dart';
+import '../../../../core/syntax/presentation/language_selector_sheet.dart';
+import 'code_block_overlay.dart';
 import 'link_prompt_dialog.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
@@ -260,38 +263,44 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () =>
             _promptLink(context),
       },
-      child: TextField(
+      child: CodeBlockOverlay(
         controller: widget.controller,
         focusNode: widget.focusNode,
         readOnly: widget.readOnly,
-        cursorColor: colors.accent,
-        style: (widget.controller.styles?.body ?? AppTypography.editorBody).copyWith(
-          color: colors.textPrimary,
-        ),
-        inputFormatters: const [
-          MarkdownTextInputFormatter(),
-        ],
-        onTap: () {
-          widget.onActiveTargetChanged?.call(widget.controller, widget.focusNode);
-          _handleTap();
-        },
-        contextMenuBuilder: _buildContextMenu,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          hintStyle: AppTypography.editorBody.copyWith(
-            color: colors.textTertiary.withValues(alpha: 0.4),
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-        ),
-        maxLines: null,
-        keyboardType: widget.keyboardType,
-        textCapitalization: widget.textCapitalization,
         onChanged: widget.onChanged,
-        scrollPadding: widget.scrollPadding,
+        child: TextField(
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          readOnly: widget.readOnly,
+          cursorColor: colors.accent,
+          style: (widget.controller.styles?.body ?? AppTypography.editorBody).copyWith(
+            color: colors.textPrimary,
+          ),
+          inputFormatters: const [
+            MarkdownTextInputFormatter(),
+          ],
+          onTap: () {
+            widget.onActiveTargetChanged?.call(widget.controller, widget.focusNode);
+            _handleTap();
+          },
+          contextMenuBuilder: _buildContextMenu,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            hintStyle: AppTypography.editorBody.copyWith(
+              color: colors.textTertiary.withValues(alpha: 0.4),
+            ),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+          maxLines: null,
+          keyboardType: widget.keyboardType,
+          textCapitalization: widget.textCapitalization,
+          onChanged: widget.onChanged,
+          scrollPadding: widget.scrollPadding,
+        ),
       ),
     );
   }
@@ -427,9 +436,36 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     final buttonItems = editableTextState.contextMenuButtonItems;
     final isSelectionActive =
         !editableTextState.textEditingValue.selection.isCollapsed;
+    final val = editableTextState.textEditingValue;
+    final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(val);
+    final codeLangButton = currentLang != null
+        ? ContextMenuButtonItem(
+            label: currentLang.isEmpty ? 'Select Language' : 'Language ($currentLang)',
+            onPressed: () async {
+              ContextMenuController.removeAny();
+              final selected = await LanguageSelectorSheet.show(
+                context,
+                currentLanguageId: currentLang.isNotEmpty ? currentLang : null,
+                title: 'Select Code Language',
+              );
+              if (selected != null) {
+                final updated = MarkdownHelper.changeCodeBlockLanguage(
+                  value: widget.controller.value,
+                  newLanguage: selected.id,
+                );
+                widget.controller.value = updated;
+                widget.onChanged?.call(updated.text);
+                if (!widget.focusNode.hasFocus) {
+                  widget.focusNode.requestFocus();
+                }
+              }
+            },
+          )
+        : null;
 
     if (isSelectionActive) {
       final formattingButtons = [
+        ?codeLangButton,
         ContextMenuButtonItem(
           label: 'Bold',
           onPressed: () {
@@ -485,7 +521,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
-      buttonItems: buttonItems,
+      buttonItems: [
+        ?codeLangButton,
+        ...buttonItems,
+      ],
     );
   }
 }
@@ -573,35 +612,41 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return TextField(
+    return CodeBlockOverlay(
       controller: _controller,
       focusNode: _focusNode,
       readOnly: widget.readOnly,
-      cursorColor: colors.accent,
-      style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
-        color: colors.textPrimary,
-      ),
-      inputFormatters: const [
-        MarkdownTextInputFormatter(),
-      ],
-      onTap: () {
-        widget.onActiveTarget?.call(_controller, _focusNode);
-        widget.onTap?.call();
-      },
-      decoration: InputDecoration(
-        hintText: widget.hintText,
-        hintStyle: AppTypography.editorBody.copyWith(
-          color: colors.textTertiary.withValues(alpha: 0.4),
+      onChanged: widget.onChanged,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        readOnly: widget.readOnly,
+        cursorColor: colors.accent,
+        style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
+          color: colors.textPrimary,
         ),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
+        inputFormatters: const [
+          MarkdownTextInputFormatter(),
+        ],
+        onTap: () {
+          widget.onActiveTarget?.call(_controller, _focusNode);
+          widget.onTap?.call();
+        },
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          hintStyle: AppTypography.editorBody.copyWith(
+            color: colors.textTertiary.withValues(alpha: 0.4),
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        maxLines: null,
+        keyboardType: TextInputType.multiline,
+        textCapitalization: TextCapitalization.sentences,
       ),
-      maxLines: null,
-      keyboardType: TextInputType.multiline,
-      textCapitalization: TextCapitalization.sentences,
     );
   }
 }

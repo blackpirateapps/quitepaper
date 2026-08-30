@@ -303,4 +303,42 @@ abstract final class MarkdownHelper {
 
     return value;
   }
+
+  /// Sets or changes the language identifier of the code block whose opening fence line
+  /// spans from [openingFenceLineStart] to [openingFenceLineEnd].
+  static TextEditingValue replaceCodeBlockLanguageAtLine({
+    required TextEditingValue value,
+    required int openingFenceLineStart,
+    required int openingFenceLineEnd,
+    required String newLanguage,
+  }) {
+    final text = value.text;
+    if (openingFenceLineStart < 0 ||
+        openingFenceLineEnd > text.length ||
+        openingFenceLineStart > openingFenceLineEnd) {
+      return value;
+    }
+
+    final cursor = value.selection.isValid ? value.selection.baseOffset : text.length;
+    final lineText = text.substring(openingFenceLineStart, openingFenceLineEnd);
+    final fenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
+    final match = fenceRegex.firstMatch(lineText);
+
+    if (match != null) {
+      final indent = match.group(1) ?? '';
+      final delim = match.group(2) ?? '```';
+      final newLineText = '$indent$delim$newLanguage';
+
+      final delta = newLineText.length - (openingFenceLineEnd - openingFenceLineStart);
+      final newText = text.replaceRange(openingFenceLineStart, openingFenceLineEnd, newLineText);
+      final newCursor = (cursor + (cursor > openingFenceLineEnd ? delta : 0)).clamp(0, newText.length);
+
+      return TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+    }
+
+    return value;
+  }
 }

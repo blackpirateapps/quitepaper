@@ -3367,3 +3367,77 @@ To ensure seamless multi-device convergence for Quiet Paper's first-class tag ma
 - Backend suite: `npm test` (**40 / 40 tests passing across 10 suites**).
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full Flutter test suite: `flutter test` (**829 / 829 tests passing**).
+
+---
+
+## 45. Markdown Preview Syntax Highlighting & In-Editor Code Block Language Selection
+
+### Overview
+Addressed user requirements for complete, end-to-end syntax highlighting in Quiet Paper:
+1. **Preview Mode Syntax Highlighting**: Fenced code blocks rendered in `QuietMarkdownPreview` now feature full tokenized syntax highlighting powered by `SyntaxHighlighter`, `SyntaxLanguageResolver`, and `SyntaxTheme`. In accordance with user preferences, code blocks are styled with an editorial top header bar showing the uppercase language name, a clipboard "Copy" button with 2-second feedback, horizontal scrolling, in-note search match overlays, and no line numbers (preserving Quiet Paper's distraction-free editorial design).
+2. **In-Editor Language Selection Inside Code Blocks**: Users editing in `MarkdownEditor` can easily inspect and change code block languages directly on the code blocks via an interactive `CodeBlockLanguagePill` positioned at the top-right of every code block, as well as via a "Select Language" option in the text selection context menu.
+3. **Modal Dismiss Bugfix**: Fixed an issue in `LanguageSelectorSheet.show` where redundant pops inside `onSelected` and `ListTile.onTap` caused the underlying page route to dismiss.
+
+### Architecture & Implementation Details
+
+#### 1. Markdown Preview Syntax Highlighting
+- [`QuietCodeBlockElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_code_block_element_builder.dart):
+  - Custom `MarkdownElementBuilder` registered for the `<pre>` tag in `QuietMarkdownPreview`.
+  - Extracts the language identifier from the child `<code>` element's `class="language-..."` attribute and raw code source.
+  - Resolves language using [`SyntaxLanguageResolver`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_language_resolver.dart) and highlights tokens using [`SyntaxHighlighter`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_highlighter.dart).
+  - Falls back cleanly to [`HighlightResult.plain`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/highlight_result.dart) for unsupported languages or plain blocks.
+  - Builds styled `TextSpan` trees using [`SyntaxTextSpans.buildTextSpan`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/syntax_text_spans.dart), supporting active `searchQuery` highlights across token boundaries.
+  - Renders `_QuietCodeBlockCard`:
+    - Editorial header bar (`height: 36px`) with the uppercase language name in `AppTypography.caption` (11sp, letterSpacing: 0.8) and `_CodeBlockCopyButton`.
+    - Hairline divider (`colors.divider`).
+    - Horizontally scrollable code body (`SingleChildScrollView(scrollDirection: Axis.horizontal)`) with user typography code font and scaled sizes.
+  - `_CodeBlockCopyButton`:
+    - Copies code text to `Clipboard` with light haptic feedback (`HapticFeedback.lightImpact`).
+    - Smoothly transitions icon from `Icons.copy_rounded` to `Icons.check_rounded` and text from "Copy" to "Copied" for 2 seconds.
+- [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart):
+  - Injected `syntaxHighlighterProvider` and `syntaxLanguageResolverProvider`.
+  - Registered `'pre': QuietCodeBlockElementBuilder(...)` in `builders`.
+  - Configured `codeblockPadding: EdgeInsets.zero` and `codeblockDecoration` with `AppRadii.borderSm` and `colors.divider` border, ensuring header bars are flush with the container borders.
+
+#### 2. In-Editor Code Block Language Selection
+- [`MarkdownCodeBlockParser`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_code_block_parser.dart):
+  - Fast, deterministic scanner detecting fenced code blocks (``` or ~~~).
+  - Returns `MarkdownCodeBlockInfo` records with opening fence line bounds, raw language, delimiter, body bounds, and closed/unclosed status.
+- [`MarkdownHelper.replaceCodeBlockLanguageAtLine`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_helper.dart):
+  - Atomically replaces the language identifier on a specific opening fence line delimiter without disturbing surrounding text or cursor positioning.
+- [`CodeBlockLanguagePill`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/code_block_language_pill.dart):
+  - Interactive pill widget styled with `AppRadii.borderSm`, subtle shadow, and border.
+  - Displays registered display name (e.g. `Dart`, `Python`, `Rust`) in `AppTypography.caption` (11.5sp) or `Plain text` fallback when unassigned.
+  - Features dropdown chevron indicator (`Icons.keyboard_arrow_down_rounded`).
+- [`CodeBlockOverlay`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/code_block_overlay.dart):
+  - Non-invasive wrapper around the editor's `TextField`.
+  - Preserves the 1:1 single continuous text field invariant without splitting into discrete block widgets, preserving native undo/redo and text selection integrity.
+  - Dynamically calculates pixel coordinates for each code block's opening fence line using `RenderEditable.getBoxesForSelection`.
+  - Positions `CodeBlockLanguagePill` in the upper-right corner (`top: box.top + 1.0, right: 6.0`).
+  - Tapping opens [`LanguageSelectorSheet`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/language_selector_sheet.dart).
+  - On language selection: atomically rewrites opening fence line text, fires `onChanged`, and restores editor focus.
+- [`MarkdownEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+  - Wrapped `_buildSingleTextField` and `_TextSegmentField` with `CodeBlockOverlay`.
+  - Added "Select Language" / "Language ($lang)" button to `_buildContextMenu` when text cursor is inside a code block.
+
+#### 3. Bugfix
+- [`LanguageSelectorSheet.show`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/language_selector_sheet.dart):
+  - Removed redundant `onSelected: (lang) => Navigator.of(ctx).pop(lang)` in `showModalBottomSheet.builder`.
+  - Prevented double pop where selecting an item popped both the modal sheet and the underlying route.
+
+### Automated Verification & Quality Assurance
+- [`quiet_code_block_element_builder_test.dart`](file:///home/dog/git/quitepaper/test/markdown/quiet_code_block_element_builder_test.dart):
+  - Verified code block rendering with syntax highlighting and uppercase language header ("DART").
+  - Verified plain text fallback ("PLAIN TEXT") when no language is specified.
+  - Verified Copy button clipboard copy and animated "Copied" feedback reversion after 2 seconds.
+  - Verified in-note search query match overlays inside code blocks.
+  - Verified horizontal scrolling for long code lines.
+- [`code_block_overlay_test.dart`](file:///home/dog/git/quitepaper/test/editor/code_block_overlay_test.dart):
+  - Verified parser detection of closed, unclosed, single, and multiple code blocks with ```` ``` ```` and `~~~`.
+  - Verified `MarkdownHelper.replaceCodeBlockLanguageAtLine` language insertion and replacement.
+  - Verified `CodeBlockLanguagePill` display name and fallback rendering.
+  - Verified `CodeBlockOverlay` integration with `MarkdownEditor`.
+  - Verified tapping language pill opens `LanguageSelectorSheet` and updates code block language atomically.
+  - Verified cursor-aware language detection inside code blocks.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full Flutter test suite: `flutter test` (**846 / 846 tests passing**).

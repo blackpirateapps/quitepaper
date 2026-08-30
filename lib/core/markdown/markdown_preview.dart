@@ -21,6 +21,8 @@ import '../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart'
 import '../uri/quiet_paper_uri.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
+import 'quiet_code_block_element_builder.dart';
+import '../syntax/application/syntax_provider.dart';
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
   const QuietMarkdownPreview({
@@ -214,7 +216,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         borderRadius: AppRadii.borderSm,
         border: Border.all(color: colors.divider),
       ),
-      codeblockPadding: const EdgeInsets.all(AppSpacing.md),
+      codeblockPadding: EdgeInsets.zero,
       horizontalRuleDecoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: colors.divider, width: 1),
@@ -360,6 +362,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       QuietDocumentSyntax(),
       QuietAttachmentSyntax(),
     ];
+    final highlighter = ref.watch(syntaxHighlighterProvider);
+    final resolver = ref.watch(syntaxLanguageResolverProvider);
+
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
       'quietdoc': QuietDocumentElementBuilder(
@@ -368,6 +373,13 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       'quietattachment': QuietAttachmentElementBuilder(
         onAttachmentRenamed: widget.onAttachmentRenamed,
         onAttachmentDeleted: widget.onAttachmentDeleted,
+      ),
+      'pre': QuietCodeBlockElementBuilder(
+        colors: colors,
+        typography: typography,
+        highlighter: highlighter,
+        resolver: resolver,
+        searchQuery: widget.searchQuery,
       ),
     };
 

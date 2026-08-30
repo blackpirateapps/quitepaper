@@ -32,7 +32,6 @@ class LanguageSelectorSheet extends StatefulWidget {
       builder: (ctx) => LanguageSelectorSheet(
         currentLanguageId: currentLanguageId,
         title: title,
-        onSelected: (lang) => Navigator.of(ctx).pop(lang),
       ),
     );
   }
