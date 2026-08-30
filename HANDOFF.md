@@ -3817,3 +3817,51 @@ To elevate Quiet Paper's editorial writing aesthetic, San Francisco Pro was adde
 
 
 
+## 85. Centralized Theme Engine Refactor & Warm Paper / Midnight Paper Theme Families
+
+### Overview & Motivation
+The application previously modeled each visual theme as an independent top-level option ("System Default", "Light Paper", "Dark Paper") — a design that could not scale to a second editorial family. This refactor split user preference into two orthogonal dimensions and introduced a centralized, semantic-token theme engine, then shipped a brand-new **Warm Paper** family (light) and **Midnight Paper** (dark).
+
+**Conceptual model (authoritative):**
+- **Theme Family** → `Classic Paper` | `Warm Paper`
+- **Appearance** → `System` | `Light` | `Dark`
+- **Resolved themes** → `Classic Paper Light`, `Classic Paper Dark`, `Warm Paper Light`, `Midnight Paper`
+
+`System` is an *appearance mode*, **not** a theme. The existing **Classic Paper** visual appearance is preserved bit-for-bit (hard requirement) — both new families add the same token structure with new palettes.
+
+### Domain Model (& domain enums)
+- [`lib/app/theme/theme_family.dart`](file:///home/dog/git/quitepaper/lib/app/theme/theme_family.dart): `ThemeFamily` (`classicPaper` / `warmPaper`, with stable storage keys `classic_paper` / `warm_paper`), `AppearanceMode` (`system` / `light` / `dark`), and `ResolvedTheme` (concrete resolved theme with `isDark` flag).
+- Flagship [spec](file:///home/dog/git/quitepaper/theme.md) is checked in for reference.
+
+### Central Resolution Architecture
+- [`lib/app/theme/theme_resolver.dart`](file:///home/dog/git/quitepaper/lib/app/theme/theme_resolver.dart): Resolves `(family × appearance × OS brightness)` → `ResolvedTheme`, plus `resolveColors` and `resolveThemeData` factories.
+- System appearance reacts to Flutter's platform brightness centrally (via `ThemeMode.system` in the app root) — no per-widget brightness queries.
+- [`lib/app/theme/app_theme.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_theme.dart): Builds `ThemeData` (Material 3) per family with `AppColors` registered as a `ThemeExtension`; canonical factories `classicLight/classicDark/warmPaperLight/midnightPaperDark`.
+- [`lib/app/app.dart`](file:///home/dog/git/quitepaper/lib/app/app.dart): Reads `themeSettingsProvider` and sets `theme`/`darkTheme` from the active family plus `themeMode` from appearance → **reactive, no restart**.
+
+### Semantic Color System
+- [`lib/app/theme/app_colors.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_colors.dart): `AppColors extends ThemeExtension<AppColors>` with semantic tokens across surfaces, borders, typography, icons, interactive/selection, scrollbar, sidebar, editor/preview, code, link, search highlight, tags, and status (success/warning/error/info).
+- Four canonical presets: `classicLight`, `classicDark`, `warmPaperLight`, `midnightPaperDark`. Classic values are unchanged; Warm Paper Light and Midnight Paper use the exact specified palettes (e.g. accent `#666BD3` / `#8570E8`, background `#F2F1EE` / `#11151A`).
+- Convenience getters: `border`, `textMuted`, `accentStrong`, `surfaceElevated`, `isDark`, plus luminance-derived `searchHighlightText` / `searchHighlightActiveText` for readable contrast on highlight backgrounds.
+- Widgets consume `context.quietPaperTheme` (alias of `context.appColors`) — no scattered family checks.
+
+### Persistence & Migration
+- [`lib/features/settings/application/settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/settings_provider.dart): `ThemeSettingsNotifier` persists **`app_theme_family`** and **`app_appearance_mode`** independently.
+- **Idempotent migration** from the legacy `app_theme_mode` key: an existing user's `system` / `light` / `dark` maps to `themeFamily = classicPaper` + the matching appearance — no silent theme reset.
+
+### Settings UI
+- [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): **THEME FAMILY** picker (`Classic Paper` / `Warm Paper`) with **real resolved-palette swatches** and an **APPEARANCE** selector (`System` / `Light` / `Dark`). Changes apply immediately with no navigation reset or editor-state loss.
+
+### Full Application Coverage
+Themes were wired across the whole product, not just the editor:
+- **Editor / preview / code blocks:** [`markdown_styles.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_styles.dart), [`markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart), [`quiet_code_block_element_builder.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_code_block_element_builder.dart) — code backgrounds/borders/text now use `codeBackground` / `codeBorder` / `codeText`.
+- **Search highlight:** [`markdown_highlight.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart), [`plain_text_viewer.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/plain_text_viewer.dart), editor `searchHighlight` / `searchHighlightActive` all consume semantic tokens (replacing hardcoded light/dark branches).
+- **Sidebar:** [`sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart) & [`sidebar_item.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/sidebar_item.dart) use `sidebarBackground` / `sidebarSelected`; foreground/header/search colors adapt automatically to a dark-vs-light sidebar surface (Warm Paper Light has a dark `#202329` sidebar).
+- **Intelligent scrollbar:** [`intelligent_heading_scrollbar.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/intelligent_heading_scrollbar.dart) uses `scrollbar` / `scrollbarActive` and derives its heading-navigation gradient from the **active theme background** (no fixed white/black gradient).
+
+### Syntax Highlighting (& theme-derived palettes)
+- [`lib/core/syntax/domain/syntax_theme.dart`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_theme.dart): `SyntaxTheme.fromColors(AppColors)` derives a per-token palette from the active theme, switching automatically with no manual "syntax theme" selector. Warm Paper uses a restrained indigo/sage editorial palette; Midnight Paper uses luminous lavender/indigo with contrast against the dark slate surfaces.
+
+### Verification
+- Unit/widget tests: [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) covering theme resolution matrix, exact canonical palette values, persistence & idempotent legacy migration, syntax adaptation, scrollbar theming, and settings controls.
+- `flutter test` → **931 tests passing**; `flutter analyze` → **0 issues found**.
