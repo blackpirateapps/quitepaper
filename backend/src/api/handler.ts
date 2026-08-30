@@ -174,6 +174,38 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // POST /api/v1/sync/tags/push or /api/v1/tags/sync/push
+    if ((pathname === '/api/v1/sync/tags/push' || pathname === '/api/v1/tags/sync/push') && method === 'POST') {
+      const { pushTags } = await import('../sync/syncService.js');
+      const pushResult = await pushTags(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pushResult,
+      };
+    }
+
+    // GET /api/v1/sync/tags/pull or POST /api/v1/sync/tags/pull
+    if ((pathname === '/api/v1/sync/tags/pull' || pathname === '/api/v1/tags/sync/pull')) {
+      const { pullTags } = await import('../sync/syncService.js');
+      let cursor = 0;
+      let limit = 100;
+      if (method === 'GET') {
+        const urlObj = new URL(rawUrl, 'http://localhost');
+        cursor = parseInt(urlObj.searchParams.get('cursor') || '0', 10);
+        limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+      } else if (method === 'POST') {
+        cursor = req.body?.cursor ?? 0;
+        limit = req.body?.limit ?? 100;
+      }
+      const pullResult = await pullTags(db, userId, { cursor, limit });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pullResult,
+      };
+    }
+
     // GET /api/v1/sync/cursor
     if (pathname === '/api/v1/sync/cursor' && method === 'GET') {
       const cursor = await getLatestCursor(db, userId);

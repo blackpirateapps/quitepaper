@@ -167,6 +167,31 @@ export const pullVersionsSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
 
+export const tagSyncPayloadSchema = z.object({
+  id: z.string().uuid(),
+  contentCiphertext: z.string().max(2 * 1024 * 1024),
+  contentNonce: z.string().min(12).max(256),
+  contentVersion: z.number().int().min(1).default(1),
+  encryptionKeyVersion: z.number().int().min(1).default(1),
+  isPinned: z.boolean().default(false),
+  pinnedOrder: z.number().int().default(0),
+  createdAt: z.string().datetime({ offset: true }).or(z.string()),
+  updatedAt: z.string().datetime({ offset: true }).or(z.string()),
+  isDeleted: z.boolean().default(false),
+  deletedAt: z.string().datetime({ offset: true }).or(z.string()).optional().nullable(),
+  baseRevision: z.number().int().min(0).optional().nullable(),
+});
+
+export const pushTagsSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  tags: z.array(tagSyncPayloadSchema).min(1).max(100),
+});
+
+export const pullTagsSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(200).default(100),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
@@ -180,3 +205,6 @@ export type ConfirmDocumentInput = z.infer<typeof confirmDocumentSchema>;
 export type NoteVersionInput = z.infer<typeof noteVersionSchema>;
 export type PushVersionsInput = z.infer<typeof pushVersionsSchema>;
 export type PullVersionsInput = z.infer<typeof pullVersionsSchema>;
+export type TagSyncPayloadInput = z.infer<typeof tagSyncPayloadSchema>;
+export type PushTagsInput = z.infer<typeof pushTagsSchema>;
+export type PullTagsInput = z.infer<typeof pullTagsSchema>;

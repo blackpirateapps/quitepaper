@@ -934,3 +934,159 @@ export async function getHistoricalRevision(db: Client, userId: string, noteId: 
 
   return null;
 }
+
+export interface PullTagChangeItem {
+  id: string;
+  revision: number;
+  contentCiphertext: string;
+  contentNonce: string;
+  contentVersion: number;
+  encryptionKeyVersion: number;
+  isPinned: boolean;
+  pinnedOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+  deletedAt?: string | null;
+}
+
+export interface PullTagsResponse {
+  changes: PullTagChangeItem[];
+  cursor: number;
+  hasMore: boolean;
+}
+
+export async function pushTags(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<{ results: PushResultItem[]; cursor: number }> {
+  const { pushTagsSchema } = await import('../validation/schemas.js');
+  const parsed = pushTagsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid tag push body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { tags, deviceId } = parsed.data;
+  const appliedResults: PushResultItem[] = [];
+
+  const maxRevResult = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM tags WHERE user_id = ?',
+    args: [userId],
+  });
+  let currentMaxRev = Number(maxRevResult.rows[0]?.max_rev || 0);
+
+  for (const t of tags) {
+    currentMaxRev += 1;
+    const now = new Date().toISOString();
+
+    await db.execute({
+      sql: `INSERT INTO tags (
+              id, user_id, content_ciphertext, content_nonce, content_version,
+              encryption_key_version, is_pinned, pinned_order, created_at, updated_at,
+              is_deleted, deleted_at, revision, updated_by_device
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              content_ciphertext = excluded.content_ciphertext,
+              content_nonce = excluded.content_nonce,
+              content_version = excluded.content_version,
+              encryption_key_version = excluded.encryption_key_version,
+              is_pinned = excluded.is_pinned,
+              pinned_order = excluded.pinned_order,
+              updated_at = excluded.updated_at,
+              is_deleted = excluded.is_deleted,
+              deleted_at = excluded.deleted_at,
+              revision = excluded.revision,
+              updated_by_device = excluded.updated_by_device`,
+      args: [
+        t.id,
+        userId,
+        t.contentCiphertext,
+        t.contentNonce,
+        t.contentVersion,
+        t.encryptionKeyVersion,
+        t.isPinned ? 1 : 0,
+        t.pinnedOrder,
+        t.createdAt,
+        t.updatedAt,
+        t.isDeleted ? 1 : 0,
+        t.deletedAt || null,
+        currentMaxRev,
+        deviceId || null,
+      ],
+    });
+
+    appliedResults.push({
+      id: t.id,
+      revision: currentMaxRev,
+      status: 'applied',
+      updatedAt: now,
+    });
+  }
+
+  if (deviceId) {
+    await recordDeviceCheckpoint(db, userId, deviceId);
+  }
+
+  return {
+    results: appliedResults,
+    cursor: currentMaxRev,
+  };
+}
+
+export async function pullTags(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<PullTagsResponse> {
+  const { pullTagsSchema } = await import('../validation/schemas.js');
+  const parsed = pullTagsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid tag pull body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { cursor, limit } = parsed.data;
+
+  const results = await db.execute({
+    sql: `SELECT id, revision, content_ciphertext, content_nonce, content_version,
+                 encryption_key_version, is_pinned, pinned_order, created_at, updated_at,
+                 is_deleted, deleted_at
+          FROM tags
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const hasMore = results.rows.length > limit;
+  const rowsToUse = hasMore ? results.rows.slice(0, limit) : results.rows;
+
+  const changes: PullTagChangeItem[] = rowsToUse.map(r => ({
+    id: r.id as string,
+    revision: Number(r.revision),
+    contentCiphertext: r.content_ciphertext as string,
+    contentNonce: r.content_nonce as string,
+    contentVersion: Number(r.content_version || 1),
+    encryptionKeyVersion: Number(r.encryption_key_version || 1),
+    isPinned: Number(r.is_pinned) === 1,
+    pinnedOrder: Number(r.pinned_order || 0),
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+    isDeleted: Number(r.is_deleted) === 1,
+    deletedAt: r.deleted_at as string | null,
+  }));
+
+  let nextCursor = cursor;
+  for (const r of rowsToUse) {
+    if (Number(r.revision) > nextCursor) {
+      nextCursor = Number(r.revision);
+    }
+  }
+
+  return {
+    changes,
+    cursor: nextCursor,
+    hasMore,
+  };
+}

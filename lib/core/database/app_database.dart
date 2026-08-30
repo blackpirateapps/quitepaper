@@ -993,7 +993,8 @@ class AppDatabase extends _$AppDatabase {
     await (delete(syncMetadataTable)
           ..where((t) =>
               t.key.equals('sync_cursor') |
-              t.key.equals('version_sync_cursor')))
+              t.key.equals('version_sync_cursor') |
+              t.key.equals('tag_sync_cursor')))
         .go();
   }
 
@@ -1275,7 +1276,18 @@ class AppDatabase extends _$AppDatabase {
         );
       }
 
-      await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
+      if (tag.serverRevision > 0) {
+        await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+          TagsTableCompanion(
+            isDeleted: const Value(true),
+            deletedAt: Value(now),
+            isDirty: const Value(true),
+            updatedAt: Value(now),
+          ),
+        );
+      } else {
+        await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
+      }
     });
   }
 
@@ -1313,7 +1325,18 @@ class AppDatabase extends _$AppDatabase {
         );
       }
 
-      await (delete(tagsTable)..where((t) => t.id.equals(sourceTagId))).go();
+      if (sourceTag.serverRevision > 0) {
+        await (update(tagsTable)..where((t) => t.id.equals(sourceTagId))).write(
+          TagsTableCompanion(
+            isDeleted: const Value(true),
+            deletedAt: Value(now),
+            isDirty: const Value(true),
+            updatedAt: Value(now),
+          ),
+        );
+      } else {
+        await (delete(tagsTable)..where((t) => t.id.equals(sourceTagId))).go();
+      }
     });
   }
 
@@ -1376,6 +1399,100 @@ class AppDatabase extends _$AppDatabase {
         isDirty: const Value(true),
       ),
     );
+  }
+
+  /// Returns all tags pending synchronization
+  Future<List<TagEntity>> getDirtyTags() async {
+    return (select(tagsTable)..where((t) => t.isDirty.equals(true))).get();
+  }
+
+  /// Marks a tag as successfully synced with the server revision
+  Future<void> markTagSynced({
+    required String tagId,
+    required int serverRevision,
+    required DateTime syncedAt,
+  }) async {
+    final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
+    if (tag == null) return;
+    if (tag.isDeleted) {
+      await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
+    } else {
+      await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+        TagsTableCompanion(
+          isDirty: const Value(false),
+          serverRevision: Value(serverRevision),
+          syncedAt: Value(syncedAt),
+        ),
+      );
+    }
+  }
+
+  /// Upserts a tag pulled from remote synchronization
+  Future<void> upsertSyncedTag({
+    required String id,
+    required String name,
+    String? icon,
+    String? color,
+    required bool isPinned,
+    required int pinnedOrder,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required int serverRevision,
+    required bool isDeleted,
+    DateTime? deletedAt,
+  }) async {
+    await transaction(() async {
+      final normalizedName = TagParser.normalizeTag(name);
+      final existingById = await (select(tagsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+      final existingByName = await (select(tagsTable)..where((t) => t.name.equals(normalizedName))).getSingleOrNull();
+
+      if (isDeleted) {
+        if (existingById != null) {
+          await (delete(tagsTable)..where((t) => t.id.equals(id))).go();
+        } else if (existingByName != null) {
+          await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
+        }
+        return;
+      }
+
+      // If local tag has pending unsynced dirty changes and was updated more recently, keep local dirty edits
+      if (existingById != null && existingById.isDirty) {
+        if (existingById.updatedAt != null && existingById.updatedAt!.isAfter(updatedAt)) {
+          return;
+        }
+      }
+
+      // If a tag with the same name exists with a different ID (e.g. created offline on two devices)
+      if (existingByName != null && existingByName.id != id) {
+        // Merge note tags to the canonical remote ID
+        final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).get();
+        for (final row in noteRows) {
+          await into(noteTagsTable).insertOnConflictUpdate(
+            NoteTagsTableCompanion.insert(noteId: row.noteId, tagId: id),
+          );
+        }
+        await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).go();
+        await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
+      }
+
+      await into(tagsTable).insertOnConflictUpdate(
+        TagsTableCompanion(
+          id: Value(id),
+          name: Value(normalizedName),
+          icon: Value(icon),
+          color: Value(color),
+          isPinned: Value(isPinned),
+          pinnedOrder: Value(pinnedOrder),
+          createdAt: Value(createdAt),
+          updatedAt: Value(updatedAt),
+          isDirty: const Value(false),
+          serverRevision: Value(serverRevision),
+          syncedAt: Value(DateTime.now()),
+          isDeleted: const Value(false),
+          deletedAt: const Value(null),
+        ),
+      );
+    });
   }
 
   // ==========================================

@@ -220,6 +220,52 @@ class SyncEngine {
         }
       }
 
+      // 2b. TAGS PUSH: Upload pending dirty tags
+      final dirtyTags = await database.getDirtyTags();
+      if (dirtyTags.isNotEmpty) {
+        final tagPayloads = <TagSyncPayload>[];
+        for (final tag in dirtyTags) {
+          final tagPlaintext = TagPlaintext(
+            name: tag.name,
+            icon: tag.icon,
+            color: tag.color,
+          );
+          final envelope = await cryptoService.encryptTagPayload(
+            plaintext: tagPlaintext,
+            masterKeyBytes: masterKey,
+            tagId: tag.id,
+            keyVersion: 1,
+          );
+          tagPayloads.add(TagSyncPayload(
+            id: tag.id,
+            contentCiphertext: envelope.ciphertext,
+            contentNonce: envelope.nonce,
+            contentVersion: envelope.contentVersion,
+            encryptionKeyVersion: envelope.keyVersion,
+            isPinned: tag.isPinned,
+            pinnedOrder: tag.pinnedOrder,
+            createdAt: tag.createdAt ?? DateTime.now(),
+            updatedAt: tag.updatedAt ?? DateTime.now(),
+            isDeleted: tag.isDeleted,
+            deletedAt: tag.deletedAt,
+            baseRevision: tag.serverRevision > 0 ? tag.serverRevision : null,
+          ));
+        }
+
+        try {
+          final tagPushRes = await apiClient.pushTags(tags: tagPayloads);
+          for (final res in tagPushRes.results) {
+            await database.markTagSynced(
+              tagId: res.id,
+              serverRevision: res.revision,
+              syncedAt: DateTime.now(),
+            );
+          }
+        } catch (tagPushErr) {
+          debugPrint('Tag push error: $tagPushErr');
+        }
+      }
+
       // 3. PULL PHASE: Fetch server changes after cursor
       final cursorStr = await database.getSyncMetadata('sync_cursor');
       var currentCursor = int.tryParse(cursorStr ?? '0') ?? 0;
@@ -671,6 +717,71 @@ class SyncEngine {
         } catch (vPullErr) {
           debugPrint('Note versions pull error: $vPullErr');
           hasMoreVersions = false;
+        }
+      }
+
+      // 4c. TAGS PULL: Fetch server tags after cursor
+      final tagCursorStr = await database.getSyncMetadata('tag_sync_cursor');
+      var currentTagCursor = int.tryParse(tagCursorStr ?? '0') ?? 0;
+      var hasMoreTags = true;
+
+      while (hasMoreTags) {
+        try {
+          final tagPullRes = await apiClient.pullTags(cursor: currentTagCursor, limit: 50);
+          for (final change in tagPullRes.changes) {
+            try {
+              if (change.isDeleted) {
+                await database.upsertSyncedTag(
+                  id: change.id,
+                  name: '',
+                  icon: null,
+                  color: null,
+                  isPinned: false,
+                  pinnedOrder: 0,
+                  createdAt: change.createdAt,
+                  updatedAt: change.updatedAt,
+                  serverRevision: change.revision,
+                  isDeleted: true,
+                  deletedAt: change.deletedAt,
+                );
+              } else {
+                final envelope = EncryptedEnvelope(
+                  version: change.contentVersion,
+                  algorithm: 'xchacha20-poly1305',
+                  keyVersion: change.encryptionKeyVersion,
+                  nonce: change.contentNonce,
+                  ciphertext: change.contentCiphertext,
+                );
+
+                final decrypted = await cryptoService.decryptTagPayload(
+                  envelope: envelope,
+                  masterKeyBytes: masterKey,
+                  tagId: change.id,
+                );
+
+                await database.upsertSyncedTag(
+                  id: change.id,
+                  name: decrypted.name,
+                  icon: decrypted.icon,
+                  color: decrypted.color,
+                  isPinned: change.isPinned,
+                  pinnedOrder: change.pinnedOrder,
+                  createdAt: change.createdAt,
+                  updatedAt: change.updatedAt,
+                  serverRevision: change.revision,
+                  isDeleted: false,
+                );
+              }
+            } catch (tagDecErr) {
+              debugPrint('Failed to decrypt/apply pulled tag ${change.id}: $tagDecErr');
+            }
+          }
+          currentTagCursor = tagPullRes.cursor;
+          await database.setSyncMetadata('tag_sync_cursor', currentTagCursor.toString());
+          hasMoreTags = tagPullRes.hasMore;
+        } catch (tagPullErr) {
+          debugPrint('Tags pull error: $tagPullErr');
+          hasMoreTags = false;
         }
       }
 

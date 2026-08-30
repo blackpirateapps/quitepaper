@@ -216,6 +216,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_refs_unique ON attachment_refer
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_res ON attachment_references (user_id, resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_note ON attachment_references (user_id, note_id);
 CREATE INDEX IF NOT EXISTS idx_destruction_jobs_user_state ON destruction_jobs (user_id, state, available_at);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  content_ciphertext TEXT NOT NULL,
+  content_nonce TEXT NOT NULL,
+  content_version INTEGER NOT NULL DEFAULT 1,
+  encryption_key_version INTEGER NOT NULL DEFAULT 1,
+  is_pinned INTEGER NOT NULL DEFAULT 0,
+  pinned_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_by_device TEXT,
+  updated_by_device TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags (user_id);
+CREATE INDEX IF NOT EXISTS idx_tags_user_rev ON tags (user_id, revision);
 `;
 
 export async function runMigrations(db: Client): Promise<void> {

@@ -69,6 +69,18 @@ abstract class SyncApiClient {
     required int cursor,
     int limit = 100,
   });
+  Future<PushSyncResponse> pushTags({
+    required List<TagSyncPayload> tags,
+    String? deviceId,
+  }) async {
+    return const PushSyncResponse(results: [], conflicts: [], cursor: 0);
+  }
+  Future<PullTagSyncResponse> pullTags({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    return const PullTagSyncResponse(changes: [], cursor: 0, hasMore: false);
+  }
   Future<PullChangeItem?> getHistoricalRevision({
     required String noteId,
     required int revision,
@@ -631,6 +643,54 @@ class HttpSyncApiClient implements SyncApiClient {
       throw Exception('Failed to pull note versions: Invalid JSON response');
     }
     return PullVersionSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<PushSyncResponse> pushTags({
+    required List<TagSyncPayload> tags,
+    String? deviceId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/sync/tags/push');
+    final body = {
+      'tags': tags.map((t) => t.toJson()).toList(),
+      'deviceId': ?deviceId,
+    };
+
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+      url,
+      headers: headers,
+      body: encoded,
+    ));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to push tags'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to push tags: Invalid JSON response');
+    }
+    return PushSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<PullTagSyncResponse> pullTags({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/sync/tags/pull?cursor=$cursor&limit=$limit');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to pull tags'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to pull tags: Invalid JSON response');
+    }
+    return PullTagSyncResponse.fromJson(data);
   }
 
   @override

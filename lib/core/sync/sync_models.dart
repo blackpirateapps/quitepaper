@@ -811,3 +811,138 @@ class GcExecutionSummary {
   }
 }
 
+@immutable
+class TagSyncPayload {
+  const TagSyncPayload({
+    required this.id,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+    this.isPinned = false,
+    this.pinnedOrder = 0,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isDeleted = false,
+    this.deletedAt,
+    this.baseRevision,
+  });
+
+  final String id;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final bool isPinned;
+  final int pinnedOrder;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final int? baseRevision;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'contentCiphertext': contentCiphertext,
+        'contentNonce': contentNonce,
+        'contentVersion': contentVersion,
+        'encryptionKeyVersion': encryptionKeyVersion,
+        'isPinned': isPinned,
+        'pinnedOrder': pinnedOrder,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'isDeleted': isDeleted,
+        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+        if (baseRevision != null) 'baseRevision': baseRevision,
+      };
+
+  factory TagSyncPayload.fromJson(Map<String, dynamic> json) => TagSyncPayload(
+        id: json['id'] as String,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        contentNonce: json['contentNonce'] as String? ?? '',
+        contentVersion: json['contentVersion'] as int? ?? 1,
+        encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+        isPinned: json['isPinned'] as bool? ?? false,
+        pinnedOrder: json['pinnedOrder'] as int? ?? 0,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] != null
+            ? DateTime.parse(json['deletedAt'] as String)
+            : null,
+        baseRevision: json['baseRevision'] as int?,
+      );
+}
+
+@immutable
+class PullTagChangeItem {
+  const PullTagChangeItem({
+    required this.id,
+    required this.revision,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+    this.isPinned = false,
+    this.pinnedOrder = 0,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isDeleted = false,
+    this.deletedAt,
+  });
+
+  final String id;
+  final int revision;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final bool isPinned;
+  final int pinnedOrder;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+
+  factory PullTagChangeItem.fromJson(Map<String, dynamic> json) => PullTagChangeItem(
+        id: json['id'] as String,
+        revision: json['revision'] as int? ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        contentNonce: json['contentNonce'] as String? ?? '',
+        contentVersion: json['contentVersion'] as int? ?? 1,
+        encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+        isPinned: json['isPinned'] as bool? ?? false,
+        pinnedOrder: json['pinnedOrder'] as int? ?? 0,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] != null
+            ? DateTime.parse(json['deletedAt'] as String)
+            : null,
+      );
+}
+
+@immutable
+class PullTagSyncResponse {
+  const PullTagSyncResponse({
+    required this.changes,
+    required this.cursor,
+    required this.hasMore,
+  });
+
+  final List<PullTagChangeItem> changes;
+  final int cursor;
+  final bool hasMore;
+
+  factory PullTagSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['changes'] as List? ?? [];
+    return PullTagSyncResponse(
+      changes: rawChanges
+          .map((c) => PullTagChangeItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: json['cursor'] as int? ?? 0,
+      hasMore: json['hasMore'] as bool? ?? false,
+    );
+  }
+}
+

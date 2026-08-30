@@ -110,6 +110,44 @@ class NotePlaintext {
   int get hashCode => title.hashCode ^ body.hashCode ^ tags.hashCode;
 }
 
+/// Plaintext tag content object before encryption
+@immutable
+class TagPlaintext {
+  const TagPlaintext({
+    required this.name,
+    this.icon,
+    this.color,
+  });
+
+  final String name;
+  final String? icon;
+  final String? color;
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (icon != null) 'icon': icon,
+        if (color != null) 'color': color,
+      };
+
+  factory TagPlaintext.fromJson(Map<String, dynamic> json) => TagPlaintext(
+        name: json['name'] as String? ?? '',
+        icon: json['icon'] as String?,
+        color: json['color'] as String?,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TagPlaintext &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          icon == other.icon &&
+          color == other.color;
+
+  @override
+  int get hashCode => name.hashCode ^ icon.hashCode ^ color.hashCode;
+}
+
 /// Parameters for Argon2id Key Derivation
 @immutable
 class KdfParameters {
@@ -270,6 +308,21 @@ abstract class CryptoService {
     required EncryptedEnvelope envelope,
     required Uint8List masterKeyBytes,
     required String noteId,
+  });
+
+  /// Encrypts TagPlaintext object using Master Key with Authenticated Associated Data
+  Future<EncryptedEnvelope> encryptTagPayload({
+    required TagPlaintext plaintext,
+    required Uint8List masterKeyBytes,
+    required String tagId,
+    int keyVersion = 1,
+  });
+
+  /// Decrypts EncryptedEnvelope back to TagPlaintext using Master Key
+  Future<TagPlaintext> decryptTagPayload({
+    required EncryptedEnvelope envelope,
+    required Uint8List masterKeyBytes,
+    required String tagId,
   });
 
   /// Generates a human-friendly high-entropy Recovery Key formatted with words/chunks
@@ -490,6 +543,76 @@ class DefaultCryptoService implements CryptoService {
 
     final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
     return NotePlaintext.fromJson(jsonMap);
+  }
+
+  static const String _tagAadPrefix = 'quietpaper:tag';
+
+  @override
+  Future<EncryptedEnvelope> encryptTagPayload({
+    required TagPlaintext plaintext,
+    required Uint8List masterKeyBytes,
+    required String tagId,
+    int keyVersion = 1,
+  }) async {
+    final payloadJson = jsonEncode(plaintext.toJson());
+    final payloadBytes = utf8.encode(payloadJson);
+
+    final masterSecretKey = SecretKey(masterKeyBytes);
+    final nonce = _cipher.newNonce();
+    final aad = utf8.encode('$_tagAadPrefix:$tagId:v1');
+
+    final secretBox = await _cipher.encrypt(
+      payloadBytes,
+      secretKey: masterSecretKey,
+      nonce: nonce,
+      aad: aad,
+    );
+
+    final combinedCiphertext = secretBox.concatenation(nonce: false);
+
+    return EncryptedEnvelope(
+      version: 1,
+      algorithm: 'xchacha20-poly1305',
+      keyVersion: keyVersion,
+      nonce: base64Encode(nonce),
+      ciphertext: base64Encode(combinedCiphertext),
+      contentVersion: 1,
+    );
+  }
+
+  @override
+  Future<TagPlaintext> decryptTagPayload({
+    required EncryptedEnvelope envelope,
+    required Uint8List masterKeyBytes,
+    required String tagId,
+  }) async {
+    final nonce = base64Decode(envelope.nonce);
+    final combinedCiphertext = base64Decode(envelope.ciphertext);
+    final aad = utf8.encode('$_tagAadPrefix:$tagId:v${envelope.version}');
+
+    if (combinedCiphertext.length < 16) {
+      throw const FormatException('Ciphertext too short for Poly1305 MAC');
+    }
+
+    final cipherBytes = combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
+
+    final secretBox = SecretBox(
+      cipherBytes,
+      nonce: nonce,
+      mac: Mac(macBytes),
+    );
+
+    final masterSecretKey = SecretKey(masterKeyBytes);
+
+    final decryptedBytes = await _cipher.decrypt(
+      secretBox,
+      secretKey: masterSecretKey,
+      aad: aad,
+    );
+
+    final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+    return TagPlaintext.fromJson(jsonMap);
   }
 
   @override

@@ -3315,6 +3315,55 @@ Defined in [`tag_providers.dart`](file:///home/dog/git/quitepaper/lib/features/t
 - [`tag_database_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_database_test.dart): 7 tests verifying `createTag` metadata & stable ID, tag deduplication, `renameTag` note Markdown rewriting, `deleteTag` note preservation, `mergeTags` note updating & source cleanup, `pinTag` & `reorderPinnedTags`, and `watchAllTagsWithCount` streaming unused tags with count 0.
 - [`tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart): 5 tests verifying `TagBrowserScreen` rendering & search filtering, `TagDetailScreen` header & empty/populated note lists, `TagIconPickerSheet` category tabs & keyword search, and `TagColorPickerSheet` curated palette selection.
 - [`tag_dialogs_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_dialogs_test.dart): 4 tests verifying validation in `TagCreateDialog`, `TagRenameDialog`, `TagDeleteDialog` safety confirmation, and `TagMergeDialog` target selection.
-- [`tags_filter_bar_test.dart`](file:///home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart): 3 tests verifying tag ordering, selection, and auto-scroll.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full test suite: `flutter test` (**821 / 821 tests passing**).
+
+---
+
+## 45. Zero-Knowledge Tag Entity Synchronization Subsystem
+
+### Overview
+To ensure seamless multi-device convergence for Quiet Paper's first-class tag management system, the synchronization engine and backend control plane were extended to support **zero-knowledge tag entity synchronization**. Tags, along with their custom vector icons, warm editorial colors, pinned state, pinned drag-and-drop order, standalone 0-note status, and deletion tombstones, are synchronized across devices without exposing plaintext tag names, icons, or color choices to the cloud server or database.
+
+### Backend Synchronization Control Plane (`backend/`)
+- **Turso / libSQL Schema Migration (008)**:
+  - Added [`008_tags_schema.sql`](file:///home/dog/git/quitepaper/backend/migrations/008_tags_schema.sql) and updated [`migrate.ts`](file:///home/dog/git/quitepaper/backend/src/db/migrate.ts):
+    - `tags` table with `id` (UUID primary key), `user_id`, `content_ciphertext`, `content_nonce`, `content_version`, `encryption_key_version`, `is_pinned`, `pinned_order`, `created_at`, `updated_at`, `is_deleted`, `deleted_at`, `revision`, `created_by_device`, and `updated_by_device`.
+    - Indices: `idx_tags_user_id` on `user_id`, `idx_tags_user_rev` on `(user_id, revision)`.
+- **Validation Schemas ([`schemas.ts`](file:///home/dog/git/quitepaper/backend/src/validation/schemas.ts))**:
+  - `tagSyncPayloadSchema`: validates encrypted envelope fields, pinned metadata, timestamps, and tombstones.
+  - `pushTagsSchema` & `pullTagsSchema`: validate batch limits and cursor pagination.
+- **Push & Pull Service Operations ([`syncService.ts`](file:///home/dog/git/quitepaper/backend/src/sync/syncService.ts))**:
+  - `pushTags`: Upserts encrypted tags into the database, increments user monotonic revision counter, records device checkpoints, and returns revision confirmations.
+  - `pullTags`: Queries `tags` after cursor, paginates via `hasMore`, and streams remote changes/tombstones.
+- **REST Endpoints ([`handler.ts`](file:///home/dog/git/quitepaper/backend/src/api/handler.ts))**:
+  - `POST /api/v1/sync/tags/push` & `POST /api/v1/tags/sync/push`
+  - `GET /api/v1/sync/tags/pull` & `POST /api/v1/sync/tags/pull`
+- **Backend Test Verification ([`tags_sync.test.ts`](file:///home/dog/git/quitepaper/backend/tests/tags_sync.test.ts))**:
+  - Verified batch pushes, cursor pagination, cross-user data isolation, and tombstone propagation with Vitest (10/10 test files, 40/40 tests passing).
+
+### Client Cryptography & Database Synchronization
+- **Client Cryptography ([`crypto_service.dart`](file:///home/dog/git/quitepaper/lib/core/crypto/crypto_service.dart))**:
+  - Defined `TagPlaintext(name, icon, color)`.
+  - `encryptTagPayload`: Encrypts serialized JSON with user master key using `XChaCha20-Poly1305` and authenticated associated data (`quietpaper:tag:<id>:v1`).
+  - `decryptTagPayload`: Authenticates Poly1305 MAC and decrypts back to `TagPlaintext`. Zero-knowledge guaranteed: ciphertexts reveal no tag names, icons, or colors to cloud backends.
+- **Database Synchronization Operations ([`app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart))**:
+  - `getDirtyTags()`: Streams all tags with `isDirty = true`.
+  - `markTagSynced(tagId, serverRevision, syncedAt)`: Clears dirty state and records server revision; permanently deletes tombstones once confirmed by the server.
+  - `upsertSyncedTag(...)`: Inserts/updates remote tags, preserves local unsynced newer dirty changes, merges duplicate tag names created offline on separate devices into the canonical remote ID without violating unique constraints, and handles soft-deletion tombstones.
+  - `deleteTag` & `mergeTags`: Automatically creates soft-deletion tombstones (`isDeleted = true, isDirty = true`) when `serverRevision > 0` so deletions push to the remote server.
+  - `resetSyncCursors`: Resets `tag_sync_cursor` alongside note and version cursors.
+
+### Client Sync Engine Integration ([`sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart))
+- **Push Phase (2b)**: Dirty tags are queried, encrypted client-side with master key into `TagSyncPayload`, and pushed to `/api/v1/sync/tags/push`. Applied revisions mark local tags synced.
+- **Pull Phase (4c)**: Remote changes are fetched via `/api/v1/sync/tags/pull?cursor=...`, decrypted with the master key, and upserted into Drift SQLite. Cursor is updated in `sync_metadata`.
+- **Sync Models & Client ([`sync_models.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_models.dart), [`sync_api_client.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart))**:
+  - Defined `TagSyncPayload`, `PullTagChangeItem`, `PullTagSyncResponse`.
+  - Implemented `pushTags` and `pullTags` on `SyncApiClient` and `HttpSyncApiClient`.
+
+### Automated Verification & Quality Assurance
+- [`tags_sync.test.ts`](file:///home/dog/git/quitepaper/backend/tests/tags_sync.test.ts): 3 Vitest tests verifying backend push, pull, cursor pagination, user isolation, and deletion tombstones.
+- [`tag_sync_test.dart`](file:///home/dog/git/quitepaper/test/sync/tag_sync_test.dart): 8 tests verifying crypto-blind payload encryption, tamper resistance, dirty tag tracking, remote upsert convergence, offline duplicate tag merge, soft-deletion tombstones, and multi-device push/pull end-to-end sync.
+- Backend suite: `npm test` (**40 / 40 tests passing across 10 suites**).
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full Flutter test suite: `flutter test` (**829 / 829 tests passing**).
