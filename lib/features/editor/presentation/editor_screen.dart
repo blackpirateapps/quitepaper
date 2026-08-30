@@ -16,6 +16,7 @@ import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
 import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/markdown/markdown_preview.dart';
+import '../../../core/widgets/intelligent_heading_scrollbar.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
@@ -896,28 +897,39 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           constraints: BoxConstraints(
                             maxWidth: typography.paragraphWidth.maxWidth,
                           ),
-                          child: editorState.isPreviewMode
-                              ? QuietMarkdownPreview(
-                                  markdownData: _contentController.text.isNotEmpty
-                                      ? _contentController.text
-                                      : note.content,
-                                  title: _titleController.text.isNotEmpty
-                                      ? _titleController.text
-                                      : note.title,
-                                  tags: note.tags,
-                                  onAddTag: editorNotifier.addTag,
-                                  onRemoveTag: _onRemoveTag,
-                                  scrollController: _scrollController,
-                                  searchQuery: _isSearchVisible
-                                      ? _searchQueryController.text
-                                      : null,
-                                  onDocumentRenamed: _updateDocumentMarkdownTitle,
-                                  onAttachmentRenamed: _updateAttachmentMarkdownTitle,
-                                  onAttachmentDeleted: _removeAttachmentMarkdownRef,
-                                  onInsertText: _insertExtractedOcrText,
-                                )
-                              : SingleChildScrollView(
-                              controller: _scrollController,
+                          child: IntelligentHeadingScrollbar(
+                            scrollController: _scrollController,
+                            contentController: _contentController,
+                            titleController: _titleController,
+                            markdownData: _contentController.text.isNotEmpty
+                                ? _contentController.text
+                                : note.content,
+                            title: _titleController.text.isNotEmpty
+                                ? _titleController.text
+                                : note.title,
+                            child: editorState.isPreviewMode
+                                ? QuietMarkdownPreview(
+                                    markdownData: _contentController.text.isNotEmpty
+                                        ? _contentController.text
+                                        : note.content,
+                                    title: _titleController.text.isNotEmpty
+                                        ? _titleController.text
+                                        : note.title,
+                                    tags: note.tags,
+                                    onAddTag: editorNotifier.addTag,
+                                    onRemoveTag: _onRemoveTag,
+                                    scrollController: _scrollController,
+                                    searchQuery: _isSearchVisible
+                                        ? _searchQueryController.text
+                                        : null,
+                                    onDocumentRenamed: _updateDocumentMarkdownTitle,
+                                    onAttachmentRenamed: _updateAttachmentMarkdownTitle,
+                                    onAttachmentDeleted: _removeAttachmentMarkdownRef,
+                                    onInsertText: _insertExtractedOcrText,
+                                    showScrollbar: false,
+                                  )
+                                : SingleChildScrollView(
+                                    controller: _scrollController,
                               padding: EdgeInsets.only(
                                 left: AppSpacing.lg + typography.paragraphIndent,
                                 right: AppSpacing.lg,
@@ -1014,11 +1026,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 ],
                               ),
                             ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
 
               // Floating/Docked formatting toolbar (only in active edit mode)
               if (!editorState.isPreviewMode && !editorState.isReadOnly)

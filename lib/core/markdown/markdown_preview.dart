@@ -19,6 +19,7 @@ import '../documents/presentation/document_viewer_screen.dart';
 import '../documents/presentation/quiet_document_card.dart';
 import '../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../uri/quiet_paper_uri.dart';
+import '../widgets/intelligent_heading_scrollbar.dart';
 import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
 import 'quiet_code_block_element_builder.dart';
@@ -45,6 +46,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onAttachmentDeleted,
     this.onInsertText,
     this.softLineBreak = true,
+    this.showScrollbar = true,
   });
 
   final String markdownData;
@@ -65,6 +67,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final void Function(String attachmentId)? onAttachmentDeleted;
   final void Function(String text)? onInsertText;
   final bool softLineBreak;
+  final bool showScrollbar;
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -542,8 +545,18 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     }
 
     if (widget.selectable) {
-      return SelectionArea(child: content);
+      content = SelectionArea(child: content);
     }
+
+    if (widget.scrollController != null && widget.showScrollbar && !widget.shrinkWrap) {
+      content = IntelligentHeadingScrollbar(
+        scrollController: widget.scrollController!,
+        markdownData: widget.markdownData,
+        title: effectiveTitle,
+        child: content,
+      );
+    }
+
     return content;
   }
 }

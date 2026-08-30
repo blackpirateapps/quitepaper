@@ -3721,6 +3721,48 @@ An on-demand, CDN-cached font distribution and local caching pipeline was implem
    - Flutter Tests: `flutter test` (**884 / 884 tests passing**).
    - Backend Tests: `npm test` (**42 / 42 tests passing across 11 test files**).
 
+---
+
+## 83. Intelligent Heading-Aware Scrollbar Architecture
+
+### Problem & Motivation
+In long-form Markdown documents and notes, traditional table of contents (TOC) sidebars or panels take up excessive screen real estate, distract the writer/reader from the content-first flow, and do not scale elegantly to mobile screens. Standard scrollbars, on the other hand, provide thumb position context without communicating the semantic structure of the document.
+
+### Architectural Solution
+An **intelligent heading-aware scrollbar** was engineered for Quiet Paper, combining a minimal, quiet scrollbar thumb with an on-demand, contextual heading navigation window integrated into the editor and preview experiences.
+
+1. **Domain & Application Layer**:
+   - **Data Model** ([`lib/core/markdown/heading_item.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/heading_item.dart)):
+     - Immutable `HeadingItem` entity capturing `id`, `rawTitle`, cleaned `title`, `level` (1..6), `charOffset`, `lineIndex`, and pre-computed `normalizedOffset` ($\in [0.0, 1.0]$).
+   - **Parser Engine** ([`lib/core/markdown/heading_parser.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/heading_parser.dart)):
+     - `cleanTitle(raw)`: Strips inline Markdown syntax (bold, italic, strikethrough, highlights, code spans, links, images, HTML tags) and normalizes whitespace.
+     - `extractHeadings(markdown)`: Robust line-by-line heading parser that skips YAML frontmatter blocks and fenced code blocks (` ``` ` or `~~~`).
+     - `computeVisibleWindow(...)`: Dynamic sliding window algorithm that centers the active heading while adapting to vertical track bounds and item density (defaulting to 6–8 nearest headings).
+     - `findActiveHeadingIndex(...)`: $O(\log N)$ binary search algorithm mapping the current vertical scroll offset to the active section heading.
+
+2. **Presentation Widget** ([`lib/core/widgets/intelligent_heading_scrollbar.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/intelligent_heading_scrollbar.dart)):
+   - **Unobtrusive Idle State**: When idle, displays a minimal 3.0dp wide scrollbar thumb (`colors.textTertiary` with 38% opacity) that temporarily fades in during scrolling (1,400ms hold timer) and fades out smoothly.
+   - **Contextual Hover & Interaction Zone**: When hovered, tapped, or dragged, the thumb widens to 4.5dp (`colors.accent` with 75% opacity) and reveals nearby headings via a soft horizontal linear gradient fading smoothly into the document background without opaque cards, borders, or boxes.
+   - **Dynamic Sliding Window**: Keeps nearby headings attached alongside the thumb. Distinguishes the active section using bold typography, `colors.accent`, and a subtle indicator dot.
+   - **Semantic Heading Hierarchy**: Level-based indentation (`(level - 1) * 6dp`) and typographic scaling (`12sp` for H1 down to `11sp` for H3+).
+   - **Direct Smooth Navigation**: Tapping any heading in the overlay animates the scroll position smoothly (`280ms`, `Curves.easeOutCubic`), triggers light haptic feedback (`HapticFeedback.selectionClick()`), and maintains heading visibility for 1,100ms before fading.
+   - **Live Editing Synchronization**: Directly listens to `contentController` and `titleController` with a lightweight 40ms debounce to immediately re-extract headings upon every keystroke.
+   - **Accessibility & Touch Hit Targets**: Generous 32dp invisible hit area across the right edge, paired with `Semantics(label: 'Jump to <Title>', button: true, excludeSemantics: true)`.
+
+3. **Editor & Preview Integration**:
+   - **Editor Screen** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
+     - Wraps the central constrained content sheet (`BoxConstraints(maxWidth: typography.paragraphWidth.maxWidth)`) with `IntelligentHeadingScrollbar`, ensuring the scrollbar track attaches directly to the note container edge on both mobile and 3-pane desktop/tablet layouts.
+     - Single scroll controller ownership (`_scrollController`) shared seamlessly across both Editor mode and Markdown Preview mode.
+   - **Markdown Preview** ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart)):
+     - Added `showScrollbar` parameter (defaulting to `true` for standalone previews like attachment viewers, and `false` when embedded inside `EditorScreen` to avoid nested duplicate scrollbars).
+
+4. **Automated Verification**:
+   - Unit tests: [`test/markdown/heading_parser_test.dart`](file:///home/dog/git/quitepaper/test/markdown/heading_parser_test.dart) (13 tests verifying heading parsing, frontmatter skipping, code block skipping, duplicate IDs, dynamic window sliding, and binary search).
+   - Widget tests: [`test/widgets/intelligent_heading_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/widgets/intelligent_heading_scrollbar_test.dart) (7 tests verifying hover appearance, tap jump navigation, dynamic window scrolling on 50+ headings, empty notes, live text editing, and accessibility semantics).
+   - Integration tests: [`test/editor/editor_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_scrollbar_test.dart) (3 tests verifying editor mode, preview mode, and cross-note navigation).
+   - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+   - Full Test Suite: `flutter test` (**907 / 907 tests passing, 100% pass rate**).
+
 
 
 
