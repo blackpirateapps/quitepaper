@@ -9,6 +9,7 @@ import '../../../core/web_clipper/web_clipper_models.dart';
 import '../../../core/web_clipper/web_clipper_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../editor/presentation/editor_screen.dart';
+import '../../notes/domain/note_model.dart';
 
 /// Bottom modal sheet presenting the pre-scanned article preview,
 /// dynamic storage breakdown (Markdown, HTML snapshot, images), CupertinoSwitch toggles,
@@ -21,11 +22,11 @@ class WebClipPreviewSheet extends ConsumerStatefulWidget {
 
   final WebClipScanResult scanResult;
 
-  static Future<void> show(
+  static Future<Note?> show(
     BuildContext context, {
     required WebClipScanResult scanResult,
   }) {
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<Note?>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -107,7 +108,7 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
       );
 
       if (mounted) {
-        Navigator.of(context).pop(); // Close sheet
+        Navigator.of(context).pop(result.note); // Close sheet and return created note
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

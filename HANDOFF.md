@@ -2953,3 +2953,56 @@ Quiet Paper includes a production-ready **Hybrid Markdown Table Editor** followi
 - Added widget tests in [`test/features/export/export_note_sheet_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_note_sheet_test.dart) asserting bottom-anchored alignment on phone and tablet viewports for `ExportNoteSheet`.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Test suite: `flutter test` (**all 662 tests passing**).
+
+---
+
+## 74. In-App Browser Acquisition & User-Assisted Web Clipping
+
+### Purpose & User Problem
+- Certain websites cannot be reliably extracted via direct server/client HTTP fetching due to:
+  1. Heavy client-side JavaScript hydration (Single Page Applications / client-rendered feeds)
+  2. Cloudflare Turnstile, CAPTCHA, or bot-detection verification challenges
+  3. Strict cookie-free paywalls or transient session barriers requiring human presence
+- **Solution**: A legitimate, production-ready **In-App Browser Acquisition System** that enables the user to browse naturally, complete ordinary interactions, and explicitly trigger capture. The captured DOM snapshot converges into the exact same Web Clipper extraction pipeline (`ArticleExtractor` -> `WebClipPreviewSheet` -> `WebClipperService.clipArticle` -> `NotesRepository`).
+
+### Architectural Invariants & Convergence
+```text
+Direct HTTP Fetch (WebClipperScanner.scanUrl) ──┐
+                                                ├─► WebCapturePayload ─► WebClipperScanner.scanPayload ─► ArticleExtractor ─► WebClipScanResult ─► WebClipPreviewSheet ─► WebClipperService.clipArticle ─► NotesRepository
+In-App Browser (WebClipBrowserScreen / JS DOM) ─┘
+```
+1. **Single Unified Extraction Pipeline**:
+   - Both direct HTTP and in-app browser acquisition produce an immutable [`WebCapturePayload`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_capture_payload.dart).
+   - In [`WebClipperScanner`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_scanner.dart): `scanPayload(WebCapturePayload payload)` extracts structured article elements, parses OpenGraph/meta tags, probes relative/absolute image URLs, estimates sizes, and compiles markdown without duplicate network calls.
+   - In [`WebClipperService`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_clipper_service.dart): `scanPayload(payload)` exposes direct payload ingestion to all presentation surfaces.
+2. **Strict Separation of Offline Viewer vs Interactive Acquisition Browser**:
+   - [`WebSnapshotViewerScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart): Preserved as an offline, sandboxed viewer with JavaScript strictly disabled (`JavaScriptMode.disabled`) for viewing saved `.qpd` encrypted snapshot documents.
+   - [`WebClipBrowserScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/browser/web_clip_browser_screen.dart): Interactive in-app acquisition browser with JavaScript enabled (`JavaScriptMode.unrestricted`) for legitimate web navigation and DOM snapshotting.
+3. **Robust Controller Lifecycle & Monotonic Request Generations**:
+   - In [`WebClipBrowserController`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/browser/web_clip_browser_controller.dart):
+     - State machine: `idle`, `opening`, `loading`, `ready`, `capturing`, `processing`, `success`, `error`.
+     - Monotonic `generationId`: Incremented on each navigation to immediately invalidate and discard any stale JavaScript DOM evaluation results if the user navigates away mid-capture.
+     - Safe navigation interception (`NavigationDelegate`): HTTP and HTTPS allowed; `mailto:`, `tel:`, and `sms:` safely dispatched to external apps; unsupported protocols (`javascript:`, `file:`, `intent:`) safely blocked.
+     - Payload bounds: 15MB HTML safety guard to prevent memory exhaustion on extreme pages.
+     - Double-tap guard: Prevents concurrent duplicate capture jobs while capture is in progress.
+4. **Editorial Acquisition Browser UI**:
+   - In [`WebClipBrowserScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/browser/web_clip_browser_screen.dart):
+     - **Header**: Back button, domain title with HTTPS lock icon, history back/forward navigation buttons, reload/stop button, overflow popup menu (Reload, External Browser, Copy URL, Page Info, Close), and URL edit dialog on domain tap.
+     - **Loading Feedback**: Subtle, non-intrusive `LinearProgressIndicator` during page load.
+     - **Bottom Clip Toolbar**: Shows status cue ("Waiting for page to load…", "Ready to clip content", "Capturing page content…", "Extracting article…") and dynamic button ("Loading…", "Clip", "Clip Anyway", "Retry").
+     - **Truthful Fallback Modal**: If article extraction fails or non-standard container is encountered, presents clear options: "Use Page Content" (sanitized full page content), "Save Offline Snapshot" (saves encrypted HTML snapshot document directly), or "Cancel".
+5. **Entry Points & Error Fallback**:
+   - In [`WebClipDialog`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_clip_dialog.dart): Added explicit "Browser" button in the action row and contextual "Open in In-App Browser →" prompt in the error banner if direct scanning fails.
+6. **Privacy & Security**:
+   - Zero automated CAPTCHA bypass or evasion scripts.
+   - Zero cookies, passwords, session tokens, or auth headers persisted to SQLite database or note payloads.
+   - Preserves Quiet Paper's zero-knowledge XChaCha20-Poly1305 encryption model.
+
+### Automated Verification
+- Added direct vs browser acquisition parity test in [`test/web_clipper/direct_vs_browser_parity_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/direct_vs_browser_parity_test.dart) asserting 100% downstream parity for Markdown, metadata, and images.
+- Added controller unit tests in [`test/web_clipper/web_clip_browser_controller_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clip_browser_controller_test.dart) asserting URL normalization, state machine transitions, generation IDs, and payload models.
+- Added widget tests in [`test/web_clipper/web_clip_browser_screen_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_clip_browser_screen_test.dart) asserting header domain, lock badge, history buttons, clip bar, URL edit dialog, and Page Info modal.
+- Added service integration tests in [`test/web_clipper/browser_acquisition_service_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/browser_acquisition_service_test.dart) testing browser payload scanning, page content fallback, image downloads, snapshot generation, and SQLite note saving.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all 677 tests passing**).
+

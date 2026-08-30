@@ -7,6 +7,7 @@ import '../../features/notes/domain/note_model.dart';
 import '../attachments/attachment_service.dart';
 import '../documents/document_service.dart';
 import 'html_to_markdown_converter.dart';
+import 'web_capture_payload.dart';
 import 'web_clipper_models.dart';
 import 'web_clipper_scanner.dart';
 import 'web_image_downloader.dart';
@@ -40,9 +41,18 @@ class WebClipperService {
 
   static const _uuid = Uuid();
 
-  /// Scans a target webpage URL and returns metadata, content, and size estimates.
+  /// Scans a target webpage URL and returns metadata, content, and size estimates via direct HTTP.
   Future<WebClipScanResult> scanUrl(String url) async {
     return _scanner.scanUrl(url);
+  }
+
+  /// Ingests a pre-captured [WebCapturePayload] (from in-app browser or native bridge),
+  /// extracts structured article content and metadata, probes images, and returns a [WebClipScanResult].
+  Future<WebClipScanResult> scanPayload(
+    WebCapturePayload payload, {
+    bool allowFallback = true,
+  }) async {
+    return _scanner.scanPayload(payload, allowFallback: allowFallback);
   }
 
   /// Ingests a web clip, downloads selected images, generates an optional offline HTML snapshot,

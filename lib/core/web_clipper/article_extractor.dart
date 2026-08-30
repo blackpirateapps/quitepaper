@@ -25,6 +25,7 @@ class ArticleExtractor {
     ExtractedArticleMetadata metadata,
     dom.Element cleanedElement,
     List<ClippedImageCandidate> images,
+    bool isArticleRootFound,
   }) extract({
     required String htmlContent,
     required String sourceUrl,
@@ -36,10 +37,10 @@ class ArticleExtractor {
     final metadata = _extractMetadata(document, sourceUrl, baseUri);
 
     // 2. Locate and isolate the best content container
-    final candidateRoot = _findArticleRoot(document);
+    final rootResult = _findArticleRoot(document);
 
     // 3. Clone and sanitize the candidate element
-    final cleanedElement = _sanitizeElement(candidateRoot.clone(true), baseUri);
+    final cleanedElement = _sanitizeElement(rootResult.element.clone(true), baseUri);
 
     // 4. Discover candidate images in article and lead image
     final images = _discoverImages(cleanedElement, metadata.leadImageUrl, baseUri);
@@ -48,6 +49,45 @@ class ArticleExtractor {
       metadata: metadata,
       cleanedElement: cleanedElement,
       images: images,
+      isArticleRootFound: rootResult.isArticleRootFound,
+    );
+  }
+
+  /// Convenience method for extracting article content from raw HTML and source URL.
+  ({
+    ExtractedArticleMetadata metadata,
+    dom.Element cleanedElement,
+    List<ClippedImageCandidate> images,
+    bool isArticleRootFound,
+  }) extractFromHtml(
+    String htmlContent,
+    String sourceUrl,
+  ) =>
+      extract(htmlContent: htmlContent, sourceUrl: sourceUrl);
+
+  /// Fallback extraction when article root scoring fails or full page content preservation is requested.
+  /// Sanitizes the full body element (stripping scripts, styles, forms, and ad noise) while preserving content.
+  ({
+    ExtractedArticleMetadata metadata,
+    dom.Element cleanedElement,
+    List<ClippedImageCandidate> images,
+    bool isArticleRootFound,
+  }) extractFallback({
+    required String htmlContent,
+    required String sourceUrl,
+  }) {
+    final document = html_parser.parse(htmlContent);
+    final baseUri = Uri.tryParse(sourceUrl) ?? Uri();
+    final metadata = _extractMetadata(document, sourceUrl, baseUri);
+    final bodyRoot = document.body ?? document.documentElement ?? dom.Element.tag('div');
+    final cleanedElement = _sanitizeElement(bodyRoot.clone(true), baseUri);
+    final images = _discoverImages(cleanedElement, metadata.leadImageUrl, baseUri);
+
+    return (
+      metadata: metadata,
+      cleanedElement: cleanedElement,
+      images: images,
+      isArticleRootFound: false,
     );
   }
 
@@ -142,16 +182,16 @@ class ArticleExtractor {
     return cleaned;
   }
 
-  dom.Element _findArticleRoot(dom.Document doc) {
+  ({dom.Element element, bool isArticleRootFound}) _findArticleRoot(dom.Document doc) {
     // 1. Check explicit semantic containers
     final explicitArticle = doc.querySelector('article');
     if (explicitArticle != null && _calculateTextLength(explicitArticle) > 200) {
-      return explicitArticle;
+      return (element: explicitArticle, isArticleRootFound: true);
     }
 
     final explicitMain = doc.querySelector('main, [role="main"]');
     if (explicitMain != null && _calculateTextLength(explicitMain) > 200) {
-      return explicitMain;
+      return (element: explicitMain, isArticleRootFound: true);
     }
 
     // 2. Score candidate DIV / SECTION elements
@@ -168,11 +208,16 @@ class ArticleExtractor {
     }
 
     if (bestCandidate != null && highestScore > 20) {
-      return bestCandidate;
+      return (element: bestCandidate, isArticleRootFound: true);
+    }
+
+    if (explicitArticle != null) {
+      return (element: explicitArticle, isArticleRootFound: true);
     }
 
     // Fallback to body or document element
-    return doc.body ?? doc.documentElement ?? dom.Element.tag('div');
+    final fallbackEl = doc.body ?? doc.documentElement ?? dom.Element.tag('div');
+    return (element: fallbackEl, isArticleRootFound: false);
   }
 
   double _scoreElement(dom.Element el) {

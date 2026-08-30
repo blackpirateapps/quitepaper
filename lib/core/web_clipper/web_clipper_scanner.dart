@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:markdown/markdown.dart' as md;
 import 'article_extractor.dart';
 import 'html_to_markdown_converter.dart';
+import 'web_capture_payload.dart';
+import 'web_capture_result.dart';
 import 'web_clipper_models.dart';
 import 'web_snapshot_generator.dart';
 
@@ -44,6 +46,108 @@ class WebClipperScanner {
     'Sec-Fetch-User': '?1',
     'Upgrade-Insecure-Requests': '1',
   };
+
+  /// Ingests a pre-captured [WebCapturePayload] (from in-app browser or native bridge),
+  /// extracts structured article content and metadata, probes images, and returns a [WebClipScanResult].
+  ///
+  /// If the article extractor cannot identify a dedicated article container, falls back
+  /// to a sanitized page content representation if [allowFallback] is true.
+  Future<WebClipScanResult> scanPayload(
+    WebCapturePayload payload, {
+    bool allowFallback = true,
+  }) async {
+    final effectiveUrl = payload.effectiveUrl;
+    final uri = Uri.tryParse(effectiveUrl);
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+      throw WebAcquisitionError(
+        kind: WebAcquisitionErrorKind.unsupportedPage,
+        message: 'Invalid webpage URL: $effectiveUrl',
+      );
+    }
+
+    if (payload.html.trim().isEmpty) {
+      throw const WebAcquisitionError(
+        kind: WebAcquisitionErrorKind.invalidContent,
+        message: 'Page HTML is empty.',
+      );
+    }
+
+    // 1. Extract metadata and article root from captured HTML
+    final extracted = _extractor.extract(
+      htmlContent: payload.html,
+      sourceUrl: effectiveUrl,
+    );
+
+    final extractedText = extracted.cleanedElement.text.trim();
+    final hasContent = extractedText.length >= 10;
+
+    // Merge metadata: prioritize non-empty metadata reported by browser/extractor
+    var metadata = extracted.metadata;
+    if ((metadata.title.isEmpty || metadata.title == 'Web Article') &&
+        payload.pageTitle != null &&
+        payload.pageTitle!.trim().isNotEmpty) {
+      metadata = metadata.copyWith(title: _cleanTitle(payload.pageTitle!));
+    }
+    if ((metadata.author == null || metadata.author!.isEmpty) &&
+        payload.author != null &&
+        payload.author!.trim().isNotEmpty) {
+      metadata = metadata.copyWith(author: payload.author!.trim());
+    }
+    if ((metadata.description == null || metadata.description!.isEmpty) &&
+        payload.description != null &&
+        payload.description!.trim().isNotEmpty) {
+      metadata = metadata.copyWith(description: payload.description!.trim());
+    }
+    if (metadata.publishedDate == null && payload.publishedAt != null) {
+      metadata = metadata.copyWith(publishedDate: payload.publishedAt);
+    }
+
+    if (hasContent && extracted.isArticleRootFound) {
+      return _compileScanResult(
+        metadata: metadata,
+        rawHtml: payload.html,
+        cleanedElement: extracted.cleanedElement,
+        rawImages: extracted.images,
+        isPageContentFallback: false,
+        acquisitionMethod: payload.acquisitionMethod,
+      );
+    }
+
+    // 2. Fallback to sanitized whole body if article container not identified
+    if (allowFallback && hasContent) {
+      return _compileScanResult(
+        metadata: metadata,
+        rawHtml: payload.html,
+        cleanedElement: extracted.cleanedElement,
+        rawImages: extracted.images,
+        isPageContentFallback: true,
+        acquisitionMethod: payload.acquisitionMethod,
+      );
+    }
+
+    if (allowFallback) {
+      final fallback = _extractor.extractFallback(
+        htmlContent: payload.html,
+        sourceUrl: effectiveUrl,
+      );
+      final fallbackText = fallback.cleanedElement.text.trim();
+      if (fallbackText.isNotEmpty) {
+        return _compileScanResult(
+          metadata: metadata,
+          rawHtml: payload.html,
+          cleanedElement: fallback.cleanedElement,
+          rawImages: fallback.images,
+          isPageContentFallback: true,
+          acquisitionMethod: payload.acquisitionMethod,
+        );
+      }
+    }
+
+    throw const WebAcquisitionError(
+      kind: WebAcquisitionErrorKind.extractionFailed,
+      message: "Couldn't identify readable article content on this page.",
+    );
+  }
 
   /// Scans a [targetUrl], extracts article content, probes candidate images,
   /// and returns a complete [WebClipScanResult] with storage size estimates.
@@ -446,6 +550,8 @@ class WebClipperScanner {
     required dom.Element cleanedElement,
     required List<ClippedImageCandidate> rawImages,
     String? customMarkdownBody,
+    bool isPageContentFallback = false,
+    WebAcquisitionMethod acquisitionMethod = WebAcquisitionMethod.directHttp,
   }) async {
     // 1. Probe images for size estimates
     final probedImages = await _probeImages(rawImages);
@@ -484,6 +590,8 @@ class WebClipperScanner {
       markdownSizeEstimate: markdownSizeEstimate,
       htmlSnapshotSizeEstimate: htmlSnapshotSizeEstimate,
       images: probedImages,
+      isPageContentFallback: isPageContentFallback,
+      acquisitionMethod: acquisitionMethod,
     );
   }
 

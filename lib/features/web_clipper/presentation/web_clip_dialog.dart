@@ -7,6 +7,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/web_clipper/web_clipper_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
+import 'browser/web_clip_browser_screen.dart';
 import 'web_clip_preview_sheet.dart';
 
 /// Modal dialog for entering or pasting a webpage URL to clip.
@@ -65,6 +66,17 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
         }
       }
     } catch (_) {}
+  }
+
+  Future<void> _openInBrowser([String? urlOverride]) async {
+    final rawUrl = (urlOverride ?? _urlController.text).trim();
+    final uri = Uri.tryParse(rawUrl);
+    final targetUrl = (uri != null && (uri.isScheme('http') || uri.isScheme('https')))
+        ? rawUrl
+        : (rawUrl.isNotEmpty ? 'https://$rawUrl' : 'https://google.com');
+
+    Navigator.of(context).pop();
+    await WebClipBrowserScreen.open(context, initialUrl: targetUrl);
   }
 
   Future<void> _scanUrl() async {
@@ -203,46 +215,101 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                 ),
               ),
 
-              // Error banner
+              // Error banner with In-App Browser suggestion
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Icon(Icons.error_outline_rounded,
-                        size: 14, color: Colors.red.shade400),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: AppTypography.caption.copyWith(
-                          color: Colors.red.shade400,
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm + 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: AppRadii.borderMd,
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Icon(Icons.error_outline_rounded,
+                                size: 14, color: Colors.red.shade400),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: AppTypography.caption.copyWith(
+                                color: Colors.red.shade400,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: Icon(Icons.open_in_browser_rounded,
+                              size: 15, color: colors.accent),
+                          label: Text(
+                            'Open in In-App Browser →',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.accent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: () => _openInBrowser(_urlController.text),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
 
               // Action Buttons
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(
-                    onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Cancel',
+                  TextButton.icon(
+                    onPressed: _isLoading ? null : () => _openInBrowser(),
+                    icon: Icon(Icons.language_rounded,
+                        size: 16, color: colors.textSecondary),
+                    label: Text(
+                      'Browser',
                       style: AppTypography.body.copyWith(
                         color: colors.textSecondary,
+                        fontSize: 13.5,
                       ),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  QuietButton(
-                    label: 'Continue',
-                    variant: QuietButtonVariant.primary,
-                    isLoading: _isLoading,
-                    onPressed: _isLoading ? null : _scanUrl,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed:
+                            _isLoading ? null : () => Navigator.of(context).pop(),
+                        child: Text(
+                          'Cancel',
+                          style: AppTypography.body.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      QuietButton(
+                        label: 'Continue',
+                        variant: QuietButtonVariant.primary,
+                        isLoading: _isLoading,
+                        onPressed: _isLoading ? null : _scanUrl,
+                      ),
+                    ],
                   ),
                 ],
               ),

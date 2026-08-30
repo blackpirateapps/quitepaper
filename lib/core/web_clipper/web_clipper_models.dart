@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'web_capture_payload.dart';
 
 /// Metadata extracted from a web page or article.
 @immutable
@@ -100,6 +101,8 @@ class WebClipScanResult {
     required this.markdownSizeEstimate,
     required this.htmlSnapshotSizeEstimate,
     required this.images,
+    this.isPageContentFallback = false,
+    this.acquisitionMethod = WebAcquisitionMethod.directHttp,
   });
 
   final ExtractedArticleMetadata metadata;
@@ -109,6 +112,8 @@ class WebClipScanResult {
   final int markdownSizeEstimate;
   final int htmlSnapshotSizeEstimate;
   final List<ClippedImageCandidate> images;
+  final bool isPageContentFallback;
+  final WebAcquisitionMethod acquisitionMethod;
 
   int get totalImagesSizeEstimate => images
       .where((img) => img.isSelected)
@@ -125,6 +130,8 @@ class WebClipScanResult {
     int? markdownSizeEstimate,
     int? htmlSnapshotSizeEstimate,
     List<ClippedImageCandidate>? images,
+    bool? isPageContentFallback,
+    WebAcquisitionMethod? acquisitionMethod,
   }) {
     return WebClipScanResult(
       metadata: metadata ?? this.metadata,
@@ -135,6 +142,9 @@ class WebClipScanResult {
       htmlSnapshotSizeEstimate:
           htmlSnapshotSizeEstimate ?? this.htmlSnapshotSizeEstimate,
       images: images ?? this.images,
+      isPageContentFallback:
+          isPageContentFallback ?? this.isPageContentFallback,
+      acquisitionMethod: acquisitionMethod ?? this.acquisitionMethod,
     );
   }
 }
