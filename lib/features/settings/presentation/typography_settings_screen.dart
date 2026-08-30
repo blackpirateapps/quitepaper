@@ -124,6 +124,24 @@ void compose() => print('Quiet Paper');
                     _buildFontPickerRow(
                       context: context,
                       colors: colors,
+                      title: 'Interface Font',
+                      fontFamily: typography.interfaceFontFamily ?? 'Match Editor Body',
+                      onTap: () {
+                        FontPickerSheet.show(
+                          context,
+                          title: 'Interface Font',
+                          currentFont: typography.interfaceFontFamily,
+                          type: FontPickerType.interface,
+                          onFontSelected: (font) {
+                            notifier.setInterfaceFontFamily(font);
+                          },
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _buildFontPickerRow(
+                      context: context,
+                      colors: colors,
                       title: 'Code Font',
                       fontFamily: typography.codeFontFamily ?? 'monospace',
                       onTap: () {

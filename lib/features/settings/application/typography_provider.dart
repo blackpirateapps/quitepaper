@@ -56,6 +56,23 @@ class CuratedFonts {
     'Roboto Mono',
     'Courier Prime',
   ];
+
+  static const List<String> interfacePresets = [
+    'Match Editor Body',
+    'System Sans',
+    'System Serif',
+    'San Francisco',
+    'iA Writer Quattro',
+    'Inter',
+    'Roboto',
+    'Lora',
+    'Merriweather',
+    'Open Sans',
+    'Lato',
+    'Source Sans 3',
+    'JetBrains Mono',
+    'Fira Code',
+  ];
 }
 
 class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
@@ -145,6 +162,24 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     await _persist(state.copyWith(
       bodyFontFamily: clean,
       clearBodyFont: clean == null,
+    ));
+  }
+
+  Future<void> setInterfaceFontFamily(String? family) async {
+    final clean = (family == null ||
+            family == 'Match Editor Body' ||
+            family == 'Match Editor' ||
+            family == 'auto')
+        ? null
+        : (family == CuratedFonts.systemSans
+            ? CuratedFonts.systemSans
+            : (family == CuratedFonts.systemSerif ? 'serif' : family));
+    if (clean != null && clean != CuratedFonts.systemSans && clean != 'serif') {
+      _ensureFontLoaded(clean);
+    }
+    await _persist(state.copyWith(
+      interfaceFontFamily: clean,
+      clearInterfaceFont: clean == null,
     ));
   }
 

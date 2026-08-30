@@ -140,5 +140,56 @@ void main() {
       expect(FontFamilyHelper.resolveBodyFontFamily('Lora'), equals('Lora'));
       expect(FontFamilyHelper.resolveBodyFontFamily(null), isNull);
     });
+
+    test('interfaceFontFamily and effective UI resolvers fallback properly', () {
+      // Default: no fonts set -> fallbacks are null
+      const defaultSettings = TypographySettings();
+      expect(defaultSettings.interfaceFontFamily, isNull);
+      expect(defaultSettings.effectiveUiFontFamily, isNull);
+      expect(defaultSettings.effectiveUiTitleFontFamily, isNull);
+
+      // Body and heading set, interface unset -> inherits body and heading
+      const inherited = TypographySettings(
+        headingFontFamily: 'iA Writer Quattro',
+        bodyFontFamily: 'iA Writer Quattro',
+      );
+      expect(inherited.interfaceFontFamily, isNull);
+      expect(inherited.effectiveUiFontFamily, equals('iA Writer Quattro'));
+      expect(inherited.effectiveUiTitleFontFamily, equals('iA Writer Quattro'));
+
+      // 'Match Editor Body' string explicitly set -> still inherits body and heading
+      const matchEditor = TypographySettings(
+        headingFontFamily: 'Playfair Display',
+        bodyFontFamily: 'Inter',
+        interfaceFontFamily: 'Match Editor Body',
+      );
+      expect(matchEditor.effectiveUiFontFamily, equals('Inter'));
+      expect(matchEditor.effectiveUiTitleFontFamily, equals('Playfair Display'));
+
+      // Interface explicitly set -> overrides both
+      const customUi = TypographySettings(
+        headingFontFamily: 'Playfair Display',
+        bodyFontFamily: 'Lora',
+        interfaceFontFamily: 'JetBrains Mono',
+      );
+      expect(customUi.effectiveUiFontFamily, equals('JetBrains Mono'));
+      expect(customUi.effectiveUiTitleFontFamily, equals('JetBrains Mono'));
+    });
+
+    test('CuratedFonts contains interfacePresets and notifier sets interface font', () async {
+      SharedPreferences.setMockInitialValues({});
+      final notifier = TypographySettingsNotifier();
+
+      expect(CuratedFonts.interfacePresets, contains('Match Editor Body'));
+      expect(CuratedFonts.interfacePresets, contains('iA Writer Quattro'));
+      expect(CuratedFonts.interfacePresets, contains('San Francisco'));
+
+      await notifier.setInterfaceFontFamily('iA Writer Quattro');
+      expect(notifier.state.interfaceFontFamily, equals('iA Writer Quattro'));
+      expect(notifier.state.effectiveUiFontFamily, equals('iA Writer Quattro'));
+
+      await notifier.setInterfaceFontFamily('Match Editor Body');
+      expect(notifier.state.interfaceFontFamily, isNull);
+    });
   });
 }

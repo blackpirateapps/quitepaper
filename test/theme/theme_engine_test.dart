@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/app/theme/app_typography.dart';
 import 'package:quitepaper/app/theme/theme_family.dart';
 import 'package:quitepaper/app/theme/theme_resolver.dart';
 import 'package:quitepaper/core/database/app_database.dart';
@@ -11,6 +12,7 @@ import 'package:quitepaper/core/syntax/domain/syntax_token_type.dart';
 import 'package:quitepaper/core/widgets/intelligent_heading_scrollbar.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/settings/domain/typography_settings.dart';
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
 import 'package:quitepaper/features/sidebar/presentation/widgets/sidebar_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -370,6 +372,62 @@ void main() {
       expect(unselectedCountFinder, findsOneWidget);
       final unselectedTextWidget = tester.widget<Text>(unselectedCountFinder);
       expect(unselectedTextWidget.style?.color, equals(const Color(0xFF9CA3AF)));
+    });
+  });
+
+  group('8. Dynamic App-Wide Typography Synchronization', () {
+    test('AppTheme binds iA Writer Quattro to ThemeData and TextTheme', () {
+      const typography = TypographySettings(
+        headingFontFamily: 'iA Writer Quattro',
+        bodyFontFamily: 'iA Writer Quattro',
+      );
+
+      final theme = AppTheme.light(typography: typography);
+      expect(theme.textTheme.bodyMedium?.fontFamily, equals('iA Writer Quattro'));
+      expect(theme.textTheme.titleLarge?.fontFamily, equals('iA Writer Quattro'));
+      expect(theme.appBarTheme.titleTextStyle?.fontFamily, equals('iA Writer Quattro'));
+      expect(theme.dialogTheme.titleTextStyle?.fontFamily, equals('iA Writer Quattro'));
+      expect(theme.dialogTheme.contentTextStyle?.fontFamily, equals('iA Writer Quattro'));
+
+      final typoExt = theme.extension<AppTypographyTheme>();
+      expect(typoExt, isNotNull);
+      expect(typoExt!.body.fontFamily, equals('iA Writer Quattro'));
+      expect(typoExt.title.fontFamily, equals('iA Writer Quattro'));
+    });
+
+    test('AppTheme resolves optical sizes for San Francisco', () {
+      const typography = TypographySettings(
+        headingFontFamily: 'San Francisco',
+        bodyFontFamily: 'San Francisco',
+      );
+
+      final theme = AppTheme.light(typography: typography);
+      expect(theme.textTheme.bodyMedium?.fontFamily, equals('SF Pro Text'));
+      expect(theme.textTheme.titleLarge?.fontFamily, equals('SF Pro Display'));
+      expect(theme.appBarTheme.titleTextStyle?.fontFamily, equals('SF Pro Display'));
+
+      final typoExt = theme.extension<AppTypographyTheme>();
+      expect(typoExt, isNotNull);
+      expect(typoExt!.body.fontFamily, equals('SF Pro Text'));
+      expect(typoExt.title.fontFamily, equals('SF Pro Display'));
+    });
+
+    test('Interface Font override takes precedence over Editor Body Font', () {
+      const typography = TypographySettings(
+        headingFontFamily: 'Lora',
+        bodyFontFamily: 'Lora',
+        interfaceFontFamily: 'JetBrains Mono',
+      );
+
+      final theme = AppTheme.light(typography: typography);
+      expect(theme.textTheme.bodyMedium?.fontFamily, contains('JetBrainsMono'));
+      expect(theme.textTheme.titleLarge?.fontFamily, contains('JetBrainsMono'));
+
+      final typoExt = theme.extension<AppTypographyTheme>();
+      expect(typoExt, isNotNull);
+      expect(typoExt!.body.fontFamily, contains('JetBrainsMono'));
+      expect(typoExt.title.fontFamily, contains('JetBrainsMono'));
+      expect(typoExt.editorBody.fontFamily, contains('Lora'));
     });
   });
 }

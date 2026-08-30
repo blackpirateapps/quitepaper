@@ -1,20 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/utils/font_family_helper.dart';
+import '../../features/settings/domain/typography_settings.dart';
 import 'app_colors.dart';
 import 'app_radii.dart';
 import 'app_typography.dart';
 import 'theme_family.dart';
 
 abstract final class AppTheme {
-  /// Builds light [ThemeData] for the specified [family] (defaults to [ThemeFamily.classicPaper]).
-  static ThemeData light({ThemeFamily family = ThemeFamily.classicPaper}) {
+  /// Builds light [ThemeData] for the specified [family] and dynamic [typography] preferences.
+  static ThemeData light({
+    ThemeFamily family = ThemeFamily.classicPaper,
+    TypographySettings? typography,
+  }) {
     final colors = family == ThemeFamily.warmPaper
         ? AppColors.warmPaperLight
         : AppColors.classicLight;
 
+    final resolvedBodyFont =
+        FontFamilyHelper.resolveBodyFontFamily(typography?.effectiveUiFontFamily);
+    final resolvedTitleFont =
+        FontFamilyHelper.resolveHeadingFontFamily(typography?.effectiveUiTitleFontFamily);
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: resolvedBodyFont,
+      textTheme: AppTypography.createTextTheme(typography),
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.light(
         primary: colors.accent,
@@ -30,7 +42,10 @@ abstract final class AppTheme {
         error: colors.error,
         onError: Colors.white,
       ),
-      extensions: [colors],
+      extensions: [
+        colors,
+        AppTypography.fromTypographySettings(typography),
+      ],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.background,
         foregroundColor: colors.textPrimary,
@@ -43,7 +58,10 @@ abstract final class AppTheme {
           systemNavigationBarColor: Colors.transparent,
           systemNavigationBarIconBrightness: Brightness.dark,
         ),
-        titleTextStyle: AppTypography.title.copyWith(color: colors.textPrimary),
+        titleTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedTitleFont,
+          baseStyle: AppTypography.title.copyWith(color: colors.textPrimary),
+        ),
         iconTheme: IconThemeData(color: colors.textSecondary, size: 22),
       ),
       dividerTheme: DividerThemeData(
@@ -63,15 +81,24 @@ abstract final class AppTheme {
         focusedBorder: InputBorder.none,
         errorBorder: InputBorder.none,
         focusedErrorBorder: InputBorder.none,
-        hintStyle: AppTypography.body.copyWith(color: colors.textTertiary),
+        hintStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.body.copyWith(color: colors.textTertiary),
+        ),
         contentPadding: EdgeInsets.zero,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
         elevation: 4,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
-        titleTextStyle: AppTypography.headline.copyWith(color: colors.textPrimary),
-        contentTextStyle: AppTypography.body.copyWith(color: colors.textSecondary),
+        titleTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedTitleFont,
+          baseStyle: AppTypography.headline.copyWith(color: colors.textPrimary),
+        ),
+        contentTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.body.copyWith(color: colors.textSecondary),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.surface,
@@ -85,7 +112,10 @@ abstract final class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colors.textPrimary,
-        contentTextStyle: AppTypography.bodySmall.copyWith(color: colors.background),
+        contentTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.bodySmall.copyWith(color: colors.background),
+        ),
         actionTextColor: colors.accent,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderBtn),
         behavior: SnackBarBehavior.floating,
@@ -95,14 +125,20 @@ abstract final class AppTheme {
         color: colors.surface,
         elevation: 4,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
-        textStyle: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+        textStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.bodySmallMedium.copyWith(color: colors.textPrimary),
+        ),
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: colors.textPrimary.withValues(alpha: 0.9),
           borderRadius: AppRadii.borderSm,
         ),
-        textStyle: AppTypography.caption.copyWith(color: colors.background),
+        textStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.caption.copyWith(color: colors.background),
+        ),
         waitDuration: const Duration(milliseconds: 500),
         showDuration: const Duration(milliseconds: 1500),
         triggerMode: TooltipTriggerMode.longPress,
@@ -110,15 +146,25 @@ abstract final class AppTheme {
     );
   }
 
-  /// Builds dark [ThemeData] for the specified [family] (defaults to [ThemeFamily.classicPaper]).
-  static ThemeData dark({ThemeFamily family = ThemeFamily.classicPaper}) {
+  /// Builds dark [ThemeData] for the specified [family] and dynamic [typography] preferences.
+  static ThemeData dark({
+    ThemeFamily family = ThemeFamily.classicPaper,
+    TypographySettings? typography,
+  }) {
     final colors = family == ThemeFamily.warmPaper
         ? AppColors.midnightPaperDark
         : AppColors.classicDark;
 
+    final resolvedBodyFont =
+        FontFamilyHelper.resolveBodyFontFamily(typography?.effectiveUiFontFamily);
+    final resolvedTitleFont =
+        FontFamilyHelper.resolveHeadingFontFamily(typography?.effectiveUiTitleFontFamily);
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: resolvedBodyFont,
+      textTheme: AppTypography.createTextTheme(typography),
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.dark(
         primary: colors.accent,
@@ -134,7 +180,10 @@ abstract final class AppTheme {
         error: colors.error,
         onError: Colors.white,
       ),
-      extensions: [colors],
+      extensions: [
+        colors,
+        AppTypography.fromTypographySettings(typography),
+      ],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.background,
         foregroundColor: colors.textPrimary,
@@ -147,7 +196,10 @@ abstract final class AppTheme {
           systemNavigationBarColor: Colors.transparent,
           systemNavigationBarIconBrightness: Brightness.light,
         ),
-        titleTextStyle: AppTypography.title.copyWith(color: colors.textPrimary),
+        titleTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedTitleFont,
+          baseStyle: AppTypography.title.copyWith(color: colors.textPrimary),
+        ),
         iconTheme: IconThemeData(color: colors.textSecondary, size: 22),
       ),
       dividerTheme: DividerThemeData(
@@ -167,15 +219,24 @@ abstract final class AppTheme {
         focusedBorder: InputBorder.none,
         errorBorder: InputBorder.none,
         focusedErrorBorder: InputBorder.none,
-        hintStyle: AppTypography.body.copyWith(color: colors.textTertiary),
+        hintStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.body.copyWith(color: colors.textTertiary),
+        ),
         contentPadding: EdgeInsets.zero,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
         elevation: 4,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
-        titleTextStyle: AppTypography.headline.copyWith(color: colors.textPrimary),
-        contentTextStyle: AppTypography.body.copyWith(color: colors.textSecondary),
+        titleTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedTitleFont,
+          baseStyle: AppTypography.headline.copyWith(color: colors.textPrimary),
+        ),
+        contentTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.body.copyWith(color: colors.textSecondary),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.surface,
@@ -189,7 +250,10 @@ abstract final class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colors.elevated,
-        contentTextStyle: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+        contentTextStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+        ),
         actionTextColor: colors.accent,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderBtn),
         behavior: SnackBarBehavior.floating,
@@ -199,14 +263,20 @@ abstract final class AppTheme {
         color: colors.surface,
         elevation: 4,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
-        textStyle: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+        textStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.bodySmallMedium.copyWith(color: colors.textPrimary),
+        ),
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: colors.textPrimary.withValues(alpha: 0.9),
           borderRadius: AppRadii.borderSm,
         ),
-        textStyle: AppTypography.caption.copyWith(color: colors.background),
+        textStyle: FontFamilyHelper.getTextStyle(
+          fontFamily: resolvedBodyFont,
+          baseStyle: AppTypography.caption.copyWith(color: colors.background),
+        ),
         waitDuration: const Duration(milliseconds: 500),
         showDuration: const Duration(milliseconds: 1500),
         triggerMode: TooltipTriggerMode.longPress,
@@ -215,8 +285,12 @@ abstract final class AppTheme {
   }
 
   // Canonical Theme Factories
-  static ThemeData classicLight() => light(family: ThemeFamily.classicPaper);
-  static ThemeData classicDark() => dark(family: ThemeFamily.classicPaper);
-  static ThemeData warmPaperLight() => light(family: ThemeFamily.warmPaper);
-  static ThemeData midnightPaperDark() => dark(family: ThemeFamily.warmPaper);
+  static ThemeData classicLight({TypographySettings? typography}) =>
+      light(family: ThemeFamily.classicPaper, typography: typography);
+  static ThemeData classicDark({TypographySettings? typography}) =>
+      dark(family: ThemeFamily.classicPaper, typography: typography);
+  static ThemeData warmPaperLight({TypographySettings? typography}) =>
+      light(family: ThemeFamily.warmPaper, typography: typography);
+  static ThemeData midnightPaperDark({TypographySettings? typography}) =>
+      dark(family: ThemeFamily.warmPaper, typography: typography);
 }

@@ -480,44 +480,40 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
                   const PopupMenuItem(
                     value: 'reload',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.refresh_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('Reload'),
+                        Expanded(child: Text('Reload')),
                       ],
                     ),
                   ),
                   const PopupMenuItem(
                     value: 'external',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.open_in_browser_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('External Browser'),
+                        Expanded(child: Text('External Browser')),
                       ],
                     ),
                   ),
                   const PopupMenuItem(
                     value: 'copy',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.copy_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('Copy URL'),
+                        Expanded(child: Text('Copy URL')),
                       ],
                     ),
                   ),
                   const PopupMenuItem(
                     value: 'info',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.info_outline_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('Page Info'),
+                        Expanded(child: Text('Page Info')),
                       ],
                     ),
                   ),
@@ -525,11 +521,10 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
                   const PopupMenuItem(
                     value: 'close',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.close_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('Close Browser'),
+                        Expanded(child: Text('Close Browser')),
                       ],
                     ),
                   ),

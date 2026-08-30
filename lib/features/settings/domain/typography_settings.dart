@@ -28,6 +28,7 @@ class TypographySettings {
     this.headingFontFamily,
     this.bodyFontFamily,
     this.codeFontFamily = 'monospace',
+    this.interfaceFontFamily,
     this.fontSize = 18.0,
     this.lineHeight = 1.6,
     this.letterSpacing = 0.0,
@@ -42,12 +43,27 @@ class TypographySettings {
   final String? headingFontFamily;
   final String? bodyFontFamily;
   final String? codeFontFamily;
+  final String? interfaceFontFamily;
   final double fontSize;
   final double lineHeight;
   final double letterSpacing;
   final ParagraphWidth paragraphWidth;
   final double paragraphIndent;
   final List<String> customFonts;
+
+  /// Effective font family used across general UI elements (notes list, sidebar, tags, dialogs, search).
+  /// If [interfaceFontFamily] is unset or 'Match Editor Body', automatically defaults to [bodyFontFamily].
+  String? get effectiveUiFontFamily =>
+      (interfaceFontFamily == null || interfaceFontFamily == 'Match Editor Body')
+          ? bodyFontFamily
+          : interfaceFontFamily;
+
+  /// Effective font family used for UI headers, titles, and section banners.
+  /// If [interfaceFontFamily] is unset or 'Match Editor Body', defaults to [headingFontFamily] ?? [bodyFontFamily].
+  String? get effectiveUiTitleFontFamily =>
+      (interfaceFontFamily == null || interfaceFontFamily == 'Match Editor Body')
+          ? (headingFontFamily ?? bodyFontFamily)
+          : interfaceFontFamily;
 
   // Proportional scaled sizes based on body font size (18pt default)
   double get scaledTitleSize => (fontSize * (30.0 / 18.0)).roundToDouble();
@@ -66,6 +82,8 @@ class TypographySettings {
     bool clearBodyFont = false,
     String? codeFontFamily,
     bool clearCodeFont = false,
+    String? interfaceFontFamily,
+    bool clearInterfaceFont = false,
     double? fontSize,
     double? lineHeight,
     double? letterSpacing,
@@ -81,6 +99,9 @@ class TypographySettings {
           clearBodyFont ? null : (bodyFontFamily ?? this.bodyFontFamily),
       codeFontFamily:
           clearCodeFont ? null : (codeFontFamily ?? this.codeFontFamily),
+      interfaceFontFamily: clearInterfaceFont
+          ? null
+          : (interfaceFontFamily ?? this.interfaceFontFamily),
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       letterSpacing: letterSpacing ?? this.letterSpacing,
@@ -95,6 +116,8 @@ class TypographySettings {
           'headingFontFamily': headingFontFamily,
         if (bodyFontFamily != null) 'bodyFontFamily': bodyFontFamily,
         if (codeFontFamily != null) 'codeFontFamily': codeFontFamily,
+        if (interfaceFontFamily != null)
+          'interfaceFontFamily': interfaceFontFamily,
         'fontSize': fontSize,
         'lineHeight': lineHeight,
         'letterSpacing': letterSpacing,
@@ -124,6 +147,7 @@ class TypographySettings {
       headingFontFamily: json['headingFontFamily'] as String?,
       bodyFontFamily: json['bodyFontFamily'] as String?,
       codeFontFamily: json['codeFontFamily'] as String? ?? 'monospace',
+      interfaceFontFamily: json['interfaceFontFamily'] as String?,
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 18.0,
       lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.6,
       letterSpacing: (json['letterSpacing'] as num?)?.toDouble() ?? 0.0,
@@ -142,6 +166,7 @@ class TypographySettings {
           headingFontFamily == other.headingFontFamily &&
           bodyFontFamily == other.bodyFontFamily &&
           codeFontFamily == other.codeFontFamily &&
+          interfaceFontFamily == other.interfaceFontFamily &&
           fontSize == other.fontSize &&
           lineHeight == other.lineHeight &&
           letterSpacing == other.letterSpacing &&
@@ -154,6 +179,7 @@ class TypographySettings {
       headingFontFamily.hashCode ^
       bodyFontFamily.hashCode ^
       codeFontFamily.hashCode ^
+      interfaceFontFamily.hashCode ^
       fontSize.hashCode ^
       lineHeight.hashCode ^
       letterSpacing.hashCode ^

@@ -14,6 +14,7 @@ enum FontPickerType {
   heading,
   body,
   code,
+  interface,
 }
 
 class FontPickerSheet extends ConsumerStatefulWidget {
@@ -89,6 +90,8 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
         return CuratedFonts.bodyPresets;
       case FontPickerType.code:
         return CuratedFonts.codePresets;
+      case FontPickerType.interface:
+        return CuratedFonts.interfacePresets;
     }
   }
 
@@ -149,7 +152,9 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
     final effectiveCurrent = widget.currentFont ??
         (widget.type == FontPickerType.code
             ? CuratedFonts.systemMono
-            : CuratedFonts.systemSans);
+            : (widget.type == FontPickerType.interface
+                ? 'Match Editor Body'
+                : CuratedFonts.systemSans));
 
     final showCustomQueryOption = _searchQuery.isNotEmpty &&
         !allFonts.any((f) => f.toLowerCase() == _searchQuery.toLowerCase());
@@ -276,14 +281,18 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                   ),
                   children: [
                     ...filtered.map((font) {
+                      final isMatchEditorBody = font == 'Match Editor Body';
                       final isSelected = (font == effectiveCurrent) ||
-                          (font == 'System Sans' && widget.currentFont == null) ||
+                          (isMatchEditorBody && (widget.currentFont == null || widget.currentFont == 'Match Editor Body')) ||
+                          (font == 'System Sans' && widget.currentFont == null && widget.type != FontPickerType.interface) ||
                           (font == 'System Serif' && widget.currentFont == 'serif') ||
                           (font == 'Monospace' && widget.currentFont == 'monospace');
 
-                      final previewFamily = widget.type == FontPickerType.heading
-                          ? FontFamilyHelper.resolveHeadingFontFamily(font)
-                          : FontFamilyHelper.resolveBodyFontFamily(font);
+                      final previewFamily = isMatchEditorBody
+                          ? FontFamilyHelper.resolveBodyFontFamily(typography.bodyFontFamily)
+                          : (widget.type == FontPickerType.heading
+                              ? FontFamilyHelper.resolveHeadingFontFamily(font)
+                              : FontFamilyHelper.resolveBodyFontFamily(font));
 
                       final fontStyle = FontFamilyHelper.getTextStyle(
                         fontFamily: previewFamily,
@@ -307,7 +316,16 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                       final isDownloading = _downloadingFont == font;
 
                       Widget? subtitleWidget;
-                      if (isSystem) {
+                      if (isMatchEditorBody) {
+                        final activeBodyName = typography.bodyFontFamily ?? 'System Sans';
+                        subtitleWidget = Text(
+                          'Follows body font ($activeBodyName)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textTertiary,
+                          ),
+                        );
+                      } else if (isSystem) {
                         subtitleWidget = Text(
                           'System default',
                           style: TextStyle(
@@ -382,8 +400,12 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                         onTap: () async {
                           if (_downloadingFont != null) return;
 
-                          if (font == 'System Sans') {
+                          if (font == 'Match Editor Body') {
                             widget.onFontSelected(null);
+                            Navigator.of(context).pop();
+                            return;
+                          } else if (font == 'System Sans') {
+                            widget.onFontSelected(widget.type == FontPickerType.interface ? 'System Sans' : null);
                             Navigator.of(context).pop();
                             return;
                           } else if (font == 'System Serif') {

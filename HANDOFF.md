@@ -3960,5 +3960,35 @@ Integrated the open-source **iA Writer Quattro** typeface ([`iaolo/iA-Fonts`](ht
    - Updated palette assertions in [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart).
    - All **933 automated tests passed**; static analysis clean (**0 issues**).
 
+---
+
+## 33. App-Wide UI Typography Synchronization & Interface Font Customization
+
+### Problem & Motivation
+Previously, typography preferences (`headingFontFamily`, `bodyFontFamily`, `codeFontFamily`) only affected the Markdown editor, preview sheet, and PDF export. The rest of the application (Notes list page, sidebar, tags browser, tag detail pages, search screen, app bars, and dialogs) remained hardcoded to system default fonts. Users changing their body or heading typeface (such as to **iA Writer Quattro**, **San Francisco**, **Inter**, or **Lora**) expected the entire application UI to reflect their typography choices, while also having the flexibility to configure an independent **Interface Font** if desired.
+
+### Architectural & UI Enhancements
+1. **Typography Domain Model ([`typography_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/typography_settings.dart))**:
+   - Added `interfaceFontFamily` (`String?`) field with serialization (`toJson`/`fromJson`/`copyWith`).
+   - Added dynamic getters:
+     - `effectiveUiFontFamily`: defaults to `bodyFontFamily` when `interfaceFontFamily` is unset or `'Match Editor Body'`.
+     - `effectiveUiTitleFontFamily`: defaults to `headingFontFamily ?? bodyFontFamily` when `interfaceFontFamily` is unset or `'Match Editor Body'`.
+2. **Typography Provider & Presets ([`typography_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/typography_provider.dart))**:
+   - Added `CuratedFonts.interfacePresets` including `'Match Editor Body'`, `'System Sans'`, `'System Serif'`, `'San Francisco'`, `'iA Writer Quattro'`, `'Inter'`, `'Roboto'`, `'Lora'`, `'JetBrains Mono'`, etc.
+   - Added `TypographySettingsNotifier.setInterfaceFontFamily(String? family)` with background font download trigger.
+3. **App-Wide Theme & Typography Binding ([`app_typography.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_typography.dart), [`app_theme.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_theme.dart), [`app.dart`](file:///home/dog/git/quitepaper/lib/app/app.dart))**:
+   - Introduced `AppTypographyTheme` extending `ThemeExtension<AppTypographyTheme>` to expose dynamic, theme-resolved text styles via `context.appTypography`.
+   - Added `AppTypography.createTextTheme(TypographySettings? typography)` to construct a complete Material 3 `TextTheme` mapping all text variants to the resolved UI font family via `FontFamilyHelper.getTextStyle`.
+   - Updated `AppTheme.light` and `AppTheme.dark` to accept `TypographySettings? typography`, configuring `ThemeData.fontFamily`, `ThemeData.textTheme`, `appBarTheme.titleTextStyle`, `dialogTheme.titleTextStyle`, `dialogTheme.contentTextStyle`, `popupMenuTheme.textStyle`, `snackBarTheme.contentTextStyle`, and `inputDecorationTheme.hintStyle`.
+   - `QuietPaperApp` watches `typographySettingsProvider` and injects `typographySettings` into `MaterialApp`, ensuring immediate hot-reloading of all UI surfaces.
+4. **Settings UI & Font Picker Sheet ([`font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart), [`typography_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/typography_settings_screen.dart))**:
+   - Added `FontPickerType.interface` to `FontPickerSheet` with `'Match Editor Body (Default)'` tile indicating the active body font.
+   - Added the **Interface Font** picker row under **TYPEFACES** in `TypographySettingsScreen`.
+5. **Automated Verification**:
+   - Expanded [`test/settings/typography_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/typography_settings_test.dart) covering `interfaceFontFamily` fallback logic and provider mutations.
+   - Added Group 8 to [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) asserting dynamic `ThemeData`, `TextTheme`, and `AppTypographyTheme` font family bindings.
+   - All **938 Flutter tests** and **42 backend tests** pass cleanly with 0 warnings/errors.
+
+
 
 
