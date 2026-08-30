@@ -3642,11 +3642,33 @@ On mobile viewports when navigating to an individual tag page (`destination == A
 1. **Status Bar SafeArea Wrapping (`lib/features/tags/presentation/widgets/tag_context_header.dart`)**:
    - Wrapped `TagContextHeader` in an outer `Container(color: colors.background)` and `SafeArea(bottom: false, child: ...)`.
    - On mobile phones where `TagContextHeader` serves as `Scaffold.appBar`, the `SafeArea` automatically shifts the inner 52dp toolbar down by `MediaQuery.paddingOf(context).top`, painting the status bar area cleanly with `colors.background`.
-   - On tablets where `TagContextHeader` resides in the middle pane under `Scaffold.body`'s `SafeArea`, top padding is `0.0`, ensuring no redundant padding or layout displacement.
-   - Updated `preferredSize` to `Size.fromHeight(52)` and aligned `notes_screen.dart`'s `PreferredSize` widget.
-2. **Automated Verification**:
-   - Added widget test `TagContextHeader on mobile respects top status bar padding and does not overlap` in `test/tags/tag_workspace_navigation_test.dart` simulating a `FakeViewPadding(top: 48.0)` and verifying header elements are positioned at `dy >= 48.0`.
+---
+
+## 81. Large Text File (2MB+) Progressive 1,000-Line Chunking & Full-Document Global Search
+
+### Problem & Root Cause
+When opening large text attachments (2MB+, containing 50,000 to 100,000+ lines), `PlainTextViewer` caused mobile device out-of-memory errors and UI thread watchdog crashes. This occurred because:
+1. `PlainTextViewer` performed `widget.text.split('\n')`, instantiating 50,000 to 100,000 Dart strings.
+2. The line gutter instantiated 50,000 `SizedBox` + 50,000 `Text` unvirtualized widgets in a `Column`.
+3. `SelectableText.rich` attempted to compute text geometry and layout a single 2MB paragraph in a single Flutter frame.
+
+### Solution
+1. **Fast Line Break Indexing (`lib/core/attachments/presentation/plain_text_viewer.dart`)**:
+   - Built a lightweight `_lineStarts` list ($O(N)$ single-pass integer list) mapping line index to character start offset.
+   - Replaced string array allocations with zero-copy substring slicing `widget.text.substring(0, _lineStarts[loadedLineCount])` in $O(1)$ time.
+   - Added binary search `_findLineForOffset(int offset)` in $O(\log L)$ time.
+2. **1,000-Line Progressive Windowing**:
+   - Initialized `_loadedLineCount = min(1000, _totalLineCount)`.
+   - Added automatic scroll listener on `_verticalScrollController`: when `extentAfter < 600`, seamlessly loads the next 1,000 lines.
+   - Added progressive chunk footer with dynamic progress percentage (`Showing X of Y lines (Z%) · Scroll down to load more`) and manual "Load next 1,000 lines" and "Load all lines" buttons.
+   - Restricted line number gutter rendering strictly to `_loadedLineCount` while computing stable gutter width from `_totalLineCount`.
+3. **Full-Document Global Search & Auto-Expanding Match Navigation**:
+   - `_computeMatches()` indexes the **entire file** across all lines, accurately surfacing total match counts to the AppBar search bar counter.
+   - Selecting any match index (e.g. match on line 35,000) automatically expands `_loadedLineCount` to encompass that line, highlights the active token in gold, and animates `_verticalScrollController` to center on the target line.
+4. **Automated Verification**:
+   - Added unit and widget test suite in [`test/attachments/plain_text_viewer_chunking_test.dart`](file:///home/dog/git/quitepaper/test/attachments/plain_text_viewer_chunking_test.dart) verifying small file rendering, 1,000-line initial load bounding, manual batch loading, scroll auto-loading, and global search jumps across 3,500+ line documents.
    - Static Analysis: `flutter analyze` (**0 issues found**).
-   - Test Suite: `flutter test` (**868 / 868 tests passing**).
+   - Test Suite: `flutter test` (**875 / 875 tests passing**).
+
 
 
