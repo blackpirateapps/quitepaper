@@ -124,12 +124,37 @@ class CloudinaryUploadResult {
   }
 }
 
+/// Typed attachment classification kind.
+enum AttachmentKind {
+  /// Visual image asset
+  image('image'),
+
+  /// Scanned document / PDF asset
+  document('document'),
+
+  /// Generic arbitrary file asset (e.g. DOCX, XLSX, ZIP, code, audio, video, binary)
+  file('file');
+
+  const AttachmentKind(this.identifier);
+  final String identifier;
+
+  static AttachmentKind fromIdentifier(String? id) {
+    if (id == null) return AttachmentKind.image;
+    for (final k in AttachmentKind.values) {
+      if (k.identifier == id) return k;
+    }
+    return AttachmentKind.file;
+  }
+}
+
 /// Sync payload representing attachment metadata exchanged with the Vercel backend.
 @immutable
 class AttachmentSyncPayload {
   const AttachmentSyncPayload({
     required this.id,
     this.noteId,
+    this.fileName = 'attachment',
+    this.kind = 'image',
     required this.createdAt,
     required this.updatedAt,
     this.mimeType = 'image/png',
@@ -147,6 +172,8 @@ class AttachmentSyncPayload {
 
   final String id;
   final String? noteId;
+  final String fileName;
+  final String kind;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String mimeType;
@@ -164,6 +191,8 @@ class AttachmentSyncPayload {
   Map<String, dynamic> toJson() => {
         'id': id,
         if (noteId != null) 'noteId': noteId,
+        'fileName': fileName,
+        'kind': kind,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'mimeType': mimeType,
@@ -183,6 +212,8 @@ class AttachmentSyncPayload {
     return AttachmentSyncPayload(
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
+      fileName: json['fileName'] as String? ?? json['filename'] as String? ?? 'attachment',
+      kind: json['kind'] as String? ?? 'image',
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       mimeType: json['mimeType'] as String? ?? 'image/png',
@@ -205,6 +236,8 @@ class AttachmentSyncPayload {
     return AttachmentSyncPayload(
       id: entity.id,
       noteId: entity.noteId,
+      fileName: entity.fileName,
+      kind: entity.kind,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       mimeType: entity.mimeType,

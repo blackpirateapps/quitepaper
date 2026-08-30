@@ -5,10 +5,13 @@ import '../sync/sync_provider.dart';
 import '../uri/resource_resolver.dart';
 import '../ocr/ocr_provider.dart';
 import 'attachment_crypto.dart';
+import 'attachment_open_service.dart';
 import 'attachment_processing_service.dart';
 import 'attachment_service.dart';
+import 'attachment_share_service.dart';
 import 'attachment_storage.dart';
 import 'attachment_sync_service.dart';
+import 'attachment_temp_storage.dart';
 import 'cloudinary_client.dart';
 
 final attachmentCryptoProvider = Provider<AttachmentCrypto>((ref) {
@@ -76,6 +79,28 @@ final attachmentSyncServiceProvider = Provider<AttachmentSyncService>((ref) {
     cloudinaryClient: cloudinaryClient,
     authService: authService,
     keyManager: keyManager,
+  );
+});
+
+final attachmentTempStorageProvider = Provider<AttachmentTempStorage>((ref) {
+  return AttachmentTempStorage();
+});
+
+final attachmentOpenServiceProvider = Provider<AttachmentOpenService>((ref) {
+  final attachmentService = ref.watch(attachmentServiceProvider);
+  final tempStorage = ref.watch(attachmentTempStorageProvider);
+  return AttachmentOpenService(
+    attachmentService: attachmentService,
+    tempStorage: tempStorage,
+  );
+});
+
+final attachmentShareServiceProvider = Provider<AttachmentShareService>((ref) {
+  final attachmentService = ref.watch(attachmentServiceProvider);
+  final tempStorage = ref.watch(attachmentTempStorageProvider);
+  return AttachmentShareService(
+    attachmentService: attachmentService,
+    tempStorage: tempStorage,
   );
 });
 

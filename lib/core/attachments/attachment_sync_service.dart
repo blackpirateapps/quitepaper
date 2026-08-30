@@ -82,6 +82,31 @@ class AttachmentSyncService {
             AttachmentUploadState.uploading.identifier,
           );
 
+          // If bytes were already uploaded to Cloudinary (e.g. metadata-only rename update), skip byte upload
+          if (item.cloudUrl != null &&
+              item.cloudPublicId != null &&
+              item.cloudUrl!.isNotEmpty) {
+            await apiClient.confirmAttachmentUpload(
+              attachmentId: item.id,
+              noteId: item.noteId,
+              cloudPublicId: item.cloudPublicId!,
+              cloudUrl: item.cloudUrl!,
+              byteSize: item.byteSize,
+              sha256: item.sha256,
+            );
+
+            await database.markAttachmentSynced(
+              id: item.id,
+              serverRevision: item.serverRevision > 0 ? item.serverRevision : 1,
+              syncedAt: DateTime.now(),
+              cloudPublicId: item.cloudPublicId,
+              cloudUrl: item.cloudUrl,
+            );
+
+            uploadedCount++;
+            continue;
+          }
+
           // 2. Request limited Cloudinary signed upload parameters from Vercel control plane
           final uploadAuth = await apiClient.getAttachmentUploadAuth(
             attachmentId: item.id,

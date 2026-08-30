@@ -17,6 +17,14 @@ class AttachmentsTable extends Table {
   /// Update timestamp
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// Original user-visible file name (e.g. 'report.docx', 'image.png')
+  TextColumn get fileName =>
+      text().withDefault(const Constant('attachment'))();
+
+  /// Attachment classification kind ('image', 'document', 'file')
+  TextColumn get kind =>
+      text().withDefault(const Constant('image'))();
+
   /// MIME type (e.g. 'image/png', 'image/jpeg', 'image/webp')
   TextColumn get mimeType =>
       text().withDefault(const Constant('image/png'))();

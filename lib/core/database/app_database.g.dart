@@ -1849,6 +1849,28 @@ class $AttachmentsTableTable extends AttachmentsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _fileNameMeta = const VerificationMeta(
+    'fileName',
+  );
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+    'file_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('attachment'),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('image'),
+  );
   static const VerificationMeta _mimeTypeMeta = const VerificationMeta(
     'mimeType',
   );
@@ -2051,6 +2073,8 @@ class $AttachmentsTableTable extends AttachmentsTable
     noteId,
     createdAt,
     updatedAt,
+    fileName,
+    kind,
     mimeType,
     byteSize,
     width,
@@ -2107,6 +2131,18 @@ class $AttachmentsTableTable extends AttachmentsTable
       );
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(
+        _fileNameMeta,
+        fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
     }
     if (data.containsKey('mime_type')) {
       context.handle(
@@ -2250,6 +2286,14 @@ class $AttachmentsTableTable extends AttachmentsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      fileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_name'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
       mimeType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}mime_type'],
@@ -2341,6 +2385,12 @@ class AttachmentEntity extends DataClass
   /// Update timestamp
   final DateTime updatedAt;
 
+  /// Original user-visible file name (e.g. 'report.docx', 'image.png')
+  final String fileName;
+
+  /// Attachment classification kind ('image', 'document', 'file')
+  final String kind;
+
   /// MIME type (e.g. 'image/png', 'image/jpeg', 'image/webp')
   final String mimeType;
 
@@ -2396,6 +2446,8 @@ class AttachmentEntity extends DataClass
     this.noteId,
     required this.createdAt,
     required this.updatedAt,
+    required this.fileName,
+    required this.kind,
     required this.mimeType,
     required this.byteSize,
     this.width,
@@ -2423,6 +2475,8 @@ class AttachmentEntity extends DataClass
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['file_name'] = Variable<String>(fileName);
+    map['kind'] = Variable<String>(kind);
     map['mime_type'] = Variable<String>(mimeType);
     map['byte_size'] = Variable<int>(byteSize);
     if (!nullToAbsent || width != null) {
@@ -2465,6 +2519,8 @@ class AttachmentEntity extends DataClass
           : Value(noteId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      fileName: Value(fileName),
+      kind: Value(kind),
       mimeType: Value(mimeType),
       byteSize: Value(byteSize),
       width: width == null && nullToAbsent
@@ -2509,6 +2565,8 @@ class AttachmentEntity extends DataClass
       noteId: serializer.fromJson<String?>(json['noteId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      fileName: serializer.fromJson<String>(json['fileName']),
+      kind: serializer.fromJson<String>(json['kind']),
       mimeType: serializer.fromJson<String>(json['mimeType']),
       byteSize: serializer.fromJson<int>(json['byteSize']),
       width: serializer.fromJson<int?>(json['width']),
@@ -2538,6 +2596,8 @@ class AttachmentEntity extends DataClass
       'noteId': serializer.toJson<String?>(noteId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'fileName': serializer.toJson<String>(fileName),
+      'kind': serializer.toJson<String>(kind),
       'mimeType': serializer.toJson<String>(mimeType),
       'byteSize': serializer.toJson<int>(byteSize),
       'width': serializer.toJson<int?>(width),
@@ -2563,6 +2623,8 @@ class AttachmentEntity extends DataClass
     Value<String?> noteId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? fileName,
+    String? kind,
     String? mimeType,
     int? byteSize,
     Value<int?> width = const Value.absent(),
@@ -2585,6 +2647,8 @@ class AttachmentEntity extends DataClass
     noteId: noteId.present ? noteId.value : this.noteId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    fileName: fileName ?? this.fileName,
+    kind: kind ?? this.kind,
     mimeType: mimeType ?? this.mimeType,
     byteSize: byteSize ?? this.byteSize,
     width: width.present ? width.value : this.width,
@@ -2611,6 +2675,8 @@ class AttachmentEntity extends DataClass
       noteId: data.noteId.present ? data.noteId.value : this.noteId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      kind: data.kind.present ? data.kind.value : this.kind,
       mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
       byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
       width: data.width.present ? data.width.value : this.width,
@@ -2648,6 +2714,8 @@ class AttachmentEntity extends DataClass
           ..write('noteId: $noteId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('fileName: $fileName, ')
+          ..write('kind: $kind, ')
           ..write('mimeType: $mimeType, ')
           ..write('byteSize: $byteSize, ')
           ..write('width: $width, ')
@@ -2675,6 +2743,8 @@ class AttachmentEntity extends DataClass
     noteId,
     createdAt,
     updatedAt,
+    fileName,
+    kind,
     mimeType,
     byteSize,
     width,
@@ -2701,6 +2771,8 @@ class AttachmentEntity extends DataClass
           other.noteId == this.noteId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
+          other.fileName == this.fileName &&
+          other.kind == this.kind &&
           other.mimeType == this.mimeType &&
           other.byteSize == this.byteSize &&
           other.width == this.width &&
@@ -2725,6 +2797,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
   final Value<String?> noteId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String> fileName;
+  final Value<String> kind;
   final Value<String> mimeType;
   final Value<int> byteSize;
   final Value<int?> width;
@@ -2748,6 +2822,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     this.noteId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.kind = const Value.absent(),
     this.mimeType = const Value.absent(),
     this.byteSize = const Value.absent(),
     this.width = const Value.absent(),
@@ -2772,6 +2848,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     this.noteId = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.fileName = const Value.absent(),
+    this.kind = const Value.absent(),
     this.mimeType = const Value.absent(),
     this.byteSize = const Value.absent(),
     this.width = const Value.absent(),
@@ -2798,6 +2876,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     Expression<String>? noteId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? fileName,
+    Expression<String>? kind,
     Expression<String>? mimeType,
     Expression<int>? byteSize,
     Expression<int>? width,
@@ -2822,6 +2902,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
       if (noteId != null) 'note_id': noteId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (fileName != null) 'file_name': fileName,
+      if (kind != null) 'kind': kind,
       if (mimeType != null) 'mime_type': mimeType,
       if (byteSize != null) 'byte_size': byteSize,
       if (width != null) 'width': width,
@@ -2849,6 +2931,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     Value<String?>? noteId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String>? fileName,
+    Value<String>? kind,
     Value<String>? mimeType,
     Value<int>? byteSize,
     Value<int?>? width,
@@ -2873,6 +2957,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
       noteId: noteId ?? this.noteId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      fileName: fileName ?? this.fileName,
+      kind: kind ?? this.kind,
       mimeType: mimeType ?? this.mimeType,
       byteSize: byteSize ?? this.byteSize,
       width: width ?? this.width,
@@ -2908,6 +2994,12 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
     }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (mimeType.present) {
       map['mime_type'] = Variable<String>(mimeType.value);
@@ -2973,6 +3065,8 @@ class AttachmentsTableCompanion extends UpdateCompanion<AttachmentEntity> {
           ..write('noteId: $noteId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('fileName: $fileName, ')
+          ..write('kind: $kind, ')
           ..write('mimeType: $mimeType, ')
           ..write('byteSize: $byteSize, ')
           ..write('width: $width, ')
@@ -9521,6 +9615,8 @@ typedef $$AttachmentsTableTableCreateCompanionBuilder =
       Value<String?> noteId,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<String> fileName,
+      Value<String> kind,
       Value<String> mimeType,
       Value<int> byteSize,
       Value<int?> width,
@@ -9546,6 +9642,8 @@ typedef $$AttachmentsTableTableUpdateCompanionBuilder =
       Value<String?> noteId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String> fileName,
+      Value<String> kind,
       Value<String> mimeType,
       Value<int> byteSize,
       Value<int?> width,
@@ -9592,6 +9690,16 @@ class $$AttachmentsTableTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9710,6 +9818,16 @@ class $$AttachmentsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get mimeType => $composableBuilder(
     column: $table.mimeType,
     builder: (column) => ColumnOrderings(column),
@@ -9817,6 +9935,12 @@ class $$AttachmentsTableTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
   GeneratedColumn<String> get mimeType =>
       $composableBuilder(column: $table.mimeType, builder: (column) => column);
 
@@ -9920,6 +10044,8 @@ class $$AttachmentsTableTableTableManager
                 Value<String?> noteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> fileName = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<String> mimeType = const Value.absent(),
                 Value<int> byteSize = const Value.absent(),
                 Value<int?> width = const Value.absent(),
@@ -9943,6 +10069,8 @@ class $$AttachmentsTableTableTableManager
                 noteId: noteId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                fileName: fileName,
+                kind: kind,
                 mimeType: mimeType,
                 byteSize: byteSize,
                 width: width,
@@ -9968,6 +10096,8 @@ class $$AttachmentsTableTableTableManager
                 Value<String?> noteId = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<String> fileName = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<String> mimeType = const Value.absent(),
                 Value<int> byteSize = const Value.absent(),
                 Value<int?> width = const Value.absent(),
@@ -9991,6 +10121,8 @@ class $$AttachmentsTableTableTableManager
                 noteId: noteId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                fileName: fileName,
+                kind: kind,
                 mimeType: mimeType,
                 byteSize: byteSize,
                 width: width,

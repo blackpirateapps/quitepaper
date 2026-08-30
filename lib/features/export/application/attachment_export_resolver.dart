@@ -1,5 +1,6 @@
 import '../../../core/attachments/attachment_crypto.dart';
 import '../../../core/attachments/attachment_service.dart';
+import '../../../core/attachments/attachment_type_resolver.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/documents/document_service.dart';
 import '../../../core/uri/quiet_paper_uri.dart';
@@ -86,9 +87,9 @@ class AttachmentExportResolver {
             final baseName = match.alt.trim().isNotEmpty
                 ? match.alt.trim()
                 : 'image-${imageCounter.toString().padLeft(3, "0")}';
-            final sanitizedName = FilenameGenerator.generateUniqueFilename(
+            final sanitizedName = FilenameGenerator.generateUniqueFilenameWithExtension(
               title: baseName,
-              format: ExportFormat.fromExtension(ext),
+              extension: ext,
               existingFilenames: usedAttachmentNames,
             );
             usedAttachmentNames.add(sanitizedName.toLowerCase());
@@ -145,7 +146,7 @@ class AttachmentExportResolver {
       }
     }
 
-    // 3. Process document references
+    // 3. Process document & generic asset link references
     var docCounter = 1;
     for (final match in docMatches) {
       final qpUri = QuietPaperUri.tryParse(match.uriStr);
@@ -163,9 +164,9 @@ class AttachmentExportResolver {
                     ? entity!.title.trim()
                     : 'document-${docCounter.toString().padLeft(3, "0")}');
 
-            final sanitizedName = FilenameGenerator.generateUniqueFilename(
+            final sanitizedName = FilenameGenerator.generateUniqueFilenameWithExtension(
               title: baseName,
-              format: ExportFormat.fromExtension(ext),
+              extension: ext,
               existingFilenames: usedAttachmentNames,
             );
             usedAttachmentNames.add(sanitizedName.toLowerCase());
@@ -220,6 +221,75 @@ class AttachmentExportResolver {
             message: 'Error resolving document $docId: $e',
           ));
         }
+      } else if (qpUri != null && qpUri.isAsset) {
+        final assetId = qpUri.resourceId;
+        try {
+          final res = await attachmentService.resolveAsset(assetId);
+          final entity = await database.getAttachment(assetId);
+
+          if (res.isAvailable && res.data != null) {
+            final rawName = entity?.fileName ?? match.text;
+            final ext = AttachmentTypeResolver.inferExtension(rawName, mimeType: entity?.mimeType);
+            final cleanBase = rawName.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').trim();
+            final baseName = cleanBase.isNotEmpty
+                ? cleanBase
+                : (match.text.trim().isNotEmpty ? match.text.trim() : 'attachment-${assetId.substring(0, 8)}');
+
+            final sanitizedName = FilenameGenerator.generateUniqueFilenameWithExtension(
+              title: baseName,
+              extension: ext.isNotEmpty ? ext : 'bin',
+              existingFilenames: usedAttachmentNames,
+            );
+            usedAttachmentNames.add(sanitizedName.toLowerCase());
+
+            final relPath = 'attachments/$sanitizedName';
+            ExportSecurityGuard.validateRelativePathSafety(relPath);
+
+            final sha = entity?.sha256.isNotEmpty == true
+                ? entity!.sha256
+                : AttachmentCrypto.computeSha256(res.data!);
+
+            resolvedAttachments.add(ExportAttachmentItem(
+              id: assetId,
+              noteId: entity?.noteId ?? noteId,
+              originalFilename: entity?.fileName ?? sanitizedName,
+              mimeType: entity?.mimeType ?? 'application/octet-stream',
+              relativePath: relPath,
+              byteSize: res.data!.length,
+              createdAt: entity?.createdAt ?? DateTime.now(),
+              sha256: sha,
+              width: entity?.width,
+              height: entity?.height,
+              bytes: res.data!,
+              cloudUrl: entity?.cloudUrl,
+            ));
+
+            if (strategy == AttachmentExportStrategy.embedLocally) {
+              transformedMarkdown = transformedMarkdown.replaceAll(
+                match.fullMatch,
+                '[${match.text}]($relPath)',
+              );
+            } else if (strategy == AttachmentExportStrategy.preserveRemoteUrls &&
+                entity?.cloudUrl != null &&
+                entity!.cloudUrl!.isNotEmpty) {
+              transformedMarkdown = transformedMarkdown.replaceAll(
+                match.fullMatch,
+                '[${match.text}](${entity.cloudUrl})',
+              );
+            }
+          } else {
+            warnings.add(ExportWarning(
+              type: ExportWarningType.attachmentUnavailable,
+              message: 'Attachment file could not be resolved: $assetId (${res.status.name})',
+              details: res.errorMessage,
+            ));
+          }
+        } catch (e) {
+          warnings.add(ExportWarning(
+            type: ExportWarningType.attachmentUnavailable,
+            message: 'Error resolving attachment $assetId: $e',
+          ));
+        }
       }
     }
 
@@ -230,10 +300,13 @@ class AttachmentExportResolver {
         if (!resolvedAttachments.any((r) => r.id == att.id)) {
           final res = await attachmentService.resolveAsset(att.id);
           if (res.isAvailable && res.data != null) {
-            final ext = _inferExtensionFromMime(att.mimeType);
-            final sanitizedName = FilenameGenerator.generateUniqueFilename(
-              title: 'attachment-${att.id.substring(0, 8)}',
-              format: ExportFormat.fromExtension(ext),
+            final ext = AttachmentTypeResolver.inferExtension(att.fileName, mimeType: att.mimeType);
+            final rawName = att.fileName;
+            final cleanBase = rawName.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').trim();
+            final baseName = cleanBase.isNotEmpty ? cleanBase : 'attachment-${att.id.substring(0, 8)}';
+            final sanitizedName = FilenameGenerator.generateUniqueFilenameWithExtension(
+              title: baseName,
+              extension: ext.isNotEmpty ? ext : 'bin',
               existingFilenames: usedAttachmentNames,
             );
             usedAttachmentNames.add(sanitizedName.toLowerCase());

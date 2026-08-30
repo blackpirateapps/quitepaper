@@ -912,6 +912,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       ? _searchQueryController.text
                                       : null,
                                   onDocumentRenamed: _updateDocumentMarkdownTitle,
+                                  onAttachmentRenamed: _updateAttachmentMarkdownTitle,
+                                  onAttachmentDeleted: _removeAttachmentMarkdownRef,
                                   onInsertText: _insertExtractedOcrText,
                                 )
                               : SingleChildScrollView(
@@ -1060,6 +1062,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   onImagePressed: _handleInsertImage,
                   onScanPressed: _handleScanDocument,
                   onPdfPressed: _handleAttachPdf,
+                  onFilePressed: _handleAttachFile,
                 ),
             ],
           ),
@@ -1081,6 +1084,130 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       });
       _contentController.text = newText;
       _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    }
+  }
+
+  void _updateAttachmentMarkdownTitle(String attachmentId, String newTitle) {
+    final text = _contentController.text;
+    final regex = RegExp(
+      r'\[([^\]\n]*)\]\(qp:\/\/asset\/' + RegExp.escape(attachmentId) + r'(\?[^\)]*)?\)',
+    );
+    if (regex.hasMatch(text)) {
+      final newText = text.replaceAllMapped(regex, (match) {
+        final queryPart = match.group(2) ?? '';
+        return '[$newTitle](qp://asset/$attachmentId$queryPart)';
+      });
+      _contentController.text = newText;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    }
+  }
+
+  void _removeAttachmentMarkdownRef(String attachmentId) {
+    final text = _contentController.text;
+    final regex = RegExp(
+      r'!?\[([^\]\n]*)\]\(qp:\/\/asset\/' + RegExp.escape(attachmentId) + r'(\?[^\)]*)?\)\n?',
+    );
+    if (regex.hasMatch(text)) {
+      final newText = text.replaceAll(regex, '');
+      _contentController.text = newText;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    }
+  }
+
+  Future<void> _handleAttachFile() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final attachmentService = ref.read(attachmentServiceProvider);
+      final validSnippets = <String>[];
+      int successCount = 0;
+      int failCount = 0;
+      final failedNames = <String>[];
+
+      for (final pickedFile in result.files) {
+        try {
+          final fileName = pickedFile.name;
+          Uint8List? bytes = pickedFile.bytes;
+          if (bytes == null && pickedFile.path != null) {
+            bytes = await File(pickedFile.path!).readAsBytes();
+          }
+          if (bytes == null) {
+            failCount++;
+            failedNames.add(fileName);
+            continue;
+          }
+
+          final res = await attachmentService.importGenericFileFromBytes(
+            bytes,
+            fileName: fileName,
+            noteId: widget.note.id,
+          );
+          validSnippets.add(res.markdownSnippet);
+          successCount++;
+        } catch (e) {
+          failCount++;
+          failedNames.add(pickedFile.name);
+        }
+      }
+
+      if (validSnippets.isNotEmpty) {
+        final val = _contentController.value;
+        final text = val.text;
+        final sel = val.selection;
+        final start = sel.isValid ? sel.start : text.length;
+        final end = sel.isValid ? sel.end : text.length;
+
+        final combinedSnippet = '\n${validSnippets.join('\n')}\n';
+        final newText = text.replaceRange(start, end, combinedSnippet);
+        final newCursor = start + combinedSnippet.length;
+
+        final updated = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newCursor),
+        );
+
+        _contentController.value = updated;
+        _undoRedoManager.pushAtomicEdit(updated);
+
+        if (!_contentFocusNode.hasFocus) {
+          _contentFocusNode.requestFocus();
+        }
+
+        _onContentChanged();
+      }
+
+      if (mounted && failCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              successCount > 0
+                  ? 'Added $successCount ${successCount == 1 ? "file" : "files"}. $failCount could not be attached.'
+                  : 'Couldn\'t attach ${failedNames.join(", ")}.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to attach file: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -1402,6 +1529,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       onTap: () {
                         Navigator.of(ctx).pop();
                         _handleInsertTable();
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.attach_file_rounded,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Attach file',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _handleAttachFile();
                       },
                     ),
                   ],

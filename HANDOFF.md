@@ -3006,3 +3006,81 @@ In-App Browser (WebClipBrowserScreen / JS DOM) ─┘
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Test suite: `flutter test` (**all 677 tests passing**).
 
+---
+
+## 75. Generic Encrypted File Attachment System (Phase 1)
+
+### Purpose & User Problem
+- Notes often need supporting materials beyond visual images and scanned documents: spreadsheets (`.xlsx`), word processing files (`.docx`), presentation decks (`.pptx`), source code archives (`.zip`), scripts (`.py`, `.dart`, `.sh`), data files (`.csv`, `.json`), audio recordings (`.mp3`), and arbitrary binary files.
+- Users expect to attach any file to a note, store it securely encrypted, view it in notes without breaking layouts, export it cleanly, and open it smoothly in native desktop or mobile applications.
+- **Core Principle**: *"Every file can be safely stored as an attachment. Some attachment types have additional capabilities."*
+
+### Architectural Invariants & Guarantees
+1. **Zero Unencrypted Persistence**:
+   - Every file payload is encrypted client-side using `AttachmentCrypto` (XChaCha20-Poly1305 with `QPA1` envelope format and authenticated data binding) before writing to disk or uploading to cloud storage.
+   - Plaintext files never reside permanently on storage in unencrypted form.
+2. **Infrastructure-First Phase 1 Scope**:
+   - Focus on solid encrypted storage, OS handoff (Open Externally, Share, Save As), sync, backup, and export.
+   - Zero in-app complex readers (no custom DOCX parsers, XLSX table editors, video transcoders, or binary extractors in Phase 1).
+3. **Decrypted Ephemeral Temp Storage**:
+   - External OS handoffs (e.g. launching an external spreadsheet app via `FileProvider` or opening the native Share sheet) write decrypted bytes to an isolated temporary directory (`decrypted_attachments_temp`).
+   - Managed by [`AttachmentTempStorage`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_temp_storage.dart) with automatic background cleanup of files older than 1 hour, plus automatic cleanup on application launch.
+4. **Metadata-Only Rename Optimization**:
+   - Renaming an attachment only updates `fileName` in SQLite and updates the Markdown token in the note.
+   - It leaves the encrypted file payload, SHA-256 hash, and Cloudinary public ID unchanged.
+   - When syncing, [`AttachmentSyncService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_sync_service.dart) skips re-uploading bytes to Cloudinary if the remote public ID already exists, issuing only a metadata confirmation to the backend control plane.
+5. **Zero-Byte File & 50 MB Limits**:
+   - Zero-byte files (e.g. empty logs or sentinel files) encrypt and decrypt as valid 0-byte attachments with deterministic SHA-256.
+   - Oversized files (> 50 MB) are rejected immediately upon ingestion with a clear descriptive `ArgumentError`.
+6. **Full-Fidelity Backup & Export**:
+   - **Backups (`.qpbackup`)**: [`BackupAttachment`](file:///home/dog/git/quitepaper/lib/core/backup/backup_models.dart) serializes `fileName` and `kind` alongside encrypted payload bytes, restoring with 100% byte fidelity.
+   - **Exports (`.qpnote` & Markdown)**: [`AttachmentExportResolver`](file:///home/dog/git/quitepaper/lib/features/export/application/attachment_export_resolver.dart) resolves `qp://asset/<UUID>` links, sanitizes filenames with unique collision counters via [`FilenameGenerator`](file:///home/dog/git/quitepaper/lib/features/export/application/filename_generator.dart), extracts decrypted bytes into `attachments/<fileName>`, and rewrites Markdown links safely.
+
+### Schema Upgrade (v10 -> v11)
+- In [`AttachmentsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/attachments_table.dart):
+  - Added `fileName` (`TextColumn`, default 'attachment').
+  - Added `kind` (`TextColumn`, default 'image').
+- In [`AppDatabase`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart):
+  - Incremented `schemaVersion` to `11`.
+  - Added migration in `onUpgrade` for `from < 11` using `_addColumnSafely`.
+  - Added index: `CREATE INDEX IF NOT EXISTS attachments_kind_idx ON attachments (kind);`.
+  - Added DAOs: `saveAttachment(...)`, `updateAttachmentFileName(id, fileName)`, `updateAttachmentNoteId(id, noteId)`.
+
+### Core Resolvers & Services
+- [`AttachmentTypeResolver`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_type_resolver.dart):
+  - Maps MIME types and extensions to user-facing editorial labels (e.g. "Microsoft Word", "Microsoft Excel", "ZIP Archive", "Python Source", "Binary File").
+  - Inferred MIME types and extensions for hundreds of standard formats.
+  - Strict cross-platform path traversal sanitization (normalizes `\` and `/`, strips `../` and `..`, null bytes, control characters, Windows reserved device names, and caps length).
+- [`AttachmentIconResolver`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_icon_resolver.dart):
+  - Maps MIME types and extensions to Material icons and editorial accent tint colors.
+- [`AttachmentCapabilityResolver`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_capability_resolver.dart):
+  - Capability negotiation matrix for images, documents, and generic files.
+- [`AttachmentTempStorage`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_temp_storage.dart):
+  - Writes ephemeral decrypted files into `decrypted_attachments_temp/<uuid>/<fileName>` and cleans stale files.
+- [`AttachmentOpenService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_open_service.dart):
+  - Prepares ephemeral decrypted file and launches via Android `FileProvider` (`ACTION_VIEW` chooser) or desktop/share fallback.
+- [`AttachmentShareService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_share_service.dart):
+  - Decrypts file to temp storage and invokes native OS share sheet via `Share.shareXFiles`.
+
+### UI & Markdown Integration
+- [`QuietAttachmentCard`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_attachment_card.dart):
+  - Editorial embedded card for generic file attachments rendering icon badge, file name, formatted size, type label, E2EE status badge (`ENC (QPA1)`), tap-to-open, and options menu.
+- [`AttachmentDetailsSheet`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_details_sheet.dart):
+  - Modal bottom sheet displaying detailed file metadata (name, type, size, created date, SHA-256 preview), Open Externally, Share Sheet, Save As (via FilePicker / Downloads fallback), Rename Attachment (with live dialog), and Delete Attachment (with confirmation).
+- [`markdown_highlight.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_highlight.dart) & [`markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart):
+  - Added `QuietAttachmentSyntax` matching `[Title](qp://asset/<UUID>)` links and registered `QuietAttachmentElementBuilder`.
+  - Preserved `![alt](qp://asset/<UUID>)` for visual images and `[title](qp://document/<UUID>)` for scanned PDF documents.
+- [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart) & [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Added `Icons.attach_file_rounded` file attachment button on the formatting toolbar and "Attach file" tile in the editor overflow menu.
+  - Multi-file picker ingestion with progress indicator, Markdown token insertion, and filename synchronization callbacks.
+
+### Automated Verification
+- Added resolver unit tests in [`test/attachments/attachment_resolvers_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_resolvers_test.dart) (display names, MIME inference, path traversal sanitization, icon tints, and capability matrix).
+- Added lifecycle unit tests in [`test/attachments/generic_file_attachment_test.dart`](file:///home/dog/git/quitepaper/test/attachments/generic_file_attachment_test.dart) (import from bytes/files, QPA1 header verification, 100% decrypted byte fidelity, 0-byte file handling, 50 MB size limit validation, rename metadata update, and soft deletion).
+- Added open & share tests in [`test/attachments/attachment_open_and_share_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_open_and_share_test.dart) (temp decrypted storage creation, stale file cleanup, native open launcher, and share sheet).
+- Added export & backup parity tests in [`test/attachments/generic_attachment_export_and_backup_test.dart`](file:///home/dog/git/quitepaper/test/attachments/generic_attachment_export_and_backup_test.dart) (resolving `qp://asset/` links into `attachments/<filename>`, backup payload serialization, and backup restore with 100% byte fidelity).
+- Added widget tests in [`test/attachments/quiet_attachment_card_widget_test.dart`](file:///home/dog/git/quitepaper/test/attachments/quiet_attachment_card_widget_test.dart) (rendering `QuietAttachmentCard` standalone and inside `QuietMarkdownPreview`).
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Test suite: `flutter test` (**all tests passing**).
+
+

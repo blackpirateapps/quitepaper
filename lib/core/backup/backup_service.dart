@@ -180,6 +180,8 @@ class BackupService {
       backupAttachments.add(BackupAttachment(
         id: att.id,
         noteId: att.noteId,
+        fileName: att.fileName,
+        kind: att.kind,
         createdAt: att.createdAt,
         updatedAt: att.updatedAt,
         mimeType: att.mimeType,
@@ -609,6 +611,8 @@ class BackupService {
         await database.saveAttachment(
           id: backupAtt.id,
           noteId: backupAtt.noteId,
+          fileName: backupAtt.fileName,
+          kind: backupAtt.kind,
           createdAt: backupAtt.createdAt,
           updatedAt: backupAtt.updatedAt,
           mimeType: backupAtt.mimeType,

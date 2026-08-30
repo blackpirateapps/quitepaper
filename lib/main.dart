@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
+import 'core/attachments/attachment_temp_storage.dart';
 import 'core/auth/auth_service.dart';
 import 'core/crypto/crypto_service.dart';
 import 'core/crypto/key_manager.dart';
@@ -20,6 +21,9 @@ void main() async {
     authService.initialize(),
     keyManager.initialize(),
   ]);
+
+  // Clean any stale decrypted attachment temporary files in background
+  AttachmentTempStorage().cleanStaleTempFiles().catchError((_) => 0);
 
   final sharedPreferences = results[0] as SharedPreferences;
 

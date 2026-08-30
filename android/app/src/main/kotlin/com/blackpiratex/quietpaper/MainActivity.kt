@@ -78,6 +78,38 @@ class MainActivity : FlutterActivity() {
                         result.error("INSTALL_ERROR", e.localizedMessage, null)
                     }
                 }
+                "openFile" -> {
+                    val filePath = call.argument<String>("filePath")
+                    val mimeType = call.argument<String>("mimeType") ?: "*/*"
+                    if (filePath.isNullOrEmpty()) {
+                        result.error("INVALID_PATH", "File path is required", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        val targetFile = File(filePath)
+                        if (!targetFile.exists()) {
+                            result.error("FILE_NOT_FOUND", "File does not exist at $filePath", null)
+                            return@setMethodCallHandler
+                        }
+
+                        val authority = "${applicationContext.packageName}.fileprovider"
+                        val contentUri = FileProvider.getUriForFile(this, authority, targetFile)
+
+                        val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(contentUri, mimeType)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        val chooser = Intent.createChooser(openIntent, "Open with").apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(chooser)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("OPEN_ERROR", e.localizedMessage, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

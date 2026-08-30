@@ -87,13 +87,29 @@ class FilenameGenerator {
     required Set<String> existingFilenames,
     String fallback = 'Untitled',
   }) {
+    return generateUniqueFilenameWithExtension(
+      title: title,
+      extension: format.extension,
+      existingFilenames: existingFilenames,
+      fallback: fallback,
+    );
+  }
+
+  /// Generates a unique filename with arbitrary custom extension in [existingFilenames].
+  static String generateUniqueFilenameWithExtension({
+    required String? title,
+    required String extension,
+    required Set<String> existingFilenames,
+    String fallback = 'attachment',
+  }) {
+    final cleanExt = extension.toLowerCase().replaceAll('.', '').trim();
     final base = sanitizeBaseName(title, fallback: fallback);
-    final ext = format.extension;
-    var candidate = '$base.$ext';
+    final extPart = cleanExt.isNotEmpty ? '.$cleanExt' : '';
+    var candidate = '$base$extPart';
 
     var counter = 2;
     while (existingFilenames.contains(candidate.toLowerCase())) {
-      candidate = '$base ($counter).$ext';
+      candidate = '$base ($counter)$extPart';
       counter++;
     }
 

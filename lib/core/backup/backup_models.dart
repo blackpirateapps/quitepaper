@@ -119,6 +119,8 @@ class BackupAttachment {
   const BackupAttachment({
     required this.id,
     this.noteId,
+    this.fileName = 'attachment',
+    this.kind = 'image',
     required this.createdAt,
     required this.updatedAt,
     this.mimeType = 'image/png',
@@ -135,6 +137,8 @@ class BackupAttachment {
 
   final String id;
   final String? noteId;
+  final String fileName;
+  final String kind;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String mimeType;
@@ -151,6 +155,8 @@ class BackupAttachment {
   Map<String, dynamic> toJson() => {
         'id': id,
         if (noteId != null) 'noteId': noteId,
+        'fileName': fileName,
+        'kind': kind,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'mimeType': mimeType,
@@ -172,6 +178,8 @@ class BackupAttachment {
     return BackupAttachment(
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
+      fileName: json['fileName'] as String? ?? json['filename'] as String? ?? 'attachment',
+      kind: json['kind'] as String? ?? 'image',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??

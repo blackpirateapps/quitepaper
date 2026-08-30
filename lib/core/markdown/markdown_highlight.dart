@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../app/theme/app_colors.dart';
+import '../attachments/presentation/quiet_attachment_card.dart';
 import '../documents/presentation/quiet_document_card.dart';
 
 /// Markdown syntax rule to match `==highlighted text==` and parse into `<mark>` AST nodes.
@@ -141,6 +142,56 @@ class QuietDocumentElementBuilder extends MarkdownElementBuilder {
       title: title.isNotEmpty ? title : 'Scanned Document',
       uriString: url,
       onDocumentRenamed: onDocumentRenamed,
+    );
+  }
+}
+
+/// Markdown syntax rule to match `[Title](qp://asset/<UUID>)` and parse into `<quietattachment>` AST nodes.
+class QuietAttachmentSyntax extends md.InlineSyntax {
+  QuietAttachmentSyntax()
+      : super(r'(?<!!)\[([^\]\n]+)\]\((qp:\/\/asset\/([0-9a-fA-F\-]{36}))\)');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final title = match[1]!;
+    final url = match[2]!;
+    final assetId = match[3]!;
+    final el = md.Element('quietattachment', [md.Text(title)])
+      ..attributes['url'] = url
+      ..attributes['title'] = title
+      ..attributes['assetId'] = assetId;
+    parser.addNode(el);
+    return true;
+  }
+}
+
+/// Custom element builder for `<quietattachment>` tags produced by [QuietAttachmentSyntax].
+class QuietAttachmentElementBuilder extends MarkdownElementBuilder {
+  QuietAttachmentElementBuilder({
+    this.onAttachmentRenamed,
+    this.onAttachmentDeleted,
+  });
+
+  final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
+  final void Function(String attachmentId)? onAttachmentDeleted;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final assetId = element.attributes['assetId'] ?? '';
+    final title = element.attributes['title'] ?? element.textContent;
+    final url = element.attributes['url'] ?? 'qp://asset/$assetId';
+
+    return QuietAttachmentCard(
+      attachmentId: assetId,
+      title: title.isNotEmpty ? title : 'Attachment',
+      uriString: url,
+      onAttachmentRenamed: onAttachmentRenamed,
+      onAttachmentDeleted: onAttachmentDeleted,
     );
   }
 }

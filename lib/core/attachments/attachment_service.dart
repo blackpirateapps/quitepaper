@@ -11,6 +11,7 @@ import 'attachment_crypto.dart';
 import 'attachment_models.dart';
 import 'attachment_processing_service.dart';
 import 'attachment_storage.dart';
+import 'attachment_type_resolver.dart';
 import 'cloudinary_client.dart';
 
 /// Central coordinator for attachment storage, cryptography, lifecycle, and URI resolution.
@@ -40,6 +41,9 @@ class AttachmentService implements AssetResolver {
   /// Maximum permitted original image byte size (25 MB).
   static const int maxFileSizeBytes = 25 * 1024 * 1024;
 
+  /// Maximum permitted generic attachment byte size (50 MB).
+  static const int maxGenericFileSizeBytes = 50 * 1024 * 1024;
+
   /// Supported image MIME types.
   static const Set<String> supportedMimeTypes = {
     'image/jpeg',
@@ -68,6 +72,7 @@ class AttachmentService implements AssetResolver {
     return importImageFromBytes(
       bytes,
       mimeType: mimeType,
+      fileName: fileName,
       noteId: noteId,
       preferredAltText: preferredAltText ?? _defaultAltText(fileName),
     );
@@ -77,6 +82,7 @@ class AttachmentService implements AssetResolver {
   Future<({AttachmentEntity attachment, String markdownSnippet})> importImageFromBytes(
     Uint8List bytes, {
     required String mimeType,
+    String fileName = 'image.png',
     String? noteId,
     String preferredAltText = 'Image',
   }) async {
@@ -120,6 +126,8 @@ class AttachmentService implements AssetResolver {
     await database.saveAttachment(
       id: attachmentId,
       noteId: noteId,
+      fileName: fileName,
+      kind: 'image',
       createdAt: now,
       updatedAt: now,
       mimeType: mimeType,
@@ -151,6 +159,119 @@ class AttachmentService implements AssetResolver {
     final markdownSnippet = '![$cleanAlt]($uri)';
 
     return (attachment: entity!, markdownSnippet: markdownSnippet);
+  }
+
+  /// Imports an arbitrary generic file from a local [File] into the encrypted Quiet Paper notebook.
+  Future<({AttachmentEntity attachment, String markdownSnippet})> importGenericFileFromFile(
+    File file, {
+    String? noteId,
+    String? preferredFileName,
+  }) async {
+    final bytes = await file.readAsBytes();
+    final rawName = preferredFileName ??
+        (file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'attachment');
+
+    return importGenericFileFromBytes(
+      bytes,
+      fileName: rawName,
+      noteId: noteId,
+    );
+  }
+
+  /// Imports an arbitrary generic file from raw plaintext [bytes] into the encrypted notebook.
+  Future<({AttachmentEntity attachment, String markdownSnippet})> importGenericFileFromBytes(
+    Uint8List bytes, {
+    required String fileName,
+    String? mimeType,
+    String? noteId,
+  }) async {
+    if (bytes.length > maxGenericFileSizeBytes) {
+      throw ArgumentError(
+        'File exceeds maximum allowed size of ${maxGenericFileSizeBytes ~/ (1024 * 1024)} MB',
+      );
+    }
+
+    if (!keyManager.isUnlocked) {
+      throw StateError(
+        'Quiet Paper encryption keys are locked. Unlock notebook to import attachments.',
+      );
+    }
+
+    final sanitizedName = AttachmentTypeResolver.sanitizeFileName(
+      fileName,
+      fallback: 'attachment',
+    );
+    final effectiveMimeType = (mimeType != null && mimeType.isNotEmpty && mimeType != 'application/octet-stream')
+        ? mimeType
+        : AttachmentTypeResolver.inferMimeType(sanitizedName);
+
+    final attachmentId = _uuid.v4();
+    final now = DateTime.now();
+    final sha256Hash = AttachmentCrypto.computeSha256(bytes);
+    final masterKey = keyManager.getMasterKey();
+
+    // 1. Client-side authenticated encryption
+    final encryptedBytes = await _crypto.encryptAttachment(
+      plaintextBytes: bytes,
+      masterKeyBytes: masterKey,
+      attachmentId: attachmentId,
+      variant: 'original',
+      keyVersion: 1,
+    );
+
+    // 2. Persist encrypted ciphertext locally in app-private storage
+    final localPath = await _storage.saveEncryptedBytes(
+      attachmentId: attachmentId,
+      encryptedBytes: encryptedBytes,
+      variant: 'original',
+    );
+
+    // 3. Cache decrypted plaintext in memory for instant local access
+    _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+
+    // 4. Save metadata to Drift database (ocrState remains 'not_requested' for generic files)
+    await database.saveAttachment(
+      id: attachmentId,
+      noteId: noteId,
+      fileName: sanitizedName,
+      kind: 'file',
+      createdAt: now,
+      updatedAt: now,
+      mimeType: effectiveMimeType,
+      byteSize: bytes.length,
+      sha256: sha256Hash,
+      encryptionKeyVersion: 1,
+      isDirty: true,
+      isDeleted: false,
+      serverRevision: 0,
+      uploadState: AttachmentUploadState.uploadPending.identifier,
+      localPath: localPath,
+      ocrState: 'not_requested',
+      ocrLanguage: 'en',
+    );
+
+    final entity = await database.getAttachment(attachmentId);
+    final uri = QuietPaperUri.asset(attachmentId).toUriString();
+    final markdownSnippet = '[$sanitizedName]($uri)';
+
+    return (attachment: entity!, markdownSnippet: markdownSnippet);
+  }
+
+  /// Renames an attachment (updates metadata only; preserves bytes and cryptographic hash).
+  Future<void> renameAttachment(String attachmentId, String newFileName) async {
+    final sanitizedName = AttachmentTypeResolver.sanitizeFileName(
+      newFileName,
+      fallback: 'attachment',
+    );
+    if (sanitizedName.isEmpty) {
+      throw ArgumentError('Filename cannot be empty');
+    }
+    await database.updateAttachmentFileName(attachmentId, sanitizedName);
+  }
+
+  /// Updates the note association of an attachment.
+  Future<void> updateAttachmentNoteId(String attachmentId, String? noteId) async {
+    await database.updateAttachmentNoteId(attachmentId, noteId);
   }
 
   /// Triggers OCR re-processing for an existing attachment.

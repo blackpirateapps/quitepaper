@@ -64,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -148,6 +148,12 @@ class AppDatabase extends _$AppDatabase {
             await _createFts5TablesAndTriggers();
             await _backfillSearchIndex();
           }
+          if (from < 11) {
+            if (from >= 4) {
+              await _addColumnSafely(m, attachmentsTable, attachmentsTable.fileName);
+              await _addColumnSafely(m, attachmentsTable, attachmentsTable.kind);
+            }
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -166,6 +172,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachments_kind_idx ON attachments (kind);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachments_dirty_idx ON attachments (is_dirty);',
@@ -1173,6 +1182,8 @@ class AppDatabase extends _$AppDatabase {
   Future<void> saveAttachment({
     required String id,
     String? noteId,
+    String fileName = 'attachment',
+    String kind = 'image',
     required DateTime createdAt,
     required DateTime updatedAt,
     String mimeType = 'image/png',
@@ -1197,6 +1208,8 @@ class AppDatabase extends _$AppDatabase {
       AttachmentsTableCompanion.insert(
         id: id,
         noteId: Value(noteId),
+        fileName: Value(fileName),
+        kind: Value(kind),
         createdAt: createdAt,
         updatedAt: updatedAt,
         mimeType: Value(mimeType),
@@ -1216,6 +1229,28 @@ class AppDatabase extends _$AppDatabase {
         localPath: Value(localPath),
         ocrState: Value(ocrState),
         ocrLanguage: Value(ocrLanguage),
+      ),
+    );
+  }
+
+  /// Updates the user-visible filename of an attachment (preserves bytes and hash)
+  Future<void> updateAttachmentFileName(String id, String fileName) async {
+    await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+      AttachmentsTableCompanion(
+        fileName: Value(fileName),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Updates the note association of an attachment
+  Future<void> updateAttachmentNoteId(String id, String? noteId) async {
+    await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
+      AttachmentsTableCompanion(
+        noteId: Value(noteId),
+        isDirty: const Value(true),
+        updatedAt: Value(DateTime.now()),
       ),
     );
   }

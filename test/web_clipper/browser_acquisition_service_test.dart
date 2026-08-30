@@ -49,6 +49,7 @@ class FakeAttachmentService implements AttachmentService {
   Future<({AttachmentEntity attachment, String markdownSnippet})> importImageFromBytes(
     Uint8List bytes, {
     required String mimeType,
+    String fileName = 'image.png',
     String? noteId,
     String preferredAltText = 'Image',
   }) async {
@@ -59,6 +60,8 @@ class FakeAttachmentService implements AttachmentService {
     final entity = AttachmentEntity(
       id: assetId,
       noteId: noteId,
+      fileName: fileName,
+      kind: 'image',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       mimeType: mimeType,

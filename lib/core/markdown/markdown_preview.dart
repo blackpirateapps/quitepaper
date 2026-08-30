@@ -39,6 +39,8 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onTapLink,
     this.searchQuery,
     this.onDocumentRenamed,
+    this.onAttachmentRenamed,
+    this.onAttachmentDeleted,
     this.onInsertText,
     this.softLineBreak = true,
   });
@@ -57,6 +59,8 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final MarkdownTapLinkCallback? onTapLink;
   final String? searchQuery;
   final void Function(String documentId, String newTitle)? onDocumentRenamed;
+  final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
+  final void Function(String attachmentId)? onAttachmentDeleted;
   final void Function(String text)? onInsertText;
   final bool softLineBreak;
 
@@ -354,11 +358,16 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final inlineSyntaxes = <md.InlineSyntax>[
       HighlightSyntax(),
       QuietDocumentSyntax(),
+      QuietAttachmentSyntax(),
     ];
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
       'quietdoc': QuietDocumentElementBuilder(
         onDocumentRenamed: widget.onDocumentRenamed,
+      ),
+      'quietattachment': QuietAttachmentElementBuilder(
+        onAttachmentRenamed: widget.onAttachmentRenamed,
+        onAttachmentDeleted: widget.onAttachmentDeleted,
       ),
     };
 
