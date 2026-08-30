@@ -3152,5 +3152,39 @@ Phase 2A implements a dedicated, high-performance, read-only in-app previewer an
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full repository test suite: `flutter test` (**738 / 738 tests passing**).
 
+---
 
+## 42. Smart Views Management & Deletion System
 
+### Overview
+Quiet Paper allows users to save complex multi-category note filters and sort configurations as **Smart Views** (saved filter presets). Previously, smart views could be created from `NotesFilterSheet` and listed in `SidebarView`, but users lacked an intuitive way to delete, rename, or manage them. This update introduces full lifecycle management with zero-friction deletion guards across the Sidebar, Filter Sheet, and dedicated Saved Views modal.
+
+### Key Architectural & UI Enhancements
+
+#### 1. Sidebar Management & Context Actions
+- **Header Action Button**:
+  - The **SMART VIEWS** section header in [`SidebarView`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart) now features a subtle trailing manage action button (`Icons.tune_rounded`, 16sp icon, 28x28 bounding box) with tooltip `"Manage smart views"`.
+  - Tapping this button opens [`SavedFiltersSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/saved_filters_sheet.dart).
+- **Long-Press & Secondary Tap Menu**:
+  - [`SidebarItem`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/sidebar_item.dart) was extended with optional `onLongPress` and `onSecondaryTap` callbacks.
+  - Long-pressing on mobile or right-clicking on desktop/tablets on any smart view item in `SidebarView` opens an editorial bottom action sheet with:
+    - **Rename** (`Icons.edit_outlined`): Opens the rename dialog.
+    - **Delete** (`Icons.delete_outline_rounded`, styled in `colors.error`): Opens the confirmation dialog.
+
+#### 2. Editorial Deletion Confirmation Guard
+- Deleting a smart view from either `SidebarView` or [`SavedFiltersSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/saved_filters_sheet.dart) triggers an editorial confirmation dialog:
+  - Title: `"Delete Smart View"`
+  - Content: `"Are you sure you want to delete \"<name>\"? This cannot be undone."`
+  - Actions: `"Cancel"` (neutral button) and `"Delete"` (`QuietButton(variant: QuietButtonVariant.destructive, label: 'Delete')`).
+- Cancelling aborts the action without mutating state.
+- Confirming deletes the preset via [`savedFiltersProvider.notifier.delete(id)`](file:///home/dog/git/quitepaper/lib/features/notes/application/saved_filters_provider.dart) and presents a floating feedback SnackBar (`"Smart view \"<name>\" deleted"`).
+
+#### 3. Filter Sheet Integration
+- In [`NotesFilterSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/notes_filter_sheet.dart), a `"Saved views"` button (`Icons.bookmarks_outlined`) has been added directly adjacent to `"Save as view"` in the bottom action bar.
+- Tapping `"Saved views"` opens [`SavedFiltersSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/saved_filters_sheet.dart) to browse, load, rename, or delete existing presets directly while configuring note filters.
+
+### Automated Verification & Quality Assurance
+- [`sidebar_smart_views_test.dart`](file:///home/dog/git/quitepaper/test/sidebar/sidebar_smart_views_test.dart): Integration tests for `SidebarView` smart views section rendering, header manage button, long-press action menu, renaming, and deletion with confirmation dialog.
+- [`notes_filter_and_sort_ui_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart): Extended tests covering `SavedFiltersSheet` deletion with confirmation and cancel/confirm branches, renaming, and `NotesFilterSheet` "Saved views" entry point.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full repository test suite: `flutter test` (**744 / 744 tests passing**).

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/app/app.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/widgets/quiet_button.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_query_provider.dart';
 import 'package:quitepaper/features/notes/application/saved_filters_provider.dart';
@@ -449,6 +450,153 @@ void main() {
       final currentQuery = container.read(notesQueryProvider);
       expect(currentQuery.filter.tags, const {'work'});
       expect(currentQuery.filter.pinnedOnly, true);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('deletes saved smart view with confirmation dialog and cancel/confirm', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => SavedFiltersSheet.show(context),
+              child: const Text('Open Saved Views'),
+            ),
+          ),
+        ),
+      );
+
+      final element = tester.element(find.text('Open Saved Views'));
+      final container = ProviderScope.containerOf(element);
+
+      // Create a saved filter programmatically
+      await container.read(savedFiltersProvider.notifier).create(
+            name: 'Important Work',
+            query: const NotesQuery(
+              filter: NotesFilter(
+                tags: {'work'},
+                pinnedOnly: true,
+              ),
+            ),
+          );
+
+      await tester.tap(find.text('Open Saved Views'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Important Work'), findsOneWidget);
+
+      // Open popup menu
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+
+      // Tap Delete in popup menu
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Confirm dialog should be shown
+      expect(find.text('Delete Smart View'), findsOneWidget);
+      expect(find.text('Are you sure you want to delete "Important Work"? This cannot be undone.'), findsOneWidget);
+
+      // Tap Cancel
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // View should still exist
+      expect(find.text('Important Work'), findsOneWidget);
+
+      // Open popup menu again
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+
+      // Tap Delete
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Tap Delete in confirmation dialog
+      await tester.tap(find.widgetWithText(QuietButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      // View should be deleted, empty state shown
+      expect(find.text('Important Work'), findsNothing);
+      expect(find.text('No saved smart views yet'), findsOneWidget);
+      expect(find.text('Smart view "Important Work" deleted'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('renames saved smart view', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => SavedFiltersSheet.show(context),
+              child: const Text('Open Saved Views'),
+            ),
+          ),
+        ),
+      );
+
+      final element = tester.element(find.text('Open Saved Views'));
+      final container = ProviderScope.containerOf(element);
+
+      await container.read(savedFiltersProvider.notifier).create(
+            name: 'Important Work',
+            query: const NotesQuery(
+              filter: NotesFilter(tags: {'work'}),
+            ),
+          );
+
+      await tester.tap(find.text('Open Saved Views'));
+      await tester.pumpAndSettle();
+
+      // Open popup menu
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+
+      // Tap Rename
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename Smart View'), findsOneWidget);
+
+      // Enter new name
+      await tester.enterText(find.byType(TextField), 'Urgent Projects');
+      await tester.tap(find.widgetWithText(QuietButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Urgent Projects'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('NotesFilterSheet renders Saved views button and opens SavedFiltersSheet', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => NotesFilterSheet.show(context),
+              child: const Text('Open Filter Sheet'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Filter Sheet'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Saved views'),
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved views'), findsOneWidget);
+
+      await tester.tap(find.text('Saved views'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SAVED SMART VIEWS'), findsOneWidget);
 
       await finishTest(tester);
     });

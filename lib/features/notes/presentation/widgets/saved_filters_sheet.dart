@@ -138,7 +138,7 @@ class SavedFiltersSheet extends ConsumerWidget {
                               Navigator.of(context).pop();
                             },
                             onRename: () => _renameDialog(context, ref, item),
-                            onDelete: () => ref.read(savedFiltersProvider.notifier).delete(item.id),
+                            onDelete: () => _confirmDeleteDialog(context, ref, item),
                           );
                         },
                       ),
@@ -151,6 +151,62 @@ class SavedFiltersSheet extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SavedFilter item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final colors = ctx.appColors;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadii.borderLg,
+            side: BorderSide(color: colors.divider, width: 0.8),
+          ),
+          title: Text(
+            'Delete Smart View',
+            style: AppTypography.headline.copyWith(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Are you sure you want to delete "${item.name}"? This cannot be undone.',
+            style: AppTypography.body.copyWith(color: colors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            QuietButton(
+              label: 'Delete',
+              variant: QuietButtonVariant.destructive,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      await ref.read(savedFiltersProvider.notifier).delete(item.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Smart view "${item.name}" deleted'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _renameDialog(

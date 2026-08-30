@@ -11,6 +11,7 @@ import '../../application/notes_provider.dart';
 import '../../application/notes_query_provider.dart';
 import '../../application/saved_filters_provider.dart';
 import '../../domain/notes_filter.dart';
+import 'saved_filters_sheet.dart';
 
 /// Modal bottom sheet for configuring advanced note query filters
 class NotesFilterSheet extends ConsumerStatefulWidget {
@@ -626,14 +627,31 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
                     spacing: AppSpacing.sm,
                     runSpacing: AppSpacing.sm,
                     children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.bookmark_border_rounded, size: 18),
-                        label: const Text('Save as view'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: colors.accent,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        onPressed: _saveAsSmartView,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton.icon(
+                            icon: const Icon(Icons.bookmark_border_rounded, size: 18),
+                            label: const Text('Save as view'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: colors.accent,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            onPressed: _saveAsSmartView,
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.bookmarks_outlined, size: 18),
+                            label: const Text('Saved views'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: colors.textSecondary,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              SavedFiltersSheet.show(context);
+                            },
+                          ),
+                        ],
                       ),
                       Row(
                         mainAxisSize: MainAxisSize.min,

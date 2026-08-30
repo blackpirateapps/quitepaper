@@ -12,6 +12,8 @@ class SidebarItem extends StatelessWidget {
     this.count,
     this.isSelected = false,
     required this.onTap,
+    this.onLongPress,
+    this.onSecondaryTap,
     this.isDestructive = false,
   });
 
@@ -20,6 +22,8 @@ class SidebarItem extends StatelessWidget {
   final int? count;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSecondaryTap;
   final bool isDestructive;
 
   @override
@@ -58,6 +62,8 @@ class SidebarItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadii.sm),
           child: InkWell(
             onTap: onTap,
+            onLongPress: onLongPress,
+            onSecondaryTap: onSecondaryTap,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             splashColor: colors.accent.withValues(alpha: 0.1),
             highlightColor: colors.selection.withValues(alpha: 0.3),

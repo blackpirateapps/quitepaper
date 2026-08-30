@@ -4,10 +4,13 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/notes_query_provider.dart';
 import '../../notes/application/saved_filters_provider.dart';
+import '../../notes/domain/saved_filter.dart';
+import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
@@ -210,7 +213,24 @@ class SidebarView extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: AppSpacing.md),
-                            _buildSectionHeader(context, 'SMART VIEWS'),
+                            _buildSectionHeader(
+                              context,
+                              'SMART VIEWS',
+                              trailing: SizedBox(
+                                height: 28,
+                                width: 28,
+                                child: QuietIconButton(
+                                  icon: Icons.tune_rounded,
+                                  size: 16,
+                                  padding: const EdgeInsets.all(4.0),
+                                  tooltip: 'Manage smart views',
+                                  onPressed: () {
+                                    onItemSelected?.call();
+                                    SavedFiltersSheet.show(context);
+                                  },
+                                ),
+                              ),
+                            ),
                             ...savedFilters.map((sv) {
                               return SidebarItem(
                                 icon: Icons.bookmark_border_rounded,
@@ -220,6 +240,8 @@ class SidebarView extends ConsumerWidget {
                                   ref.read(notesQueryProvider.notifier).setSort(sv.query.sort);
                                   onItemSelected?.call();
                                 },
+                                onLongPress: () => _showSmartViewOptions(context, ref, sv),
+                                onSecondaryTap: () => _showSmartViewOptions(context, ref, sv),
                               );
                             }),
                           ],
@@ -339,7 +361,11 @@ class SidebarView extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title, {
+    Widget? trailing,
+  }) {
     final colors = context.appColors;
 
     return Padding(
@@ -349,15 +375,219 @@ class SidebarView extends ConsumerWidget {
         AppSpacing.md,
         AppSpacing.xs,
       ),
-      child: Text(
-        title,
-        style: AppTypography.caption.copyWith(
-          color: colors.textSecondary,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
-          fontSize: 11.5,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: AppTypography.caption.copyWith(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              fontSize: 11.5,
+            ),
+          ),
+          ?trailing,
+        ],
       ),
     );
+  }
+
+  Future<void> _showSmartViewOptions(
+    BuildContext context,
+    WidgetRef ref,
+    SavedFilter sv,
+  ) async {
+    final colors = context.appColors;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Material(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+          clipBehavior: Clip.antiAlias,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.divider,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        sv.name,
+                        style: AppTypography.title.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Divider(color: colors.divider, height: 1),
+                  ListTile(
+                    leading: Icon(Icons.edit_outlined, size: 20, color: colors.textPrimary),
+                    title: Text(
+                      'Rename',
+                      style: AppTypography.body.copyWith(color: colors.textPrimary),
+                    ),
+                    onTap: () => Navigator.of(ctx).pop('rename'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
+                    title: Text(
+                      'Delete',
+                      style: AppTypography.body.copyWith(color: colors.error),
+                    ),
+                    onTap: () => Navigator.of(ctx).pop('delete'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (action == 'rename' && context.mounted) {
+      await _renameSmartViewDialog(context, ref, sv);
+    } else if (action == 'delete' && context.mounted) {
+      await _deleteSmartViewConfirmation(context, ref, sv);
+    }
+  }
+
+  Future<void> _renameSmartViewDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SavedFilter sv,
+  ) async {
+    final controller = TextEditingController(text: sv.name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final colors = ctx.appColors;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadii.borderLg,
+            side: BorderSide(color: colors.divider, width: 0.8),
+          ),
+          title: Text(
+            'Rename Smart View',
+            style: AppTypography.headline.copyWith(color: colors.textPrimary),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: AppTypography.body.copyWith(color: colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'View Name',
+              filled: true,
+              fillColor: colors.background,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: AppRadii.borderMd,
+                borderSide: BorderSide(color: colors.divider, width: 0.8),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            QuietButton(
+              label: 'Save',
+              variant: QuietButtonVariant.primary,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      final newName = controller.text.trim();
+      if (newName.isNotEmpty) {
+        await ref.read(savedFiltersProvider.notifier).rename(sv.id, newName);
+      }
+    }
+  }
+
+  Future<void> _deleteSmartViewConfirmation(
+    BuildContext context,
+    WidgetRef ref,
+    SavedFilter sv,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final colors = ctx.appColors;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadii.borderLg,
+            side: BorderSide(color: colors.divider, width: 0.8),
+          ),
+          title: Text(
+            'Delete Smart View',
+            style: AppTypography.headline.copyWith(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Are you sure you want to delete "${sv.name}"? This cannot be undone.',
+            style: AppTypography.body.copyWith(color: colors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            QuietButton(
+              label: 'Delete',
+              variant: QuietButtonVariant.destructive,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      await ref.read(savedFiltersProvider.notifier).delete(sv.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Smart view "${sv.name}" deleted'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
