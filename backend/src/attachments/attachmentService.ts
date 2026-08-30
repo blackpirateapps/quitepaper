@@ -77,6 +77,8 @@ export async function confirmAttachmentUpload(
     sha256 = '',
     width,
     height,
+    fileName,
+    kind,
   } = parseRes.data;
 
   const nowIso = new Date().toISOString();
@@ -106,6 +108,8 @@ export async function confirmAttachmentUpload(
               sha256 = ?,
               width = COALESCE(?, width),
               height = COALESCE(?, height),
+              file_name = COALESCE(?, file_name),
+              kind = COALESCE(?, kind),
               server_revision = ?,
               updated_at = ?
             WHERE id = ? AND user_id = ?`,
@@ -118,6 +122,8 @@ export async function confirmAttachmentUpload(
         sha256,
         width || null,
         height || null,
+        fileName || null,
+        kind || null,
         serverRevision,
         nowIso,
         attachmentId,
@@ -129,8 +135,8 @@ export async function confirmAttachmentUpload(
       sql: `INSERT INTO attachments (
               id, user_id, note_id, created_at, updated_at, mime_type,
               byte_size, width, height, sha256, server_revision,
-              cloud_public_id, cloud_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              cloud_public_id, cloud_url, file_name, kind
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         attachmentId,
         userId,
@@ -145,6 +151,8 @@ export async function confirmAttachmentUpload(
         serverRevision,
         cloudPublicId,
         cloudUrl,
+        fileName || 'attachment',
+        kind || 'image',
       ],
     });
   }
@@ -160,6 +168,8 @@ export async function confirmAttachmentUpload(
       mimeType,
       byteSize,
       sha256,
+      fileName: fileName || 'attachment',
+      kind: kind || 'image',
       serverRevision,
       updatedAt: nowIso,
     },
@@ -185,6 +195,8 @@ export async function getAttachmentMetadata(
     id: row.id,
     userId: row.user_id,
     noteId: row.note_id,
+    fileName: row.file_name,
+    kind: row.kind,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     mimeType: row.mime_type,

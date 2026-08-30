@@ -63,11 +63,17 @@ class MockSyncApiClient extends SyncApiClient {
     required String cloudUrl,
     int byteSize = 0,
     String sha256 = '',
+    String? mimeType,
+    String? fileName,
+    String? kind,
   }) async {
     lastConfirmedData = {
       'attachmentId': attachmentId,
       'cloudPublicId': cloudPublicId,
       'cloudUrl': cloudUrl,
+      'mimeType': mimeType,
+      'fileName': fileName,
+      'kind': kind,
     };
     return {'success': true};
   }

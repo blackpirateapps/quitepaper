@@ -93,6 +93,9 @@ class AttachmentSyncService {
               cloudUrl: item.cloudUrl!,
               byteSize: item.byteSize,
               sha256: item.sha256,
+              mimeType: item.mimeType,
+              fileName: item.fileName,
+              kind: item.kind,
             );
 
             await database.markAttachmentSynced(
@@ -158,6 +161,9 @@ class AttachmentSyncService {
             cloudUrl: uploadResult.secureUrl,
             byteSize: item.byteSize,
             sha256: item.sha256,
+            mimeType: item.mimeType,
+            fileName: item.fileName,
+            kind: item.kind,
           );
 
           // 7. Mark synced

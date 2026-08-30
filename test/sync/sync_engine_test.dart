@@ -161,6 +161,9 @@ class InMemorySyncApiClient extends SyncApiClient {
     required String cloudUrl,
     int byteSize = 0,
     String sha256 = '',
+    String? mimeType,
+    String? fileName,
+    String? kind,
   }) async {
     return {'success': true};
   }

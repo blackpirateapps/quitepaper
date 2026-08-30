@@ -38,6 +38,9 @@ abstract class SyncApiClient {
     required String cloudUrl,
     int byteSize = 0,
     String sha256 = '',
+    String? mimeType,
+    String? fileName,
+    String? kind,
   });
   Future<AttachmentSyncPayload?> getAttachmentMetadata(String attachmentId);
   Future<CloudinaryUploadAuth> getDocumentUploadAuth({
@@ -444,6 +447,9 @@ class HttpSyncApiClient implements SyncApiClient {
     required String cloudUrl,
     int byteSize = 0,
     String sha256 = '',
+    String? mimeType,
+    String? fileName,
+    String? kind,
   }) async {
     final url = Uri.parse('$_baseUrl/api/v1/attachments/confirm');
     final body = <String, dynamic>{
@@ -455,6 +461,15 @@ class HttpSyncApiClient implements SyncApiClient {
     };
     if (noteId != null) {
       body['noteId'] = noteId;
+    }
+    if (mimeType != null) {
+      body['mimeType'] = mimeType;
+    }
+    if (fileName != null) {
+      body['fileName'] = fileName;
+    }
+    if (kind != null) {
+      body['kind'] = kind;
     }
 
     final encoded = jsonEncode(body);

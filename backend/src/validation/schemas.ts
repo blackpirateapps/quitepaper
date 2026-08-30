@@ -116,6 +116,8 @@ export const confirmAttachmentSchema = z.object({
   sha256: z.string().max(128).optional(),
   width: z.number().int().min(1).optional(),
   height: z.number().int().min(1).optional(),
+  fileName: z.string().max(256).optional(),
+  kind: z.enum(['image', 'document', 'file']).optional(),
 });
 
 export const uploadDocumentAuthRequestSchema = z.object({

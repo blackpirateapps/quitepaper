@@ -534,6 +534,8 @@ class SyncEngine {
                         await database.saveAttachment(
                           id: remoteMeta.id,
                           noteId: remoteMeta.noteId,
+                          fileName: remoteMeta.fileName,
+                          kind: remoteMeta.kind,
                           createdAt: remoteMeta.createdAt,
                           updatedAt: remoteMeta.updatedAt,
                           mimeType: remoteMeta.mimeType,
