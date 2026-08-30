@@ -3593,4 +3593,24 @@ When a user syncs notes for the first time on a new or secondary device, note te
 - **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
 - **Full Test Suite**: `flutter test` (**864 / 864 tests passing**).
 
+---
 
+## 78. Cloud Sync Database Migration Fix: Attachments `file_name` & `kind` Columns
+
+### Problem & Root Cause
+In commit `2f0679e`, support was added for persisting generic attachment metadata (`fileName` and `kind`) during attachment confirmation and sync. However:
+1. `backend/src/db/migrate.ts` was not updated: `INITIAL_SCHEMA_SQL` omitted `file_name` and `kind` in the `attachments` table creation, and `runMigrations(db)` lacked `ALTER TABLE attachments ADD COLUMN ...` statements for existing databases.
+2. The migration file was incorrectly named `006_attachment_metadata_columns.sql`, conflicting in number with `006_conflict_revisions_schema.sql`.
+3. When users triggered cloud sync with attachments, `POST /api/v1/attachments/confirm` attempted `INSERT INTO attachments (... file_name, kind) VALUES (...)`, causing the Turso / SQLite database to reject the query with:
+   `Failed to confirm attachment upload: SQL_INPUT_ERROR: SQLite input error: no such column: file_name (at offset 341)`.
+
+### Solution
+1. **Schema & Migration Updates (`backend/src/db/migrate.ts`)**:
+   - Added `file_name TEXT NOT NULL DEFAULT 'attachment'` and `kind TEXT NOT NULL DEFAULT 'image'` to `CREATE TABLE IF NOT EXISTS attachments` in `INITIAL_SCHEMA_SQL`.
+   - Added defensive `ALTER TABLE attachments ADD COLUMN file_name TEXT NOT NULL DEFAULT 'attachment';` and `ALTER TABLE attachments ADD COLUMN kind TEXT NOT NULL DEFAULT 'image';` statements inside `runMigrations(db)` so that any existing databases are automatically migrated on server startup.
+2. **Migration Renaming (`backend/migrations/009_attachment_metadata_columns.sql`)**:
+   - Renamed migration `006_attachment_metadata_columns.sql` to `009_attachment_metadata_columns.sql` to maintain strictly sequential numbered migrations.
+3. **Automated Verification**:
+   - Backend Vitest test suite (`backend/tests/attachments.test.ts`, `lifecycle.test.ts`, `gc.test.ts`, etc.): **10/10 test files passing (40/40 tests)**.
+   - Flutter Static Analysis: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
+   - Flutter Test Suite: `flutter test` (**867 / 867 tests passing**).

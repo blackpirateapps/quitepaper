@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS attachments (
   deleted_at TEXT,
   cloud_public_id TEXT,
   cloud_url TEXT,
+  file_name TEXT NOT NULL DEFAULT 'attachment',
+  kind TEXT NOT NULL DEFAULT 'image',
   created_device_id TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
@@ -274,5 +276,11 @@ export async function runMigrations(db: Client): Promise<void> {
   } catch (_) {}
   try {
     await db.execute("ALTER TABLE documents ADD COLUMN orphaned_at TEXT;");
+  } catch (_) {}
+  try {
+    await db.execute("ALTER TABLE attachments ADD COLUMN file_name TEXT NOT NULL DEFAULT 'attachment';");
+  } catch (_) {}
+  try {
+    await db.execute("ALTER TABLE attachments ADD COLUMN kind TEXT NOT NULL DEFAULT 'image';");
   } catch (_) {}
 }
