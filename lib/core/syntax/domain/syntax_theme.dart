@@ -148,24 +148,76 @@ class SyntaxTheme {
       );
     }
 
-    // Curated, editorial color tokens (calm & legible across both light and dark modes)
+    // Curated, editorial color tokens harmonious with each theme family
     final plainColor = colors.textPrimary;
-    final keywordColor = isDark ? const Color(0xFFA78BFA) : const Color(0xFF6D28D9); // Soft Purple
-    final stringColor = isDark ? const Color(0xFF4ADE80) : const Color(0xFF15803D); // Sage/Forest Green
-    final numberColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309); // Amber Ochre
-    final commentColor = colors.textTertiary.withValues(alpha: isDark ? 0.75 : 0.85); // Muted Slate
-    final functionColor = isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8); // Soft Blue
-    final typeColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1); // Sky/Teal
-    final variableColor = colors.textPrimary;
-    final constantColor = isDark ? const Color(0xFFF472B6) : const Color(0xFFBE185D); // Rose
-    final operatorColor = colors.textSecondary;
-    final punctuationColor = colors.textTertiary;
-    final propertyColor = isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E); // Teal
-    final tagColor = colors.accent;
-    final builtinColor = isDark ? const Color(0xFFC084FC) : const Color(0xFF7E22CE); // Violet
-    final literalColor = isDark ? const Color(0xFFFB923C) : const Color(0xFFC2410C); // Warm Orange
-    final regexpColor = isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C); // Coral Red
-    final annotationColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569); // Slate
+    final isWarm = colors.accent == const Color(0xFF666BD3) || colors.accent == const Color(0xFF8570E8);
+
+    final Color keywordColor;
+    final Color stringColor;
+    final Color numberColor;
+    final Color commentColor = colors.textTertiary.withValues(alpha: isDark ? 0.75 : 0.85);
+    final Color functionColor;
+    final Color typeColor;
+    final Color variableColor = colors.textPrimary;
+    final Color constantColor;
+    final Color operatorColor = colors.textSecondary;
+    final Color punctuationColor = colors.textTertiary;
+    final Color propertyColor;
+    final Color tagColor = colors.accent;
+    final Color builtinColor;
+    final Color literalColor;
+    final Color regexpColor = isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C);
+    final Color annotationColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+
+    if (isWarm) {
+      if (isDark) {
+        // Midnight Paper Dark
+        keywordColor = const Color(0xFFA99AFF); // Lavender
+        stringColor = const Color(0xFF5EEAD4); // Luminous teal
+        numberColor = const Color(0xFFFCD34D); // Soft amber
+        functionColor = const Color(0xFF93C5FD); // Soft sky
+        typeColor = const Color(0xFF67E8F9); // Light cyan
+        constantColor = const Color(0xFFF472B6); // Rose
+        propertyColor = const Color(0xFF2DD4BF); // Teal
+        builtinColor = const Color(0xFFC084FC); // Violet
+        literalColor = const Color(0xFFFB923C); // Warm Orange
+      } else {
+        // Warm Paper Light
+        keywordColor = const Color(0xFF5B4FA8); // Restrained indigo violet
+        stringColor = const Color(0xFF2E7D47); // Forest sage
+        numberColor = const Color(0xFFB45309); // Amber ochre
+        functionColor = const Color(0xFF3F63B8); // Slate blue
+        typeColor = const Color(0xFF0F766E); // Deep teal
+        constantColor = const Color(0xFF9D174D); // Muted rose
+        propertyColor = const Color(0xFF1E6B7B); // Muted cyan
+        builtinColor = const Color(0xFF6366F1); // Indigo
+        literalColor = const Color(0xFFC2410C); // Terracotta
+      }
+    } else {
+      if (isDark) {
+        // Classic Paper Dark
+        keywordColor = const Color(0xFFA78BFA);
+        stringColor = const Color(0xFF4ADE80);
+        numberColor = const Color(0xFFFBBF24);
+        functionColor = const Color(0xFF93C5FD);
+        typeColor = const Color(0xFF38BDF8);
+        constantColor = const Color(0xFFF472B6);
+        propertyColor = const Color(0xFF2DD4BF);
+        builtinColor = const Color(0xFFC084FC);
+        literalColor = const Color(0xFFFB923C);
+      } else {
+        // Classic Paper Light
+        keywordColor = const Color(0xFF6D28D9);
+        stringColor = const Color(0xFF15803D);
+        numberColor = const Color(0xFFB45309);
+        functionColor = const Color(0xFF1D4ED8);
+        typeColor = const Color(0xFF0369A1);
+        constantColor = const Color(0xFFBE185D);
+        propertyColor = const Color(0xFF0F766E);
+        builtinColor = const Color(0xFF7E22CE);
+        literalColor = const Color(0xFFC2410C);
+      }
+    }
 
     return SyntaxTheme(
       plain: base(color: plainColor),

@@ -78,7 +78,8 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
     super.didUpdateWidget(oldWidget);
     final textChanged = oldWidget.text != widget.text;
     final queryChanged = oldWidget.searchQuery != widget.searchQuery;
-    final matchIndexChanged = oldWidget.currentMatchIndex != widget.currentMatchIndex;
+    final matchIndexChanged =
+        oldWidget.currentMatchIndex != widget.currentMatchIndex;
 
     if (textChanged) {
       _initLineIndexing();
@@ -123,7 +124,8 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
 
   void _onScroll() {
     if (!_verticalScrollController.hasClients) return;
-    if (_verticalScrollController.position.extentAfter < 600 && _loadedLineCount < _totalLineCount) {
+    if (_verticalScrollController.position.extentAfter < 600 &&
+        _loadedLineCount < _totalLineCount) {
       _loadNextChunk();
     }
   }
@@ -131,7 +133,10 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
   void _loadNextChunk() {
     if (_loadedLineCount >= _totalLineCount) return;
     setState(() {
-      _loadedLineCount = min(_loadedLineCount + kLinesPerChunk, _totalLineCount);
+      _loadedLineCount = min(
+        _loadedLineCount + kLinesPerChunk,
+        _totalLineCount,
+      );
     });
   }
 
@@ -160,13 +165,20 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
   }
 
   void _scrollToMatch(int matchIndex) {
-    if (_matchOffsets.isEmpty || matchIndex < 0 || matchIndex >= _matchOffsets.length) return;
+    if (_matchOffsets.isEmpty ||
+        matchIndex < 0 ||
+        matchIndex >= _matchOffsets.length) {
+      return;
+    }
     final matchOffset = _matchOffsets[matchIndex];
     final matchLine = _findLineForOffset(matchOffset);
 
     // Expand loaded lines if match is beyond current window
     if (matchLine >= _loadedLineCount) {
-      final neededLines = min(((matchLine ~/ kLinesPerChunk) + 1) * kLinesPerChunk, _totalLineCount);
+      final neededLines = min(
+        ((matchLine ~/ kLinesPerChunk) + 1) * kLinesPerChunk,
+        _totalLineCount,
+      );
       if (mounted) {
         setState(() {
           _loadedLineCount = neededLines;
@@ -224,12 +236,19 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
       fileName: widget.fileName,
     );
 
-    final isMono = widget.isMonospaced ??
-        (language.isSupported || AttachmentTextDetector.isMonospaced(widget.format));
-    final showLineNums = widget.showLineNumbers ??
-        (language.isSupported || AttachmentTextDetector.supportsLineNumbers(widget.format));
-    final wrap = widget.wordWrap ??
-        (language.isSupported ? false : AttachmentTextDetector.defaultWordWrap(widget.format));
+    final isMono =
+        widget.isMonospaced ??
+        (language.isSupported ||
+            AttachmentTextDetector.isMonospaced(widget.format));
+    final showLineNums =
+        widget.showLineNumbers ??
+        (language.isSupported ||
+            AttachmentTextDetector.supportsLineNumbers(widget.format));
+    final wrap =
+        widget.wordWrap ??
+        (language.isSupported
+            ? false
+            : AttachmentTextDetector.defaultWordWrap(widget.format));
 
     final fontFamily = isMono
         ? (typography.codeFontFamily ?? 'monospace')
@@ -253,11 +272,17 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.description_outlined, size: 40, color: colors.textTertiary),
+            Icon(
+              Icons.description_outlined,
+              size: 40,
+              color: colors.textTertiary,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Empty file',
-              style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -270,7 +295,9 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
     if (_loadedLineCount >= _totalLineCount) {
       renderedText = widget.text;
     } else {
-      final endOffset = _loadedLineCount < _lineStarts.length ? _lineStarts[_loadedLineCount] : widget.text.length;
+      final endOffset = _loadedLineCount < _lineStarts.length
+          ? _lineStarts[_loadedLineCount]
+          : widget.text.length;
       renderedText = widget.text.substring(0, endOffset);
     }
 
@@ -278,7 +305,10 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
 
     // 2. Perform syntax highlighting if language is supported
     final highlighter = ref.watch(syntaxHighlighterProvider);
-    final hlResult = highlighter.highlight(source: renderedText, language: language);
+    final hlResult = highlighter.highlight(
+      source: renderedText,
+      language: language,
+    );
 
     final syntaxTheme = SyntaxTheme.fromColors(
       colors,
@@ -289,10 +319,10 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
       letterSpacing: baseLetterSpacing,
     );
 
-    final isDark = colors.background.computeLuminance() < 0.5;
-
     // 3. Filter match offsets to only those present in the visible slice
-    final visibleMatchOffsets = _matchOffsets.where((o) => o < renderedText.length).toList();
+    final visibleMatchOffsets = _matchOffsets
+        .where((o) => o < renderedText.length)
+        .toList();
 
     // 4. Build the TextSpan tree with syntax tokens and search overlays
     final textSpan = SyntaxTextSpans.buildTextSpan(
@@ -304,21 +334,18 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
       activeSearchMatchIndex: widget.currentMatchIndex,
       searchMatchOffsets: visibleMatchOffsets,
       searchHighlightStyle: TextStyle(
-        backgroundColor: isDark ? const Color(0xFF7A5C1E) : const Color(0xFFFFE066),
-        color: isDark ? const Color(0xFFFFFAED) : const Color(0xFF242018),
+        backgroundColor: colors.searchHighlight,
+        color: colors.searchHighlightText,
         fontWeight: FontWeight.w500,
       ),
       activeSearchHighlightStyle: TextStyle(
-        backgroundColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFFF59E0B),
-        color: isDark ? const Color(0xFF1E1B13) : const Color(0xFF1A1810),
+        backgroundColor: colors.searchHighlightActive,
+        color: colors.searchHighlightActiveText,
         fontWeight: FontWeight.w800,
       ),
     );
 
-    Widget content = SelectableText.rich(
-      textSpan,
-      style: baseTextStyle,
-    );
+    Widget content = SelectableText.rich(textSpan, style: baseTextStyle);
 
     if (!wrap) {
       content = SingleChildScrollView(
@@ -331,7 +358,9 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
 
     return SingleChildScrollView(
       controller: _verticalScrollController,
-      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,7 +373,10 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
                 border: Border(
-                  right: BorderSide(color: colors.divider.withValues(alpha: 0.6), width: 0.8),
+                  right: BorderSide(
+                    color: colors.divider.withValues(alpha: 0.6),
+                    width: 0.8,
+                  ),
                 ),
               ),
               child: Column(
@@ -376,10 +408,7 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  content,
-                  _buildChunkFooter(colors),
-                ],
+                children: [content, _buildChunkFooter(colors)],
               ),
             ),
           ),
@@ -410,7 +439,11 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
           children: [
             Row(
               children: [
-                Icon(Icons.auto_stories_outlined, size: 18, color: colors.accent),
+                Icon(
+                  Icons.auto_stories_outlined,
+                  size: 18,
+                  color: colors.accent,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -426,7 +459,9 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Scroll down to load more lines automatically, or load in batches below.',
-              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Wrap(
@@ -455,9 +490,9 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
 
   String _formatNumber(int n) {
     return n.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
   }
 
   double _calculateGutterWidth(int lineCount, double fontSize) {

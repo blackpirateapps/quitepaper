@@ -173,6 +173,12 @@ void main() {
     expect(find.text('CLOUD SYNC & ENCRYPTION'), findsOneWidget);
     expect(find.text('End-to-End Encrypted Cloud Sync'), findsOneWidget);
     expect(find.text('Set up Encrypted Sync'), findsOneWidget);
+    expect(find.text('THEME FAMILY'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('APPEARANCE'),
+      100.0,
+      scrollable: find.byType(Scrollable),
+    );
     expect(find.text('APPEARANCE'), findsOneWidget);
   });
 

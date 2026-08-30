@@ -51,8 +51,9 @@ void main() {
     );
   }
 
-  testWidgets('Quiet Paper phone layout: empty state and note creation flow',
-      (tester) async {
+  testWidgets('Quiet Paper phone layout: empty state and note creation flow', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -75,8 +76,12 @@ void main() {
     // Enter title and content with a tag
     await tester.enterText(find.byType(TextField).first, 'First Thoughts');
     await tester.enterText(
-        find.byType(TextField).last, 'Writing my first note with #ideas.');
-    await tester.pump(const Duration(milliseconds: 800)); // Allow debounced autosave
+      find.byType(TextField).last,
+      'Writing my first note with #ideas.',
+    );
+    await tester.pump(
+      const Duration(milliseconds: 800),
+    ); // Allow debounced autosave
 
     // Tap back icon button
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -90,8 +95,9 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Empty note is discarded on exit without cluttering note list',
-      (tester) async {
+  testWidgets('Empty note is discarded on exit without cluttering note list', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -121,14 +127,16 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'reopen-1',
-      title: 'Persistent Title',
-      content: 'Paragraph 1\n\nParagraph 2 with **bold**',
-      createdAt: now,
-      updatedAt: now,
-      tags: const ['saved'],
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'reopen-1',
+        title: 'Persistent Title',
+        content: 'Paragraph 1\n\nParagraph 2 with **bold**',
+        createdAt: now,
+        updatedAt: now,
+        tags: const ['saved'],
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -148,11 +156,16 @@ void main() {
 
     // Verify content loaded in text fields
     expect(find.text('Persistent Title'), findsOneWidget);
-    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**'), findsOneWidget);
+    expect(
+      find.text('Paragraph 1\n\nParagraph 2 with **bold**'),
+      findsOneWidget,
+    );
 
     // Modify content
-    await tester.enterText(find.byType(TextField).last,
-        'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3');
+    await tester.enterText(
+      find.byType(TextField).last,
+      'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3',
+    );
     await tester.pump(const Duration(milliseconds: 800));
 
     // Leave
@@ -167,8 +180,10 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'),
-        findsOneWidget);
+    expect(
+      find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'),
+      findsOneWidget,
+    );
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -177,8 +192,9 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Sidebar drawer navigation to Archive, Trash, Pinned',
-      (tester) async {
+  testWidgets('Sidebar drawer navigation to Archive, Trash, Pinned', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -217,9 +233,9 @@ void main() {
     expect(find.text('Trash'), findsWidgets);
     expect(find.text('Trash is empty'), findsOneWidget);
     expect(
-        find.text(
-            'Notes stay here until you delete them\npermanently.'),
-        findsOneWidget);
+      find.text('Notes stay here until you delete them\npermanently.'),
+      findsOneWidget,
+    );
 
     // Open drawer again and navigate back to All Notes
     await tester.tap(find.byIcon(Icons.menu_rounded));
@@ -239,13 +255,15 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'arch-flow',
-      title: 'Note to Archive',
-      content: 'Archiving flow test',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'arch-flow',
+        title: 'Note to Archive',
+        content: 'Archiving flow test',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -296,20 +314,23 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Move to Trash, Restore, and Permanent Deletion flows',
-      (tester) async {
+  testWidgets('Move to Trash, Restore, and Permanent Deletion flows', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'trash-flow',
-      title: 'Note for Trash',
-      content: 'Trash and permanent deletion test',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'trash-flow',
+        title: 'Note for Trash',
+        content: 'Trash and permanent deletion test',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -347,9 +368,11 @@ void main() {
     // Confirmation dialog
     expect(find.text('Delete permanently?'), findsOneWidget);
     expect(
-        find.text(
-            'This note will be permanently deleted.\nThis action cannot be undone.'),
-        findsOneWidget);
+      find.text(
+        'This note will be permanently deleted.\nThis action cannot be undone.',
+      ),
+      findsOneWidget,
+    );
 
     // Confirm deletion
     await tester.tap(find.text('Delete Permanently'));
@@ -368,21 +391,25 @@ void main() {
     final now = DateTime.now();
 
     // Pre-populate notes
-    await repository.saveNote(Note(
-      id: 'n-1',
-      title: 'Architectural Blueprint',
-      content: 'Using Flutter and Drift #tech',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'n-1',
+        title: 'Architectural Blueprint',
+        content: 'Using Flutter and Drift #tech',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
-    await repository.saveNote(Note(
-      id: 'n-2',
-      title: 'Grocery list',
-      content: 'Apples, bananas, milk #food',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'n-2',
+        title: 'Grocery list',
+        content: 'Apples, bananas, milk #food',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -444,15 +471,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Light paper'), findsOneWidget);
-    expect(find.text('Dark paper'), findsOneWidget);
-    expect(find.text('System default'), findsOneWidget);
+    expect(find.text('THEME FAMILY'), findsOneWidget);
+    expect(find.text('Classic Paper'), findsOneWidget);
+    expect(find.text('Warm Paper'), findsOneWidget);
 
-    // Select Dark paper
-    await tester.tap(find.text('Dark paper'));
+    // Select Warm Paper
+    await tester.tap(find.text('Warm Paper'));
     await tester.pumpAndSettle();
+    expect(prefs.getString('app_theme_family'), 'warm_paper');
 
-    expect(prefs.getString('app_theme_mode'), 'dark');
+    // Scroll to the Appearance section so its header and rows are built
+    await tester.scrollUntilVisible(
+      find.text('System'),
+      100.0,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('APPEARANCE'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
+    expect(find.text('Light'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
+
+    // Select Dark appearance
+    await tester.ensureVisible(find.text('Dark'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(prefs.getString('app_appearance_mode'), 'dark');
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -461,7 +505,9 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Settings screen displays import markdown section', (tester) async {
+  testWidgets('Settings screen displays import markdown section', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -488,21 +534,22 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Pinning and unpinning notes from context sheet',
-      (tester) async {
+  testWidgets('Pinning and unpinning notes from context sheet', (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'p-1',
-      title: 'Important Note',
-      content: 'Must remember this',
-      createdAt: now,
-      updatedAt: now,
-      isPinned: false,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'p-1',
+        title: 'Important Note',
+        content: 'Must remember this',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -524,8 +571,9 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor',
-      (tester) async {
+  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -548,9 +596,7 @@ void main() {
           databaseProvider.overrideWithValue(db),
           notesRepositoryProvider.overrideWithValue(repository),
         ],
-        child: MaterialApp(
-          home: EditorScreen(note: testNote),
-        ),
+        child: MaterialApp(home: EditorScreen(note: testNote)),
       ),
     );
     await tester.pumpAndSettle();
@@ -583,21 +629,24 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Tablet layout displays split view with active note editor',
-      (tester) async {
+  testWidgets('Tablet layout displays split view with active note editor', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 2.0;
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'tab-1',
-      title: 'Tablet Note',
-      content: 'Testing split view master-detail layout',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'tab-1',
+        title: 'Tablet Note',
+        content: 'Testing split view master-detail layout',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -615,21 +664,24 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Tablet layout allows collapsing and restoring both sidebars',
-      (tester) async {
+  testWidgets('Tablet layout allows collapsing and restoring both sidebars', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 2.0;
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'tab-collapse',
-      title: 'Collapsible Note',
-      content: 'Focus mode and sidebar collapse test',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'tab-collapse',
+        title: 'Collapsible Note',
+        content: 'Focus mode and sidebar collapse test',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();
@@ -670,213 +722,231 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Swiping note to the right archives the note with undo snackbar',
-      (tester) async {
-    setPhoneSize(tester);
+  testWidgets(
+    'Swiping note to the right archives the note with undo snackbar',
+    (tester) async {
+      setPhoneSize(tester);
 
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'swipe-arch',
-      title: 'Swipe Note',
-      content: 'Swipe right to archive test',
-      createdAt: now,
-      updatedAt: now,
-    ));
+      await repository.saveNote(
+        Note(
+          id: 'swipe-arch',
+          title: 'Swipe Note',
+          content: 'Swipe right to archive test',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
 
-    await tester.pumpWidget(buildTestApp(prefs: prefs));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestApp(prefs: prefs));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Swipe Note'), findsOneWidget);
+      expect(find.text('Swipe Note'), findsOneWidget);
 
-    // Swipe right (start to end)
-    await tester.drag(find.text('Swipe Note'), const Offset(500, 0));
-    await tester.pumpAndSettle();
+      // Swipe right (start to end)
+      await tester.drag(find.text('Swipe Note'), const Offset(500, 0));
+      await tester.pumpAndSettle();
 
-    // Note should be archived and removed from active list
-    expect(find.text('Swipe Note'), findsNothing);
-    expect(find.text('Note archived'), findsOneWidget);
+      // Note should be archived and removed from active list
+      expect(find.text('Swipe Note'), findsNothing);
+      expect(find.text('Note archived'), findsOneWidget);
 
-    // Tap Undo
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+      // Tap Undo
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Swipe Note'), findsOneWidget);
+      expect(find.text('Swipe Note'), findsOneWidget);
 
-    await finishTest(tester);
-  });
+      await finishTest(tester);
+    },
+  );
 
   testWidgets(
-      'Archiving note shows undo snackbar which auto-dismisses after duration',
-      (tester) async {
-    setPhoneSize(tester);
+    'Archiving note shows undo snackbar which auto-dismisses after duration',
+    (tester) async {
+      setPhoneSize(tester);
 
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'arch-auto-dismiss',
-      title: 'Auto Dismiss Note',
-      content: 'Testing auto dismiss of archive snackbar',
-      createdAt: now,
-      updatedAt: now,
-    ));
+      await repository.saveNote(
+        Note(
+          id: 'arch-auto-dismiss',
+          title: 'Auto Dismiss Note',
+          content: 'Testing auto dismiss of archive snackbar',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
 
-    await tester.pumpWidget(buildTestApp(prefs: prefs));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestApp(prefs: prefs));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Auto Dismiss Note'), findsOneWidget);
+      expect(find.text('Auto Dismiss Note'), findsOneWidget);
 
-    // Swipe right to archive
-    await tester.drag(find.text('Auto Dismiss Note'), const Offset(500, 0));
-    await tester.pumpAndSettle();
+      // Swipe right to archive
+      await tester.drag(find.text('Auto Dismiss Note'), const Offset(500, 0));
+      await tester.pumpAndSettle();
 
-    // Note archived and SnackBar with Undo is visible
-    expect(find.text('Auto Dismiss Note'), findsNothing);
-    expect(find.text('Note archived'), findsOneWidget);
-    expect(find.text('Undo'), findsOneWidget);
+      // Note archived and SnackBar with Undo is visible
+      expect(find.text('Auto Dismiss Note'), findsNothing);
+      expect(find.text('Note archived'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
 
-    // Fast-forward beyond SnackBar duration (3 seconds)
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
+      // Fast-forward beyond SnackBar duration (3 seconds)
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
 
-    // SnackBar should now be dismissed automatically
-    expect(find.text('Note archived'), findsNothing);
-    expect(find.text('Undo'), findsNothing);
+      // SnackBar should now be dismissed automatically
+      expect(find.text('Note archived'), findsNothing);
+      expect(find.text('Undo'), findsNothing);
 
-    await finishTest(tester);
-  });
-
-  testWidgets(
-      'Creating note, pasting long text with no title, and exiting works cleanly',
-      (tester) async {
-    setPhoneSize(tester);
-
-    final prefs = await SharedPreferences.getInstance();
-
-    await tester.pumpWidget(buildTestApp(prefs: prefs));
-    await tester.pumpAndSettle();
-
-    // Tap create note
-    await tester.tap(find.text('Create note'));
-    await tester.pumpAndSettle();
-
-    // Paste long text in body with no title
-    const longText =
-        'This is the very first line of a massive document that discusses software engineering, offline architecture, and databases.\n\nParagraph 2 with lots of words and detail.\n\nParagraph 3.';
-    await tester.enterText(find.byType(TextField).last, longText);
-    await tester.pump(const Duration(milliseconds: 800));
-
-    // Tap back button
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
-
-    // Back on note list, note exists with auto-title
-    expect(find.text('Notes'), findsOneWidget);
-    expect(
-        find.text(
-            'This is the very first line...'),
-        findsOneWidget);
-
-    // Reopen the note (opens in preview mode)
-    await tester.tap(find.text('This is the very first line...'));
-    await tester.pumpAndSettle();
-
-    // Verify preview mode is active
-    expect(find.byType(QuietMarkdownPreview), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
-    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-
-    // Tap edit button to switch to edit mode
-    await tester.tap(find.byIcon(Icons.edit_outlined));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TextField), findsNWidgets(2));
-    expect(find.text(longText), findsOneWidget);
-
-    // Tap preview button next to 3-dots to switch back to preview
-    await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
-    await tester.pumpAndSettle();
-
-    // Markdown preview renders without layout exception
-    expect(find.byType(TextField), findsNothing);
-    expect(find.byType(QuietMarkdownPreview), findsOneWidget);
-
-    // Exit back
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Notes'), findsOneWidget);
-
-    await finishTest(tester);
-  });
+      await finishTest(tester);
+    },
+  );
 
   testWidgets(
-      'Title field in editor automatically fills from body first line and respects manual title edits',
-      (tester) async {
-    setPhoneSize(tester);
+    'Creating note, pasting long text with no title, and exiting works cleanly',
+    (tester) async {
+      setPhoneSize(tester);
 
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(buildTestApp(prefs: prefs));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestApp(prefs: prefs));
+      await tester.pumpAndSettle();
 
-    // Create a new note
-    await tester.tap(find.text('Create note'));
-    await tester.pumpAndSettle();
+      // Tap create note
+      await tester.tap(find.text('Create note'));
+      await tester.pumpAndSettle();
 
-    final titleFinder = find.byType(TextField).first;
-    final bodyFinder = find.byType(TextField).last;
+      // Paste long text in body with no title
+      const longText =
+          'This is the very first line of a massive document that discusses software engineering, offline architecture, and databases.\n\nParagraph 2 with lots of words and detail.\n\nParagraph 3.';
+      await tester.enterText(find.byType(TextField).last, longText);
+      await tester.pump(const Duration(milliseconds: 800));
 
-    // Initially title is empty
-    expect((tester.widget(titleFinder) as TextField).controller!.text, '');
+      // Tap back button
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
 
-    // Type in body
-    await tester.enterText(bodyFinder, 'Grocery list for the weekend\nApples and milk');
-    await tester.pump();
+      // Back on note list, note exists with auto-title
+      expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('This is the very first line...'), findsOneWidget);
 
-    // Title field is automatically filled
-    expect((tester.widget(titleFinder) as TextField).controller!.text,
-        'Grocery list for the weekend');
+      // Reopen the note (opens in preview mode)
+      await tester.tap(find.text('This is the very first line...'));
+      await tester.pumpAndSettle();
 
-    // Manually edit title
-    await tester.enterText(titleFinder, 'Custom Grocery Title');
-    await tester.pump();
+      // Verify preview mode is active
+      expect(find.byType(QuietMarkdownPreview), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
 
-    // Type more in body
-    await tester.enterText(
-        bodyFinder, 'Different first line\nApples, milk, and bread');
-    await tester.pump();
+      // Tap edit button to switch to edit mode
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
 
-    // Title remains the custom title
-    expect((tester.widget(titleFinder) as TextField).controller!.text,
-        'Custom Grocery Title');
+      expect(find.byType(TextField), findsNWidgets(2));
+      expect(find.text(longText), findsOneWidget);
 
-    // Exit back
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
+      // Tap preview button next to 3-dots to switch back to preview
+      await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Custom Grocery Title'), findsOneWidget);
+      // Markdown preview renders without layout exception
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byType(QuietMarkdownPreview), findsOneWidget);
 
-    await finishTest(tester);
-  });
+      // Exit back
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
 
-  testWidgets('Tablet layout close button deselects active note cleanly',
-      (tester) async {
+      expect(find.text('Notes'), findsOneWidget);
+
+      await finishTest(tester);
+    },
+  );
+
+  testWidgets(
+    'Title field in editor automatically fills from body first line and respects manual title edits',
+    (tester) async {
+      setPhoneSize(tester);
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(buildTestApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      // Create a new note
+      await tester.tap(find.text('Create note'));
+      await tester.pumpAndSettle();
+
+      final titleFinder = find.byType(TextField).first;
+      final bodyFinder = find.byType(TextField).last;
+
+      // Initially title is empty
+      expect((tester.widget(titleFinder) as TextField).controller!.text, '');
+
+      // Type in body
+      await tester.enterText(
+        bodyFinder,
+        'Grocery list for the weekend\nApples and milk',
+      );
+      await tester.pump();
+
+      // Title field is automatically filled
+      expect(
+        (tester.widget(titleFinder) as TextField).controller!.text,
+        'Grocery list for the weekend',
+      );
+
+      // Manually edit title
+      await tester.enterText(titleFinder, 'Custom Grocery Title');
+      await tester.pump();
+
+      // Type more in body
+      await tester.enterText(
+        bodyFinder,
+        'Different first line\nApples, milk, and bread',
+      );
+      await tester.pump();
+
+      // Title remains the custom title
+      expect(
+        (tester.widget(titleFinder) as TextField).controller!.text,
+        'Custom Grocery Title',
+      );
+
+      // Exit back
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Grocery Title'), findsOneWidget);
+
+      await finishTest(tester);
+    },
+  );
+
+  testWidgets('Tablet layout close button deselects active note cleanly', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 2.0;
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    await repository.saveNote(Note(
-      id: 'tab-close',
-      title: 'Tablet Note',
-      content: 'Testing tablet close button',
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repository.saveNote(
+      Note(
+        id: 'tab-close',
+        title: 'Tablet Note',
+        content: 'Testing tablet close button',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(buildTestApp(prefs: prefs));
     await tester.pumpAndSettle();

@@ -31,19 +31,23 @@ class SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
+    final defaultTextColor = isSidebarDark ? const Color(0xFFF1F2F4) : colors.textPrimary;
+    final defaultSecondaryColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
+    final defaultTertiaryColor = isSidebarDark ? const Color(0xFF6B7280) : colors.textTertiary;
 
     final textColor = isSelected
-        ? colors.textPrimary
-        : (isDestructive ? colors.error : colors.textPrimary);
+        ? (isSidebarDark ? Colors.white : colors.textPrimary)
+        : (isDestructive ? colors.error : defaultTextColor);
 
     final iconColor = isSelected
         ? colors.accent
         : (isDestructive
             ? colors.error.withValues(alpha: 0.8)
-            : (customIconColor ?? colors.textSecondary));
+            : (customIconColor ?? defaultSecondaryColor));
 
     final backgroundColor = isSelected
-        ? colors.tagBackground
+        ? colors.sidebarSelected
         : Colors.transparent;
 
     final textStyle = (isSelected ? AppTypography.bodyMedium : AppTypography.body).copyWith(
@@ -99,7 +103,7 @@ class SidebarItem extends StatelessWidget {
                       Text(
                         '$count',
                         style: AppTypography.caption.copyWith(
-                          color: isSelected ? colors.textSecondary : colors.textTertiary,
+                          color: isSelected ? colors.textSecondary : defaultTertiaryColor,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                           fontSize: 13,
                         ),

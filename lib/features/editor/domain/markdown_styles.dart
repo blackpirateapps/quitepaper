@@ -95,7 +95,9 @@ class MarkdownStyles {
     final headingFont = typo.headingFontFamily ?? bodyFont;
     final codeFont = typo.codeFontFamily ?? 'monospace';
 
-    final effectiveHeadingFont = FontFamilyHelper.resolveHeadingFontFamily(headingFont);
+    final effectiveHeadingFont = FontFamilyHelper.resolveHeadingFontFamily(
+      headingFont,
+    );
     final effectiveBodyFont = FontFamilyHelper.resolveBodyFontFamily(bodyFont);
 
     final effectiveBody = FontFamilyHelper.getTextStyle(
@@ -121,7 +123,11 @@ class MarkdownStyles {
       );
     }
 
-    TextStyle codeStyle({Color? color, Color? backgroundColor, FontWeight? weight}) {
+    TextStyle codeStyle({
+      Color? color,
+      Color? backgroundColor,
+      FontWeight? weight,
+    }) {
       return FontFamilyHelper.getTextStyle(
         fontFamily: codeFont,
         baseStyle: TextStyle(
@@ -146,19 +152,13 @@ class MarkdownStyles {
         fontWeight: FontWeight.w500,
       ),
       body: effectiveBody,
-      bold: const TextStyle(
-        fontWeight: FontWeight.w700,
-      ),
-      italic: const TextStyle(
-        fontStyle: FontStyle.italic,
-      ),
+      bold: const TextStyle(fontWeight: FontWeight.w700),
+      italic: const TextStyle(fontStyle: FontStyle.italic),
       boldItalic: const TextStyle(
         fontWeight: FontWeight.w700,
         fontStyle: FontStyle.italic,
       ),
-      strikethrough: const TextStyle(
-        decoration: TextDecoration.lineThrough,
-      ),
+      strikethrough: const TextStyle(decoration: TextDecoration.lineThrough),
       highlight: TextStyle(
         backgroundColor: colors.accent.withValues(alpha: 0.22),
         fontWeight: FontWeight.w500,
@@ -170,9 +170,7 @@ class MarkdownStyles {
       inlineCodeMarker: codeStyle(
         color: colors.textTertiary.withValues(alpha: 0.7),
       ),
-      codeBlock: codeStyle(
-        color: colors.textPrimary,
-      ),
+      codeBlock: codeStyle(color: colors.textPrimary),
       codeBlockFence: codeStyle(
         color: colors.textTertiary.withValues(alpha: 0.7),
       ),
@@ -191,10 +189,7 @@ class MarkdownStyles {
         color: colors.accent.withValues(alpha: 0.7),
         fontWeight: FontWeight.w700,
       ),
-      listMarker: TextStyle(
-        color: colors.accent,
-        fontWeight: FontWeight.w600,
-      ),
+      listMarker: TextStyle(color: colors.accent, fontWeight: FontWeight.w600),
       checklistMarker: TextStyle(
         color: colors.accent,
         fontWeight: FontWeight.w600,
@@ -213,9 +208,7 @@ class MarkdownStyles {
         decoration: TextDecoration.underline,
         decorationColor: colors.accent.withValues(alpha: 0.5),
       ),
-      linkUrl: TextStyle(
-        color: colors.textTertiary.withValues(alpha: 0.7),
-      ),
+      linkUrl: TextStyle(color: colors.textTertiary.withValues(alpha: 0.7)),
       tag: AppTypography.tag.copyWith(
         color: colors.accent,
         fontWeight: FontWeight.w600,
@@ -235,21 +228,13 @@ class MarkdownStyles {
         color: colors.textTertiary.withValues(alpha: 0.6),
       ),
       searchHighlight: TextStyle(
-        backgroundColor: (colors.background.computeLuminance() < 0.5)
-            ? const Color(0xFF7A5C1E)
-            : const Color(0xFFFFE066),
-        color: (colors.background.computeLuminance() < 0.5)
-            ? const Color(0xFFFFFAED)
-            : const Color(0xFF242018),
+        backgroundColor: colors.searchHighlight,
+        color: colors.searchHighlightText,
         fontWeight: FontWeight.w500,
       ),
       activeSearchHighlight: TextStyle(
-        backgroundColor: (colors.background.computeLuminance() < 0.5)
-            ? const Color(0xFFFBBF24)
-            : const Color(0xFFF59E0B),
-        color: (colors.background.computeLuminance() < 0.5)
-            ? const Color(0xFF1E1B13)
-            : const Color(0xFF1A1810),
+        backgroundColor: colors.searchHighlightActive,
+        color: colors.searchHighlightActiveText,
         fontWeight: FontWeight.w800,
       ),
       syntaxTheme: SyntaxTheme.fromColors(

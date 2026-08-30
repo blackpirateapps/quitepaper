@@ -629,8 +629,8 @@ class _IntelligentHeadingScrollbarState extends State<IntelligentHeadingScrollba
       height: thumbHeight,
       decoration: BoxDecoration(
         color: isInteracting
-            ? colors.accent.withValues(alpha: 0.75)
-            : colors.textTertiary.withValues(alpha: 0.38),
+            ? colors.scrollbarActive
+            : colors.scrollbar.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(thumbWidth / 2),
       ),
     );

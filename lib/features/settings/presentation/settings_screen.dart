@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../app/theme/theme_family.dart';
 import '../../../core/sync/sync_models.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -389,7 +390,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final currentTheme = ref.watch(themeModeProvider);
+    final themeSettings = ref.watch(themeSettingsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
     final autoBackupConfig = ref.watch(autoBackupConfigProvider);
@@ -739,41 +741,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 const SizedBox(height: 24),
 
                 // ==========================================
+                // Section: Theme Family
+                // ==========================================
+                _buildSectionHeader(context, 'THEME FAMILY'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.palette_outlined,
+                      title: 'Classic Paper',
+                      subtitle: 'Warm terracotta & soft paper editorial tones',
+                      trailing: _buildThemePreviewSwatches(
+                        context: context,
+                        colors: isDark ? AppColors.classicDark : AppColors.classicLight,
+                        isSelected: themeSettings.family == ThemeFamily.classicPaper,
+                      ),
+                      isSelected: themeSettings.family == ThemeFamily.classicPaper,
+                      onTap: () {
+                        ref
+                            .read(themeSettingsProvider.notifier)
+                            .setThemeFamily(ThemeFamily.classicPaper);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'Warm Paper',
+                      subtitle: 'Warm ivory & midnight slate with serene indigo accent',
+                      trailing: _buildThemePreviewSwatches(
+                        context: context,
+                        colors: isDark ? AppColors.midnightPaperDark : AppColors.warmPaperLight,
+                        isSelected: themeSettings.family == ThemeFamily.warmPaper,
+                      ),
+                      isSelected: themeSettings.family == ThemeFamily.warmPaper,
+                      onTap: () {
+                        ref
+                            .read(themeSettingsProvider.notifier)
+                            .setThemeFamily(ThemeFamily.warmPaper);
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
                 // Section: Appearance
                 // ==========================================
-                _buildSectionHeader(context, 'Appearance'),
+                _buildSectionHeader(context, 'APPEARANCE'),
                 _SettingsGroup(
                   children: [
                     _SettingsRow(
                       icon: Icons.brightness_auto_rounded,
-                      title: 'System default',
-                      isSelected: currentTheme == ThemeMode.system,
+                      title: 'System',
+                      subtitle: 'Matches your device display settings',
+                      isSelected: themeSettings.appearance == AppearanceMode.system,
                       onTap: () {
                         ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.system);
+                            .read(themeSettingsProvider.notifier)
+                            .setAppearanceMode(AppearanceMode.system);
                       },
                     ),
                     _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.light_mode_outlined,
-                      title: 'Light paper',
-                      isSelected: currentTheme == ThemeMode.light,
+                      title: 'Light',
+                      isSelected: themeSettings.appearance == AppearanceMode.light,
                       onTap: () {
                         ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.light);
+                            .read(themeSettingsProvider.notifier)
+                            .setAppearanceMode(AppearanceMode.light);
                       },
                     ),
                     _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.dark_mode_outlined,
-                      title: 'Dark paper',
-                      isSelected: currentTheme == ThemeMode.dark,
+                      title: 'Dark',
+                      isSelected: themeSettings.appearance == AppearanceMode.dark,
                       onTap: () {
                         ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.dark);
+                            .read(themeSettingsProvider.notifier)
+                            .setAppearanceMode(AppearanceMode.dark);
                       },
                     ),
                     _buildDivider(colors),
@@ -1292,6 +1339,76 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       thickness: 1.0,
       indent: 52, // 16 horizontal padding + 24 icon box + 12 gap = 52
       endIndent: 0,
+    );
+  }
+
+  Widget _buildThemePreviewSwatches({
+    required BuildContext context,
+    required AppColors colors,
+    required bool isSelected,
+  }) {
+    final activeColors = context.appColors;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 5.0),
+          decoration: BoxDecoration(
+            color: colors.background,
+            borderRadius: BorderRadius.circular(6.0),
+            border: Border.all(color: colors.divider, width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 10.0,
+                height: 10.0,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.divider, width: 0.5),
+                ),
+              ),
+              const SizedBox(width: 3.5),
+              Container(
+                width: 10.0,
+                height: 10.0,
+                decoration: BoxDecoration(
+                  color: colors.textPrimary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 3.5),
+              Container(
+                width: 10.0,
+                height: 10.0,
+                decoration: BoxDecoration(
+                  color: colors.textSecondary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 3.5),
+              Container(
+                width: 10.0,
+                height: 10.0,
+                decoration: BoxDecoration(
+                  color: colors.accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isSelected) ...[
+          const SizedBox(width: 8.0),
+          Icon(
+            Icons.check_rounded,
+            size: 20,
+            color: activeColors.accent,
+          ),
+        ],
+      ],
     );
   }
 

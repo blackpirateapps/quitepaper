@@ -29,15 +29,15 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
+    final themeSettings = ref.watch(themeSettingsProvider);
 
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
       title: 'Quiet Paper',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
+      theme: AppTheme.light(family: themeSettings.family),
+      darkTheme: AppTheme.dark(family: themeSettings.family),
+      themeMode: themeSettings.appearance.toThemeMode(),
       home: const NotesScreen(),
     );
   }

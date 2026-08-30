@@ -51,8 +51,14 @@ class SidebarView extends ConsumerWidget {
     final trashCount = ref.watch(trashedNotesCountProvider).valueOrNull;
     final tagsAsync = ref.watch(allTagsStreamProvider);
 
+    final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
+    final headerTextColor = isSidebarDark ? const Color(0xFFF1F2F4) : colors.textPrimary;
+    final searchBgColor = isSidebarDark ? colors.sidebarSelected : colors.background;
+    final searchHintColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textTertiary;
+    final searchIconColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
+
     return Container(
-      color: colors.surface,
+      color: colors.sidebarBackground,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -71,7 +77,7 @@ class SidebarView extends ConsumerWidget {
                     child: Text(
                       'Quiet Paper',
                       style: AppTypography.title.copyWith(
-                        color: colors.textPrimary,
+                        color: headerTextColor,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.2,
@@ -100,7 +106,7 @@ class SidebarView extends ConsumerWidget {
                 vertical: AppSpacing.xs,
               ),
               child: Material(
-                color: colors.background,
+                color: searchBgColor,
                 borderRadius: BorderRadius.circular(AppRadii.sm),
                 child: InkWell(
                   onTap: () {
@@ -120,14 +126,14 @@ class SidebarView extends ConsumerWidget {
                         Icon(
                           Icons.search_rounded,
                           size: 18,
-                          color: colors.textSecondary,
+                          color: searchIconColor,
                         ),
                         const SizedBox(width: 10.0),
                         Expanded(
                           child: Text(
                             'Search notes...',
                             style: AppTypography.bodySmall.copyWith(
-                              color: colors.textTertiary,
+                              color: searchHintColor,
                               fontSize: 14,
                             ),
                             maxLines: 1,
@@ -432,6 +438,8 @@ class SidebarView extends ConsumerWidget {
     Widget? trailing,
   }) {
     final colors = context.appColors;
+    final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
+    final headerColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -446,7 +454,7 @@ class SidebarView extends ConsumerWidget {
           Text(
             title,
             style: AppTypography.caption.copyWith(
-              color: colors.textSecondary,
+              color: headerColor,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.2,
               fontSize: 11.5,

@@ -175,7 +175,7 @@ class _QuietCodeBlockCard extends StatelessWidget {
         Divider(
           height: 1.0,
           thickness: 0.8,
-          color: colors.divider.withValues(alpha: 0.6),
+          color: colors.codeBorder.withValues(alpha: 0.6),
         ),
 
         // 3. Horizontally scrollable code body
@@ -189,7 +189,7 @@ class _QuietCodeBlockCard extends StatelessWidget {
               baseStyle: TextStyle(
                 fontSize: typography.scaledCodeSize,
                 height: typography.lineHeight,
-                color: colors.textPrimary,
+                color: colors.codeText,
               ),
             ),
           ),

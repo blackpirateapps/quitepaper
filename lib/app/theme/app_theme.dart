@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'app_radii.dart';
 import 'app_typography.dart';
+import 'theme_family.dart';
 
 abstract final class AppTheme {
-  static ThemeData light() {
-    const colors = AppColors.light;
+  /// Builds light [ThemeData] for the specified [family] (defaults to [ThemeFamily.classicPaper]).
+  static ThemeData light({ThemeFamily family = ThemeFamily.classicPaper}) {
+    final colors = family == ThemeFamily.warmPaper
+        ? AppColors.warmPaperLight
+        : AppColors.classicLight;
 
     return ThemeData(
       useMaterial3: true,
@@ -22,11 +26,11 @@ abstract final class AppTheme {
         surfaceContainerHighest: colors.tagBackground,
         onSurfaceVariant: colors.textSecondary,
         outline: colors.divider,
-        outlineVariant: colors.divider,
+        outlineVariant: colors.borderSubtle,
         error: colors.error,
         onError: Colors.white,
       ),
-      extensions: const [colors],
+      extensions: [colors],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.background,
         foregroundColor: colors.textPrimary,
@@ -106,8 +110,11 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData dark() {
-    const colors = AppColors.dark;
+  /// Builds dark [ThemeData] for the specified [family] (defaults to [ThemeFamily.classicPaper]).
+  static ThemeData dark({ThemeFamily family = ThemeFamily.classicPaper}) {
+    final colors = family == ThemeFamily.warmPaper
+        ? AppColors.midnightPaperDark
+        : AppColors.classicDark;
 
     return ThemeData(
       useMaterial3: true,
@@ -115,7 +122,7 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.dark(
         primary: colors.accent,
-        onPrimary: const Color(0xFF1D1C1A),
+        onPrimary: colors.background,
         primaryContainer: colors.accentSoft,
         onPrimaryContainer: colors.accent,
         surface: colors.surface,
@@ -123,11 +130,11 @@ abstract final class AppTheme {
         surfaceContainerHighest: colors.tagBackground,
         onSurfaceVariant: colors.textSecondary,
         outline: colors.divider,
-        outlineVariant: colors.divider,
+        outlineVariant: colors.borderSubtle,
         error: colors.error,
         onError: Colors.white,
       ),
-      extensions: const [colors],
+      extensions: [colors],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.background,
         foregroundColor: colors.textPrimary,
@@ -206,4 +213,10 @@ abstract final class AppTheme {
       ),
     );
   }
+
+  // Canonical Theme Factories
+  static ThemeData classicLight() => light(family: ThemeFamily.classicPaper);
+  static ThemeData classicDark() => dark(family: ThemeFamily.classicPaper);
+  static ThemeData warmPaperLight() => light(family: ThemeFamily.warmPaper);
+  static ThemeData midnightPaperDark() => dark(family: ThemeFamily.warmPaper);
 }

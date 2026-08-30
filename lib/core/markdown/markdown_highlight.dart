@@ -32,10 +32,8 @@ class HighlightElementBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
-    final effectiveStyle = (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
-      color: colors.textPrimary,
-      fontWeight: FontWeight.w600,
-    );
+    final effectiveStyle = (preferredStyle ?? parentStyle ?? const TextStyle())
+        .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
@@ -44,10 +42,7 @@ class HighlightElementBuilder extends MarkdownElementBuilder {
         color: colors.accent.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(3.0),
       ),
-      child: Text(
-        element.textContent,
-        style: effectiveStyle,
-      ),
+      child: Text(element.textContent, style: effectiveStyle),
     );
   }
 }
@@ -55,7 +50,7 @@ class HighlightElementBuilder extends MarkdownElementBuilder {
 /// Markdown syntax rule to match a search query and parse into `<searchmark>` AST nodes.
 class SearchMatchSyntax extends md.InlineSyntax {
   SearchMatchSyntax(String query)
-      : super(RegExp.escape(query), caseSensitive: false);
+    : super(RegExp.escape(query), caseSensitive: false);
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -79,24 +74,20 @@ class SearchMatchElementBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
-    final isDark = colors.background.computeLuminance() < 0.5;
-    final effectiveStyle =
-        (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
-      color: isDark ? const Color(0xFFFFFAED) : const Color(0xFF242018),
-      fontWeight: FontWeight.w600,
-    );
+    final effectiveStyle = (preferredStyle ?? parentStyle ?? const TextStyle())
+        .copyWith(
+          color: colors.searchHighlightText,
+          fontWeight: FontWeight.w600,
+        );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 1.0),
       margin: const EdgeInsets.symmetric(horizontal: 1.0),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF7A5C1E) : const Color(0xFFFFE066),
+        color: colors.searchHighlight,
         borderRadius: BorderRadius.circular(3.0),
       ),
-      child: Text(
-        element.textContent,
-        style: effectiveStyle,
-      ),
+      child: Text(element.textContent, style: effectiveStyle),
     );
   }
 }
@@ -104,7 +95,7 @@ class SearchMatchElementBuilder extends MarkdownElementBuilder {
 /// Markdown syntax rule to match `[Title](qp://document/<UUID>)` and parse into `<quietdoc>` AST nodes.
 class QuietDocumentSyntax extends md.InlineSyntax {
   QuietDocumentSyntax()
-      : super(r'\[([^\]\n]+)\]\((qp:\/\/document\/([0-9a-fA-F\-]{36}))\)');
+    : super(r'\[([^\]\n]+)\]\((qp:\/\/document\/([0-9a-fA-F\-]{36}))\)');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -149,7 +140,7 @@ class QuietDocumentElementBuilder extends MarkdownElementBuilder {
 /// Markdown syntax rule to match `[Title](qp://asset/<UUID>)` and parse into `<quietattachment>` AST nodes.
 class QuietAttachmentSyntax extends md.InlineSyntax {
   QuietAttachmentSyntax()
-      : super(r'(?<!!)\[([^\]\n]+)\]\((qp:\/\/asset\/([0-9a-fA-F\-]{36}))\)');
+    : super(r'(?<!!)\[([^\]\n]+)\]\((qp:\/\/asset\/([0-9a-fA-F\-]{36}))\)');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -172,7 +163,8 @@ class QuietAttachmentElementBuilder extends MarkdownElementBuilder {
     this.onAttachmentDeleted,
   });
 
-  final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
+  final void Function(String attachmentId, String newTitle)?
+  onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
 
   @override

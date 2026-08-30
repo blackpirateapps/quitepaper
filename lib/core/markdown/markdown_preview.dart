@@ -219,9 +219,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         ),
       ),
       codeblockDecoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.codeBackground,
         borderRadius: AppRadii.borderSm,
-        border: Border.all(color: colors.divider),
+        border: Border.all(color: colors.codeBorder),
       ),
       codeblockPadding: EdgeInsets.zero,
       horizontalRuleDecoration: BoxDecoration(
