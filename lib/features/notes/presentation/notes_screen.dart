@@ -222,45 +222,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       },
     };
 
-    if (destination == AppDestination.tagBrowser) {
-      return CallbackShortcuts(
-        bindings: phoneKeyboardBindings,
-        child: PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) return;
-            ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
-          },
-          child: Scaffold(
-            backgroundColor: colors.background,
-            drawerEnableOpenDragGesture: true,
-            drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
-            drawer: Drawer(
-              backgroundColor: colors.surface,
-              elevation: 0,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
-              ),
-              width: 300,
-              child: SidebarView(
-                onItemSelected: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-            ),
-            body: SafeArea(
-              child: Builder(
-                builder: (scaffoldCtx) => TagBrowserView(
-                  onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    final isTagBrowser = destination == AppDestination.tagBrowser;
 
     return CallbackShortcuts(
       bindings: phoneKeyboardBindings,
@@ -294,10 +256,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 },
               ),
             ),
-            appBar: _isMultiSelecting
-                ? _buildMultiSelectAppBar(context, colors, destination, repository)
-                : destination == AppDestination.tag
-                    ? PreferredSize(
+            appBar: isTagBrowser
+                ? null
+                : (_isMultiSelecting
+                    ? _buildMultiSelectAppBar(context, colors, destination, repository)
+                    : destination == AppDestination.tag
+                        ? PreferredSize(
                         preferredSize: const Size.fromHeight(54),
                         child: Builder(
                           builder: (scaffoldCtx) => TagContextHeader(
@@ -418,102 +382,141 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                           ),
                           const SizedBox(width: AppSpacing.xs),
                         ],
-                      ),
-            body: SafeArea(
-              child: Builder(
-                builder: (scaffoldCtx) => GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragEnd: (details) {
-                    if (details.primaryVelocity != null &&
-                        details.primaryVelocity! > 250) {
-                      Scaffold.of(scaffoldCtx).openDrawer();
-                    }
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (destination == AppDestination.allNotes)
-                        const TagsFilterBar(),
-                      const ActiveFilterChips(),
-                      if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: 4.0,
-                          ),
-                          child: Text(
-                            '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
-                            style: AppTypography.caption.copyWith(
-                              color: colors.textTertiary,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
+                      )),
+            body: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeInOutCubic,
+              switchOutCurve: Curves.easeInOutCubic,
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.topLeft,
+                  children: [
+                    ...previousChildren,
+                    ?currentChild,
+                  ],
+                );
+              },
+              transitionBuilder: (child, animation) {
+                final isTagBrowserChild = child.key == const ValueKey('phone_tag_browser');
+                final slideTween = isTagBrowserChild
+                    ? Tween<Offset>(begin: const Offset(0.04, 0.0), end: Offset.zero)
+                    : Tween<Offset>(begin: const Offset(-0.04, 0.0), end: Offset.zero);
+
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: slideTween.animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: isTagBrowser
+                  ? SafeArea(
+                      key: const ValueKey('phone_tag_browser'),
+                      child: Builder(
+                        builder: (scaffoldCtx) => TagBrowserView(
+                          onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
                         ),
-                  Expanded(
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: (notification) {
-                        // Keyset-based prefetch threshold: 800dp from bottom
-                        if (notification.metrics.extentAfter < 800) {
-                          ref.read(notesCollectionProvider.notifier).loadMore();
-                        }
-                        return false;
-                      },
-                      child: collectionState.initialLoading
-                          ? const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            )
-                          : (groups.isEmpty && collectionState.notes.isEmpty)
-                              ? SingleChildScrollView(
-                                  physics: const BouncingScrollPhysics(
-                                    parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                    )
+                  : SafeArea(
+                      key: const ValueKey('phone_notes_list'),
+                      child: Builder(
+                        builder: (scaffoldCtx) => GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onHorizontalDragEnd: (details) {
+                            if (details.primaryVelocity != null &&
+                                details.primaryVelocity! > 250) {
+                              Scaffold.of(scaffoldCtx).openDrawer();
+                            }
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (destination == AppDestination.allNotes)
+                                const TagsFilterBar(),
+                              const ActiveFilterChips(),
+                              if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.lg,
+                                    vertical: 4.0,
                                   ),
-                                  child: SizedBox(
-                                    height: 400,
-                                    child: NoteEmptyState(
-                                      onCreateNote: () => _createAndOpenNote(context),
-                                      destination: destination,
-                                      tagFilter: selectedTag,
-                                      hasActiveFilters: query.filter.hasAdvancedFilters,
-                                      onClearFilters: () => ref
-                                          .read(notesQueryProvider.notifier)
-                                          .clearAllFilters(),
+                                  child: Text(
+                                    '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                                    style: AppTypography.caption.copyWith(
+                                      color: colors.textTertiary,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
                                     ),
                                   ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.only(bottom: 96),
-                                  physics: const BouncingScrollPhysics(
-                                    parent: AlwaysScrollableScrollPhysics(),
-                                  ),
-                                  itemCount: _calculateTotalItemCount(groups) + 1,
-                                  itemBuilder: (context, index) {
-                                    if (index == _calculateTotalItemCount(groups)) {
-                                      return NotesLoadingMoreIndicator(
-                                        loadingMore: collectionState.loadingMore,
-                                        error: collectionState.error,
-                                        onRetry: () => ref
-                                            .read(notesCollectionProvider.notifier)
-                                            .retry(),
-                                      );
-                                    }
-                                    return _buildGroupedItem(context, groups, index);
-                                  },
                                 ),
+                              Expanded(
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: (notification) {
+                                    // Keyset-based prefetch threshold: 800dp from bottom
+                                    if (notification.metrics.extentAfter < 800) {
+                                      ref.read(notesCollectionProvider.notifier).loadMore();
+                                    }
+                                    return false;
+                                  },
+                                  child: collectionState.initialLoading
+                                      ? const Center(
+                                          child: CircularProgressIndicator.adaptive(),
+                                        )
+                                      : (groups.isEmpty && collectionState.notes.isEmpty)
+                                          ? SingleChildScrollView(
+                                              physics: const BouncingScrollPhysics(
+                                                parent: AlwaysScrollableScrollPhysics(),
+                                              ),
+                                              child: SizedBox(
+                                                height: 400,
+                                                child: NoteEmptyState(
+                                                  onCreateNote: () => _createAndOpenNote(context),
+                                                  destination: destination,
+                                                  tagFilter: selectedTag,
+                                                  hasActiveFilters: query.filter.hasAdvancedFilters,
+                                                  onClearFilters: () => ref
+                                                      .read(notesQueryProvider.notifier)
+                                                      .clearAllFilters(),
+                                                ),
+                                              ),
+                                            )
+                                          : ListView.builder(
+                                              padding: const EdgeInsets.only(bottom: 96),
+                                              physics: const BouncingScrollPhysics(
+                                                parent: AlwaysScrollableScrollPhysics(),
+                                              ),
+                                              itemCount: _calculateTotalItemCount(groups) + 1,
+                                              itemBuilder: (context, index) {
+                                                if (index == _calculateTotalItemCount(groups)) {
+                                                  return NotesLoadingMoreIndicator(
+                                                    loadingMore: collectionState.loadingMore,
+                                                    error: collectionState.error,
+                                                    onRetry: () => ref
+                                                        .read(notesCollectionProvider.notifier)
+                                                        .retry(),
+                                                  );
+                                                }
+                                                return _buildGroupedItem(context, groups, index);
+                                              },
+                                            ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        ),
-        floatingActionButton: (destination == AppDestination.allNotes ||
-                destination == AppDestination.pinned ||
-                destination == AppDestination.tag)
-            ? QuietFab(
-                onPressed: () => _createAndOpenNote(context),
-              )
-            : null,
+            floatingActionButton: (!isTagBrowser &&
+                    (destination == AppDestination.allNotes ||
+                        destination == AppDestination.pinned ||
+                        destination == AppDestination.tag))
+                ? QuietFab(
+                    onPressed: () => _createAndOpenNote(context),
+                  )
+                : null,
           ),
         ),
       ),
@@ -750,20 +753,49 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         right: BorderSide(color: colors.divider, width: 1),
                       ),
                     ),
-                    child: destination == AppDestination.tagBrowser
-                        ? TagBrowserView(
-                            isTablet: true,
-                            isSidebarVisible: isNavSidebarVisible,
-                            onToggleSidebar: () {
-                              ref
-                                  .read(isNavSidebarVisibleProvider.notifier)
-                                  .state = !isNavSidebarVisible;
-                            },
-                          )
-                        : PullDownSearchReveal(
-                            isTabletPane: true,
-                            onOpenSearch: () => _openSearchScreen(context),
-                            child: GestureDetector(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      switchInCurve: Curves.easeInOutCubic,
+                      switchOutCurve: Curves.easeInOutCubic,
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          alignment: Alignment.topLeft,
+                          children: [
+                            ...previousChildren,
+                            ?currentChild,
+                          ],
+                        );
+                      },
+                      transitionBuilder: (child, animation) {
+                        final isTagBrowserChild = child.key == const ValueKey('tablet_tag_browser');
+                        final slideTween = isTagBrowserChild
+                            ? Tween<Offset>(begin: const Offset(0.04, 0.0), end: Offset.zero)
+                            : Tween<Offset>(begin: const Offset(-0.04, 0.0), end: Offset.zero);
+
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: slideTween.animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: destination == AppDestination.tagBrowser
+                          ? TagBrowserView(
+                              key: const ValueKey('tablet_tag_browser'),
+                              isTablet: true,
+                              isSidebarVisible: isNavSidebarVisible,
+                              onToggleSidebar: () {
+                                ref
+                                    .read(isNavSidebarVisibleProvider.notifier)
+                                    .state = !isNavSidebarVisible;
+                              },
+                            )
+                          : PullDownSearchReveal(
+                              key: const ValueKey('tablet_notes_list'),
+                              isTabletPane: true,
+                              onOpenSearch: () => _openSearchScreen(context),
+                              child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragEnd: (details) {
                                 if (!isNavSidebarVisible &&
@@ -1040,6 +1072,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       ),
                     ),
                   ),
+                ),
                 ),
                 ),
               ),

@@ -13,6 +13,7 @@ import 'package:quitepaper/features/tags/application/tag_providers.dart';
 import 'package:quitepaper/features/tags/domain/tag_model.dart';
 import 'package:quitepaper/features/tags/presentation/widgets/tag_browser_view.dart';
 import 'package:quitepaper/features/tags/presentation/widgets/tag_context_header.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/tags_filter_bar.dart';
 
 void main() {
   late AppDatabase db;
@@ -265,6 +266,60 @@ void main() {
       final container = ProviderScope.containerOf(tester.element(find.byType(NotesScreen)));
       expect(container.read(currentDestinationProvider), AppDestination.allNotes);
       expect(container.read(selectedTagFilterProvider), isNull);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('Tablet middle pane uses AnimatedSwitcher when transitioning between notes and tagBrowser', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        createWorkspaceTestApp(
+          initialDestination: AppDestination.allNotes,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('tablet_notes_list')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tablet_tag_browser')), findsNothing);
+
+      // Transition to tagBrowser
+      final container = ProviderScope.containerOf(tester.element(find.byType(NotesScreen)));
+      container.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120)); // Mid-transition
+      expect(find.byType(AnimatedSwitcher), findsWidgets);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('tablet_tag_browser')), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('Tapping a tag chip in horizontal TagsFilterBar on All Notes filters in-place without jumping destination', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        createWorkspaceTestApp(
+          initialDestination: AppDestination.allNotes,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TagsFilterBar), findsOneWidget);
+
+      // Tap on #blog chip in horizontal TagsFilterBar
+      await tester.tap(find.text('#blog'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(tester.element(find.byType(NotesScreen)));
+      // Destination MUST still be allNotes!
+      expect(container.read(currentDestinationProvider), AppDestination.allNotes);
+      expect(container.read(selectedTagFilterProvider), 'blog');
+      // TagsFilterBar must remain visible
+      expect(find.byType(TagsFilterBar), findsOneWidget);
 
       await finishTest(tester);
     });

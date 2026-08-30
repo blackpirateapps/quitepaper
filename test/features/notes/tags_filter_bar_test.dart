@@ -148,4 +148,32 @@ void main() {
     final restoredDeltaDx = tester.getTopLeft(find.text('#delta')).dx;
     expect(restoredAlphaDx < restoredDeltaDx, isTrue);
   });
+
+  testWidgets('tapping a tag chip filters in-place without changing currentDestinationProvider', (tester) async {
+    await tester.pumpWidget(
+      buildTestWidget(
+        tags: sampleTags,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(tester.element(find.byType(TagsFilterBar)));
+    expect(container.read(currentDestinationProvider), AppDestination.allNotes);
+    expect(container.read(selectedTagFilterProvider), isNull);
+
+    // Tap #beta
+    await tester.tap(find.text('#beta'));
+    await tester.pumpAndSettle();
+
+    // Must still be allNotes!
+    expect(container.read(currentDestinationProvider), AppDestination.allNotes);
+    expect(container.read(selectedTagFilterProvider), 'beta');
+
+    // Tap All to clear
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(currentDestinationProvider), AppDestination.allNotes);
+    expect(container.read(selectedTagFilterProvider), isNull);
+  });
 }

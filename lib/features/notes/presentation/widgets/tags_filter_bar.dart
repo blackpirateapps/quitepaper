@@ -112,13 +112,7 @@ class _TagsFilterBarState extends ConsumerState<TagsFilterBar> {
                       if (isSelected) {
                         ref.read(selectedTagFilterProvider.notifier).state = null;
                         ref.read(selectedTagIdProvider.notifier).state = null;
-                        if (ref.read(currentDestinationProvider) == AppDestination.tag) {
-                          ref.read(currentDestinationProvider.notifier).state =
-                              AppDestination.allNotes;
-                        }
                       } else {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.tag;
                         ref.read(selectedTagFilterProvider.notifier).state =
                             tagWithCount.name;
                         ref.read(selectedTagIdProvider.notifier).state =
