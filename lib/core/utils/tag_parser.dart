@@ -339,4 +339,206 @@ abstract final class TagParser {
     }
     return result.join('\n');
   }
+
+  /// Safely renames all occurrences of a tag in text from oldTag to newTag,
+  /// including YAML frontmatter and markdown hashtags (#tag), while preserving
+  /// code blocks, inline code, headings, and unrelated content.
+  static String renameTagInText(String text, String oldTag, String newTag) {
+    final cleanOld = normalizeTag(oldTag);
+    final cleanNew = normalizeTag(newTag);
+    if (cleanOld.isEmpty || cleanNew.isEmpty || cleanOld == cleanNew || text.isEmpty) {
+      return text;
+    }
+
+    // 1. Handle YAML frontmatter if present
+    if (text.startsWith('---')) {
+      final endMatch =
+          RegExp(r'\r?\n(---|\.\.\.)(\r?\n|$)').firstMatch(text.substring(3));
+      if (endMatch != null) {
+        final frontmatterEnd = 3 + endMatch.start + endMatch.group(0)!.length;
+        final frontmatterBlock = text.substring(0, frontmatterEnd);
+        final restOfText = text.substring(frontmatterEnd);
+
+        final renamedFrontmatter =
+            _renameTagInFrontmatter(frontmatterBlock, cleanOld, cleanNew);
+        final renamedRest = renameTagInText(restOfText, cleanOld, cleanNew);
+        return '$renamedFrontmatter$renamedRest';
+      }
+    }
+
+    // 2. Process line-by-line, preserving code blocks
+    final lines = text.split('\n');
+    final processedLines = <String>[];
+    var inFencedCodeBlock = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+        inFencedCodeBlock = !inFencedCodeBlock;
+        processedLines.add(line);
+        continue;
+      }
+
+      if (inFencedCodeBlock) {
+        processedLines.add(line);
+        continue;
+      }
+
+      if (line.contains('`')) {
+        processedLines.add(_renameTagInLineWithInlineCode(line, cleanOld, cleanNew));
+      } else {
+        processedLines.add(_renameTagInLine(line, cleanOld, cleanNew));
+      }
+    }
+
+    return processedLines.join('\n');
+  }
+
+  static String _renameTagInFrontmatter(
+      String frontmatter, String cleanOld, String cleanNew) {
+    final lines = frontmatter.split(RegExp(r'\r?\n'));
+    final resultLines = <String>[];
+    String? currentListKey;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.startsWith('- ') &&
+          currentListKey != null &&
+          _isTagKey(currentListKey)) {
+        final itemVal = _stripQuotes(trimmed.substring(2).trim()).toLowerCase();
+        final normalizedItem = normalizeTag(itemVal);
+        if (normalizedItem == cleanOld) {
+          final prefix = line.substring(0, line.indexOf('-') + 2);
+          resultLines.add('$prefix$cleanNew');
+          continue;
+        }
+        resultLines.add(line);
+        continue;
+      }
+
+      final colonIndex = line.indexOf(':');
+      if (colonIndex != -1) {
+        final rawKey = line.substring(0, colonIndex).trim();
+        final key =
+            rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+        final val = line.substring(colonIndex + 1).trim();
+
+        if (_isTagKey(key)) {
+          currentListKey = key;
+          if (val.isEmpty || val == '|' || val == '>') {
+            resultLines.add(line);
+            continue;
+          }
+
+          if (val.startsWith('[') && val.endsWith(']')) {
+            final inner = val.substring(1, val.length - 1).trim();
+            if (inner.isEmpty) {
+              resultLines.add(line);
+              continue;
+            }
+            final items = inner.split(',').map((e) => e.trim()).toList();
+            final updated = items.map((item) {
+              final raw = _stripQuotes(item).toLowerCase();
+              return normalizeTag(raw) == cleanOld ? cleanNew : item;
+            }).toList();
+
+            final prefix = line.substring(0, colonIndex + 1);
+            resultLines.add('$prefix [${updated.join(', ')}]');
+            continue;
+          }
+
+          if (val.contains(',')) {
+            final items = val.split(',').map((e) => e.trim()).toList();
+            final updated = items.map((item) {
+              final raw = _stripQuotes(item).toLowerCase();
+              return normalizeTag(raw) == cleanOld ? cleanNew : item;
+            }).toList();
+
+            final prefix = line.substring(0, colonIndex + 1);
+            resultLines.add('$prefix [${updated.join(', ')}]');
+            continue;
+          }
+
+          final scalar = normalizeTag(_stripQuotes(val));
+          if (scalar == cleanOld) {
+            final prefix = line.substring(0, colonIndex + 1);
+            resultLines.add('$prefix $cleanNew');
+            continue;
+          }
+        } else {
+          currentListKey = null;
+        }
+      } else if (!trimmed.startsWith('- ')) {
+        currentListKey = null;
+      }
+
+      resultLines.add(line);
+    }
+
+    return resultLines.join('\n');
+  }
+
+  static String _renameTagInLine(String line, String cleanOld, String cleanNew) {
+    if (!line.contains('#') || cleanOld.isEmpty) return line;
+
+    final escaped = RegExp.escape(cleanOld);
+    final pattern = RegExp(
+      '(^|[\\s(\\[{<"\'`])#$escaped(?=[)\\]},.!?\\s>"\'`:]|\$)',
+      caseSensitive: false,
+    );
+
+    return line.replaceAllMapped(pattern, (match) {
+      final prefix = match.group(1) ?? '';
+      return '$prefix#$cleanNew';
+    });
+  }
+
+  static String _renameTagInLineWithInlineCode(
+      String line, String cleanOld, String cleanNew) {
+    final buffer = StringBuffer();
+    var currentIndex = 0;
+    final codeSpanRegex = RegExp(r'`[^`\n]*`');
+
+    for (final match in codeSpanRegex.allMatches(line)) {
+      if (match.start > currentIndex) {
+        final plainSegment = line.substring(currentIndex, match.start);
+        buffer.write(_renameTagInLine(plainSegment, cleanOld, cleanNew));
+      }
+      buffer.write(match.group(0));
+      currentIndex = match.end;
+    }
+
+    if (currentIndex < line.length) {
+      final plainSegment = line.substring(currentIndex);
+      buffer.write(_renameTagInLine(plainSegment, cleanOld, cleanNew));
+    }
+
+    return buffer.toString();
+  }
+
+  /// Merges sourceTag into destinationTag in Markdown text.
+  /// If destinationTag already exists in the text, sourceTag is removed to avoid duplicates.
+  /// Otherwise, sourceTag is renamed to destinationTag.
+  static String mergeTagsInText(
+      String text, String sourceTag, String destinationTag) {
+    final cleanSource = normalizeTag(sourceTag);
+    final cleanDest = normalizeTag(destinationTag);
+    if (cleanSource.isEmpty ||
+        cleanDest.isEmpty ||
+        cleanSource == cleanDest ||
+        text.isEmpty) {
+      return text;
+    }
+
+    final existingTags = extractTags(text);
+    if (existingTags.contains(cleanDest)) {
+      return removeTagFromText(text, cleanSource);
+    } else {
+      return renameTagInText(text, cleanSource, cleanDest);
+    }
+  }
 }

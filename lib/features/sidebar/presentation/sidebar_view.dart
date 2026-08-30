@@ -12,10 +12,14 @@ import '../../notes/application/saved_filters_provider.dart';
 import '../../notes/domain/saved_filter.dart';
 import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
+import '../../../core/database/app_database.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../tags/domain/tag_colors.dart';
+import '../../tags/domain/tag_icon_registry.dart';
+import '../../tags/presentation/tag_browser_screen.dart';
+import '../../tags/presentation/tag_detail_screen.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import 'widgets/sidebar_item.dart';
-import 'widgets/tag_browser_sheet.dart';
 
 class SidebarView extends ConsumerWidget {
   const SidebarView({
@@ -256,33 +260,76 @@ class SidebarView extends ConsumerWidget {
                           return const SizedBox.shrink();
                         }
 
-                        final displayTags = tags.take(_maxVisibleTags).toList();
-                        final hasMore = tags.length > _maxVisibleTags;
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+                        // Sort tags: pinned first (by pinnedOrder), then active note count
+                        final sortedTags = List<TagWithCount>.from(tags)..sort((a, b) {
+                          if (a.isPinned && !b.isPinned) return -1;
+                          if (!a.isPinned && b.isPinned) return 1;
+                          if (a.isPinned && b.isPinned) {
+                            return a.pinnedOrder.compareTo(b.pinnedOrder);
+                          }
+                          return b.noteCount.compareTo(a.noteCount);
+                        });
+
+                        final displayTags = sortedTags.take(_maxVisibleTags).toList();
+                        final hasMore = sortedTags.length > _maxVisibleTags;
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: AppSpacing.md),
-                            _buildSectionHeader(context, 'TAGS'),
+                            _buildSectionHeader(
+                              context,
+                              'TAGS',
+                              trailing: SizedBox(
+                                height: 28,
+                                width: 28,
+                                child: QuietIconButton(
+                                  icon: Icons.tune_rounded,
+                                  size: 16,
+                                  padding: const EdgeInsets.all(4.0),
+                                  tooltip: 'Manage tags',
+                                  onPressed: () {
+                                    onItemSelected?.call();
+                                    TagBrowserScreen.open(context);
+                                  },
+                                ),
+                              ),
+                            ),
                             ...displayTags.map((t) {
                               final isTagSelected =
                                   (currentDestination == AppDestination.tag ||
                                           currentDestination == AppDestination.allNotes) &&
-                                      selectedTag == t.tag.name;
+                                      selectedTag == t.name;
+
+                              final colorDef = TagColors.fromId(t.color);
+                              final customColor = colorDef?.foreground(isDark);
+                              final iconData = TagIconRegistry.getIconData(
+                                t.icon,
+                                fallback: t.isPinned
+                                    ? Icons.push_pin_rounded
+                                    : Icons.tag_rounded,
+                              );
 
                               return SidebarItem(
-                                icon: Icons.tag_rounded,
-                                label: t.tag.name,
+                                icon: iconData,
+                                label: t.name,
                                 count: t.noteCount,
                                 isSelected: isTagSelected,
+                                customIconColor: customColor,
                                 onTap: () {
                                   ref
                                       .read(currentDestinationProvider.notifier)
                                       .state = AppDestination.tag;
                                   ref
                                       .read(selectedTagFilterProvider.notifier)
-                                      .state = t.tag.name;
+                                      .state = t.name;
                                   onItemSelected?.call();
+                                },
+                                onLongPress: () {
+                                  onItemSelected?.call();
+                                  TagDetailScreen.open(context, tagId: t.id);
                                 },
                               );
                             }),
@@ -296,7 +343,7 @@ class SidebarView extends ConsumerWidget {
                                   borderRadius: BorderRadius.circular(AppRadii.sm),
                                   onTap: () {
                                     onItemSelected?.call();
-                                    TagBrowserSheet.show(context);
+                                    TagBrowserScreen.open(context);
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(

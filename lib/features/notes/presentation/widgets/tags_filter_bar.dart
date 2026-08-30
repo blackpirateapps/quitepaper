@@ -6,6 +6,8 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/tag_parser.dart';
+import '../../../tags/domain/tag_colors.dart';
+import '../../../tags/domain/tag_icon_registry.dart';
 import '../../application/notes_provider.dart';
 
 class TagsFilterBar extends ConsumerStatefulWidget {
@@ -84,20 +86,29 @@ class _TagsFilterBarState extends ConsumerState<TagsFilterBar> {
               ...displayTags.map((tagWithCount) {
                 final isSelected = selectedFilter != null &&
                     TagParser.normalizeTag(selectedFilter) ==
-                        TagParser.normalizeTag(tagWithCount.tag.name);
+                        TagParser.normalizeTag(tagWithCount.name);
+
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final colorDef = TagColors.fromId(tagWithCount.color);
+                final iconData = tagWithCount.icon != null
+                    ? TagIconRegistry.getIconData(tagWithCount.icon)
+                    : (tagWithCount.isPinned ? Icons.push_pin_rounded : null);
 
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.sm),
                   child: _FilterChipItem(
-                    label: '#${tagWithCount.tag.name}',
+                    label: '#${tagWithCount.name}',
                     count: tagWithCount.noteCount,
                     isSelected: isSelected,
+                    icon: iconData,
+                    customColor: colorDef?.foreground(isDark),
+                    customBg: colorDef?.background(isDark),
                     onTap: () {
                       if (isSelected) {
                         ref.read(selectedTagFilterProvider.notifier).state = null;
                       } else {
                         ref.read(selectedTagFilterProvider.notifier).state =
-                            tagWithCount.tag.name;
+                            tagWithCount.name;
                       }
                     },
                   ),
@@ -119,26 +130,38 @@ class _FilterChipItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.count,
+    this.icon,
+    this.customColor,
+    this.customBg,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   final int? count;
+  final IconData? icon;
+  final Color? customColor;
+  final Color? customBg;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    final bg = isSelected ? colors.accentSoft : colors.surface;
-    final fg = isSelected ? colors.accentDark : colors.textSecondary;
+    final bg = isSelected
+        ? colors.accentSoft
+        : (customBg ?? colors.surface);
+    final fg = isSelected
+        ? colors.accentDark
+        : (customColor ?? colors.textSecondary);
 
     return Material(
       color: bg,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadii.borderSm,
         side: BorderSide(
-          color: isSelected ? colors.accent.withValues(alpha: 0.4) : colors.divider,
+          color: isSelected
+              ? colors.accent.withValues(alpha: 0.4)
+              : (customColor?.withValues(alpha: 0.3) ?? colors.divider),
           width: 0.8,
         ),
       ),
@@ -153,6 +176,10 @@ class _FilterChipItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (icon != null) ...[
+                Icon(icon, size: 12, color: fg),
+                const SizedBox(width: 4),
+              ],
               Text(
                 label,
                 style: AppTypography.tag.copyWith(

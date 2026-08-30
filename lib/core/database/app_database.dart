@@ -41,6 +41,15 @@ class TagWithCount {
 
   final TagEntity tag;
   final int noteCount;
+
+  String get id => tag.id;
+  String get name => tag.name;
+  String? get icon => tag.icon;
+  String? get color => tag.color;
+  bool get isPinned => tag.isPinned;
+  int get pinnedOrder => tag.pinnedOrder;
+  DateTime? get createdAt => tag.createdAt;
+  DateTime? get updatedAt => tag.updatedAt;
 }
 
 @DriftDatabase(tables: [
@@ -64,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -154,6 +163,19 @@ class AppDatabase extends _$AppDatabase {
               await _addColumnSafely(m, attachmentsTable, attachmentsTable.kind);
             }
           }
+          if (from < 12) {
+            await _addColumnSafely(m, tagsTable, tagsTable.icon);
+            await _addColumnSafely(m, tagsTable, tagsTable.color);
+            await _addColumnSafely(m, tagsTable, tagsTable.isPinned);
+            await _addColumnSafely(m, tagsTable, tagsTable.pinnedOrder);
+            await _addColumnSafely(m, tagsTable, tagsTable.createdAt);
+            await _addColumnSafely(m, tagsTable, tagsTable.updatedAt);
+            await _addColumnSafely(m, tagsTable, tagsTable.isDirty);
+            await _addColumnSafely(m, tagsTable, tagsTable.serverRevision);
+            await _addColumnSafely(m, tagsTable, tagsTable.syncedAt);
+            await _addColumnSafely(m, tagsTable, tagsTable.isDeleted);
+            await _addColumnSafely(m, tagsTable, tagsTable.deletedAt);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -171,6 +193,15 @@ class AppDatabase extends _$AppDatabase {
             'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
           );
           await customStatement(
+            'CREATE INDEX IF NOT EXISTS tags_pinned_idx ON tags (is_pinned, pinned_order);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS tags_name_idx ON tags (name);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS tags_dirty_idx ON tags (is_dirty);',
+          );
+          await customStatement(
             'CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id);',
           );
           await customStatement(
@@ -185,6 +216,7 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachment_variants_att_idx ON attachment_variants (attachment_id);',
           );
+
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_versions_note_idx ON note_versions (note_id, version_number DESC);',
           );
@@ -1041,38 +1073,309 @@ class AppDatabase extends _$AppDatabase {
 
   /// Watches all tags with active note count (excluding archived and trashed notes)
   Stream<List<TagWithCount>> watchAllTagsWithCount() {
+    final activeNotesCount = CustomExpression<int>(
+      'COUNT(CASE WHEN notes.is_archived = 0 AND notes.is_trashed = 0 AND notes.id IS NOT NULL THEN 1 END)',
+    );
+
     final query = select(tagsTable).join([
-      innerJoin(
+      leftOuterJoin(
         noteTagsTable,
         noteTagsTable.tagId.equalsExp(tagsTable.id),
       ),
-      innerJoin(
+      leftOuterJoin(
         notesTable,
         notesTable.id.equalsExp(noteTagsTable.noteId),
       ),
     ]);
 
-    query.where(notesTable.isArchived.equals(false) & notesTable.isTrashed.equals(false));
-    query.groupBy([tagsTable.id, tagsTable.name]);
-    query.addColumns([noteTagsTable.noteId.count()]);
+    query.where(tagsTable.isDeleted.equals(false));
+    query.groupBy([
+      tagsTable.id,
+      tagsTable.name,
+      tagsTable.icon,
+      tagsTable.color,
+      tagsTable.isPinned,
+      tagsTable.pinnedOrder,
+      tagsTable.createdAt,
+      tagsTable.updatedAt,
+      tagsTable.isDirty,
+      tagsTable.serverRevision,
+      tagsTable.syncedAt,
+      tagsTable.isDeleted,
+      tagsTable.deletedAt,
+    ]);
+    query.addColumns([activeNotesCount]);
     query.orderBy([
-      OrderingTerm.desc(noteTagsTable.noteId.count()),
+      OrderingTerm.desc(tagsTable.isPinned),
+      OrderingTerm.asc(tagsTable.pinnedOrder),
+      OrderingTerm.desc(activeNotesCount),
       OrderingTerm.asc(tagsTable.name),
     ]);
 
     return query.watch().map((rows) {
       return rows.map((row) {
         final tag = row.readTable(tagsTable);
-        final count = row.read(noteTagsTable.noteId.count()) ?? 0;
+        final count = row.read(activeNotesCount) ?? 0;
         return TagWithCount(tag: tag, noteCount: count);
       }).toList();
     });
   }
 
-  /// Get all distinct tag names
+  /// Get all distinct active tag names
   Future<List<String>> getAllTagNames() async {
-    final tags = await select(tagsTable).get();
+    final tags = await (select(tagsTable)..where((t) => t.isDeleted.equals(false))).get();
     return tags.map((t) => t.name).toList();
+  }
+
+  /// Retrieves a tag by its stable ID
+  Future<TagEntity?> getTagById(String id) {
+    return (select(tagsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  /// Retrieves a tag by its textual name
+  Future<TagEntity?> getTagByName(String name) {
+    final normalized = TagParser.normalizeTag(name);
+    return (select(tagsTable)..where((t) => t.name.equals(normalized))).getSingleOrNull();
+  }
+
+  /// Creates a new tag or restores/updates existing
+  Future<TagEntity> createTag(
+    String name, {
+    String? icon,
+    String? color,
+    bool isPinned = false,
+  }) async {
+    const uuid = Uuid();
+    final normalized = TagParser.normalizeTag(name);
+    if (!TagParser.isValidTag(normalized)) {
+      throw ArgumentError('Invalid tag name: $name');
+    }
+    final now = DateTime.now();
+
+    final existing = await (select(tagsTable)..where((t) => t.name.equals(normalized))).getSingleOrNull();
+    if (existing != null) {
+      if (existing.isDeleted) {
+        await (update(tagsTable)..where((t) => t.id.equals(existing.id))).write(
+          TagsTableCompanion(
+            isDeleted: const Value(false),
+            deletedAt: const Value(null),
+            icon: Value(icon ?? existing.icon),
+            color: Value(color ?? existing.color),
+            isPinned: Value(isPinned),
+            updatedAt: Value(now),
+            isDirty: const Value(true),
+          ),
+        );
+        return (await (select(tagsTable)..where((t) => t.id.equals(existing.id))).getSingle());
+      }
+      return existing;
+    }
+
+    final newId = uuid.v4();
+    await into(tagsTable).insert(
+      TagsTableCompanion.insert(
+        id: newId,
+        name: normalized,
+        icon: Value(icon),
+        color: Value(color),
+        isPinned: Value(isPinned),
+        pinnedOrder: const Value(0),
+        createdAt: Value(now),
+        updatedAt: Value(now),
+        isDirty: const Value(true),
+        serverRevision: const Value(0),
+        isDeleted: const Value(false),
+      ),
+    );
+    return (await (select(tagsTable)..where((t) => t.id.equals(newId))).getSingle());
+  }
+
+  /// Renames a tag and propagates the change to all associated note Markdown
+  Future<void> renameTag(String tagId, String newName) async {
+    final normalizedNew = TagParser.normalizeTag(newName);
+    if (!TagParser.isValidTag(normalizedNew)) {
+      throw ArgumentError('Invalid tag name: $newName');
+    }
+
+    await transaction(() async {
+      final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
+      if (tag == null) return;
+      final oldName = tag.name;
+      if (oldName == normalizedNew) return;
+
+      final existingWithNewName = await (select(tagsTable)..where((t) => t.name.equals(normalizedNew))).getSingleOrNull();
+      if (existingWithNewName != null && existingWithNewName.id != tagId) {
+        throw StateError('A tag with name "$normalizedNew" already exists.');
+      }
+
+      final now = DateTime.now();
+
+      await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+        TagsTableCompanion(
+          name: Value(normalizedNew),
+          updatedAt: Value(now),
+          isDirty: const Value(true),
+        ),
+      );
+
+      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(tagId))).get();
+      final noteIds = noteRows.map((r) => r.noteId).toList();
+
+      for (final noteId in noteIds) {
+        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+        if (note == null) continue;
+
+        final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedNew);
+        final newContent = TagParser.renameTagInText(note.content, oldName, normalizedNew);
+
+        await saveNote(
+          id: note.id,
+          title: newTitle,
+          content: newContent,
+          createdAt: note.createdAt,
+          updatedAt: now,
+          isPinned: note.isPinned,
+          isArchived: note.isArchived,
+          isTrashed: note.isTrashed,
+          deletedAt: note.deletedAt,
+          isDirty: true,
+        );
+      }
+    });
+  }
+
+  /// Deletes a tag and removes it from all note Markdown without deleting notes
+  Future<void> deleteTag(String tagId) async {
+    await transaction(() async {
+      final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
+      if (tag == null) return;
+
+      final now = DateTime.now();
+      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(tagId))).get();
+      final noteIds = noteRows.map((r) => r.noteId).toList();
+
+      for (final noteId in noteIds) {
+        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+        if (note == null) continue;
+
+        final newTitle = TagParser.removeTagFromText(note.title, tag.name);
+        final newContent = TagParser.removeTagFromText(note.content, tag.name);
+
+        await saveNote(
+          id: note.id,
+          title: newTitle,
+          content: newContent,
+          createdAt: note.createdAt,
+          updatedAt: now,
+          isPinned: note.isPinned,
+          isArchived: note.isArchived,
+          isTrashed: note.isTrashed,
+          deletedAt: note.deletedAt,
+          isDirty: true,
+        );
+      }
+
+      await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
+    });
+  }
+
+  /// Merges sourceTag into destinationTag, updating Markdown across all notes
+  Future<void> mergeTags(String sourceTagId, String destinationTagId) async {
+    if (sourceTagId == destinationTagId) return;
+
+    await transaction(() async {
+      final sourceTag = await (select(tagsTable)..where((t) => t.id.equals(sourceTagId))).getSingleOrNull();
+      final destTag = await (select(tagsTable)..where((t) => t.id.equals(destinationTagId))).getSingleOrNull();
+      if (sourceTag == null || destTag == null) return;
+
+      final now = DateTime.now();
+      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(sourceTagId))).get();
+      final noteIds = noteRows.map((r) => r.noteId).toList();
+
+      for (final noteId in noteIds) {
+        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+        if (note == null) continue;
+
+        final newTitle = TagParser.mergeTagsInText(note.title, sourceTag.name, destTag.name);
+        final newContent = TagParser.mergeTagsInText(note.content, sourceTag.name, destTag.name);
+
+        await saveNote(
+          id: note.id,
+          title: newTitle,
+          content: newContent,
+          createdAt: note.createdAt,
+          updatedAt: now,
+          isPinned: note.isPinned,
+          isArchived: note.isArchived,
+          isTrashed: note.isTrashed,
+          deletedAt: note.deletedAt,
+          isDirty: true,
+        );
+      }
+
+      await (delete(tagsTable)..where((t) => t.id.equals(sourceTagId))).go();
+    });
+  }
+
+  /// Pins or unpins a tag
+  Future<void> pinTag(String tagId, bool isPinned) async {
+    int nextOrder = 0;
+    if (isPinned) {
+      final pinnedTags = await (select(tagsTable)
+            ..where((t) => t.isPinned.equals(true) & t.isDeleted.equals(false))
+            ..orderBy([(t) => OrderingTerm.desc(t.pinnedOrder)]))
+          .get();
+      if (pinnedTags.isNotEmpty) {
+        nextOrder = pinnedTags.first.pinnedOrder + 1;
+      }
+    }
+
+    await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+      TagsTableCompanion(
+        isPinned: Value(isPinned),
+        pinnedOrder: Value(nextOrder),
+        updatedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+      ),
+    );
+  }
+
+  /// Reorders pinned tags by their specified list of IDs
+  Future<void> reorderPinnedTags(List<String> orderedTagIds) async {
+    await transaction(() async {
+      final now = DateTime.now();
+      for (var i = 0; i < orderedTagIds.length; i++) {
+        await (update(tagsTable)..where((t) => t.id.equals(orderedTagIds[i]))).write(
+          TagsTableCompanion(
+            pinnedOrder: Value(i),
+            updatedAt: Value(now),
+            isDirty: const Value(true),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Updates a tag's vector icon identifier
+  Future<void> setTagIcon(String tagId, String? icon) async {
+    await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+      TagsTableCompanion(
+        icon: Value(icon),
+        updatedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+      ),
+    );
+  }
+
+  /// Updates a tag's color accent identifier
+  Future<void> setTagColor(String tagId, String? color) async {
+    await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+      TagsTableCompanion(
+        color: Value(color),
+        updatedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+      ),
+    );
   }
 
   // ==========================================
@@ -1125,7 +1428,6 @@ class AppDatabase extends _$AppDatabase {
     await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
 
     if (normalized.isEmpty) {
-      await _cleanupOrphanedTags();
       return;
     }
 
@@ -1135,13 +1437,29 @@ class AppDatabase extends _$AppDatabase {
 
       if (tag == null) {
         final newTagId = uuid.v4();
+        final now = DateTime.now();
         await into(tagsTable).insert(
           TagsTableCompanion.insert(
             id: newTagId,
             name: tagName,
+            createdAt: Value(now),
+            updatedAt: Value(now),
+            isPinned: const Value(false),
+            pinnedOrder: const Value(0),
+            isDirty: const Value(true),
           ),
         );
-        tag = TagEntity(id: newTagId, name: tagName);
+        tag = TagEntity(
+          id: newTagId,
+          name: tagName,
+          isPinned: false,
+          pinnedOrder: 0,
+          createdAt: now,
+          updatedAt: now,
+          isDirty: true,
+          serverRevision: 0,
+          isDeleted: false,
+        );
       }
 
       await into(noteTagsTable).insertOnConflictUpdate(
@@ -1151,8 +1469,6 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     }
-
-    await _cleanupOrphanedTags();
   }
 
   Future<void> _cleanupOrphanedTags() async {

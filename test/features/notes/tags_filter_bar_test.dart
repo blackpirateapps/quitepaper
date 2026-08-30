@@ -7,21 +7,31 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/tags_filter_bar.dart';
 
 void main() {
+  TagEntity makeTag(String id, String name) => TagEntity(
+        id: id,
+        name: name,
+        isPinned: false,
+        pinnedOrder: 0,
+        isDirty: false,
+        serverRevision: 0,
+        isDeleted: false,
+      );
+
   final sampleTags = [
-    const TagWithCount(
-      tag: TagEntity(id: '1', name: 'alpha'),
+    TagWithCount(
+      tag: makeTag('1', 'alpha'),
       noteCount: 3,
     ),
-    const TagWithCount(
-      tag: TagEntity(id: '2', name: 'beta'),
+    TagWithCount(
+      tag: makeTag('2', 'beta'),
       noteCount: 5,
     ),
-    const TagWithCount(
-      tag: TagEntity(id: '3', name: 'gamma'),
+    TagWithCount(
+      tag: makeTag('3', 'gamma'),
       noteCount: 2,
     ),
-    const TagWithCount(
-      tag: TagEntity(id: '4', name: 'delta'),
+    TagWithCount(
+      tag: makeTag('4', 'delta'),
       noteCount: 8,
     ),
   ];

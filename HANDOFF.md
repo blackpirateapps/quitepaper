@@ -3241,3 +3241,80 @@ Quiet Paper features a unified, production-grade syntax highlighting subsystem s
 - [`plain_text_viewer_syntax_test.dart`](file:///home/dog/git/quitepaper/test/attachments/plain_text_viewer_syntax_test.dart): Verified source code rendering with line numbers, search highlighting, and language override integration in attachment viewer.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full test suite: `flutter test` (**795 / 795 tests passing**).
+
+---
+
+## 44. Tag Management & Navigation Subsystem
+
+### Overview
+Quiet Paper features a comprehensive, production-grade Tag Management & Navigation Subsystem fulfilling the complete specifications of [`tags.md`](file:///home/dog/git/quitepaper/tags.md). Tags are promoted from transient parse results into **first-class persisted entities** that support rich metadata (custom icons, warm editorial colors, pinned status, drag-and-drop order, and sync timestamps) while strictly preserving Quiet Paper's core architectural principle: **the Markdown content is canonical**. All tag operations (creation, rename, delete, merge) update Markdown text and FTS5 search indexes atomically within Drift database transactions without deleting notes or corrupting data.
+
+### Database Schema Migration (v11 → v12)
+- **Table Definition**: [`TagsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/tags_table.dart) was extended with:
+  - `icon`: Text column storing vector icon identifier (nullable).
+  - `color`: Text column storing color identifier from curated warm editorial palette (nullable).
+  - `isPinned`: Boolean column (defaults to `false`).
+  - `pinnedOrder`: Integer column for deterministic drag-and-drop pinned sorting (defaults to `0`).
+  - `createdAt` & `updatedAt`: DateTime columns tracking tag lifecycle.
+  - `isDirty`, `serverRevision`, `syncedAt`, `isDeleted`, `deletedAt`: E2EE sync fields for cloud synchronization.
+- **Indices Added**: `tags_pinned_idx` on `(is_pinned, pinned_order)`, `tags_name_idx` on `name`, `tags_dirty_idx` on `(is_dirty, is_deleted)`.
+- **Safe Migration**: Added `onUpgrade` step in [`AppDatabase`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart) migrating from version 11 to 12 via `_addColumnSafely` to preserve existing local user databases without table recreation or data loss.
+- **First-Class Persistence**: Removed `_cleanupOrphanedTags()` from note sync routines; tags created directly by users persist indefinitely as first-class entities with note count `0` until explicitly deleted. `watchAllTagsWithCount` uses `LEFT OUTER JOIN` on note tags so zero-note tags stream accurately.
+
+### Domain & Design System
+- **Curated Warm Editorial Palette**: [`TagColors`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_colors.dart) provides 8 muted, calm editorial shades (Coral, Amber, Sage, Teal, Indigo, Lavender, Rose, Slate) specifically tuned for Light (`#F7F6F2`) and Dark (`#1D1C1A`) paper backgrounds with high WCAG AA contrast (≥ 4.5:1) and subtle, non-intrusive background tints.
+- **Curated Vector Icon Catalog**: [`TagIconRegistry`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_icon_registry.dart) defines a searchable registry of vector icons categorized into Objects, Activities, Places, Symbols, Work, Education, Technology, and Lifestyle. Includes deterministic keyword-based icon suggestion (`suggestIcons(tagName)`).
+- **Tag Entity & State Models**: [`Tag`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_model.dart), `TagFilter` (all, pinned, withNotes, unused), and `TagSort` (nameAsc, nameDesc, noteCountDesc, noteCountAsc, recentlyCreated, recentlyUpdated).
+
+### Canonical Markdown Rewriting Engine
+Implemented in [`TagParser`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart):
+- `renameTagInText(text, oldTag, newTag)`: Renames `#oldTag` to `#newTag` across Markdown body, punctuation boundaries `(#tag)`, `[#tag]`, `"#tag"`, and YAML frontmatter (`tags:`, `tag:`, `categories:`, `category:`, inline lists, and multiline lists).
+- `mergeTagsInText(text, sourceTag, destTag)`: Merges source tag into destination tag; if the destination tag is already present in the note, the source tag is removed cleanly without producing duplicate `#destTag` entries.
+- **Syntax Safety**: Code blocks (`` ``` `` and `~~~`) and inline code spans (`` `code` ``) are strictly preserved and never modified during renames or merges. Markdown headings (`# Header`) are never confused with hashtags.
+
+### State Management & Tag Service
+Defined in [`tag_providers.dart`](file:///home/dog/git/quitepaper/lib/features/tags/application/tag_providers.dart):
+- `TagService`: Exposes high-level tag domain operations delegating to `NotesRepository`:
+  - `createTag(name, {icon, color, isPinned})`
+  - `renameTag(tagId, newName)` (updates tag entity and rewrites all affected notes in a DB transaction)
+  - `deleteTag(tagId)` (removes tag from notes without deleting notes, then deletes tag entity)
+  - `mergeTags(sourceTagId, destTagId)` (merges note markdowns, avoids duplicates, deletes source tag)
+  - `pinTag(tagId, isPinned)`
+  - `reorderPinnedTags(orderedTagIds)`
+  - `setTagIcon(tagId, icon)`
+  - `setTagColor(tagId, color)`
+- Riverpod Providers: `allTagsProvider`, `pinnedTagsProvider`, `filteredBrowserTagsProvider`, `tagFilterProvider`, `tagSortProvider`, `tagSearchQueryProvider`, `tagNotesStreamProvider`, `tagByIdProvider`.
+
+### Presentation Layer & New Screens
+1. **Dedicated Full-Page Tag Browser Screen** ([`TagBrowserScreen`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/tag_browser_screen.dart)):
+   - Accessible via Sidebar TAGS header `"Manage"`, `"Browse all tags"`, and desktop/web shortcut `Ctrl+Shift+T` / `Cmd+Shift+T`.
+   - **Pinned Section**: Drag-and-drop reordering with `ReorderableListView`, custom tag icons, and color tints.
+   - **All Tags Section**: Interactive tag rows showing note counts, custom colors, and icons.
+   - **Search & Filtering**: Search field filtering tags by name; filter tabs (All, Pinned, Active, Unused); sort menu (Name A-Z, Z-A, Note Count, Date Created).
+   - **Context Menu & Batch Actions**: Rename, Change Icon, Change Color, Pin/Unpin, Merge Tag, Delete Tag.
+2. **Dedicated Tag Detail Screen** ([`TagDetailScreen`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/tag_detail_screen.dart)):
+   - Displays a prominent hero card showing tag vector icon, color tint, total note count, and quick management action chips (Pin/Unpin, Change Icon, Change Color, Rename, Merge, Delete).
+   - Embedded note list with note preview cards, pin toggling, archive, and trash actions.
+   - Quiet FAB creating new notes pre-populated with `#tagName`.
+   - Empty state illustration with `"New Note with Tag"` button.
+3. **Modal Dialogs & Bottom Sheets** ([`tag_action_dialogs.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_action_dialogs.dart)):
+   - `TagCreateDialog`: Name validation, duplicate detection, inline icon/color pickers, pin toggle.
+   - `TagRenameDialog`: In-place renaming with warning about affected note count.
+   - `TagDeleteDialog`: Clear reassurance dialog explaining notes will NOT be deleted.
+   - `TagMergeDialog`: Searchable destination tag selector preventing accidental self-merge.
+   - `TagIconPickerSheet` ([`tag_icon_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_icon_picker_sheet.dart)): Categorized vector icon browser with smart suggestions.
+   - `TagColorPickerSheet` ([`tag_color_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_color_picker_sheet.dart)): Warm editorial color palette picker with clear default option.
+4. **App-Wide Integrations**:
+   - **Sidebar** ([`sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart)): TAGS header manage button, pinned tags displayed first, custom vector icons and color accents, long-press to open `TagDetailScreen`.
+   - **Filter Bar** ([`tags_filter_bar.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/tags_filter_bar.dart)): Custom icons and editorial color badges on filter chips.
+   - **Search Screen** ([`search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart)): Pinned tags and recent tags shortcuts in empty state, deep search integration, and direct navigation to Tag Browser.
+   - **Tag Chip Widget** ([`quiet_tag_chip.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_tag_chip.dart)): Extended with optional vector icon and editorial color styling.
+
+### Automated Verification & Quality Assurance
+- [`tag_parser_test.dart`](file:///home/dog/git/quitepaper/test/utils/tag_parser_test.dart): 28 tests verifying hashtag extraction, Markdown headers avoidance, code fence/inline backtick preservation, YAML frontmatter arrays & multiline lists, `renameTagInText`, and `mergeTagsInText` duplicate avoidance.
+- [`tag_database_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_database_test.dart): 7 tests verifying `createTag` metadata & stable ID, tag deduplication, `renameTag` note Markdown rewriting, `deleteTag` note preservation, `mergeTags` note updating & source cleanup, `pinTag` & `reorderPinnedTags`, and `watchAllTagsWithCount` streaming unused tags with count 0.
+- [`tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart): 5 tests verifying `TagBrowserScreen` rendering & search filtering, `TagDetailScreen` header & empty/populated note lists, `TagIconPickerSheet` category tabs & keyword search, and `TagColorPickerSheet` curated palette selection.
+- [`tag_dialogs_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_dialogs_test.dart): 4 tests verifying validation in `TagCreateDialog`, `TagRenameDialog`, `TagDeleteDialog` safety confirmation, and `TagMergeDialog` target selection.
+- [`tags_filter_bar_test.dart`](file:///home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart): 3 tests verifying tag ordering, selection, and auto-scroll.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full test suite: `flutter test` (**821 / 821 tests passing**).

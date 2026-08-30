@@ -34,6 +34,16 @@ abstract class NotesRepository {
   Future<void> deleteNote(String id);
   Stream<List<TagWithCount>> watchTags();
   Future<List<String>> getAllTagNames();
+  Future<TagEntity?> getTagById(String id);
+  Future<TagEntity?> getTagByName(String name);
+  Future<TagEntity> createTag(String name, {String? icon, String? color, bool isPinned = false});
+  Future<void> renameTag(String tagId, String newName);
+  Future<void> deleteTag(String tagId);
+  Future<void> mergeTags(String sourceTagId, String destinationTagId);
+  Future<void> pinTag(String tagId, bool isPinned);
+  Future<void> reorderPinnedTags(List<String> orderedTagIds);
+  Future<void> setTagIcon(String tagId, String? icon);
+  Future<void> setTagColor(String tagId, String? color);
   Stream<int> watchActiveNotesCount();
   Stream<int> watchPinnedNotesCount();
   Stream<int> watchArchivedNotesCount();
@@ -298,6 +308,56 @@ class DriftNotesRepository implements NotesRepository {
   @override
   Future<List<String>> getAllTagNames() {
     return _db.getAllTagNames();
+  }
+
+  @override
+  Future<TagEntity?> getTagById(String id) {
+    return _db.getTagById(id);
+  }
+
+  @override
+  Future<TagEntity?> getTagByName(String name) {
+    return _db.getTagByName(name);
+  }
+
+  @override
+  Future<TagEntity> createTag(String name, {String? icon, String? color, bool isPinned = false}) {
+    return _db.createTag(name, icon: icon, color: color, isPinned: isPinned);
+  }
+
+  @override
+  Future<void> renameTag(String tagId, String newName) {
+    return _db.renameTag(tagId, newName);
+  }
+
+  @override
+  Future<void> deleteTag(String tagId) {
+    return _db.deleteTag(tagId);
+  }
+
+  @override
+  Future<void> mergeTags(String sourceTagId, String destinationTagId) {
+    return _db.mergeTags(sourceTagId, destinationTagId);
+  }
+
+  @override
+  Future<void> pinTag(String tagId, bool isPinned) {
+    return _db.pinTag(tagId, isPinned);
+  }
+
+  @override
+  Future<void> reorderPinnedTags(List<String> orderedTagIds) {
+    return _db.reorderPinnedTags(orderedTagIds);
+  }
+
+  @override
+  Future<void> setTagIcon(String tagId, String? icon) {
+    return _db.setTagIcon(tagId, icon);
+  }
+
+  @override
+  Future<void> setTagColor(String tagId, String? color) {
+    return _db.setTagColor(tagId, color);
   }
 
   @override

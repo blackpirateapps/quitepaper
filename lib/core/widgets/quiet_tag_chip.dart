@@ -12,6 +12,9 @@ class QuietTagChip extends StatelessWidget {
     this.onDelete,
     this.isSelected = false,
     this.showBackground = true,
+    this.icon,
+    this.customColor,
+    this.customBackgroundColor,
   });
 
   final String tag;
@@ -19,6 +22,9 @@ class QuietTagChip extends StatelessWidget {
   final VoidCallback? onDelete;
   final bool isSelected;
   final bool showBackground;
+  final IconData? icon;
+  final Color? customColor;
+  final Color? customBackgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +37,9 @@ class QuietTagChip extends StatelessWidget {
     if (isSelected) {
       bg = colors.accentSoft;
       textColor = colors.accentDark;
+    } else if (customColor != null) {
+      bg = customBackgroundColor ?? colors.tagBackground;
+      textColor = customColor!;
     } else if (showBackground) {
       bg = colors.tagBackground;
       textColor = colors.tagText;
@@ -42,6 +51,10 @@ class QuietTagChip extends StatelessWidget {
     Widget content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (icon != null) ...[
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+        ],
         Text(
           displayTag,
           style: AppTypography.tag.copyWith(

@@ -12,6 +12,9 @@ import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_list_tile.dart';
+import '../../tags/application/tag_providers.dart';
+import '../../tags/domain/tag_icon_registry.dart';
+import '../../tags/presentation/tag_browser_screen.dart';
 import '../application/search_provider.dart';
 import 'widgets/document_search_tile.dart';
 import 'widgets/search_filter_bar.dart';
@@ -410,25 +413,155 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildInitialState(AppColors colors) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_rounded,
-            size: 40,
-            color: colors.textTertiary.withValues(alpha: 0.4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final allTagsAsync = ref.watch(allTagsProvider);
+    final pinnedTags = ref.watch(pinnedTagsProvider);
+    final allTags = allTagsAsync.valueOrNull ?? [];
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xl,
+      ),
+      children: [
+        Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.search_rounded,
+                size: 36,
+                color: colors.textTertiary.withValues(alpha: 0.4),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Search notes, documents, OCR text, or tags',
+                style: AppTypography.body.copyWith(
+                  color: colors.textTertiary,
+                  fontSize: 14.5,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Type to search title, body, OCR text, or tags',
-            style: AppTypography.body.copyWith(
-              color: colors.textTertiary,
-              fontSize: 15,
-            ),
+        ),
+
+        // Pinned Tags Shortcuts
+        if (pinnedTags.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xl),
+          Row(
+            children: [
+              Icon(Icons.push_pin_rounded, size: 14, color: colors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'PINNED TAGS',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textTertiary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: pinnedTags.map((tag) {
+              final colorDef = tag.colorDefinition;
+              final customColor = colorDef?.foreground(isDark);
+              final customBg = colorDef?.background(isDark);
+
+              return ActionChip(
+                avatar: Icon(
+                  TagIconRegistry.getIconData(tag.icon, fallback: Icons.tag_rounded),
+                  size: 14,
+                  color: customColor ?? colors.accent,
+                ),
+                label: Text('#${tag.name} (${tag.noteCount})'),
+                labelStyle: AppTypography.caption.copyWith(
+                  color: customColor ?? colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                backgroundColor: customBg ?? colors.surface,
+                side: BorderSide(
+                  color: customColor?.withValues(alpha: 0.4) ?? colors.divider,
+                ),
+                onPressed: () {
+                  _searchController.text = '#${tag.name}';
+                  ref.read(searchQueryProvider.notifier).state = '#${tag.name}';
+                },
+              );
+            }).toList(),
           ),
         ],
-      ),
+
+        // Recent / Top Tags Shortcuts
+        if (allTags.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'TAGS SHORTCUTS',
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textTertiary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              InkWell(
+                onTap: () => TagBrowserScreen.open(context),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'Browse all →',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: allTags.take(12).map((tag) {
+              final colorDef = tag.colorDefinition;
+              final customColor = colorDef?.foreground(isDark);
+              final customBg = colorDef?.background(isDark);
+
+              return ActionChip(
+                avatar: Icon(
+                  TagIconRegistry.getIconData(tag.icon, fallback: Icons.tag_rounded),
+                  size: 14,
+                  color: customColor ?? colors.textSecondary,
+                ),
+                label: Text('#${tag.name}'),
+                labelStyle: AppTypography.caption.copyWith(
+                  color: customColor ?? colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                backgroundColor: customBg ?? colors.background,
+                side: BorderSide(
+                  color: customColor?.withValues(alpha: 0.3) ?? colors.divider,
+                ),
+                onPressed: () {
+                  _searchController.text = '#${tag.name}';
+                  ref.read(searchQueryProvider.notifier).state = '#${tag.name}';
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ],
     );
   }
 

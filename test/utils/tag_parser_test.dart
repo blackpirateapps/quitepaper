@@ -201,4 +201,119 @@ Body text''';
       );
     });
   });
+
+  group('TagParser.renameTagInText', () {
+    test('renames tag in middle of sentence', () {
+      const text = 'Working on #programming today';
+      expect(
+        TagParser.renameTagInText(text, 'programming', 'development'),
+        equals('Working on #development today'),
+      );
+    });
+
+    test('renames tag at start and end of line', () {
+      const text = '#programming is cool\nI love #programming';
+      expect(
+        TagParser.renameTagInText(text, 'programming', 'development'),
+        equals('#development is cool\nI love #development'),
+      );
+    });
+
+    test('renames tag inside punctuation and parentheses', () {
+      const text = 'Tags: (#programming), [#programming], "#programming"';
+      expect(
+        TagParser.renameTagInText(text, 'programming', 'development'),
+        equals('Tags: (#development), [#development], "#development"'),
+      );
+    });
+
+    test('does NOT rename markdown headers', () {
+      const text = '# Header 1\n## Header 2\n#programming';
+      expect(
+        TagParser.renameTagInText(text, 'programming', 'development'),
+        equals('# Header 1\n## Header 2\n#development'),
+      );
+    });
+
+    test('does NOT rename tags inside fenced code blocks', () {
+      const text = '''
+#programming
+```dart
+// #programming should remain intact
+```
+~~~
+#programming should also remain intact
+~~~
+#programming
+''';
+      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      expect(result.contains('#development'), isTrue);
+      expect(result.contains('// #programming should remain intact'), isTrue);
+      expect(result.contains('#programming should also remain intact'), isTrue);
+    });
+
+    test('does NOT rename tags inside inline code spans', () {
+      const text = 'Use `#programming` tag, but see #programming here';
+      expect(
+        TagParser.renameTagInText(text, 'programming', 'development'),
+        equals('Use `#programming` tag, but see #development here'),
+      );
+    });
+
+    test('renames in YAML frontmatter inline list and multiline list', () {
+      const text = '''---
+title: Project Note
+tags: [programming, flutter]
+---
+#programming in body''';
+
+      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      expect(
+        result,
+        equals('---'
+            '\ntitle: Project Note'
+            '\ntags: [development, flutter]'
+            '\n---'
+            '\n#development in body'),
+      );
+    });
+
+    test('renames in YAML frontmatter multiline list', () {
+      const text = '''---
+tags:
+  - programming
+  - mobile
+---
+Note body''';
+
+      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      expect(
+        result,
+        equals('---'
+            '\ntags:'
+            '\n  - development'
+            '\n  - mobile'
+            '\n---'
+            '\nNote body'),
+      );
+    });
+  });
+
+  group('TagParser.mergeTagsInText', () {
+    test('renames source tag to destination when destination does not exist', () {
+      const text = 'Note about #flutter-dev';
+      expect(
+        TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
+        equals('Note about #flutter'),
+      );
+    });
+
+    test('removes source tag when destination tag already exists to avoid duplicates', () {
+      const text = 'Note about #flutter and #flutter-dev';
+      expect(
+        TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
+        equals('Note about #flutter and'),
+      );
+    });
+  });
 }

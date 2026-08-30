@@ -17,6 +17,7 @@ import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
+import '../../tags/presentation/tag_browser_screen.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import '../application/notes_provider.dart';
 import '../application/notes_query_provider.dart';
@@ -145,9 +146,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     final title = _getDestinationTitle(destination);
 
-    return PullDownSearchReveal(
-      onOpenSearch: () => _openSearchScreen(context),
-      child: Scaffold(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
+          TagBrowserScreen.open(context);
+        },
+        const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
+          TagBrowserScreen.open(context);
+        },
+      },
+      child: PullDownSearchReveal(
+        onOpenSearch: () => _openSearchScreen(context),
+        child: Scaffold(
         backgroundColor: colors.background,
         drawerEnableOpenDragGesture: true,
         drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
@@ -369,6 +379,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               )
             : null,
       ),
+    ),
     );
   }
 

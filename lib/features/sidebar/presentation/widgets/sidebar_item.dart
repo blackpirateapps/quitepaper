@@ -15,6 +15,7 @@ class SidebarItem extends StatelessWidget {
     this.onLongPress,
     this.onSecondaryTap,
     this.isDestructive = false,
+    this.customIconColor,
   });
 
   final IconData icon;
@@ -25,6 +26,7 @@ class SidebarItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onSecondaryTap;
   final bool isDestructive;
+  final Color? customIconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,9 @@ class SidebarItem extends StatelessWidget {
 
     final iconColor = isSelected
         ? colors.accent
-        : (isDestructive ? colors.error.withValues(alpha: 0.8) : colors.textSecondary);
+        : (isDestructive
+            ? colors.error.withValues(alpha: 0.8)
+            : (customIconColor ?? colors.textSecondary));
 
     final backgroundColor = isSelected
         ? colors.tagBackground
