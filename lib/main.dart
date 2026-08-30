@@ -6,6 +6,7 @@ import 'core/attachments/attachment_temp_storage.dart';
 import 'core/auth/auth_service.dart';
 import 'core/crypto/crypto_service.dart';
 import 'core/crypto/key_manager.dart';
+import 'core/fonts/font_cache_manager.dart';
 import 'core/sync/sync_provider.dart';
 import 'features/settings/application/settings_provider.dart';
 
@@ -20,7 +21,9 @@ void main() async {
     SharedPreferences.getInstance(),
     authService.initialize(),
     keyManager.initialize(),
+    FontCacheManager.instance.initialize(),
   ]);
+
 
   // Clean any stale decrypted attachment temporary files in background
   AttachmentTempStorage().cleanStaleTempFiles().catchError((_) => 0);

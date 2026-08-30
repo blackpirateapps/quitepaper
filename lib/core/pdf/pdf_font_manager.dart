@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:pdf/widgets.dart' as pw;
+import '../fonts/font_cache_manager.dart';
 
 /// Bundled typography theme holding resolved embedded TrueType [pw.Font] instances.
 class PdfTypographyTheme {
@@ -48,22 +50,38 @@ class PdfFontManager {
     return isTrueType1 || isTrueTypeStr || isOpenType;
   }
 
-  /// Loads binary [ByteData] for an asset from `rootBundle` or file system fallback.
+  /// Loads binary [ByteData] for an asset from `rootBundle`, FontCacheManager, or file system fallback.
   static Future<ByteData> loadAssetByteData(String assetPath) async {
     if (_byteDataCache.containsKey(assetPath)) {
       return _byteDataCache[assetPath]!;
     }
 
-    // 1. Try rootBundle (Flutter app runtime and test widgets with assets)
+    // 1. Try FontCacheManager local disk storage
+    final filename = p.basenameWithoutExtension(assetPath);
+    final parts = filename.split('-');
+    final family = parts.first;
+    final variant = parts.length > 1 ? parts.last.toLowerCase() : 'regular';
+
+    final cachedFile = FontCacheManager.instance.getCachedFontFile(family, variant: variant);
+    if (cachedFile != null && cachedFile.existsSync()) {
+      final bytes = await cachedFile.readAsBytes();
+      final data = bytes.buffer.asByteData(bytes.offsetInBytes, bytes.lengthInBytes);
+      _byteDataCache[assetPath] = data;
+      return data;
+    }
+
+    // 2. Try rootBundle (Flutter app runtime if assets are bundled)
     try {
       final data = await rootBundle.load(assetPath);
       _byteDataCache[assetPath] = data;
       return data;
     } catch (_) {}
 
-    // 2. Try file system fallback for pure CLI unit tests
+    // 3. Try file system fallback for pure CLI unit tests and backend paths
     final candidatePaths = [
       assetPath,
+      'backend/public/fonts/$family/$filename.ttf',
+      'backend/public/fonts/$filename.ttf',
       if (!assetPath.startsWith('assets/')) 'assets/$assetPath',
       assetPath.replaceFirst(RegExp(r'^assets/'), ''),
     ];
@@ -100,33 +118,37 @@ class PdfFontManager {
   }
 
   /// Resolves a full [PdfTypographyTheme] for document generation.
-  /// Defaults to embedded Inter (body/headings) and JetBrains Mono (code).
+  /// Defaults to embedded TrueType fonts if available, and gracefully falls back to standard PDF fonts.
   static Future<PdfTypographyTheme> resolveTypographyTheme({
     String? requestedBodyFamily,
     String? requestedCodeFamily,
   }) async {
+    final isSerif = requestedBodyFamily?.toLowerCase() == 'lora' ||
+        requestedBodyFamily?.toLowerCase() == 'merriweather' ||
+        requestedBodyFamily?.toLowerCase() == 'serif';
+
     // Determine body font asset family
     String bodyPrefix;
     switch (requestedBodyFamily?.toLowerCase()) {
       case 'roboto':
-        bodyPrefix = 'assets/fonts/Roboto';
+        bodyPrefix = 'Roboto';
         break;
       case 'lora':
-        bodyPrefix = 'assets/fonts/Lora';
+        bodyPrefix = 'Lora';
         break;
       case 'merriweather':
-        bodyPrefix = 'assets/fonts/Merriweather';
+        bodyPrefix = 'Merriweather';
         break;
       case 'open sans':
       case 'opensans':
-        bodyPrefix = 'assets/fonts/OpenSans';
+        bodyPrefix = 'OpenSans';
         break;
       case 'lato':
-        bodyPrefix = 'assets/fonts/Lato';
+        bodyPrefix = 'Lato';
         break;
       case 'inter':
       default:
-        bodyPrefix = 'assets/fonts/Inter';
+        bodyPrefix = 'Inter';
         break;
     }
 
@@ -135,52 +157,50 @@ class PdfFontManager {
     switch (requestedCodeFamily?.toLowerCase()) {
       case 'fira code':
       case 'firacode':
-        codePrefix = 'assets/fonts/FiraCode';
+        codePrefix = 'FiraCode';
         break;
       case 'jetbrains mono':
       case 'jetbrainsmono':
       default:
-        codePrefix = 'assets/fonts/JetBrainsMono';
+        codePrefix = 'JetBrainsMono';
         break;
     }
 
     // 1. Resolve Body Regular
     pw.Font? bodyRegular = await loadFontOrNull('$bodyPrefix-Regular.ttf');
-    bodyRegular ??= await loadFontOrNull('assets/fonts/Inter-Regular.ttf');
-    bodyRegular ??= await loadFontOrNull('assets/fonts/Roboto-Regular.ttf');
-
-    if (bodyRegular == null) {
-      throw StateError('Failed to load any embedded TrueType body font');
-    }
+    bodyRegular ??= await loadFontOrNull('Inter-Regular.ttf');
+    bodyRegular ??= await loadFontOrNull('Roboto-Regular.ttf');
+    bodyRegular ??= (isSerif ? pw.Font.times() : pw.Font.helvetica());
 
     // 2. Resolve Body Bold
     pw.Font? bodyBold = await loadFontOrNull('$bodyPrefix-Bold.ttf');
-    if (bodyBold == null && bodyPrefix != 'assets/fonts/Roboto') {
-      bodyBold = await loadFontOrNull('assets/fonts/Roboto-Bold.ttf');
+    if (bodyBold == null && bodyPrefix != 'Roboto') {
+      bodyBold = await loadFontOrNull('Roboto-Bold.ttf');
     }
-    bodyBold ??= bodyRegular;
+    bodyBold ??= (isSerif ? pw.Font.timesBold() : pw.Font.helveticaBold());
 
     // 3. Resolve Body Italic
     pw.Font? bodyItalic = await loadFontOrNull('$bodyPrefix-Italic.ttf');
-    bodyItalic ??= await loadFontOrNull('assets/fonts/Inter-Italic.ttf');
-    bodyItalic ??= bodyRegular;
+    bodyItalic ??= await loadFontOrNull('Inter-Italic.ttf');
+    bodyItalic ??= (isSerif ? pw.Font.timesItalic() : pw.Font.helveticaOblique());
 
-    final bodyBoldItalic = bodyBold;
+    pw.Font? bodyBoldItalic = await loadFontOrNull('$bodyPrefix-BoldItalic.ttf');
+    bodyBoldItalic ??= (isSerif ? pw.Font.timesBoldItalic() : pw.Font.helveticaBoldOblique());
 
     // 4. Resolve Code Regular
     pw.Font? codeRegular = await loadFontOrNull('$codePrefix-Regular.ttf');
-    codeRegular ??= await loadFontOrNull('assets/fonts/JetBrainsMono-Regular.ttf');
-    codeRegular ??= await loadFontOrNull('assets/fonts/FiraCode-Regular.ttf');
-    codeRegular ??= bodyRegular;
+    codeRegular ??= await loadFontOrNull('JetBrainsMono-Regular.ttf');
+    codeRegular ??= await loadFontOrNull('FiraCode-Regular.ttf');
+    codeRegular ??= pw.Font.courier();
 
     // 5. Resolve Code Bold
     pw.Font? codeBold = await loadFontOrNull('$codePrefix-Bold.ttf');
-    codeBold ??= codeRegular;
+    codeBold ??= pw.Font.courierBold();
 
     // 6. Resolve Code Italic
     pw.Font? codeItalic = await loadFontOrNull('$codePrefix-Italic.ttf');
-    codeItalic ??= await loadFontOrNull('assets/fonts/JetBrainsMono-Italic.ttf');
-    codeItalic ??= codeRegular;
+    codeItalic ??= await loadFontOrNull('JetBrainsMono-Italic.ttf');
+    codeItalic ??= pw.Font.courierOblique();
 
     final themeData = pw.ThemeData.withFont(
       base: bodyRegular,
@@ -209,3 +229,4 @@ class PdfFontManager {
     _fontCache.clear();
   }
 }
+

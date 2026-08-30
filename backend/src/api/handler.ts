@@ -72,6 +72,32 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // Public fonts manifest endpoint
+    if ((pathname === '/api/v1/fonts' || pathname === '/api/v1/fonts/manifest' || pathname === '/fonts/manifest.json') && method === 'GET') {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      try {
+        const manifestPath = path.resolve(process.cwd(), 'public/fonts/manifest.json');
+        const content = await fs.readFile(manifestPath, 'utf-8');
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*',
+          },
+          body: JSON.parse(content),
+        };
+      } catch {
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: { version: 1, baseUrl: '/fonts', fonts: [] },
+        };
+      }
+    }
+
+
     // Auto-run schema migrations on database if not already initialized
     await ensureDbInitialized(db);
 

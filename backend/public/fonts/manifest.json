@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "baseUrl": "/fonts",
+  "fonts": [
+    {
+      "family": "Inter",
+      "category": "Sans-serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "Inter/Inter-Regular.ttf", "size": 876576 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "Inter/Inter-Italic.ttf", "size": 906596 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "Inter/Inter-Bold.ttf", "size": 24356 }
+      ]
+    },
+    {
+      "family": "Roboto",
+      "category": "Sans-serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "Roboto/Roboto-Regular.ttf", "size": 515100 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "Roboto/Roboto-Italic.ttf", "size": 533388 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "Roboto/Roboto-Bold.ttf", "size": 514260 }
+      ]
+    },
+    {
+      "family": "Lora",
+      "category": "Serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "Lora/Lora-Regular.ttf", "size": 212196 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "Lora/Lora-Italic.ttf", "size": 221232 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "Lora/Lora-Bold.ttf", "size": 21044 }
+      ]
+    },
+    {
+      "family": "Merriweather",
+      "category": "Serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "Merriweather/Merriweather-Regular.ttf", "size": 4628080 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "Merriweather/Merriweather-Italic.ttf", "size": 4591168 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "Merriweather/Merriweather-Bold.ttf", "size": 48660 }
+      ]
+    },
+    {
+      "family": "Open Sans",
+      "category": "Sans-serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "OpenSans/OpenSans-Regular.ttf", "size": 532636 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "OpenSans/OpenSans-Italic.ttf", "size": 583992 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "OpenSans/OpenSans-Bold.ttf", "size": 18204 }
+      ]
+    },
+    {
+      "family": "Lato",
+      "category": "Sans-serif",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "Lato/Lato-Regular.ttf", "size": 656568 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "Lato/Lato-Italic.ttf", "size": 722900 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "Lato/Lato-Bold.ttf", "size": 656544 }
+      ]
+    },
+    {
+      "family": "JetBrains Mono",
+      "category": "Monospace",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "JetBrainsMono/JetBrainsMono-Regular.ttf", "size": 187208 },
+        { "variant": "italic", "weight": 400, "style": "italic", "file": "JetBrainsMono/JetBrainsMono-Italic.ttf", "size": 191556 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "JetBrainsMono/JetBrainsMono-Bold.ttf", "size": 21908 }
+      ]
+    },
+    {
+      "family": "Fira Code",
+      "category": "Monospace",
+      "variants": [
+        { "variant": "regular", "weight": 400, "style": "normal", "file": "FiraCode/FiraCode-Regular.ttf", "size": 260364 },
+        { "variant": "bold", "weight": 700, "style": "normal", "file": "FiraCode/FiraCode-Bold.ttf", "size": 23040 }
+      ]
+    }
+  ]
+}

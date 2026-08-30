@@ -5,6 +5,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/fonts/font_cache_manager.dart';
 import '../../../../core/utils/font_family_helper.dart';
 import '../../application/typography_provider.dart';
 import 'google_fonts_sheet.dart';
@@ -60,6 +61,9 @@ class FontPickerSheet extends ConsumerStatefulWidget {
 class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _downloadingFont;
+  double _downloadProgress = 0.0;
+
 
   @override
   void initState() {
@@ -290,7 +294,76 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                         ),
                       );
 
-                      final isBundled = FontFamilyHelper.bundledFonts.contains(font);
+                      final isSystem = font == 'System Sans' ||
+                          font == 'System Serif' ||
+                          font == 'Monospace';
+                      final isHosted = FontFamilyHelper.hostedFonts.contains(font);
+                      final hostedEntry = isHosted ? FontCacheManager.instance.findHostedFont(font) : null;
+                      final isCached = isHosted && FontCacheManager.instance.isFontCached(font);
+                      final isDownloading = _downloadingFont == font;
+
+                      Widget? subtitleWidget;
+                      if (isSystem) {
+                        subtitleWidget = Text(
+                          'System default',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textTertiary,
+                          ),
+                        );
+                      } else if (isHosted) {
+                        if (isDownloading) {
+                          subtitleWidget = Text(
+                            'Downloading font (${(_downloadProgress * 100).toInt()}%)...',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.accent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          );
+                        } else if (isCached) {
+                          subtitleWidget = Text(
+                            'Ready offline • ${hostedEntry?.formattedSize ?? ''}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.textTertiary,
+                            ),
+                          );
+                        } else {
+                          subtitleWidget = Text(
+                            'Tap to download • ${hostedEntry?.formattedSize ?? ''}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.textTertiary,
+                            ),
+                          );
+                        }
+                      }
+
+                      Widget? trailingWidget;
+                      if (isDownloading) {
+                        trailingWidget = SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            value: _downloadProgress > 0 ? _downloadProgress : null,
+                            color: colors.accent,
+                          ),
+                        );
+                      } else if (isSelected) {
+                        trailingWidget = Icon(
+                          Icons.check_rounded,
+                          color: colors.accent,
+                          size: 20,
+                        );
+                      } else if (isHosted && !isCached) {
+                        trailingWidget = Icon(
+                          Icons.cloud_download_outlined,
+                          color: colors.textTertiary.withValues(alpha: 0.7),
+                          size: 18,
+                        );
+                      }
 
                       return ListTile(
                         shape: RoundedRectangleBorder(
@@ -300,33 +373,67 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                           font,
                           style: fontStyle,
                         ),
-                        subtitle: isBundled
-                            ? Text(
-                                'Bundled in app',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: colors.textTertiary,
-                                ),
-                              )
-                            : null,
-                        trailing: isSelected
-                            ? Icon(Icons.check_rounded,
-                                color: colors.accent, size: 20)
-                            : null,
-                        onTap: () {
+                        subtitle: subtitleWidget,
+                        trailing: trailingWidget,
+                        onTap: () async {
+                          if (_downloadingFont != null) return;
+
                           if (font == 'System Sans') {
                             widget.onFontSelected(null);
+                            Navigator.of(context).pop();
+                            return;
                           } else if (font == 'System Serif') {
                             widget.onFontSelected('serif');
+                            Navigator.of(context).pop();
+                            return;
                           } else if (font == 'Monospace') {
                             widget.onFontSelected('monospace');
-                          } else {
-                            widget.onFontSelected(font);
+                            Navigator.of(context).pop();
+                            return;
                           }
-                          Navigator.of(context).pop();
+
+                          if (isHosted && !isCached) {
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+
+                            setState(() {
+                              _downloadingFont = font;
+                              _downloadProgress = 0.05;
+                            });
+
+                            final success = await FontCacheManager.instance.downloadAndRegisterFont(
+                              font,
+                              onProgress: (p) {
+                                if (mounted) {
+                                  setState(() => _downloadProgress = p);
+                                }
+                              },
+                            );
+
+                            if (mounted) {
+                              setState(() => _downloadingFont = null);
+                            }
+
+                            if (success) {
+                              widget.onFontSelected(font);
+                              navigator.pop();
+                            } else if (mounted) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to download font $font. Check connection.'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          } else {
+
+                            widget.onFontSelected(font);
+                            Navigator.of(context).pop();
+                          }
                         },
                       );
                     }),
+
 
                     if (showCustomQueryOption) ...[
                       const Divider(height: 16),

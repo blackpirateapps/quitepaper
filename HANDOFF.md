@@ -594,13 +594,17 @@ Quiet Paper features a comprehensive typography engine that allows users to cust
     - `paragraphIndent`: Left start indent for content (0–40 px).
     - `customFonts`: List of dynamically loaded font families.
   - Proportional heading scales (`scaledTitleSize` [30pt at 18pt base], `scaledHeading1Size` [26pt], `scaledHeading2Size` [22pt], `scaledHeading3Size` [19pt], `scaledHeading4Size` [18pt], `scaledHeading5Size` [17pt], `scaledHeading6Size` [16pt], `scaledCodeSize` [15pt]).
-- **Bundled Fonts & Font Resolution** ([`lib/core/utils/font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart)):
-  - 8 core font families and variants are baked directly into the APK assets (`assets/fonts/`) and declared in `pubspec.yaml` for instant 100% offline access: `Inter`, `Roboto`, `Lora`, `Merriweather`, `Open Sans`, `Lato`, `JetBrains Mono`, `Fira Code`.
+- **On-Demand Hosted Fonts & Font Resolution** ([`lib/core/utils/font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart), [`lib/core/fonts/font_cache_manager.dart`](file:///home/dog/git/quitepaper/lib/core/fonts/font_cache_manager.dart)):
+  - 8 core font families (`Inter`, `Roboto`, `Lora`, `Merriweather`, `Open Sans`, `Lato`, `JetBrains Mono`, `Fira Code`) are hosted statically on the backend CDN (`/fonts/...`) with immutable HTTP caching.
+  - No `.ttf` fonts are bundled inside the APK binary, eliminating ~17MB of bloated assets and significantly reducing release APK download size.
+  - When the user selects a custom hosted font, `FontCacheManager` downloads the font on-demand with progress tracking, persists it to local device disk (`<appDocDir>/fonts/`), and dynamically registers it into Flutter's `FontLoader`.
+  - Downloaded fonts remain permanently available for 100% offline usage.
   - Dynamic resolution via `FontFamilyHelper.getTextStyle` which falls back smoothly to `GoogleFonts.getFont()` for the entire 1,500+ Google Fonts catalog or system fonts.
 - **`TypographySettingsNotifier`** ([`lib/features/settings/application/typography_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/typography_provider.dart)):
   - Persists JSON state in `SharedPreferences` under key `typography_settings_v1`.
-  - `loadCustomFontFromFile(filePath)`: Reads raw TTF/OTF bytes from device storage and registers font dynamically using Flutter's `FontLoader`.
+  - `loadCustomFontFromFile(filePath)`: Reads raw TTF/OTF bytes from device storage, copies into cache, and registers font dynamically using Flutter's `FontLoader`.
   - `resetToDefault()`: Restores factory defaults with a single tap.
+
 
 ### UI / UX Implementation
 - **`TypographySettingsScreen`** ([`lib/features/settings/presentation/typography_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/typography_settings_screen.dart)):
@@ -3669,6 +3673,54 @@ When opening large text attachments (2MB+, containing 50,000 to 100,000+ lines),
    - Added unit and widget test suite in [`test/attachments/plain_text_viewer_chunking_test.dart`](file:///home/dog/git/quitepaper/test/attachments/plain_text_viewer_chunking_test.dart) verifying small file rendering, 1,000-line initial load bounding, manual batch loading, scroll auto-loading, and global search jumps across 3,500+ line documents.
    - Static Analysis: `flutter analyze` (**0 issues found**).
    - Test Suite: `flutter test` (**875 / 875 tests passing**).
+
+---
+
+## 82. On-Demand Dynamic Font Delivery & APK Size Optimization Architecture
+
+### Problem & Motivation
+Previously, 23 TrueType font files across 8 curated font families (`Inter`, `Roboto`, `Lora`, `Merriweather`, `Open Sans`, `Lato`, `JetBrains Mono`, `Fira Code`) were packaged directly into the client APK binary under `assets/fonts/` (~17MB of uncompressed assets). This caused the release APK size to bloat unnecessarily, even though most users only use the default system fonts or one specific custom typeface.
+
+### Architectural Solution
+An on-demand, CDN-cached font distribution and local caching pipeline was implemented across backend and mobile client:
+
+1. **Backend Static CDN Hosting & Public Catalog API**:
+   - **Static Assets** ([`backend/public/fonts/`](file:///home/dog/git/quitepaper/backend/public/fonts/)):
+     - Hosted all 8 curated font families and variants under structured directories: `backend/public/fonts/{family}/{family}-{variant}.ttf`.
+   - **Font Catalog Manifest** ([`backend/public/fonts/manifest.json`](file:///home/dog/git/quitepaper/backend/public/fonts/manifest.json)):
+     - Public JSON catalog detailing font families, categories (`Sans-serif`, `Serif`, `Monospace`), variants, weights, styles, relative file paths, and file byte sizes.
+   - **Caching & CORS Configuration** ([`backend/vercel.json`](file:///home/dog/git/quitepaper/backend/vercel.json)):
+     - Configured immutable CDN caching headers (`Cache-Control: public, max-age=31536000, immutable`) and CORS headers (`Access-Control-Allow-Origin: *`) for all `/fonts/(.*)` routes.
+   - **Public Endpoint** ([`backend/src/api/handler.ts`](file:///home/dog/git/quitepaper/backend/src/api/handler.ts)):
+     - Exposed unauthenticated `GET /api/v1/fonts` and `GET /fonts/manifest.json`.
+
+2. **Mobile Client Font Cache Manager (`FontCacheManager`)** ([`lib/core/fonts/font_cache_manager.dart`](file:///home/dog/git/quitepaper/lib/core/fonts/font_cache_manager.dart)):
+   - **Local Disk Storage**: Persists downloaded `.ttf` files into `<appDocDir>/fonts/`.
+   - **Startup Discovery (`initialize()`)**: Automatically discovers and registers existing cached fonts during app bootstrap in `main.dart` so they are immediately available without network calls.
+   - **Dynamic Runtime Registration**: Uses Flutter's `FontLoader` API (`ByteData` $\rightarrow$ `FontLoader(family).addFont(...)` $\rightarrow$ `await fontLoader.load()`) to dynamically register TrueType fonts into the Skia/Impeller engine.
+   - **Streaming Download & Progress Tracking**: `downloadAndRegisterFont(family, onProgress: ...)` streams font bytes with fractional progress reporting and updates reactive `FontDownloadStatus` (`notDownloaded`, `downloading`, `cached`, `error`).
+   - **Custom Font Importing**: `loadCustomFontFromFile(path)` copies user-provided `.ttf`/`.otf` files into persistent cache and registers them into `FontLoader`.
+
+3. **UI / UX Integration (`FontPickerSheet`)** ([`lib/features/settings/presentation/widgets/font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart)):
+   - Uncached hosted fonts display download metadata badge (e.g. `Tap to download • 450 KB`) and cloud download icon.
+   - Cached fonts display `Ready offline • 450 KB`.
+   - Tapping an uncached hosted font initiates inline downloading with a circular progress indicator and percentage status, smoothly registers the font upon completion, and selects it with zero UI stutter.
+
+4. **Offline-Safe PDF Document Generation (`PdfFontManager`)** ([`lib/core/pdf/pdf_font_manager.dart`](file:///home/dog/git/quitepaper/lib/core/pdf/pdf_font_manager.dart)):
+   - Updated `loadAssetByteData` to check `FontCacheManager` local storage first.
+   - In `resolveTypographyTheme`, if no TrueType font files are downloaded or available offline, it seamlessly falls back to standard built-in vector PDF Type 1 fonts (`pw.Font.helvetica()`, `pw.Font.times()`, `pw.Font.courier()`), guaranteeing 100% offline document export with zero crashes.
+
+5. **APK Asset Unbundling**:
+   - Removed `assets/fonts/*.ttf` files and removed `fonts:` declarations from [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml).
+   - Reduced client asset footprint by ~17MB.
+
+6. **Automated Verification**:
+   - Added unit test suite in [`test/core/fonts/font_cache_manager_test.dart`](file:///home/dog/git/quitepaper/test/core/fonts/font_cache_manager_test.dart) (9 tests).
+   - Added backend API test suite in [`backend/tests/fonts.test.ts`](file:///home/dog/git/quitepaper/backend/tests/fonts.test.ts) (2 tests).
+   - Static Analysis: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
+   - Flutter Tests: `flutter test` (**884 / 884 tests passing**).
+   - Backend Tests: `npm test` (**42 / 42 tests passing across 11 test files**).
+
 
 
 

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../fonts/font_cache_manager.dart';
 
-/// Helper utility for resolving font families across bundled assets, system fonts,
+/// Helper utility for resolving font families across backend-hosted fonts, system fonts,
 /// Google Fonts, and custom user-imported fonts.
 class FontFamilyHelper {
-  /// Font families bundled directly into the APK assets.
-  static const Set<String> bundledFonts = {
+  /// Font families available on-demand from the backend.
+  static const Set<String> hostedFonts = {
     'Inter',
     'Roboto',
     'Lora',
@@ -15,6 +16,9 @@ class FontFamilyHelper {
     'JetBrains Mono',
     'Fira Code',
   };
+
+  /// Backwards-compatibility alias for hosted fonts
+  static const Set<String> bundledFonts = hostedFonts;
 
   /// Curated list of popular Google Fonts with display names and categories.
   static const List<GoogleFontEntry> popularGoogleFonts = [
@@ -79,7 +83,8 @@ class FontFamilyHelper {
     if (fontFamily == 'Monospace' || fontFamily == 'monospace') {
       return baseStyle.copyWith(fontFamily: 'monospace');
     }
-    if (bundledFonts.contains(fontFamily)) {
+    if (FontCacheManager.instance.registeredFamilies.contains(fontFamily) ||
+        FontCacheManager.instance.isFontCached(fontFamily)) {
       return baseStyle.copyWith(fontFamily: fontFamily);
     }
     try {
@@ -89,6 +94,7 @@ class FontFamilyHelper {
     }
   }
 }
+
 
 class GoogleFontEntry {
   const GoogleFontEntry(this.name, this.category);

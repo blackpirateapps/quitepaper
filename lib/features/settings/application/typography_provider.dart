@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/fonts/font_cache_manager.dart';
 import '../domain/typography_settings.dart';
 import 'settings_provider.dart';
+
 
 /// Available curated font presets for convenient selection.
 class CuratedFonts {
@@ -101,10 +103,21 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     }
   }
 
+  void _ensureFontLoaded(String family) {
+    if (FontCacheManager.instance.findHostedFont(family) != null) {
+      if (!FontCacheManager.instance.isFontCached(family)) {
+        FontCacheManager.instance.downloadAndRegisterFont(family).catchError((_) => false);
+      }
+    }
+  }
+
   Future<void> setHeadingFontFamily(String? family) async {
     final clean = (family == null || family == CuratedFonts.systemSans)
         ? null
         : (family == CuratedFonts.systemSerif ? 'serif' : family);
+    if (clean != null && clean != 'serif') {
+      _ensureFontLoaded(clean);
+    }
     await _persist(state.copyWith(
       headingFontFamily: clean,
       clearHeadingFont: clean == null,
@@ -115,6 +128,9 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     final clean = (family == null || family == CuratedFonts.systemSans)
         ? null
         : (family == CuratedFonts.systemSerif ? 'serif' : family);
+    if (clean != null && clean != 'serif') {
+      _ensureFontLoaded(clean);
+    }
     await _persist(state.copyWith(
       bodyFontFamily: clean,
       clearBodyFont: clean == null,
@@ -125,6 +141,10 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     final clean = (family == null || family == CuratedFonts.systemMono)
         ? 'monospace'
         : family;
+    if (clean != 'monospace') {
+      _ensureFontLoaded(clean);
+    }
+
     await _persist(state.copyWith(
       codeFontFamily: clean,
       clearCodeFont: clean == 'monospace',
@@ -161,21 +181,11 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     String? fontName,
   }) async {
     try {
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final family = fontName ??
-          file.uri.pathSegments.last.replaceAll(RegExp(r'\.[^.]+$'), '');
-
-      if (_loadedFontFamilies.contains(family)) {
-        return family;
-      }
-
-      final bytes = await file.readAsBytes();
-      final fontLoader = FontLoader(family);
-      fontLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
-      await fontLoader.load();
-      _loadedFontFamilies.add(family);
+      final family = await FontCacheManager.instance.loadCustomFontFromFile(
+        filePath,
+        fontName: fontName,
+      );
+      if (family == null) return null;
 
       final updatedCustomFonts = List<String>.from(state.customFonts);
       if (!updatedCustomFonts.contains(family)) {
@@ -190,6 +200,7 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
       return null;
     }
   }
+
 
   /// Downloads and registers a font dynamically from Google Fonts or public web font CDN.
   Future<bool> fetchGoogleFont(String fontName) async {
