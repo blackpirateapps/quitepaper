@@ -10,10 +10,13 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../database/app_database.dart';
+import '../attachment_capability_resolver.dart';
 import '../attachment_icon_resolver.dart';
+import '../attachment_models.dart';
 import '../attachment_open_service.dart';
 import '../attachment_provider.dart';
 import '../attachment_type_resolver.dart';
+import 'attachment_viewer_screen.dart';
 
 /// Modal bottom sheet displaying detailed metadata and actions for an attachment.
 class AttachmentDetailsSheet extends ConsumerStatefulWidget {
@@ -75,6 +78,15 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
     if (fresh != null && mounted) {
       setState(() => _entity = fresh);
     }
+  }
+
+  Future<void> _handlePreview() async {
+    Navigator.of(context).pop();
+    await AttachmentViewerScreen.open(
+      context,
+      attachmentId: widget.attachmentId,
+      initialEntity: _entity,
+    );
   }
 
   Future<void> _handleOpen() async {
@@ -376,6 +388,18 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
               const SizedBox(height: AppSpacing.xs),
 
               // 3. Actions List
+              if (AttachmentCapabilityResolver.supports(
+                capability: AttachmentCapability.preview,
+                mimeType: mimeType,
+                fileName: fileName,
+                kind: entity?.kind ?? AttachmentKind.file,
+              ))
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.visibility_outlined, color: colors.textPrimary, size: 20),
+                  title: Text('Preview attachment', style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary)),
+                  onTap: _isLoading ? null : _handlePreview,
+                ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.open_in_new_rounded, color: colors.textPrimary, size: 20),

@@ -207,7 +207,7 @@ void main() {
   });
 
   group('AttachmentCapabilityResolver Tests', () {
-    test('verifies capabilities for generic files', () {
+    test('verifies capabilities for non-previewable binary files', () {
       final caps = AttachmentCapabilityResolver.getCapabilities(
         mimeType: 'application/zip',
         fileName: 'bundle.zip',
@@ -220,9 +220,53 @@ void main() {
       expect(caps.contains(AttachmentCapability.rename), isTrue);
       expect(caps.contains(AttachmentCapability.delete), isTrue);
       expect(caps.contains(AttachmentCapability.download), isTrue);
-      // In Phase 1, generic files do not perform OCR or in-app preview
       expect(caps.contains(AttachmentCapability.ocr), isFalse);
       expect(caps.contains(AttachmentCapability.preview), isFalse);
+      expect(caps.contains(AttachmentCapability.createNote), isFalse);
+    });
+
+    test('verifies capabilities for Markdown text attachments', () {
+      final caps = AttachmentCapabilityResolver.getCapabilities(
+        mimeType: 'text/markdown',
+        fileName: 'README.md',
+        kind: AttachmentKind.file,
+      );
+
+      expect(caps.contains(AttachmentCapability.preview), isTrue);
+      expect(caps.contains(AttachmentCapability.renderMarkdown), isTrue);
+      expect(caps.contains(AttachmentCapability.search), isTrue);
+      expect(caps.contains(AttachmentCapability.selectText), isTrue);
+      expect(caps.contains(AttachmentCapability.createNote), isTrue);
+      expect(caps.contains(AttachmentCapability.wrapToggle), isTrue);
+    });
+
+    test('verifies capabilities for CSV spreadsheet attachments', () {
+      final caps = AttachmentCapabilityResolver.getCapabilities(
+        mimeType: 'text/csv',
+        fileName: 'sales.csv',
+        kind: AttachmentKind.file,
+      );
+
+      expect(caps.contains(AttachmentCapability.preview), isTrue);
+      expect(caps.contains(AttachmentCapability.tableView), isTrue);
+      expect(caps.contains(AttachmentCapability.search), isTrue);
+      expect(caps.contains(AttachmentCapability.selectText), isTrue);
+      expect(caps.contains(AttachmentCapability.createNote), isTrue);
+    });
+
+    test('verifies capabilities for source code attachments', () {
+      final caps = AttachmentCapabilityResolver.getCapabilities(
+        mimeType: 'application/vnd.dart',
+        fileName: 'server.dart',
+        kind: AttachmentKind.file,
+      );
+
+      expect(caps.contains(AttachmentCapability.preview), isTrue);
+      expect(caps.contains(AttachmentCapability.lineNumbers), isTrue);
+      expect(caps.contains(AttachmentCapability.search), isTrue);
+      expect(caps.contains(AttachmentCapability.selectText), isTrue);
+      expect(caps.contains(AttachmentCapability.createNote), isTrue);
+      expect(caps.contains(AttachmentCapability.wrapToggle), isTrue);
     });
 
     test('verifies capabilities for images', () {

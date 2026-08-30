@@ -5,10 +5,13 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../database/app_database.dart';
 import '../attachment_icon_resolver.dart';
+import '../attachment_models.dart';
 import '../attachment_open_service.dart';
 import '../attachment_provider.dart';
 import '../attachment_type_resolver.dart';
+import '../attachment_capability_resolver.dart';
 import 'attachment_details_sheet.dart';
+import 'attachment_viewer_screen.dart';
 
 /// Embedded interactive card widget for Quiet Paper generic file attachments (`qp://asset/<UUID>`).
 ///
@@ -68,6 +71,24 @@ class _QuietAttachmentCardState extends ConsumerState<QuietAttachmentCard> {
   }
 
   Future<void> _handleCardTap() async {
+    final fileName = _entity?.fileName ?? widget.title;
+    final mimeType = _entity?.mimeType ?? AttachmentTypeResolver.inferMimeType(fileName);
+    final canPreview = AttachmentCapabilityResolver.supports(
+      capability: AttachmentCapability.preview,
+      mimeType: mimeType,
+      fileName: fileName,
+      kind: _entity?.kind ?? AttachmentKind.file,
+    );
+
+    if (canPreview) {
+      await AttachmentViewerScreen.open(
+        context,
+        attachmentId: widget.attachmentId,
+        initialEntity: _entity,
+      );
+      return;
+    }
+
     final openService = ref.read(attachmentOpenServiceProvider);
     final res = await openService.openAttachment(
       widget.attachmentId,

@@ -3083,4 +3083,74 @@ In-App Browser (WebClipBrowserScreen / JS DOM) ─┘
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Test suite: `flutter test` (**all tests passing**).
 
+---
+
+## 76. Generic Encrypted File Attachment System (Phase 2A - Text Attachment Viewer & Read-Only Text Intelligence)
+
+### Overview
+Phase 2A implements a dedicated, high-performance, read-only in-app previewer and intelligence layer for text attachments stored in Quiet Paper's encrypted vault (`qp://asset/<UUID>`). It ensures strict immutability of attachment byte payloads, robust multi-encoding detection, RFC 4180 CSV/TSV table rendering, Markdown rich preview with rendered/source switching, in-viewer search with navigation shortcuts, and one-click note creation with frontmatter/table conversion.
+
+### Core Architectural Components
+
+#### 1. Text Format & Binary Detection
+- [`AttachmentTextDetector`](file:///home/dog/git/quitepaper/lib/core/attachments/text/attachment_text_detector.dart):
+  - Classifies payloads into `TextAttachmentFormat` (`plainText`, `markdown`, `csv`, `tsv`, `json`, `yaml`, `xml`, `toml`, `log`, `config`, `sourceCode`, `unknownText`, `binary`).
+  - Binary heuristic guards: checks for null bytes (`\x00`), non-printable ASCII control characters, and known binary extensions/MIMEs.
+  - Resolves typography and viewer policies: `isMonospaced`, `supportsLineNumbers`, `defaultWordWrap`, and user-friendly category badges.
+
+#### 2. Robust Multi-Encoding Text Decoder
+- [`AttachmentTextDecoder`](file:///home/dog/git/quitepaper/lib/core/attachments/text/attachment_text_decoder.dart):
+  - Decodes UTF-8, UTF-8 with BOM (`[0xEF, 0xBB, 0xBF]` - stripped for display while preserving original bytes), UTF-16 LE (`[0xFF, 0xFE]`), UTF-16 BE (`[0xFE, 0xFF]`), UTF-16 without BOM, and ISO-8859-1 (Latin-1) fallbacks.
+  - Detects line endings (`LF`, `CRLF`, `CR`, `Mixed`) and accurate line counts.
+  - Large-file safety threshold: bounded preview limit (2 MB) for huge payloads (> 10 MB) with partial banner indicator and "Open Externally" action.
+  - Preserves 100% Unicode fidelity for smart quotes, em dashes, ellipses, accented characters, CJK characters, emoji, and RTL scripts.
+
+#### 3. Tabular Parser & GFM Table Converter
+- [`AttachmentCsvParser`](file:///home/dog/git/quitepaper/lib/core/attachments/text/attachment_csv_parser.dart):
+  - RFC 4180 compliant CSV and TSV parser supporting quoted fields, escaped quotes (`""`), embedded multiline newlines, empty cells, and inconsistent row normalization.
+  - Safe error recovery without throwing on malformed inputs.
+  - `convertToMarkdownTable`: converts parsed `CsvTableData` into clean GitHub Flavored Markdown table syntax (`| Col | ... |`) with escaped pipes and sanitized cell newlines (`<br>`).
+
+#### 4. Canonical Note Creation Service
+- [`AttachmentNoteCreator`](file:///home/dog/git/quitepaper/lib/core/attachments/text/attachment_note_creator.dart):
+  - Creates a new independent `Note` from text attachments without mutating or removing the source attachment.
+  - For `.md`: extracts YAML frontmatter title and tags if present, or derives fallback title from filename.
+  - For `.csv` / `.tsv`: generates GFM Markdown table.
+  - For source code / JSON / YAML / XML / TOML: wraps text in language-fenced code blocks.
+  - Enforces 5 MB size guard for note imports.
+
+#### 5. Viewer Presentation Layer
+- [`AttachmentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_viewer_screen.dart):
+  - Unified viewer route with calm decryption loading spinner, partial preview notice, and error/fallback states.
+  - AppBar displaying filename, category label, formatted size, and `ENC (QPA1)` encryption badge.
+  - In-viewer search bar with instant query matching, `X/Y` match counter, Up/Down arrow navigation, and `Ctrl+F` / `Cmd+F` / `Escape` keyboard shortcuts.
+  - Full overflow menu: Wrap Text toggle, Line Numbers toggle, View Mode toggles (Rendered ↔ Source, Table ↔ Source), Create Note from File / Convert to Markdown Table, Copy All Text, File Information, Open With, Share, Save As, Rename, and Delete.
+- [`PlainTextViewer`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/plain_text_viewer.dart):
+  - Single-scroll layout synchronizing presentation-only line numbers gutter with selectable text content.
+  - Dynamic font switching (proportional vs. code monospace based on typography settings).
+  - Search query matching using native `TextStyle.backgroundColor` highlighting.
+- [`MarkdownAttachmentViewer`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/markdown_attachment_viewer.dart):
+  - Rendered mode embedding `QuietMarkdownPreview` and Source mode embedding `PlainTextViewer`.
+- [`CsvAttachmentViewer`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/csv_attachment_viewer.dart):
+  - Table mode with interactive `DataTable`, styled headers, horizontal/vertical scrollbars, search cell matching, and long-press cell copy.
+  - Source mode showing raw CSV/TSV text.
+- [`AttachmentFileInfoSheet`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_file_info_sheet.dart):
+  - Modal sheet inspecting filename, format, size, encoding, line count, line endings, date added, SHA-256 hash, and `XChaCha20-Poly1305 (QPA1)` encryption status.
+
+#### 6. Integration & Capability Resolution
+- [`AttachmentCapabilityResolver`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_capability_resolver.dart):
+  - Added text capabilities: `search`, `selectText`, `createNote`, `renderMarkdown`, `tableView`, `lineNumbers`, `wrapToggle`.
+- [`QuietAttachmentCard`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_attachment_card.dart) & [`AttachmentDetailsSheet`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_details_sheet.dart):
+  - Directly opens `AttachmentViewerScreen` when tapped for previewable text formats; opens `ImageViewerModal` for images, `DocumentViewerScreen` for PDFs, and external OS launcher for non-previewable binaries.
+
+### Automated Verification & Quality Assurance
+- [`attachment_text_detector_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_text_detector_test.dart): text vs. binary classification, source code extensions, empty files, and typography policy flags.
+- [`attachment_text_decoder_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_text_decoder_test.dart): UTF-8, BOM stripping, UTF-16 LE/BE, Latin-1, line endings (LF, CRLF, CR, Mixed), line counts, Unicode symbols/CJK/emoji, and bounded truncation.
+- [`attachment_csv_parser_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_csv_parser_test.dart): CSV, TSV, quoted fields with commas, escaped quotes (`""`), embedded multiline newlines, inconsistent row lengths, malformed CSV resilience, and GFM markdown table generation.
+- [`attachment_note_creator_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_note_creator_test.dart): Markdown frontmatter title/tags extraction, plain text, CSV table conversion, source code fences, size limits, and immutability.
+- [`attachment_viewer_screen_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_viewer_screen_test.dart): plain text rendering, Markdown rendered/source toggling, CSV table/source toggling, search bar interaction and navigation, and binary fallback view.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full repository test suite: `flutter test` (**738 / 738 tests passing**).
+
+
 

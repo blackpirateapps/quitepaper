@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'attachment_models.dart';
 import 'attachment_type_resolver.dart';
+import 'text/attachment_text_detector.dart';
 
 /// Capabilities supported by Quiet Paper attachments.
 enum AttachmentCapability {
@@ -29,6 +31,27 @@ enum AttachmentCapability {
 
   /// First page or visual thumbnail rendering
   thumbnail,
+
+  /// Local in-viewer search
+  search,
+
+  /// Text selection and copy
+  selectText,
+
+  /// Create a new independent Note from attachment content
+  createNote,
+
+  /// Render Markdown document in rich preview
+  renderMarkdown,
+
+  /// Tabular data grid view (for CSV/TSV)
+  tableView,
+
+  /// Line numbers presentation
+  lineNumbers,
+
+  /// Word wrap toggle presentation
+  wrapToggle,
 }
 
 /// Centralized resolver determining supported capabilities for attachments.
@@ -39,9 +62,13 @@ class AttachmentCapabilityResolver {
   static Set<AttachmentCapability> getCapabilities({
     required String mimeType,
     required String fileName,
-    AttachmentKind kind = AttachmentKind.file,
+    dynamic kind = AttachmentKind.file,
   }) {
-    if (kind == AttachmentKind.image || AttachmentTypeResolver.isImageMime(mimeType)) {
+    final effectiveKind = kind is AttachmentKind
+        ? kind
+        : (kind is String ? AttachmentKind.fromIdentifier(kind) : AttachmentKind.file);
+
+    if (effectiveKind == AttachmentKind.image || AttachmentTypeResolver.isImageMime(mimeType)) {
       return {
         AttachmentCapability.storage,
         AttachmentCapability.openExternally,
@@ -55,7 +82,7 @@ class AttachmentCapabilityResolver {
       };
     }
 
-    if (kind == AttachmentKind.document || AttachmentTypeResolver.isPdfMime(mimeType)) {
+    if (effectiveKind == AttachmentKind.document || AttachmentTypeResolver.isPdfMime(mimeType)) {
       return {
         AttachmentCapability.storage,
         AttachmentCapability.openExternally,
@@ -66,10 +93,49 @@ class AttachmentCapabilityResolver {
         AttachmentCapability.ocr,
         AttachmentCapability.preview,
         AttachmentCapability.thumbnail,
+        AttachmentCapability.search,
+        AttachmentCapability.selectText,
       };
     }
 
-    // Generic files (DOCX, XLSX, ZIP, code, audio, video, binary, etc.)
+    // Check Text Attachment Formats
+    final textFormat = AttachmentTextDetector.detectFormat(
+      fileName: fileName,
+      bytes: Uint8List(0),
+      mimeType: mimeType,
+    );
+
+    if (AttachmentTextDetector.isTextFormat(textFormat)) {
+      final baseCaps = <AttachmentCapability>{
+        AttachmentCapability.storage,
+        AttachmentCapability.openExternally,
+        AttachmentCapability.share,
+        AttachmentCapability.rename,
+        AttachmentCapability.delete,
+        AttachmentCapability.download,
+        AttachmentCapability.preview,
+        AttachmentCapability.search,
+        AttachmentCapability.selectText,
+        AttachmentCapability.createNote,
+        AttachmentCapability.wrapToggle,
+      };
+
+      if (textFormat == TextAttachmentFormat.markdown) {
+        baseCaps.add(AttachmentCapability.renderMarkdown);
+      }
+
+      if (textFormat == TextAttachmentFormat.csv || textFormat == TextAttachmentFormat.tsv) {
+        baseCaps.add(AttachmentCapability.tableView);
+      }
+
+      if (AttachmentTextDetector.supportsLineNumbers(textFormat)) {
+        baseCaps.add(AttachmentCapability.lineNumbers);
+      }
+
+      return baseCaps;
+    }
+
+    // Generic non-previewable binary files (ZIP, EXE, DOCX, XLSX, etc.)
     return {
       AttachmentCapability.storage,
       AttachmentCapability.openExternally,
@@ -85,7 +151,7 @@ class AttachmentCapabilityResolver {
     required AttachmentCapability capability,
     required String mimeType,
     required String fileName,
-    AttachmentKind kind = AttachmentKind.file,
+    dynamic kind = AttachmentKind.file,
   }) {
     final caps = getCapabilities(
       mimeType: mimeType,

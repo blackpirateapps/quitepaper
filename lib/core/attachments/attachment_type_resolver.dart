@@ -46,36 +46,59 @@ class AttachmentTypeResolver {
       case 'rar':
         return 'Archive';
       case 'txt':
+      case 'text':
         return 'Text File';
       case 'md':
       case 'markdown':
+      case 'mdown':
         return 'Markdown Document';
       case 'csv':
         return 'CSV Spreadsheet';
+      case 'tsv':
+        return 'TSV Spreadsheet';
       case 'json':
         return 'JSON Document';
+      case 'jsonl':
+        return 'JSON Lines Document';
       case 'yaml':
       case 'yml':
         return 'YAML Document';
       case 'xml':
         return 'XML Document';
+      case 'toml':
+        return 'TOML Document';
+      case 'log':
+        return 'Log File';
+      case 'conf':
+      case 'ini':
+      case 'env':
+      case 'cfg':
+      case 'properties':
+        return 'Configuration File';
       case 'dart':
         return 'Dart Source';
       case 'py':
         return 'Python Source';
       case 'js':
+      case 'jsx':
         return 'JavaScript Source';
       case 'ts':
+      case 'tsx':
         return 'TypeScript Source';
       case 'html':
       case 'htm':
         return 'HTML Document';
       case 'css':
+      case 'scss':
+      case 'sass':
+      case 'less':
         return 'CSS Stylesheet';
       case 'c':
       case 'cpp':
+      case 'cc':
       case 'h':
       case 'hpp':
+      case 'hh':
         return 'C/C++ Source';
       case 'java':
         return 'Java Source';
@@ -88,13 +111,33 @@ class AttachmentTypeResolver {
         return 'Go Source';
       case 'rs':
         return 'Rust Source';
+      case 'cs':
+        return 'C# Source';
+      case 'php':
+        return 'PHP Source';
+      case 'rb':
+        return 'Ruby Source';
       case 'sh':
       case 'bash':
+      case 'zsh':
         return 'Shell Script';
       case 'sql':
       case 'sqlite':
       case 'db':
         return 'Database / SQL';
+      case 'lua':
+        return 'Lua Script';
+      case 'r':
+        return 'R Script';
+      case 'scala':
+        return 'Scala Source';
+      case 'graphql':
+        return 'GraphQL Schema';
+      case 'proto':
+        return 'Protobuf Schema';
+      case 'diff':
+      case 'patch':
+        return 'Diff / Patch';
       case 'mp3':
       case 'wav':
       case 'm4a':
@@ -176,12 +219,15 @@ class AttachmentTypeResolver {
     if (lower.endsWith('.tar')) return 'application/x-tar';
     if (lower.endsWith('.gz')) return 'application/gzip';
     if (lower.endsWith('.7z')) return 'application/x-7z-compressed';
-    if (lower.endsWith('.txt')) return 'text/plain';
-    if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'text/markdown';
+    if (lower.endsWith('.txt') || lower.endsWith('.text')) return 'text/plain';
+    if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdown')) return 'text/markdown';
     if (lower.endsWith('.csv')) return 'text/csv';
-    if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.tsv')) return 'text/tab-separated-values';
+    if (lower.endsWith('.json') || lower.endsWith('.jsonl')) return 'application/json';
     if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'text/yaml';
     if (lower.endsWith('.xml')) return 'application/xml';
+    if (lower.endsWith('.toml')) return 'application/toml';
+    if (lower.endsWith('.log')) return 'text/plain';
     if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'text/html';
     if (lower.endsWith('.css')) return 'text/css';
     if (lower.endsWith('.dart')) return 'application/vnd.dart';
@@ -233,8 +279,17 @@ class AttachmentTypeResolver {
           return 'md';
         case 'text/csv':
           return 'csv';
+        case 'text/tab-separated-values':
+          return 'tsv';
         case 'application/json':
           return 'json';
+        case 'text/yaml':
+          return 'yaml';
+        case 'application/xml':
+        case 'text/xml':
+          return 'xml';
+        case 'application/toml':
+          return 'toml';
         case 'text/html':
           return 'html';
         case 'audio/mpeg':
@@ -309,5 +364,17 @@ class AttachmentTypeResolver {
   static bool isPdfMime(String mimeType) {
     final lower = mimeType.toLowerCase().trim();
     return lower == 'application/pdf';
+  }
+
+  /// Checks if MIME type is a recognized text format.
+  static bool isTextMime(String mimeType) {
+    final lower = mimeType.toLowerCase().trim();
+    return lower.startsWith('text/') ||
+        lower == 'application/json' ||
+        lower == 'application/xml' ||
+        lower == 'application/toml' ||
+        lower == 'application/javascript' ||
+        lower == 'application/typescript' ||
+        lower == 'application/vnd.dart';
   }
 }
