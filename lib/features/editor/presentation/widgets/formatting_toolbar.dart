@@ -3,6 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/markdown/markdown_helper.dart';
+import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../application/markdown_formatter.dart';
 import 'link_prompt_dialog.dart';
 
@@ -79,6 +80,60 @@ class FormattingToolbar extends StatelessWidget {
       );
       controller.value = updated;
       onApplyAtomicEdit?.call(updated);
+      if (focusNode != null && !focusNode!.hasFocus) {
+        focusNode!.requestFocus();
+      }
+    }
+  }
+
+  Future<void> _handleCodeBlock(BuildContext context) async {
+    final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(controller.value);
+    if (currentLang != null) {
+      // Cursor is already inside a code block: prompt for language change
+      final selected = await LanguageSelectorSheet.show(
+        context,
+        currentLanguageId: currentLang,
+        title: 'Change Code Language',
+      );
+      if (selected != null) {
+        final updated = MarkdownHelper.changeCodeBlockLanguage(
+          value: controller.value,
+          newLanguage: selected.id,
+        );
+        controller.value = updated;
+        onApplyAtomicEdit?.call(updated);
+        if (focusNode != null && !focusNode!.hasFocus) {
+          focusNode!.requestFocus();
+        }
+      }
+    } else {
+      _applyHelperFormat(MarkdownHelper.insertCodeBlock);
+    }
+  }
+
+  Future<void> _handleCodeBlockLongPress(BuildContext context) async {
+    final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(controller.value);
+    final selected = await LanguageSelectorSheet.show(
+      context,
+      currentLanguageId: currentLang,
+      title: currentLang != null ? 'Change Code Language' : 'Insert Code Block with Language',
+    );
+    if (selected != null) {
+      if (currentLang != null) {
+        final updated = MarkdownHelper.changeCodeBlockLanguage(
+          value: controller.value,
+          newLanguage: selected.id,
+        );
+        controller.value = updated;
+        onApplyAtomicEdit?.call(updated);
+      } else {
+        final updated = MarkdownHelper.insertCodeBlock(
+          controller.value,
+          language: selected.id,
+        );
+        controller.value = updated;
+        onApplyAtomicEdit?.call(updated);
+      }
       if (focusNode != null && !focusNode!.hasFocus) {
         focusNode!.requestFocus();
       }
@@ -175,8 +230,9 @@ class FormattingToolbar extends StatelessWidget {
           ),
           _ToolbarButton(
             icon: Icons.code_rounded,
-            tooltip: 'Code block (```)',
-            onPressed: () => _applyHelperFormat(MarkdownHelper.insertCodeBlock),
+            tooltip: 'Code block (```) — Long press for language',
+            onPressed: () => _handleCodeBlock(context),
+            onLongPress: () => _handleCodeBlockLongPress(context),
           ),
           _ToolbarButton(
             icon: Icons.link_rounded,
@@ -231,6 +287,7 @@ class _ToolbarButton extends StatelessWidget {
     this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.onLongPress,
     this.isBold = false,
     this.isItalic = false,
     this.isStrikethrough = false,
@@ -242,6 +299,7 @@ class _ToolbarButton extends StatelessWidget {
   final IconData? icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
   final bool isBold;
   final bool isItalic;
   final bool isStrikethrough;
@@ -273,6 +331,7 @@ class _ToolbarButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.sm),
           onTap: isEnabled ? onPressed : null,
+          onLongPress: isEnabled ? onLongPress : null,
           child: Container(
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             padding: const EdgeInsets.symmetric(horizontal: 10.0),

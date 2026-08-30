@@ -191,12 +191,116 @@ abstract final class MarkdownHelper {
   }
 
   /// Inserts a code block
-  static TextEditingValue insertCodeBlock(TextEditingValue value) {
+  static TextEditingValue insertCodeBlock(TextEditingValue value, {String language = ''}) {
     return wrapSelection(
       value: value,
-      prefix: '\n```\n',
+      prefix: '\n```$language\n',
       suffix: '\n```\n',
       defaultText: 'code',
     );
+  }
+
+  /// Returns the current language identifier of the code block at cursor, or null if cursor is not inside a code block.
+  static String? getCodeBlockLanguageAtCursor(TextEditingValue value) {
+    final text = value.text;
+    final cursor = value.selection.isValid ? value.selection.baseOffset : text.length;
+    final fenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
+
+    var inCodeBlock = false;
+    var currentFenceDelimiter = '';
+    String? currentLanguage;
+    var lineStart = 0;
+
+    while (lineStart <= text.length) {
+      final nextNewline = text.indexOf('\n', lineStart);
+      final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+      final lineText = text.substring(lineStart, lineEnd);
+
+      final match = fenceRegex.firstMatch(lineText);
+      if (match != null) {
+        final delim = match.group(2)!;
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          currentFenceDelimiter = delim;
+          currentLanguage = match.group(3)?.trim();
+        } else if (delim == currentFenceDelimiter) {
+          if (cursor >= lineStart && cursor <= lineEnd) {
+            return currentLanguage ?? '';
+          }
+          inCodeBlock = false;
+          currentLanguage = null;
+        }
+      }
+
+      if (cursor >= lineStart && cursor <= lineEnd + 1 && inCodeBlock) {
+        return currentLanguage ?? '';
+      }
+
+      if (nextNewline == -1) break;
+      lineStart = nextNewline + 1;
+    }
+
+    return inCodeBlock ? (currentLanguage ?? '') : null;
+  }
+
+  /// Sets or changes the language identifier of the code block at cursor.
+  static TextEditingValue changeCodeBlockLanguage({
+    required TextEditingValue value,
+    required String newLanguage,
+  }) {
+    final text = value.text;
+    final cursor = value.selection.isValid ? value.selection.baseOffset : text.length;
+    final fenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
+
+    var lineStart = 0;
+    var inCodeBlock = false;
+    var currentFenceDelimiter = '';
+    var openingFenceLineStart = -1;
+    var openingFenceLineEnd = -1;
+    Match? openingFenceMatch;
+
+    while (lineStart <= text.length) {
+      final nextNewline = text.indexOf('\n', lineStart);
+      final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+      final lineText = text.substring(lineStart, lineEnd);
+
+      final match = fenceRegex.firstMatch(lineText);
+      if (match != null) {
+        final delim = match.group(2)!;
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          currentFenceDelimiter = delim;
+          openingFenceLineStart = lineStart;
+          openingFenceLineEnd = lineEnd;
+          openingFenceMatch = match;
+        } else if (delim == currentFenceDelimiter) {
+          if (cursor >= openingFenceLineStart && cursor <= lineEnd) {
+            break;
+          }
+          inCodeBlock = false;
+          openingFenceMatch = null;
+        }
+      }
+
+      if (nextNewline == -1) break;
+      lineStart = nextNewline + 1;
+    }
+
+    if (openingFenceMatch != null && openingFenceLineStart != -1) {
+      final indent = openingFenceMatch.group(1) ?? '';
+      final delimiter = openingFenceMatch.group(2) ?? '```';
+      final newLineText = '$indent$delimiter$newLanguage';
+
+      final delta = newLineText.length - (openingFenceLineEnd - openingFenceLineStart);
+      final newText = text.replaceRange(openingFenceLineStart, openingFenceLineEnd, newLineText);
+      final newCursor = (cursor + (cursor > openingFenceLineEnd ? delta : 0)).clamp(0, newText.length);
+
+      return TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+    }
+
+    return value;
   }
 }

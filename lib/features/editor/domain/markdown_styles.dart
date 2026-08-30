@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/syntax/domain/syntax_theme.dart';
 import '../../../core/utils/font_family_helper.dart';
 import '../../settings/domain/typography_settings.dart';
 
@@ -41,6 +42,7 @@ class MarkdownStyles {
     required this.frontmatterDelimiter,
     required this.searchHighlight,
     required this.activeSearchHighlight,
+    required this.syntaxTheme,
   });
 
   final TextStyle heading1;
@@ -75,6 +77,7 @@ class MarkdownStyles {
   final TextStyle frontmatterDelimiter;
   final TextStyle searchHighlight;
   final TextStyle activeSearchHighlight;
+  final SyntaxTheme syntaxTheme;
 
   /// Factory constructor to derive Markdown styles from [AppColors], an optional [baseStyle],
   /// and optional [TypographySettings].
@@ -245,6 +248,14 @@ class MarkdownStyles {
             ? const Color(0xFF1E1B13)
             : const Color(0xFF1A1810),
         fontWeight: FontWeight.w800,
+      ),
+      syntaxTheme: SyntaxTheme.fromColors(
+        colors,
+        typography: typography,
+        fontFamily: codeFont,
+        fontSize: typo.scaledCodeSize,
+        lineHeight: baseHeight,
+        letterSpacing: baseLetterSpacing,
       ),
     );
   }

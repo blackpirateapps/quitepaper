@@ -1,5 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../../core/syntax/application/syntax_highlighter.dart';
+import '../../../core/syntax/application/syntax_language_resolver.dart';
+import '../../../core/syntax/infrastructure/highlight_package_adapter.dart';
 import '../domain/markdown_styles.dart';
 
 /// High-performance Markdown parser that builds a styled [TextSpan] tree
@@ -9,6 +12,10 @@ abstract final class MarkdownParser {
   /// When text exceeds this threshold (e.g. 100k-5M words / 1-5MB text files),
   /// high-performance plain-span rendering is used to maintain 60/120 FPS.
   static const int defaultMaxStyledCharacters = 60000;
+
+  static final SyntaxLanguageResolver _defaultLanguageResolver =
+      SyntaxLanguageResolver();
+  static final SyntaxHighlighter _defaultHighlighter = HighlightPackageAdapter();
 
   // Pre-compiled block-level regular expressions
   static final _codeFenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
@@ -39,6 +46,8 @@ abstract final class MarkdownParser {
     String? searchQuery,
     TextRange? activeSearchRange,
     int maxStyledCharacters = defaultMaxStyledCharacters,
+    SyntaxHighlighter? syntaxHighlighter,
+    SyntaxLanguageResolver? syntaxLanguageResolver,
   }) {
     if (text.isEmpty) {
       return const TextSpan(text: '');
@@ -59,7 +68,8 @@ abstract final class MarkdownParser {
     final lines = _splitLinesWithOffsets(text);
 
     var inFrontmatter = false;
-    var inCodeBlock = false;
+    final highlighter = syntaxHighlighter ?? _defaultHighlighter;
+    final resolver = syntaxLanguageResolver ?? _defaultLanguageResolver;
 
     for (var i = 0; i < lines.length; i++) {
       final lineInfo = lines[i];
@@ -94,25 +104,170 @@ abstract final class MarkdownParser {
         }
       }
       // 2. Fenced Code Blocks (``` or ~~~)
-      else if (_codeFenceRegex.hasMatch(lineText)) {
-        if (!inCodeBlock) {
-          inCodeBlock = true;
-        } else {
-          inCodeBlock = false;
-        }
+      else if (_codeFenceRegex.firstMatch(lineText) case final fenceMatch?) {
+        final fenceDelimiter = fenceMatch.group(2) ?? '```';
+        final rawInfoString = fenceMatch.group(3)?.trim();
+        final language = resolver.resolveFromFence(rawInfoString);
+
+        // Add opening fence line
         rawSpans.add(_RawSpan(
           start: lineStart,
           end: lineStart + lineText.length,
           text: lineText,
           style: styles.codeBlockFence,
         ));
-      } else if (inCodeBlock) {
-        rawSpans.add(_RawSpan(
-          start: lineStart,
-          end: lineStart + lineText.length,
-          text: lineText,
-          style: styles.codeBlock,
-        ));
+
+        // Look ahead for closing fence
+        var closingIndex = -1;
+        for (var j = i + 1; j < lines.length; j++) {
+          final candidateText = lines[j].text;
+          final candMatch = _codeFenceRegex.firstMatch(candidateText);
+          if (candMatch != null && candMatch.group(2) == fenceDelimiter) {
+            closingIndex = j;
+            break;
+          }
+        }
+
+        if (closingIndex != -1) {
+          // Closed code block
+          if (closingIndex > i + 1) {
+            // Newline after opening fence
+            final afterFenceNewline = lineStart + lineText.length;
+            rawSpans.add(_RawSpan(
+              start: afterFenceNewline,
+              end: afterFenceNewline + 1,
+              text: '\n',
+              style: styles.codeBlockFence,
+            ));
+
+            final bodyStart = lines[i + 1].start;
+            final bodyEnd = lines[closingIndex].start;
+            final bodyText = text.substring(bodyStart, bodyEnd);
+
+            if (language != null && language.isSupported) {
+              final hlResult = highlighter.highlight(source: bodyText, language: language);
+              var lastTokOffset = 0;
+              for (final tok in hlResult.tokens) {
+                if (tok.start > lastTokOffset) {
+                  rawSpans.add(_RawSpan(
+                    start: bodyStart + lastTokOffset,
+                    end: bodyStart + tok.start,
+                    text: bodyText.substring(lastTokOffset, tok.start),
+                    style: styles.codeBlock,
+                  ));
+                }
+                rawSpans.add(_RawSpan(
+                  start: bodyStart + tok.start,
+                  end: bodyStart + tok.end,
+                  text: tok.text ?? bodyText.substring(tok.start, tok.end),
+                  style: styles.syntaxTheme.styleFor(tok.type),
+                ));
+                lastTokOffset = tok.end;
+              }
+              if (lastTokOffset < bodyText.length) {
+                rawSpans.add(_RawSpan(
+                  start: bodyStart + lastTokOffset,
+                  end: bodyStart + bodyText.length,
+                  text: bodyText.substring(lastTokOffset),
+                  style: styles.codeBlock,
+                ));
+              }
+            } else {
+              rawSpans.add(_RawSpan(
+                start: bodyStart,
+                end: bodyEnd,
+                text: bodyText,
+                style: styles.codeBlock,
+              ));
+            }
+          } else {
+            // closingIndex == i + 1 (empty body between fences)
+            final newlineOffset = lineStart + lineText.length;
+            rawSpans.add(_RawSpan(
+              start: newlineOffset,
+              end: newlineOffset + 1,
+              text: '\n',
+              style: styles.codeBlockFence,
+            ));
+          }
+
+          // Closing fence line
+          final closingLine = lines[closingIndex];
+          rawSpans.add(_RawSpan(
+            start: closingLine.start,
+            end: closingLine.start + closingLine.text.length,
+            text: closingLine.text,
+            style: styles.codeBlockFence,
+          ));
+
+          // Append newline after closing fence if not at end of document
+          if (closingIndex < lines.length - 1) {
+            final afterClosingNewline = closingLine.start + closingLine.text.length;
+            rawSpans.add(_RawSpan(
+              start: afterClosingNewline,
+              end: afterClosingNewline + 1,
+              text: '\n',
+              style: styles.body,
+            ));
+          }
+
+          i = closingIndex;
+          continue;
+        } else {
+          // Unclosed code block spanning to end of document
+          if (i + 1 < lines.length) {
+            final afterFenceNewline = lineStart + lineText.length;
+            rawSpans.add(_RawSpan(
+              start: afterFenceNewline,
+              end: afterFenceNewline + 1,
+              text: '\n',
+              style: styles.codeBlockFence,
+            ));
+
+            final bodyStart = lines[i + 1].start;
+            final bodyEnd = text.length;
+            final bodyText = text.substring(bodyStart, bodyEnd);
+
+            if (language != null && language.isSupported) {
+              final hlResult = highlighter.highlight(source: bodyText, language: language);
+              var lastTokOffset = 0;
+              for (final tok in hlResult.tokens) {
+                if (tok.start > lastTokOffset) {
+                  rawSpans.add(_RawSpan(
+                    start: bodyStart + lastTokOffset,
+                    end: bodyStart + tok.start,
+                    text: bodyText.substring(lastTokOffset, tok.start),
+                    style: styles.codeBlock,
+                  ));
+                }
+                rawSpans.add(_RawSpan(
+                  start: bodyStart + tok.start,
+                  end: bodyStart + tok.end,
+                  text: tok.text ?? bodyText.substring(tok.start, tok.end),
+                  style: styles.syntaxTheme.styleFor(tok.type),
+                ));
+                lastTokOffset = tok.end;
+              }
+              if (lastTokOffset < bodyText.length) {
+                rawSpans.add(_RawSpan(
+                  start: bodyStart + lastTokOffset,
+                  end: bodyStart + bodyText.length,
+                  text: bodyText.substring(lastTokOffset),
+                  style: styles.codeBlock,
+                ));
+              }
+            } else {
+              rawSpans.add(_RawSpan(
+                start: bodyStart,
+                end: bodyEnd,
+                text: bodyText,
+                style: styles.codeBlock,
+              ));
+            }
+          }
+          i = lines.length; // exit loop
+          continue;
+        }
       }
       // 3. Horizontal Rules (---, ***, ___)
       else if (_horizontalRuleRegex.hasMatch(lineText)) {

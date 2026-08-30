@@ -3188,3 +3188,56 @@ Quiet Paper allows users to save complex multi-category note filters and sort co
 - [`notes_filter_and_sort_ui_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart): Extended tests covering `SavedFiltersSheet` deletion with confirmation and cancel/confirm branches, renaming, and `NotesFilterSheet` "Saved views" entry point.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full repository test suite: `flutter test` (**744 / 744 tests passing**).
+
+---
+
+## 43. Production Syntax Highlighting Subsystem
+
+### Overview
+Quiet Paper features a unified, production-grade syntax highlighting subsystem spanning both the **Markdown Editor** (fenced code blocks) and the **Attachment Viewer** (text, source code, and data files). The subsystem adheres strictly to Quiet Paper's calm editorial design philosophy, provides 100% character and search offset integrity, operates deterministically offline with 189 bundled language grammars, and executes safely within bounded execution limits.
+
+### Core Architectural Layers (`lib/core/syntax/`)
+
+#### 1. Domain Layer (`lib/core/syntax/domain/`)
+- [`SyntaxTokenType`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_token_type.dart): 23 semantic token categories:
+  - `plain`, `keyword`, `string`, `number`, `comment`, `function`, `method`, `type`, `className`, `variable`, `constant`, `operator`, `punctuation`, `property`, `attribute`, `tag`, `builtin`, `literal`, `regexp`, `annotation`, `meta`, `heading`, `link`.
+- [`SyntaxToken`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_token.dart): Immutable UTF-16 code unit offset span `[start, end)` representing a token slice in the source text, with optional `text` payload.
+- [`SyntaxLanguage`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_language.dart): Language metadata container containing canonical ID, display name, aliases, file extensions, MIME types, optional category, and `isSupported` flag.
+- [`HighlightResult`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/highlight_result.dart): Encapsulates highlighted token list, total source length, and success flag. Features `HighlightResult.plain(...)` fallback constructor for unhighlighted, massive, or malformed inputs.
+- [`SyntaxTheme`](file:///home/dog/git/quitepaper/lib/core/syntax/domain/syntax_theme.dart): Maps semantic token types to `TextStyle` objects derived dynamically from [`AppColors`](file:///home/dog/git/quitepaper/lib/app/theme/app_colors.dart) and user typography settings ([`TypographySettings`](file:///home/dog/git/quitepaper/lib/features/settings/domain/typography_settings.dart)). Ensures WCAG AA contrast (≥ 4.5:1 on background `#F7F6F2` Light / `#1D1C1A` Dark) without saturated neon colors.
+
+#### 2. Application & Infrastructure Layer (`lib/core/syntax/application/` & `infrastructure/`)
+- [`SyntaxHighlighter`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_highlighter.dart): Abstract highlighting engine interface with immutable version tracking.
+- [`SyntaxLanguageRegistry`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_language_registry.dart): Singleton registry pre-loaded with curated metadata for core languages and all 189 bundled grammars from `package:highlight`. Provides O(1) lookups by ID, alias, extension, and MIME type, plus substring search.
+- [`SyntaxLanguageResolver`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_language_resolver.dart): Robust resolver with 4-tier attachment resolution precedence (User Override > MIME Type > File Extension > Plain Text Fallback) and markdown code fence info string cleaning.
+- [`SyntaxHighlightCache`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_highlight_cache.dart): Bounded LRU cache (100 entries) keyed on `(version:languageId:length:sourceHash)` to avoid redundant re-parsing during rapid editor typing.
+- [`HighlightPackageAdapter`](file:///home/dog/git/quitepaper/lib/core/syntax/infrastructure/highlight_package_adapter.dart): High-performance adapter bridging `package:highlight` AST nodes into flattened, merged UTF-16 `SyntaxToken` spans. Enforces safety thresholds (>50,000 chars fallback to plain text) and catches all parsing exceptions gracefully.
+- [`SyntaxProviders`](file:///home/dog/git/quitepaper/lib/core/syntax/application/syntax_provider.dart): Riverpod providers for registry, resolver, highlighter, and attachment language override state.
+
+#### 3. Presentation Layer (`lib/core/syntax/presentation/`)
+- [`SyntaxTextSpans`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/syntax_text_spans.dart): Utility compiling `HighlightResult` into Flutter `TextSpan` trees with full character integrity, search query overlay highlights across token boundaries, and IME composing range underline decorations.
+- [`LanguageSelectorSheet`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/language_selector_sheet.dart): Searchable, keyboard-aware bottom modal sheet for picking or overriding code languages.
+
+### Markdown Editor Integration
+- [`MarkdownStyles`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_styles.dart): Extended with `syntaxTheme` and monospace font family bindings.
+- [`MarkdownParser`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart): Parses fenced code blocks (```` ```lang ````), resolves the language via `SyntaxLanguageResolver`, highlights the block body with `SyntaxHighlighter`, and generates semantic token `TextSpan`s while preserving line breaks and character alignment.
+- [`MarkdownEditingController`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_editing_controller.dart): Injects `SyntaxHighlighter` and `SyntaxLanguageResolver` into `MarkdownParser.buildTextSpan`.
+- [`MarkdownHelper`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_helper.dart): Added `getCodeBlockLanguageAtCursor`, `changeCodeBlockLanguage`, and `insertCodeBlock(language:)` helpers.
+- [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart): Added code block language picker on long-press of the code block toolbar button, and inline language switching when cursor is positioned inside an existing code block.
+
+### Attachment Viewer Integration
+- [`PlainTextViewer`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/plain_text_viewer.dart): Automatically detects syntax language from attachment `fileName` and `mimeType` (or `overrideLanguageId`), renders syntax-highlighted tokens, and supports search match overlays and optional line numbers.
+- [`AttachmentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_viewer_screen.dart): Displays the detected or active language in the header, provides a `"View as…"` menu item opening `LanguageSelectorSheet`, and updates presentation highlighting dynamically without modifying underlying attachment bytes.
+
+### Automated Verification & Quality Assurance
+- [`syntax_language_registry_test.dart`](file:///home/dog/git/quitepaper/test/syntax/syntax_language_registry_test.dart): Verified registry lookup by ID, case-insensitivity, aliases, extensions, MIME types, search filtering, and full 189 bundled grammars catalog.
+- [`syntax_language_resolver_test.dart`](file:///home/dog/git/quitepaper/test/syntax/syntax_language_resolver_test.dart): Verified Markdown code fence resolution, info string flags stripping, plain text fallback, and 4-tier attachment resolution hierarchy.
+- [`syntax_highlighter_test.dart`](file:///home/dog/git/quitepaper/test/syntax/syntax_highlighter_test.dart): Verified tokenization across Dart, Python, JavaScript, TypeScript, JSON, YAML, SQL, Shell/Bash, Rust, Go; edge cases with empty strings, whitespace, incomplete syntax, emoji/surrogate pairs UTF-16 code unit alignment, 50k payload safety fallback, and LRU caching.
+- [`syntax_theme_test.dart`](file:///home/dog/git/quitepaper/test/syntax/syntax_theme_test.dart): Verified light and dark syntax themes against all 23 token types with distinctive font weights and styles.
+- [`syntax_text_spans_test.dart`](file:///home/dog/git/quitepaper/test/syntax/syntax_text_spans_test.dart): Verified TextSpan generation, character preservation, search match overlays across token spans, and IME composing underline decorations.
+- [`language_selector_sheet_test.dart`](file:///home/dog/git/quitepaper/test/syntax/language_selector_sheet_test.dart): Verified bottom sheet rendering, search filtering, and language selection callbacks.
+- [`markdown_parser_syntax_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_parser_syntax_test.dart): Verified code block token styling in editor parser with search query overlays and unknown language fallback.
+- [`markdown_helper_syntax_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_helper_syntax_test.dart): Verified cursor-aware code block language detection, in-place language replacement, and parameterized code block insertion.
+- [`plain_text_viewer_syntax_test.dart`](file:///home/dog/git/quitepaper/test/attachments/plain_text_viewer_syntax_test.dart): Verified source code rendering with line numbers, search highlighting, and language override integration in attachment viewer.
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Full test suite: `flutter test` (**795 / 795 tests passing**).

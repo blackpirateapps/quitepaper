@@ -4,16 +4,22 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../features/settings/application/typography_provider.dart';
+import '../../syntax/application/syntax_provider.dart';
+import '../../syntax/domain/syntax_theme.dart';
+import '../../syntax/presentation/syntax_text_spans.dart';
 import '../../utils/font_family_helper.dart';
 import '../text/attachment_text_detector.dart';
 
-/// Read-only plain text viewer with line numbers, word wrap toggle, search highlight matching,
-/// selectable text, and theme-adaptive typography.
+/// Read-only plain text and source code viewer with line numbers, word wrap toggle,
+/// syntax highlighting, search highlight matching, selectable text, and theme-adaptive typography.
 class PlainTextViewer extends ConsumerStatefulWidget {
   const PlainTextViewer({
     super.key,
     required this.text,
     this.format = TextAttachmentFormat.plainText,
+    this.fileName,
+    this.mimeType,
+    this.overrideLanguageId,
     this.isMonospaced,
     this.showLineNumbers,
     this.wordWrap,
@@ -25,6 +31,9 @@ class PlainTextViewer extends ConsumerStatefulWidget {
 
   final String text;
   final TextAttachmentFormat format;
+  final String? fileName;
+  final String? mimeType;
+  final String? overrideLanguageId;
   final bool? isMonospaced;
   final bool? showLineNumbers;
   final bool? wordWrap;
@@ -90,9 +99,20 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
     final colors = context.appColors;
     final typography = ref.watch(typographySettingsProvider);
 
-    final isMono = widget.isMonospaced ?? AttachmentTextDetector.isMonospaced(widget.format);
-    final showLineNums = widget.showLineNumbers ?? AttachmentTextDetector.supportsLineNumbers(widget.format);
-    final wrap = widget.wordWrap ?? AttachmentTextDetector.defaultWordWrap(widget.format);
+    // 1. Resolve syntax language
+    final resolver = ref.watch(syntaxLanguageResolverProvider);
+    final language = resolver.resolveForAttachment(
+      overrideLanguageId: widget.overrideLanguageId,
+      mimeType: widget.mimeType,
+      fileName: widget.fileName,
+    );
+
+    final isMono = widget.isMonospaced ??
+        (language.isSupported || AttachmentTextDetector.isMonospaced(widget.format));
+    final showLineNums = widget.showLineNumbers ??
+        (language.isSupported || AttachmentTextDetector.supportsLineNumbers(widget.format));
+    final wrap = widget.wordWrap ??
+        (language.isSupported ? false : AttachmentTextDetector.defaultWordWrap(widget.format));
 
     final fontFamily = isMono
         ? (typography.codeFontFamily ?? 'monospace')
@@ -131,13 +151,40 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
     final lineCount = lines.length;
     final gutterWidth = _calculateGutterWidth(lineCount, fontSize);
 
-    // Build the TextSpan tree with search highlights
-    final textSpan = _buildHighlightedTextSpan(
-      widget.text,
-      baseTextStyle,
+    // 2. Perform syntax highlighting if language is supported
+    final highlighter = ref.watch(syntaxHighlighterProvider);
+    final hlResult = highlighter.highlight(source: widget.text, language: language);
+
+    final syntaxTheme = SyntaxTheme.fromColors(
       colors,
-      widget.searchQuery?.trim(),
-      widget.currentMatchIndex,
+      typography: typography,
+      fontFamily: fontFamily,
+      fontSize: fontSize,
+      lineHeight: lineHeight,
+      letterSpacing: baseLetterSpacing,
+    );
+
+    final isDark = colors.background.computeLuminance() < 0.5;
+
+    // 3. Build the TextSpan tree with syntax tokens and search overlays
+    final textSpan = SyntaxTextSpans.buildTextSpan(
+      text: widget.text,
+      highlightResult: hlResult,
+      theme: syntaxTheme,
+      fallbackStyle: baseTextStyle,
+      searchQuery: widget.searchQuery?.trim(),
+      activeSearchMatchIndex: widget.currentMatchIndex,
+      searchMatchOffsets: _matchOffsets,
+      searchHighlightStyle: TextStyle(
+        backgroundColor: isDark ? const Color(0xFF7A5C1E) : const Color(0xFFFFE066),
+        color: isDark ? const Color(0xFFFFFAED) : const Color(0xFF242018),
+        fontWeight: FontWeight.w500,
+      ),
+      activeSearchHighlightStyle: TextStyle(
+        backgroundColor: isDark ? const Color(0xFFFBBF24) : const Color(0xFFF59E0B),
+        color: isDark ? const Color(0xFF1E1B13) : const Color(0xFF1A1810),
+        fontWeight: FontWeight.w800,
+      ),
     );
 
     Widget content = SelectableText.rich(
@@ -217,62 +264,5 @@ class _PlainTextViewerState extends ConsumerState<PlainTextViewer> {
     final digits = lineCount.toString().length;
     final charWidth = fontSize * 0.65;
     return (digits * charWidth) + 20.0;
-  }
-
-  TextSpan _buildHighlightedTextSpan(
-    String fullText,
-    TextStyle baseStyle,
-    AppColors colors,
-    String? query,
-    int activeMatchIndex,
-  ) {
-    if (query == null || query.isEmpty || _matchOffsets.isEmpty) {
-      return TextSpan(text: fullText, style: baseStyle);
-    }
-
-    final spans = <InlineSpan>[];
-    int currentPos = 0;
-    final queryLen = query.length;
-
-    for (int matchIdx = 0; matchIdx < _matchOffsets.length; matchIdx++) {
-      final matchStart = _matchOffsets[matchIdx];
-
-      // Add preceding plain text
-      if (matchStart > currentPos) {
-        spans.add(TextSpan(
-          text: fullText.substring(currentPos, matchStart),
-          style: baseStyle,
-        ));
-      }
-
-      final isCurrent = matchIdx == activeMatchIndex;
-      final matchText = fullText.substring(matchStart, matchStart + queryLen);
-
-      // Highlighted match using native TextStyle backgroundColor
-      spans.add(
-        TextSpan(
-          text: matchText,
-          style: baseStyle.copyWith(
-            backgroundColor: isCurrent
-                ? colors.accent.withValues(alpha: 0.55)
-                : colors.accent.withValues(alpha: 0.25),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-      );
-
-      currentPos = matchStart + queryLen;
-    }
-
-    // Add any remaining text
-    if (currentPos < fullText.length) {
-      spans.add(TextSpan(
-        text: fullText.substring(currentPos),
-        style: baseStyle,
-      ));
-    }
-
-    return TextSpan(children: spans);
   }
 }

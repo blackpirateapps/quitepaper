@@ -11,6 +11,8 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../features/notes/application/notes_provider.dart';
 import '../../database/app_database.dart';
+import '../../syntax/application/syntax_provider.dart';
+import '../../syntax/presentation/language_selector_sheet.dart';
 import '../attachment_icon_resolver.dart';
 import '../attachment_open_service.dart';
 import '../attachment_provider.dart';
@@ -66,6 +68,7 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
 
   bool _isLoading = true;
   String? _errorMessage;
+  String? _overrideLanguageId;
 
   // View preferences
   MarkdownViewMode _markdownMode = MarkdownViewMode.rendered;
@@ -452,7 +455,19 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
     final colors = context.appColors;
     final entity = _entity;
     final fileName = entity?.fileName ?? 'Attachment';
-    final categoryLabel = AttachmentTextDetector.getCategoryLabel(_format, fileName: fileName);
+    final resolvedLang = ref.watch(syntaxLanguageResolverProvider).resolveForAttachment(
+      overrideLanguageId: _overrideLanguageId,
+      mimeType: entity?.mimeType,
+      fileName: fileName,
+    );
+
+    final String categoryLabel;
+    if (_overrideLanguageId != null) {
+      categoryLabel = '${resolvedLang.name} Source';
+    } else {
+      categoryLabel = AttachmentTextDetector.getCategoryLabel(_format, fileName: fileName);
+    }
+
     final sizeLabel = _formatBytes(entity?.byteSize ?? _rawBytes?.length ?? 0);
 
     final isText = AttachmentTextDetector.isTextFormat(_format);
@@ -558,7 +573,7 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded),
                 tooltip: 'Viewer options',
-                onSelected: (val) {
+                onSelected: (val) async {
                   switch (val) {
                     case 'toggle_search':
                       _toggleSearch();
@@ -568,6 +583,19 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
                       break;
                     case 'toggle_line_numbers':
                       setState(() => _showLineNumbers = !_showLineNumbers);
+                      break;
+                    case 'view_as':
+                      final currentLang = _overrideLanguageId ?? resolvedLang.id;
+                      final selected = await LanguageSelectorSheet.show(
+                        context,
+                        currentLanguageId: currentLang,
+                        title: 'View Attachment As',
+                      );
+                      if (selected != null) {
+                        setState(() {
+                          _overrideLanguageId = selected.id;
+                        });
+                      }
                       break;
                     case 'toggle_markdown_mode':
                       setState(() {
@@ -645,6 +673,20 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
                           Icon(Icons.format_list_numbered_rounded, size: 18, color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(child: Text(_showLineNumbers ? 'Line Numbers ✓' : 'Line Numbers')),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'view_as',
+                      child: Row(
+                        children: [
+                          Icon(Icons.palette_outlined, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(_overrideLanguageId != null
+                                ? 'View as: ${resolvedLang.name} ✓'
+                                : 'View as…'),
+                          ),
                         ],
                       ),
                     ),
@@ -981,6 +1023,7 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
     }
 
     final text = _decoded?.text ?? '';
+    final fileName = _entity?.fileName ?? 'Attachment';
 
     switch (_format) {
       case TextAttachmentFormat.markdown:
@@ -1030,6 +1073,9 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
         return PlainTextViewer(
           text: text,
           format: _format,
+          fileName: fileName,
+          mimeType: _entity?.mimeType,
+          overrideLanguageId: _overrideLanguageId,
           isMonospaced: AttachmentTextDetector.isMonospaced(_format),
           showLineNumbers: _showLineNumbers,
           wordWrap: _wordWrap,

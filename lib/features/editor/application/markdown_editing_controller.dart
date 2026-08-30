@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/syntax/application/syntax_highlighter.dart';
+import '../../../core/syntax/application/syntax_language_resolver.dart';
 import '../domain/markdown_styles.dart';
 import 'markdown_parser.dart';
 
@@ -10,6 +12,8 @@ class MarkdownEditingController extends TextEditingController {
     super.text,
     this.styles,
     this.maxStyledCharacters = MarkdownParser.defaultMaxStyledCharacters,
+    this.syntaxHighlighter,
+    this.syntaxLanguageResolver,
     this._searchQuery,
     this._activeSearchRange,
   });
@@ -17,6 +21,12 @@ class MarkdownEditingController extends TextEditingController {
   /// Optional static styles override. If null, styles will dynamically adapt to
   /// the active [AppColors] from the build context.
   MarkdownStyles? styles;
+
+  /// Optional syntax highlighter override.
+  SyntaxHighlighter? syntaxHighlighter;
+
+  /// Optional syntax language resolver override.
+  SyntaxLanguageResolver? syntaxLanguageResolver;
 
   /// Maximum character count threshold for full AST Markdown styling.
   int maxStyledCharacters;
@@ -72,6 +82,8 @@ class MarkdownEditingController extends TextEditingController {
       searchQuery: _searchQuery,
       activeSearchRange: _activeSearchRange,
       maxStyledCharacters: maxStyledCharacters,
+      syntaxHighlighter: syntaxHighlighter,
+      syntaxLanguageResolver: syntaxLanguageResolver,
     );
   }
 }
