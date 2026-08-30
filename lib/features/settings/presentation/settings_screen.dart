@@ -1270,7 +1270,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       iconColor: colors.accent,
                       title: 'Quiet Paper',
                       description:
-                          'A quiet place to think.\nVersion 1.5.4 • Offline-first • End-to-End Encrypted Sync',
+                          'A quiet place to think.\nVersion 1.5.5 • Offline-first • End-to-End Encrypted Sync',
                     ),
                     _buildDivider(colors),
                     _SettingsRow(

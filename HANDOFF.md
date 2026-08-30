@@ -3989,6 +3989,22 @@ Previously, typography preferences (`headingFontFamily`, `bodyFontFamily`, `code
    - Added Group 8 to [`test/theme/theme_engine_test.dart`](file:///home/dog/git/quitepaper/test/theme/theme_engine_test.dart) asserting dynamic `ThemeData`, `TextTheme`, and `AppTypographyTheme` font family bindings.
    - All **938 Flutter tests** and **42 backend tests** pass cleanly with 0 warnings/errors.
 
+---
+
+## 34. Version Bump to v1.5.5 (Build 13)
+
+### Overview
+Synchronized and bumped the application version across the entire release pipeline from `1.5.4+12` to `1.5.5+13` per the **App Version Bump Checklist** in Section 17.
+
+### Files Updated
+1. [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19): `version: 1.5.5+13`
+2. [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart#L10): `currentVersion: '1.5.5'`
+3. [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart#L23): `appVersion: '1.5.5'`
+4. [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L23): `this.appVersion = '1.5.5'`
+5. [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L1273): `'Version 1.5.5 • Offline-first • End-to-End Encrypted Sync'`
+6. [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L180): `'appVersion': '1.5.5'`
+
+
 
 
 
