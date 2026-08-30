@@ -3441,3 +3441,94 @@ Addressed user requirements for complete, end-to-end syntax highlighting in Quie
   - Verified cursor-aware language detection inside code blocks.
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Full Flutter test suite: `flutter test` (**846 / 846 tests passing**).
+
+---
+
+## 44. Tag System Redesign Around Quiet Paper's 3-Pane Workspace
+
+### Motivation & Design Philosophy
+Previously, selecting "Show all tags..." or "Manage tags" in the sidebar navigated to a separate full-screen page (`TagBrowserScreen`), and tapping a tag opened a standalone detail route (`TagDetailScreen`). This fragmented the editing workflow, broke workspace continuity, and deviated from the Bear Notes-inspired 3-pane model.
+
+Tags are navigation and filter contexts, not destination screens. Selecting a tag changes the filter context of the existing workspace, similar to selecting **All Notes**, **Pinned**, **Archive**, or **Trash**.
+
+```text
+┌────────────────────┬────────────────────────┬──────────────────────────┐
+│ Navigation Sidebar │ Note List / Context    │ Note Editor / Viewer     │
+│                    │                        │                          │
+│ All Notes          │ [Tag Context Header]   │ [Note Document]          │
+│ Pinned             │ #blog (2 notes)        │                          │
+│ Archive            │ ────────────────────── │                          │
+│ Trash              │ Note 1                 │                          │
+│ Tags:              │ Note 2                 │                          │
+│   #blog            │                        │                          │
+│   #work            │                        │                          │
+│   Show all tags... │                        │                          │
+└────────────────────┴────────────────────────┴──────────────────────────┘
+```
+
+### Architectural & UI Enhancements
+
+#### 1. Unified Workspace Context & State Architecture
+- [`notes_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_provider.dart):
+  - Extended `AppDestination` with `AppDestination.tagBrowser`.
+  - Added `selectedTagIdProvider` (`StateProvider<String?>`) to track canonical tag IDs alongside `selectedTagFilterProvider`.
+  - Introduced `WorkspaceContextType` (`allNotes`, `pinned`, `archive`, `trash`, `tag`, `tagBrowser`) and `WorkspaceContext` entity.
+  - Implemented `workspaceContextProvider` for unified, reactive representation of active workspace state.
+  - Updated `filteredNotesStreamProvider` to emit empty lists when in `AppDestination.tagBrowser` without database overhead.
+- [`notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart):
+  - Added destination handling for `AppDestination.tagBrowser` in `notesQueryProvider` and `NotesQueryNotifier._onDestinationChanged`.
+
+#### 2. Embedded Tag Browser Component
+- [`TagBrowserView`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart):
+  - Highly reusable, self-contained component operating seamlessly in the 3-pane middle pane, mobile screens, or wrapped in legacy modals.
+  - Compact header (`height: 52dp`) with tag counter pill, inline search, sort menu (Name, Note count, Recently used, Recently created, Custom), filter menu (All, Pinned, Has icon, Has color, With notes, Unused), and `+` add tag button.
+  - Responsive layout builder preventing horizontal overflows on narrow constraints (e.g. 320dp middle pane) by grouping sort/filter actions.
+  - Inline search bar dismissible with `Escape` key (`CallbackShortcuts`) or close icon.
+  - Pinned tags section with drag-and-drop reordering via `ReorderableListView.builder`, persisting order through `tagService.reorderPinnedTags`. Pin glyphs are hidden in the pinned section per design guidelines.
+  - All tags section with note counts, custom colors, and custom icon glyphs.
+  - Row tap triggers tag context activation in the middle pane without pushing a route.
+  - Full context menu (`⋮` / long press / secondary click) supporting: Open tag, Pin/Unpin, Rename, Change icon, Change color, Merge into..., and Delete tag.
+  - Accessibility: tags wrapped with `Semantics` providing descriptive labels (`${tag.name}, ${tag.noteCount} notes${tag.isPinned ? ', pinned' : ''}`).
+- [`TagBrowserScreen`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/tag_browser_screen.dart):
+  - Refactored into a thin wrapper delegating to `TagBrowserView` for backward-compatibility with tests and modal callers.
+
+#### 3. Tag Context Header in Middle Pane
+- [`TagContextHeader`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_context_header.dart):
+  - Compact middle-pane top bar (`height: 54dp`) replacing the generic app bar when in a tag context.
+  - Displays sidebar/drawer toggle, custom icon or hash glyph, `#tagName`, and note count pill.
+  - Actions: Sort notes, Filter notes (`NotesFilterButton` with badge count), Search notes, New Note in Tag (`+`), and Tag Options (`⋮`).
+  - Options menu actions: Rename tag, Change/Add icon, Change/Add color, Pin/Unpin tag, Merge into..., Delete tag, and Clip webpage.
+  - Integrated with dialogs: renaming updates `selectedTagFilterProvider`; merging redirects to the target tag; deletion switches workspace back to `allNotes`.
+
+#### 4. Editor Continuity & Selection Rules
+- In [`NotesScreen`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart):
+  - Implemented `_validateOpenNoteForNewContext`:
+    - **Case A**: Active note has the new tag $\rightarrow$ keep note open in the editor pane.
+    - **Case B**: Active note does not have the new tag $\rightarrow$ clear selection and display "No note selected" with subtitle "Select a note to view or create a new one."
+    - **Case C**: Navigating to `AppDestination.tagBrowser` $\rightarrow$ preserve open note in the editor pane.
+  - Middle pane rendering in `_buildTabletLayout`:
+    - When `destination == AppDestination.tagBrowser`: renders `TagBrowserView` directly in the middle pane.
+    - When `destination == AppDestination.tag`: renders `TagContextHeader` + filtered notes list.
+    - Redundant `TagsFilterBar` is hidden when already viewing a specific tag context.
+  - Back navigation:
+    - Mobile and tablet layouts use `PopScope` on tag and tagBrowser contexts to seamlessly return to `AppDestination.allNotes` instead of popping the entire application route.
+
+#### 5. Navigation Sidebar & Search Screen Updates
+- [`SidebarView`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart):
+  - Tapping "Manage tags" or "Show all tags..." sets `currentDestinationProvider = AppDestination.tagBrowser`.
+  - Tapping a tag sets `currentDestinationProvider = AppDestination.tag`, `selectedTagFilterProvider = tag.name`, and `selectedTagIdProvider = tag.id`.
+  - Tag row long-press and secondary click opens the tag options sheet in-place without pushing `TagDetailScreen`.
+- [`SearchScreen`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart):
+  - Tapping "Browse all $\rightarrow$" sets `currentDestinationProvider = AppDestination.tagBrowser` and pops the search sheet.
+- [`TagsFilterBar`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/tags_filter_bar.dart):
+  - Chip taps synchronize with `selectedTagIdProvider` and `currentDestinationProvider`.
+- [`NoteEmptyState`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_empty_state.dart):
+  - Updated empty state for tags to show `#tagName` with subtitle "No notes use this tag yet."
+  - Added empty state for `tagBrowser`.
+
+### Quality Verification
+- **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
+- **Test Suite**: `flutter test` (**852 / 852 tests passing**).
+  - All existing tag database, dialog, and UI tests pass.
+  - Added comprehensive 3-pane workspace navigation tests in [`tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart) covering sidebar selection, middle-pane TagBrowserView rendering, TagContextHeader actions, and mobile back navigation.
+

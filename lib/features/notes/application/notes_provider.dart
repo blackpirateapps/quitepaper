@@ -12,6 +12,57 @@ enum AppDestination {
   archive,
   trash,
   tag,
+  tagBrowser,
+}
+
+/// Explicit representation of the active workspace context
+enum WorkspaceContextType {
+  allNotes,
+  pinned,
+  archive,
+  trash,
+  tag,
+  tagBrowser,
+}
+
+class WorkspaceContext {
+  const WorkspaceContext({
+    required this.type,
+    this.tagId,
+    this.tagName,
+  });
+
+  final WorkspaceContextType type;
+  final String? tagId;
+  final String? tagName;
+
+  static const allNotes = WorkspaceContext(type: WorkspaceContextType.allNotes);
+  static const pinned = WorkspaceContext(type: WorkspaceContextType.pinned);
+  static const archive = WorkspaceContext(type: WorkspaceContextType.archive);
+  static const trash = WorkspaceContext(type: WorkspaceContextType.trash);
+  static const tagBrowser = WorkspaceContext(type: WorkspaceContextType.tagBrowser);
+
+  static WorkspaceContext tag({String? tagId, required String tagName}) =>
+      WorkspaceContext(type: WorkspaceContextType.tag, tagId: tagId, tagName: tagName);
+
+  bool get isAllNotes => type == WorkspaceContextType.allNotes;
+  bool get isPinned => type == WorkspaceContextType.pinned;
+  bool get isArchive => type == WorkspaceContextType.archive;
+  bool get isTrash => type == WorkspaceContextType.trash;
+  bool get isTag => type == WorkspaceContextType.tag;
+  bool get isTagBrowser => type == WorkspaceContextType.tagBrowser;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WorkspaceContext &&
+          runtimeType == other.runtimeType &&
+          type == other.type &&
+          tagId == other.tagId &&
+          tagName == other.tagName;
+
+  @override
+  int get hashCode => type.hashCode ^ tagId.hashCode ^ tagName.hashCode;
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -30,8 +81,33 @@ final notesRepositoryProvider = Provider<NotesRepository>((ref) {
 /// Currently selected top-level destination in the sidebar / navigation
 final currentDestinationProvider = StateProvider<AppDestination>((ref) => AppDestination.allNotes);
 
-/// Currently selected tag filter on notes list (null = no tag filter)
+/// Currently selected tag filter name on notes list (null = no tag filter)
 final selectedTagFilterProvider = StateProvider<String?>((ref) => null);
+
+/// Currently selected tag ID (optional stable ID)
+final selectedTagIdProvider = StateProvider<String?>((ref) => null);
+
+/// Explicit workspace context provider reflecting current workspace state
+final workspaceContextProvider = Provider<WorkspaceContext>((ref) {
+  final destination = ref.watch(currentDestinationProvider);
+  final tagFilter = ref.watch(selectedTagFilterProvider);
+  final tagId = ref.watch(selectedTagIdProvider);
+
+  switch (destination) {
+    case AppDestination.allNotes:
+      return WorkspaceContext.allNotes;
+    case AppDestination.pinned:
+      return WorkspaceContext.pinned;
+    case AppDestination.archive:
+      return WorkspaceContext.archive;
+    case AppDestination.trash:
+      return WorkspaceContext.trash;
+    case AppDestination.tag:
+      return WorkspaceContext.tag(tagId: tagId, tagName: tagFilter ?? '');
+    case AppDestination.tagBrowser:
+      return WorkspaceContext.tagBrowser;
+  }
+});
 
 /// Search query provider
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -73,6 +149,8 @@ final filteredNotesStreamProvider = StreamProvider<List<Note>>((ref) {
         isTrashed: false,
         filterTag: tagFilter,
       );
+    case AppDestination.tagBrowser:
+      return Stream.value([]);
   }
 });
 

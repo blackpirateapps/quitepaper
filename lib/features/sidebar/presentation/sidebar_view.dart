@@ -14,10 +14,13 @@ import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../../core/database/app_database.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_colors.dart';
 import '../../tags/domain/tag_icon_registry.dart';
-import '../../tags/presentation/tag_browser_screen.dart';
-import '../../tags/presentation/tag_detail_screen.dart';
+import '../../tags/domain/tag_model.dart';
+import '../../tags/presentation/widgets/tag_action_dialogs.dart';
+import '../../tags/presentation/widgets/tag_color_picker_sheet.dart';
+import '../../tags/presentation/widgets/tag_icon_picker_sheet.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import 'widgets/sidebar_item.dart';
 
@@ -291,16 +294,18 @@ class SidebarView extends ConsumerWidget {
                                   padding: const EdgeInsets.all(4.0),
                                   tooltip: 'Manage tags',
                                   onPressed: () {
+                                    ref.read(currentDestinationProvider.notifier).state =
+                                        AppDestination.tagBrowser;
+                                    ref.read(selectedTagFilterProvider.notifier).state = null;
+                                    ref.read(selectedTagIdProvider.notifier).state = null;
                                     onItemSelected?.call();
-                                    TagBrowserScreen.open(context);
                                   },
                                 ),
                               ),
                             ),
                             ...displayTags.map((t) {
                               final isTagSelected =
-                                  (currentDestination == AppDestination.tag ||
-                                          currentDestination == AppDestination.allNotes) &&
+                                  currentDestination == AppDestination.tag &&
                                       selectedTag == t.name;
 
                               final colorDef = TagColors.fromId(t.color);
@@ -325,11 +330,19 @@ class SidebarView extends ConsumerWidget {
                                   ref
                                       .read(selectedTagFilterProvider.notifier)
                                       .state = t.name;
+                                  ref
+                                      .read(selectedTagIdProvider.notifier)
+                                      .state = t.id;
+                                  ref
+                                      .read(notesQueryProvider.notifier)
+                                      .setTag(t.name);
                                   onItemSelected?.call();
                                 },
                                 onLongPress: () {
-                                  onItemSelected?.call();
-                                  TagDetailScreen.open(context, tagId: t.id);
+                                  _showTagOptions(context, ref, t);
+                                },
+                                onSecondaryTap: () {
+                                  _showTagOptions(context, ref, t);
                                 },
                               );
                             }),
@@ -342,8 +355,11 @@ class SidebarView extends ConsumerWidget {
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(AppRadii.sm),
                                   onTap: () {
+                                    ref.read(currentDestinationProvider.notifier).state =
+                                        AppDestination.tagBrowser;
+                                    ref.read(selectedTagFilterProvider.notifier).state = null;
+                                    ref.read(selectedTagIdProvider.notifier).state = null;
                                     onItemSelected?.call();
-                                    TagBrowserScreen.open(context);
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -353,7 +369,9 @@ class SidebarView extends ConsumerWidget {
                                     child: Text(
                                       'Show all tags (${tags.length})...',
                                       style: AppTypography.caption.copyWith(
-                                        color: colors.accent,
+                                        color: currentDestination == AppDestination.tagBrowser
+                                            ? colors.accent
+                                            : colors.textSecondary,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
                                       ),
@@ -636,5 +654,230 @@ class SidebarView extends ConsumerWidget {
         );
       }
     }
+  }
+
+  void _showTagOptions(BuildContext context, WidgetRef ref, TagWithCount t) {
+    final colors = context.appColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorDef = TagColors.fromId(t.color);
+
+    final tag = Tag(
+      id: t.tag.id,
+      name: t.name,
+      icon: t.icon,
+      color: t.color,
+      isPinned: t.isPinned,
+      pinnedOrder: t.pinnedOrder,
+      createdAt: t.tag.createdAt ?? DateTime.now(),
+      updatedAt: t.tag.updatedAt ?? DateTime.now(),
+      noteCount: t.noteCount,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      TagIconRegistry.getIconData(t.icon),
+                      size: 20,
+                      color: colorDef?.foreground(isDark) ?? colors.accent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '#${t.name}',
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${t.noteCount} note${t.noteCount == 1 ? '' : 's'}',
+                      style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(color: colors.divider, height: 1),
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  Icons.open_in_browser_rounded,
+                  size: 20,
+                  color: colors.accent,
+                ),
+                title: Text(
+                  'Open',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(currentDestinationProvider.notifier).state = AppDestination.tag;
+                  ref.read(selectedTagFilterProvider.notifier).state = t.name;
+                  ref.read(selectedTagIdProvider.notifier).state = t.id;
+                  ref.read(notesQueryProvider.notifier).setTag(t.name);
+                  onItemSelected?.call();
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  t.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  size: 20,
+                  color: t.isPinned ? colors.accent : colors.textSecondary,
+                ),
+                title: Text(
+                  t.isPinned ? 'Unpin tag' : 'Pin to top',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(tagServiceProvider).pinTag(t.id, !t.isPinned);
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.edit_outlined, size: 20, color: colors.textSecondary),
+                title: Text(
+                  'Rename',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+                  final existingNames = allTags.map((x) => x.name).toList();
+                  final newName = await TagRenameDialog.show(
+                    context,
+                    tag: tag,
+                    existingTags: existingNames,
+                  );
+                  if (newName != null && newName != tag.name && context.mounted) {
+                    await ref.read(tagServiceProvider).renameTag(tag.id, newName);
+                    if (ref.read(selectedTagFilterProvider) == tag.name) {
+                      ref.read(selectedTagFilterProvider.notifier).state = newName;
+                      ref.read(notesQueryProvider.notifier).setTag(newName);
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.sentiment_satisfied_alt_rounded, size: 20, color: colors.textSecondary),
+                title: Text(
+                  t.icon != null ? 'Change icon' : 'Add icon',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final newIcon = await TagIconPickerSheet.show(
+                    context,
+                    currentIconId: t.icon,
+                    tagName: t.name,
+                  );
+                  if (context.mounted) {
+                    await ref.read(tagServiceProvider).setTagIcon(t.id, newIcon);
+                  }
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.palette_outlined, size: 20, color: colors.textSecondary),
+                title: Text(
+                  t.color != null ? 'Change color' : 'Add color',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final newColor = await TagColorPickerSheet.show(
+                    context,
+                    currentColorId: t.color,
+                  );
+                  if (context.mounted) {
+                    await ref.read(tagServiceProvider).setTagColor(t.id, newColor);
+                  }
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.merge_type_rounded, size: 20, color: colors.textSecondary),
+                title: Text(
+                  'Merge into...',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+                  final destination = await TagMergeDialog.show(
+                    context,
+                    sourceTag: tag,
+                    availableTags: allTags,
+                  );
+                  if (destination != null && context.mounted) {
+                    await ref.read(tagServiceProvider).mergeTags(tag.id, destination.id);
+                    if (ref.read(selectedTagFilterProvider) == tag.name) {
+                      ref.read(selectedTagFilterProvider.notifier).state = destination.name;
+                      ref.read(selectedTagIdProvider.notifier).state = destination.id;
+                      ref.read(notesQueryProvider.notifier).setTag(destination.name);
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
+                title: Text(
+                  'Delete tag',
+                  style: AppTypography.bodySmall.copyWith(color: colors.error),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final confirmed = await TagDeleteDialog.show(context, tag: tag);
+                  if (confirmed == true && context.mounted) {
+                    await ref.read(tagServiceProvider).deleteTag(tag.id);
+                    if (ref.read(selectedTagFilterProvider) == tag.name) {
+                      ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+                      ref.read(selectedTagFilterProvider.notifier).state = null;
+                      ref.read(selectedTagIdProvider.notifier).state = null;
+                      ref.read(notesQueryProvider.notifier).clearAllFilters();
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -14,7 +14,6 @@ import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_list_tile.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_icon_registry.dart';
-import '../../tags/presentation/tag_browser_screen.dart';
 import '../application/search_provider.dart';
 import 'widgets/document_search_tile.dart';
 import 'widgets/search_filter_bar.dart';
@@ -514,7 +513,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               const SizedBox(width: AppSpacing.sm),
               InkWell(
-                onTap: () => TagBrowserScreen.open(context),
+                onTap: () {
+                  ref.read(currentDestinationProvider.notifier).state =
+                      AppDestination.tagBrowser;
+                  ref.read(selectedTagFilterProvider.notifier).state = null;
+                  ref.read(selectedTagIdProvider.notifier).state = null;
+                  Navigator.of(context).pop();
+                },
                 borderRadius: BorderRadius.circular(4),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

@@ -17,7 +17,9 @@ import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
-import '../../tags/presentation/tag_browser_screen.dart';
+import '../../../core/utils/tag_parser.dart';
+import '../../tags/presentation/widgets/tag_browser_view.dart';
+import '../../tags/presentation/widgets/tag_context_header.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import '../application/notes_provider.dart';
 import '../application/notes_query_provider.dart';
@@ -120,6 +122,55 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         return 'Trash';
       case AppDestination.tag:
         return 'Tags';
+      case AppDestination.tagBrowser:
+        return 'Tags';
+    }
+  }
+
+  Future<void> _validateOpenNoteForNewContext(
+    AppDestination destination,
+    String? tagFilter,
+  ) async {
+    final noteId = _selectedNoteIdForTablet;
+    if (noteId == null) return;
+    // Requirement 29: Opening Tag Browser preserves the open note in editor!
+    if (destination == AppDestination.tagBrowser) return;
+
+    final repo = ref.read(notesRepositoryProvider);
+    final note = await repo.getNoteById(noteId);
+    if (!mounted) return;
+
+    if (note == null) {
+      setState(() => _selectedNoteIdForTablet = null);
+      return;
+    }
+
+    if (destination == AppDestination.tag) {
+      if (tagFilter != null && tagFilter.isNotEmpty) {
+        final cleanTag = TagParser.normalizeTag(tagFilter).toLowerCase();
+        final hasTag = note.tags.any(
+          (t) => TagParser.normalizeTag(t).toLowerCase() == cleanTag,
+        );
+        if (!hasTag) {
+          setState(() => _selectedNoteIdForTablet = null);
+        }
+      }
+    } else if (destination == AppDestination.pinned) {
+      if (!note.isPinned || note.isArchived || note.isTrashed) {
+        setState(() => _selectedNoteIdForTablet = null);
+      }
+    } else if (destination == AppDestination.archive) {
+      if (!note.isArchived || note.isTrashed) {
+        setState(() => _selectedNoteIdForTablet = null);
+      }
+    } else if (destination == AppDestination.trash) {
+      if (!note.isTrashed) {
+        setState(() => _selectedNoteIdForTablet = null);
+      }
+    } else if (destination == AppDestination.allNotes) {
+      if (note.isArchived || note.isTrashed) {
+        setState(() => _selectedNoteIdForTablet = null);
+      }
     }
   }
 
@@ -128,6 +179,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final colors = context.appColors;
     final screenWidth = MediaQuery.of(context).size.width;
     final isTabletLayout = screenWidth >= 900.0;
+
+    ref.listen<AppDestination>(currentDestinationProvider, (prev, next) {
+      if (prev != next) {
+        _validateOpenNoteForNewContext(next, ref.read(selectedTagFilterProvider));
+      }
+    });
+
+    ref.listen<String?>(selectedTagFilterProvider, (prev, next) {
+      if (prev != next) {
+        _validateOpenNoteForNewContext(ref.read(currentDestinationProvider), next);
+      }
+    });
 
     if (isTabletLayout) {
       return _buildTabletLayout(context, colors);
@@ -146,174 +209,247 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     final title = _getDestinationTitle(destination);
 
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
-          TagBrowserScreen.open(context);
-        },
-        const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
-          TagBrowserScreen.open(context);
-        },
+    final phoneKeyboardBindings = {
+      const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
+        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+        ref.read(selectedTagFilterProvider.notifier).state = null;
+        ref.read(selectedTagIdProvider.notifier).state = null;
       },
-      child: PullDownSearchReveal(
-        onOpenSearch: () => _openSearchScreen(context),
-        child: Scaffold(
-        backgroundColor: colors.background,
-        drawerEnableOpenDragGesture: true,
-        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
-        drawer: Drawer(
-          backgroundColor: colors.surface,
-          elevation: 0,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
-          ),
-          width: 300,
-          child: SidebarView(
-            onItemSelected: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            },
+      const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
+        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+        ref.read(selectedTagFilterProvider.notifier).state = null;
+        ref.read(selectedTagIdProvider.notifier).state = null;
+      },
+    };
+
+    if (destination == AppDestination.tagBrowser) {
+      return CallbackShortcuts(
+        bindings: phoneKeyboardBindings,
+        child: PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+          },
+          child: Scaffold(
+            backgroundColor: colors.background,
+            drawerEnableOpenDragGesture: true,
+            drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
+            drawer: Drawer(
+              backgroundColor: colors.surface,
+              elevation: 0,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
+              ),
+              width: 300,
+              child: SidebarView(
+                onItemSelected: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            ),
+            body: SafeArea(
+              child: Builder(
+                builder: (scaffoldCtx) => TagBrowserView(
+                  onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
+                ),
+              ),
+            ),
           ),
         ),
-        appBar: _isMultiSelecting
-            ? _buildMultiSelectAppBar(context, colors, destination, repository)
-            : AppBar(
-                backgroundColor: colors.background,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                leading: Builder(
-                  builder: (scaffoldCtx) => QuietIconButton(
-                    icon: Icons.menu_rounded,
-                    tooltip: 'Open navigation',
-                    onPressed: () {
-                      Scaffold.of(scaffoldCtx).openDrawer();
-                    },
-                  ),
-                ),
-                title: Text(
-                  title,
-                  style: AppTypography.title.copyWith(
-                    color: colors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                actions: [
-                  QuietIconButton(
-                    icon: Icons.swap_vert_rounded,
-                    tooltip: 'Sort notes',
-                    onPressed: () => NotesSortSheet.show(context),
-                  ),
-                  NotesFilterButton(
-                    advancedFilterCount: query.filter.advancedFilterCount,
-                    onPressed: () => NotesFilterSheet.show(context),
-                  ),
-                  QuietIconButton(
-                    icon: Icons.search_rounded,
-                    tooltip: 'Search notes',
-                    onPressed: () => _openSearchScreen(context),
-                  ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert_rounded, size: 20),
-                    tooltip: 'More options',
-                    color: colors.surface,
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadii.borderMd,
-                      side: BorderSide(color: colors.divider, width: 0.8),
-                    ),
-                    onSelected: (val) {
-                      if (val == 'clip') {
-                        WebClipDialog.show(context);
-                      } else if (val == 'settings') {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                        );
-                      } else if (val == 'empty_trash') {
-                        _confirmEmptyTrash(context);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'clip',
-                        child: Row(
-                          children: [
-                            Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              'Clip webpage',
-                              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (destination == AppDestination.trash)
-                        PopupMenuItem(
-                          value: 'empty_trash',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
-                              const SizedBox(width: AppSpacing.sm),
-                              Text(
-                                'Empty trash',
-                                style: AppTypography.bodySmall.copyWith(color: colors.error),
-                              ),
-                            ],
+      );
+    }
+
+    return CallbackShortcuts(
+      bindings: phoneKeyboardBindings,
+      child: PopScope(
+        canPop: destination == AppDestination.allNotes,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+          ref.read(selectedTagFilterProvider.notifier).state = null;
+          ref.read(selectedTagIdProvider.notifier).state = null;
+          ref.read(notesQueryProvider.notifier).clearAllFilters();
+        },
+        child: PullDownSearchReveal(
+          onOpenSearch: () => _openSearchScreen(context),
+          child: Scaffold(
+            backgroundColor: colors.background,
+            drawerEnableOpenDragGesture: true,
+            drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
+            drawer: Drawer(
+              backgroundColor: colors.surface,
+              elevation: 0,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
+              ),
+              width: 300,
+              child: SidebarView(
+                onItemSelected: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            ),
+            appBar: _isMultiSelecting
+                ? _buildMultiSelectAppBar(context, colors, destination, repository)
+                : destination == AppDestination.tag
+                    ? PreferredSize(
+                        preferredSize: const Size.fromHeight(54),
+                        child: Builder(
+                          builder: (scaffoldCtx) => TagContextHeader(
+                            tagName: selectedTag ?? 'tag',
+                            tagId: ref.watch(selectedTagIdProvider),
+                            noteCount: collectionState.totalCount,
+                            onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
+                            onSortPressed: () => NotesSortSheet.show(context),
+                            onFilterPressed: () => NotesFilterSheet.show(context),
+                            onSearchPressed: () => _openSearchScreen(context),
+                            onCreateNotePressed: () => _createAndOpenNote(context),
+                            advancedFilterCount: query.filter.advancedFilterCount,
                           ),
                         ),
-                      PopupMenuItem(
-                        value: 'settings',
-                        child: Row(
-                          children: [
-                            Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              'Settings',
-                              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                      )
+                    : AppBar(
+                        backgroundColor: colors.background,
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        leading: Builder(
+                          builder: (scaffoldCtx) => QuietIconButton(
+                            icon: Icons.menu_rounded,
+                            tooltip: 'Open navigation',
+                            onPressed: () {
+                              Scaffold.of(scaffoldCtx).openDrawer();
+                            },
+                          ),
+                        ),
+                        title: Text(
+                          title,
+                          style: AppTypography.title.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        actions: [
+                          QuietIconButton(
+                            icon: Icons.swap_vert_rounded,
+                            tooltip: 'Sort notes',
+                            onPressed: () => NotesSortSheet.show(context),
+                          ),
+                          NotesFilterButton(
+                            advancedFilterCount: query.filter.advancedFilterCount,
+                            onPressed: () => NotesFilterSheet.show(context),
+                          ),
+                          QuietIconButton(
+                            icon: Icons.search_rounded,
+                            tooltip: 'Search notes',
+                            onPressed: () => _openSearchScreen(context),
+                          ),
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert_rounded, size: 20),
+                            tooltip: 'More options',
+                            color: colors.surface,
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadii.borderMd,
+                              side: BorderSide(color: colors.divider, width: 0.8),
                             ),
-                          ],
+                            onSelected: (val) {
+                              if (val == 'clip') {
+                                WebClipDialog.show(context);
+                              } else if (val == 'settings') {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                );
+                              } else if (val == 'empty_trash') {
+                                _confirmEmptyTrash(context);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'clip',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Clip webpage',
+                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'settings',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Settings',
+                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (destination == AppDestination.trash) ...[
+                                const PopupMenuDivider(),
+                                PopupMenuItem(
+                                  value: 'empty_trash',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_forever_outlined, size: 18, color: colors.error),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Text(
+                                        'Empty trash',
+                                        style: AppTypography.bodySmall.copyWith(color: colors.error),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                        ],
+                      ),
+            body: SafeArea(
+              child: Builder(
+                builder: (scaffoldCtx) => GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragEnd: (details) {
+                    if (details.primaryVelocity != null &&
+                        details.primaryVelocity! > 250) {
+                      Scaffold.of(scaffoldCtx).openDrawer();
+                    }
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (destination == AppDestination.allNotes)
+                        const TagsFilterBar(),
+                      const ActiveFilterChips(),
+                      if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: 4.0,
+                          ),
+                          child: Text(
+                            '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textTertiary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                ],
-              ),
-        body: SafeArea(
-          child: Builder(
-            builder: (scaffoldCtx) => GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: (details) {
-                if (details.primaryVelocity != null &&
-                    details.primaryVelocity! > 250) {
-                  Scaffold.of(scaffoldCtx).openDrawer();
-                }
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (destination == AppDestination.allNotes ||
-                      destination == AppDestination.tag)
-                    const TagsFilterBar(),
-                  const ActiveFilterChips(),
-                  if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: 4.0,
-                      ),
-                      child: Text(
-                        '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
                   Expanded(
                     child: NotificationListener<ScrollNotification>(
                       onNotification: (notification) {
@@ -378,8 +514,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 onPressed: () => _createAndOpenNote(context),
               )
             : null,
+          ),
+        ),
       ),
-    ),
     );
   }
 
@@ -557,9 +694,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     // Watch active note if one is selected in tablet mode
     Note? activeNote;
     if (_selectedNoteIdForTablet != null) {
-      final matches = collectionState.notes.where((n) => n.id == _selectedNoteIdForTablet);
-      if (matches.isNotEmpty) {
-        activeNote = matches.first;
+      final noteAsync = ref.watch(noteDetailStreamProvider(_selectedNoteIdForTablet!));
+      activeNote = noteAsync.valueOrNull;
+      if (activeNote == null && collectionState.notes.isNotEmpty) {
+        final matches = collectionState.notes.where((n) => n.id == _selectedNoteIdForTablet);
+        if (matches.isNotEmpty) {
+          activeNote = matches.first;
+        }
       }
     }
 
@@ -609,206 +750,219 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         right: BorderSide(color: colors.divider, width: 1),
                       ),
                     ),
-                    child: PullDownSearchReveal(
-                      isTabletPane: true,
-                      onOpenSearch: () => _openSearchScreen(context),
-                      child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onHorizontalDragEnd: (details) {
-                        if (!isNavSidebarVisible &&
-                            details.primaryVelocity != null &&
-                            details.primaryVelocity! > 250) {
-                          ref
-                              .read(isNavSidebarVisibleProvider.notifier)
-                              .state = true;
-                        }
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Middle Pane Top bar
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.xs,
-                            ),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final availableWidth = constraints.maxWidth;
-                                final isVeryNarrow = availableWidth < 300;
-
-                                return Row(
-                                  children: [
-                                    QuietIconButton(
-                                      icon: isNavSidebarVisible
-                                          ? Icons.menu_open_rounded
-                                          : Icons.view_sidebar_outlined,
-                                      tooltip: isNavSidebarVisible
-                                          ? 'Hide navigation'
-                                          : 'Show navigation',
-                                      onPressed: () {
+                    child: destination == AppDestination.tagBrowser
+                        ? TagBrowserView(
+                            isTablet: true,
+                            isSidebarVisible: isNavSidebarVisible,
+                            onToggleSidebar: () {
+                              ref
+                                  .read(isNavSidebarVisibleProvider.notifier)
+                                  .state = !isNavSidebarVisible;
+                            },
+                          )
+                        : PullDownSearchReveal(
+                            isTabletPane: true,
+                            onOpenSearch: () => _openSearchScreen(context),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragEnd: (details) {
+                                if (!isNavSidebarVisible &&
+                                    details.primaryVelocity != null &&
+                                    details.primaryVelocity! > 250) {
+                                  ref
+                                      .read(isNavSidebarVisibleProvider.notifier)
+                                      .state = true;
+                                }
+                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Middle Pane Top bar
+                                  if (destination == AppDestination.tag)
+                                    TagContextHeader(
+                                      tagName: selectedTag ?? 'tag',
+                                      tagId: ref.watch(selectedTagIdProvider),
+                                      noteCount: collectionState.totalCount,
+                                      isTablet: true,
+                                      isSidebarVisible: isNavSidebarVisible,
+                                      onToggleSidebar: () {
                                         ref
                                             .read(isNavSidebarVisibleProvider.notifier)
                                             .state = !isNavSidebarVisible;
                                       },
-                                    ),
-                                    const SizedBox(width: 4.0),
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        style: AppTypography.title.copyWith(
-                                          color: colors.textPrimary,
-                                          fontSize: 19,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
+                                      onSortPressed: () => NotesSortSheet.show(context),
+                                      onFilterPressed: () => NotesFilterSheet.show(context),
+                                      onSearchPressed: () => _openSearchScreen(context),
+                                      onCreateNotePressed: () => _createAndOpenNoteTablet(),
+                                      advancedFilterCount: query.filter.advancedFilterCount,
+                                    )
+                                  else
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm,
+                                        vertical: AppSpacing.xs,
                                       ),
-                                    ),
-                                    if (!isVeryNarrow) ...[
-                                      QuietIconButton(
-                                        icon: Icons.swap_vert_rounded,
-                                        tooltip: 'Sort notes',
-                                        onPressed: () => NotesSortSheet.show(context),
-                                      ),
-                                      NotesFilterButton(
-                                        advancedFilterCount: query.filter.advancedFilterCount,
-                                        onPressed: () => NotesFilterSheet.show(context),
-                                      ),
-                                      QuietIconButton(
-                                        icon: Icons.search_rounded,
-                                        tooltip: 'Search notes',
-                                        onPressed: () => _openSearchScreen(context),
-                                      ),
-                                    ],
-                                    QuietIconButton(
-                                      icon: Icons.add_rounded,
-                                      tooltip: 'New note',
-                                      isActive: true,
-                                      onPressed: () => _createAndOpenNoteTablet(),
-                                    ),
-                                    PopupMenuButton<String>(
-                                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                                      tooltip: 'More actions',
-                                      color: colors.surface,
-                                      elevation: 3,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: AppRadii.borderMd,
-                                        side: BorderSide(color: colors.divider, width: 0.8),
-                                      ),
-                                      onSelected: (val) {
-                                        if (val == 'sort') {
-                                          NotesSortSheet.show(context);
-                                        } else if (val == 'filter') {
-                                          NotesFilterSheet.show(context);
-                                        } else if (val == 'search') {
-                                          _openSearchScreen(context);
-                                        } else if (val == 'clip') {
-                                          WebClipDialog.show(context);
-                                        } else if (val == 'hide_list') {
-                                          ref
-                                              .read(isNoteListVisibleProvider.notifier)
-                                              .state = false;
-                                        } else if (val == 'empty_trash') {
-                                          _confirmEmptyTrash(context);
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        if (isVeryNarrow) ...[
-                                          PopupMenuItem(
-                                            value: 'sort',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.swap_vert_rounded, size: 18, color: colors.textSecondary),
-                                                const SizedBox(width: AppSpacing.sm),
-                                                Text(
-                                                  'Sort notes',
-                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'filter',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.filter_list_rounded, size: 18, color: colors.textSecondary),
-                                                const SizedBox(width: AppSpacing.sm),
-                                                Text(
-                                                  query.filter.advancedFilterCount > 0
-                                                      ? 'Filter notes (${query.filter.advancedFilterCount})'
-                                                      : 'Filter notes',
-                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'search',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.search_rounded, size: 18, color: colors.textSecondary),
-                                                const SizedBox(width: AppSpacing.sm),
-                                                Text(
-                                                  'Search notes',
-                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                        PopupMenuItem(
-                                          value: 'clip',
-                                          child: Row(
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final availableWidth = constraints.maxWidth;
+                                          final isVeryNarrow = availableWidth < 300;
+
+                                          return Row(
                                             children: [
-                                              Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
-                                              const SizedBox(width: AppSpacing.sm),
-                                              Text(
-                                                'Clip webpage',
-                                                style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                              QuietIconButton(
+                                                icon: isNavSidebarVisible
+                                                    ? Icons.menu_open_rounded
+                                                    : Icons.view_sidebar_outlined,
+                                                tooltip: isNavSidebarVisible
+                                                    ? 'Hide navigation'
+                                                    : 'Show navigation',
+                                                onPressed: () {
+                                                  ref
+                                                      .read(isNavSidebarVisibleProvider.notifier)
+                                                      .state = !isNavSidebarVisible;
+                                                },
+                                              ),
+                                              const SizedBox(width: 4.0),
+                                              Expanded(
+                                                child: Text(
+                                                  title,
+                                                  style: AppTypography.title.copyWith(
+                                                    color: colors.textPrimary,
+                                                    fontSize: 19,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
+                                              ),
+                                              if (!isVeryNarrow) ...[
+                                                QuietIconButton(
+                                                  icon: Icons.swap_vert_rounded,
+                                                  tooltip: 'Sort notes',
+                                                  onPressed: () => NotesSortSheet.show(context),
+                                                ),
+                                                NotesFilterButton(
+                                                  advancedFilterCount: query.filter.advancedFilterCount,
+                                                  onPressed: () => NotesFilterSheet.show(context),
+                                                ),
+                                                QuietIconButton(
+                                                  icon: Icons.search_rounded,
+                                                  tooltip: 'Search notes',
+                                                  onPressed: () => _openSearchScreen(context),
+                                                ),
+                                              ],
+                                              QuietIconButton(
+                                                icon: Icons.add_rounded,
+                                                tooltip: 'New note',
+                                                isActive: true,
+                                                onPressed: () => _createAndOpenNoteTablet(),
+                                              ),
+                                              PopupMenuButton<String>(
+                                                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                                                tooltip: 'More actions',
+                                                color: colors.surface,
+                                                elevation: 3,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: AppRadii.borderMd,
+                                                  side: BorderSide(color: colors.divider, width: 0.8),
+                                                ),
+                                                onSelected: (val) {
+                                                  if (val == 'sort') {
+                                                    NotesSortSheet.show(context);
+                                                  } else if (val == 'filter') {
+                                                    NotesFilterSheet.show(context);
+                                                  } else if (val == 'search') {
+                                                    _openSearchScreen(context);
+                                                  } else if (val == 'clip') {
+                                                    WebClipDialog.show(context);
+                                                  } else if (val == 'hide_list') {
+                                                    ref
+                                                        .read(isNoteListVisibleProvider.notifier)
+                                                        .state = false;
+                                                  } else if (val == 'empty_trash') {
+                                                    _confirmEmptyTrash(context);
+                                                  }
+                                                },
+                                                itemBuilder: (context) => [
+                                                  if (isVeryNarrow) ...[
+                                                    PopupMenuItem(
+                                                      value: 'sort',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.swap_vert_rounded, size: 18, color: colors.textSecondary),
+                                                          const SizedBox(width: AppSpacing.sm),
+                                                          Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    PopupMenuItem(
+                                                      value: 'filter',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.filter_list_rounded, size: 18, color: colors.textSecondary),
+                                                          const SizedBox(width: AppSpacing.sm),
+                                                          Text(
+                                                            query.filter.advancedFilterCount > 0
+                                                                ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                                                : 'Filter notes',
+                                                            style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    PopupMenuItem(
+                                                      value: 'search',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.search_rounded, size: 18, color: colors.textSecondary),
+                                                          const SizedBox(width: AppSpacing.sm),
+                                                          Text('Search notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                  PopupMenuItem(
+                                                    value: 'clip',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                                                        const SizedBox(width: AppSpacing.sm),
+                                                        Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (activeNote != null)
+                                                    PopupMenuItem(
+                                                      value: 'hide_list',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.fullscreen_rounded, size: 18, color: colors.textSecondary),
+                                                          const SizedBox(width: AppSpacing.sm),
+                                                          Text('Hide note list', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (destination == AppDestination.trash)
+                                                    PopupMenuItem(
+                                                      value: 'empty_trash',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
+                                                          const SizedBox(width: AppSpacing.sm),
+                                                          Text('Empty trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             ],
-                                          ),
-                                        ),
-                                        if (activeNote != null)
-                                          PopupMenuItem(
-                                            value: 'hide_list',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.fullscreen_rounded, size: 18, color: colors.textSecondary),
-                                                const SizedBox(width: AppSpacing.sm),
-                                                Text(
-                                                  'Hide note list',
-                                                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        if (destination == AppDestination.trash)
-                                          PopupMenuItem(
-                                            value: 'empty_trash',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
-                                                const SizedBox(width: AppSpacing.sm),
-                                                Text(
-                                                  'Empty trash',
-                                                  style: AppTypography.bodySmall.copyWith(color: colors.error),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                      ],
+                                          );
+                                        },
+                                      ),
                                     ),
+                                  if (destination == AppDestination.allNotes) ...[
+                                    const TagsFilterBar(),
                                   ],
-                                );
-                              },
-                            ),
-                          ),
-                          if (destination == AppDestination.allNotes ||
-                              destination == AppDestination.tag) ...[
-                            const TagsFilterBar(),
-                          ],
                           const ActiveFilterChips(horizontalPadding: AppSpacing.md),
                           if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
                             Padding(

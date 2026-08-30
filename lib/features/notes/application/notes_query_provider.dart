@@ -85,6 +85,9 @@ final notesQueryProvider =
     case AppDestination.tag:
       context = NotesContext.active;
       break;
+    case AppDestination.tagBrowser:
+      context = NotesContext.active;
+      break;
   }
 
   final initialQuery = NotesQuery(
@@ -138,6 +141,9 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
         newContext = NotesContext.trash;
         break;
       case AppDestination.tag:
+        newContext = NotesContext.active;
+        break;
+      case AppDestination.tagBrowser:
         newContext = NotesContext.active;
         break;
     }

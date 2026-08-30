@@ -36,8 +36,8 @@ class NoteEmptyState extends StatelessWidget {
       showCreateButton = false;
       showClearFiltersButton = true;
     } else if (tagFilter != null && tagFilter!.isNotEmpty) {
-      title = 'No notes with #$tagFilter';
-      subtitle = 'Start writing something with this tag.';
+      title = '#$tagFilter';
+      subtitle = 'No notes use this tag yet.';
     } else {
       switch (destination) {
         case AppDestination.allNotes:
@@ -61,7 +61,12 @@ class NoteEmptyState extends StatelessWidget {
           break;
         case AppDestination.tag:
           title = 'No notes';
-          subtitle = 'No notes found.';
+          subtitle = 'No notes use this tag yet.';
+          break;
+        case AppDestination.tagBrowser:
+          title = 'No tags';
+          subtitle = 'Add tags to your notes to organize them here.';
+          showCreateButton = false;
           break;
       }
     }
