@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -6,11 +5,17 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
 import '../../../../core/image_processing/image_processor.dart';
-import '../../../../core/ocr/ocr_models.dart';
 import '../../domain/scanned_page.dart';
+import 'scanner_preview_canvas.dart';
 
-/// Modal adjustment sheet allowing non-destructive adjustment of
-/// Crop, Rotate, Brightness, Contrast, Saturation, and Grayscale.
+/// Lightweight modal sheet for interactive non-destructive document adjustments.
+///
+/// Features:
+/// - Real-time GPU color filtering for instant 60fps slider feedback.
+/// - Presets: Original, Auto, B&W.
+/// - Fine Tune: Brightness, Contrast, Saturation, Grayscale.
+/// - Direct manipulation interactive Crop & 90-degree Rotation.
+/// - Press-and-hold before/after comparison.
 class PageAdjustmentSheet extends StatefulWidget {
   const PageAdjustmentSheet({
     super.key,
@@ -43,122 +48,49 @@ class PageAdjustmentSheet extends StatefulWidget {
 
 class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   late ImageAdjustments _adjustments;
-  Uint8List? _previewBytes;
-  bool _isRendering = false;
-  int _activeTab = 0; // 0: Adjust Tone, 1: Crop & Rotate
-
-  // Normalized crop sliders
-  double _cropLeft = 0.0;
-  double _cropTop = 0.0;
-  double _cropRight = 1.0;
-  double _cropBottom = 1.0;
+  int _activeTab = 0; // 0: Tone & Style, 1: Crop & Rotate
+  bool _isFineTuneExpanded = true;
 
   @override
   void initState() {
     super.initState();
     _adjustments = widget.page.adjustments;
-    _previewBytes = widget.page.imageBytes;
-
-    if (_adjustments.crop != null) {
-      _cropLeft = _adjustments.crop!.x;
-      _cropTop = _adjustments.crop!.y;
-      _cropRight = _adjustments.crop!.right;
-      _cropBottom = _adjustments.crop!.bottom;
-    }
-
-    _updatePreview();
-  }
-
-  Future<void> _updatePreview() async {
-    if (_isRendering) return;
-    setState(() => _isRendering = true);
-
-    try {
-      final processed = await widget.imageProcessor.process(
-        widget.page.rawImageBytes,
-        _adjustments,
-        isPreview: true,
-      );
-
-      if (mounted) {
-        setState(() {
-          _previewBytes = processed;
-          _isRendering = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isRendering = false);
-      }
-    }
   }
 
   void _onAdjustmentsChanged(ImageAdjustments updated) {
     setState(() {
       _adjustments = updated;
     });
-    _updatePreview();
   }
 
-  void _onCropChanged() {
-    final x = _cropLeft.clamp(0.0, 0.90);
-    final y = _cropTop.clamp(0.0, 0.90);
-    final right = _cropRight.clamp(x + 0.05, 1.0);
-    final bottom = _cropBottom.clamp(y + 0.05, 1.0);
-
-    final cropRect = (x == 0.0 && y == 0.0 && right == 1.0 && bottom == 1.0)
-        ? null
-        : NormalizedRect(
-            x: x,
-            y: y,
-            width: right - x,
-            height: bottom - y,
-          );
-
-    _onAdjustmentsChanged(_adjustments.copyWith(
-      crop: cropRect,
-      clearCrop: cropRect == null,
-    ));
+  void _applyPreset(ImageAdjustments preset) {
+    setState(() {
+      _adjustments = _adjustments.copyWith(
+        brightness: preset.brightness,
+        contrast: preset.contrast,
+        saturation: preset.saturation,
+        grayscale: preset.grayscale,
+      );
+    });
   }
 
   void _resetCrop() {
     setState(() {
-      _cropLeft = 0.0;
-      _cropTop = 0.0;
-      _cropRight = 1.0;
-      _cropBottom = 1.0;
+      _adjustments = _adjustments.copyWith(clearCrop: true);
     });
-    _onAdjustmentsChanged(_adjustments.copyWith(clearCrop: true));
   }
 
   void _resetAll() {
     setState(() {
-      _cropLeft = 0.0;
-      _cropTop = 0.0;
-      _cropRight = 1.0;
-      _cropBottom = 1.0;
       _adjustments = ImageAdjustments.neutral;
     });
-    _updatePreview();
   }
 
-  Future<void> _commitAndClose() async {
-    // Render full-resolution output on commit
-    setState(() => _isRendering = true);
-
-    final finalBytes = await widget.imageProcessor.process(
-      widget.page.rawImageBytes,
-      _adjustments,
-      isPreview: false,
+  void _commitAndClose() {
+    final updatedPage = widget.page.copyWith(
+      adjustments: _adjustments,
     );
-
-    if (mounted) {
-      final updatedPage = widget.page.copyWith(
-        imageBytes: finalBytes,
-        adjustments: _adjustments,
-      );
-      Navigator.of(context).pop(updatedPage);
-    }
+    Navigator.of(context).pop(updatedPage);
   }
 
   @override
@@ -166,7 +98,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     final colors = context.appColors;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
+      height: MediaQuery.of(context).size.height * 0.90,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
@@ -218,27 +150,11 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
               color: Colors.black87,
               padding: const EdgeInsets.all(AppSpacing.md),
               alignment: Alignment.center,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (_previewBytes != null)
-                    Image.memory(
-                      _previewBytes!,
-                      fit: BoxFit.contain,
-                    ),
-                  if (_isRendering)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
-                      ),
-                      child: const CupertinoActivityIndicator(
-                        color: Colors.white,
-                        radius: 12,
-                      ),
-                    ),
-                ],
+              child: ScannerPreviewCanvas(
+                previewBytes: widget.page.previewBytes,
+                adjustments: _adjustments,
+                isCropMode: _activeTab == 1,
+                onAdjustmentsChanged: _onAdjustmentsChanged,
               ),
             ),
           ),
@@ -300,17 +216,54 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   }
 
   Widget _buildToneControls(AppColors colors) {
+    final isOriginal = _adjustments.isNeutral;
+    final isAuto = _adjustments.contrast == 0.20 &&
+        _adjustments.brightness == 0.05 &&
+        !_adjustments.grayscale;
+    final isBw = _adjustments.grayscale &&
+        _adjustments.contrast == 0.25 &&
+        _adjustments.brightness == 0.10;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Grayscale dedicated toggle
+        // Presets Row (Original, Auto, B&W)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildPresetPill(
+              label: 'Original',
+              isSelected: isOriginal,
+              icon: Icons.image_outlined,
+              colors: colors,
+              onTap: () => _applyPreset(ImageAdjustments.neutral),
+            ),
+            _buildPresetPill(
+              label: 'Auto',
+              isSelected: isAuto,
+              icon: Icons.auto_awesome,
+              colors: colors,
+              onTap: () => _applyPreset(ImageAdjustments.auto),
+            ),
+            _buildPresetPill(
+              label: 'B&W',
+              isSelected: isBw,
+              icon: Icons.filter_b_and_w_rounded,
+              colors: colors,
+              onTap: () => _applyPreset(ImageAdjustments.blackAndWhite),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: AppSpacing.md),
+
+        // Grayscale Toggle
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(Icons.filter_b_and_w_rounded,
-                    size: 20, color: colors.textSecondary),
+                Icon(Icons.filter_b_and_w_rounded, size: 20, color: colors.textSecondary),
                 const SizedBox(width: 8),
                 Text(
                   'Grayscale Document',
@@ -330,40 +283,120 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
 
-        // Brightness Slider (-1.0 to 1.0)
-        _buildSliderRow(
-          label: 'Brightness',
-          value: _adjustments.brightness,
-          icon: Icons.brightness_6_outlined,
-          colors: colors,
-          onChanged: (val) =>
-              _onAdjustmentsChanged(_adjustments.copyWith(brightness: val)),
-        ),
         const SizedBox(height: AppSpacing.sm),
 
-        // Contrast Slider (-1.0 to 1.0)
-        _buildSliderRow(
-          label: 'Contrast',
-          value: _adjustments.contrast,
-          icon: Icons.contrast_rounded,
-          colors: colors,
-          onChanged: (val) =>
-              _onAdjustmentsChanged(_adjustments.copyWith(contrast: val)),
+        // Fine Tune Accordion Header
+        InkWell(
+          onTap: () => setState(() => _isFineTuneExpanded = !_isFineTuneExpanded),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'FINE TUNE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                Icon(
+                  _isFineTuneExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: AppSpacing.sm),
 
-        // Saturation Slider (-1.0 to 1.0)
-        _buildSliderRow(
-          label: 'Saturation',
-          value: _adjustments.saturation,
-          icon: Icons.color_lens_outlined,
-          colors: colors,
-          onChanged: (val) =>
-              _onAdjustmentsChanged(_adjustments.copyWith(saturation: val)),
-        ),
+        if (_isFineTuneExpanded) ...[
+          const SizedBox(height: AppSpacing.xs),
+
+          // Brightness Slider (-1.0 to 1.0)
+          _buildSliderRow(
+            label: 'Brightness',
+            value: _adjustments.brightness,
+            icon: Icons.brightness_6_outlined,
+            colors: colors,
+            onChanged: (val) =>
+                _onAdjustmentsChanged(_adjustments.copyWith(brightness: val)),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+
+          // Contrast Slider (-1.0 to 1.0)
+          _buildSliderRow(
+            label: 'Contrast',
+            value: _adjustments.contrast,
+            icon: Icons.contrast_rounded,
+            colors: colors,
+            onChanged: (val) =>
+                _onAdjustmentsChanged(_adjustments.copyWith(contrast: val)),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+
+          // Saturation Slider (-1.0 to 1.0)
+          _buildSliderRow(
+            label: 'Saturation',
+            value: _adjustments.saturation,
+            icon: Icons.color_lens_outlined,
+            colors: colors,
+            onChanged: (val) =>
+                _onAdjustmentsChanged(_adjustments.copyWith(saturation: val)),
+          ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildPresetPill({
+    required String label,
+    required bool isSelected,
+    required IconData icon,
+    required AppColors colors,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.accent.withValues(alpha: 0.18)
+              : colors.textTertiary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? colors.accent : colors.divider,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? colors.accent : colors.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? colors.accent : colors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -397,12 +430,12 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
         ),
         const SizedBox(height: AppSpacing.md),
 
-        // Crop Sliders
+        // Crop Actions
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Crop Margins',
+              'Crop Document',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -412,52 +445,21 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
             if (_adjustments.crop != null)
               TextButton(
                 onPressed: _resetCrop,
-                child: Text('Reset Crop',
-                    style: TextStyle(color: colors.accent, fontSize: 12)),
+                child: Text(
+                  'Reset Crop',
+                  style: TextStyle(color: colors.accent, fontSize: 13),
+                ),
               ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-
-        _buildCropSlider(
-          label: 'Left Margin',
-          value: _cropLeft,
-          max: 0.45,
-          colors: colors,
-          onChanged: (v) {
-            _cropLeft = v;
-            _onCropChanged();
-          },
-        ),
-        _buildCropSlider(
-          label: 'Top Margin',
-          value: _cropTop,
-          max: 0.45,
-          colors: colors,
-          onChanged: (v) {
-            _cropTop = v;
-            _onCropChanged();
-          },
-        ),
-        _buildCropSlider(
-          label: 'Right Margin',
-          value: 1.0 - _cropRight,
-          max: 0.45,
-          colors: colors,
-          onChanged: (v) {
-            _cropRight = 1.0 - v;
-            _onCropChanged();
-          },
-        ),
-        _buildCropSlider(
-          label: 'Bottom Margin',
-          value: 1.0 - _cropBottom,
-          max: 0.45,
-          colors: colors,
-          onChanged: (v) {
-            _cropBottom = 1.0 - v;
-            _onCropChanged();
-          },
+        Text(
+          'Drag the corner handles or edge bars directly on the document image above to frame the page.',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
         ),
       ],
     );
@@ -508,50 +510,6 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
             min: -1.0,
             max: 1.0,
             onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCropSlider({
-    required String label,
-    required double value,
-    required double max,
-    required AppColors colors,
-    required ValueChanged<double> onChanged,
-  }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
-          ),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: colors.accent,
-              thumbColor: colors.accent,
-              inactiveTrackColor: colors.divider,
-              trackHeight: 2,
-            ),
-            child: Slider(
-              value: value.clamp(0.0, max),
-              min: 0.0,
-              max: max,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 40,
-          child: Text(
-            '${(value * 100).toInt()}%',
-            textAlign: TextAlign.end,
-            style: TextStyle(fontSize: 11, color: colors.textTertiary),
           ),
         ),
       ],

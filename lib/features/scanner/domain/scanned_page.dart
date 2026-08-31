@@ -12,12 +12,16 @@ class ScannedPage {
     required this.id,
     required this.imageBytes,
     Uint8List? rawImageBytes,
+    Uint8List? previewBytes,
+    Uint8List? thumbnailBytes,
     required this.width,
     required this.height,
     required this.pageNumber,
     this.adjustments = ImageAdjustments.neutral,
     this.isNormalized = false,
-  }) : rawImageBytes = rawImageBytes ?? imageBytes;
+  })  : rawImageBytes = rawImageBytes ?? imageBytes,
+        previewBytes = previewBytes ?? imageBytes,
+        thumbnailBytes = thumbnailBytes ?? previewBytes ?? imageBytes;
 
   /// Unique identifier for this temporary page instance.
   final String id;
@@ -27,6 +31,12 @@ class ScannedPage {
 
   /// Original unmodified capture bytes.
   final Uint8List rawImageBytes;
+
+  /// Bounded ~600px preview representation decoded once and cached for real-time editing.
+  final Uint8List previewBytes;
+
+  /// Bounded <= 200px thumbnail representation for fast carousel rendering.
+  final Uint8List thumbnailBytes;
 
   /// Non-destructive adjustment parameters.
   final ImageAdjustments adjustments;
@@ -50,6 +60,8 @@ class ScannedPage {
     String? id,
     Uint8List? imageBytes,
     Uint8List? rawImageBytes,
+    Uint8List? previewBytes,
+    Uint8List? thumbnailBytes,
     ImageAdjustments? adjustments,
     int? width,
     int? height,
@@ -60,6 +72,8 @@ class ScannedPage {
       id: id ?? this.id,
       imageBytes: imageBytes ?? this.imageBytes,
       rawImageBytes: rawImageBytes ?? this.rawImageBytes,
+      previewBytes: previewBytes ?? this.previewBytes,
+      thumbnailBytes: thumbnailBytes ?? this.thumbnailBytes,
       adjustments: adjustments ?? this.adjustments,
       width: width ?? this.width,
       height: height ?? this.height,

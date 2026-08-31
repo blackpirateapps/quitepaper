@@ -19,6 +19,19 @@ class ImageAdjustments {
   /// Default neutral adjustments.
   static const neutral = ImageAdjustments();
 
+  /// Document preset with auto contrast enhancement and subtle brightness boost.
+  static const auto = ImageAdjustments(
+    contrast: 0.20,
+    brightness: 0.05,
+  );
+
+  /// Document preset for crisp black & white / monochrome rendering.
+  static const blackAndWhite = ImageAdjustments(
+    grayscale: true,
+    contrast: 0.25,
+    brightness: 0.10,
+  );
+
   /// Normalized crop rectangle `[0.0, 1.0]`. If `null`, no crop is applied (full image).
   final NormalizedRect? crop;
 
@@ -45,6 +58,53 @@ class ImageAdjustments {
       contrast == 0.0 &&
       saturation == 0.0 &&
       !grayscale;
+
+  /// Generates a 4x5 20-element ColorFilter matrix applying saturation, grayscale,
+  /// contrast, and brightness on the GPU in real-time with zero image re-encoding.
+  List<double> toColorMatrix() {
+    if (isNeutral) {
+      return const <double>[
+        1.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 1.0, 0.0,
+      ];
+    }
+
+    // 1. Saturation & Grayscale (Rec. 709 luminance coefficients)
+    const rLum = 0.2126;
+    const gLum = 0.7152;
+    const bLum = 0.0722;
+
+    final s = grayscale ? 0.0 : (saturation + 1.0).clamp(0.0, 2.0);
+    final invS = 1.0 - s;
+
+    final mSat00 = invS * rLum + s;
+    final mSat01 = invS * gLum;
+    final mSat02 = invS * bLum;
+
+    final mSat10 = invS * rLum;
+    final mSat11 = invS * gLum + s;
+    final mSat12 = invS * bLum;
+
+    final mSat20 = invS * rLum;
+    final mSat21 = invS * gLum;
+    final mSat22 = invS * bLum + s;
+
+    // 2. Contrast Factor C
+    final cFactor = contrast >= 0.0 ? (1.0 + contrast * 1.5) : (1.0 + contrast * 0.7);
+
+    // 3. Brightness and Contrast Offset
+    // Contrast midpoint is 128 in [0, 255]. Offset = 128 * (1 - C) + (brightness * 128)
+    final offset = 128.0 * (1.0 - cFactor) + (brightness * 128.0);
+
+    return <double>[
+      cFactor * mSat00, cFactor * mSat01, cFactor * mSat02, 0.0, offset,
+      cFactor * mSat10, cFactor * mSat11, cFactor * mSat12, 0.0, offset,
+      cFactor * mSat20, cFactor * mSat21, cFactor * mSat22, 0.0, offset,
+      0.0,              0.0,              0.0,              1.0, 0.0,
+    ];
+  }
 
   ImageAdjustments copyWith({
     NormalizedRect? crop,
