@@ -157,7 +157,17 @@ class AttachmentExportResolver {
           final entity = await database.getDocument(docId);
 
           if (res.isAvailable && res.data != null) {
-            final ext = entity?.mimeType == 'text/html' ? 'html' : 'pdf';
+            final isWebSnapshot = res.data!.source == 'web_snapshot' ||
+                entity?.source == 'web_snapshot' ||
+                entity?.mimeType == 'text/html' ||
+                match.text.toLowerCase().contains('(web snapshot)') ||
+                (entity?.title ?? '').toLowerCase().contains('(web snapshot)') ||
+                DocumentService.isHtmlDocumentPayload(
+                  bytes: res.data!.pdfBytes,
+                  title: entity?.title,
+                  source: entity?.source,
+                );
+            final ext = isWebSnapshot ? 'html' : (entity?.mimeType == 'text/html' ? 'html' : 'pdf');
             final baseName = match.text.trim().isNotEmpty
                 ? match.text.trim()
                 : (entity?.title.trim().isNotEmpty == true
@@ -337,7 +347,16 @@ class AttachmentExportResolver {
         if (!resolvedDocuments.any((r) => r.id == doc.id)) {
           final res = await documentService.resolveDocument(doc.id);
           if (res.isAvailable && res.data != null) {
-            final ext = doc.mimeType == 'text/html' ? 'html' : 'pdf';
+            final isWebSnapshot = res.data!.source == 'web_snapshot' ||
+                doc.source == 'web_snapshot' ||
+                doc.mimeType == 'text/html' ||
+                doc.title.toLowerCase().contains('(web snapshot)') ||
+                DocumentService.isHtmlDocumentPayload(
+                  bytes: res.data!.pdfBytes,
+                  title: doc.title,
+                  source: doc.source,
+                );
+            final ext = isWebSnapshot ? 'html' : (doc.mimeType == 'text/html' ? 'html' : 'pdf');
             final sanitizedName = FilenameGenerator.generateUniqueFilename(
               title: doc.title.isNotEmpty ? doc.title : 'document-${doc.id.substring(0, 8)}',
               format: ExportFormat.fromExtension(ext),

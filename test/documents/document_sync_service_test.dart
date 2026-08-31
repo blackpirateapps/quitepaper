@@ -46,6 +46,7 @@ class MockSyncApiClient extends SyncApiClient {
     required String documentId,
     String? noteId,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
@@ -70,15 +71,21 @@ class MockSyncApiClient extends SyncApiClient {
     required String cloudPublicId,
     required String cloudUrl,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
     String sha256 = '',
+    String? ocrState,
+    String? ocrLanguage,
   }) async {
     lastConfirmedData = {
       'documentId': documentId,
       'cloudPublicId': cloudPublicId,
       'cloudUrl': cloudUrl,
+      'title': title,
+      'source': source,
+      'mimeType': mimeType,
       'pageCount': pageCount,
     };
     return {'success': true};
@@ -281,6 +288,97 @@ void main() {
       expect(postCheck, isNotNull);
       expect(postCheck!.cloudUrl, isNotEmpty);
       expect(postCheck.uploadState, 'synced');
+    });
+
+    test('Uploads pending web snapshot document with source web_snapshot and mimeType text/html', () async {
+      const documentId = '88888888-8888-8888-8888-888888888888';
+      final encryptedBytes = Uint8List.fromList([0x51, 0x50, 0x44, 0x31, 5, 6, 7, 8]);
+
+      final localPath = await storage.saveEncryptedBytes(
+        documentId: documentId,
+        encryptedBytes: encryptedBytes,
+      );
+
+      await database.saveDocument(
+        id: documentId,
+        title: 'Article (Web Snapshot)',
+        source: DocumentSource.webSnapshot.identifier,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        mimeType: 'text/html',
+        byteSize: 500,
+        pageCount: 1,
+        isDirty: true,
+        uploadState: DocumentUploadState.uploadPending.identifier,
+        localPath: localPath,
+      );
+
+      final result = await syncService.syncPendingDocuments();
+      expect(result.uploadedCount, 1);
+      expect(result.failedCount, 0);
+
+      // Verify backend confirmation received web_snapshot source and text/html MIME type
+      expect(apiClient.lastConfirmedData?['documentId'], documentId);
+      expect(apiClient.lastConfirmedData?['source'], DocumentSource.webSnapshot.identifier);
+      expect(apiClient.lastConfirmedData?['mimeType'], 'text/html');
+
+      final record = await database.getDocument(documentId);
+      expect(record!.uploadState, 'synced');
+      expect(record.source, 'web_snapshot');
+      expect(record.mimeType, 'text/html');
+    });
+
+    test('On new device: resolves web snapshot, preserves web_snapshot source, and self-heals legacy mislabeled HTML records', () async {
+      const documentId = '66666666-6666-6666-6666-666666666666';
+      final rawHtmlBytes = Uint8List.fromList('<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Article</h1></body></html>'.codeUnits);
+      final sha256 = DocumentCrypto.computeSha256(rawHtmlBytes);
+      final masterKey = keyManager.getMasterKey();
+
+      final crypto = DocumentCrypto();
+      final encryptedBytes = await crypto.encryptDocument(
+        plaintextBytes: rawHtmlBytes,
+        masterKeyBytes: masterKey,
+        documentId: documentId,
+        keyVersion: 1,
+      );
+
+      // Legacy server document metadata had source: scanner and mimeType: application/pdf
+      apiClient.serverDocuments[documentId] = DocumentSyncPayload(
+        id: documentId,
+        title: 'Old Web Snapshot',
+        source: DocumentSource.scanner, // legacy mislabeled source
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        mimeType: 'application/pdf', // legacy mislabeled mime
+        byteSize: rawHtmlBytes.length,
+        pageCount: 1,
+        sha256: sha256,
+        cloudPublicId: 'user_123_doc_$documentId',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v1/user_123_doc_$documentId',
+      );
+
+      cloudinaryClient.downloadBytesResponse = encryptedBytes;
+
+      final documentService = DocumentService(
+        database: database,
+        keyManager: keyManager,
+        crypto: crypto,
+        storage: storage,
+        cloudinaryClient: cloudinaryClient,
+        apiClient: apiClient,
+      );
+
+      final resolution = await documentService.resolveDocument(documentId);
+
+      expect(resolution.isAvailable, isTrue);
+      expect(resolution.data!.pdfBytes, equals(rawHtmlBytes));
+      // Self-healed to web_snapshot
+      expect(resolution.data!.source, DocumentSource.webSnapshot.identifier);
+
+      // Local DB record should have been self-healed
+      final localRecord = await database.getDocument(documentId);
+      expect(localRecord!.source, DocumentSource.webSnapshot.identifier);
+      expect(localRecord.mimeType, 'text/html');
     });
   });
 }

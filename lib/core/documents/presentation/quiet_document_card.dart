@@ -11,8 +11,8 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../uri/resource_resolver.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
-import '../document_models.dart';
 import '../document_provider.dart';
+import '../document_service.dart';
 import 'document_viewer_screen.dart';
 
 /// Embedded interactive card widget for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
@@ -58,6 +58,18 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     }
   }
 
+  bool _isWebSnapshotDoc(ResolvedDocumentInfo? docInfo) {
+    if (docInfo == null) {
+      final lower = widget.title.toLowerCase();
+      return lower.contains('(web snapshot)') || lower.endsWith('.html') || lower.endsWith('.htm');
+    }
+    return DocumentService.isHtmlDocumentPayload(
+      bytes: docInfo.pdfBytes,
+      title: docInfo.title.isNotEmpty ? docInfo.title : widget.title,
+      source: docInfo.source,
+    );
+  }
+
   Future<void> _loadDocument() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -72,7 +84,9 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
       });
 
       if (res.isAvailable && res.data != null) {
-        _rasterizeFirstPage(res.data!.pdfBytes);
+        if (!_isWebSnapshotDoc(res.data)) {
+          _rasterizeFirstPage(res.data!.pdfBytes);
+        }
       }
     }
   }
@@ -98,8 +112,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     if (docInfo == null) return;
 
     try {
-      final isWebSnapshot = docInfo.source == DocumentSource.webSnapshot.identifier ||
-          docInfo.source == 'web_snapshot';
+      final isWebSnapshot = _isWebSnapshotDoc(docInfo);
       final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
       final ext = isWebSnapshot ? 'html' : 'pdf';
       final fileName = '${cleanTitle.isEmpty ? (isWebSnapshot ? 'snapshot' : 'document') : cleanTitle}.$ext';
@@ -168,6 +181,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     final docInfo = _resolution?.data;
     final isLocked = _resolution?.isLocked ?? false;
     final isError = _resolution != null && !_resolution!.isAvailable && !isLocked;
+    final isWebSnapshot = _isWebSnapshotDoc(docInfo);
 
     final displayTitle = docInfo?.title ?? widget.title;
 
@@ -184,7 +198,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
 
     final pageCountText = docInfo != null
         ? '${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'} • $ocrStatusText'
-        : 'Encrypted PDF';
+        : (isWebSnapshot ? 'Web Snapshot' : 'Encrypted PDF');
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -194,7 +208,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         elevation: 0,
         child: InkWell(
           onTap: () async {
-            if (docInfo?.source == DocumentSource.webSnapshot.identifier) {
+            if (isWebSnapshot) {
               await WebSnapshotViewerScreen.open(
                 context,
                 documentId: widget.documentId,
@@ -245,7 +259,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                   ),
                   clipBehavior: Clip.antiAlias,
                   alignment: Alignment.center,
-                  child: _buildThumbnail(colors, isLocked, isError),
+                  child: _buildThumbnail(colors, isLocked, isError, isWebSnapshot),
                 ),
 
                 const SizedBox(width: AppSpacing.md),
@@ -272,8 +286,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                             ? 'Encrypted (Locked)'
                             : isError
                                 ? (_resolution?.errorMessage ?? 'Unavailable')
-                                : (docInfo?.source ==
-                                        DocumentSource.webSnapshot.identifier
+                                : (isWebSnapshot
                                     ? 'Web Snapshot'
                                     : pageCountText),
                         style: TextStyle(
@@ -296,8 +309,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                           borderRadius: BorderRadius.circular(AppRadii.sm / 2),
                         ),
                         child: Text(
-                          docInfo?.source ==
-                                  DocumentSource.webSnapshot.identifier
+                          isWebSnapshot
                               ? 'WEB (QPD1)'
                               : 'PDF (QPD1)',
                           style: TextStyle(
@@ -321,7 +333,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                       size: 22,
                       color: colors.textSecondary,
                     ),
-                    tooltip: docInfo.source == DocumentSource.webSnapshot.identifier
+                    tooltip: isWebSnapshot
                         ? 'Save snapshot to storage'
                         : 'Save PDF to storage',
                     onPressed: _saveToStorage,
@@ -335,7 +347,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     );
   }
 
-  Widget _buildThumbnail(AppColors colors, bool isLocked, bool isError) {
+  Widget _buildThumbnail(AppColors colors, bool isLocked, bool isError, bool isWebSnapshot) {
     if (_firstPageThumbnail != null) {
       return Image.memory(
         _firstPageThumbnail!,
@@ -372,7 +384,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
       );
     }
 
-    if (_resolution?.data?.source == DocumentSource.webSnapshot.identifier) {
+    if (isWebSnapshot) {
       return Icon(
         Icons.language_rounded,
         size: 28,

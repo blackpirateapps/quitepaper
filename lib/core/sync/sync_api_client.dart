@@ -47,6 +47,7 @@ abstract class SyncApiClient {
     required String documentId,
     String? noteId,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
@@ -58,10 +59,13 @@ abstract class SyncApiClient {
     required String cloudPublicId,
     required String cloudUrl,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
     String sha256 = '',
+    String? ocrState,
+    String? ocrLanguage,
   });
   Future<DocumentSyncPayload?> getDocumentMetadata(String documentId);
   Future<PushVersionSyncResponse> pushVersions({
@@ -513,6 +517,7 @@ class HttpSyncApiClient implements SyncApiClient {
     required String documentId,
     String? noteId,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
@@ -522,6 +527,7 @@ class HttpSyncApiClient implements SyncApiClient {
     final body = <String, dynamic>{
       'documentId': documentId,
       'title': title,
+      'source': source,
       'mimeType': mimeType,
       'byteSize': byteSize,
       'pageCount': pageCount,
@@ -556,10 +562,13 @@ class HttpSyncApiClient implements SyncApiClient {
     required String cloudPublicId,
     required String cloudUrl,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
     String sha256 = '',
+    String? ocrState,
+    String? ocrLanguage,
   }) async {
     final url = Uri.parse('$_baseUrl/api/v1/documents/confirm');
     final body = <String, dynamic>{
@@ -567,6 +576,7 @@ class HttpSyncApiClient implements SyncApiClient {
       'cloudPublicId': cloudPublicId,
       'cloudUrl': cloudUrl,
       'title': title,
+      'source': source,
       'mimeType': mimeType,
       'byteSize': byteSize,
       'pageCount': pageCount,
@@ -574,6 +584,12 @@ class HttpSyncApiClient implements SyncApiClient {
     };
     if (noteId != null) {
       body['noteId'] = noteId;
+    }
+    if (ocrState != null) {
+      body['ocrState'] = ocrState;
+    }
+    if (ocrLanguage != null) {
+      body['ocrLanguage'] = ocrLanguage;
     }
 
     final encoded = jsonEncode(body);

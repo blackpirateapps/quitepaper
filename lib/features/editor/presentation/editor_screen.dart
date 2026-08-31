@@ -2162,8 +2162,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             spacing: 8.0,
             runSpacing: 6.0,
             children: docs.map((doc) {
+              final lowerTitle = doc.title.toLowerCase();
               final isWebSnapshot = doc.source == DocumentSource.webSnapshot.identifier ||
-                  doc.mimeType == 'text/html';
+                  doc.source == 'web_snapshot' ||
+                  doc.mimeType == 'text/html' ||
+                  lowerTitle.contains('(web snapshot)') ||
+                  lowerTitle.endsWith('.html') ||
+                  lowerTitle.endsWith('.htm');
               return Material(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(16),

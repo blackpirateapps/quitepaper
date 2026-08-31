@@ -577,6 +577,7 @@ class SyncEngine {
                           id: remoteMeta.id,
                           noteId: remoteMeta.noteId,
                           title: remoteMeta.title,
+                          source: remoteMeta.source.identifier,
                           createdAt: remoteMeta.createdAt,
                           updatedAt: remoteMeta.updatedAt,
                           mimeType: remoteMeta.mimeType,
@@ -591,6 +592,8 @@ class SyncEngine {
                           uploadState: 'synced',
                           cloudPublicId: remoteMeta.cloudPublicId,
                           cloudUrl: remoteMeta.cloudUrl,
+                          ocrState: remoteMeta.ocrState.identifier,
+                          ocrLanguage: remoteMeta.ocrLanguage,
                         );
                       }
                     } catch (docErr) {

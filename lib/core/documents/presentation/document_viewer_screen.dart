@@ -20,6 +20,7 @@ import '../../widgets/quiet_button.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../document_models.dart';
 import '../document_provider.dart';
+import '../document_service.dart';
 
 /// Dedicated full-screen viewer for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
 ///
@@ -87,6 +88,14 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   String get displayTitle => _currentTitle ?? _resolution?.data?.title ?? widget.title;
 
+  bool _isWebSnapshotDoc(ResolvedDocumentInfo docInfo) {
+    return DocumentService.isHtmlDocumentPayload(
+      bytes: docInfo.pdfBytes,
+      title: docInfo.title.isNotEmpty ? docInfo.title : widget.title,
+      source: docInfo.source,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -95,8 +104,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       _resolution = widget.initialResolution;
       _isLoading = false;
       if (_resolution!.isAvailable && _resolution!.data != null) {
-        if (_resolution!.data!.source == DocumentSource.webSnapshot.identifier ||
-            _resolution!.data!.source == 'web_snapshot') {
+        if (_isWebSnapshotDoc(_resolution!.data!)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               Navigator.of(context).pushReplacement(
@@ -130,9 +138,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final service = ref.read(documentServiceProvider);
     final res = await service.resolveDocument(widget.documentId);
     if (mounted) {
-      if (res.isAvailable && res.data != null &&
-          (res.data!.source == DocumentSource.webSnapshot.identifier ||
-              res.data!.source == 'web_snapshot')) {
+      if (res.isAvailable && res.data != null && _isWebSnapshotDoc(res.data!)) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => WebSnapshotViewerScreen(

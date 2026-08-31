@@ -289,14 +289,25 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           if (qpUri != null && qpUri.isDocument) {
             try {
               final doc = await ref.read(documentServiceProvider).database.getDocument(qpUri.resourceId);
-              if (doc != null &&
-                  (doc.source == DocumentSource.webSnapshot.identifier ||
-                      doc.mimeType == 'text/html')) {
+              final lowerText = text.toLowerCase();
+              final lowerDocTitle = (doc?.title ?? '').toLowerCase();
+              final isSnapshot = (doc != null &&
+                      (doc.source == DocumentSource.webSnapshot.identifier ||
+                          doc.source == 'web_snapshot' ||
+                          doc.mimeType == 'text/html' ||
+                          lowerDocTitle.contains('(web snapshot)') ||
+                          lowerDocTitle.endsWith('.html') ||
+                          lowerDocTitle.endsWith('.htm'))) ||
+                  lowerText.contains('web snapshot') ||
+                  lowerText.contains('(web snapshot)') ||
+                  lowerText.endsWith('.html');
+
+              if (isSnapshot) {
                 if (context.mounted) {
                   await WebSnapshotViewerScreen.open(
                     context,
                     documentId: qpUri.resourceId,
-                    title: text.isNotEmpty ? text : doc.title,
+                    title: text.isNotEmpty ? text : (doc?.title ?? 'Web Snapshot'),
                     sourceUrl: _parsedMarkdown.source,
                   );
                 }

@@ -4004,6 +4004,41 @@ Synchronized and bumped the application version across the entire release pipeli
 5. [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L1273): `'Version 1.5.5 • Offline-first • End-to-End Encrypted Sync'`
 6. [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L180): `'appVersion': '1.5.5'`
 
+---
+
+## 35. Web Snapshot Sync Type & MIME Preservation Fix with Self-Healing
+
+### Problem & Motivation
+When saving an offline web snapshot via the Web Clipper, the client creates a document attachment with `source: 'web_snapshot'` and `mimeType: 'text/html'`. On the originating device, this was correctly treated as a web snapshot and rendered in the dedicated `WebSnapshotViewerScreen`.
+
+However, on new devices after cloud sync:
+1. **Document Upload Confirmation Loss**: During background document sync ([`document_sync_service.dart`](file:///home/dog/git/quitepaper/lib/core/documents/document_sync_service.dart)), `confirmDocumentUpload` was called without forwarding `source` and `mimeType`.
+2. **Client API Fallbacks**: `SyncApiClient.confirmDocumentUpload` defaulted `mimeType` to `'application/pdf'` and did not specify `source`.
+3. **Backend Schema Restriction**: Backend Zod schemas ([`backend/src/validation/schemas.ts`](file:///home/dog/git/quitepaper/backend/src/validation/schemas.ts)) restricted `source` to `['scanner', 'imported_pdf']`, causing `source` to default to `'scanner'` in libSQL.
+4. **Sync Engine Document Prefetch**: On a new device, `SyncEngine` ([`sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart)) saved prefetched document metadata to SQLite without specifying `source`, defaulting to `'scanner'`.
+5. **Presentation Confusion & PDF Raster Crash**: `QuietDocumentCard` ([`quiet_document_card.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/quiet_document_card.dart)) attempted to rasterize the first PDF page using `Printing.raster()` on the decrypted HTML bytes, resulting in raster errors and displaying a `PDF (QPD1)` badge instead of `WEB (QPD1)`.
+
+### Architectural Fix & Enhancements
+1. **Backend Validation Schema ([`backend/src/validation/schemas.ts`](file:///home/dog/git/quitepaper/backend/src/validation/schemas.ts))**:
+   - Extended `uploadDocumentAuthRequestSchema` and `confirmDocumentSchema` to accept `source: z.enum(['scanner', 'imported_pdf', 'web_snapshot'])`.
+   - Added automated vitest test in [`backend/tests/documents.test.ts`](file:///home/dog/git/quitepaper/backend/tests/documents.test.ts) verifying upload auth, confirmation, and metadata retrieval for web snapshots with `text/html`.
+2. **Client Sync & API Client ([`sync_api_client.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_api_client.dart), [`document_sync_service.dart`](file:///home/dog/git/quitepaper/lib/core/documents/document_sync_service.dart), [`sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart))**:
+   - Updated `getDocumentUploadAuth` and `confirmDocumentUpload` signatures and HTTP serialization to explicitly send `source`, `mimeType`, `ocrState`, and `ocrLanguage`.
+   - `DocumentSyncService.syncPendingDocuments()` now forwards the document's actual `source`, `mimeType`, `ocrState`, and `ocrLanguage`.
+   - `SyncEngine._pullChangesAndApply()` prefetch handler now forwards `source`, `ocrState`, and `ocrLanguage` to `database.saveDocument()`.
+3. **Decryption Content Sniffing & Self-Healing ([`document_service.dart`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart))**:
+   - Added `DocumentService.isHtmlDocumentPayload(...)` supporting HTML magic prefix sniffing (`<!doctype html`, `<html`, `<!--`, `<head`, etc.), title heuristics (`(Web Snapshot)`, `.html`), and MIME/source checks.
+   - In `resolveDocument()`, when decrypted bytes are identified as HTML but the local database record has `source != 'web_snapshot'` or `mimeType != 'text/html'` (e.g. legacy synced documents), the record in SQLite is automatically self-healed and updated.
+4. **UI Presentation & Routing ([`quiet_document_card.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/quiet_document_card.dart), [`document_viewer_screen.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart), [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), [`markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart), [`attachment_export_resolver.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/attachment_export_resolver.dart))**:
+   - `QuietDocumentCard` bypasses PDF thumbnail rasterization for HTML documents, displays the web globe icon, shows `WEB (QPD1)` badge, and opens `WebSnapshotViewerScreen`.
+   - `DocumentViewerScreen` safely redirects to `WebSnapshotViewerScreen` if opened with a web snapshot.
+   - `AttachmentExportResolver` exports HTML documents as `.html` files instead of `.pdf`.
+5. **Automated Verification**:
+   - Added unit tests in [`test/documents/document_sync_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_sync_service_test.dart) and [`test/documents/document_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_service_test.dart).
+   - Added multi-device pull sync test in [`test/sync/sync_engine_test.dart`](file:///home/dog/git/quitepaper/test/sync/sync_engine_test.dart).
+   - All **943 Flutter tests** and **43 backend tests** pass cleanly with zero warnings/errors.
+
+
 
 
 

@@ -82,6 +82,64 @@ describe('Backend Scanned Document Control Plane & Sync Tests', () => {
     expect(getRes.body.byteSize).toBe(524288);
   });
 
+  it('Confirms web snapshot document upload and preserves web_snapshot source and text/html MIME type', async () => {
+    const documentId = '2a2a2a2a-3b3b-4c4c-5d5d-6e6e6e6e6e6e';
+
+    // 1. Request upload auth with web_snapshot source and text/html
+    const authRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/documents/upload-auth',
+      headers: { authorization: 'Bearer mock:user-doc-1' },
+      body: {
+        documentId,
+        title: 'TechCrunch Article (Web Snapshot)',
+        source: 'web_snapshot',
+        mimeType: 'text/html',
+        byteSize: 128000,
+        pageCount: 1,
+        sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+      },
+    });
+    expect(authRes.statusCode).toBe(200);
+
+    // 2. Confirm upload with web_snapshot source and text/html
+    const confirmRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/documents/confirm',
+      headers: { authorization: 'Bearer mock:user-doc-1' },
+      body: {
+        documentId,
+        title: 'TechCrunch Article (Web Snapshot)',
+        source: 'web_snapshot',
+        cloudPublicId: 'quitepaper_test/user_1_doc_snapshot',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v12345/quitepaper_test/user_1_doc_snapshot',
+        mimeType: 'text/html',
+        byteSize: 128000,
+        pageCount: 1,
+        sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+      },
+    });
+
+    expect(confirmRes.statusCode).toBe(200);
+    expect(confirmRes.body.document.source).toBe('web_snapshot');
+    expect(confirmRes.body.document.mimeType).toBe('text/html');
+
+    // 3. Retrieve metadata and verify it returns web_snapshot and text/html
+    const getRes = await handleApiRequest({
+      method: 'GET',
+      url: `/api/v1/documents/${documentId}`,
+      headers: { authorization: 'Bearer mock:user-doc-1' },
+    });
+
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.id).toBe(documentId);
+    expect(getRes.body.title).toBe('TechCrunch Article (Web Snapshot)');
+    expect(getRes.body.source).toBe('web_snapshot');
+    expect(getRes.body.mimeType).toBe('text/html');
+    expect(getRes.body.pageCount).toBe(1);
+    expect(getRes.body.byteSize).toBe(128000);
+  });
+
   it('Prevents cross-user document access and maintains user isolation', async () => {
     const documentId = '33333333-4444-5555-6666-777777777777';
 

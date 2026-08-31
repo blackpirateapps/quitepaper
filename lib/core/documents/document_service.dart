@@ -316,7 +316,43 @@ class DocumentService implements DocumentResolver {
     return _storage.hasEncryptedFile(documentId: documentId);
   }
 
+  /// Helper to accurately detect if a document payload is a Web Snapshot / HTML document
+  /// via source, MIME type, title heuristic, or content sniffing.
+  static bool isHtmlDocumentPayload({
+    required Uint8List bytes,
+    String? title,
+    String? mimeType,
+    String? source,
+  }) {
+    if (source == DocumentSource.webSnapshot.identifier || source == 'web_snapshot') {
+      return true;
+    }
+    if (mimeType == 'text/html') {
+      return true;
+    }
+    final lowerTitle = (title ?? '').toLowerCase().trim();
+    if (lowerTitle.contains('(web snapshot)') || lowerTitle.endsWith('.html') || lowerTitle.endsWith('.htm')) {
+      return true;
+    }
+    if (bytes.length >= 4) {
+      final sampleLen = bytes.length < 64 ? bytes.length : 64;
+      final prefix = String.fromCharCodes(bytes.sublist(0, sampleLen)).trimLeft().toLowerCase();
+      if (prefix.startsWith('<!doctype html') ||
+          prefix.startsWith('<html') ||
+          prefix.startsWith('<!--') ||
+          prefix.startsWith('<head') ||
+          prefix.startsWith('<meta') ||
+          prefix.startsWith('<body')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
+  /// Resolves a canonical document by [documentId], pulling remote metadata and ciphertext
+  /// if missing locally, decrypting with the user's Master Key, verifying SHA-256 integrity,
+  /// and returning the resolved payload or structured error state.
   Future<ResourceResolution<ResolvedDocumentInfo>> resolveDocument(
     String documentId,
   ) async {
@@ -367,6 +403,13 @@ class DocumentService implements DocumentResolver {
     // 2. Check ephemeral in-memory cache
     final memCached = _storage.getDecryptedCache(documentId);
     if (memCached != null) {
+      final isWebSnapshot = isHtmlDocumentPayload(
+        bytes: memCached,
+        title: entity.title,
+        mimeType: entity.mimeType,
+        source: entity.source,
+      );
+
       return ResourceResolution.available(
         uri,
         ResolvedDocumentInfo(
@@ -377,7 +420,7 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
-          source: entity.source,
+          source: isWebSnapshot ? DocumentSource.webSnapshot.identifier : entity.source,
           ocrState: entity.ocrState,
           ocrLanguage: entity.ocrLanguage,
         ),
@@ -449,6 +492,44 @@ class DocumentService implements DocumentResolver {
         }
       }
 
+      // Detect if content is a Web Snapshot / HTML document
+      final isWebSnapshot = isHtmlDocumentPayload(
+        bytes: decrypted,
+        title: entity.title,
+        mimeType: entity.mimeType,
+        source: entity.source,
+      );
+
+      // Self-heal local database record if legacy record had 'scanner' or 'application/pdf'
+      if (isWebSnapshot &&
+          (entity.source != DocumentSource.webSnapshot.identifier || entity.mimeType != 'text/html')) {
+        await database.saveDocument(
+          id: entity.id,
+          noteId: entity.noteId,
+          title: entity.title,
+          source: DocumentSource.webSnapshot.identifier,
+          createdAt: entity.createdAt,
+          updatedAt: entity.updatedAt,
+          mimeType: 'text/html',
+          byteSize: entity.byteSize,
+          pageCount: entity.pageCount,
+          sha256: entity.sha256,
+          encryptionKeyVersion: entity.encryptionKeyVersion,
+          serverRevision: entity.serverRevision,
+          isDirty: false,
+          isDeleted: entity.isDeleted,
+          deletedAt: entity.deletedAt,
+          uploadState: entity.uploadState,
+          cloudPublicId: entity.cloudPublicId,
+          cloudUrl: entity.cloudUrl,
+          localPath: entity.localPath,
+          thumbnailPath: entity.thumbnailPath,
+          ocrState: entity.ocrState,
+          ocrLanguage: entity.ocrLanguage,
+        );
+        entity = await database.getDocument(documentId) ?? entity;
+      }
+
       // Cache decrypted bytes in memory
       _storage.putDecryptedCache(documentId, decrypted);
 
@@ -462,7 +543,7 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
-          source: entity.source,
+          source: isWebSnapshot ? DocumentSource.webSnapshot.identifier : entity.source,
           ocrState: entity.ocrState,
           ocrLanguage: entity.ocrLanguage,
         ),

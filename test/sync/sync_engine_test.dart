@@ -180,6 +180,7 @@ class InMemorySyncApiClient extends SyncApiClient {
     required String documentId,
     String? noteId,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
@@ -202,10 +203,13 @@ class InMemorySyncApiClient extends SyncApiClient {
     required String cloudPublicId,
     required String cloudUrl,
     String title = 'Scanned Document',
+    String source = 'scanner',
     String mimeType = 'application/pdf',
     int byteSize = 0,
     int pageCount = 1,
     String sha256 = '',
+    String? ocrState,
+    String? ocrLanguage,
   }) async {
     return {'success': true};
   }
@@ -670,5 +674,75 @@ void main() {
           e is Exception &&
           e.toString().contains('Push sync failed: Array must contain at most 100 element(s)'))),
     );
+  });
+
+  test('Pulling note referencing qp://document/<UUID> web snapshot prefetches metadata and saves source web_snapshot', () async {
+    const userEmail = 'snapshot_user@quietpaper.test';
+    const fbPassword = 'AccountPassword123';
+    const encPassword = 'QuietPaperEncryptionPassword-!@#';
+
+    // 1. Device A: Sign up & setup keys
+    await authA.signUpWithEmailAndPassword(userEmail, fbPassword);
+    final recoveryKey = crypto.generateRecoveryKey();
+    final wrappedKey = await keyManagerA.setupNewKeys(
+      password: encPassword,
+      recoveryKey: recoveryKey,
+      kdfParameters: testKdf,
+    );
+    await sharedApi.putKeys(wrappedKey);
+
+    // 2. Device B: Sign in & unlock keys
+    await authB.signUpWithEmailAndPassword(userEmail, fbPassword);
+    await keyManagerB.unlockWithPassword(
+      password: encPassword,
+      remoteWrappedKey: wrappedKey,
+    );
+
+    const docId = '12345678-1234-1234-1234-123456789abc';
+    final now = DateTime.now();
+
+    // Populate server document metadata with web_snapshot source
+    sharedApi.serverDocuments[docId] = DocumentSyncPayload(
+      id: docId,
+      title: 'Article (Web Snapshot)',
+      source: DocumentSource.webSnapshot,
+      createdAt: now,
+      updatedAt: now,
+      mimeType: 'text/html',
+      byteSize: 2048,
+      pageCount: 1,
+      sha256: 'mock-sha',
+      cloudPublicId: 'user_doc_$docId',
+      cloudUrl: 'https://res.cloudinary.com/test/raw/upload/v1/user_doc_$docId',
+    );
+
+    // Save note on Device A referencing docId and sync
+    await dbA.saveNote(
+      id: 'note-with-snapshot-1',
+      title: 'Clipped Article',
+      content: '> Original Web Snapshot Attached — [View Web Snapshot →](qp://document/$docId)\n\nArticle body here.',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      tags: ['clipped'],
+      isDirty: true,
+    );
+
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+
+    // Device B pulls the note
+    await engineB.syncNow();
+    expect(engineB.state.status, SyncStatus.synced);
+
+    // Verify Device B local database has prefetched document with source web_snapshot
+    final pulledDoc = await dbB.getDocument(docId);
+    expect(pulledDoc, isNotNull);
+    expect(pulledDoc!.title, 'Article (Web Snapshot)');
+    expect(pulledDoc.source, DocumentSource.webSnapshot.identifier);
+    expect(pulledDoc.mimeType, 'text/html');
+    expect(pulledDoc.cloudUrl, isNotEmpty);
   });
 }

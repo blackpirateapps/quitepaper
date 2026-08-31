@@ -207,5 +207,40 @@ void main() {
       expect(updatedNote?.note.content, contains('[$newDocTitle](qp://document/$docId)'));
       expect(updatedNote?.note.content, isNot(contains('[$docTitle]')));
     });
+
+    test('createWebSnapshotDocument creates document with web_snapshot source and text/html MIME type', () async {
+      final htmlBytes = Uint8List.fromList(utf8.encode('<!DOCTYPE html><html><body><h1>Offline Snapshot</h1></body></html>'));
+      final result = await documentService.createWebSnapshotDocument(
+        htmlBytes: htmlBytes,
+        title: 'Article (Web Snapshot)',
+      );
+
+      final doc = result.document;
+      expect(doc.id, isNotEmpty);
+      expect(doc.title, 'Article (Web Snapshot)');
+      expect(doc.source, 'web_snapshot');
+      expect(doc.mimeType, 'text/html');
+      expect(doc.pageCount, 1);
+      expect(doc.byteSize, htmlBytes.length);
+      expect(result.markdownSnippet, '[Article (Web Snapshot)](qp://document/${doc.id})');
+
+      final resolution = await documentService.resolveDocument(doc.id);
+      expect(resolution.isAvailable, isTrue);
+      expect(resolution.data!.source, 'web_snapshot');
+      expect(resolution.data!.pdfBytes, htmlBytes);
+    });
+
+    test('isHtmlDocumentPayload accurately identifies HTML payloads by content, source, and title', () {
+      final htmlBytes1 = Uint8List.fromList(utf8.encode('<!DOCTYPE html><html><body>Hello</body></html>'));
+      final htmlBytes2 = Uint8List.fromList(utf8.encode('<html lang="en"><head></head><body>Hello</body></html>'));
+      final pdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 binary data'));
+
+      expect(DocumentService.isHtmlDocumentPayload(bytes: htmlBytes1), isTrue);
+      expect(DocumentService.isHtmlDocumentPayload(bytes: htmlBytes2), isTrue);
+      expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes), isFalse);
+      expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes, source: 'web_snapshot'), isTrue);
+      expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes, mimeType: 'text/html'), isTrue);
+      expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes, title: 'My Page (Web Snapshot)'), isTrue);
+    });
   });
 }

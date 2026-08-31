@@ -87,6 +87,7 @@ class DocumentSyncService {
             documentId: item.id,
             noteId: item.noteId,
             title: item.title,
+            source: item.source,
             mimeType: item.mimeType,
             byteSize: item.byteSize,
             pageCount: item.pageCount,
@@ -132,9 +133,13 @@ class DocumentSyncService {
             cloudPublicId: uploadResult.publicId,
             cloudUrl: uploadResult.secureUrl,
             title: item.title,
+            source: item.source,
+            mimeType: item.mimeType,
             byteSize: item.byteSize,
             pageCount: item.pageCount,
             sha256: item.sha256,
+            ocrState: item.ocrState,
+            ocrLanguage: item.ocrLanguage,
           );
 
           // 7. Mark synced
