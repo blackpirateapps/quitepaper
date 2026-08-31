@@ -17,6 +17,7 @@ class FormattingToolbar extends StatelessWidget {
     this.onScanPressed,
     this.onPdfPressed,
     this.onFilePressed,
+    this.onNoteLinkPressed,
     this.focusNode,
     this.onUndo,
     this.onRedo,
@@ -32,7 +33,9 @@ class FormattingToolbar extends StatelessWidget {
   final VoidCallback? onScanPressed;
   final VoidCallback? onPdfPressed;
   final VoidCallback? onFilePressed;
+  final VoidCallback? onNoteLinkPressed;
   final FocusNode? focusNode;
+
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
   final bool canUndo;
@@ -239,7 +242,14 @@ class FormattingToolbar extends StatelessWidget {
             tooltip: 'Link ([title](url))',
             onPressed: () => _handleLink(context),
           ),
+          if (onNoteLinkPressed != null)
+            _ToolbarButton(
+              icon: Icons.note_add_outlined,
+              tooltip: 'Link to note ([title](qp://note/...))',
+              onPressed: onNoteLinkPressed!,
+            ),
           if (onTablePressed != null)
+
             _ToolbarButton(
               icon: Icons.table_chart_outlined,
               tooltip: 'Insert table',

@@ -40,9 +40,15 @@ import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../scanner/presentation/document_scanner_screen.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/markdown_styles.dart';
+import '../../../core/note_links/note_link_provider.dart';
+import '../application/markdown_formatter.dart';
+import '../application/note_link_autocomplete_trigger.dart';
+import 'widgets/backlinks_section.dart';
+import 'widgets/note_link_picker_sheet.dart';
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../export/presentation/export_note_sheet.dart';
+
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -376,7 +382,145 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (_isSearchVisible && _searchQueryController.text.isNotEmpty) {
       _recalculateMatches(_searchQueryController.text);
     }
+
+    _checkAutocompleteTrigger();
   }
+
+  bool _isAutocompleteOpen = false;
+
+  Future<void> _checkAutocompleteTrigger() async {
+    if (_isAutocompleteOpen) return;
+    final trigger = NoteLinkAutocompleteTrigger.detect(_contentController.value);
+    if (trigger == null) return;
+
+    _isAutocompleteOpen = true;
+    try {
+      final result = await NoteLinkPickerSheet.show(
+        context,
+        searchService: ref.read(noteLinkSearchServiceProvider),
+        initialQuery: trigger.query,
+        currentNoteId: widget.note.id,
+      );
+
+      if (result != null && mounted) {
+        if (result is NoteLinkPickerSelectResult) {
+          final updated = MarkdownFormatter.insertNoteLink(
+            value: _contentController.value,
+            noteId: result.noteId,
+            targetTitle: result.title,
+            replaceStart: trigger.triggerStart,
+            replaceEnd: trigger.queryEnd,
+          );
+          _contentController.value = updated;
+          _undoRedoManager.pushAtomicEdit(_contentController.value);
+          _onContentChanged();
+          if (!_contentFocusNode.hasFocus) {
+            _contentFocusNode.requestFocus();
+          }
+        } else if (result is NoteLinkPickerCreateResult) {
+          final notesRepo = ref.read(notesRepositoryProvider);
+          final newNoteId = const Uuid().v4();
+          final newNote = Note(
+            id: newNoteId,
+            title: result.newTitle,
+            content: '',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          await notesRepo.saveNote(newNote);
+
+          final updated = MarkdownFormatter.insertNoteLink(
+            value: _contentController.value,
+            noteId: newNoteId,
+            targetTitle: result.newTitle,
+            replaceStart: trigger.triggerStart,
+            replaceEnd: trigger.queryEnd,
+          );
+          _contentController.value = updated;
+          _undoRedoManager.pushAtomicEdit(_contentController.value);
+          _onContentChanged();
+
+          if (mounted) {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => EditorScreen(note: newNote),
+              ),
+            );
+          }
+        }
+      }
+    } finally {
+      _isAutocompleteOpen = false;
+    }
+  }
+
+  Future<void> _handleNoteLinkPrompt() async {
+    final targetCtrl = _activeTargetController ?? _contentController;
+    final targetFn = _activeTargetFocusNode ?? _contentFocusNode;
+
+    var initialQuery = '';
+    final sel = targetCtrl.selection;
+    if (sel.isValid && !sel.isCollapsed) {
+      final start = sel.start < sel.end ? sel.start : sel.end;
+      final end = sel.start < sel.end ? sel.end : sel.start;
+      final selectedText = targetCtrl.text.substring(start, end).trim();
+      if (selectedText.isNotEmpty && !selectedText.contains('\n')) {
+        initialQuery = selectedText;
+      }
+    }
+
+    final result = await NoteLinkPickerSheet.show(
+      context,
+      searchService: ref.read(noteLinkSearchServiceProvider),
+      initialQuery: initialQuery,
+      currentNoteId: widget.note.id,
+    );
+
+    if (result != null && mounted) {
+      if (result is NoteLinkPickerSelectResult) {
+        final updated = MarkdownFormatter.insertNoteLink(
+          value: targetCtrl.value,
+          noteId: result.noteId,
+          targetTitle: result.title,
+        );
+        targetCtrl.value = updated;
+        _undoRedoManager.pushAtomicEdit(targetCtrl.value);
+        _onContentChanged();
+        if (!targetFn.hasFocus) {
+          targetFn.requestFocus();
+        }
+      } else if (result is NoteLinkPickerCreateResult) {
+        final notesRepo = ref.read(notesRepositoryProvider);
+        final newNoteId = const Uuid().v4();
+        final newNote = Note(
+          id: newNoteId,
+          title: result.newTitle,
+          content: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await notesRepo.saveNote(newNote);
+
+        final updated = MarkdownFormatter.insertNoteLink(
+          value: targetCtrl.value,
+          noteId: newNoteId,
+          targetTitle: result.newTitle,
+        );
+        targetCtrl.value = updated;
+        _undoRedoManager.pushAtomicEdit(targetCtrl.value);
+        _onContentChanged();
+
+        if (mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => EditorScreen(note: newNote),
+            ),
+          );
+        }
+      }
+    }
+  }
+
 
   void _openSearch({bool withReplace = false}) {
     HapticFeedback.lightImpact();
@@ -912,6 +1056,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     markdownData: _contentController.text.isNotEmpty
                                         ? _contentController.text
                                         : note.content,
+                                    noteId: note.id,
                                     title: _titleController.text.isNotEmpty
                                         ? _titleController.text
                                         : note.title,
@@ -1004,6 +1149,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     readOnly: editorState.isReadOnly,
+                                    onNoteLinkPrompt: _handleNoteLinkPrompt,
                                     searchQuery: _isSearchVisible
                                         ? _searchQueryController.text
                                         : null,
@@ -1016,6 +1162,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       }
                                     },
                                   ),
+
+                                  // Backlinks Section (Linked From · N)
+                                  BacklinksSection(
+                                    noteId: note.id,
+                                    onOpenNote: (sourceNote) {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => EditorScreen(note: sourceNote),
+                                        ),
+                                      );
+                                    },
+                                  ),
+
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
@@ -1046,7 +1205,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   canRedo: _undoRedoManager.canRedo,
                   onUndo: _undo,
                   onRedo: _redo,
+                  onNoteLinkPressed: _handleNoteLinkPrompt,
                   onApplyAtomicEdit: (val) {
+
                     if ((_activeTargetController ?? _contentController) != _contentController) {
                       _undoRedoManager.pushAtomicEdit(_contentController.value);
                     } else {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../documents/document_provider.dart';
 import '../sync/sync_provider.dart';
+import '../uri/local_note_resolver.dart';
 import '../uri/resource_resolver.dart';
 import '../ocr/ocr_provider.dart';
 import 'attachment_crypto.dart';
@@ -107,8 +108,12 @@ final attachmentShareServiceProvider = Provider<AttachmentShareService>((ref) {
 final resourceResolverProvider = Provider<QuietPaperResourceResolver>((ref) {
   final attachmentService = ref.watch(attachmentServiceProvider);
   final documentService = ref.watch(documentServiceProvider);
+  final db = ref.watch(databaseProvider);
   return QuietPaperResourceResolver(
     assetResolver: attachmentService,
     documentResolver: documentService,
+    noteResolver: LocalNoteResolver(db),
   );
 });
+
+

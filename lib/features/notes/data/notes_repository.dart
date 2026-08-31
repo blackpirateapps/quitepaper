@@ -1,6 +1,7 @@
 import 'dart:convert';
 import '../../../core/crypto/key_manager.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/note_links/note_link_models.dart';
 import '../../../core/ocr/ocr_crypto.dart';
 import '../domain/note_model.dart';
 import '../domain/note_version_model.dart';
@@ -54,7 +55,13 @@ abstract class NotesRepository {
   Future<NoteVersion?> getLatestVersion(String noteId);
   Future<int> getNextVersionNumber(String noteId);
   Future<void> pruneVersions(String noteId, {int maxKeep = 50});
+  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId);
+  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId);
+  Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId);
+  Stream<List<NoteLinkEntity>> watchOutgoingLinksForNote(String sourceNoteId);
+  Future<void> rebuildNoteLinkIndex();
 }
+
 
 class DriftNotesRepository implements NotesRepository {
   DriftNotesRepository(
@@ -453,4 +460,30 @@ class DriftNotesRepository implements NotesRepository {
   Future<void> pruneVersions(String noteId, {int maxKeep = 50}) {
     return _db.pruneOldNoteVersions(noteId, maxKeep: maxKeep);
   }
+
+  @override
+  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId) {
+    return _db.getBacklinksForNote(targetNoteId);
+  }
+
+  @override
+  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId) {
+    return _db.watchBacklinksForNote(targetNoteId);
+  }
+
+  @override
+  Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {
+    return _db.getOutgoingLinksForNote(sourceNoteId);
+  }
+
+  @override
+  Stream<List<NoteLinkEntity>> watchOutgoingLinksForNote(String sourceNoteId) {
+    return _db.watchOutgoingLinksForNote(sourceNoteId);
+  }
+
+  @override
+  Future<void> rebuildNoteLinkIndex() {
+    return _db.rebuildNoteLinkIndex();
+  }
 }
+

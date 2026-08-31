@@ -25,11 +25,15 @@ import 'markdown_chunker.dart';
 import 'markdown_highlight.dart';
 import 'quiet_code_block_element_builder.dart';
 import '../syntax/application/syntax_provider.dart';
+import '../../features/editor/presentation/editor_screen.dart';
+import '../../features/editor/presentation/widgets/backlinks_section.dart';
+import '../../features/notes/application/notes_provider.dart';
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
   const QuietMarkdownPreview({
     super.key,
     required this.markdownData,
+    this.noteId,
     this.title,
     this.tags,
     this.onAddTag,
@@ -51,8 +55,10 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   });
 
   final String markdownData;
+  final String? noteId;
   final String? title;
   final List<String>? tags;
+
   final ValueChanged<String>? onAddTag;
   final ValueChanged<String>? onRemoveTag;
   final Widget? header;
@@ -391,8 +397,45 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
             }
             return;
           }
+
+          if (qpUri != null && qpUri.isNote) {
+            if (context.mounted) {
+              final notesRepo = ref.read(notesRepositoryProvider);
+              final targetNote = await notesRepo.getNoteById(qpUri.resourceId);
+              if (targetNote != null) {
+                if (targetNote.isTrashed) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Note "${targetNote.displayTitle}" is in Trash.'),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                } else if (context.mounted) {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditorScreen(note: targetNote),
+                    ),
+                  );
+                }
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('This note is no longer available.'),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+            return;
+          }
           LinkLauncherHelper.handleLinkTap(context, target);
         };
+
+
 
     Widget buildHeader() {
       return Column(
@@ -578,14 +621,26 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 softLineBreak: widget.softLineBreak,
               ),
             ),
+            if (widget.noteId != null)
+              BacklinksSection(
+                noteId: widget.noteId!,
+                onOpenNote: (note) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditorScreen(note: note),
+                    ),
+                  );
+                },
+              ),
           ],
         );
       }
     } else {
       final headerCount = hasHeader ? 1 : 0;
       final bodyCount = _chunks.isEmpty ? 1 : _chunks.length;
+      final backlinksCount = widget.noteId != null ? 1 : 0;
       const footerCount = 1;
-      final totalCount = headerCount + bodyCount + footerCount;
+      final totalCount = headerCount + bodyCount + backlinksCount + footerCount;
 
       content = ListView.builder(
         controller: widget.scrollController,
@@ -629,11 +684,25 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
             );
           }
 
+          if (widget.noteId != null && bodyIndex == bodyCount) {
+            return BacklinksSection(
+              noteId: widget.noteId!,
+              onOpenNote: (note) {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => EditorScreen(note: note),
+                  ),
+                );
+              },
+            );
+          }
+
           // Generous bottom scroll area for comfortable preview reading
           return const SizedBox(height: 120.0);
         },
       );
     }
+
 
     if (widget.selectable) {
       content = SelectionArea(child: content);

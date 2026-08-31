@@ -10,6 +10,7 @@ import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
 import 'tables/document_ocr_pages_table.dart';
 import 'tables/documents_table.dart';
+import 'tables/note_links_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
@@ -17,6 +18,9 @@ import 'tables/sync_conflicts_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
 import 'tables/tags_table.dart';
+import '../note_links/note_link_extractor.dart';
+import '../note_links/note_link_models.dart';
+import '../../features/notes/domain/note_model.dart';
 import '../ocr/ocr_models.dart';
 
 part 'app_database.g.dart';
@@ -65,6 +69,7 @@ class TagWithCount {
   DocumentsTable,
   DocumentOcrPagesTable,
   SyncConflictsTable,
+  NoteLinksTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -73,7 +78,8 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
+
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -176,6 +182,9 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnSafely(m, tagsTable, tagsTable.isDeleted);
             await _addColumnSafely(m, tagsTable, tagsTable.deletedAt);
           }
+          if (from < 13) {
+            await _createTableSafely(m, noteLinksTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -244,8 +253,18 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'CREATE INDEX IF NOT EXISTS sync_conflicts_state_idx ON sync_conflicts (state);',
           );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_links_source_idx ON note_links (source_note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_links_target_idx ON note_links (target_note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_links_target_source_idx ON note_links (target_note_id, source_note_id);',
+          );
         },
       );
+
 
   Future<void> _addColumnSafely(
     Migrator m,
@@ -729,8 +748,12 @@ class AppDatabase extends _$AppDatabase {
           );
         }
       }
+
+      // Sync derived note links
+      await _syncNoteLinks(id, content);
     });
   }
+
 
   /// Toggle or set pin status
   Future<void> setPinned(String noteId, bool isPinned) async {
@@ -803,6 +826,7 @@ class AppDatabase extends _$AppDatabase {
   /// Permanent hard deletion of a single note
   Future<void> deletePermanently(String noteId, {bool enqueueSync = true}) async {
     await transaction(() async {
+      await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.equals(noteId) | nl.targetNoteId.equals(noteId))).go();
       await (delete(noteVersionsTable)..where((v) => v.noteId.equals(noteId))).go();
       await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
@@ -827,6 +851,7 @@ class AppDatabase extends _$AppDatabase {
         for (final id in trashedIds) {
           await removeNoteFromSearchIndex(id);
         }
+        await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.isIn(trashedIds) | nl.targetNoteId.isIn(trashedIds))).go();
         await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(trashedIds))).go();
         await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
@@ -913,6 +938,7 @@ class AppDatabase extends _$AppDatabase {
       for (final id in noteIds) {
         await removeNoteFromSearchIndex(id);
       }
+      await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.isIn(noteIds) | nl.targetNoteId.isIn(noteIds))).go();
       await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(noteIds))).go();
       await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
@@ -924,6 +950,7 @@ class AppDatabase extends _$AppDatabase {
       }
     });
   }
+
 
   /// Legacy helper for deleting a note
   Future<void> deleteNote(String noteId, {bool enqueueSync = true}) async {
@@ -2454,4 +2481,130 @@ class AppDatabase extends _$AppDatabase {
   Future<List<AttachmentOcrPageEntity>> getAllAttachmentOcrPages() async {
     return select(attachmentOcrPagesTable).get();
   }
+
+  // ==========================================
+  // NOTE LINK OPERATIONS & STREAM QUERIES
+  // ==========================================
+
+  /// Synchronizes derived internal note links from [content] for [sourceNoteId].
+  Future<void> _syncNoteLinks(String sourceNoteId, String content) async {
+    await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.equals(sourceNoteId))).go();
+
+    final parsedLinks = NoteLinkExtractor.extractLinks(content);
+    if (parsedLinks.isEmpty) return;
+
+    final companions = parsedLinks.map((link) {
+      return NoteLinksTableCompanion.insert(
+        id: const Uuid().v4(),
+        sourceNoteId: sourceNoteId,
+        targetNoteId: link.targetNoteId,
+        displayText: link.displayText,
+        sourceOffset: link.sourceOffset,
+        createdAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      );
+    }).toList();
+
+    await batch((b) {
+      b.insertAll(noteLinksTable, companions);
+    });
+  }
+
+  /// Rebuilds the entire note_links table from active notes' Markdown bodies.
+  Future<void> rebuildNoteLinkIndex() async {
+    await transaction(() async {
+      await delete(noteLinksTable).go();
+      final allNotes = await (select(notesTable)..where((n) => n.isTrashed.equals(false))).get();
+      for (final note in allNotes) {
+        final parsedLinks = NoteLinkExtractor.extractLinks(note.content);
+        if (parsedLinks.isNotEmpty) {
+          final companions = parsedLinks.map((link) {
+            return NoteLinksTableCompanion.insert(
+              id: const Uuid().v4(),
+              sourceNoteId: note.id,
+              targetNoteId: link.targetNoteId,
+              displayText: link.displayText,
+              sourceOffset: link.sourceOffset,
+              createdAt: Value(DateTime.now()),
+              updatedAt: Value(DateTime.now()),
+            );
+          }).toList();
+          await batch((b) {
+            b.insertAll(noteLinksTable, companions);
+          });
+        }
+      }
+    });
+  }
+
+  /// Fetches backlinks pointing to [targetNoteId] from active (non-trashed) notes.
+  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId) async {
+    final links = await (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId))).get();
+    if (links.isEmpty) return const [];
+
+    final linkCountsBySource = <String, int>{};
+    for (final link in links) {
+      linkCountsBySource[link.sourceNoteId] = (linkCountsBySource[link.sourceNoteId] ?? 0) + 1;
+    }
+
+    final sourceIds = linkCountsBySource.keys.toList();
+    final sourceNotes = await (select(notesTable)
+          ..where((n) => n.id.isIn(sourceIds) & n.isTrashed.equals(false))
+          ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+        .get();
+
+    if (sourceNotes.isEmpty) return const [];
+
+    final validSourceIds = sourceNotes.map((n) => n.id).toList();
+    final tagsMap = await getTagsForNoteIds(validSourceIds);
+
+    final backlinks = <BacklinkItem>[];
+    for (final entity in sourceNotes) {
+      final tags = (tagsMap[entity.id] ?? []).map((t) => t.name).toList();
+      final domainNote = Note(
+        id: entity.id,
+        title: entity.title,
+        content: entity.content,
+        createdAt: entity.createdAt,
+        updatedAt: entity.updatedAt,
+        isPinned: entity.isPinned,
+        isArchived: entity.isArchived,
+        isTrashed: entity.isTrashed,
+        deletedAt: entity.deletedAt,
+        tags: tags,
+      );
+      backlinks.add(
+        BacklinkItem(
+          sourceNote: domainNote,
+          occurrencesCount: linkCountsBySource[entity.id] ?? 1,
+        ),
+      );
+    }
+
+    return backlinks;
+  }
+
+  /// Watches reactive backlinks pointing to [targetNoteId].
+  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId) {
+    return (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId)))
+        .watch()
+        .asyncMap((_) => getBacklinksForNote(targetNoteId));
+  }
+
+  /// Fetches outgoing note links originating from [sourceNoteId].
+  Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {
+    return (select(noteLinksTable)
+          ..where((nl) => nl.sourceNoteId.equals(sourceNoteId))
+          ..orderBy([(nl) => OrderingTerm.asc(nl.sourceOffset)]))
+        .get();
+  }
+
+  /// Watches reactive outgoing note links originating from [sourceNoteId].
+  Stream<List<NoteLinkEntity>> watchOutgoingLinksForNote(String sourceNoteId) {
+    return (select(noteLinksTable)
+          ..where((nl) => nl.sourceNoteId.equals(sourceNoteId))
+          ..orderBy([(nl) => OrderingTerm.asc(nl.sourceOffset)]))
+        .watch();
+  }
 }
+

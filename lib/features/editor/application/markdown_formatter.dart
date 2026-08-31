@@ -76,6 +76,65 @@ abstract final class MarkdownFormatter {
     }
   }
 
+  /// Inserts or replaces a canonical internal note link `[displayText](qp://note/<noteId>)`.
+  ///
+  /// - If [replaceStart] and [replaceEnd] are provided (e.g. from `[[query` autocomplete),
+  ///   the range `[replaceStart, replaceEnd]` is replaced.
+  /// - If text was selected, the selected text is wrapped as display text: `[selected text](qp://note/<noteId>)`.
+  /// - If no text was selected, `[targetTitle](qp://note/<noteId>)` is inserted at cursor.
+  /// - Caret is positioned immediately after the closing parenthesis `)`.
+  static TextEditingValue insertNoteLink({
+    required TextEditingValue value,
+    required String noteId,
+    required String targetTitle,
+    int? replaceStart,
+    int? replaceEnd,
+    String? displayTextOverride,
+  }) {
+    final text = value.text;
+    final selection = value.selection;
+
+    final hasSelection = selection.isValid && !selection.isCollapsed;
+    final selectedText = hasSelection
+        ? text.substring(min(selection.start, selection.end), max(selection.start, selection.end))
+        : null;
+
+    final effectiveTitle = displayTextOverride?.trim().isNotEmpty == true
+        ? displayTextOverride!.trim()
+        : (hasSelection && selectedText != null && selectedText.trim().isNotEmpty
+            ? selectedText.trim()
+            : (targetTitle.trim().isNotEmpty ? targetTitle.trim() : 'Untitled'));
+    final noteUri = 'qp://note/$noteId';
+    final linkMd = '[$effectiveTitle]($noteUri)';
+
+
+    int start;
+    int end;
+
+    if (replaceStart != null && replaceEnd != null) {
+      start = replaceStart.clamp(0, text.length);
+      end = replaceEnd.clamp(start, text.length);
+    } else if (selection.isValid && !selection.isCollapsed) {
+      start = min(selection.start, selection.end);
+      end = max(selection.start, selection.end);
+    } else if (selection.isValid) {
+      start = selection.start.clamp(0, text.length);
+      end = start;
+    } else {
+      start = text.length;
+      end = text.length;
+    }
+
+    final newText = text.replaceRange(start, end, linkMd);
+    final newCursor = start + linkMd.length;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+
   /// Toggles checklist (`- [ ] `) across selected lines.
   static TextEditingValue toggleChecklist({required TextEditingValue value}) {
     return _transformSelectedLines(

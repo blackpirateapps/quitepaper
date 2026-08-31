@@ -4242,6 +4242,72 @@ The document scanner editor previously suffered from severe visual lag, dropped 
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
 - Full repository test suite: `flutter test` (**all 1,002 unit and widget tests passing with 0 failures**).
 
+---
+
+## 34. Note Linking V1 Subsystem Architecture & Implementation
+
+### 1. Architectural Overview & Design Philosophy
+Note Linking V1 introduces bidirectional note linking to Quiet Paper, integrating seamlessly with the warm editorial aesthetic, local-first persistence, offline operation, and zero-knowledge end-to-end encryption invariants:
+- **Canonical Markdown Representation**: Internal note links are stored directly in raw Markdown as `[Display Text](qp://note/<UUID>)` using the first-class `qp://note/` URI scheme. The Markdown document remains the single source of truth across offline storage, cloud sync, import, export, and backup/restore.
+- **100% Derived Relationship Layer (`note_links`)**: SQLite table `note_links` in Drift acts as a pure derived cache populated automatically upon decrypting and saving notes locally. No plaintext relationship graph is ever synchronized to cloud servers or stored in plaintext on remote infrastructure.
+- **`[[` Trigger & Note Link Autocomplete**: Typing `[[` activates local candidate search without modal interruption. The autocomplete controller scans the current line, matches title candidates with title-dominant scoring, and supports keyboard navigation (Up/Down/Enter/Escape) and touch selection.
+- **Explicit Note Creation Flow**: Autocomplete and the note picker offer `+ Create "<query>"`, which transactionally creates a new note in the repository with the specified title, inserts the canonical Markdown link `[query](qp://note/<UUID>)`, and opens the new note in the editor.
+- **Formatting Toolbar & Context Menu Integration**: A dedicated "Link to Note" toolbar button (`Icons.note_add_outlined`) and selection context menu action allow wrapping selected text as display text (`[selected text](qp://note/<UUID>)`) or inserting links at cursor.
+- **Zero-Knowledge Privacy Preservation**: Password-protected notes never leak content in search previews or backlink snippets. Content is masked as `🔒 Password protected note`. Opening a protected note link prompts for the password via `PasswordUnlockView`.
+- **Bidirectional Backlinks Section (`BacklinksSection`)**: Displayed at the bottom of the editor and Markdown preview (`LINKED FROM · N`). Renders clean clickable tiles of source notes pointing to the active note, deduplicating multiple references from the same source note and excluding trashed notes. If no backlinks exist (`count == 0`), the section completely disappears (`SizedBox.shrink()`).
+- **Internal Resource Resolution**: `LocalNoteResolver` implements `NoteResolver` from `QuietPaperResourceResolver`, resolving `qp://note/<UUID>` to `ResolvedNoteInfo` with missing note handling (`"This note is no longer available."`) and trash protection. Note links are never routed externally to system browsers.
+
+### 2. Database Schema & Migration (v12 → v13)
+- **Table `note_links` (`NoteLinksTable`)**:
+  - `id`: `TextColumn` UUID primary key.
+  - `source_note_id`: `TextColumn` referencing `notes.id` with `KeyAction.cascade`.
+  - `target_note_id`: `TextColumn` UUID of referenced note.
+  - `display_text`: `TextColumn` display text inside link brackets.
+  - `source_offset`: `IntColumn` UTF-16 character offset in Markdown source.
+  - `created_at` & `updated_at`: `DateTimeColumn`.
+- **Database Migration in `onUpgrade`**:
+  ```dart
+  if (from < 13) {
+    await _createTableSafely(m, noteLinksTable);
+  }
+  ```
+- **Indices created in `beforeOpen`**:
+  - `CREATE INDEX IF NOT EXISTS note_links_source_idx ON note_links (source_note_id);`
+  - `CREATE INDEX IF NOT EXISTS note_links_target_idx ON note_links (target_note_id);`
+  - `CREATE INDEX IF NOT EXISTS note_links_target_source_idx ON note_links (target_note_id, source_note_id);`
+- **Reindexing & Lifecycle Operations**:
+  - `_syncNoteLinks(sourceNoteId, content)`: Automatically parses links via `NoteLinkExtractor.extractLinks(content)` and syncs them inside `AppDatabase.saveNote()`.
+  - `rebuildNoteLinkIndex()`: Full rebuild utility parsing all active notes' Markdown content.
+  - Deletion cleanup: `deletePermanently(noteId)`, `emptyTrash()`, and `deletePermanentlyBatch(ids)` clean up both outgoing and incoming link records.
+
+### 3. Key Components & Implementation Files
+- **Note Link Models & Extraction**:
+  - `ParsedNoteLink` & `BacklinkItem` ([`lib/core/note_links/note_link_models.dart`](file:///home/dog/git/quitepaper/lib/core/note_links/note_link_models.dart)): Domain models.
+  - `NoteLinkExtractor` ([`lib/core/note_links/note_link_extractor.dart`](file:///home/dog/git/quitepaper/lib/core/note_links/note_link_extractor.dart)): High-performance regex and offset parser ignoring escaped brackets and non-note URIs.
+- **Search & Resource Resolution**:
+  - `NoteLinkSearchService` ([`lib/core/note_links/note_link_search_service.dart`](file:///home/dog/git/quitepaper/lib/core/note_links/note_link_search_service.dart)): Title-dominant candidate scoring (exact > prefix > token > substring > fuzzy > tags > content) with current-note exclusion.
+  - `LocalNoteResolver` ([`lib/core/uri/local_note_resolver.dart`](file:///home/dog/git/quitepaper/lib/core/uri/local_note_resolver.dart)): Resolves `qp://note/<UUID>` against the SQLite database.
+  - `note_link_provider.dart` ([`lib/core/note_links/note_link_provider.dart`](file:///home/dog/git/quitepaper/lib/core/note_links/note_link_provider.dart)): Riverpod stream providers for backlinks and outgoing links.
+- **Editor & User Interface**:
+  - `NoteLinkAutocompleteTrigger` ([`lib/features/editor/application/note_link_autocomplete_trigger.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/note_link_autocomplete_trigger.dart)): Detects unclosed `[[query` triggers outside code blocks.
+  - `NoteLinkPickerSheet` ([`lib/features/editor/presentation/widgets/note_link_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/note_link_picker_sheet.dart)): Warm editorial modal sheet with live search, keyboard navigation, and explicit `+ Create "<query>"` option.
+  - `BacklinksSection` ([`lib/features/editor/presentation/widgets/backlinks_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/backlinks_section.dart)): Reactive backlinks list with expansion toggle and navigation.
+  - `MarkdownFormatter.insertNoteLink` ([`lib/features/editor/application/markdown_formatter.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_formatter.dart)): Caret-aware insertion and selection wrapping helper.
+  - `FormattingToolbar` ([`lib/features/editor/presentation/widgets/formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart)): "Link to Note" toolbar button.
+  - `MarkdownEditor` ([`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart)): Context menu integration.
+  - `EditorScreen` ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)): Centralized editor coordinator with autocomplete detection, note creation flow, and backlinks section.
+  - `QuietMarkdownPreview` ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart)): Preview note link tap dispatch and backlinks section.
+- **Comprehensive Test Suite**:
+  - [`test/note_links/note_link_extractor_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_extractor_test.dart)
+  - [`test/note_links/note_link_autocomplete_trigger_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_autocomplete_trigger_test.dart)
+  - [`test/note_links/note_link_formatter_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_formatter_test.dart)
+  - [`test/note_links/local_note_resolver_test.dart`](file:///home/dog/git/quitepaper/test/note_links/local_note_resolver_test.dart)
+  - [`test/note_links/note_link_search_service_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_search_service_test.dart)
+  - [`test/note_links/note_links_database_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_links_database_test.dart)
+  - [`test/note_links/note_link_picker_widget_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_picker_widget_test.dart)
+  - [`test/note_links/backlinks_section_widget_test.dart`](file:///home/dog/git/quitepaper/test/note_links/backlinks_section_widget_test.dart)
+
+
 
 
 

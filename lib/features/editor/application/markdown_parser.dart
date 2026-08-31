@@ -972,12 +972,14 @@ abstract final class MarkdownParser {
           ));
 
           final isDocumentLink = url.startsWith('qp://document/');
-          final linkStyle = isDocumentLink
+          final isNoteLink = url.startsWith('qp://note/');
+          final linkStyle = (isNoteLink || isDocumentLink)
               ? baseStyle.merge(styles.link.copyWith(
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration.none,
                 ))
               : baseStyle.merge(styles.link);
+
 
           // Link Title with link styling and nested inline parsing
           _parseInlineSegments(

@@ -32,6 +32,7 @@ class MarkdownEditor extends StatefulWidget {
     this.readOnly = false,
     this.searchQuery,
     this.onActiveTargetChanged,
+    this.onNoteLinkPrompt,
   });
 
   final MarkdownEditingController controller;
@@ -44,6 +45,8 @@ class MarkdownEditor extends StatefulWidget {
   final bool readOnly;
   final String? searchQuery;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
+  final VoidCallback? onNoteLinkPrompt;
+
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -501,6 +504,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             _promptLink(context);
           },
         ),
+        if (widget.onNoteLinkPrompt != null)
+          ContextMenuButtonItem(
+            label: 'Note Link',
+            onPressed: () {
+              ContextMenuController.removeAny();
+              widget.onNoteLinkPrompt!();
+            },
+          ),
         ContextMenuButtonItem(
           label: 'Checklist',
           onPressed: () {
@@ -508,6 +519,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             _applyFormat(MarkdownFormatter.toggleChecklist);
           },
         ),
+
       ];
 
       return AdaptiveTextSelectionToolbar.buttonItems(
