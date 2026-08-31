@@ -177,7 +177,7 @@ class QpNotePackageExporter {
     final manifestMap = {
       'format': formatIdentifier,
       'version': schemaVersion,
-      'appVersion': '1.5.5',
+      'appVersion': '1.5.6',
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'noteId': request.packageOptions.preserveIds ? snapshot.noteId : '',
       'title': snapshot.title,
@@ -235,7 +235,8 @@ class QpNotePackageExporter {
       final encryptedEnvelope = {
         'format': encryptedFormatIdentifier,
         'version': schemaVersion,
-        'appVersion': '1.5.5',
+        'appVersion': '1.5.6',
+
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'kdfSalt': base64Encode(saltBytes),
         'kdfParameters': KdfParameters.standard.toJson(),

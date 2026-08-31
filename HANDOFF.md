@@ -4334,7 +4334,16 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
 - **Open Linked Notes in Preview Mode**: When clicking a note link (`qp://note/<UUID>`) or a backlink tile from inside another note, the target note opens directly in **preview mode** (`initialPreviewMode: true`) for a clean, reading-first experience.
 - **Backlinks Restricted to Preview Mode**: `BacklinksSection` was removed from the edit mode writing canvas, ensuring the authoring view remains distraction-free. Backlinks are rendered exclusively at the bottom of the Markdown preview.
 - **Tablet 3-Pane Layout Preservation**: Added `onOpenLinkedNote` callback parameter to `QuietMarkdownPreview` and `EditorScreen`. When viewing notes on tablets (in the 3-pane split view layout), clicking an internal note link or backlink updates the right detail pane to the linked note in preview mode without triggering full-screen route pushes (`Navigator.push`).
-- **Version Bump**: Bumped application version to `1.5.6+14` in `pubspec.yaml`.
+- **Version Bump Checklist (v1.5.6+14)**:
+  1. [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): `version: 1.5.6+14`
+  2. [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): `currentVersion: '1.5.6'`
+  3. [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): `appVersion: '1.5.6'`
+  4. [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): `this.appVersion = '1.5.6'`
+  5. [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): `'Version 1.5.6 • Offline-first • End-to-End Encrypted Sync'`
+  6. [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart): `'appVersion': '1.5.6'`
+  7. [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html): `v1.5.6`
+  8. [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): `v1.5.6`
+
 
 
 

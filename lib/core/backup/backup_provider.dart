@@ -20,7 +20,8 @@ final backupServiceProvider = Provider<BackupService>((ref) {
     sharedPreferences: prefs,
     storage: storage,
     documentStorage: documentStorage,
-    appVersion: '1.5.5',
+    appVersion: '1.5.6',
+
   );
 });
 
