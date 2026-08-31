@@ -85,3 +85,25 @@ class BacklinkItem {
   @override
   int get hashCode => sourceNote.id.hashCode ^ occurrencesCount.hashCode;
 }
+
+/// Holds the results of a backlink query including active backlinks and trashed backlinks count.
+@immutable
+class BacklinkQueryResult {
+  const BacklinkQueryResult({
+    required this.activeBacklinks,
+    this.trashedBacklinksCount = 0,
+  });
+
+  final List<BacklinkItem> activeBacklinks;
+  final int trashedBacklinksCount;
+
+  bool get isEmpty => activeBacklinks.isEmpty && trashedBacklinksCount == 0;
+  bool get isNotEmpty => !isEmpty;
+  int get totalActiveCount => activeBacklinks.length;
+
+  static const empty = BacklinkQueryResult(
+    activeBacklinks: [],
+    trashedBacklinksCount: 0,
+  );
+}
+

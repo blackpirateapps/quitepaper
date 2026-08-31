@@ -4307,6 +4307,15 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
   - [`test/note_links/note_link_picker_widget_test.dart`](file:///home/dog/git/quitepaper/test/note_links/note_link_picker_widget_test.dart)
   - [`test/note_links/backlinks_section_widget_test.dart`](file:///home/dog/git/quitepaper/test/note_links/backlinks_section_widget_test.dart)
 
+### 4. Backlinks UX & Interaction Polish Pass
+- **Warm Editorial Hierarchy**: Refined `BacklinksSection` to present a pure two-line editorial layout. Dominant note title on Line 1 with lock badge if encrypted; subtle metadata on Line 2 (`#tags · relative date`).
+- **Icon Clutter Elimination**: Removed redundant chain-link and chevron-right icons on every row. Relies on clean typographic hierarchy, generous tap hitboxes, and subtle hover/highlight states.
+- **Smart Compact Limiting & Smooth Expansion**: Displays initial 3 backlinks before showing `Show N more`. Tapping expands to the full list using `AnimatedSize` (200ms ease-out, respecting `disableAnimations` / reduced-motion settings) and toggles to `Show less`.
+- **Trashed Backlinks Handling**: Trashed notes are excluded from the active list to eliminate clutter. If trashed backlinks exist, a discreet `+ N in Trash` indicator is rendered at the bottom.
+- **Database Query Optimization (`BacklinkQueryResult`)**: `getBacklinksForNote` and `watchBacklinksForNote` perform bounded, indexed queries with deterministic sorting (`updatedAt DESC, title ASC, id ASC`), returning active backlinks and trashed counts in a single pass without loading or decrypting unnecessary body payloads.
+- **Accessibility & Semantics**: Explicit semantic action labels on backlink items (`Open linked note: <Title>`), expand buttons (`Show N more backlinks`), and collapse buttons (`Show fewer backlinks`).
+
+
 
 
 

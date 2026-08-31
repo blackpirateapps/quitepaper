@@ -55,8 +55,9 @@ abstract class NotesRepository {
   Future<NoteVersion?> getLatestVersion(String noteId);
   Future<int> getNextVersionNumber(String noteId);
   Future<void> pruneVersions(String noteId, {int maxKeep = 50});
-  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId);
-  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId);
+  Future<BacklinkQueryResult> getBacklinksForNote(String targetNoteId);
+  Stream<BacklinkQueryResult> watchBacklinksForNote(String targetNoteId);
+
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId);
   Stream<List<NoteLinkEntity>> watchOutgoingLinksForNote(String sourceNoteId);
   Future<void> rebuildNoteLinkIndex();
@@ -462,14 +463,15 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId) {
+  Future<BacklinkQueryResult> getBacklinksForNote(String targetNoteId) {
     return _db.getBacklinksForNote(targetNoteId);
   }
 
   @override
-  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId) {
+  Stream<BacklinkQueryResult> watchBacklinksForNote(String targetNoteId) {
     return _db.watchBacklinksForNote(targetNoteId);
   }
+
 
   @override
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {

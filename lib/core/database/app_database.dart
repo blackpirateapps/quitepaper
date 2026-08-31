@@ -2537,10 +2537,10 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Fetches backlinks pointing to [targetNoteId] from active (non-trashed) notes.
-  Future<List<BacklinkItem>> getBacklinksForNote(String targetNoteId) async {
+  /// Fetches backlinks pointing to [targetNoteId], separating active notes from trashed notes.
+  Future<BacklinkQueryResult> getBacklinksForNote(String targetNoteId) async {
     final links = await (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId))).get();
-    if (links.isEmpty) return const [];
+    if (links.isEmpty) return BacklinkQueryResult.empty;
 
     final linkCountsBySource = <String, int>{};
     for (final link in links) {
@@ -2548,18 +2548,32 @@ class AppDatabase extends _$AppDatabase {
     }
 
     final sourceIds = linkCountsBySource.keys.toList();
-    final sourceNotes = await (select(notesTable)
-          ..where((n) => n.id.isIn(sourceIds) & n.isTrashed.equals(false))
-          ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+    final allSourceNotes = await (select(notesTable)
+          ..where((n) => n.id.isIn(sourceIds))
+          ..orderBy([
+            (n) => OrderingTerm.desc(n.updatedAt),
+            (n) => OrderingTerm.asc(n.title),
+            (n) => OrderingTerm.asc(n.id),
+          ]))
         .get();
 
-    if (sourceNotes.isEmpty) return const [];
+    if (allSourceNotes.isEmpty) return BacklinkQueryResult.empty;
 
-    final validSourceIds = sourceNotes.map((n) => n.id).toList();
+    final activeNotes = allSourceNotes.where((n) => !n.isTrashed).toList();
+    final trashedCount = allSourceNotes.where((n) => n.isTrashed).length;
+
+    if (activeNotes.isEmpty) {
+      return BacklinkQueryResult(
+        activeBacklinks: const [],
+        trashedBacklinksCount: trashedCount,
+      );
+    }
+
+    final validSourceIds = activeNotes.map((n) => n.id).toList();
     final tagsMap = await getTagsForNoteIds(validSourceIds);
 
     final backlinks = <BacklinkItem>[];
-    for (final entity in sourceNotes) {
+    for (final entity in activeNotes) {
       final tags = (tagsMap[entity.id] ?? []).map((t) => t.name).toList();
       final domainNote = Note(
         id: entity.id,
@@ -2581,15 +2595,19 @@ class AppDatabase extends _$AppDatabase {
       );
     }
 
-    return backlinks;
+    return BacklinkQueryResult(
+      activeBacklinks: backlinks,
+      trashedBacklinksCount: trashedCount,
+    );
   }
 
   /// Watches reactive backlinks pointing to [targetNoteId].
-  Stream<List<BacklinkItem>> watchBacklinksForNote(String targetNoteId) {
+  Stream<BacklinkQueryResult> watchBacklinksForNote(String targetNoteId) {
     return (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId)))
         .watch()
         .asyncMap((_) => getBacklinksForNote(targetNoteId));
   }
+
 
   /// Fetches outgoing note links originating from [sourceNoteId].
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {

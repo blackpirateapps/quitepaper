@@ -11,10 +11,11 @@ final noteLinkSearchServiceProvider = Provider<NoteLinkSearchService>((ref) {
 });
 
 /// Reactive stream provider for backlinks pointing to a given [noteId].
-final backlinksForNoteProvider = StreamProvider.family<List<BacklinkItem>, String>((ref, noteId) {
+final backlinksForNoteProvider = StreamProvider.family<BacklinkQueryResult, String>((ref, noteId) {
   final db = ref.watch(databaseProvider);
   return db.watchBacklinksForNote(noteId);
 });
+
 
 /// Reactive stream provider for outgoing links originating from a given [noteId].
 final outgoingLinksForNoteProvider = StreamProvider.family<List<NoteLinkEntity>, String>((ref, noteId) {

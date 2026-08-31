@@ -53,9 +53,10 @@ void main() {
 
       // Verify backlinks for targetId1
       final backlinks1 = await db.getBacklinksForNote(targetId1);
-      expect(backlinks1.length, 1);
-      expect(backlinks1.first.sourceNote.id, sourceId);
-      expect(backlinks1.first.occurrencesCount, 1);
+      expect(backlinks1.activeBacklinks.length, 1);
+      expect(backlinks1.activeBacklinks.first.sourceNote.id, sourceId);
+      expect(backlinks1.activeBacklinks.first.occurrencesCount, 1);
+      expect(backlinks1.trashedBacklinksCount, 0);
 
       // 3. Update source note content to remove link to targetId2 and add multiple links to targetId1
       await db.saveNote(
@@ -72,14 +73,14 @@ void main() {
       expect(updatedOutgoing.every((l) => l.targetNoteId == targetId1), true);
 
       final updatedBacklinks1 = await db.getBacklinksForNote(targetId1);
-      expect(updatedBacklinks1.length, 1);
-      expect(updatedBacklinks1.first.occurrencesCount, 2);
+      expect(updatedBacklinks1.activeBacklinks.length, 1);
+      expect(updatedBacklinks1.activeBacklinks.first.occurrencesCount, 2);
 
       final updatedBacklinks2 = await db.getBacklinksForNote(targetId2);
-      expect(updatedBacklinks2.isEmpty, true);
+      expect(updatedBacklinks2.activeBacklinks.isEmpty, true);
     });
 
-    test('excludes trashed source notes from backlinks', () async {
+    test('separates trashed source notes in BacklinkQueryResult', () async {
       const targetId = 'a1b2c3d4-e5f6-4890-a1cd-ef1234567890';
       const sourceId = '99999999-8888-4777-8666-555544443333';
 
@@ -102,9 +103,11 @@ void main() {
         deletedAt: DateTime.now(),
       );
 
-      final backlinks = await db.getBacklinksForNote(targetId);
-      expect(backlinks.isEmpty, true);
+      final result = await db.getBacklinksForNote(targetId);
+      expect(result.activeBacklinks.isEmpty, true);
+      expect(result.trashedBacklinksCount, 1);
     });
+
 
     test('cleans up note_links upon permanent deletion', () async {
       const targetId = 'a1b2c3d4-e5f6-4890-a1cd-ef1234567890';
