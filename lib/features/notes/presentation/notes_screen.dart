@@ -1094,8 +1094,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             _selectedNoteIdForTablet = null;
                           });
                         },
+                        onOpenLinkedNote: (linkedNote, {bool initialPreviewMode = true}) {
+                          setState(() {
+                            _selectedNoteIdForTablet = linkedNote.id;
+                            _shouldAutoFocusTablet = !initialPreviewMode;
+                          });
+                        },
                       ),
                     )
+
                   : Center(
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.xl),

@@ -4330,6 +4330,13 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
   - Candidate tiles and the `+ Create` footer support instant touch selection.
 - **Unified Toolbar Action**: Tapping "Link to Note" in `FormattingToolbar` or the selection context menu inserts `[[` and triggers the same inline menu directly at the cursor.
 
+### 6. Note Link Navigation, Preview Mode & Tablet Layout Polish (v1.5.6)
+- **Open Linked Notes in Preview Mode**: When clicking a note link (`qp://note/<UUID>`) or a backlink tile from inside another note, the target note opens directly in **preview mode** (`initialPreviewMode: true`) for a clean, reading-first experience.
+- **Backlinks Restricted to Preview Mode**: `BacklinksSection` was removed from the edit mode writing canvas, ensuring the authoring view remains distraction-free. Backlinks are rendered exclusively at the bottom of the Markdown preview.
+- **Tablet 3-Pane Layout Preservation**: Added `onOpenLinkedNote` callback parameter to `QuietMarkdownPreview` and `EditorScreen`. When viewing notes on tablets (in the 3-pane split view layout), clicking an internal note link or backlink updates the right detail pane to the linked note in preview mode without triggering full-screen route pushes (`Navigator.push`).
+- **Version Bump**: Bumped application version to `1.5.6+14` in `pubspec.yaml`.
+
+
 
 
 

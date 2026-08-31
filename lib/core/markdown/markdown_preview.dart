@@ -28,6 +28,8 @@ import '../syntax/application/syntax_provider.dart';
 import '../../features/editor/presentation/editor_screen.dart';
 import '../../features/editor/presentation/widgets/backlinks_section.dart';
 import '../../features/notes/application/notes_provider.dart';
+import '../../features/notes/domain/note_model.dart';
+
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
   const QuietMarkdownPreview({
@@ -50,6 +52,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onAttachmentRenamed,
     this.onAttachmentDeleted,
     this.onInsertText,
+    this.onOpenLinkedNote,
     this.softLineBreak = true,
     this.showScrollbar = true,
   });
@@ -73,8 +76,10 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
   final void Function(String text)? onInsertText;
+  final void Function(Note note, {bool initialPreviewMode})? onOpenLinkedNote;
   final bool softLineBreak;
   final bool showScrollbar;
+
 
   @override
   ConsumerState<QuietMarkdownPreview> createState() => _QuietMarkdownPreviewState();
@@ -414,12 +419,20 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                     );
                   }
                 } else if (context.mounted) {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => EditorScreen(note: targetNote),
-                    ),
-                  );
+                  if (widget.onOpenLinkedNote != null) {
+                    widget.onOpenLinkedNote!(targetNote, initialPreviewMode: true);
+                  } else {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => EditorScreen(
+                          note: targetNote,
+                          initialPreviewMode: true,
+                        ),
+                      ),
+                    );
+                  }
                 }
+
               } else if (context.mounted) {
                 ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -625,13 +638,21 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               BacklinksSection(
                 noteId: widget.noteId!,
                 onOpenNote: (note) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => EditorScreen(note: note),
-                    ),
-                  );
+                  if (widget.onOpenLinkedNote != null) {
+                    widget.onOpenLinkedNote!(note, initialPreviewMode: true);
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => EditorScreen(
+                          note: note,
+                          initialPreviewMode: true,
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
+
           ],
         );
       }
@@ -688,14 +709,22 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
             return BacklinksSection(
               noteId: widget.noteId!,
               onOpenNote: (note) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => EditorScreen(note: note),
-                  ),
-                );
+                if (widget.onOpenLinkedNote != null) {
+                  widget.onOpenLinkedNote!(note, initialPreviewMode: true);
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditorScreen(
+                        note: note,
+                        initialPreviewMode: true,
+                      ),
+                    ),
+                  );
+                }
               },
             );
           }
+
 
           // Generous bottom scroll area for comfortable preview reading
           return const SizedBox(height: 120.0);

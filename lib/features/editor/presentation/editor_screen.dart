@@ -47,8 +47,8 @@ import '../../../core/note_links/note_link_provider.dart';
 import '../../../core/note_links/note_link_search_service.dart';
 import '../application/markdown_formatter.dart';
 import '../application/note_link_autocomplete_trigger.dart';
-import 'widgets/backlinks_section.dart';
 import 'widgets/note_link_inline_overlay.dart';
+
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../export/presentation/export_note_sheet.dart';
@@ -63,16 +63,19 @@ class EditorScreen extends ConsumerStatefulWidget {
     this.autoFocusBody = false,
     this.initialPreviewMode = false,
     this.onClose,
+    this.onOpenLinkedNote,
   });
 
   final Note note;
   final bool autoFocusBody;
   final bool initialPreviewMode;
   final VoidCallback? onClose;
+  final void Function(Note note, {bool initialPreviewMode})? onOpenLinkedNote;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
 }
+
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
@@ -1088,6 +1091,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onAttachmentRenamed: _updateAttachmentMarkdownTitle,
                                     onAttachmentDeleted: _removeAttachmentMarkdownRef,
                                     onInsertText: _insertExtractedOcrText,
+                                    onOpenLinkedNote: widget.onOpenLinkedNote,
                                     showScrollbar: false,
                                   )
                                 : SingleChildScrollView(
@@ -1180,18 +1184,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     },
                                   ),
 
-                                  // Backlinks Section (Linked From · N)
-                                  BacklinksSection(
-                                    noteId: note.id,
-                                    onOpenNote: (sourceNote) {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => EditorScreen(note: sourceNote),
-                                        ),
-                                      );
-                                    },
-                                  ),
-
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
@@ -1206,6 +1198,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 ],
                               ),
                             ),
+
                           ),
                         ),
                       ),
