@@ -4315,6 +4315,22 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
 - **Database Query Optimization (`BacklinkQueryResult`)**: `getBacklinksForNote` and `watchBacklinksForNote` perform bounded, indexed queries with deterministic sorting (`updatedAt DESC, title ASC, id ASC`), returning active backlinks and trashed counts in a single pass without loading or decrypting unnecessary body payloads.
 - **Accessibility & Semantics**: Explicit semantic action labels on backlink items (`Open linked note: <Title>`), expand buttons (`Show N more backlinks`), and collapse buttons (`Show fewer backlinks`).
 
+### 5. Notion-Style Inline Autocomplete Menu
+- **Focus Preservation**: Typing `[[` no longer triggers a modal bottom sheet dialog that steals focus or interrupts typing. The cursor remains directly inside the Markdown editor (`_contentController`), and the user continues typing uninterrupted.
+- **Dynamic Caret Geometry & Keyboard Docking**:
+  - `NoteLinkInlineOverlayController` queries `RenderEditable.getEndpointsForSelection` from the editor's render tree to compute exact viewport coordinates for the `[[` trigger.
+  - On desktop/tablet viewports, the menu floats directly beneath the caret (or flips above if near the screen bottom).
+  - On mobile with the soft keyboard open, the menu docks floating directly above the keyboard and formatting toolbar, avoiding covering the active editing line.
+- **Live Keystroke Filtering**: As the user types characters after `[[` (e.g. `[[qu`), candidate notes are retrieved and filtered live with title-dominant scoring.
+- **Hardware Keyboard & Touch Navigation**:
+  - `ArrowDown` / `ArrowUp` cycle the active candidate index without moving the editor text caret.
+  - `Enter` / `Tab` commits the highlighted candidate (or triggers `+ Create "<query>"`).
+  - `Escape` dismisses the floating menu without modifying the typed text.
+  - Backspacing past `[[` or typing `]]` dismisses the overlay automatically.
+  - Candidate tiles and the `+ Create` footer support instant touch selection.
+- **Unified Toolbar Action**: Tapping "Link to Note" in `FormattingToolbar` or the selection context menu inserts `[[` and triggers the same inline menu directly at the cursor.
+
+
 
 
 
