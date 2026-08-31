@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -15,27 +16,56 @@ import '../../ocr/ocr_provider.dart';
 import '../../ocr/presentation/ocr_language_dialog.dart';
 import '../../sync/sync_provider.dart';
 import '../attachment_provider.dart';
+import 'image_dimension_reader.dart';
+import 'viewer_image_item.dart';
 
-/// Immersive editorial image viewer for encrypted Quiet Paper assets (`qp://asset/<UUID>`).
+/// Immersive editorial image viewer supporting single images and multi-image document galleries.
 ///
-/// Supports high-resolution pinch-to-zoom (`InteractiveViewer`), double-tap zoom,
-/// Live Text bounding box overlay rendered at 60/120 FPS via a single-pass `CustomPainter`,
-/// multi-word range selection (tap, sweep-drag, double-tap line, scope expansions),
-/// "Copy All Text", "Insert Text into Note", image export, and manual OCR regeneration.
+/// Features:
+/// - Fit-to-screen initial display with high-resolution rendering.
+/// - Smooth pinch-to-zoom (`InteractiveViewer`, 1.0x to 5.0x).
+/// - Double-tap zoom (toggles between 1.0x fit and 2.5x detail zoom at tap position).
+/// - Panning while zoomed without page-switch collisions.
+/// - Multi-image gallery navigation (`PageView`, arrow buttons, keyboard shortcuts).
+/// - Clean image counter (e.g. `2 / 5`, shown only when multiple images exist).
+/// - Live Text bounding box overlay rendered at 60/120 FPS via a single-pass `CustomPainter`.
+/// - Multi-word range selection (tap, sweep-drag, double-tap line, scope expansions).
+/// - Actions: "Copy All Text", "Insert Text into Note", "Copy Image", "Save Image", "Share Image", manual OCR re-run.
+/// - Light Paper and Dark Paper theme integration.
+/// - Seamless non-destructive exit returning to exact document scroll position.
 class ImageViewerModal extends ConsumerStatefulWidget {
-  const ImageViewerModal({
+  ImageViewerModal({
     super.key,
-    required this.assetId,
-    this.altText,
-    this.initialImageBytes,
+    List<ViewerImageItem>? images,
+    String? assetId,
+    String? altText,
+    Uint8List? initialImageBytes,
+    this.initialIndex = 0,
     this.onInsertText,
-  });
+  })  : assert(images != null || assetId != null, 'Either images or assetId must be provided'),
+        images = images != null && images.isNotEmpty
+            ? List.unmodifiable(images)
+            : [
+                ViewerImageItem(
+                  assetId: assetId,
+                  altText: altText,
+                  initialBytes: initialImageBytes,
+                ),
+              ],
+        assetId = assetId ?? (images != null && images.isNotEmpty ? (images[0].assetId ?? '') : ''),
+        altText = altText ?? (images != null && images.isNotEmpty ? images[0].altText : null),
+        initialImageBytes = initialImageBytes ?? (images != null && images.isNotEmpty ? images[0].initialBytes : null);
 
+  final List<ViewerImageItem> images;
+  final int initialIndex;
+  final void Function(String text)? onInsertText;
+
+  // Backwards-compatible fields for single-item queries
   final String assetId;
   final String? altText;
   final Uint8List? initialImageBytes;
-  final void Function(String text)? onInsertText;
 
+  /// Opens viewer for a single asset.
   static Future<void> open(
     BuildContext context, {
     required String assetId,
@@ -55,430 +85,320 @@ class ImageViewerModal extends ConsumerStatefulWidget {
     );
   }
 
+  /// Opens viewer for a multi-image gallery.
+  static Future<void> openGallery(
+    BuildContext context, {
+    required List<ViewerImageItem> images,
+    int initialIndex = 0,
+    void Function(String text)? onInsertText,
+  }) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ImageViewerModal(
+          images: images,
+          initialIndex: initialIndex,
+          onInsertText: onInsertText,
+        ),
+      ),
+    );
+  }
+
   @override
   ConsumerState<ImageViewerModal> createState() => _ImageViewerModalState();
 }
 
 class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
-  final TransformationController _transformationController =
-      TransformationController();
-  TapDownDetails? _doubleTapDetails;
+  late final PageController _pageController;
+  late int _currentIndex;
+  bool _isCurrentPageZoomed = false;
 
-  Uint8List? _imageBytes;
-  Size? _imageDimensions;
-  AttachmentEntity? _attachment;
-  OcrDocument? _ocrDocument;
-  bool _isLoading = true;
-  bool _isOcrLoading = true;
-  bool _showLiveText = true;
-
-  _OcrTextSelection _selection = const _OcrTextSelection.empty();
+  final Map<int, GlobalKey<_ViewerImagePageState>> _pageKeys = {};
 
   @override
   void initState() {
     super.initState();
-    _imageBytes = widget.initialImageBytes;
-    if (_imageBytes != null) {
-      _resolveImageDimensions(_imageBytes!);
-    }
-    _loadImageAndOcr();
+    _currentIndex = widget.initialIndex.clamp(0, widget.images.length - 1);
+    _pageController = PageController(initialPage: _currentIndex);
   }
 
   @override
   void dispose() {
-    _transformationController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
-  Future<void> _resolveImageDimensions(Uint8List bytes) async {
-    try {
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      if (mounted) {
-        setState(() {
-          _imageDimensions = Size(
-            frame.image.width.toDouble(),
-            frame.image.height.toDouble(),
-          );
-        });
-      }
-    } catch (e) {
-      debugPrint('[ImageViewerModal] Could not decode image dimensions: $e');
-    }
-  }
-
-  Future<void> _loadImageAndOcr() async {
-    if (!mounted) return;
-    setState(() => _isLoading = _imageBytes == null);
-
-    final db = ref.read(databaseProvider);
-    final att = await db.getAttachment(widget.assetId);
-    if (mounted) {
-      setState(() => _attachment = att);
-    }
-
-    // 1. Resolve image bytes if not passed initially
-    if (_imageBytes == null) {
-      final service = ref.read(attachmentServiceProvider);
-      final res = await service.resolveAsset(widget.assetId);
-      if (mounted && res.isAvailable && res.data != null) {
-        _resolveImageDimensions(res.data!);
-        setState(() {
-          _imageBytes = res.data;
-          _isLoading = false;
-        });
-      } else {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-
-    // 2. Load and decrypt OCR dataset
-    await _loadOcrDocument();
-  }
-
-  Future<void> _loadOcrDocument() async {
-    if (!mounted) return;
-    setState(() => _isOcrLoading = true);
-
-    try {
-      final db = ref.read(databaseProvider);
-      final keyManager = ref.read(keyManagerProvider);
-      final ocrPages = await db.getAttachmentOcrPages(widget.assetId);
-
-      if (ocrPages.isNotEmpty && keyManager.isUnlocked) {
-        final masterKey = keyManager.getMasterKey();
-        final crypto = ref.read(ocrCryptoProvider);
-        final firstPage = ocrPages.first;
-
-        final encryptedBytes = base64Decode(firstPage.encryptedPayload);
-        final doc = await crypto.decryptOcrDocument(
-          encryptedEnvelopeBytes: encryptedBytes,
-          masterKeyBytes: masterKey,
-          documentId: widget.assetId,
-        );
-
-        if (mounted) {
-          setState(() {
-            _ocrDocument = doc;
-            _isOcrLoading = false;
-            if (doc.pages.isNotEmpty) {
-              _selection = _OcrTextSelection(page: doc.pages.first);
-            }
-          });
-        }
-        return;
-      }
-    } catch (e) {
-      debugPrint('[ImageViewerModal] Error loading OCR document: $e');
-    }
-
-    if (mounted) {
-      setState(() => _isOcrLoading = false);
-    }
-  }
-
-  void _handleDoubleTap() {
-    if (_transformationController.value != Matrix4.identity()) {
-      _transformationController.value = Matrix4.identity();
-    } else {
-      final position = _doubleTapDetails?.localPosition ?? Offset.zero;
-      final matrix = Matrix4.identity()
-        ..setEntry(0, 0, 2.5)
-        ..setEntry(1, 1, 2.5)
-        ..setTranslationRaw(-position.dx * 1.5, -position.dy * 1.5, 0.0);
-      _transformationController.value = matrix;
-    }
-  }
-
-  Future<void> _copyAllText() async {
-    final text = _ocrDocument?.fullPlainText ?? '';
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No recognized text found in image'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    await Clipboard.setData(ClipboardData(text: text));
-    if (mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Copied ${text.length} characters to clipboard'),
-          behavior: SnackBarBehavior.floating,
-        ),
+  void _goToPrevious() {
+    if (_currentIndex > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
       );
     }
   }
 
-  void _handleInsertIntoNote({String? overrideText}) {
-    final text = overrideText ?? _ocrDocument?.fullPlainText ?? '';
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No recognized text available to insert'),
-          behavior: SnackBarBehavior.floating,
-        ),
+  void _goToNext() {
+    if (_currentIndex < widget.images.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
       );
-      return;
-    }
-
-    if (widget.onInsertText != null) {
-      widget.onInsertText!(text);
-      Navigator.of(context).pop();
-    } else {
-      _copyAllText();
     }
   }
 
-  Future<void> _handleSaveImage() async {
-    if (_imageBytes == null) return;
-
-    try {
-      final mime = _attachment?.mimeType ?? 'image/png';
-      final ext = mime.contains('jpeg') || mime.contains('jpg')
-          ? 'jpg'
-          : mime.contains('webp')
-              ? 'webp'
-              : 'png';
-      final fileName = 'quietpaper_image_${DateTime.now().millisecondsSinceEpoch}.$ext';
-
-      final outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Image',
-        fileName: fileName,
-        type: FileType.image,
-        bytes: _imageBytes,
-      );
-
-      if (outputPath != null && mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image saved successfully'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save image: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleRetryOcr() async {
-    if (_imageBytes == null) return;
-
-    final service = ref.read(attachmentServiceProvider);
-    final prefLang = ref.read(ocrLanguagePreferenceProvider);
-
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Re-running image OCR...'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-
-    setState(() => _isOcrLoading = true);
-
-    try {
-      await service.regenerateOcr(widget.assetId, language: prefLang);
-      await _loadOcrDocument();
-      final db = ref.read(databaseProvider);
-      final updatedAtt = await db.getAttachment(widget.assetId);
-      if (mounted) {
-        setState(() => _attachment = updatedAtt);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image OCR completed'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isOcrLoading = false);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('OCR failed: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
+  _ViewerImagePageState? get _activePageState => _pageKeys[_currentIndex]?.currentState;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final title = widget.altText?.isNotEmpty == true
-        ? widget.altText!
-        : 'Image';
+    final currentItem = widget.images[_currentIndex];
+    final totalImages = widget.images.length;
+    final hasMultiple = totalImages > 1;
 
-    final hasOcr = _ocrDocument != null &&
-        _ocrDocument!.pages.isNotEmpty &&
-        _ocrDocument!.pages.first.plainText.trim().isNotEmpty;
-    final isProcessing = _attachment?.ocrState == 'processing' ||
-        _attachment?.ocrState == 'queued' ||
-        _isOcrLoading;
+    final activeState = _activePageState;
+    final hasOcr = activeState?.hasOcr ?? false;
+    final isProcessing = activeState?.isProcessing ?? false;
+    final showLiveText = activeState?.showLiveText ?? true;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: colors.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'Close',
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: AppTypography.bodyMedium.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): _goToPrevious,
+        const SingleActivator(LogicalKeyboardKey.arrowRight): _goToNext,
+        const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.of(context).pop(),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: colors.background,
+          appBar: AppBar(
+            backgroundColor: colors.background,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: Icon(Icons.close_rounded, color: colors.textPrimary),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Close',
             ),
-            const SizedBox(height: 2),
-            _buildOcrStatusBadge(colors, hasOcr, isProcessing),
-          ],
-        ),
-        actions: [
-          if (hasOcr)
-            IconButton(
-              icon: Icon(
-                _showLiveText
-                    ? Icons.text_fields_rounded
-                    : Icons.text_fields_outlined,
-                color: _showLiveText ? colors.accent : colors.textSecondary,
-              ),
-              tooltip: _showLiveText ? 'Hide Live Text' : 'Show Live Text',
-              onPressed: () {
-                setState(() {
-                  _showLiveText = !_showLiveText;
-                  if (!_showLiveText) {
-                    _selection = _selection.clear();
-                  }
-                });
-              },
-            ),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert_rounded, color: colors.textPrimary),
-            color: colors.surface,
-            shape: const RoundedRectangleBorder(
-              borderRadius: AppRadii.borderMd,
-            ),
-            onSelected: (val) {
-              switch (val) {
-                case 'copy_text':
-                  _copyAllText();
-                  break;
-                case 'insert_text':
-                  _handleInsertIntoNote();
-                  break;
-                case 'retry_ocr':
-                  _handleRetryOcr();
-                  break;
-                case 'ocr_language':
-                  OcrLanguageDialog.show(context);
-                  break;
-                case 'save_image':
-                  _handleSaveImage();
-                  break;
-              }
-            },
-            itemBuilder: (ctx) => [
-              if (hasOcr) ...[
-                PopupMenuItem(
-                  value: 'copy_text',
-                  child: Row(
-                    children: [
-                      Icon(Icons.copy_rounded, size: 18, color: colors.textSecondary),
-                      const SizedBox(width: AppSpacing.sm),
-                      const Text('Copy All Text'),
-                    ],
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  currentItem.displayTitle,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (widget.onInsertText != null)
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasMultiple) ...[
+                      Text(
+                        '${_currentIndex + 1} / $totalImages',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
+                    _buildOcrStatusBadge(colors, hasOcr, isProcessing),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              if (hasMultiple) ...[
+                IconButton(
+                  icon: Icon(
+                    Icons.chevron_left_rounded,
+                    color: _currentIndex > 0 ? colors.textPrimary : colors.textTertiary.withValues(alpha: 0.3),
+                  ),
+                  tooltip: 'Previous Image',
+                  onPressed: _currentIndex > 0 ? _goToPrevious : null,
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.chevron_right_rounded,
+                    color: _currentIndex < totalImages - 1
+                        ? colors.textPrimary
+                        : colors.textTertiary.withValues(alpha: 0.3),
+                  ),
+                  tooltip: 'Next Image',
+                  onPressed: _currentIndex < totalImages - 1 ? _goToNext : null,
+                ),
+              ],
+              if (hasOcr)
+                IconButton(
+                  icon: Icon(
+                    showLiveText ? Icons.text_fields_rounded : Icons.text_fields_outlined,
+                    color: showLiveText ? colors.accent : colors.textSecondary,
+                  ),
+                  tooltip: showLiveText ? 'Hide Live Text' : 'Show Live Text',
+                  onPressed: () {
+                    activeState?.toggleLiveText();
+                    setState(() {});
+                  },
+                ),
+              IconButton(
+                icon: Icon(Icons.share_rounded, color: colors.textPrimary),
+                tooltip: 'Share Image',
+                onPressed: () => activeState?.handleShareImage(),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert_rounded, color: colors.textPrimary),
+                color: colors.surface,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadii.borderMd,
+                ),
+                onSelected: (val) {
+                  switch (val) {
+                    case 'copy_text':
+                      activeState?.copyAllText();
+                      break;
+                    case 'insert_text':
+                      activeState?.handleInsertIntoNote();
+                      break;
+                    case 'copy_image':
+                      activeState?.handleCopyImage();
+                      break;
+                    case 'save_image':
+                      activeState?.handleSaveImage();
+                      break;
+                    case 'share_image':
+                      activeState?.handleShareImage();
+                      break;
+                    case 'retry_ocr':
+                      activeState?.handleRetryOcr();
+                      break;
+                    case 'ocr_language':
+                      OcrLanguageDialog.show(context);
+                      break;
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  if (hasOcr) ...[
+                    PopupMenuItem(
+                      value: 'copy_text',
+                      child: Row(
+                        children: [
+                          Icon(Icons.copy_rounded, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          const Text('Copy All Text'),
+                        ],
+                      ),
+                    ),
+                    if (widget.onInsertText != null)
+                      PopupMenuItem(
+                        value: 'insert_text',
+                        child: Row(
+                          children: [
+                            Icon(Icons.post_add_rounded, size: 18, color: colors.textSecondary),
+                            const SizedBox(width: AppSpacing.sm),
+                            const Text('Insert into Note'),
+                          ],
+                        ),
+                      ),
+                    const PopupMenuDivider(),
+                  ],
                   PopupMenuItem(
-                    value: 'insert_text',
+                    value: 'copy_image',
                     child: Row(
                       children: [
-                        Icon(Icons.post_add_rounded, size: 18, color: colors.textSecondary),
+                        Icon(Icons.content_copy_rounded, size: 18, color: colors.textSecondary),
                         const SizedBox(width: AppSpacing.sm),
-                        const Text('Insert into Note'),
+                        const Text('Copy Image'),
                       ],
                     ),
                   ),
-                const PopupMenuDivider(),
-              ],
-              PopupMenuItem(
-                value: 'retry_ocr',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh_rounded, size: 18, color: colors.textSecondary),
-                    const SizedBox(width: AppSpacing.sm),
-                    const Text('Re-run OCR'),
+                  PopupMenuItem(
+                    value: 'save_image',
+                    child: Row(
+                      children: [
+                        Icon(Icons.download_rounded, size: 18, color: colors.textSecondary),
+                        const SizedBox(width: AppSpacing.sm),
+                        const Text('Save Image'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'share_image',
+                    child: Row(
+                      children: [
+                        Icon(Icons.share_rounded, size: 18, color: colors.textSecondary),
+                        const SizedBox(width: AppSpacing.sm),
+                        const Text('Share Image'),
+                      ],
+                    ),
+                  ),
+                  if (currentItem.isAsset) ...[
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'retry_ocr',
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh_rounded, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          const Text('Re-run OCR'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'ocr_language',
+                      child: Row(
+                        children: [
+                          Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          const Text('OCR Language'),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'ocr_language',
-                child: Row(
-                  children: [
-                    Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
-                    const SizedBox(width: AppSpacing.sm),
-                    const Text('OCR Language'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'save_image',
-                child: Row(
-                  children: [
-                    Icon(Icons.download_rounded, size: 18, color: colors.textSecondary),
-                    const SizedBox(width: AppSpacing.sm),
-                    const Text('Save Image'),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _buildImageCanvas(colors, hasOcr),
+          body: SafeArea(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: totalImages,
+              physics: _isCurrentPageZoomed
+                  ? const NeverScrollableScrollPhysics()
+                  : const BouncingScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                  _isCurrentPageZoomed = false;
+                });
+              },
+              itemBuilder: (context, index) {
+                final item = widget.images[index];
+                final key = _pageKeys.putIfAbsent(index, () => GlobalKey<_ViewerImagePageState>());
+
+                return _ViewerImagePage(
+                  key: key,
+                  item: item,
+                  onInsertText: widget.onInsertText,
+                  onZoomChanged: (isZoomed) {
+                    if (index == _currentIndex && _isCurrentPageZoomed != isZoomed) {
+                      setState(() {
+                        _isCurrentPageZoomed = isZoomed;
+                      });
+                    }
+                  },
+                  onOcrStateChanged: () {
+                    if (index == _currentIndex) {
+                      setState(() {});
+                    }
+                  },
+                );
+              },
             ),
-            if (_selection.isNotEmpty)
-              _buildSelectedTextCallout(colors)
-            else if (hasOcr || _imageBytes != null)
-              _buildBottomActionBar(colors, hasOcr),
-          ],
+          ),
         ),
       ),
     );
@@ -538,8 +458,433 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
       ),
     );
   }
+}
 
-  Widget _buildImageCanvas(AppColors colors, bool hasOcr) {
+class _ViewerImagePage extends ConsumerStatefulWidget {
+  const _ViewerImagePage({
+    super.key,
+    required this.item,
+    this.onInsertText,
+    required this.onZoomChanged,
+    required this.onOcrStateChanged,
+  });
+
+  final ViewerImageItem item;
+  final void Function(String text)? onInsertText;
+  final ValueChanged<bool> onZoomChanged;
+  final VoidCallback onOcrStateChanged;
+
+  @override
+  ConsumerState<_ViewerImagePage> createState() => _ViewerImagePageState();
+}
+
+class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
+  final TransformationController _transformationController = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  Uint8List? _imageBytes;
+  Size? _imageDimensions;
+  AttachmentEntity? _attachment;
+  OcrDocument? _ocrDocument;
+  bool _isLoading = true;
+  bool _isOcrLoading = true;
+  bool _showLiveText = true;
+
+  _OcrTextSelection _selection = const _OcrTextSelection.empty();
+
+  bool get hasOcr =>
+      _ocrDocument != null &&
+      _ocrDocument!.pages.isNotEmpty &&
+      _ocrDocument!.pages.first.plainText.trim().isNotEmpty;
+
+  bool get isProcessing =>
+      _attachment?.ocrState == 'processing' ||
+      _attachment?.ocrState == 'queued' ||
+      _isOcrLoading;
+
+  bool get showLiveText => _showLiveText;
+
+  void toggleLiveText() {
+    setState(() {
+      _showLiveText = !_showLiveText;
+      if (!_showLiveText) {
+        _selection = _selection.clear();
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _transformationController.addListener(_onTransformChanged);
+    _imageBytes = widget.item.initialBytes;
+    if (_imageBytes != null) {
+      _resolveImageDimensions(_imageBytes!);
+    }
+    _loadImageAndOcr();
+  }
+
+  @override
+  void dispose() {
+    _transformationController.removeListener(_onTransformChanged);
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _onTransformChanged() {
+    final matrix = _transformationController.value;
+    final scale = matrix.getMaxScaleOnAxis();
+    final isZoomed = (scale - 1.0).abs() > 0.05;
+    widget.onZoomChanged(isZoomed);
+  }
+
+  void _resolveImageDimensions(Uint8List bytes) {
+    final dims = ImageDimensionReader.extractDimensions(bytes);
+    if (dims != null) {
+      _imageDimensions = dims;
+      return;
+    }
+    ui.instantiateImageCodec(bytes).then((codec) {
+      return codec.getNextFrame();
+    }).then((frame) {
+      if (mounted) {
+        setState(() {
+          _imageDimensions = Size(
+            frame.image.width.toDouble(),
+            frame.image.height.toDouble(),
+          );
+        });
+      }
+    }).catchError((_) {});
+  }
+
+  Future<void> _loadImageAndOcr() async {
+    if (!mounted) return;
+    setState(() => _isLoading = _imageBytes == null);
+
+    // 1. Resolve encrypted attachment
+    if (widget.item.isAsset) {
+      final assetId = widget.item.assetId!;
+      final db = ref.read(databaseProvider);
+      final att = await db.getAttachment(assetId);
+      if (mounted) {
+        setState(() => _attachment = att);
+      }
+
+      if (_imageBytes == null) {
+        final service = ref.read(attachmentServiceProvider);
+        final res = await service.resolveAsset(assetId);
+        if (mounted && res.isAvailable && res.data != null) {
+          _resolveImageDimensions(res.data!);
+          setState(() {
+            _imageBytes = res.data;
+            _isLoading = false;
+          });
+        } else {
+          if (mounted) setState(() => _isLoading = false);
+        }
+      }
+
+      await _loadOcrDocument(assetId);
+    }
+    // 2. Resolve network image URL
+    else if (widget.item.isNetwork) {
+      if (_imageBytes == null) {
+        try {
+          final res = await http.get(Uri.parse(widget.item.url!));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            _resolveImageDimensions(res.bodyBytes);
+            if (mounted) {
+              setState(() {
+                _imageBytes = res.bodyBytes;
+                _isLoading = false;
+                _isOcrLoading = false;
+              });
+            }
+          } else {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _isOcrLoading = false;
+              });
+            }
+          }
+        } catch (_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _isOcrLoading = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isOcrLoading = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isOcrLoading = false;
+        });
+      }
+    }
+
+    widget.onOcrStateChanged();
+  }
+
+  Future<void> _loadOcrDocument(String assetId) async {
+    if (!mounted) return;
+    setState(() => _isOcrLoading = true);
+
+    try {
+      final db = ref.read(databaseProvider);
+      final keyManager = ref.read(keyManagerProvider);
+      final ocrPages = await db.getAttachmentOcrPages(assetId);
+
+      if (ocrPages.isNotEmpty && keyManager.isUnlocked) {
+        final masterKey = keyManager.getMasterKey();
+        final crypto = ref.read(ocrCryptoProvider);
+        final firstPage = ocrPages.first;
+
+        final encryptedBytes = base64Decode(firstPage.encryptedPayload);
+        final doc = await crypto.decryptOcrDocument(
+          encryptedEnvelopeBytes: encryptedBytes,
+          masterKeyBytes: masterKey,
+          documentId: assetId,
+        );
+
+        if (mounted) {
+          setState(() {
+            _ocrDocument = doc;
+            _isOcrLoading = false;
+            if (doc.pages.isNotEmpty) {
+              _selection = _OcrTextSelection(page: doc.pages.first);
+            }
+          });
+          widget.onOcrStateChanged();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ImageViewerModal] Error loading OCR document: $e');
+    }
+
+    if (mounted) {
+      setState(() => _isOcrLoading = false);
+      widget.onOcrStateChanged();
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (_transformationController.value != Matrix4.identity()) {
+      _transformationController.value = Matrix4.identity();
+    } else {
+      final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+      final matrix = Matrix4.identity()
+        ..setEntry(0, 0, 2.5)
+        ..setEntry(1, 1, 2.5)
+        ..setTranslationRaw(-position.dx * 1.5, -position.dy * 1.5, 0.0);
+      _transformationController.value = matrix;
+    }
+  }
+
+  Future<void> copyAllText() async {
+    final text = _ocrDocument?.fullPlainText ?? '';
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No recognized text found in image'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Copied ${text.length} characters to clipboard'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void handleInsertIntoNote({String? overrideText}) {
+    final text = overrideText ?? _ocrDocument?.fullPlainText ?? '';
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No recognized text available to insert'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (widget.onInsertText != null) {
+      widget.onInsertText!(text);
+      Navigator.of(context).pop();
+    } else {
+      copyAllText();
+    }
+  }
+
+  Future<void> handleCopyImage() async {
+    if (_imageBytes == null) return;
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.item.displayTitle));
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image copied to clipboard'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> handleSaveImage() async {
+    if (_imageBytes == null) return;
+
+    try {
+      final mime = _attachment?.mimeType ?? 'image/png';
+      final ext = mime.contains('jpeg') || mime.contains('jpg')
+          ? 'jpg'
+          : mime.contains('webp')
+              ? 'webp'
+              : 'png';
+      final fileName = 'quietpaper_image_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      final outputPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Image',
+        fileName: fileName,
+        type: FileType.image,
+        bytes: _imageBytes,
+      );
+
+      if (outputPath != null && mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image saved successfully'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save image: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> handleShareImage() async {
+    if (_imageBytes == null) return;
+
+    try {
+      if (widget.item.isAsset) {
+        final shareService = ref.read(attachmentShareServiceProvider);
+        final success = await shareService.shareAttachment(widget.item.assetId!);
+        if (success) return;
+      }
+
+      final shareService = ref.read(attachmentShareServiceProvider);
+      await shareService.shareImageBytes(_imageBytes!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share image: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> handleRetryOcr() async {
+    if (_imageBytes == null || !widget.item.isAsset) return;
+
+    final assetId = widget.item.assetId!;
+    final service = ref.read(attachmentServiceProvider);
+    final prefLang = ref.read(ocrLanguagePreferenceProvider);
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Re-running image OCR...'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    setState(() => _isOcrLoading = true);
+
+    try {
+      await service.regenerateOcr(assetId, language: prefLang);
+      await _loadOcrDocument(assetId);
+      final db = ref.read(databaseProvider);
+      final updatedAtt = await db.getAttachment(assetId);
+      if (mounted) {
+        setState(() => _attachment = updatedAtt);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image OCR completed'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isOcrLoading = false);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('OCR failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Column(
+      children: [
+        Expanded(
+          child: _buildImageCanvas(colors),
+        ),
+        if (_selection.isNotEmpty)
+          _buildSelectedTextCallout(colors)
+        else if (hasOcr || _imageBytes != null)
+          _buildBottomActionBar(colors),
+      ],
+    );
+  }
+
+  Widget _buildImageCanvas(AppColors colors) {
     if (_isLoading) {
       return Center(
         child: CircularProgressIndicator(color: colors.accent),
@@ -724,7 +1069,7 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
                   icon: Icons.post_add_rounded,
                   label: 'Insert',
                   onPressed: () {
-                    _handleInsertIntoNote(overrideText: selectedText);
+                    handleInsertIntoNote(overrideText: selectedText);
                   },
                 ),
               if (canExpandLine)
@@ -767,7 +1112,7 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
     );
   }
 
-  Widget _buildBottomActionBar(AppColors colors, bool hasOcr) {
+  Widget _buildBottomActionBar(AppColors colors) {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -784,19 +1129,19 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
             _ActionButton(
               icon: Icons.copy_rounded,
               label: 'Copy All Text',
-              onPressed: _copyAllText,
+              onPressed: copyAllText,
             ),
             if (widget.onInsertText != null)
               _ActionButton(
                 icon: Icons.post_add_rounded,
                 label: 'Insert into Note',
-                onPressed: () => _handleInsertIntoNote(),
+                onPressed: () => handleInsertIntoNote(),
               ),
           ],
           _ActionButton(
             icon: Icons.download_rounded,
             label: 'Save Image',
-            onPressed: _handleSaveImage,
+            onPressed: handleSaveImage,
           ),
         ],
       ),
@@ -1088,11 +1433,9 @@ class _LiveTextLayerState extends State<_LiveTextLayer> {
   }
 
   OcrWord? _findNearestWord(Offset localPosition, Size size) {
-    // 1. Direct hit with touch margin
     final direct = _findWordAt(localPosition, size);
     if (direct != null) return direct;
 
-    // 2. Check if localPosition is within vertical span of any line
     for (final block in widget.page.blocks) {
       for (final line in block.lines) {
         final lineTop = line.bounds.y * size.height - 14.0;
@@ -1114,7 +1457,6 @@ class _LiveTextLayerState extends State<_LiveTextLayer> {
       }
     }
 
-    // 3. Global fallback: closest word on page
     OcrWord? bestWord;
     double bestDist = double.infinity;
     for (final block in widget.page.blocks) {

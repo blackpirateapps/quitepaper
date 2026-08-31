@@ -73,8 +73,10 @@ class QuietPaperUri {
   /// Whether this URI has a valid known resource type and well-formed resource ID.
   bool get isValid {
     if (resourceType == QuietPaperResourceType.unknown) return false;
-    if (resourceId.trim().isEmpty) return false;
-    return isValidUuid(resourceId) || resourceId.length >= 8;
+    final trimmedId = resourceId.trim();
+    if (trimmedId.isEmpty) return false;
+    if (trimmedId.contains('/')) return false;
+    return isValidUuid(trimmedId);
   }
 
   /// Statically checks if a URI string is valid.
@@ -143,11 +145,14 @@ class QuietPaperUri {
     if (trimmed.isEmpty) return null;
 
     final lower = trimmed.toLowerCase();
-    if (!lower.startsWith('qp://')) {
+    if (!lower.startsWith('qp:')) {
       return null;
     }
 
-    final withoutScheme = trimmed.substring(5); // Strips "qp://"
+    var withoutScheme = trimmed.substring(3); // Strips "qp:"
+    while (withoutScheme.startsWith('/')) {
+      withoutScheme = withoutScheme.substring(1);
+    }
     if (withoutScheme.isEmpty) return null;
 
     final questionMarkIndex = withoutScheme.indexOf('?');
@@ -163,27 +168,34 @@ class QuietPaperUri {
       return null;
     }
 
-    final typePart = pathPart.substring(0, slashIndex).trim();
-    final idPart = pathPart.substring(slashIndex + 1).trim();
+    final typeStr = pathPart.substring(0, slashIndex);
+    final id = pathPart.substring(slashIndex + 1);
 
-    if (typePart.isEmpty || idPart.isEmpty) {
+    if (id.trim().isEmpty) {
       return null;
     }
 
-    // Disallow extra slashes in resourceId (e.g. qp://asset/123/extra)
-    if (idPart.contains('/')) {
-      return null;
-    }
-
-    if (!isValidUuid(idPart)) {
-      return null;
-    }
-
-    final resourceType = QuietPaperResourceType.fromIdentifier(typePart);
+    final resourceType = QuietPaperResourceType.fromIdentifier(typeStr);
     if (resourceType == QuietPaperResourceType.unknown) {
       return null;
     }
 
+    final params = _parseQueryParams(queryPart);
+
+    final result = QuietPaperUri(
+      resourceType: resourceType,
+      resourceId: id.trim(),
+      parameters: params,
+    );
+
+    if (!result.isValid) {
+      return null;
+    }
+
+    return result;
+  }
+
+  static Map<String, String> _parseQueryParams(String queryPart) {
     final params = <String, String>{};
     if (queryPart.isNotEmpty) {
       final pairs = queryPart.split('&');
@@ -199,11 +211,7 @@ class QuietPaperUri {
       }
     }
 
-    return QuietPaperUri(
-      resourceType: resourceType,
-      resourceId: idPart,
-      parameters: params,
-    );
+    return params;
   }
 
   /// Returns canonical string representation `qp://<resourceType>/<resourceId>`.

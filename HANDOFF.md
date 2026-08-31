@@ -4105,6 +4105,54 @@ Following `noteslistdesign.md`, the middle Notes List pane was refactored from h
 - `NoteDateHeader` ([`lib/features/notes/presentation/widgets/note_date_header.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_date_header.dart)): Editorial group header with transition dividers for pinned sections.
 - Comprehensive Unit & Widget Test Suite ([`test/notes/notes_list_redesign_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart)): Full coverage across all 4 resolved themes and metadata extraction scenarios.
 
+---
+
+## 73. Editorial Markdown Image Experience: Responsive Sizing, Multi-Image Fullscreen Gallery & Live-Text OCR
+
+### 1. Architectural Motivation & Principles
+Following `image-enhancements.md`, inline Markdown and editor images were overhauled to deliver an authentic, distraction-free reading and viewing experience:
+- **Responsive Automatic Inline Sizing (`ImageLayoutCalculator`)**:
+  - Implements a pure, deterministic sizing calculation that preserves original aspect ratios.
+  - Constrains excessively tall vertical images to `maxAllowedHeight = 520.0` (or custom configured bounds) without vertical stretching.
+  - Small images (e.g. badges, app icons, signatures) are rendered at their natural intrinsic dimensions and are **never upscaled**.
+  - Wide landscape images gracefully scale down to fill available content width (`availableContentWidth`).
+  - Centered horizontally within the note flow with subtle `0.8dp` border overlays and `AppRadii.borderMd` (8dp) rounded corners.
+- **Zero-Latency Synchronous Header Parsing (`ImageDimensionReader`)**:
+  - Pure Dart binary parser for PNG (IHDR), JPEG (SOF0-SOF2), GIF (Logical Screen Descriptor), WebP (VP8/VP8L/VP8X), and BMP (DIB).
+  - Extracts intrinsic image width and height synchronously in 0ms directly from the byte stream, eliminating layout shifts and preventing async Flutter engine codec bottlenecks in unit/widget tests.
+- **Typographical Captions & Accessibility Semantics**:
+  - Markdown title text (`![alt](url "title")`) or adjacent italics (`*caption*`) renders as subtle, centered `AppTypography.caption` text in `colors.textSecondary`.
+  - Accessible screen-reader semantics: `"$altText, image. Double tap to open."`
+- **Fullscreen Multi-Image Gallery Viewer (`ImageViewerModal`)**:
+  - Multi-image note navigation powered by `PageView.builder` and a shared `ViewerImageItem` document model.
+  - Subtle `2 / 5` counter badge displayed only when the document contains more than one image (never `1 / 1`).
+  - Keyboard navigation shortcuts on desktop/web (`ArrowLeft`, `ArrowRight`, `Escape`).
+  - Double-tap zoom (1.0x $\leftrightarrow$ 2.5x) and pinch-to-zoom (up to 5.0x).
+  - Page swipe gestures are disabled when zoomed (`scale > 1.05`) to prevent pan collisions with page navigation.
+  - Top action menu includes **Save Image**, **Share Image** (via `AttachmentShareService`), and **Copy Image**.
+  - **100% OCR / Live-Text Overlay Retention**: Hardware-accelerated bounding box overlay (`_LiveTextLayer`, single-pass `_LiveTextPainter`), word/line selection model (`_OcrTextSelection`), text copying, and direct note transcription insertion (`onInsertText`).
+- **Calm Paper Placeholders & Error States**:
+  - Neutral paper loading placeholder without distracting blur-up animations.
+  - Calm error state with clear diagnostic icons (Locked, Corrupted, Missing) and "Tap to retry" affordance.
+
+### 2. New & Updated Components
+- `ImageLayoutCalculator` ([`lib/core/attachments/presentation/image_layout_calculator.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_layout_calculator.dart)): Pure layout engine calculating aspect ratio preserving constraints.
+- `ImageDimensionReader` ([`lib/core/attachments/presentation/image_dimension_reader.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_dimension_reader.dart)): Synchronous binary header reader for PNG, JPEG, GIF, WebP, and BMP.
+- `ViewerImageItem` ([`lib/core/attachments/presentation/viewer_image_item.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/viewer_image_item.dart)): Universal document image representation for editor, preview, and gallery.
+- `QuietAssetImageView` ([`lib/core/attachments/presentation/quiet_asset_image_view.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart)): Responsive image widget with calm loading states, retry handling, captions, and tap-to-fullscreen.
+- `ImageViewerModal` ([`lib/core/attachments/presentation/image_viewer_modal.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_viewer_modal.dart)): Immersive fullscreen gallery with multi-image PageView, zoom physics, keyboard shortcuts, and Live-Text OCR.
+- `QuietMarkdownPreview` ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart)): Extracts all document images, captions, and links, feeding ordered gallery state to image builders.
+
+### 3. Automated Verification & Quality
+- Added [`test/attachments/image_layout_calculator_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart) testing wide, tall, small, and unconstrained dimensions (10/10 tests passing).
+- Added [`test/attachments/image_dimension_reader_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart) testing PNG, JPEG, GIF, WebP, and BMP headers (5/5 tests passing).
+- Added [`test/attachments/quiet_asset_image_view_test.dart`](file:///home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart) testing responsive rendering, caption display, error recovery, and dark theme (7/7 tests passing).
+- Added [`test/markdown/markdown_preview_image_test.dart`](file:///home/dog/git/quitepaper/test/markdown/markdown_preview_image_test.dart) testing document order image extraction and multi-image gallery navigation (2/2 tests passing).
+- Updated [`test/attachments/image_viewer_modal_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart) testing gallery navigation, zoom physics, keyboard shortcuts, counter badges, and OCR text tools (16/16 tests passing).
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all 984 unit and widget tests passing**).
+
+
 
 
 

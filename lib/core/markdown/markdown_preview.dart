@@ -13,6 +13,7 @@ import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
 import '../attachments/presentation/quiet_asset_image_view.dart';
+import '../attachments/presentation/viewer_image_item.dart';
 import '../documents/document_models.dart';
 import '../documents/document_provider.dart';
 import '../documents/presentation/document_viewer_screen.dart';
@@ -74,8 +75,16 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
 }
 
 class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
+  static final RegExp _imageSyntaxRegex = RegExp(
+    r'''!\[([^\]]*?)\]\(([^\s\)]+)(?:\s+["']([^"']*)["'])?\)''',
+  );
+  static final RegExp _captionLineRegex = RegExp(
+    r'^\s*(?:\*|_)([^*\n\r_]+)(?:\*|_)\s*$',
+  );
+
   late ParsedMarkdown _parsedMarkdown;
   late List<String> _chunks;
+  List<ViewerImageItem> _documentImages = [];
 
   @override
   void initState() {
@@ -94,6 +103,61 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   void _processMarkdown() {
     _parsedMarkdown = MarkdownFrontmatterParser.parse(widget.markdownData);
     _chunks = MarkdownChunker.split(_parsedMarkdown.contentBody);
+    _documentImages = _extractDocumentImages(_parsedMarkdown.contentBody);
+  }
+
+  List<ViewerImageItem> _extractDocumentImages(String content) {
+    if (content.isEmpty) return const [];
+    final images = <ViewerImageItem>[];
+    final matches = _imageSyntaxRegex.allMatches(content).toList();
+
+    for (final match in matches) {
+      final alt = match.group(1)?.trim();
+      final rawTarget = match.group(2)?.trim() ?? '';
+      final title = match.group(3)?.trim();
+
+      final qpUri = QuietPaperUri.tryParse(rawTarget);
+      if (qpUri != null && qpUri.isDocument) {
+        continue;
+      }
+
+      String? caption;
+      final matchEnd = match.end;
+      final contentAfter = content.substring(matchEnd);
+      final afterLines = contentAfter.split('\n');
+      for (var j = 0; j < afterLines.length && j < 3; j++) {
+        final line = afterLines[j].trim();
+        if (line.isEmpty) continue;
+        final capMatch = _captionLineRegex.firstMatch(line);
+        if (capMatch != null) {
+          caption = capMatch.group(1)?.trim();
+        }
+        break;
+      }
+
+      if (qpUri != null && qpUri.isAsset) {
+        images.add(
+          ViewerImageItem(
+            assetId: qpUri.resourceId,
+            url: rawTarget,
+            altText: alt,
+            title: title,
+            caption: caption,
+          ),
+        );
+      } else {
+        images.add(
+          ViewerImageItem(
+            url: rawTarget,
+            altText: alt,
+            title: title,
+            caption: caption,
+          ),
+        );
+      }
+    }
+
+    return images;
   }
 
   @override
@@ -407,16 +471,21 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     }
 
     Widget customImageBuilder(Uri uri, String? title, String? alt) {
-      final uriString = uri.toString();
-      final qpUri = QuietPaperUri.tryParse(uriString);
-      if (qpUri != null && qpUri.isAsset) {
-        return QuietAssetImageView(
-          assetId: qpUri.resourceId,
-          altText: alt,
-          title: title,
-          onInsertText: widget.onInsertText,
-        );
+      var uriString = uri.toString().trim();
+      String? parsedTitle = (title != null && title.trim().isNotEmpty) ? title.trim() : null;
+
+      if (uriString.contains(' ') || uriString.contains('"') || uriString.contains("'")) {
+        final spaceIdx = uriString.indexOf(' ');
+        if (spaceIdx != -1) {
+          final trailing = uriString.substring(spaceIdx + 1).trim();
+          uriString = uriString.substring(0, spaceIdx).trim();
+          if (parsedTitle == null || parsedTitle.isEmpty) {
+            parsedTitle = trailing.replaceAll('"', '').replaceAll("'", '').trim();
+          }
+        }
       }
+
+      final qpUri = QuietPaperUri.tryParse(uriString);
       if (qpUri != null && qpUri.isDocument) {
         return QuietDocumentCard(
           documentId: qpUri.resourceId,
@@ -426,35 +495,42 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           uriString: uriString,
         );
       }
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: ClipRRect(
-          borderRadius: AppRadii.borderMd,
-          child: Image.network(
-            uriString,
-            errorBuilder: (context, error, stackTrace) => Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: AppRadii.borderSm,
-                border: Border.all(color: colors.divider),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.broken_image_outlined,
-                      size: 16, color: colors.textTertiary),
-                  const SizedBox(width: 8),
-                  Text(
-                    alt?.isNotEmpty == true ? alt! : 'Image unavailable',
-                    style: AppTypography.caption
-                        .copyWith(color: colors.textTertiary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+
+      final matchingIndex = _documentImages.indexWhere((img) =>
+          (qpUri != null && qpUri.isAsset && img.assetId == qpUri.resourceId) ||
+          img.url == uriString ||
+          (alt != null && alt.isNotEmpty && img.altText == alt));
+
+      final matchingItem = matchingIndex >= 0 ? _documentImages[matchingIndex] : null;
+
+      final resolvedAlt = matchingItem?.altText ??
+          ((alt != null && alt.trim().isNotEmpty) ? alt.trim() : title?.trim());
+      final resolvedTitle = matchingItem?.title ??
+          ((title != null && title.trim().isNotEmpty && title.trim() != resolvedAlt)
+              ? title.trim()
+              : (parsedTitle != resolvedAlt ? parsedTitle : null));
+      final resolvedCaption = matchingItem?.caption;
+
+      if (qpUri != null && qpUri.isAsset) {
+        return QuietAssetImageView(
+          assetId: qpUri.resourceId,
+          altText: resolvedAlt,
+          title: resolvedTitle,
+          caption: resolvedCaption,
+          onInsertText: widget.onInsertText,
+          galleryImages: _documentImages.isNotEmpty ? _documentImages : null,
+          imageIndex: matchingIndex >= 0 ? matchingIndex : null,
+        );
+      }
+
+      return QuietAssetImageView(
+        url: uriString,
+        altText: resolvedAlt,
+        title: resolvedTitle,
+        caption: resolvedCaption,
+        onInsertText: widget.onInsertText,
+        galleryImages: _documentImages.isNotEmpty ? _documentImages : null,
+        imageIndex: matchingIndex >= 0 ? matchingIndex : null,
       );
     }
 

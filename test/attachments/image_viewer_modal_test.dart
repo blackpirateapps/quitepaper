@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/attachments/presentation/image_viewer_modal.dart';
+import 'package:quitepaper/core/attachments/presentation/viewer_image_item.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
@@ -349,6 +350,103 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Copy All Text'), findsOneWidget);
+    });
+
+    testWidgets('Single image does NOT show unnecessary 1 / 1 counter', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 / 1'), findsNothing);
+    });
+
+    testWidgets('Multi-image gallery displays subtle counter and navigates between images', (tester) async {
+      final galleryImages = [
+        ViewerImageItem(
+          assetId: attachmentId,
+          altText: 'Chart 1',
+          initialBytes: testImageBytes,
+        ),
+        ViewerImageItem(
+          assetId: attachmentId,
+          altText: 'Chart 2',
+          initialBytes: testImageBytes,
+        ),
+        ViewerImageItem(
+          assetId: attachmentId,
+          altText: 'Chart 3',
+          initialBytes: testImageBytes,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            keyManagerProvider.overrideWithValue(keyManager),
+            ocrCryptoProvider.overrideWithValue(ocrCrypto),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: ImageViewerModal(
+              images: galleryImages,
+              initialIndex: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Starts on Image 1
+      expect(find.text('Chart 1'), findsOneWidget);
+      expect(find.text('1 / 3'), findsOneWidget);
+
+      // Navigate to Next Image via button
+      final nextButton = find.byTooltip('Next Image');
+      expect(nextButton, findsOneWidget);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chart 2'), findsOneWidget);
+      expect(find.text('2 / 3'), findsOneWidget);
+
+      // Navigate to Next Image again
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chart 3'), findsOneWidget);
+      expect(find.text('3 / 3'), findsOneWidget);
+
+      // Navigate back via Previous Image button
+      final prevButton = find.byTooltip('Previous Image');
+      await tester.tap(prevButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chart 2'), findsOneWidget);
+      expect(find.text('2 / 3'), findsOneWidget);
+    });
+
+    testWidgets('Renders properly in Dark Paper theme without light mode leakage', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            keyManagerProvider.overrideWithValue(keyManager),
+            ocrCryptoProvider.overrideWithValue(ocrCrypto),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: ImageViewerModal(
+              assetId: attachmentId,
+              altText: 'Dark Mode Image',
+              initialImageBytes: testImageBytes,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dark Mode Image'), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
     });
   });
 }
