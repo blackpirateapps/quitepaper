@@ -4035,8 +4035,45 @@ However, on new devices after cloud sync:
    - `AttachmentExportResolver` exports HTML documents as `.html` files instead of `.pdf`.
 5. **Automated Verification**:
    - Added unit tests in [`test/documents/document_sync_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_sync_service_test.dart) and [`test/documents/document_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_service_test.dart).
-   - Added multi-device pull sync test in [`test/sync/sync_engine_test.dart`](file:///home/dog/git/quitepaper/test/sync/sync_engine_test.dart).
-   - All **943 Flutter tests** and **43 backend tests** pass cleanly with zero warnings/errors.
+
+
+---
+
+## 36. Quiet Paper Landing Page with Lenis.dev Aesthetic & Multi-Architecture Release Hub
+
+### Overview
+Designed and implemented a landing page for Quiet Paper served directly via Vercel static hosting ([`public/index.html`](file:///home/dog/git/quitepaper/public/index.html) and [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html)). The page adopts the structural, motion, and grid aesthetic of **[lenis.dev](https://lenis.darkroom.engineering)** while maintaining Quiet Paper's warm editorial color palette, interactive dual-mode playground, and direct GitHub Release downloads.
+
+### Architectural & Design Highlights
+1. **Lenis.dev-Inspired Motion & Wireframe Layout**:
+   - Ultra-fine 1px wireframe grid borders with subtle dot matrix / linear grid canvas backgrounds.
+   - Sticky backdrop-blurred navigation header with active progress bar and smooth transition.
+   - Lenis smooth momentum scroll engine (`@studio-freight/lenis` / `lenis@1.1.18`) with customizable duration and easing curve.
+   - Dual-layer hover button animations (`btn-text-visible` and `btn-text-hidden` sliding up on hover) for the primary **Download APK** and **Source Code** CTAs.
+2. **Quiet Paper Warm Editorial Theming**:
+   - **Warm Dark (Default)**: `#161513` canvas, `#1E1D1A` surface cards, `#2B2A26` borders, `#FAF8F5` headlines, `#9E9B93` body copy, and `#D65F55` terracotta coral accent.
+   - **Warm Paper Light**: `#F7F6F2` canvas, `#FFFFFF` cards, `#E6E2D8` borders, `#24221D` headlines, `#5F6368` body copy.
+   - Interactive header toggle button with local persistence (`localStorage.getItem('qp-theme')`).
+3. **Horizontal Feature Showcase Carousel**:
+   - Smooth horizontal scrolling cards showcasing:
+     - `01`: Zero-Knowledge Cloud Sync (Argon2id KDF + XChaCha20-Poly1305 AEAD).
+     - `02`: Markdown WYSIWYG V2 (1:1 selection & caret invariant, smart checklists).
+     - `03`: Living Typography Engine (iA Writer Quattro CDN, custom TTF/OTF loader).
+     - `04`: Scoped Storage SAF Backups (.qpbackup format, daily rolling snapshots).
+     - `05`: Encrypted Attachments & OCR (qp:// URI resolver, MLKit OCR text extraction).
+4. **Interactive Dual-Tab Sandbox Playground**:
+   - **Tab 1 (Live Markdown & Typography)**: Editable markdown input synchronized with live Bear-style WYSIWYG preview, interactive clickable checkboxes (`- [ ]` $\leftrightarrow$ `- [x]`), dynamic typeface switcher (*iA Writer Quattro*, *Newsreader Serif*, *Inter Sans*, *JetBrains Mono*), and live word/character statistics.
+   - **Tab 2 (Zero-Knowledge Simulator)**: Real-time cryptographic simulator demonstrating client-side Argon2id key derivation and XChaCha20-Poly1305 ciphertext envelope generation, contrasting the unlocked client view with the crypto-blind Turso database view.
+5. **Multi-Architecture Release Download Matrix**:
+   - Direct download cards pointing directly to GitHub Releases (`https://github.com/blackpirateapps/quitepaper/releases/latest`):
+     - **ARM64-v8a APK**: Optimized 64-bit Android package (Recommended).
+     - **Universal APK**: Broad-compatibility FAT binary.
+     - **x86_64 APK**: Intel/AMD Chromebooks & Android emulators.
+     - **ARMeabi-v7a APK**: Legacy 32-bit Android hardware.
+6. **Automated Verification**:
+   - `flutter analyze` clean (**0 issues**).
+   - All **943 Flutter tests** and **43 backend tests** pass with zero warnings or errors.
+
 
 
 
