@@ -8,30 +8,49 @@ class NoteDateHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.isFirst = false,
+    this.showTopDivider = false,
   });
 
   final String title;
   final bool isFirst;
+  final bool showTopDivider;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.lg,
-        right: AppSpacing.lg,
-        top: isFirst ? AppSpacing.md : AppSpacing.xl,
-        bottom: AppSpacing.sm,
-      ),
-      child: Text(
-        title,
-        style: AppTypography.headline.copyWith(
-          color: colors.textPrimary,
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showTopDivider)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Divider(
+              color: colors.divider.withValues(alpha: 0.6),
+              height: 20,
+              thickness: 0.8,
+            ),
+          ),
+        Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: isFirst
+                ? AppSpacing.sm
+                : (showTopDivider ? AppSpacing.xs : AppSpacing.lg),
+            bottom: AppSpacing.xs,
+          ),
+          child: Text(
+            title,
+            style: AppTypography.headline.copyWith(
+              color: colors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

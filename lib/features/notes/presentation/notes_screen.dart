@@ -1172,9 +1172,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     for (var i = 0; i < groups.length; i++) {
       final group = groups[i];
       if (index == accumulated) {
+        final isPinnedTransition = i > 0 && groups[i - 1].header == 'Pinned';
         return NoteDateHeader(
           title: group.header,
           isFirst: i == 0,
+          showTopDivider: isPinnedTransition,
         );
       }
       accumulated++;

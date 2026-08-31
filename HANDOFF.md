@@ -4072,7 +4072,39 @@ Designed and implemented a landing page for Quiet Paper served directly via Verc
      - **ARMeabi-v7a APK**: Legacy 32-bit Android hardware.
 6. **Automated Verification**:
    - `flutter analyze` clean (**0 issues**).
-   - All **943 Flutter tests** and **43 backend tests** pass with zero warnings or errors.
+   - All **957 Flutter tests** and **43 backend tests** pass with zero warnings or errors.
+
+---
+
+## 14. Bear-Style Notes List Redesign & Multi-Theme Architecture
+
+### 1. Architectural Motivation & Principles
+Following `noteslistdesign.md`, the middle Notes List pane was refactored from heavy, isolated Material cards into a continuous, calm, editorial paper stream with clear typographical hierarchy inspired by Bear Notes.
+
+- **Lightweight Continuous Paper Stream**: Eliminated bulky container cards, high elevation drops, and aggressive borders. The list now flows continuously on the background paper surface, with subtle `colors.divider.withValues(alpha: 0.5)` dividers (0.8dp) between notes.
+- **Dedicated Pinned Section**: Pinned notes form an explicit top section separated from chronological buckets (`Today`, `Yesterday`, `Monday`, `Previous week`, etc.) by an editorial spacing transition and subtle divider.
+- **Content Hierarchy**:
+  - **Primary Line (Title)**: 15.5–16sp semibold typography (`FontWeight.w600`) with clean multi-line wrapping and subtle pin (`Icons.push_pin_rounded`) or encryption lock (`Icons.lock_rounded`) indicators.
+  - **Subordinate Preview**: Clean 2-line excerpt (`FontWeight.w400`, `colors.textSecondary`, line height 1.35) stripped of raw Markdown noise and YAML frontmatter artifacts.
+  - **Bottom Metadata**: Visually restrained tag chips (`#tag`), textual attachment metadata, and relative timestamps (`Yesterday`, `3:45 PM`, `Aug 30`).
+- **Attachment Metadata — TEXT, NOT ICONS**:
+  - PDF attachments render real page counts in clean text: `PDF · 12 pages`, `2 PDFs · 31 pages`, or `PDF`.
+  - Image attachments render count text: `1 image`, `2 images`.
+  - Generic files render extension or attachment text: `DOCX`, `ZIP`, `3 attachments`.
+  - Tags remain visually primary; attachment metadata sits beside tags separated by a subtle `·`.
+- **Non-Blocking Image Thumbnails**: Notes containing image attachments or URLs render compact 48x48dp rounded thumbnails (`NoteThumbnailView`) with graceful loading and fallback placeholders without blocking the UI thread.
+- **Dual Theme Family Support**:
+  - `ThemeFamily.classicPaper`: Warm terracotta accents, soft parchment backgrounds (`#F7F6F2` Light / `#1D1C1A` Dark).
+  - `ThemeFamily.warmPaper`: Serene slate blue accents, bright paper backgrounds (`#F2F1EE` Light / `#11151A` Midnight Dark).
+  - Fully dynamic through `AppColors` semantic tokens with zero hardcoded theme colors or platform leakage.
+
+### 2. New & Updated Components
+- `NoteMetadataExtractor` ([`lib/features/notes/domain/note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart)): Synchronous, high-performance extraction of display titles, frontmatter metadata, clean preview snippets, textual attachment summaries, and image thumbnail URIs.
+- `NoteListTile` ([`lib/features/notes/presentation/widgets/note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart)): Continuous paper note tile with hover states, smooth selection tinting, search query highlighting, multi-select checkboxes, and context bottom sheets.
+- `NoteThumbnailView` ([`lib/features/notes/presentation/widgets/note_thumbnail_view.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart)): Non-blocking thumbnail loader supporting encrypted local assets (`qp://asset/...`) and web images.
+- `NoteDateHeader` ([`lib/features/notes/presentation/widgets/note_date_header.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_date_header.dart)): Editorial group header with transition dividers for pinned sections.
+- Comprehensive Unit & Widget Test Suite ([`test/notes/notes_list_redesign_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart)): Full coverage across all 4 resolved themes and metadata extraction scenarios.
+
 
 
 

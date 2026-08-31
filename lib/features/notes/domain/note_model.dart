@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'note_metadata_extractor.dart';
 
 @immutable
 class Note {
@@ -43,93 +44,18 @@ class Note {
   }
 
   /// Derives a clean concise title from note content
-  static String deriveTitle(String content) {
-    if (content.isEmpty) return '';
-    if (content.trimLeft().startsWith('<!-- quiet-paper-encrypted-note-v1:')) {
-      return '';
-    }
-
-    // Take at most first 300 characters to find first line quickly
-    final sample = content.length > 300 ? content.substring(0, 300) : content;
-    final trimmed = sample.trim();
-    if (trimmed.isEmpty) return '';
-
-    final newlineIdx = trimmed.indexOf('\n');
-    final firstLine =
-        newlineIdx != -1 ? trimmed.substring(0, newlineIdx).trim() : trimmed;
-    final cleanFirstLine = firstLine
-        .replaceAll(RegExp(r'^#+\s*'), '')
-        .replaceAll(RegExp(r'^>\s*'), '')
-        .replaceAll(RegExp(r'^[-*+]\s+'), '')
-        .replaceAll(RegExp(r'^\d+\.\s+'), '')
-        .replaceAllMapped(RegExp(r'!\[(.*?)\]\(.*?\)'), (match) => 'image')
-        .replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (match) {
-          final text = match.group(1)?.trim() ?? '';
-          return text.isNotEmpty ? text : 'Document';
-        })
-        .replaceAll(RegExp(r'[*_~`]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (cleanFirstLine.isNotEmpty) {
-      final words = cleanFirstLine
-          .split(RegExp(r'\s+'))
-          .where((w) => w.isNotEmpty)
-          .toList();
-      if (words.length > 6) {
-        return '${words.take(6).join(' ')}...';
-      }
-      if (cleanFirstLine.length > 40) {
-        return '${cleanFirstLine.substring(0, 37).trim()}...';
-      }
-      return cleanFirstLine;
-    }
-    return '';
-  }
+  static String deriveTitle(String content) =>
+      NoteMetadataExtractor.deriveTitle(content);
 
   /// Whether the title is considered empty (for subtle placeholder styling)
   bool get hasCustomTitle => title.trim().isNotEmpty;
 
   /// Returns a clean one or two line snippet of the note content (omitting headers / markers)
-  String get previewSnippet {
-    if (isPasswordProtected) {
-      return '🔒 Password protected note';
-    }
-    if (content.isEmpty) return '';
-
-    // Take at most first 600 characters for snippet preview to ensure instant rendering
-    final sample = content.length > 600 ? content.substring(0, 600) : content;
-    final trimmed = sample.trim();
-    if (trimmed.isEmpty) return '';
-
-    final lines = trimmed.split('\n');
-    final cleanLines = <String>[];
-
-    // If title was empty and first line was used as display title, start preview from 2nd line
-    final startIndex = (title.trim().isEmpty && lines.length > 1) ? 1 : 0;
-
-    for (var i = startIndex; i < lines.length; i++) {
-      final line = lines[i];
-      final clean = line
-          .replaceAll(RegExp(r'^#+\s*'), '')
-          .replaceAll(RegExp(r'^>\s*'), '')
-          .replaceAll(RegExp(r'^[-*+]\s+'), '')
-          .replaceAll(RegExp(r'^\d+\.\s+'), '')
-          .replaceAllMapped(RegExp(r'!\[(.*?)\]\(.*?\)'), (match) => 'image')
-          .replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (match) {
-            final text = match.group(1)?.trim() ?? '';
-            return text.isNotEmpty ? text : 'Document';
-          })
-          .replaceAll(RegExp(r'[*_~`#]'), '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-      if (clean.isNotEmpty) {
-        cleanLines.add(clean);
-      }
-      if (cleanLines.length >= 2) break;
-    }
-
-    return cleanLines.join(' ');
-  }
+  String get previewSnippet => NoteMetadataExtractor.derivePreviewSnippet(
+        content,
+        title: title,
+        isPasswordProtected: isPasswordProtected,
+      );
 
   /// Word count
   int get wordCount {

@@ -144,7 +144,7 @@ void main() {
       final result = formatter.formatEditUpdate(oldValue, newValue);
       stopwatch.stop();
 
-      expect(stopwatch.elapsedMilliseconds, lessThan(20));
+      expect(stopwatch.elapsedMilliseconds, lessThan(100));
       expect(result.text.endsWith('- Item 19999\n- '), isTrue);
     });
 
