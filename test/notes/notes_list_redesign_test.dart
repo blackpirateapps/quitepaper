@@ -8,6 +8,8 @@ import 'package:quitepaper/features/notes/domain/note_metadata_extractor.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_date_header.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_mini_table_preview.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_thumbnail_view.dart';
 
 void main() {
   final testNow = DateTime(2026, 8, 31, 14, 0, 0);
@@ -29,6 +31,7 @@ void main() {
       expect(metadata.hasCustomTitle, true);
       expect(metadata.tags, const ['planning']);
       expect(metadata.attachmentSummary, isNull);
+      expect(metadata.tablePreview, isNull);
     });
 
     test('derives title from first line when title is empty', () {
@@ -95,6 +98,32 @@ The security vulnerability was discovered during an automated penetration test.
       expect(metadata.previewSnippet, isNot(contains('==')));
     });
 
+    test('extracts Markdown table preview cleanly into NoteTablePreview', () {
+      final tableNote = Note(
+        id: 'note-table-1',
+        title: 'Sprint Planning',
+        content: '''
+# Sprint Backlog
+| Task | Owner | Priority | Status |
+| --- | --- | --- | --- |
+| Database Migration | Alice | High | In Progress |
+| UI Polish | Bob | Normal | Done |
+| Performance Benchmark | Charlie | High | Pending |
+''',
+        createdAt: testNow,
+        updatedAt: testNow,
+      );
+
+      final metadata = NoteMetadataExtractor.extract(tableNote);
+      expect(metadata.tablePreview, isNotNull);
+      expect(metadata.tablePreview!.isValid, true);
+      // Up to 3 columns
+      expect(metadata.tablePreview!.headers, ['Task', 'Owner', 'Priority']);
+      expect(metadata.tablePreview!.rows.length, 2);
+      expect(metadata.tablePreview!.rows[0], ['Database Migration', 'Alice', 'High']);
+      expect(metadata.tablePreview!.rows[1], ['UI Polish', 'Bob', 'Normal']);
+    });
+
     test('extracts text attachment metadata for PDFs, images, and files', () {
       // 1. Single PDF with page count
       final pdfNote = Note(
@@ -106,6 +135,8 @@ The security vulnerability was discovered during an automated penetration test.
       );
       final pdfMeta = NoteMetadataExtractor.extract(pdfNote);
       expect(pdfMeta.attachmentSummary, 'PDF · 12 pages');
+      expect(pdfMeta.thumbnailData?.kind, ThumbnailKind.pdf);
+      expect(pdfMeta.thumbnailData?.uri, 'qp://document/doc-uuid-1');
 
       // 2. Multiple PDFs with combined page count
       final multiPdfNote = Note(
@@ -128,9 +159,23 @@ The security vulnerability was discovered during an automated penetration test.
       );
       final imgMeta = NoteMetadataExtractor.extract(imgNote);
       expect(imgMeta.attachmentSummary, '2 images');
+      expect(imgMeta.thumbnailData?.kind, ThumbnailKind.image);
       expect(imgMeta.thumbnailUri, 'qp://asset/img-uuid-1');
 
-      // 4. Generic file
+      // 4. Text file attachment (.txt)
+      final txtNote = Note(
+        id: 'note-txt-1',
+        title: 'Server Logs',
+        content: 'Exported server log: [access_log.txt](qp://asset/file-uuid-txt)',
+        createdAt: testNow,
+        updatedAt: testNow,
+      );
+      final txtMeta = NoteMetadataExtractor.extract(txtNote);
+      expect(txtMeta.attachmentSummary, 'TXT');
+      expect(txtMeta.thumbnailData?.kind, ThumbnailKind.textFile);
+      expect(txtMeta.thumbnailData?.label, 'TXT');
+
+      // 5. Generic file (.docx)
       final docxNote = Note(
         id: 'note-file-1',
         title: 'Contract',
@@ -156,10 +201,12 @@ The security vulnerability was discovered during an automated penetration test.
       expect(metadata.previewSnippet, '🔒 Password protected note');
       expect(metadata.attachmentSummary, isNull);
       expect(metadata.thumbnailUri, isNull);
+      expect(metadata.thumbnailData, isNull);
+      expect(metadata.tablePreview, isNull);
     });
   });
 
-  group('NoteListTile Widget & Theme Family Tests', () {
+  group('NoteListTile & NoteMiniTablePreview Widget Tests', () {
     final note = Note(
       id: 'test-note-1',
       title: 'Design Philosophy',
@@ -169,9 +216,23 @@ The security vulnerability was discovered during an automated penetration test.
       tags: const ['editorial', 'design'],
     );
 
+    final tableNote = Note(
+      id: 'test-table-note',
+      title: 'Weekly Standup',
+      content: '''
+| Person | Goal | Status |
+| --- | --- | --- |
+| Alice | Auth Module | Done |
+| Bob | DB Sync | Testing |
+''',
+      createdAt: testNow,
+      updatedAt: testNow,
+    );
+
     Widget buildTileWithTheme({
       required ThemeFamily family,
       required bool isDark,
+      Note? customNote,
       bool isSelected = false,
       String? searchQuery,
       List<TokenSpanDto>? titleSpans,
@@ -188,7 +249,7 @@ The security vulnerability was discovered during an automated penetration test.
           theme: themeData,
           home: Scaffold(
             body: NoteListTile(
-              note: note,
+              note: customNote ?? note,
               isSelected: isSelected,
               searchQuery: searchQuery,
               titleHighlightSpans: titleSpans,
@@ -201,7 +262,7 @@ The security vulnerability was discovered during an automated penetration test.
       );
     }
 
-    testWidgets('renders cleanly in Classic Paper Light theme', (tester) async {
+    testWidgets('renders cleanly in Classic Paper Light theme with distinct doc pill badge', (tester) async {
       await tester.pumpWidget(
         buildTileWithTheme(family: ThemeFamily.classicPaper, isDark: false),
       );
@@ -245,6 +306,24 @@ The security vulnerability was discovered during an automated penetration test.
       expect(find.text('Design Philosophy'), findsOneWidget);
       expect(find.text('#editorial'), findsOneWidget);
       expect(find.text('PDF · 8 pages'), findsOneWidget);
+    });
+
+    testWidgets('renders NoteMiniTablePreview in note tile for table notes', (tester) async {
+      await tester.pumpWidget(
+        buildTileWithTheme(
+          family: ThemeFamily.classicPaper,
+          isDark: false,
+          customNote: tableNote,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weekly Standup'), findsOneWidget);
+      expect(find.byType(NoteMiniTablePreview), findsOneWidget);
+      expect(find.text('Person'), findsOneWidget);
+      expect(find.text('Goal'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Auth Module'), findsOneWidget);
     });
 
     testWidgets('handles tap and tag tap callbacks', (tester) async {
@@ -308,6 +387,51 @@ The security vulnerability was discovered during an automated penetration test.
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.push_pin_rounded), findsOneWidget);
+    });
+  });
+
+  group('NoteThumbnailView Widget Tests', () {
+    testWidgets('renders Text File document sheet thumbnail with label', (tester) async {
+      final themeData = AppTheme.light(family: ThemeFamily.classicPaper);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: themeData,
+            home: const Scaffold(
+              body: NoteThumbnailView(
+                thumbnailData: ThumbnailData.textFile('qp://asset/file-123', 'TXT'),
+                size: 48,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('TXT'), findsOneWidget);
+    });
+
+    testWidgets('renders PDF thumbnail placeholder when loading or unavailable', (tester) async {
+      final themeData = AppTheme.dark(family: ThemeFamily.classicPaper);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: themeData,
+            home: const Scaffold(
+              body: NoteThumbnailView(
+                thumbnailData: ThumbnailData.pdf('qp://document/doc-999'),
+                size: 48,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.picture_as_pdf_outlined), findsOneWidget);
+      expect(find.text('PDF'), findsOneWidget);
     });
   });
 

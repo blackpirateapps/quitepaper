@@ -1,18 +1,27 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_typography.dart';
 import '../../../../core/attachments/attachment_provider.dart';
+import '../../../../core/documents/document_provider.dart';
+import '../../domain/note_metadata_extractor.dart';
 
-/// Compact, non-blocking image thumbnail widget for note list tiles.
+/// In-memory cache for rasterized PDF page-0 thumbnails to ensure smooth 60fps scrolling.
+final Map<String, Uint8List> _pdfThumbnailCache = {};
+
+/// Compact, non-blocking image, PDF, and text file thumbnail widget for note list tiles.
 class NoteThumbnailView extends ConsumerStatefulWidget {
   const NoteThumbnailView({
     super.key,
-    required this.thumbnailUri,
+    this.thumbnailData,
+    this.thumbnailUri,
     this.size = 48.0,
   });
 
-  final String thumbnailUri;
+  final ThumbnailData? thumbnailData;
+  final String? thumbnailUri;
   final double size;
 
   @override
@@ -21,6 +30,19 @@ class NoteThumbnailView extends ConsumerStatefulWidget {
 
 class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
   Uint8List? _imageBytes;
+  bool _isLoading = false;
+
+  String get _effectiveUri =>
+      widget.thumbnailData?.uri ?? widget.thumbnailUri?.trim() ?? '';
+
+  ThumbnailKind get _effectiveKind {
+    if (widget.thumbnailData != null) return widget.thumbnailData!.kind;
+    final uri = _effectiveUri;
+    if (uri.startsWith('qp://document/') || uri.toLowerCase().contains('.pdf')) {
+      return ThumbnailKind.pdf;
+    }
+    return ThumbnailKind.image;
+  }
 
   @override
   void initState() {
@@ -31,15 +53,81 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
   @override
   void didUpdateWidget(NoteThumbnailView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.thumbnailUri != widget.thumbnailUri) {
+    final oldUri = oldWidget.thumbnailData?.uri ?? oldWidget.thumbnailUri;
+    if (oldUri != _effectiveUri) {
       _loadThumbnail();
     }
   }
 
   Future<void> _loadThumbnail() async {
-    final uri = widget.thumbnailUri.trim();
+    final uri = _effectiveUri;
+    if (uri.isEmpty) return;
+
+    final kind = _effectiveKind;
+
+    // 1. Text File Thumbnails are rendered procedurally
+    if (kind == ThumbnailKind.textFile) {
+      return;
+    }
+
+    // 2. PDF Document Thumbnail
+    if (kind == ThumbnailKind.pdf) {
+      // Check cache first
+      if (_pdfThumbnailCache.containsKey(uri)) {
+        if (mounted) {
+          setState(() {
+            _imageBytes = _pdfThumbnailCache[uri];
+          });
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      try {
+        Uint8List? pdfBytes;
+
+        if (uri.startsWith('qp://document/')) {
+          final docId = uri.replaceFirst('qp://document/', '').trim();
+          final docService = ref.read(documentServiceProvider);
+          final res = await docService.resolveDocument(docId);
+          if (res.isAvailable && res.data != null) {
+            pdfBytes = res.data!.pdfBytes;
+          }
+        } else if (uri.startsWith('qp://asset/')) {
+          final assetId = uri.replaceFirst('qp://asset/', '').trim();
+          final attachmentService = ref.read(attachmentServiceProvider);
+          final res = await attachmentService.resolveAsset(assetId, variant: 'original');
+          if (res.isAvailable && res.data != null) {
+            pdfBytes = res.data;
+          }
+        }
+
+        if (pdfBytes != null && pdfBytes.isNotEmpty) {
+          await for (final page in Printing.raster(pdfBytes, pages: const [0], dpi: 72.0)) {
+            final png = await page.toPng();
+            _pdfThumbnailCache[uri] = png;
+            if (mounted) {
+              setState(() {
+                _imageBytes = png;
+                _isLoading = false;
+              });
+            }
+            break;
+          }
+        } else {
+          if (mounted) setState(() => _isLoading = false);
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    // 3. Image Thumbnail
     if (!uri.startsWith('qp://asset/')) {
-      // Network or custom URL is handled directly by Image.network
+      // Network image is handled by Image.network
       return;
     }
 
@@ -56,7 +144,7 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
           _imageBytes = resolution.data;
         });
       } else {
-        // Fallback to original variant if thumbnail is not available
+        // Fallback to original variant
         final origResolution = await service.resolveAsset(assetId, variant: 'original');
         if (!mounted) return;
         if (origResolution.isAvailable && origResolution.data != null) {
@@ -66,25 +154,48 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         }
       }
     } catch (_) {
-      // Silent fallback to placeholder
+      // Silent fallback
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final uri = widget.thumbnailUri.trim();
+    final uri = _effectiveUri;
+    final kind = _effectiveKind;
+    final label = widget.thumbnailData?.label ?? (kind == ThumbnailKind.pdf ? 'PDF' : null);
 
     Widget content;
 
-    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    if (kind == ThumbnailKind.textFile) {
+      content = _buildTextFileSheet(colors, label ?? 'TXT');
+    } else if (kind == ThumbnailKind.pdf && _imageBytes != null) {
+      content = Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            _imageBytes!,
+            fit: BoxFit.cover,
+            width: widget.size,
+            height: widget.size,
+          ),
+          Positioned(
+            right: 2,
+            bottom: 2,
+            child: _buildMiniBadge(colors, 'PDF'),
+          ),
+        ],
+      );
+    } else if (kind == ThumbnailKind.pdf && _isLoading) {
+      content = _buildPlaceholder(colors, icon: Icons.picture_as_pdf_outlined, label: 'PDF');
+    } else if (uri.startsWith('http://') || uri.startsWith('https://')) {
       content = Image.network(
         uri,
         fit: BoxFit.cover,
         width: widget.size,
         height: widget.size,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colors),
-        loadingBuilder: (context, child, progress) {
+        loadingBuilder: (_, child, progress) {
           if (progress == null) return child;
           return _buildPlaceholder(colors);
         },
@@ -97,7 +208,13 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         height: widget.size,
       );
     } else {
-      content = _buildPlaceholder(colors);
+      content = _buildPlaceholder(
+        colors,
+        icon: kind == ThumbnailKind.pdf
+            ? Icons.picture_as_pdf_outlined
+            : Icons.image_outlined,
+        label: label,
+      );
     }
 
     return ClipRRect(
@@ -118,14 +235,97 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
     );
   }
 
-  Widget _buildPlaceholder(AppColors colors) {
+  Widget _buildTextFileSheet(AppColors colors, String label) {
+    return Container(
+      color: colors.surface,
+      padding: const EdgeInsets.all(5.0),
+      child: Stack(
+        children: [
+          // Simulated text lines
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Container(
+                height: 2.0,
+                width: widget.size * 0.75,
+                color: colors.textTertiary.withValues(alpha: 0.4),
+              ),
+              const SizedBox(height: 3.5),
+              Container(
+                height: 2.0,
+                width: widget.size * 0.6,
+                color: colors.textTertiary.withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 3.5),
+              Container(
+                height: 2.0,
+                width: widget.size * 0.45,
+                color: colors.textTertiary.withValues(alpha: 0.25),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _buildMiniBadge(colors, label),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniBadge(AppColors colors, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 1.0),
+      decoration: BoxDecoration(
+        color: colors.surfaceSecondary.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(3.0),
+        border: Border.all(
+          color: colors.divider.withValues(alpha: 0.9),
+          width: 0.6,
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.caption.copyWith(
+          color: colors.textPrimary,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder(
+    AppColors colors, {
+    IconData icon = Icons.image_outlined,
+    String? label,
+  }) {
     return Container(
       color: colors.surfaceSubtle,
       alignment: Alignment.center,
-      child: Icon(
-        Icons.image_outlined,
-        size: 18,
-        color: colors.textTertiary.withValues(alpha: 0.45),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: colors.textTertiary.withValues(alpha: 0.5),
+          ),
+          if (label != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontSize: 9.0,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

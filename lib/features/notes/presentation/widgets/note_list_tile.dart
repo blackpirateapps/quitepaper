@@ -10,6 +10,7 @@ import '../../../export/presentation/export_note_sheet.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../domain/note_metadata_extractor.dart';
 import '../../domain/note_model.dart';
+import 'note_mini_table_preview.dart';
 import 'note_thumbnail_view.dart';
 
 /// Calm editorial note tile adopting the information hierarchy and density
@@ -207,7 +208,7 @@ class _NoteListTileState extends State<NoteListTile> {
                                 maxLines: 2,
                               ),
                             ),
-                            if (metadata.thumbnailUri == null) ...[
+                            if (metadata.thumbnailData == null) ...[
                               const SizedBox(width: AppSpacing.sm),
                               Text(
                                 formattedTime,
@@ -221,8 +222,10 @@ class _NoteListTileState extends State<NoteListTile> {
                           ],
                         ),
 
-                        // 2. Content Preview
-                        if (metadata.previewSnippet.isNotEmpty) ...[
+                        // 2. Content Preview (Mini Table or Text Snippet)
+                        if (metadata.tablePreview != null) ...[
+                          NoteMiniTablePreview(table: metadata.tablePreview!),
+                        ] else if (metadata.previewSnippet.isNotEmpty) ...[
                           const SizedBox(height: 4.0),
                           _buildHighlightedText(
                             text: metadata.previewSnippet,
@@ -250,10 +253,10 @@ class _NoteListTileState extends State<NoteListTile> {
                           ),
                         ],
 
-                        // 3. Metadata Row (Tags, Attachment Text, and Time when thumbnail present)
+                        // 3. Metadata Row (Tags, Distinct Doc Pill Badge, and Time when thumbnail present)
                         if (widget.note.tags.isNotEmpty ||
                             metadata.attachmentSummary != null ||
-                            metadata.thumbnailUri != null ||
+                            metadata.thumbnailData != null ||
                             widget.note.isTrashed) ...[
                           const SizedBox(height: 6.0),
                           Row(
@@ -272,30 +275,36 @@ class _NoteListTileState extends State<NoteListTile> {
                                       );
                                     }),
 
-                                    // Attachment Metadata — TEXT, NOT ICONS
+                                    // Distinct Document Type Pill Badge
                                     if (metadata.attachmentSummary != null) ...[
-                                      if (widget.note.tags.isNotEmpty)
-                                        Text(
-                                          '·',
-                                          style: TextStyle(
-                                            color: colors.textTertiary,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6.0,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: colors.surfaceSubtle,
+                                          borderRadius: BorderRadius.circular(4.0),
+                                          border: Border.all(
+                                            color: colors.divider.withValues(alpha: 0.8),
+                                            width: 0.8,
                                           ),
                                         ),
-                                      Text(
-                                        metadata.attachmentSummary!,
-                                        style: AppTypography.caption.copyWith(
-                                          color: colors.textSecondary,
-                                          fontSize: 12.0,
-                                          fontWeight: FontWeight.w500,
+                                        child: Text(
+                                          metadata.attachmentSummary!,
+                                          style: AppTypography.caption.copyWith(
+                                            color: colors.textSecondary,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.2,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ],
                                 ),
                               ),
-                              if (metadata.thumbnailUri != null) ...[
+                              if (metadata.thumbnailData != null) ...[
                                 const SizedBox(width: AppSpacing.sm),
                                 Text(
                                   formattedTime,
@@ -325,11 +334,11 @@ class _NoteListTileState extends State<NoteListTile> {
                     ),
                   ),
 
-                  // Image Thumbnail (when note contains image)
-                  if (metadata.thumbnailUri != null) ...[
+                  // Thumbnail (Image, PDF first-page rasterized preview, or Text File sheet)
+                  if (metadata.thumbnailData != null) ...[
                     const SizedBox(width: AppSpacing.md),
                     NoteThumbnailView(
-                      thumbnailUri: metadata.thumbnailUri!,
+                      thumbnailData: metadata.thumbnailData,
                       size: 48.0,
                     ),
                   ],

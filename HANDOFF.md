@@ -4150,7 +4150,40 @@ Following `image-enhancements.md`, inline Markdown and editor images were overha
 - Added [`test/markdown/markdown_preview_image_test.dart`](file:///home/dog/git/quitepaper/test/markdown/markdown_preview_image_test.dart) testing document order image extraction and multi-image gallery navigation (2/2 tests passing).
 - Updated [`test/attachments/image_viewer_modal_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart) testing gallery navigation, zoom physics, keyboard shortcuts, counter badges, and OCR text tools (16/16 tests passing).
 - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
-- Test suite: `flutter test` (**all 984 unit and widget tests passing**).
+- Test suite: `flutter test` (**all 988 unit and widget tests passing**).
+
+---
+
+## 74. Notes List Dynamic Document & Table Previews: PDF First-Page Thumbnails, Text File Sheets & Mini Markdown Table Grids
+
+### 1. Architectural Motivation & Principles
+Following user design preferences, the Notes List item presentation was enhanced to dynamically showcase rich attachment and table content:
+- **Distinct Document Type Badges**:
+  - Upgraded attachment text labels into distinct, restrained capsule pill badges (`Container` with `colors.surfaceSubtle`, `Border.all(color: colors.divider)`, and 4dp border radius).
+  - Clearly identifies `PDF · 12 pages`, `2 PDFs · 31 pages`, `TXT`, `DOCX`, `CSV`, `JSON`, `3 attachments` with semibold typography (`FontWeight.w600`).
+- **First-Page Rasterized PDF Previews**:
+  - Notes containing PDF attachments or documents (`qp://document/...`, `qp://asset/...`, or `.pdf`) automatically rasterize page 0 into a crisp 48x48dp thumbnail.
+  - Implements an asynchronous, non-blocking background rasterizer (`Printing.raster`) with an in-memory LRU cache (`_pdfThumbnailCache`) for silky-smooth 60fps scrolling.
+  - Includes a subtle `PDF` mini badge in the bottom-right corner of the rasterized thumbnail.
+- **Dynamic Text File Previews & Document Sheet Thumbnails**:
+  - Attached plain text, markdown, CSV, JSON, and code files (`.txt`, `.md`, `.csv`, `.json`, `.log`, `.dart`, etc.) render a procedural document sheet thumbnail with simulated text lines and a distinct uppercase file-type badge (e.g. `TXT`, `CSV`, `JSON`, `MD`).
+- **Embedded Mini Markdown Table Previews (`NoteMiniTablePreview`)**:
+  - Notes containing Markdown tables parse headers and data rows into structured `NoteTablePreview` objects via `NoteMetadataExtractor.extractTablePreview`.
+  - Replaces raw, messy pipe syntax (`| Col 1 | Col 2 |`) with a compact, calm 2–3 column mini table grid with distinct header styling and subtle cell dividers fitting directly into the 2-line snippet space.
+- **Cross-Theme Family Fidelity**:
+  - Seamlessly adapts across `ThemeFamily.classicPaper` (Classic Light & Classic Dark) and `ThemeFamily.warmPaper` (Warm Paper Light & Midnight Paper Dark).
+
+### 2. New & Updated Components
+- `NoteTablePreview`, `ThumbnailKind`, `ThumbnailData` ([`lib/features/notes/domain/note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart)): Domain models for parsed table headers/rows and rich thumbnail classification.
+- `NoteMiniTablePreview` ([`lib/features/notes/presentation/widgets/note_mini_table_preview.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_mini_table_preview.dart)): Compact table preview widget rendering header rows and cell dividers.
+- `NoteThumbnailView` ([`lib/features/notes/presentation/widgets/note_thumbnail_view.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart)): Multi-type thumbnail widget supporting images, rasterized PDF page 0, and text document sheets with in-memory caching.
+- `NoteListTile` ([`lib/features/notes/presentation/widgets/note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart)): Updated to render distinct document badges, mini table previews, and multi-type thumbnails.
+- Comprehensive Unit & Widget Tests ([`test/notes/notes_list_redesign_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart)): 18 comprehensive tests covering table parsing, thumbnail classification, and widget rendering across all theme families.
+
+### 3. Automated Verification & Quality
+- Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+- Full repository test suite: `flutter test` (**all 988 unit and widget tests passing with 0 failures**).
+
 
 
 
