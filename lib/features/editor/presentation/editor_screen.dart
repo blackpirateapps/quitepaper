@@ -1033,17 +1033,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       return false;
                     },
                     child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragEnd: (details) {
-                        if (details.primaryVelocity != null &&
-                            details.primaryVelocity! > 250 &&
-                            _scrollController.hasClients &&
-                            _scrollController.offset <= 0) {
-                          if (!_isSearchVisible) {
-                            _openSearch();
-                          }
-                        }
-                      },
+                      behavior: HitTestBehavior.translucent,
                       onTap: () {
                         if (!editorState.isPreviewMode && !editorState.isReadOnly) {
                           if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {

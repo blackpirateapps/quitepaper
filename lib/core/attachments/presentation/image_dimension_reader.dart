@@ -129,8 +129,41 @@ abstract final class ImageDimensionReader {
           offset += 2 + length;
         }
       }
+
+      // 6. AVIF / HEIF format: ISOBMFF container starting with 'ftyp' at offset 4
+      if (bytes.length >= 16 &&
+          bytes[4] == 0x66 &&
+          bytes[5] == 0x74 &&
+          bytes[6] == 0x79 &&
+          bytes[7] == 0x70) {
+        final avifSize = _extractAvifDimensions(bytes);
+        if (avifSize != null) {
+          return avifSize;
+        }
+      }
     } catch (_) {}
 
+    return null;
+  }
+
+  static Size? _extractAvifDimensions(Uint8List bytes) {
+    // Scan for 'ispe' (Image Spatial Extents: 0x69, 0x73, 0x70, 0x65)
+    // Box structure: [4-byte size][4-byte 'ispe'][1-byte version][3-byte flags][4-byte width][4-byte height]
+    final byteData = ByteData.sublistView(bytes);
+    final limit = bytes.length - 16;
+
+    for (var i = 4; i <= limit; i++) {
+      if (bytes[i] == 0x69 && // 'i'
+          bytes[i + 1] == 0x73 && // 's'
+          bytes[i + 2] == 0x70 && // 'p'
+          bytes[i + 3] == 0x65) { // 'e'
+        final width = byteData.getUint32(i + 8, Endian.big);
+        final height = byteData.getUint32(i + 12, Endian.big);
+        if (width > 0 && height > 0 && width < 65536 && height < 65536) {
+          return Size(width.toDouble(), height.toDouble());
+        }
+      }
+    }
     return null;
   }
 }

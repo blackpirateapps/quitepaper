@@ -158,6 +158,8 @@ class AttachmentTypeResolver {
         return 'JPEG Image';
       case 'webp':
         return 'WebP Image';
+      case 'avif':
+        return 'AVIF Image';
       case 'gif':
         return 'GIF Animation';
       case 'svg':
@@ -200,6 +202,7 @@ class AttachmentTypeResolver {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
     if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.avif')) return 'image/avif';
     if (lower.endsWith('.gif')) return 'image/gif';
     if (lower.endsWith('.svg')) return 'image/svg+xml';
     if (lower.endsWith('.pdf')) return 'application/pdf';
@@ -265,6 +268,8 @@ class AttachmentTypeResolver {
           return 'png';
         case 'image/webp':
           return 'webp';
+        case 'image/avif':
+          return 'avif';
         case 'image/gif':
           return 'gif';
         case 'image/svg+xml':

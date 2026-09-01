@@ -177,7 +177,7 @@ Second observation:
         of: imageViews.at(1),
         matching: find.byType(Image),
       );
-      await tester.tap(secondImage);
+      await tester.tap(secondImage, warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pumpAndSettle();
 
@@ -204,6 +204,83 @@ Second observation:
 
       expect(find.byType(ImageViewerModal), findsNothing);
       expect(find.text('Multi-image Report'), findsOneWidget);
+    });
+
+    testWidgets('Scrolls smoothly from bottom with multiple images to top without getting stuck', (tester) async {
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+
+      final dataMap = {
+        assetId1: testImageBytes1,
+        assetId2: testImageBytes2,
+      };
+
+      final paragraphs = List.generate(
+        15,
+        (i) => 'Paragraph $i contains extensive analytical details describing the system behavior.',
+      ).join('\n\n');
+
+      final markdown = '''
+# Long Document With Bottom Images
+
+$paragraphs
+
+Here are the visual assets at the bottom of the article:
+
+![First Diagram](qp://asset/$assetId1 "First diagram caption")
+
+![Second Chart](qp://asset/$assetId2 "Second chart caption")
+
+Concluding thoughts and final remarks.
+''';
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            keyManagerProvider.overrideWithValue(keyManager),
+            attachmentServiceProvider.overrideWithValue(MockAttachmentService(mockDataMap: dataMap)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: SizedBox(
+                width: 600,
+                height: 700,
+                child: QuietMarkdownPreview(
+                  markdownData: markdown,
+                  scrollController: scrollController,
+                  selectable: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      expect(scrollController.hasClients, isTrue);
+      final maxScroll = scrollController.position.maxScrollExtent;
+      expect(maxScroll, greaterThan(200.0));
+
+      while (scrollController.offset < scrollController.position.maxScrollExtent) {
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+
+      final bottomOffset = scrollController.offset;
+      expect(bottomOffset, greaterThan(200.0));
+
+      // Verify images at bottom are rendered
+      expect(find.byType(QuietAssetImageView), findsWidgets);
+
+      // Drag downwards directly over the images to scroll up towards the top
+      await tester.drag(find.byType(QuietAssetImageView).last, const Offset(0.0, 300.0));
+      await tester.pumpAndSettle();
+
+      // Scroll offset should have decreased (scrolled towards the top)
+      expect(scrollController.offset, lessThan(bottomOffset));
     });
   });
 }

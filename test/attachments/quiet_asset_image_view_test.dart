@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -238,7 +239,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(Image));
+      await tester.tap(find.byType(Image), warnIfMissed: false);
       await tester.pump();
       await tester.pumpAndSettle();
 
@@ -260,6 +261,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(Image), findsOneWidget);
+    });
+
+    testWidgets('Renders base64 data: URI image cleanly', (tester) async {
+      final base64String = 'data:image/png;base64,${base64Encode(testSmallImageBytes)}';
+      await tester.pumpWidget(
+        buildTestWidget(
+          child: QuietAssetImageView(
+            url: base64String,
+            altText: 'Base64 image',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsOneWidget);
+      final imageFinder = find.byType(Image);
+      final imageSize = tester.getSize(imageFinder);
+      expect(imageSize.width, 100.0);
+      expect(imageSize.height, 100.0);
     });
   });
 }

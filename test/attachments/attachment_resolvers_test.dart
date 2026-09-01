@@ -51,6 +51,14 @@ void main() {
 
       expect(
         AttachmentTypeResolver.resolveDisplayName(
+          mimeType: 'image/avif',
+          fileName: 'photo.avif',
+        ),
+        'AVIF Image',
+      );
+
+      expect(
+        AttachmentTypeResolver.resolveDisplayName(
           mimeType: 'application/pdf',
           fileName: 'contract.pdf',
         ),
@@ -77,6 +85,8 @@ void main() {
     test('infers MIME types accurately from filenames', () {
       expect(AttachmentTypeResolver.inferMimeType('photo.png'), 'image/png');
       expect(AttachmentTypeResolver.inferMimeType('photo.jpg'), 'image/jpeg');
+      expect(AttachmentTypeResolver.inferMimeType('photo.webp'), 'image/webp');
+      expect(AttachmentTypeResolver.inferMimeType('photo.avif'), 'image/avif');
       expect(AttachmentTypeResolver.inferMimeType('doc.docx'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       expect(AttachmentTypeResolver.inferMimeType('sheet.xlsx'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       expect(AttachmentTypeResolver.inferMimeType('archive.zip'), 'application/zip');
@@ -85,6 +95,13 @@ void main() {
       expect(AttachmentTypeResolver.inferMimeType('song.mp3'), 'audio/mpeg');
       expect(AttachmentTypeResolver.inferMimeType('video.mp4'), 'video/mp4');
       expect(AttachmentTypeResolver.inferMimeType('binary.dat'), 'application/octet-stream');
+    });
+
+    test('infers extensions from MIME types', () {
+      expect(AttachmentTypeResolver.inferExtension('file', mimeType: 'image/avif'), 'avif');
+      expect(AttachmentTypeResolver.inferExtension('file', mimeType: 'image/webp'), 'webp');
+      expect(AttachmentTypeResolver.inferExtension('file', mimeType: 'image/png'), 'png');
+      expect(AttachmentTypeResolver.inferExtension('file', mimeType: 'image/jpeg'), 'jpg');
     });
 
     test('strictly sanitizes filenames against path traversal and forbidden characters', () {

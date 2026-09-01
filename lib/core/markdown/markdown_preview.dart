@@ -87,7 +87,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
 
 class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   static final RegExp _imageSyntaxRegex = RegExp(
-    r'''!\[([^\]]*?)\]\(([^\s\)]+)(?:\s+["']([^"']*)["'])?\)''',
+    r'''!\[([^\]]*?)\]\((?:<([^>]+)>|([^\s\)]+))(?:\s+["']([^"']*)["'])?\)''',
   );
   static final RegExp _captionLineRegex = RegExp(
     r'^\s*(?:\*|_)([^*\n\r_]+)(?:\*|_)\s*$',
@@ -124,8 +124,8 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
 
     for (final match in matches) {
       final alt = match.group(1)?.trim();
-      final rawTarget = match.group(2)?.trim() ?? '';
-      final title = match.group(3)?.trim();
+      final rawTarget = (match.group(2) ?? match.group(3))?.trim() ?? '';
+      final title = match.group(4)?.trim();
 
       final qpUri = QuietPaperUri.tryParse(rawTarget);
       if (qpUri != null && qpUri.isDocument) {
@@ -528,6 +528,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
 
     Widget customImageBuilder(Uri uri, String? title, String? alt) {
       var uriString = uri.toString().trim();
+      if (uriString.startsWith('<') && uriString.endsWith('>')) {
+        uriString = uriString.substring(1, uriString.length - 1).trim();
+      }
       String? parsedTitle = (title != null && title.trim().isNotEmpty) ? title.trim() : null;
 
       if (uriString.contains(' ') || uriString.contains('"') || uriString.contains("'")) {

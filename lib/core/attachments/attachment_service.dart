@@ -51,6 +51,7 @@ class AttachmentService implements AssetResolver {
     'image/png',
     'image/webp',
     'image/gif',
+    'image/avif',
   };
 
   /// Imports an image from a local [File] into the encrypted Quiet Paper notebook.
@@ -464,6 +465,7 @@ class AttachmentService implements AssetResolver {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.avif')) return 'image/avif';
     return 'image/png';
   }
 

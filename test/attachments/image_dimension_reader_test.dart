@@ -45,6 +45,30 @@ void main() {
       expect(size.height, 100.0);
     });
 
+    test('extracts dimensions from valid AVIF header with ispe box', () {
+      final builder = BytesBuilder();
+      // ftyp box (28 bytes)
+      builder.add([0, 0, 0, 28]); // box size
+      builder.add([0x66, 0x74, 0x79, 0x70]); // 'ftyp'
+      builder.add([0x61, 0x76, 0x69, 0x66]); // 'avif' (major brand)
+      builder.add([0, 0, 0, 0]); // minor version
+      builder.add([0x61, 0x76, 0x69, 0x66]); // 'avif' (compatible brand)
+      builder.add([0x6d, 0x69, 0x66, 0x31]); // 'mif1' (compatible brand)
+
+      // ispe box (20 bytes: 4 size + 4 type + 1 version + 3 flags + 4 width + 4 height)
+      builder.add([0, 0, 0, 20]); // box size
+      builder.add([0x69, 0x73, 0x70, 0x65]); // 'ispe'
+      builder.add([0, 0, 0, 0]); // version 0, flags 0
+      builder.add([0, 0, 7, 128]); // width = 1920 (0x0780)
+      builder.add([0, 0, 4, 56]); // height = 1080 (0x0438)
+
+      final avifBytes = builder.toBytes();
+      final size = ImageDimensionReader.extractDimensions(avifBytes);
+      expect(size, isNotNull);
+      expect(size!.width, 1920.0);
+      expect(size.height, 1080.0);
+    });
+
     test('returns null for empty or corrupted image bytes', () {
       expect(ImageDimensionReader.extractDimensions(Uint8List(0)), isNull);
       expect(ImageDimensionReader.extractDimensions(Uint8List.fromList([1, 2, 3])), isNull);

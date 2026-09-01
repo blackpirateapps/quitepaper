@@ -104,6 +104,7 @@ class WebImageDownloader {
     final lower = url.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.avif')) return 'image/avif';
     if (lower.endsWith('.gif')) return 'image/gif';
     return 'image/jpeg';
   }

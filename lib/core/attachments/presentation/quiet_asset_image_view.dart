@@ -56,7 +56,11 @@ class QuietAssetImageView extends ConsumerStatefulWidget {
   ConsumerState<QuietAssetImageView> createState() => _QuietAssetImageViewState();
 }
 
-class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
+class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
+    with AutomaticKeepAliveClientMixin {
+  static final Map<String, Size> _globalDimensionCache = {};
+  static final Map<String, Uint8List> _globalBytesCache = {};
+
   Uint8List? _imageBytes;
   Size? _intrinsicSize;
   bool _isLoading = true;
@@ -65,9 +69,24 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
   IconData _errorIcon = Icons.broken_image_outlined;
 
   @override
+  bool get wantKeepAlive => true;
+
+  String get _effectiveCacheKey =>
+      widget.assetId ?? widget.url ?? '';
+
+  @override
   void initState() {
     super.initState();
-    _loadImage();
+    final key = _effectiveCacheKey;
+    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
+      _imageBytes = _globalBytesCache[key];
+      _intrinsicSize = _globalDimensionCache[key] ??
+          ImageDimensionReader.extractDimensions(_imageBytes!);
+      _isLoading = false;
+      _hasError = false;
+    } else {
+      _loadImage();
+    }
   }
 
   @override
@@ -76,11 +95,34 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
     if (oldWidget.assetId != widget.assetId ||
         oldWidget.url != widget.url ||
         oldWidget.variant != widget.variant) {
-      _loadImage();
+      final key = _effectiveCacheKey;
+      if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
+        _imageBytes = _globalBytesCache[key];
+        _intrinsicSize = _globalDimensionCache[key] ??
+            ImageDimensionReader.extractDimensions(_imageBytes!);
+        _isLoading = false;
+        _hasError = false;
+      } else {
+        _loadImage();
+      }
     }
   }
 
   Future<void> _loadImage() async {
+    final key = _effectiveCacheKey;
+    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
+      if (mounted) {
+        setState(() {
+          _imageBytes = _globalBytesCache[key];
+          _intrinsicSize = _globalDimensionCache[key] ??
+              ImageDimensionReader.extractDimensions(_imageBytes!);
+          _isLoading = false;
+          _hasError = false;
+        });
+      }
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -102,8 +144,14 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
         if (result.isAvailable && result.data != null) {
           _imageBytes = result.data;
           _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
+          if (key.isNotEmpty) {
+            _globalBytesCache[key] = _imageBytes!;
+            if (_intrinsicSize != null) {
+              _globalDimensionCache[key] = _intrinsicSize!;
+            }
+          }
           if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!);
+            _decodeIntrinsicSize(_imageBytes!, key);
           }
           if (mounted) {
             setState(() {
@@ -140,9 +188,44 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
         return;
       }
 
-      // 2. Resolve external network URL
+      // 2. Resolve base64 data: URI
+      if (widget.url != null && widget.url!.startsWith('data:')) {
+        final dataUri = widget.url!;
+        final commaIdx = dataUri.indexOf(',');
+        if (commaIdx != -1) {
+          final base64Data = dataUri.substring(commaIdx + 1).trim();
+          final bytes = base64Decode(base64Data);
+          _imageBytes = bytes;
+          _intrinsicSize = ImageDimensionReader.extractDimensions(bytes);
+          if (key.isNotEmpty) {
+            _globalBytesCache[key] = bytes;
+            if (_intrinsicSize != null) {
+              _globalDimensionCache[key] = _intrinsicSize!;
+            }
+          }
+          if (_intrinsicSize == null) {
+            _decodeIntrinsicSize(bytes, key);
+          }
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        }
+      }
+
+      // 3. Resolve external network URL
       if (widget.url != null && widget.url!.isNotEmpty) {
-        final uri = Uri.tryParse(widget.url!);
+        var rawUrl = widget.url!.trim();
+        var uri = Uri.tryParse(rawUrl);
+        if (uri == null || !uri.hasScheme) {
+          try {
+            uri = Uri.tryParse(Uri.encodeFull(rawUrl));
+          } catch (_) {}
+        }
+
         if (uri == null || !uri.hasScheme) {
           if (mounted) {
             setState(() {
@@ -161,8 +244,14 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
           _imageBytes = response.bodyBytes;
           _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
+          if (key.isNotEmpty) {
+            _globalBytesCache[key] = _imageBytes!;
+            if (_intrinsicSize != null) {
+              _globalDimensionCache[key] = _intrinsicSize!;
+            }
+          }
           if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!);
+            _decodeIntrinsicSize(_imageBytes!, key);
           }
           if (mounted) {
             setState(() {
@@ -193,16 +282,20 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
     }
   }
 
-  void _decodeIntrinsicSize(Uint8List bytes) {
+  void _decodeIntrinsicSize(Uint8List bytes, [String? cacheKey]) {
     ui.instantiateImageCodec(bytes).then((codec) {
       return codec.getNextFrame();
     }).then((frame) {
+      final size = Size(
+        frame.image.width.toDouble(),
+        frame.image.height.toDouble(),
+      );
+      if (cacheKey != null && cacheKey.isNotEmpty) {
+        _globalDimensionCache[cacheKey] = size;
+      }
       if (mounted) {
         setState(() {
-          _intrinsicSize = Size(
-            frame.image.width.toDouble(),
-            frame.image.height.toDouble(),
-          );
+          _intrinsicSize = size;
         });
       }
     }).catchError((_) {
@@ -237,6 +330,7 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final colors = context.appColors;
 
     final effectiveAlt = widget.altText?.trim().isNotEmpty == true &&

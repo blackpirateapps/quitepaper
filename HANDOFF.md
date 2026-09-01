@@ -4421,6 +4421,41 @@ During list scrolling and tile interactions (hovering, selection, tab switching)
 - All 1,067 unit and widget tests pass with 0 errors (`flutter test`).
 - Static analysis clean (`flutter analyze` with 0 issues).
 
+---
+
+## 30. Image Rendering Resiliency, AVIF Format Support & Scroll Gesture Optimization
+
+### 1. Problem & Root Cause Analysis
+Users reported issues with notes containing images (specifically web-clipped notes):
+1. **Editor / Preview Scroll Freeze**: When reaching the bottom of a note containing multiple images in the viewport, dragging downwards (to scroll back up to the top) failed to scroll or became stuck.
+   - *Root Cause 1 (Gesture Arena Win Conflict)*: An ancestor `GestureDetector(behavior: HitTestBehavior.opaque, onVerticalDragEnd: ...)` in `EditorScreen` was capturing vertical drag recognizers and beating inner scroll views. Overscroll search reveal was already cleanly handled by `NotificationListener<ScrollNotification>`, making `onVerticalDragEnd` on `GestureDetector` harmful.
+   - *Root Cause 2 (Layout Shifts & Virtualized Item Recycling)*: In `MarkdownPreview`'s `ListView.builder`, image items recycled when scrolled offscreen. When scrolled back, `QuietAssetImageView` reset to placeholder height (~200px) and asynchronously popped to 520px upon decoding. In a virtualized list, dynamically expanding items above the viewport cause `ScrollPosition` corrections that bounce or lock scroll progress back to the bottom.
+2. **Lack of AVIF Image Format Support**: `.avif` images and `image/avif` MIME types were not recognized in `AttachmentService`, `AttachmentTypeResolver`, `WebImageDownloader`, or `ImageDimensionReader`.
+3. **Data URI & Escaped URLs in Web Clips**: Web-clipped notes containing inline `data:image/...;base64,...` URIs failed because `QuietAssetImageView` attempted HTTP GET requests on data URIs.
+4. **Scrollbar Rebuild Stutter**: `IntelligentHeadingScrollbar` called root `setState()` on every frame during scrolling, re-evaluating the entire document widget tree.
+
+### 2. Architectural Changes & Solutions
+1. **Full AVIF Format Support**:
+   - Registered `image/avif` and `.avif` in [`lib/core/attachments/attachment_service.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_service.dart), [`lib/core/attachments/attachment_type_resolver.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_type_resolver.dart), and [`lib/core/web_clipper/web_image_downloader.dart`](file:///home/dog/git/quitepaper/lib/core/web_clipper/web_image_downloader.dart).
+   - Added pure Dart synchronous AVIF dimension parsing in [`lib/core/attachments/presentation/image_dimension_reader.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_dimension_reader.dart): scans ISOBMFF container headers (`ftyp` + `ispe` boxes) for instantaneous width/height extraction with zero asynchronous delays.
+2. **`QuietAssetImageView` KeepAlive, Memory Caching & Data URI Support**:
+   - Added `AutomaticKeepAliveClientMixin` with `wantKeepAlive => true` in [`lib/core/attachments/presentation/quiet_asset_image_view.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart), preserving layout state across `ListView` virtualization.
+   - Introduced static in-memory caches (`_globalDimensionCache` & `_globalBytesCache`) to immediately restore exact intrinsic dimensions on frame 0 during widget recycling.
+   - Added native base64 decoding for `data:image/...;base64,...` URIs and automatic URI encoding resilience for special characters.
+3. **Gesture Arena Conflict Removal in `EditorScreen`**:
+   - Removed conflicting `onVerticalDragEnd` from [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart) and switched `behavior: HitTestBehavior.translucent`. Downward and upward drags directly over images now pass unhindered to `Scrollable`.
+4. **Scrollbar Performance & Multi-Client Safety**:
+   - Replaced full-widget `setState()` rebuilds on scroll updates in [`lib/core/widgets/intelligent_heading_scrollbar.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/intelligent_heading_scrollbar.dart) with `ValueNotifier<int> _scrollTick` scoped solely to the scrollbar thumb and heading overlay. The underlying document `widget.child` is completely isolated from scroll rebuilds.
+   - Guarded against `ScrollController.position` multi-view assertions by safely checking `positions` iterations.
+
+### 3. Verification
+- Added AVIF ISOBMFF header parsing tests in [`test/attachments/image_dimension_reader_test.dart`](file:///home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart).
+- Added AVIF type resolver unit tests in [`test/attachments/attachment_resolvers_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_resolvers_test.dart).
+- Added data URI widget tests in [`test/attachments/quiet_asset_image_view_test.dart`](file:///home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart).
+- Added bottom-to-top multi-image scroll integration tests in [`test/markdown/markdown_preview_image_test.dart`](file:///home/dog/git/quitepaper/test/markdown/markdown_preview_image_test.dart).
+- Full test suite passed (1,071 / 1,071 tests passing).
+- Static analysis clean (`flutter analyze` with 0 issues).
+
 
 
 
