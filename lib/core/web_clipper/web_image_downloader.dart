@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../attachments/attachment_service.dart';
+import 'clipped_image_filter.dart';
 import 'web_clipper_models.dart';
 
 /// Concurrently downloads article images, encrypts them client-side using [AttachmentService],
@@ -37,18 +38,28 @@ class WebImageDownloader {
       while (queue.isNotEmpty) {
         final item = queue.removeAt(0);
         try {
-          final uri = Uri.tryParse(item.resolvedUrl);
+          var uri = Uri.tryParse(item.resolvedUrl.trim());
+          if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+            try {
+              uri = Uri.tryParse(Uri.encodeFull(item.resolvedUrl.trim()));
+            } catch (_) {}
+          }
+
           if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
             continue;
           }
 
           final response = await _httpClient.get(
             uri,
-            headers: const {
+            headers: {
               'User-Agent':
                   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
               'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.9',
+              if (uri.hasAuthority) 'Referer': '${uri.scheme}://${uri.authority}/',
+              'Sec-Fetch-Dest': 'image',
+              'Sec-Fetch-Mode': 'no-cors',
+              'Sec-Fetch-Site': 'cross-site',
             },
           ).timeout(const Duration(seconds: 15));
 
@@ -56,6 +67,12 @@ class WebImageDownloader {
             final bytes = response.bodyBytes;
             if (bytes.length > AttachmentService.maxFileSizeBytes) {
               debugPrint('Image ${item.resolvedUrl} exceeds max size limit, skipping');
+              continue;
+            }
+
+            // Verify content is a meaningful image and not an empty spacer or icon
+            if (!ClippedImageFilter.isMeaningfulImageBytes(bytes)) {
+              debugPrint('Image ${item.resolvedUrl} is a tiny icon or tracking spacer (<400B or <32x32), skipping');
               continue;
             }
 
@@ -102,10 +119,12 @@ class WebImageDownloader {
     }
 
     final lower = url.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.avif')) return 'image/avif';
-    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.contains('.png')) return 'image/png';
+    if (lower.contains('.webp')) return 'image/webp';
+    if (lower.contains('.avif')) return 'image/avif';
+    if (lower.contains('.svg')) return 'image/svg+xml';
+    if (lower.contains('.gif')) return 'image/gif';
+    if (lower.contains('.bmp')) return 'image/bmp';
     return 'image/jpeg';
   }
 
@@ -123,6 +142,16 @@ class WebImageDownloader {
       final decoded = Uri.decodeFull(trimmed);
       if (decoded != trimmed) {
         map[decoded] = snippet;
+        if (decoded.contains('?')) {
+          final base = decoded.split('?').first;
+          if (base.isNotEmpty) {
+            map[base] = snippet;
+          }
+        }
+      }
+      final encoded = Uri.encodeFull(trimmed);
+      if (encoded != trimmed) {
+        map[encoded] = snippet;
       }
     } catch (_) {}
   }

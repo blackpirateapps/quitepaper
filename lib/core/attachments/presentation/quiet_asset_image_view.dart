@@ -238,7 +238,19 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
           return;
         }
 
-        final response = await http.get(uri);
+        final response = await http.get(
+          uri,
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            if (uri.hasAuthority) 'Referer': '${uri.scheme}://${uri.authority}/',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site',
+          },
+        );
         if (!mounted) return;
 
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {

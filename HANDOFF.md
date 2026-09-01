@@ -4505,6 +4505,37 @@ Journal V1 adds calm, intentional daily reflection to Quiet Paper without alteri
 - Total test suite: **1,107 passed / 0 failed** (`flutter test`).
 - Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
 
+---
+
+## 32. Web Clipper Content-Aware Image Filtering & AVIF/Responsive Ingestion
+
+### 1. Problem & Root Cause Analysis
+Users reported that AVIF and modern web-clipped images were failing to load or showing `Failed to load image (404) Tap to retry`:
+1. **Responsive `<picture>` and `<source type="image/avif">` Ignored**: Modern publishers wrap AVIF images inside `<picture><source type="image/avif" srcset="..."><img></picture>`. `ArticleExtractor` previously queried only `img.attributes['src']` and discarded `<source>` tags.
+2. **Missing Anti-Hotlinking Headers**: When images remained remote `https://...` URLs, `QuietAssetImageView` and `WebImageDownloader` fetched them over HTTP without a `Referer` or browser `User-Agent`. Modern CDNs (Cloudflare, Substack, Medium, Fastly, AWS S3) block hotlinked image requests lacking a browser `Referer` with `HTTP 404 / 403`.
+3. **Crude Format-Based Skipping**: Previously, `.svg` and `data:image/svg+xml` were dropped by extension alone, discarding valid vector diagrams and charts.
+
+### 2. Architectural Enhancements
+1. **Multi-Signal Heuristic Filtering (`ClippedImageFilter`)**:
+   - **Format Agnostic**: Full native support for AVIF, WebP, SVG, PNG, JPEG, GIF, and Data URIs with zero format discrimination.
+   - **Explicit Dimensions**: Drops decorative icons ($\le 40\times 40$ px or `style="width: 24px"`) and 1x1 tracking/spacer pixels ($\le 1$ px).
+   - **DOM Ancestors**: Automatically skips images nested in `<nav>`, `<button>`, `<header>`, `<footer>`, `.social-share`, `.author-avatar`, `.reactions`, `.comments-section`.
+   - **Semantic Classes & Alt Text**: Drops UI artifacts with classes/alt text matching `icon`, `btn-icon`, `chevron`, `spinner`, `badge-icon`, `logo-small`, `hamburger`.
+   - **Data URI Length**: Filters out tiny base64 spacers ($< 200$ chars) while preserving embedded vector charts and diagrams ($\ge 200$ chars).
+   - **Responsive `<picture>` & `srcset` Density Extraction**: Parses `<picture><source>` and `srcset="... 800w, ... 1600w"` to select the highest-density AVIF/WebP/SVG candidate.
+2. **Anti-Hotlinking & Referer Headers (`WebImageDownloader` & `QuietAssetImageView`)**:
+   - Standard browser headers (`User-Agent`, `Referer: ${uri.scheme}://${uri.authority}/`, `Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8`, `Sec-Fetch-Dest: image`, `Sec-Fetch-Mode: no-cors`, `Sec-Fetch-Site: cross-site`) are sent on all remote HTTP image requests, bypassing anti-hotlinking blocks.
+3. **URL Resolution & Markdown Normalization (`WebClipperService` & `HtmlToMarkdownConverter`)**:
+   - Handled `case 'picture':` in `HtmlToMarkdownConverter`.
+   - Enhanced `_resolveAssetUri` with decoded, encoded, and path-end matching to guarantee 100% replacement of remote URLs with local encrypted `qp://asset/<UUID>` attachments in SQLite.
+
+### 3. Automated Verification
+- Added comprehensive unit tests in [`test/web_clipper/clipped_image_filter_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/clipped_image_filter_test.dart) covering icon dimensions, style heuristics, noisy parent containers, tracker URLs, data URIs, and `<picture>` / `srcset` density extraction.
+- Added integration test in [`test/web_clipper/article_extractor_picture_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/article_extractor_picture_test.dart) verifying AVIF extraction from complex responsive `<picture>` tags and noisy icon removal.
+- Added unit test in [`test/web_clipper/web_image_downloader_avif_test.dart`](file:///home/dog/git/quitepaper/test/web_clipper/web_image_downloader_avif_test.dart) verifying `Referer` and anti-hotlinking headers during AVIF downloads and snippet mapping.
+- All 1,117 unit and widget tests pass with 0 errors (`flutter test`).
+- Static analysis clean (`flutter analyze` with 0 issues).
+
 
 
 

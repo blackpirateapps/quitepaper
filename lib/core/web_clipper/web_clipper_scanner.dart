@@ -4,6 +4,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import 'package:markdown/markdown.dart' as md;
 import 'article_extractor.dart';
+import 'clipped_image_filter.dart';
 import 'html_to_markdown_converter.dart';
 import 'web_capture_payload.dart';
 import 'web_capture_result.dart';
@@ -445,8 +446,8 @@ class WebClipperScanner {
     final seenUrls = <String>{};
 
     if (leadImageUrl != null && leadImageUrl.trim().isNotEmpty) {
-      final resolved = _resolveUrl(leadImageUrl, sourceUri);
-      if (_isValidImageUrl(resolved)) {
+      final resolved = ClippedImageFilter.resolveUrl(leadImageUrl, sourceUri);
+      if (ClippedImageFilter.isUsefulImageUrl(resolved)) {
         images.add(ClippedImageCandidate(
           rawUrl: leadImageUrl,
           resolvedUrl: resolved,
@@ -459,16 +460,22 @@ class WebClipperScanner {
       }
     }
 
-    final imgRegex = RegExp(r'!\[(.*?)\]\(((https?:\/\/[^\s\)]+))\)');
+    final imgRegex = RegExp(
+      r'''!\[(.*?)\]\((?:<([^>]+)>|([^\s\)]+))(?:\s+["']([^"']*)["'])?\)''',
+    );
     final matches = imgRegex.allMatches(markdownBody);
 
     for (final match in matches) {
       final alt = match.group(1)?.trim() ?? '';
-      final rawSrc = match.group(2)?.trim() ?? '';
-      if (rawSrc.isEmpty || _isIgnoredAltText(alt)) continue;
+      final rawSrc = (match.group(2) ?? match.group(3))?.trim() ?? '';
+      if (rawSrc.isEmpty) continue;
 
-      final resolved = _resolveUrl(rawSrc, sourceUri);
-      if (seenUrls.contains(resolved) || !_isValidImageUrl(resolved)) continue;
+      final resolved = ClippedImageFilter.resolveUrl(rawSrc, sourceUri);
+      if (seenUrls.contains(resolved)) continue;
+
+      if (!ClippedImageFilter.isUsefulImageUrl(resolved, altText: alt)) {
+        continue;
+      }
 
       images.add(ClippedImageCandidate(
         rawUrl: rawSrc,
@@ -480,59 +487,13 @@ class WebClipperScanner {
       ));
       seenUrls.add(resolved);
 
-      // Bound discovery to the top 25 highest quality content images
-      if (images.length >= 25) {
+      // Bound discovery to the top 35 highest quality content images
+      if (images.length >= 35) {
         break;
       }
     }
 
     return images;
-  }
-
-  bool _isIgnoredAltText(String alt) {
-    final lower = alt.toLowerCase().trim();
-    return lower.contains('icon') ||
-        lower.contains('logo') ||
-        lower.contains('close') ||
-        lower.contains('arrow') ||
-        lower.contains('hamburger') ||
-        lower.contains('menu');
-  }
-
-  String _resolveUrl(String url, Uri baseUri) {
-    final trimmed = url.trim();
-    if (trimmed.startsWith('//')) {
-      return '${baseUri.scheme.isNotEmpty ? baseUri.scheme : "https"}:$trimmed';
-    }
-    final parsed = Uri.tryParse(trimmed);
-    if (parsed == null) return trimmed;
-    if (parsed.hasScheme) return trimmed;
-    return baseUri.resolveUri(parsed).toString();
-  }
-
-  bool _isValidImageUrl(String url) {
-    final lower = url.toLowerCase().trim();
-    if (lower.isEmpty) return false;
-    if (lower.startsWith('data:image/svg') ||
-        lower.endsWith('.svg') ||
-        lower.contains('.svg?') ||
-        lower.contains('.svg#')) {
-      return false;
-    }
-    if (lower.contains('tracker') ||
-        lower.contains('1x1') ||
-        lower.contains('pixel') ||
-        lower.contains('adsct') ||
-        lower.contains('beacon')) {
-      return false;
-    }
-    if (lower.contains('icon_') ||
-        lower.contains('/icons/') ||
-        lower.contains('hamburger') ||
-        lower.contains('logostack')) {
-      return false;
-    }
-    return lower.startsWith('http://') || lower.startsWith('https://');
   }
 
   String _htmlEscape(String text) {
@@ -608,12 +569,20 @@ class WebClipperScanner {
         var size = candidate.estimatedSizeBytes;
 
         try {
-          final uri = Uri.tryParse(candidate.resolvedUrl);
+          var uri = Uri.tryParse(candidate.resolvedUrl.trim());
+          if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+            try {
+              uri = Uri.tryParse(Uri.encodeFull(candidate.resolvedUrl.trim()));
+            } catch (_) {}
+          }
+
           if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
             final headRes = await _httpClient.head(
               uri,
               headers: {
                 'User-Agent': _browserHeaders['User-Agent']!,
+                if (uri.hasAuthority) 'Referer': '${uri.scheme}://${uri.authority}/',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
               },
             ).timeout(const Duration(milliseconds: 1500));
 

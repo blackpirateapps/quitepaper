@@ -233,30 +233,47 @@ class WebClipperService {
     if (url == null || url.trim().isEmpty) return null;
     final trimmed = url.trim();
 
-    // 1. Direct match
-    if (snippetsMap.containsKey(trimmed)) {
-      final snippet = snippetsMap[trimmed]!;
+    String? extractUri(String snippet) {
       final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
-      if (match != null) return match.group(1);
+      return match?.group(1);
     }
 
-    // 2. Query stripped match
+    // 1. Direct match
+    if (snippetsMap.containsKey(trimmed)) {
+      final uri = extractUri(snippetsMap[trimmed]!);
+      if (uri != null) return uri;
+    }
+
+    // 2. Encoded / Decoded URI match
+    try {
+      final decoded = Uri.decodeFull(trimmed);
+      if (snippetsMap.containsKey(decoded)) {
+        final uri = extractUri(snippetsMap[decoded]!);
+        if (uri != null) return uri;
+      }
+      final encoded = Uri.encodeFull(trimmed);
+      if (snippetsMap.containsKey(encoded)) {
+        final uri = extractUri(snippetsMap[encoded]!);
+        if (uri != null) return uri;
+      }
+    } catch (_) {}
+
+    // 3. Query stripped match
     if (trimmed.contains('?')) {
       final base = trimmed.split('?').first;
       if (snippetsMap.containsKey(base)) {
-        final snippet = snippetsMap[base]!;
-        final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
-        if (match != null) return match.group(1);
+        final uri = extractUri(snippetsMap[base]!);
+        if (uri != null) return uri;
       }
     }
 
-    // 3. Fallback scan entries
+    // 4. Fallback scan entries
     for (final entry in snippetsMap.entries) {
       if (entry.key == trimmed ||
           (trimmed.contains('?') && entry.key.split('?').first == trimmed.split('?').first) ||
           (entry.key.contains('?') && entry.key.split('?').first == trimmed)) {
-        final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(entry.value);
-        if (match != null) return match.group(1);
+        final uri = extractUri(entry.value);
+        if (uri != null) return uri;
       }
     }
 

@@ -208,6 +208,13 @@ class HtmlToMarkdownConverter {
         if (text.isEmpty) return href;
         return '[$text]($href)';
 
+      case 'picture':
+        final img = el.querySelector('img');
+        if (img != null) {
+          return _convertNode(img, listDepth: listDepth, isOrdered: isOrdered, itemIndex: itemIndex);
+        }
+        return '';
+
       case 'img':
         final src = el.attributes['src']?.trim() ?? '';
         if (src.isEmpty) return '';

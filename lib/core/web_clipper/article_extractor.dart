@@ -1,5 +1,6 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'clipped_image_filter.dart';
 import 'web_clipper_models.dart';
 
 /// Readability and article extraction engine.
@@ -297,28 +298,36 @@ class ArticleExtractor {
         }
       }
 
-      // Convert lazy images data-src to src
-      if (child.localName == 'img') {
-        final src = child.attributes['src'];
-        final dataSrc = child.attributes['data-src'] ??
-            child.attributes['data-original'] ??
-            child.attributes['data-lazy-src'] ??
-            child.attributes['data-url'];
-
-        if ((src == null || src.isEmpty || src.startsWith('data:image')) &&
-            dataSrc != null &&
-            dataSrc.isNotEmpty) {
-          child.attributes['src'] = dataSrc;
+      // 3. Process <picture> and <img> elements
+      if (child.localName == 'picture') {
+        final bestSrc = ClippedImageFilter.extractBestImageSource(child, baseUri);
+        final img = child.querySelector('img') ?? dom.Element.tag('img');
+        if (bestSrc != null && bestSrc.isNotEmpty) {
+          img.attributes['src'] = bestSrc;
+        }
+        // Remove <source> children to keep DOM clean for markdown conversion
+        child.querySelectorAll('source').forEach((s) => s.remove());
+        if (child.children.isEmpty && bestSrc != null) {
+          child.append(img);
+        }
+      } else if (child.localName == 'img') {
+        if (child.parent?.localName == 'picture') {
+          // Already handled by picture processor above
+          continue;
         }
 
-        // Resolve absolute URL
-        final rawSrc = child.attributes['src'];
-        if (rawSrc != null && rawSrc.isNotEmpty) {
-          child.attributes['src'] = _resolveUrl(rawSrc, baseUri);
+        if (!ClippedImageFilter.isUsefulContentImage(child, baseUri: baseUri)) {
+          child.remove();
+          continue;
+        }
+
+        final bestSrc = ClippedImageFilter.extractBestImageSource(child, baseUri);
+        if (bestSrc != null && bestSrc.isNotEmpty) {
+          child.attributes['src'] = bestSrc;
         }
       }
 
-      // Resolve links
+      // 4. Resolve links
       if (child.localName == 'a') {
         final href = child.attributes['href'];
         if (href != null && href.isNotEmpty) {
@@ -340,8 +349,8 @@ class ArticleExtractor {
 
     // 1. Add lead image if present
     if (leadImageUrl != null && leadImageUrl.isNotEmpty) {
-      final resolved = _resolveUrl(leadImageUrl, baseUri);
-      if (_isValidImageUrl(resolved)) {
+      final resolved = ClippedImageFilter.resolveUrl(leadImageUrl, baseUri);
+      if (ClippedImageFilter.isUsefulImageUrl(resolved)) {
         images.add(ClippedImageCandidate(
           rawUrl: leadImageUrl,
           resolvedUrl: resolved,
@@ -354,29 +363,43 @@ class ArticleExtractor {
       }
     }
 
-    // 2. Discover inline article images
-    final imgNodes = articleEl.querySelectorAll('img');
-    for (final img in imgNodes) {
-      final src = img.attributes['src'];
-      if (src == null || src.isEmpty) continue;
+    // 2. Discover inline article images from <picture> and <img>
+    final imgNodes = articleEl.querySelectorAll('img, picture');
+    for (final node in imgNodes) {
+      dom.Element imgEl;
+      if (node.localName == 'picture') {
+        imgEl = node.querySelector('img') ?? node;
+      } else {
+        if (node.parent?.localName == 'picture') {
+          continue; // Avoid duplicate processing of picture children
+        }
+        imgEl = node;
+      }
 
-      final resolved = _resolveUrl(src, baseUri);
-      if (seenUrls.contains(resolved) || !_isValidImageUrl(resolved)) continue;
+      final bestSrc = ClippedImageFilter.extractBestImageSource(node, baseUri);
+      if (bestSrc == null || bestSrc.isEmpty) continue;
+
+      final resolved = ClippedImageFilter.resolveUrl(bestSrc, baseUri);
+      if (seenUrls.contains(resolved)) continue;
+
+      if (!ClippedImageFilter.isUsefulImageUrl(resolved, altText: imgEl.attributes['alt'])) {
+        continue;
+      }
 
       // Extract alt & caption
-      final alt = img.attributes['alt']?.trim() ?? '';
+      final alt = imgEl.attributes['alt']?.trim() ?? '';
       var caption = '';
 
       // Check parent figure caption
-      final parentFigure = img.parent?.localName == 'figure'
-          ? img.parent
-          : (img.parent?.parent?.localName == 'figure' ? img.parent?.parent : null);
+      final parentFigure = node.parent?.localName == 'figure'
+          ? node.parent
+          : (node.parent?.parent?.localName == 'figure' ? node.parent?.parent : null);
       if (parentFigure != null) {
         caption = parentFigure.querySelector('figcaption')?.text.trim() ?? '';
       }
 
       images.add(ClippedImageCandidate(
-        rawUrl: src,
+        rawUrl: bestSrc,
         resolvedUrl: resolved,
         altText: alt.isNotEmpty ? alt : (caption.isNotEmpty ? caption : 'Article image'),
         caption: caption,
@@ -385,26 +408,15 @@ class ArticleExtractor {
         estimatedSizeBytes: 250 * 1024, // Initial estimate 250KB
       ));
       seenUrls.add(resolved);
+
+      if (images.length >= 35) {
+        break;
+      }
     }
 
     return images;
   }
 
-  String _resolveUrl(String url, Uri baseUri) {
-    final trimmed = url.trim();
-    if (trimmed.startsWith('//')) {
-      return '${baseUri.scheme.isNotEmpty ? baseUri.scheme : "https"}:$trimmed';
-    }
-    final parsed = Uri.tryParse(trimmed);
-    if (parsed == null) return trimmed;
-    if (parsed.hasScheme) return trimmed;
-    return baseUri.resolveUri(parsed).toString();
-  }
-
-  bool _isValidImageUrl(String url) {
-    if (url.isEmpty) return false;
-    if (url.startsWith('data:image/svg+xml')) return false; // Ignore small SVG placeholders
-    if (url.contains('tracker') || url.contains('1x1') || url.contains('pixel')) return false;
-    return url.startsWith('http://') || url.startsWith('https://');
-  }
+  String _resolveUrl(String url, Uri baseUri) =>
+      ClippedImageFilter.resolveUrl(url, baseUri);
 }
