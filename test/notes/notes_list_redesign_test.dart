@@ -204,6 +204,64 @@ The security vulnerability was discovered during an automated penetration test.
       expect(metadata.thumbnailData, isNull);
       expect(metadata.tablePreview, isNull);
     });
+
+    test('caches extracted NoteMetadata and returns identical instance on cache hit', () {
+      NoteMetadataExtractor.clearCache();
+      expect(NoteMetadataExtractor.cacheSize, 0);
+
+      final note = Note(
+        id: 'note-cache-1',
+        title: 'Cached Note',
+        content: 'Testing cache hit behavior and zero redundant re-parsing.',
+        createdAt: testNow,
+        updatedAt: testNow,
+      );
+
+      final meta1 = NoteMetadataExtractor.extract(note);
+      expect(NoteMetadataExtractor.cacheSize, 1);
+
+      final meta2 = NoteMetadataExtractor.extract(note);
+      // Identical instance from cache
+      expect(identical(meta1, meta2), isTrue);
+      expect(NoteMetadataExtractor.cacheSize, 1);
+
+      // Mutating updatedAt causes cache miss and creates new cached entry
+      final updatedNote = note.copyWith(
+        updatedAt: testNow.add(const Duration(minutes: 5)),
+      );
+      final meta3 = NoteMetadataExtractor.extract(updatedNote);
+      expect(identical(meta1, meta3), isFalse);
+      expect(meta3.displayTitle, 'Cached Note');
+      expect(NoteMetadataExtractor.cacheSize, 2);
+
+      // Invalidate note by ID removes its cached entries
+      NoteMetadataExtractor.invalidate(note.id);
+      expect(NoteMetadataExtractor.cacheSize, 0);
+    });
+
+    test('evicts oldest LRU entry when cache capacity exceeds maxCacheSize', () {
+      NoteMetadataExtractor.clearCache();
+
+      for (var i = 0; i < 510; i++) {
+        final note = Note(
+          id: 'note-lru-$i',
+          title: 'Title $i',
+          content: 'Content for note $i',
+          createdAt: testNow,
+          updatedAt: testNow,
+        );
+        NoteMetadataExtractor.extract(note);
+      }
+
+      expect(NoteMetadataExtractor.cacheSize, NoteMetadataExtractor.maxCacheSize);
+    });
+
+    test('fast-path heuristics correctly handle plain text notes with no special markers', () {
+      expect(NoteMetadataExtractor.extractTablePreview('Plain text with no table syntax'), isNull);
+      expect(NoteMetadataExtractor.extractAttachmentSummary('Plain text without attachments'), isNull);
+      expect(NoteMetadataExtractor.extractThumbnailData('Plain text without thumbnails'), isNull);
+      expect(NoteMetadataExtractor.cleanMarkdownLine('Plain text without markdown formatting'), 'Plain text without markdown formatting');
+    });
   });
 
   group('NoteListTile & NoteMiniTablePreview Widget Tests', () {
@@ -432,6 +490,10 @@ The security vulnerability was discovered during an automated penetration test.
 
       expect(find.byIcon(Icons.picture_as_pdf_outlined), findsOneWidget);
       expect(find.text('PDF'), findsOneWidget);
+    });
+
+    test('clearThumbnailCaches executes cleanly', () {
+      clearThumbnailCaches();
     });
   });
 

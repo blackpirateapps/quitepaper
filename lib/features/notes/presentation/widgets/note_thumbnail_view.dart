@@ -11,6 +11,16 @@ import '../../domain/note_metadata_extractor.dart';
 /// In-memory cache for rasterized PDF page-0 thumbnails to ensure smooth 60fps scrolling.
 final Map<String, Uint8List> _pdfThumbnailCache = {};
 
+/// In-memory cache for resolved encrypted local asset thumbnails to eliminate disk I/O on scroll.
+final Map<String, Uint8List> _assetThumbnailCache = {};
+
+/// Clears in-memory thumbnail caches (for tests and memory management).
+@visibleForTesting
+void clearThumbnailCaches() {
+  _pdfThumbnailCache.clear();
+  _assetThumbnailCache.clear();
+}
+
 /// Compact, non-blocking image, PDF, and text file thumbnail widget for note list tiles.
 class NoteThumbnailView extends ConsumerStatefulWidget {
   const NoteThumbnailView({
@@ -47,7 +57,15 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
   @override
   void initState() {
     super.initState();
-    _loadThumbnail();
+    final uri = _effectiveUri;
+    final kind = _effectiveKind;
+    if (kind == ThumbnailKind.pdf && _pdfThumbnailCache.containsKey(uri)) {
+      _imageBytes = _pdfThumbnailCache[uri];
+    } else if (kind == ThumbnailKind.image && _assetThumbnailCache.containsKey(uri)) {
+      _imageBytes = _assetThumbnailCache[uri];
+    } else {
+      _loadThumbnail();
+    }
   }
 
   @override
@@ -55,7 +73,21 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
     super.didUpdateWidget(oldWidget);
     final oldUri = oldWidget.thumbnailData?.uri ?? oldWidget.thumbnailUri;
     if (oldUri != _effectiveUri) {
-      _loadThumbnail();
+      final uri = _effectiveUri;
+      final kind = _effectiveKind;
+      if (kind == ThumbnailKind.pdf && _pdfThumbnailCache.containsKey(uri)) {
+        setState(() {
+          _imageBytes = _pdfThumbnailCache[uri];
+          _isLoading = false;
+        });
+      } else if (kind == ThumbnailKind.image && _assetThumbnailCache.containsKey(uri)) {
+        setState(() {
+          _imageBytes = _assetThumbnailCache[uri];
+          _isLoading = false;
+        });
+      } else {
+        _loadThumbnail();
+      }
     }
   }
 
@@ -131,6 +163,16 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
       return;
     }
 
+    // Check memory cache first
+    if (_assetThumbnailCache.containsKey(uri)) {
+      if (mounted) {
+        setState(() {
+          _imageBytes = _assetThumbnailCache[uri];
+        });
+      }
+      return;
+    }
+
     final assetId = uri.replaceFirst('qp://asset/', '').trim();
     if (assetId.isEmpty) return;
 
@@ -140,6 +182,7 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
 
       if (!mounted) return;
       if (resolution.isAvailable && resolution.data != null) {
+        _assetThumbnailCache[uri] = resolution.data!;
         setState(() {
           _imageBytes = resolution.data;
         });
@@ -148,6 +191,7 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         final origResolution = await service.resolveAsset(assetId, variant: 'original');
         if (!mounted) return;
         if (origResolution.isAvailable && origResolution.data != null) {
+          _assetThumbnailCache[uri] = origResolution.data!;
           setState(() {
             _imageBytes = origResolution.data;
           });

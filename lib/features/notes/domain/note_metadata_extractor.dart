@@ -77,6 +77,9 @@ class NoteMetadata {
 /// High-performance metadata extractor for clean note previews, frontmatter resolution,
 /// textual attachment summaries, dynamic table rendering, and PDF/text thumbnails.
 abstract final class NoteMetadataExtractor {
+  static final Map<String, NoteMetadata> _cache = {};
+  static const int maxCacheSize = 500;
+
   static final RegExp _imageRegex = RegExp(
     r'!\[(.*?)\]\((?:qp:\/\/asset\/[^\s\)]+|https?:\/\/[^\s\)]+|[^\s\)]*)\)',
   );
@@ -123,12 +126,43 @@ abstract final class NoteMetadataExtractor {
     'sh',
   };
 
-  /// Extracts comprehensive presentation metadata from a [Note].
+  /// Computes a cache key based on note identity, content hash, and optional search snippet.
+  static String _computeCacheKey(Note note, String? precomputedSnippet) {
+    final snippetPart = (precomputedSnippet != null && precomputedSnippet.isNotEmpty)
+        ? precomputedSnippet
+        : '';
+    return '${note.id}_${note.updatedAt.millisecondsSinceEpoch}_${note.title.hashCode}_${note.content.hashCode}_$snippetPart';
+  }
+
+  /// Invalidates cached metadata for a specific note ID.
+  static void invalidate(String noteId) {
+    _cache.removeWhere((key, _) => key.startsWith('${noteId}_'));
+  }
+
+  /// Clears all cached note metadata.
+  static void clearCache() {
+    _cache.clear();
+  }
+
+  /// Current number of cached metadata entries in the LRU cache.
+  @visibleForTesting
+  static int get cacheSize => _cache.length;
+
+  /// Extracts comprehensive presentation metadata from a [Note] with LRU caching.
   static NoteMetadata extract(
     Note note, {
     String? searchQuery,
     String? precomputedSnippet,
   }) {
+    final cacheKey = _computeCacheKey(note, precomputedSnippet);
+    final cached = _cache[cacheKey];
+    if (cached != null) {
+      // Refresh LRU order
+      _cache.remove(cacheKey);
+      _cache[cacheKey] = cached;
+      return cached;
+    }
+
     final title = note.title.trim().isNotEmpty
         ? note.title.trim()
         : deriveTitle(note.content);
@@ -156,7 +190,7 @@ abstract final class NoteMetadataExtractor {
         ? null
         : extractThumbnailData(note.content);
 
-    return NoteMetadata(
+    final metadata = NoteMetadata(
       displayTitle: effectiveTitle,
       previewSnippet: preview,
       tags: note.tags,
@@ -167,6 +201,14 @@ abstract final class NoteMetadataExtractor {
       hasCustomTitle: hasCustomTitle,
       isPasswordProtected: note.isPasswordProtected,
     );
+
+    // Maintain bounded LRU cache size
+    if (_cache.length >= maxCacheSize) {
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[cacheKey] = metadata;
+
+    return metadata;
   }
 
   /// Derives a clean concise title from note content, stripping frontmatter or Markdown markers.
@@ -269,7 +311,7 @@ abstract final class NoteMetadataExtractor {
 
   /// Extracts a structured Markdown table preview if a valid table exists near the top of the note.
   static NoteTablePreview? extractTablePreview(String content) {
-    if (content.isEmpty) return null;
+    if (content.isEmpty || !content.contains('|')) return null;
 
     var bodyText = content;
     if (content.trim().startsWith('---')) {
@@ -346,6 +388,11 @@ abstract final class NoteMetadataExtractor {
     var line = rawLine.trim();
     if (line.isEmpty) return '';
 
+    // Fast path: if there are no Markdown formatting indicators or HTML tags, return cleanly.
+    if (!line.contains(RegExp(r'[#>\-*+!\[\]`_~=<>]'))) {
+      return line.contains('  ') ? line.replaceAll(RegExp(r'\s+'), ' ') : line;
+    }
+
     // Remove markdown headers #, ##, etc.
     line = line.replaceAll(RegExp(r'^#+\s*'), '');
     // Remove blockquotes >
@@ -380,6 +427,13 @@ abstract final class NoteMetadataExtractor {
   /// Extracts textual attachment summary (e.g. 'PDF · 12 pages', '2 PDFs · 31 pages', '2 images', 'TXT', 'DOCX').
   static String? extractAttachmentSummary(String content) {
     if (content.isEmpty) return null;
+    if (!content.contains('qp://') &&
+        !content.contains('http') &&
+        !content.contains('![') &&
+        !content.contains('.pdf') &&
+        !content.contains('(')) {
+      return null;
+    }
 
     final docMatches = _documentRegex.allMatches(content).toList();
     final pdfMatches = _pdfLinkRegex.allMatches(content).toList();
@@ -462,6 +516,13 @@ abstract final class NoteMetadataExtractor {
   /// Extracts the richest thumbnail payload (Image, PDF first-page, or Text file sheet).
   static ThumbnailData? extractThumbnailData(String content) {
     if (content.isEmpty) return null;
+    if (!content.contains('qp://') &&
+        !content.contains('http') &&
+        !content.contains('![') &&
+        !content.contains('.pdf') &&
+        !content.contains('(')) {
+      return null;
+    }
 
     // 1. Image Thumbnail
     final imgMatch = _imageRegex.firstMatch(content);
