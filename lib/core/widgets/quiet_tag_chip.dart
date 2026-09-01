@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_typography.dart';
@@ -70,7 +71,7 @@ class QuietTagChip extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(2.0),
               child: Icon(
-                Icons.close_rounded,
+                PhosphorIconsRegular.x,
                 size: 14,
                 color: textColor.withValues(alpha: 0.7),
               ),

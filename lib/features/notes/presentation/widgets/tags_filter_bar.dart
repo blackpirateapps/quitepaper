@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -97,7 +98,9 @@ class _TagsFilterBarState extends ConsumerState<TagsFilterBar> {
                 final colorDef = TagColors.fromId(tagWithCount.color);
                 final iconData = tagWithCount.icon != null
                     ? TagIconRegistry.getIconData(tagWithCount.icon)
-                    : (tagWithCount.isPinned ? Icons.push_pin_rounded : null);
+                    : (tagWithCount.isPinned
+                        ? PhosphorIconsFill.pushPin
+                        : PhosphorIconsRegular.tag);
 
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.sm),

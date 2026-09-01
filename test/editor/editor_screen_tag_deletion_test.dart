@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/widgets/quiet_tag_chip.dart';
@@ -68,7 +69,7 @@ void main() {
 
       final closeIconOnIdeas = find.descendant(
         of: ideasChip,
-        matching: find.byIcon(Icons.close_rounded),
+        matching: find.byIcon(PhosphorIconsRegular.x),
       );
       expect(closeIconOnIdeas, findsOneWidget);
 
@@ -121,7 +122,7 @@ void main() {
       );
       final closeIcon = find.descendant(
         of: soloChip,
-        matching: find.byIcon(Icons.close_rounded),
+        matching: find.byIcon(PhosphorIconsRegular.x),
       );
 
       await tester.tap(closeIcon);

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/application/notes_provider.dart';
+import '../../../tags/domain/tag_icon_registry.dart';
 
 class TagBrowserSheet extends ConsumerStatefulWidget {
   const TagBrowserSheet({super.key});
@@ -84,7 +86,7 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                   ),
                   const Spacer(),
                   QuietIconButton(
-                    icon: Icons.close_rounded,
+                    icon: PhosphorIconsRegular.x,
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -108,7 +110,7 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.search_rounded,
+                      PhosphorIconsRegular.magnifyingGlass,
                       size: 18,
                       color: colors.textTertiary,
                     ),
@@ -136,7 +138,7 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                       GestureDetector(
                         onTap: () => _searchController.clear(),
                         child: Icon(
-                          Icons.clear_rounded,
+                          PhosphorIconsRegular.xCircle,
                           size: 18,
                           color: colors.textTertiary,
                         ),
@@ -193,7 +195,7 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                             ? colors.tagBackground
                             : Colors.transparent,
                         leading: Icon(
-                          Icons.tag_rounded,
+                          TagIconRegistry.getIconData(item.tag.icon),
                           size: 18,
                           color: isSelected ? colors.accent : colors.textSecondary,
                         ),

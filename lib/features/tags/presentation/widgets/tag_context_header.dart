@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -197,7 +198,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     final customColor = colorDef?.foreground(isDark);
     final iconData = TagIconRegistry.getIconData(
       tag?.icon,
-      fallback: tag?.isPinned == true ? Icons.push_pin_rounded : Icons.tag_rounded,
+      fallback: tag?.isPinned == true ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.tag,
     );
 
     return Container(
@@ -219,15 +220,15 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
             children: [
               if (onOpenDrawer != null)
                 QuietIconButton(
-                  icon: Icons.menu_rounded,
+                  icon: PhosphorIconsRegular.list,
                   tooltip: 'Open navigation',
                   onPressed: onOpenDrawer,
                 )
               else if (isTablet && onToggleSidebar != null)
                 QuietIconButton(
                   icon: isSidebarVisible
-                      ? Icons.menu_open_rounded
-                      : Icons.view_sidebar_outlined,
+                      ? PhosphorIconsRegular.sidebarSimple
+                      : PhosphorIconsRegular.sidebarSimple,
                   tooltip: isSidebarVisible ? 'Hide navigation' : 'Show navigation',
                   onPressed: onToggleSidebar,
                 ),
@@ -263,7 +264,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
               if (!isVeryNarrow) ...[
                 if (onSortPressed != null)
                   QuietIconButton(
-                    icon: Icons.swap_vert_rounded,
+                    icon: PhosphorIconsRegular.arrowsDownUp,
                     tooltip: 'Sort notes',
                     onPressed: onSortPressed,
                   ),
@@ -274,7 +275,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                   ),
                 if (onSearchPressed != null)
                   QuietIconButton(
-                    icon: Icons.search_rounded,
+                    icon: PhosphorIconsRegular.magnifyingGlass,
                     tooltip: 'Search notes',
                     onPressed: onSearchPressed,
                   ),
@@ -282,7 +283,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
 
               if (onCreateNotePressed != null)
                 QuietIconButton(
-                  icon: Icons.add_rounded,
+                  icon: PhosphorIconsRegular.plus,
                   tooltip: 'New note in #$tagName',
                   isActive: true,
                   onPressed: onCreateNotePressed,
@@ -290,7 +291,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
 
               // Tag Context Actions Menu
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                icon: const Icon(PhosphorIconsRegular.dotsThree, size: 20),
                 tooltip: 'Tag options',
                 color: colors.surface,
                 elevation: 3,
@@ -340,7 +341,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                         value: 'sort',
                         child: Row(
                           children: [
-                            Icon(Icons.swap_vert_rounded, size: 18, color: colors.textSecondary),
+                            Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
                             const SizedBox(width: AppSpacing.sm),
                             Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                           ],
@@ -351,7 +352,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                         value: 'filter',
                         child: Row(
                           children: [
-                            Icon(Icons.filter_list_rounded, size: 18, color: colors.textSecondary),
+                            Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
                             const SizedBox(width: AppSpacing.sm),
                             Text('Filter notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                           ],
@@ -362,7 +363,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                         value: 'search',
                         child: Row(
                           children: [
-                            Icon(Icons.search_rounded, size: 18, color: colors.textSecondary),
+                            Icon(PhosphorIconsRegular.magnifyingGlass, size: 18, color: colors.textSecondary),
                             const SizedBox(width: AppSpacing.sm),
                             Text('Search notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                           ],
@@ -375,7 +376,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'rename',
                       child: Row(
                         children: [
-                          Icon(Icons.edit_outlined, size: 18, color: colors.textSecondary),
+                          Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),
                           Text('Rename tag', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                         ],
@@ -385,7 +386,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'icon',
                       child: Row(
                         children: [
-                          Icon(Icons.sentiment_satisfied_alt_rounded, size: 18, color: colors.textSecondary),
+                          Icon(PhosphorIconsRegular.smiley, size: 18, color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),
                           Text(tag.icon != null ? 'Change icon' : 'Add icon', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                         ],
@@ -395,7 +396,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'color',
                       child: Row(
                         children: [
-                          Icon(Icons.palette_outlined, size: 18, color: colors.textSecondary),
+                          Icon(PhosphorIconsRegular.palette, size: 18, color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),
                           Text(tag.color != null ? 'Change color' : 'Add color', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                         ],
@@ -406,7 +407,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       child: Row(
                         children: [
                           Icon(
-                            tag.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                            tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
                             size: 18,
                             color: tag.isPinned ? colors.accent : colors.textSecondary,
                           ),
@@ -419,7 +420,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'merge',
                       child: Row(
                         children: [
-                          Icon(Icons.merge_type_rounded, size: 18, color: colors.textSecondary),
+                          Icon(PhosphorIconsRegular.gitMerge, size: 18, color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),
                           Text('Merge into...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                         ],
@@ -429,7 +430,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline_rounded, size: 18, color: colors.error),
+                          Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
                           const SizedBox(width: AppSpacing.sm),
                           Text('Delete tag', style: AppTypography.bodySmall.copyWith(color: colors.error)),
                         ],
@@ -441,7 +442,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                     value: 'clip',
                     child: Row(
                       children: [
-                        Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                        Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
                         const SizedBox(width: AppSpacing.sm),
                         Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                       ],

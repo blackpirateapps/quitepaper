@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
@@ -9,7 +10,6 @@ import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
-import '../../notes/application/notes_query_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_list_tile.dart';
 import '../application/tag_providers.dart';
@@ -104,24 +104,24 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
     }
   }
 
-  Future<void> _handleMerge(Tag sourceTag) async {
+  Future<void> _handleMerge(Tag tag) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
 
     final destination = await TagMergeDialog.show(
       context,
-      sourceTag: sourceTag,
+      sourceTag: tag,
       availableTags: allTags,
     );
 
     if (destination != null && mounted) {
       final service = ref.read(tagServiceProvider);
-      await service.mergeTags(sourceTag.id, destination.id);
+      await service.mergeTags(tag.id, destination.id);
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Merged #${sourceTag.name} into #${destination.name}'),
+            content: Text('Merged #${tag.name} into #${destination.name}'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -152,49 +152,48 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
     }
   }
 
-  void _createNoteWithTag(String tagName) async {
-    const uuid = Uuid();
-    final now = DateTime.now();
-
+  void _handleCreateNoteInTag(String tagName) {
     final newNote = Note(
-      id: uuid.v4(),
+      id: const Uuid().v4(),
       title: '',
       content: '#$tagName\n\n',
-      createdAt: now,
-      updatedAt: now,
       tags: [tagName],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
 
-    await ref.read(notesRepositoryProvider).saveNote(newNote);
-    ref.read(notesCollectionProvider.notifier).refresh();
-
-    if (mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => EditorScreen(
-            note: newNote,
-            autoFocusBody: true,
-            initialPreviewMode: false,
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => EditorScreen(
+          note: newNote,
+          autoFocusBody: true,
+          initialPreviewMode: false,
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final allTagsAsync = ref.watch(allTagsProvider);
     final tag = ref.watch(tagByIdProvider(widget.tagId));
 
     if (tag == null) {
+      if (allTagsAsync.isLoading) {
+        return Scaffold(
+          backgroundColor: colors.background,
+          body: const Center(child: CircularProgressIndicator.adaptive()),
+        );
+      }
       return Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
           backgroundColor: colors.background,
           elevation: 0,
           leading: QuietIconButton(
-            icon: Icons.arrow_back_rounded,
+            icon: PhosphorIconsRegular.arrowLeft,
             tooltip: 'Back',
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -219,7 +218,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: QuietIconButton(
-          icon: Icons.arrow_back_rounded,
+          icon: PhosphorIconsRegular.arrowLeft,
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -229,7 +228,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
         ),
         actions: [
           QuietIconButton(
-            icon: tag.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+            icon: tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
             tooltip: tag.isPinned ? 'Unpin tag' : 'Pin tag',
             isActive: tag.isPinned,
             onPressed: () {
@@ -237,7 +236,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
             },
           ),
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary, size: 20),
+            icon: Icon(PhosphorIconsRegular.dotsThreeVertical, color: colors.textSecondary, size: 20),
             tooltip: 'Tag actions',
             color: colors.surface,
             shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
@@ -265,7 +264,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                 value: 'rename',
                 child: Row(
                   children: [
-                    Icon(Icons.edit_outlined, size: 18, color: colors.textSecondary),
+                    Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textSecondary),
                     const SizedBox(width: AppSpacing.sm),
                     Text('Rename', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                   ],
@@ -275,7 +274,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                 value: 'icon',
                 child: Row(
                   children: [
-                    Icon(Icons.sentiment_satisfied_alt_rounded, size: 18, color: colors.textSecondary),
+                    Icon(PhosphorIconsRegular.smiley, size: 18, color: colors.textSecondary),
                     const SizedBox(width: AppSpacing.sm),
                     Text('Change icon', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                   ],
@@ -285,7 +284,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                 value: 'color',
                 child: Row(
                   children: [
-                    Icon(Icons.palette_outlined, size: 18, color: colors.textSecondary),
+                    Icon(PhosphorIconsRegular.palette, size: 18, color: colors.textSecondary),
                     const SizedBox(width: AppSpacing.sm),
                     Text('Change color', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                   ],
@@ -295,7 +294,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                 value: 'merge',
                 child: Row(
                   children: [
-                    Icon(Icons.merge_type_rounded, size: 18, color: colors.textSecondary),
+                    Icon(PhosphorIconsRegular.gitMerge, size: 18, color: colors.textSecondary),
                     const SizedBox(width: AppSpacing.sm),
                     Text('Merge into...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
                   ],
@@ -305,7 +304,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline_rounded, size: 18, color: colors.error),
+                    Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
                     const SizedBox(width: AppSpacing.sm),
                     Text('Delete tag', style: AppTypography.bodySmall.copyWith(color: colors.error)),
                   ],
@@ -397,7 +396,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                       children: [
                         ActionChip(
                           avatar: Icon(
-                            tag.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                            tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
                             size: 14,
                             color: tag.isPinned ? colors.accent : colors.textSecondary,
                           ),
@@ -415,7 +414,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                           },
                         ),
                         ActionChip(
-                          avatar: Icon(Icons.palette_outlined, size: 14, color: colors.textSecondary),
+                          avatar: Icon(PhosphorIconsRegular.palette, size: 14, color: colors.textSecondary),
                           label: Text(colorDef?.label ?? 'Color'),
                           labelStyle: AppTypography.caption.copyWith(
                             color: colors.textPrimary,
@@ -426,8 +425,8 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                           onPressed: () => _handleChangeColor(tag),
                         ),
                         ActionChip(
-                          avatar: Icon(Icons.sentiment_satisfied_alt_rounded, size: 14, color: colors.textSecondary),
-                          label: Text(tag.iconItem?.displayName ?? 'Icon'),
+                          avatar: Icon(PhosphorIconsRegular.smiley, size: 14, color: colors.textSecondary),
+                          label: Text(tag.iconItem?.name ?? TagIconRegistry.cleanId(tag.icon) ?? 'Icon'),
                           labelStyle: AppTypography.caption.copyWith(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.w500,
@@ -437,7 +436,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                           onPressed: () => _handleChangeIcon(tag),
                         ),
                         ActionChip(
-                          avatar: Icon(Icons.edit_outlined, size: 14, color: colors.textSecondary),
+                          avatar: Icon(PhosphorIconsRegular.pencilSimple, size: 14, color: colors.textSecondary),
                           label: const Text('Rename'),
                           labelStyle: AppTypography.caption.copyWith(
                             color: colors.textPrimary,
@@ -468,7 +467,7 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.note_alt_outlined,
+                            PhosphorIconsRegular.notePencil,
                             size: 48,
                             color: colors.textTertiary.withValues(alpha: 0.4),
                           ),
@@ -491,9 +490,9 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
                           const SizedBox(height: AppSpacing.lg),
                           QuietButton(
                             label: 'New Note with Tag',
-                            icon: Icons.add_rounded,
+                            icon: PhosphorIconsRegular.plus,
                             variant: QuietButtonVariant.primary,
-                            onPressed: () => _createNoteWithTag(tag.name),
+                            onPressed: () => _handleCreateNoteInTag(tag.name),
                           ),
                         ],
                       ),
@@ -551,8 +550,8 @@ class _TagDetailScreenState extends ConsumerState<TagDetailScreen> {
         backgroundColor: colors.accent,
         foregroundColor: Colors.white,
         tooltip: 'New note with #${tag.name}',
-        onPressed: () => _createNoteWithTag(tag.name),
-        child: const Icon(Icons.add_rounded),
+        onPressed: () => _handleCreateNoteInTag(tag.name),
+        child: const Icon(PhosphorIconsRegular.plus),
       ),
     );
   }

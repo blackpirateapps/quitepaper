@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -160,13 +161,13 @@ class FormattingToolbar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         children: [
           _ToolbarButton(
-            icon: Icons.undo_rounded,
+            icon: PhosphorIconsRegular.arrowUUpLeft,
             tooltip: 'Undo (Ctrl+Z)',
             isEnabled: canUndo,
             onPressed: onUndo ?? () {},
           ),
           _ToolbarButton(
-            icon: Icons.redo_rounded,
+            icon: PhosphorIconsRegular.arrowUUpRight,
             tooltip: 'Redo (Ctrl+Shift+Z)',
             isEnabled: canRedo,
             onPressed: onRedo ?? () {},
@@ -232,50 +233,50 @@ class FormattingToolbar extends StatelessWidget {
             onPressed: () => _applyFormat(MarkdownFormatter.toggleInlineCode),
           ),
           _ToolbarButton(
-            icon: Icons.code_rounded,
+            icon: PhosphorIconsRegular.code,
             tooltip: 'Code block (```) — Long press for language',
             onPressed: () => _handleCodeBlock(context),
             onLongPress: () => _handleCodeBlockLongPress(context),
           ),
           _ToolbarButton(
-            icon: Icons.link_rounded,
+            icon: PhosphorIconsRegular.link,
             tooltip: 'Link ([title](url))',
             onPressed: () => _handleLink(context),
           ),
           if (onNoteLinkPressed != null)
             _ToolbarButton(
-              icon: Icons.note_add_outlined,
+              icon: PhosphorIconsRegular.article,
               tooltip: 'Link to note ([title](qp://note/...))',
               onPressed: onNoteLinkPressed!,
             ),
           if (onTablePressed != null)
 
             _ToolbarButton(
-              icon: Icons.table_chart_outlined,
+              icon: PhosphorIconsRegular.table,
               tooltip: 'Insert table',
               onPressed: onTablePressed!,
             ),
           if (onImagePressed != null)
             _ToolbarButton(
-              icon: Icons.image_outlined,
+              icon: PhosphorIconsRegular.image,
               tooltip: 'Insert image (![alt](qp://asset/...))',
               onPressed: onImagePressed!,
             ),
           if (onScanPressed != null)
             _ToolbarButton(
-              icon: Icons.document_scanner_outlined,
+              icon: PhosphorIconsRegular.scan,
               tooltip: 'Scan document ([title](qp://document/...))',
               onPressed: onScanPressed!,
             ),
           if (onPdfPressed != null)
             _ToolbarButton(
-              icon: Icons.picture_as_pdf_outlined,
+              icon: PhosphorIconsRegular.filePdf,
               tooltip: 'Attach PDF document ([title](qp://document/...))',
               onPressed: onPdfPressed!,
             ),
           if (onFilePressed != null)
             _ToolbarButton(
-              icon: Icons.attach_file_rounded,
+              icon: PhosphorIconsRegular.paperclip,
               tooltip: 'Attach file ([name](qp://asset/...))',
               onPressed: onFilePressed!,
             ),

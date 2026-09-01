@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -89,7 +90,7 @@ class SidebarView extends ConsumerWidget {
                   ),
                   if (isCollapsible)
                     QuietIconButton(
-                      icon: Icons.menu_open_rounded,
+                      icon: PhosphorIconsRegular.sidebarSimple,
                       tooltip: 'Hide navigation sidebar',
                       onPressed: () {
                         ref.read(isNavSidebarVisibleProvider.notifier).state =
@@ -125,7 +126,7 @@ class SidebarView extends ConsumerWidget {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.search_rounded,
+                          PhosphorIconsRegular.magnifyingGlass,
                           size: 18,
                           color: searchIconColor,
                         ),
@@ -161,7 +162,7 @@ class SidebarView extends ConsumerWidget {
                     _buildSectionHeader(context, 'LIBRARY'),
 
                     SidebarItem(
-                      icon: Icons.description_outlined,
+                      icon: PhosphorIconsRegular.note,
                       label: 'All Notes',
                       count: activeCount,
                       isSelected: currentDestination == AppDestination.allNotes &&
@@ -176,7 +177,9 @@ class SidebarView extends ConsumerWidget {
                     ),
 
                     SidebarItem(
-                      icon: Icons.push_pin_outlined,
+                      icon: currentDestination == AppDestination.pinned
+                          ? PhosphorIconsFill.pushPin
+                          : PhosphorIconsRegular.pushPin,
                       label: 'Pinned',
                       count: pinnedCount,
                       isSelected: currentDestination == AppDestination.pinned,
@@ -190,7 +193,9 @@ class SidebarView extends ConsumerWidget {
                     ),
 
                     SidebarItem(
-                      icon: Icons.archive_outlined,
+                      icon: currentDestination == AppDestination.archive
+                          ? PhosphorIconsFill.archive
+                          : PhosphorIconsRegular.archive,
                       label: 'Archive',
                       count: archiveCount,
                       isSelected: currentDestination == AppDestination.archive,
@@ -204,7 +209,9 @@ class SidebarView extends ConsumerWidget {
                     ),
 
                     SidebarItem(
-                      icon: Icons.delete_outline_rounded,
+                      icon: currentDestination == AppDestination.trash
+                          ? PhosphorIconsFill.trash
+                          : PhosphorIconsRegular.trash,
                       label: 'Trash',
                       count: trashCount,
                       isSelected: currentDestination == AppDestination.trash,
@@ -234,7 +241,7 @@ class SidebarView extends ConsumerWidget {
                                 height: 28,
                                 width: 28,
                                 child: QuietIconButton(
-                                  icon: Icons.tune_rounded,
+                                  icon: PhosphorIconsRegular.slidersHorizontal,
                                   size: 16,
                                   padding: const EdgeInsets.all(4.0),
                                   tooltip: 'Manage smart views',
@@ -247,7 +254,7 @@ class SidebarView extends ConsumerWidget {
                             ),
                             ...savedFilters.map((sv) {
                               return SidebarItem(
-                                icon: Icons.bookmark_border_rounded,
+                                icon: PhosphorIconsRegular.bookmarkSimple,
                                 label: sv.name,
                                 onTap: () {
                                   ref.read(notesQueryProvider.notifier).setFilters(sv.query.filter);
@@ -296,7 +303,7 @@ class SidebarView extends ConsumerWidget {
                                 height: 28,
                                 width: 28,
                                 child: QuietIconButton(
-                                  icon: Icons.tune_rounded,
+                                  icon: PhosphorIconsRegular.slidersHorizontal,
                                   size: 16,
                                   padding: const EdgeInsets.all(4.0),
                                   tooltip: 'Manage tags',
@@ -320,8 +327,8 @@ class SidebarView extends ConsumerWidget {
                               final iconData = TagIconRegistry.getIconData(
                                 t.icon,
                                 fallback: t.isPinned
-                                    ? Icons.push_pin_rounded
-                                    : Icons.tag_rounded,
+                                    ? PhosphorIconsFill.pushPin
+                                    : PhosphorIconsRegular.tag,
                               );
 
                               return SidebarItem(
@@ -416,7 +423,7 @@ class SidebarView extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SidebarItem(
-                    icon: Icons.language_rounded,
+                    icon: PhosphorIconsRegular.globe,
                     label: 'Clip Webpage',
                     onTap: () {
                       onItemSelected?.call();
@@ -424,7 +431,7 @@ class SidebarView extends ConsumerWidget {
                     },
                   ),
                   SidebarItem(
-                    icon: Icons.settings_outlined,
+                    icon: PhosphorIconsRegular.gearSix,
                     label: 'Settings',
                     onTap: () {
                       onItemSelected?.call();
@@ -528,7 +535,7 @@ class SidebarView extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Divider(color: colors.divider, height: 1),
                   ListTile(
-                    leading: Icon(Icons.edit_outlined, size: 20, color: colors.textPrimary),
+                    leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textPrimary),
                     title: Text(
                       'Rename',
                       style: AppTypography.body.copyWith(color: colors.textPrimary),
@@ -536,7 +543,7 @@ class SidebarView extends ConsumerWidget {
                     onTap: () => Navigator.of(ctx).pop('rename'),
                   ),
                   ListTile(
-                    leading: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
+                    leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
                     title: Text(
                       'Delete',
                       style: AppTypography.body.copyWith(color: colors.error),
@@ -748,7 +755,7 @@ class SidebarView extends ConsumerWidget {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  Icons.open_in_browser_rounded,
+                  PhosphorIconsRegular.arrowSquareOut,
                   size: 20,
                   color: colors.accent,
                 ),
@@ -771,7 +778,7 @@ class SidebarView extends ConsumerWidget {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  t.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  t.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
                   size: 20,
                   color: t.isPinned ? colors.accent : colors.textSecondary,
                 ),
@@ -786,7 +793,7 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.edit_outlined, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textSecondary),
                 title: Text(
                   'Rename',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -811,7 +818,7 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.sentiment_satisfied_alt_rounded, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.smiley, size: 20, color: colors.textSecondary),
                 title: Text(
                   t.icon != null ? 'Change icon' : 'Add icon',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -830,7 +837,7 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.palette_outlined, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.palette, size: 20, color: colors.textSecondary),
                 title: Text(
                   t.color != null ? 'Change color' : 'Add color',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -848,7 +855,7 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.merge_type_rounded, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.gitMerge, size: 20, color: colors.textSecondary),
                 title: Text(
                   'Merge into...',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -873,7 +880,7 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
+                leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
                 title: Text(
                   'Delete tag',
                   style: AppTypography.bodySmall.copyWith(color: colors.error),

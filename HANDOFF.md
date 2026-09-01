@@ -4344,6 +4344,51 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
   7. [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html): `v1.5.6`
   8. [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): `v1.5.6`
 
+---
+
+## 28. Phosphor Icon System & Full Offline Tag Icon Picker (v1.5.7)
+
+### 1. Architectural Overview & System Design
+Quiet Paper transitioned its entire iconographic design language from Material Symbols to **Phosphor Icons (`phosphor_flutter: 2.1.0` / `@phosphor-icons/core@2.1.1`)**, establishing a cohesive, editorial, and calm visual rhythm across all form factors.
+
+Key components introduced:
+1. **Catalog Pipeline & Code Generation**:
+   - `tool/generate_phosphor_catalog.dart`: Build tool that downloads `@phosphor-icons/core@2.1.1` metadata and generates `phosphor_catalog.json` (484 KB raw, 55 KB gzip) and `phosphor_manifest.json` (SHA-256 integrity check: `8e7144187ab78fc7978c9fbd5da86adc4e1793641e712874c0b991610797824a`).
+   - `lib/features/tags/domain/phosphor_icon_data_map.g.dart`: Generated lookup tables (`kPhosphorRegularIcons`, `kPhosphorBoldIcons`, `kPhosphorFillIcons`, `kPhosphorLightIcons`) mapping all 1,512 Phosphor icons for instantaneous $O(1)$ synchronous glyph rendering without disk I/O.
+2. **Domain & Registry Resolution**:
+   - `lib/features/tags/domain/tag_icon_definition.dart`: Encapsulates `PhosphorIconDefinition` with dynamic weight resolution (`getIconData([weight])`) and category metadata.
+   - `lib/features/tags/domain/tag_icon_registry.dart`: Canonical resolution engine that cleans keys (`cleanId`), maps legacy aliases (`'star'`, `'bulb'`, `'home'`, `'health'`, etc.), strips namespaces (`phosphor:`, `ph:`, `icon:`), and renders the fallback `PhosphorIconsRegular.tag`.
+3. **Lazy Catalog & Multi-Tier Search**:
+   - `lib/features/tags/application/phosphor_catalog_service.dart`: Asynchronously loads icon metadata and search tags only when the icon picker modal is opened. Employs multi-tier ranking:
+     - **Score 1000**: Exact name match.
+     - **Score 800**: Prefix name match.
+     - **Score 600**: Tag or alias exact match.
+     - **Score 500**: Token prefix match across name words.
+     - **Score 400**: Substring match anywhere in name.
+     - **Score 200**: Category matching.
+     - Includes a monotonic `generation` token guard to discard out-of-order asynchronous search completions.
+4. **Offline Preferences & Persistence**:
+   - `lib/features/tags/application/tag_icon_preferences_service.dart`: Manages a 12-item MRU recent icons list (`addRecentIcon`, `clearRecents`) and favorites set (`toggleFavorite`, `isFavorite`) persisted locally via `SharedPreferences`.
+
+### 2. UI Components & Icon Picker Experience
+1. **Responsive Presentation**:
+   - Bottom sheet modal on phone screens with drag handle.
+   - Centered floating dialog modal on tablet viewports.
+2. **Full Category Navigation**:
+   - Horizontal category chips spanning 25 Phosphor categories (`All`, `Recent`, `Favorites`, `Activity`, `Arrows`, `Brands`, `Buildings`, `Communication`, `Design`, `Development`, `Education`, `Files`, `Finance`, `Food & Drink`, `Health`, `Maps & Travel`, `Media`, `Nature`, `Objects`, `People`, `Places`, `Science`, `Security`, `Shapes`, `System`, `Technology`, `Transportation`, `Weather`).
+   - Dynamic badges displaying current counts for Recent and Favorites.
+3. **Grid & Interaction**:
+   - SliverGrid with touch-friendly 64dp square hitboxes.
+   - Single tap: Selects icon and saves canonical `'phosphor:<id>'` string.
+   - Long press: Toggles favorite state with subtle haptic feedback.
+   - "Remove Icon" action: Clears custom icon and reverts tag to the default glyph.
+
+### 3. Phosphor Weight Hierarchy Invariants
+- **Default UI & Actions**: `PhosphorIconsRegular` (Toolbar, app bars, dialog buttons, action menus).
+- **Secondary / Subtle Controls**: `PhosphorIconsLight` (Quiet counters, unselected tabs).
+- **Selected / Active States**: `PhosphorIconsFill` / `PhosphorIconsBold` (Active filters, pinned indicators, favorited stars).
+
+
 
 
 

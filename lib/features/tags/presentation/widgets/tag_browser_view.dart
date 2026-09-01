@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -283,7 +284,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  Icons.open_in_browser_rounded,
+                  PhosphorIconsRegular.arrowSquareOut,
                   size: 20,
                   color: colors.accent,
                 ),
@@ -302,7 +303,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  tag.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
                   size: 20,
                   color: tag.isPinned ? colors.accent : colors.textSecondary,
                 ),
@@ -317,7 +318,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.edit_outlined, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textSecondary),
                 title: Text(
                   'Rename',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -330,7 +331,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  Icons.sentiment_satisfied_alt_rounded,
+                  PhosphorIconsRegular.smiley,
                   size: 20,
                   color: colors.textSecondary,
                 ),
@@ -345,7 +346,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.palette_outlined, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.palette, size: 20, color: colors.textSecondary),
                 title: Text(
                   tag.color != null ? 'Change color' : 'Add color',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -357,7 +358,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.merge_type_rounded, size: 20, color: colors.textSecondary),
+                leading: Icon(PhosphorIconsRegular.gitMerge, size: 20, color: colors.textSecondary),
                 title: Text(
                   'Merge into...',
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
@@ -369,7 +370,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
+                leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
                 title: Text(
                   'Delete tag',
                   style: AppTypography.bodySmall.copyWith(color: colors.error),
@@ -541,7 +542,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: Row(
           children: [
-            Icon(Icons.search_rounded, size: 20, color: colors.textSecondary),
+            Icon(PhosphorIconsRegular.magnifyingGlass, size: 20, color: colors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: TextField(
@@ -566,7 +567,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
             ),
             if (_searchController.text.isNotEmpty)
               QuietIconButton(
-                icon: Icons.clear_rounded,
+                icon: PhosphorIconsRegular.xCircle,
                 tooltip: 'Clear search',
                 onPressed: () {
                   _searchController.clear();
@@ -574,7 +575,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                 },
               ),
             QuietIconButton(
-              icon: Icons.close_rounded,
+              icon: PhosphorIconsRegular.x,
               tooltip: 'Close search',
               onPressed: _closeSearch,
             ),
@@ -597,15 +598,15 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
             children: [
               if (widget.onOpenDrawer != null)
                 QuietIconButton(
-                  icon: Icons.menu_rounded,
+                  icon: PhosphorIconsRegular.list,
                   tooltip: 'Open navigation',
                   onPressed: widget.onOpenDrawer,
                 )
               else if (widget.isTablet && widget.onToggleSidebar != null)
                 QuietIconButton(
                   icon: widget.isSidebarVisible
-                      ? Icons.menu_open_rounded
-                      : Icons.view_sidebar_outlined,
+                      ? PhosphorIconsRegular.sidebarSimple
+                      : PhosphorIconsRegular.sidebarSimple,
                   tooltip: widget.isSidebarVisible ? 'Hide navigation' : 'Show navigation',
                   onPressed: widget.onToggleSidebar,
                 ),
@@ -637,7 +638,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               const Spacer(),
               // Search Action
               QuietIconButton(
-                icon: Icons.search_rounded,
+                icon: PhosphorIconsRegular.magnifyingGlass,
                 tooltip: 'Search tags',
                 onPressed: () {
                   setState(() {
@@ -653,7 +654,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   height: 32,
                   child: PopupMenuButton<TagSort>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.swap_vert_rounded, size: 20),
+                    icon: const Icon(PhosphorIconsRegular.arrowsDownUp, size: 20),
                     tooltip: 'Sort tags',
                     color: colors.surface,
                     elevation: 3,
@@ -677,8 +678,8 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     padding: EdgeInsets.zero,
                     icon: Icon(
                       activeFilter != TagFilter.all
-                          ? Icons.filter_list_alt
-                          : Icons.filter_list_rounded,
+                          ? PhosphorIconsFill.funnel
+                          : PhosphorIconsRegular.funnel,
                       size: 20,
                       color: activeFilter != TagFilter.all ? colors.accent : null,
                     ),
@@ -705,8 +706,8 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     padding: EdgeInsets.zero,
                     icon: Icon(
                       activeFilter != TagFilter.all
-                          ? Icons.filter_list_alt
-                          : Icons.swap_vert_rounded,
+                          ? PhosphorIconsFill.funnel
+                          : PhosphorIconsRegular.arrowsDownUp,
                       size: 20,
                       color: activeFilter != TagFilter.all ? colors.accent : null,
                     ),
@@ -756,7 +757,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                                 ),
                               ),
                               if (activeSort == s)
-                                Icon(Icons.check_rounded, size: 16, color: colors.accent),
+                                Icon(PhosphorIconsRegular.check, size: 16, color: colors.accent),
                             ],
                           ),
                         ),
@@ -789,7 +790,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                                 ),
                               ),
                               if (activeFilter == f)
-                                Icon(Icons.check_rounded, size: 16, color: colors.accent),
+                                Icon(PhosphorIconsRegular.check, size: 16, color: colors.accent),
                             ],
                           ),
                         ),
@@ -801,7 +802,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               const SizedBox(width: 2),
               // Add Tag Action
               QuietIconButton(
-                icon: Icons.add_rounded,
+                icon: PhosphorIconsRegular.plus,
                 tooltip: 'New tag',
                 isActive: true,
                 onPressed: _handleCreateTag,
@@ -887,7 +888,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
             ),
           ),
           if (isSelected)
-            Icon(Icons.check_rounded, size: 16, color: colors.accent),
+            Icon(PhosphorIconsRegular.check, size: 16, color: colors.accent),
         ],
       ),
     );
@@ -1001,7 +1002,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                       if (item.isPinned && !hidePinGlyph) ...[
                         const SizedBox(width: 5),
                         Icon(
-                          Icons.push_pin_rounded,
+                          PhosphorIconsFill.pushPin,
                           size: 12,
                           color: colors.accent,
                         ),
@@ -1029,7 +1030,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     padding: EdgeInsets.zero,
                     iconSize: 16,
                     icon: Icon(
-                      Icons.more_vert_rounded,
+                      PhosphorIconsRegular.dotsThreeVertical,
                       color: colors.textTertiary,
                     ),
                     tooltip: 'Tag options',
@@ -1058,7 +1059,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.tag_rounded,
+              PhosphorIconsRegular.tag,
               size: 44,
               color: colors.textTertiary.withValues(alpha: 0.3),
             ),
@@ -1084,7 +1085,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               const SizedBox(height: AppSpacing.lg),
               QuietButton(
                 label: actionLabel,
-                icon: Icons.add_rounded,
+                icon: PhosphorIconsRegular.plus,
                 variant: QuietButtonVariant.secondary,
                 onPressed: onAction,
               ),

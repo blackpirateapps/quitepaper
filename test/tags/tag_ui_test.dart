@@ -1,14 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/tags/application/phosphor_catalog_service.dart';
+import 'package:quitepaper/features/tags/application/tag_icon_preferences_service.dart';
 import 'package:quitepaper/features/tags/application/tag_providers.dart';
 import 'package:quitepaper/features/tags/domain/tag_model.dart';
 import 'package:quitepaper/features/tags/presentation/tag_browser_screen.dart';
 import 'package:quitepaper/features/tags/presentation/tag_detail_screen.dart';
 import 'package:quitepaper/features/tags/presentation/widgets/tag_color_picker_sheet.dart';
 import 'package:quitepaper/features/tags/presentation/widgets/tag_icon_picker_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   final testTags = [
@@ -146,6 +151,13 @@ void main() {
     });
 
     testWidgets('TagIconPickerSheet renders categories, suggestions, and selects icon', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      const sampleJson = '[{"id":"code","name":"Code","pascalName":"Code","camelName":"code","codePoint":59001,"categories":["development"],"tags":["dev","program"]}]';
+      final catalogService = PhosphorCatalogService(
+        assetBundle: _TestAssetBundle(sampleJson),
+      );
+      final preferencesService = TagIconPreferencesService();
+
       String? selected;
 
       await tester.pumpWidget(
@@ -155,30 +167,35 @@ void main() {
             body: TagIconPickerSheet(
               selectedIconId: null,
               tagName: 'flutter',
+              catalogService: catalogService,
+              preferencesService: preferencesService,
               onIconSelected: (id) => selected = id,
             ),
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Tag Icon'), findsOneWidget);
+      expect(find.text('Choose Icon for #flutter'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
-      expect(find.text('Objects'), findsOneWidget);
-      expect(find.text('Activities'), findsOneWidget);
-      expect(find.text('Technology'), findsOneWidget);
 
       // Search for code
       await tester.enterText(find.byType(TextField), 'code');
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       // Find code icon item and tap it
-      final codeTile = find.byTooltip('Code');
-      expect(codeTile, findsOneWidget);
-      await tester.tap(codeTile);
-      await tester.pumpAndSettle();
+      final iconItem = find.descendant(
+        of: find.byType(GridView),
+        matching: find.byType(InkWell),
+      );
+      expect(iconItem, findsWidgets);
+      await tester.tap(iconItem.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-      expect(selected, equals('code'));
+      expect(selected, equals('phosphor:code'));
     });
 
     testWidgets('TagColorPickerSheet renders warm editorial palette and selects color', (tester) async {
@@ -212,4 +229,20 @@ void main() {
       expect(selected, equals('coral'));
     });
   });
+}
+
+class _TestAssetBundle extends CachingAssetBundle {
+  _TestAssetBundle(this.content);
+  final String content;
+
+  @override
+  Future<String> loadString(String key, {bool cache = true}) async {
+    return content;
+  }
+
+  @override
+  Future<ByteData> load(String key) async {
+    final bytes = utf8.encode(content);
+    return ByteData.view(Uint8List.fromList(bytes).buffer);
+  }
 }

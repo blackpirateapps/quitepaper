@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -571,7 +572,7 @@ class _TagMergeDialogState extends State<TagMergeDialog> {
               decoration: InputDecoration(
                 hintText: 'Search destination tag...',
                 hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
-                prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.textTertiary),
+                prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 18, color: colors.textTertiary),
                 filled: true,
                 fillColor: colors.background,
                 isDense: true,
