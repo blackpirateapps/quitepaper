@@ -13,17 +13,20 @@ class JournalMonthYearPicker extends StatefulWidget {
     required this.initialYear,
     required this.initialMonth,
     required this.onMonthSelected,
+    this.yearsWithEntries = const {},
   });
 
   final int initialYear;
   final int initialMonth;
   final void Function(int year, int month) onMonthSelected;
+  final Set<int> yearsWithEntries;
 
   static Future<void> show(
     BuildContext context, {
     required int initialYear,
     required int initialMonth,
     required void Function(int year, int month) onMonthSelected,
+    Set<int> yearsWithEntries = const {},
   }) {
     return showDialog<void>(
       context: context,
@@ -31,6 +34,7 @@ class JournalMonthYearPicker extends StatefulWidget {
         initialYear: initialYear,
         initialMonth: initialMonth,
         onMonthSelected: onMonthSelected,
+        yearsWithEntries: yearsWithEntries,
       ),
     );
   }
@@ -99,13 +103,29 @@ class _JournalMonthYearPickerState extends State<JournalMonthYearPicker> {
                       });
                     },
                   ),
-                  Text(
-                    '$_selectedYear',
-                    style: AppTypography.title.copyWith(
-                      color: colors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$_selectedYear',
+                        style: AppTypography.title.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (widget.yearsWithEntries.contains(_selectedYear)) ...[
+                        const SizedBox(width: 4.0),
+                        Container(
+                          width: 4.5,
+                          height: 4.5,
+                          decoration: BoxDecoration(
+                            color: colors.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   QuietIconButton(
                     icon: PhosphorIconsRegular.caretRight,

@@ -141,18 +141,16 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
     final highlightedId = ref.watch(highlightedJournalEntryIdProvider);
     final isCollapsed = ref.watch(calendarIsCollapsedProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        top: !widget.isTablet,
-        child: Column(
-          children: [
-            // Top Bar
-            _buildTopBar(context, colors, isCollapsed),
+    return Container(
+      color: colors.background,
+      child: Column(
+        children: [
+          // Top Bar
+          _buildTopBar(context, colors, isCollapsed),
 
-            // Scrollable Content
-            Expanded(
-              child: monthGroupsAsync.when(
+          // Scrollable Content
+          Expanded(
+            child: monthGroupsAsync.when(
                 data: (groups) {
                   return CustomScrollView(
                     controller: _scrollController,
@@ -298,8 +296,7 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -408,7 +405,7 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
-        AppSpacing.lg,
+        24.0,
         AppSpacing.lg,
         AppSpacing.xs,
       ),

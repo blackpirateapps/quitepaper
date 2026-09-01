@@ -4598,9 +4598,46 @@ Embedded an understated, typography-focused paper calendar within the All Entrie
 - `test/journal/journal_database_test.dart`: 8 database tests verifying `getJournalDatesForMonth`, `watchJournalDatesForMonth`, `getAllJournalEntries`, and `watchAllJournalEntries`.
 - `test/journal/journal_repository_test.dart`: 6 repository tests verifying stream reactivity and ordering.
 - `test/journal/sidebar_journal_widget_test.dart`: 4 widget tests verifying sidebar item rendering and navigation state transitions.
-- `test/journal/journal_all_entries_widget_test.dart`: 7 comprehensive widget tests verifying empty states, month headers, calendar date selection, "Show in All Entries" jump and collapse, month/year picker dialog, and tablet split-view callbacks.
-- Full test suite: **1,125 passed / 0 failed** (`flutter test`).
+- `test/journal/journal_all_entries_widget_test.dart`: 13 comprehensive widget tests verifying empty states, month headers, calendar date selection, "Show in All Entries" jump and collapse, month/year picker dialog, and tablet split-view callbacks.
+
+---
+
+## 34. Journal All Entries & Paper Calendar — Final UX Polish
+
+### 1. Single Mobile Page Header Invariant
+- **Duplicate Header Removal**:
+  - `NotesScreen` in [`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart) sets `appBar: null` whenever `destination == AppDestination.allJournalEntries`.
+  - `JournalAllEntriesView` owns its top bar (`☰ All Entries ⌕ Calendar`) on mobile and (`[|] All Entries ⌕ Calendar`) on tablet.
+  - Guarantees exactly one top bar is rendered in phone view without visual duplication or extra Scaffold layering.
+
+### 2. Typeset Paper Calendar Visual Refinement (`JournalCalendarView`)
+- **Integrated Paper Surface**:
+  - Replaced bulky elevated card with an integrated paper container (`color: colors.surfaceSubtle.withValues(alpha: 0.5)`, `border: Border.all(color: colors.divider.withValues(alpha: 0.5), width: 0.7)`).
+  - Reduced cell height to 32dp and container height to ~220–240dp.
+- **Streamlined Month Navigation**:
+  - Centered month title with caret (`September 2026 ▾`), previous (`‹`), next (`›`), and quick `'Today'` button when browsing past/future months.
+  - Removed competing `^` collapse button from the month navigation row; the top bar calendar toggle exclusively owns expand/collapse.
+- **Understated Date Elements**:
+  - Today: clean outline (`Border.all(color: colors.accent, width: 1.1)`).
+  - Selected date: soft background tint (`colors.accent.withValues(alpha: 0.12)`).
+  - Entry indicator: 3.5px dot in `colors.accent`.
+
+### 3. Month/Year Picker Year Indicators (`JournalMonthYearPicker`)
+- Added `yearsWithEntries: Set<int>` parameter to `JournalMonthYearPicker`.
+- Renders a quiet dot indicator `·` next to years with journal entries (`$_selectedYear ·`), giving immediate feedback on which past years have archive content.
+
+### 4. Restrained Timeline Accent Usage (`JournalTimelineTile`)
+- `dayNumber` and vertical timeline line use neutral palette (`colors.textPrimary` and `colors.divider`) by default.
+- `colors.accent` is reserved strictly for `isToday || widget.isHighlighted`.
+
+### 5. Dominant Title in Selected Date Preview (`_SelectedDatePreview`)
+- Note title rendered prominently in 16sp `FontWeight.w600` `colors.textPrimary` (with lock icon if password-protected).
+- Date header (`SEPTEMBER 16, 2026`) and relative timestamp (`Tuesday · 9:42 PM`) formatted as secondary metadata.
+
+### 6. Verification & Test Metrics
+- Full test suite: **1,143 passed / 0 failed** (`flutter test`).
 - Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
+
 
 
 

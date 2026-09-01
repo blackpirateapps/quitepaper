@@ -41,15 +41,15 @@ class JournalCalendarView extends ConsumerWidget {
     );
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: AppRadii.borderLg,
-        border: Border.all(color: colors.divider, width: 0.8),
+        color: colors.surfaceSubtle.withValues(alpha: 0.5),
+        borderRadius: AppRadii.borderMd,
+        border: Border.all(color: colors.divider.withValues(alpha: 0.5), width: 0.7),
       ),
-      clipBehavior: Clip.antiAlias,
       child: isCollapsed
           ? _buildCollapsedHeader(context, ref, colors, monthDisplayTitle, isCurrentMonth, now)
           : _buildExpandedCalendar(
@@ -76,25 +76,29 @@ class JournalCalendarView extends ConsumerWidget {
     DateTime now,
   ) {
     return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.sm),
       onTap: () {
         ref.read(calendarIsCollapsedProvider.notifier).state = false;
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12.0),
+        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
         child: Row(
           children: [
             Icon(
               PhosphorIconsRegular.calendarDots,
-              size: 18,
+              size: 17,
               color: colors.accent,
             ),
-            const SizedBox(width: 10.0),
-            Text(
-              monthDisplayTitle,
-              style: AppTypography.title.copyWith(
-                color: colors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 8.0),
+            Flexible(
+              child: Text(
+                monthDisplayTitle,
+                style: AppTypography.title.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const Spacer(),
@@ -103,28 +107,29 @@ class JournalCalendarView extends ConsumerWidget {
                 padding: const EdgeInsets.only(right: 6.0),
                 child: TextButton(
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   onPressed: () {
                     ref.read(calendarVisibleMonthProvider.notifier).state =
                         (year: now.year, month: now.month);
+                    ref.read(calendarSelectedDateProvider.notifier).state = null;
                   },
                   child: Text(
                     'Today',
                     style: AppTypography.caption.copyWith(
                       color: colors.accent,
                       fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                      fontSize: 11.5,
                     ),
                   ),
                 ),
               ),
             Icon(
               PhosphorIconsRegular.caretDown,
-              size: 16,
-              color: colors.textSecondary,
+              size: 15,
+              color: colors.textTertiary,
             ),
           ],
         ),
@@ -144,151 +149,149 @@ class JournalCalendarView extends ConsumerWidget {
     Note? selectedEntry,
     DateTime now,
   ) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Month navigation bar
-          Row(
-            children: [
-              QuietIconButton(
-                icon: PhosphorIconsRegular.caretLeft,
-                tooltip: 'Previous month',
-                onPressed: () {
-                  final prev = JournalDateHelper.previousMonth(visibleMonth.year, visibleMonth.month);
-                  ref.read(calendarVisibleMonthProvider.notifier).state = prev;
-                  ref.read(calendarSelectedDateProvider.notifier).state = null;
-                },
-              ),
-              Expanded(
-                child: Center(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                    onTap: () {
-                      JournalMonthYearPicker.show(
-                        context,
-                        initialYear: visibleMonth.year,
-                        initialMonth: visibleMonth.month,
-                        onMonthSelected: (y, m) {
-                          ref.read(calendarVisibleMonthProvider.notifier).state = (year: y, month: m);
-                          ref.read(calendarSelectedDateProvider.notifier).state = null;
-                        },
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Month navigation bar: ‹  September 2026  ›
+        Row(
+          children: [
+            QuietIconButton(
+              icon: PhosphorIconsRegular.caretLeft,
+              tooltip: 'Previous month',
+              onPressed: () {
+                final prev = JournalDateHelper.previousMonth(visibleMonth.year, visibleMonth.month);
+                ref.read(calendarVisibleMonthProvider.notifier).state = prev;
+                ref.read(calendarSelectedDateProvider.notifier).state = null;
+              },
+            ),
+            Expanded(
+              child: Center(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  onTap: () {
+                    final monthGroups = ref.read(journalMonthGroupsProvider).valueOrNull ?? [];
+                    final yearsWithEntries = monthGroups.map((g) => g.year).toSet();
+
+                    JournalMonthYearPicker.show(
+                      context,
+                      initialYear: visibleMonth.year,
+                      initialMonth: visibleMonth.month,
+                      yearsWithEntries: yearsWithEntries,
+                      onMonthSelected: (y, m) {
+                        ref.read(calendarVisibleMonthProvider.notifier).state = (year: y, month: m);
+                        ref.read(calendarSelectedDateProvider.notifier).state = null;
+                      },
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
                             monthDisplayTitle,
                             style: AppTypography.title.copyWith(
                               color: colors.textPrimary,
-                              fontSize: 15.5,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
-                          const SizedBox(width: 4.0),
-                          Icon(
-                            PhosphorIconsRegular.caretUpDown,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        Icon(
+                          PhosphorIconsRegular.caretUpDown,
+                          size: 13,
+                          color: colors.textTertiary,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              if (!isCurrentMonth)
-                Padding(
-                  padding: const EdgeInsets.only(right: 2.0),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () {
-                      ref.read(calendarVisibleMonthProvider.notifier).state =
-                          (year: now.year, month: now.month);
-                      ref.read(calendarSelectedDateProvider.notifier).state = null;
-                    },
-                    child: Text(
-                      'Today',
-                      style: AppTypography.caption.copyWith(
-                        color: colors.accent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
+            ),
+            if (!isCurrentMonth)
+              Padding(
+                padding: const EdgeInsets.only(right: 2.0),
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    ref.read(calendarVisibleMonthProvider.notifier).state =
+                        (year: now.year, month: now.month);
+                    ref.read(calendarSelectedDateProvider.notifier).state = null;
+                  },
+                  child: Text(
+                    'Today',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
                     ),
                   ),
                 ),
-              QuietIconButton(
-                icon: PhosphorIconsRegular.caretRight,
-                tooltip: 'Next month',
-                onPressed: () {
-                  final next = JournalDateHelper.nextMonth(visibleMonth.year, visibleMonth.month);
-                  ref.read(calendarVisibleMonthProvider.notifier).state = next;
-                  ref.read(calendarSelectedDateProvider.notifier).state = null;
-                },
               ),
-              QuietIconButton(
-                icon: PhosphorIconsRegular.caretUp,
-                tooltip: 'Collapse calendar',
-                onPressed: () {
-                  ref.read(calendarIsCollapsedProvider.notifier).state = true;
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: AppSpacing.sm),
-
-          // Weekdays row (M, T, W, T, F, S, S)
-          Row(
-            children: const [
-              _WeekdayLabel('M'),
-              _WeekdayLabel('T'),
-              _WeekdayLabel('W'),
-              _WeekdayLabel('T'),
-              _WeekdayLabel('F'),
-              _WeekdayLabel('S'),
-              _WeekdayLabel('S'),
-            ],
-          ),
-
-          const SizedBox(height: 4.0),
-          Divider(color: colors.divider.withValues(alpha: 0.6), height: 1, thickness: 0.8),
-          const SizedBox(height: 4.0),
-
-          // Calendar Grid
-          _buildCalendarGrid(context, ref, colors, visibleMonth, selectedDate, journalDates, now),
-
-          // Selected Date Preview
-          if (selectedDate != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Divider(color: colors.divider, height: 1, thickness: 0.8),
-            const SizedBox(height: AppSpacing.sm),
-            _SelectedDatePreview(
-              dateString: selectedDate,
-              entry: selectedEntry,
-              onOpenEntry: () {
-                if (selectedEntry != null) {
-                  onOpenEntry(selectedEntry);
-                }
-              },
-              onShowInTimeline: () {
-                if (selectedEntry != null) {
-                  onShowInTimeline(selectedEntry.id, selectedDate);
-                }
+            QuietIconButton(
+              icon: PhosphorIconsRegular.caretRight,
+              tooltip: 'Next month',
+              onPressed: () {
+                final next = JournalDateHelper.nextMonth(visibleMonth.year, visibleMonth.month);
+                ref.read(calendarVisibleMonthProvider.notifier).state = next;
+                ref.read(calendarSelectedDateProvider.notifier).state = null;
               },
             ),
           ],
+        ),
+
+        const SizedBox(height: 4.0),
+
+        // Weekdays row (M, T, W, T, F, S, S)
+        Row(
+          children: const [
+            _WeekdayLabel('M'),
+            _WeekdayLabel('T'),
+            _WeekdayLabel('W'),
+            _WeekdayLabel('T'),
+            _WeekdayLabel('F'),
+            _WeekdayLabel('S'),
+            _WeekdayLabel('S'),
+          ],
+        ),
+
+        const SizedBox(height: 2.0),
+        Divider(color: colors.divider.withValues(alpha: 0.4), height: 1, thickness: 0.6),
+        const SizedBox(height: 2.0),
+
+        // Calendar Grid
+        _buildCalendarGrid(context, ref, colors, visibleMonth, selectedDate, journalDates, now),
+
+        // Selected Date Preview
+        if (selectedDate != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Divider(color: colors.divider.withValues(alpha: 0.5), height: 1, thickness: 0.7),
+          const SizedBox(height: AppSpacing.sm),
+          _SelectedDatePreview(
+            dateString: selectedDate,
+            entry: selectedEntry,
+            onOpenEntry: () {
+              if (selectedEntry != null) {
+                onOpenEntry(selectedEntry);
+              }
+            },
+            onShowInTimeline: () {
+              if (selectedEntry != null) {
+                onShowInTimeline(selectedEntry.id, selectedDate);
+              }
+            },
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -317,7 +320,7 @@ class JournalCalendarView extends ConsumerWidget {
             final dayNumber = cellIndex - leadingPadding + 1;
 
             if (dayNumber < 1 || dayNumber > daysCount) {
-              return const Expanded(child: SizedBox(height: 38));
+              return const Expanded(child: SizedBox(height: 32));
             }
 
             final cellDateStr =
@@ -339,11 +342,11 @@ class JournalCalendarView extends ConsumerWidget {
                 button: true,
                 child: Material(
                   color: isSelected
-                      ? colors.accent.withValues(alpha: 0.16)
+                      ? colors.accent.withValues(alpha: 0.12)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  borderRadius: BorderRadius.circular(6.0),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    borderRadius: BorderRadius.circular(6.0),
                     onTap: () {
                       if (isSelected) {
                         ref.read(calendarSelectedDateProvider.notifier).state = null;
@@ -352,14 +355,14 @@ class JournalCalendarView extends ConsumerWidget {
                       }
                     },
                     child: Container(
-                      height: 38,
+                      height: 32,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
+                        borderRadius: BorderRadius.circular(6.0),
                         border: isToday
-                            ? Border.all(color: colors.accent, width: 1.2)
+                            ? Border.all(color: colors.accent, width: 1.1)
                             : (isSelected
                                 ? Border.all(
-                                    color: colors.accent.withValues(alpha: 0.5),
+                                    color: colors.accent.withValues(alpha: 0.4),
                                     width: 0.8,
                                   )
                                 : null),
@@ -374,17 +377,17 @@ class JournalCalendarView extends ConsumerWidget {
                                   ? colors.accent
                                   : (isToday ? colors.accent : colors.textPrimary),
                               fontWeight: isToday || isSelected || hasEntry
-                                  ? FontWeight.w700
+                                  ? FontWeight.w600
                                   : FontWeight.w400,
-                              fontSize: 13,
+                              fontSize: 12.5,
                               height: 1.1,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          // Entry dot indicator
+                          const SizedBox(height: 1.5),
+                          // Understated entry dot indicator
                           Container(
-                            width: 4,
-                            height: 4,
+                            width: 3.5,
+                            height: 3.5,
                             decoration: BoxDecoration(
                               color: hasEntry ? colors.accent : Colors.transparent,
                               shape: BoxShape.circle,
@@ -414,12 +417,15 @@ class _WeekdayLabel extends StatelessWidget {
     final colors = context.appColors;
     return Expanded(
       child: Center(
-        child: Text(
-          label,
-          style: AppTypography.caption.copyWith(
-            color: colors.textTertiary,
-            fontWeight: FontWeight.w600,
-            fontSize: 11.5,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3.0),
+          child: Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              color: colors.textTertiary,
+              fontWeight: FontWeight.w600,
+              fontSize: 11.0,
+            ),
           ),
         ),
       ),
@@ -451,11 +457,11 @@ class _SelectedDatePreview extends StatelessWidget {
     if (entry == null) {
       // Empty preview: date has no journal entry
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10.0),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8.0),
         decoration: BoxDecoration(
           color: colors.surfaceSubtle,
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: colors.divider.withValues(alpha: 0.6), width: 0.6),
+          border: Border.all(color: colors.divider.withValues(alpha: 0.5), width: 0.6),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,12 +475,12 @@ class _SelectedDatePreview extends StatelessWidget {
                 letterSpacing: 1.1,
               ),
             ),
-            const SizedBox(height: 4.0),
+            const SizedBox(height: 3.0),
             Text(
               'No journal entry',
               style: AppTypography.bodySmall.copyWith(
                 color: colors.textTertiary,
-                fontSize: 13.5,
+                fontSize: 13.0,
               ),
             ),
           ],
@@ -488,7 +494,7 @@ class _SelectedDatePreview extends StatelessWidget {
     );
 
     return Material(
-      color: colors.surfaceSubtle,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(AppRadii.sm),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -505,16 +511,20 @@ class _SelectedDatePreview extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    headerLabel,
-                    style: AppTypography.caption.copyWith(
-                      color: colors.accent,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.1,
+                  Flexible(
+                    child: Text(
+                      headerLabel,
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (relativeTime.isNotEmpty)
+                  if (relativeTime.isNotEmpty) ...[
+                    const SizedBox(width: 8.0),
                     Text(
                       relativeTime,
                       style: AppTypography.caption.copyWith(
@@ -522,11 +532,12 @@ class _SelectedDatePreview extends StatelessWidget {
                         fontSize: 11.5,
                       ),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 6.0),
 
-              // Title
+              // Title (Dominant element)
               Row(
                 children: [
                   if (entry!.isPasswordProtected) ...[
@@ -542,7 +553,7 @@ class _SelectedDatePreview extends StatelessWidget {
                       entry!.displayTitle,
                       style: AppTypography.title.copyWith(
                         color: colors.textPrimary,
-                        fontSize: 15.5,
+                        fontSize: 16.0,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.2,
                       ),

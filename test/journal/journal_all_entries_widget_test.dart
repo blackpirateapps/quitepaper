@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/app/app.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/journal/domain/journal_date_helper.dart';
 import 'package:quitepaper/features/journal/application/journal_providers.dart';
@@ -11,12 +13,16 @@ import 'package:quitepaper/features/journal/presentation/widgets/journal_timelin
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
 
 void main() {
   late AppDatabase db;
   late DriftNotesRepository repository;
+  late SharedPreferences prefs;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
     db = AppDatabase.memory();
     repository = DriftNotesRepository(db);
   });
@@ -26,6 +32,8 @@ void main() {
   });
 
   Future<void> finishTest(WidgetTester tester) async {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
   }
@@ -37,6 +45,7 @@ void main() {
   }) {
     return ProviderScope(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
         notesRepositoryProvider.overrideWithValue(repository),
         ...overrides,
@@ -49,6 +58,22 @@ void main() {
           ),
         ),
       ),
+    );
+  }
+
+  Widget buildFullApp({
+    AppDestination initialDestination = AppDestination.allJournalEntries,
+    List<Override> overrides = const [],
+  }) {
+    return ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        databaseProvider.overrideWithValue(db),
+        notesRepositoryProvider.overrideWithValue(repository),
+        currentDestinationProvider.overrideWith((ref) => initialDestination),
+        ...overrides,
+      ],
+      child: const QuietPaperApp(),
     );
   }
 
@@ -154,15 +179,12 @@ void main() {
       await finishTest(tester);
     });
 
-    testWidgets('collapsing and expanding calendar via header buttons', (tester) async {
+    testWidgets('collapsing and expanding calendar via header button and collapsed bar', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      // Find collapse button in expanded calendar card
-      final collapseBtnFinder = find.descendant(
-        of: find.byType(JournalCalendarView),
-        matching: find.byTooltip('Collapse calendar'),
-      );
+      // Find collapse button in top bar
+      final collapseBtnFinder = find.byTooltip('Collapse calendar');
       expect(collapseBtnFinder, findsOneWidget);
 
       await tester.tap(collapseBtnFinder);
@@ -206,7 +228,10 @@ void main() {
       await finishTest(tester);
     });
 
-    testWidgets('month/year picker dialog allows jumping across years', (tester) async {
+    testWidgets('month/year picker dialog displays year indicator dot for years with entries and allows jumping across years', (tester) async {
+      // Create an entry in 2025 so 2025 has entries
+      await repository.getOrCreateJournalEntry(DateTime(2025, 12, 1));
+
       await tester.pumpWidget(
         buildTestWidget(
           overrides: [
@@ -256,6 +281,108 @@ void main() {
 
       expect(selectedNote, isNotNull);
       expect(selectedNote!.id, note.id);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('mobile All Entries in QuietPaperApp renders exactly ONE All Entries page header (duplicate header regression test)', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3.0; // 360 x 800 logical dp phone
+
+      await tester.pumpWidget(
+        buildFullApp(initialDestination: AppDestination.allJournalEntries),
+      );
+      await tester.pumpAndSettle();
+
+      // Exactly ONE 'All Entries' text widget must be rendered in the entire widget tree
+      final allEntriesHeaderFinder = find.text('All Entries');
+      expect(allEntriesHeaderFinder, findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('opening All Entries or selecting empty date never automatically creates today note', (tester) async {
+      final todayStr = JournalDateHelper.todayString();
+
+      // Before opening, no note exists
+      expect(await repository.getJournalEntry(todayStr), isNull);
+
+      await tester.pumpWidget(
+        buildFullApp(initialDestination: AppDestination.allJournalEntries),
+      );
+      await tester.pumpAndSettle();
+
+      // Opening All Entries must NOT create today note
+      expect(await repository.getJournalEntry(todayStr), isNull);
+
+      // Navigating months must NOT create today note
+      await tester.tap(find.byTooltip('Previous month'));
+      await tester.pumpAndSettle();
+      expect(await repository.getJournalEntry(todayStr), isNull);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('password-protected journal note masks snippet in timeline', (tester) async {
+      final note = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await repository.saveNote(
+        note.copyWith(
+          title: 'Secret Thoughts',
+          content: '<!-- quiet-paper-encrypted-note-v1:salt:nonce:ciphertext -->',
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Title should be visible with lock
+      expect(find.text('Secret Thoughts'), findsOneWidget);
+      // Confidential body snippet must NOT be visible
+      expect(find.text('ciphertext'), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('trashed journal entries are excluded from timeline and calendar dots', (tester) async {
+      final note = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await repository.saveNote(
+        note.copyWith(
+          title: 'Morning Reflections',
+          content: '---\njournal: true\ndate: 2026-09-01\n---\nSome morning thoughts.',
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Morning Reflections'), findsOneWidget);
+
+      // Trash the note
+      await repository.trashNote(note.id);
+      await tester.pumpAndSettle();
+
+      // Timeline must now be empty
+      expect(find.text('Morning Reflections'), findsNothing);
+      expect(find.text('No journal entries yet.'), findsOneWidget);
+
+      // Restore the note
+      await repository.restoreFromTrash(note.id);
+      await tester.pumpAndSettle();
+
+      // Restored entry appears again
+      expect(find.text('Morning Reflections'), findsOneWidget);
 
       await finishTest(tester);
     });

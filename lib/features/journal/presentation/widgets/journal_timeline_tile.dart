@@ -133,7 +133,9 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
                       Text(
                         dayNumber,
                         style: AppTypography.title.copyWith(
-                          color: isToday ? colors.accent : colors.textPrimary,
+                          color: (isToday || widget.isHighlighted)
+                              ? colors.accent
+                              : colors.textPrimary,
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
                           height: 1.1,
@@ -161,7 +163,7 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
                   height: 36,
                   margin: const EdgeInsets.only(top: 2, right: AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: isToday
+                    color: (isToday || widget.isHighlighted)
                         ? colors.accent.withValues(alpha: 0.8)
                         : colors.divider.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(1),
