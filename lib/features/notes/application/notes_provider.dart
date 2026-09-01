@@ -13,6 +13,7 @@ enum AppDestination {
   trash,
   tag,
   tagBrowser,
+  onThisDay,
 }
 
 /// Explicit representation of the active workspace context
@@ -23,6 +24,7 @@ enum WorkspaceContextType {
   trash,
   tag,
   tagBrowser,
+  onThisDay,
 }
 
 class WorkspaceContext {
@@ -41,6 +43,7 @@ class WorkspaceContext {
   static const archive = WorkspaceContext(type: WorkspaceContextType.archive);
   static const trash = WorkspaceContext(type: WorkspaceContextType.trash);
   static const tagBrowser = WorkspaceContext(type: WorkspaceContextType.tagBrowser);
+  static const onThisDay = WorkspaceContext(type: WorkspaceContextType.onThisDay);
 
   static WorkspaceContext tag({String? tagId, required String tagName}) =>
       WorkspaceContext(type: WorkspaceContextType.tag, tagId: tagId, tagName: tagName);
@@ -51,6 +54,7 @@ class WorkspaceContext {
   bool get isTrash => type == WorkspaceContextType.trash;
   bool get isTag => type == WorkspaceContextType.tag;
   bool get isTagBrowser => type == WorkspaceContextType.tagBrowser;
+  bool get isOnThisDay => type == WorkspaceContextType.onThisDay;
 
   @override
   bool operator ==(Object other) =>
@@ -106,6 +110,8 @@ final workspaceContextProvider = Provider<WorkspaceContext>((ref) {
       return WorkspaceContext.tag(tagId: tagId, tagName: tagFilter ?? '');
     case AppDestination.tagBrowser:
       return WorkspaceContext.tagBrowser;
+    case AppDestination.onThisDay:
+      return WorkspaceContext.onThisDay;
   }
 });
 
@@ -150,6 +156,7 @@ final filteredNotesStreamProvider = StreamProvider<List<Note>>((ref) {
         filterTag: tagFilter,
       );
     case AppDestination.tagBrowser:
+    case AppDestination.onThisDay:
       return Stream.value([]);
   }
 });

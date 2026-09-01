@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/widgets/quiet_button.dart';
+import 'package:quitepaper/features/journal/application/journal_providers.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/application/saved_filters_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
@@ -49,6 +50,7 @@ void main() {
         archivedNotesCountProvider.overrideWith((ref) => Stream.value(0)),
         trashedNotesCountProvider.overrideWith((ref) => Stream.value(0)),
         allTagsStreamProvider.overrideWith((ref) => Stream.value([])),
+        hasTodayJournalEntryProvider.overrideWithValue(false),
         ...overrides,
       ],
       child: MaterialApp(
@@ -61,6 +63,8 @@ void main() {
 
   group('SidebarView Smart Views Integration Tests', () {
     testWidgets('renders smart views section with manage button and opens SavedFiltersSheet', (tester) async {
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1.0;
       await tester.pumpWidget(createTestWidget());
 
       final container = ProviderScope.containerOf(tester.element(find.byType(SidebarView)));
@@ -88,6 +92,8 @@ void main() {
     });
 
     testWidgets('long-pressing smart view item opens options and allows renaming', (tester) async {
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1.0;
       await tester.pumpWidget(createTestWidget());
 
       final container = ProviderScope.containerOf(tester.element(find.byType(SidebarView)));
@@ -126,6 +132,8 @@ void main() {
     });
 
     testWidgets('long-pressing smart view item opens options and allows deleting with confirmation', (tester) async {
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1.0;
       await tester.pumpWidget(createTestWidget());
 
       final container = ProviderScope.containerOf(tester.element(find.byType(SidebarView)));

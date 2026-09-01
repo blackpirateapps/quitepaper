@@ -156,6 +156,17 @@ class $NotesTableTable extends NotesTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _journalDateMeta = const VerificationMeta(
+    'journalDate',
+  );
+  @override
+  late final GeneratedColumn<String> journalDate = GeneratedColumn<String>(
+    'journal_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -170,6 +181,7 @@ class $NotesTableTable extends NotesTable
     serverRevision,
     isDirty,
     syncedAt,
+    journalDate,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -261,6 +273,15 @@ class $NotesTableTable extends NotesTable
         syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
       );
     }
+    if (data.containsKey('journal_date')) {
+      context.handle(
+        _journalDateMeta,
+        journalDate.isAcceptableOrUnknown(
+          data['journal_date']!,
+          _journalDateMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -318,6 +339,10 @@ class $NotesTableTable extends NotesTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
       ),
+      journalDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}journal_date'],
+      ),
     );
   }
 
@@ -340,6 +365,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
   final int serverRevision;
   final bool isDirty;
   final DateTime? syncedAt;
+  final String? journalDate;
   const NoteEntity({
     required this.id,
     required this.title,
@@ -353,6 +379,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     required this.serverRevision,
     required this.isDirty,
     this.syncedAt,
+    this.journalDate,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -372,6 +399,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     map['is_dirty'] = Variable<bool>(isDirty);
     if (!nullToAbsent || syncedAt != null) {
       map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    if (!nullToAbsent || journalDate != null) {
+      map['journal_date'] = Variable<String>(journalDate);
     }
     return map;
   }
@@ -394,6 +424,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(syncedAt),
+      journalDate: journalDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(journalDate),
     );
   }
 
@@ -415,6 +448,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       serverRevision: serializer.fromJson<int>(json['serverRevision']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      journalDate: serializer.fromJson<String?>(json['journalDate']),
     );
   }
   @override
@@ -433,6 +467,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       'serverRevision': serializer.toJson<int>(serverRevision),
       'isDirty': serializer.toJson<bool>(isDirty),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'journalDate': serializer.toJson<String?>(journalDate),
     };
   }
 
@@ -449,6 +484,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     int? serverRevision,
     bool? isDirty,
     Value<DateTime?> syncedAt = const Value.absent(),
+    Value<String?> journalDate = const Value.absent(),
   }) => NoteEntity(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -462,6 +498,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     serverRevision: serverRevision ?? this.serverRevision,
     isDirty: isDirty ?? this.isDirty,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    journalDate: journalDate.present ? journalDate.value : this.journalDate,
   );
   NoteEntity copyWithCompanion(NotesTableCompanion data) {
     return NoteEntity(
@@ -481,6 +518,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           : this.serverRevision,
       isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      journalDate: data.journalDate.present
+          ? data.journalDate.value
+          : this.journalDate,
     );
   }
 
@@ -498,7 +538,8 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           ..write('deletedAt: $deletedAt, ')
           ..write('serverRevision: $serverRevision, ')
           ..write('isDirty: $isDirty, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('journalDate: $journalDate')
           ..write(')'))
         .toString();
   }
@@ -517,6 +558,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     serverRevision,
     isDirty,
     syncedAt,
+    journalDate,
   );
   @override
   bool operator ==(Object other) =>
@@ -533,7 +575,8 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           other.deletedAt == this.deletedAt &&
           other.serverRevision == this.serverRevision &&
           other.isDirty == this.isDirty &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.journalDate == this.journalDate);
 }
 
 class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
@@ -549,6 +592,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
   final Value<int> serverRevision;
   final Value<bool> isDirty;
   final Value<DateTime?> syncedAt;
+  final Value<String?> journalDate;
   final Value<int> rowid;
   const NotesTableCompanion({
     this.id = const Value.absent(),
@@ -563,6 +607,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.serverRevision = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.journalDate = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NotesTableCompanion.insert({
@@ -578,6 +623,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.serverRevision = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.journalDate = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -595,6 +641,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Expression<int>? serverRevision,
     Expression<bool>? isDirty,
     Expression<DateTime>? syncedAt,
+    Expression<String>? journalDate,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -610,6 +657,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       if (serverRevision != null) 'server_revision': serverRevision,
       if (isDirty != null) 'is_dirty': isDirty,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (journalDate != null) 'journal_date': journalDate,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -627,6 +675,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Value<int>? serverRevision,
     Value<bool>? isDirty,
     Value<DateTime?>? syncedAt,
+    Value<String?>? journalDate,
     Value<int>? rowid,
   }) {
     return NotesTableCompanion(
@@ -642,6 +691,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       serverRevision: serverRevision ?? this.serverRevision,
       isDirty: isDirty ?? this.isDirty,
       syncedAt: syncedAt ?? this.syncedAt,
+      journalDate: journalDate ?? this.journalDate,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -685,6 +735,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
+    if (journalDate.present) {
+      map['journal_date'] = Variable<String>(journalDate.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -706,6 +759,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
           ..write('serverRevision: $serverRevision, ')
           ..write('isDirty: $isDirty, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('journalDate: $journalDate, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9053,6 +9107,7 @@ typedef $$NotesTableTableCreateCompanionBuilder =
       Value<int> serverRevision,
       Value<bool> isDirty,
       Value<DateTime?> syncedAt,
+      Value<String?> journalDate,
       Value<int> rowid,
     });
 typedef $$NotesTableTableUpdateCompanionBuilder =
@@ -9069,6 +9124,7 @@ typedef $$NotesTableTableUpdateCompanionBuilder =
       Value<int> serverRevision,
       Value<bool> isDirty,
       Value<DateTime?> syncedAt,
+      Value<String?> journalDate,
       Value<int> rowid,
     });
 
@@ -9221,6 +9277,11 @@ class $$NotesTableTableFilterComposer
 
   ColumnFilters<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get journalDate => $composableBuilder(
+    column: $table.journalDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9393,6 +9454,11 @@ class $$NotesTableTableOrderingComposer
     column: $table.syncedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get journalDate => $composableBuilder(
+    column: $table.journalDate,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$NotesTableTableAnnotationComposer
@@ -9443,6 +9509,11 @@ class $$NotesTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get journalDate => $composableBuilder(
+    column: $table.journalDate,
+    builder: (column) => column,
+  );
 
   Expression<T> noteTagsTableRefs<T extends Object>(
     Expression<T> Function($$NoteTagsTableTableAnnotationComposer a) f,
@@ -9592,6 +9663,7 @@ class $$NotesTableTableTableManager
                 Value<int> serverRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> journalDate = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion(
                 id: id,
@@ -9606,6 +9678,7 @@ class $$NotesTableTableTableManager
                 serverRevision: serverRevision,
                 isDirty: isDirty,
                 syncedAt: syncedAt,
+                journalDate: journalDate,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9622,6 +9695,7 @@ class $$NotesTableTableTableManager
                 Value<int> serverRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> journalDate = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion.insert(
                 id: id,
@@ -9636,6 +9710,7 @@ class $$NotesTableTableTableManager
                 serverRevision: serverRevision,
                 isDirty: isDirty,
                 syncedAt: syncedAt,
+                journalDate: journalDate,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

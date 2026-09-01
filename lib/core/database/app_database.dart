@@ -20,6 +20,7 @@ import 'tables/sync_queue_table.dart';
 import 'tables/tags_table.dart';
 import '../note_links/note_link_extractor.dart';
 import '../note_links/note_link_models.dart';
+import '../journal/application/journal_metadata_service.dart';
 import '../../features/notes/domain/note_model.dart';
 import '../ocr/ocr_models.dart';
 
@@ -78,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
 
   @override
@@ -185,6 +186,9 @@ class AppDatabase extends _$AppDatabase {
           if (from < 13) {
             await _createTableSafely(m, noteLinksTable);
           }
+          if (from < 14) {
+            await _addColumnSafely(m, notesTable, notesTable.journalDate);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -197,6 +201,12 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS notes_dirty_idx ON notes (is_dirty);',
+          );
+          await customStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS notes_journal_date_unique_idx ON notes (journal_date) WHERE journal_date IS NOT NULL;',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS notes_journal_date_lookup_idx ON notes (journal_date);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
@@ -677,6 +687,108 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Get single journal entry by normalized calendar date string (YYYY-MM-DD)
+  Future<NoteWithTags?> getJournalEntry(String journalDate) async {
+    final note = await (select(notesTable)..where((n) => n.journalDate.equals(journalDate)))
+        .getSingleOrNull();
+    if (note == null) return null;
+
+    final tags = await _getTagsForNote(note.id);
+    return NoteWithTags(note: note, tags: tags);
+  }
+
+  /// Watch single journal entry by normalized calendar date string (YYYY-MM-DD)
+  Stream<NoteWithTags?> watchJournalEntry(String journalDate) {
+    return (select(notesTable)..where((n) => n.journalDate.equals(journalDate)))
+        .watchSingleOrNull()
+        .asyncMap((note) async {
+      if (note == null) return null;
+      final tags = await _getTagsForNote(note.id);
+      return NoteWithTags(note: note, tags: tags);
+    });
+  }
+
+  /// Fetches historical journal entries for On This Day (matching month and day, strictly before year, non-trashed)
+  Future<List<NoteWithTags>> getOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  }) async {
+    final monthStr = month.toString().padLeft(2, '0');
+    final dayStr = day.toString().padLeft(2, '0');
+    final suffix = '-$monthStr-$dayStr';
+
+    final query = select(notesTable)
+      ..where((n) =>
+          n.journalDate.isNotNull() &
+          n.isTrashed.equals(false) &
+          n.journalDate.like('%$suffix'))
+      ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
+
+    final rawNotes = await query.get();
+    final validNotes = rawNotes.where((n) {
+      final dateStr = n.journalDate;
+      if (dateStr == null) return false;
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return false;
+      final y = int.tryParse(parts[0]);
+      return y != null && y < beforeYear;
+    }).toList();
+
+    if (validNotes.isEmpty) return const [];
+    final ids = validNotes.map((n) => n.id).toList();
+    final tagsMap = await getTagsForNoteIds(ids);
+
+    return validNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+  }
+
+  /// Watches historical journal entries for On This Day
+  Stream<List<NoteWithTags>> watchOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  }) {
+    final monthStr = month.toString().padLeft(2, '0');
+    final dayStr = day.toString().padLeft(2, '0');
+    final suffix = '-$monthStr-$dayStr';
+
+    final query = select(notesTable)
+      ..where((n) =>
+          n.journalDate.isNotNull() &
+          n.isTrashed.equals(false) &
+          n.journalDate.like('%$suffix'))
+      ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
+
+    return query.watch().asyncMap((rawNotes) async {
+      final validNotes = rawNotes.where((n) {
+        final dateStr = n.journalDate;
+        if (dateStr == null) return false;
+        final parts = dateStr.split('-');
+        if (parts.length != 3) return false;
+        final y = int.tryParse(parts[0]);
+        return y != null && y < beforeYear;
+      }).toList();
+
+      if (validNotes.isEmpty) return <NoteWithTags>[];
+      final ids = validNotes.map((n) => n.id).toList();
+      final tagsMap = await getTagsForNoteIds(ids);
+
+      return validNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+    });
+  }
+
+  /// Internal consistency check utility to detect any duplicate journal dates
+  Future<List<String>> validateJournalIntegrity() async {
+    try {
+      final rows = await customSelect(
+        'SELECT journal_date, COUNT(*) as cnt FROM notes WHERE journal_date IS NOT NULL GROUP BY journal_date HAVING cnt > 1;',
+      ).get();
+      return rows.map((r) => r.read<String>('journal_date')).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Create or update a note and sync tags
   Future<void> saveNote({
     required String id,
@@ -689,10 +801,14 @@ class AppDatabase extends _$AppDatabase {
     bool isTrashed = false,
     DateTime? deletedAt,
     List<String>? tags,
+    String? journalDate,
     int serverRevision = 0,
     bool isDirty = true,
     DateTime? syncedAt,
   }) async {
+    final effectiveJournalDate = journalDate ??
+        JournalMetadataService.extractJournalMetadata(content).journalDate;
+
     await transaction(() async {
       await into(notesTable).insertOnConflictUpdate(
         NotesTableCompanion.insert(
@@ -708,6 +824,7 @@ class AppDatabase extends _$AppDatabase {
           serverRevision: Value(serverRevision),
           isDirty: Value(isDirty),
           syncedAt: Value(syncedAt),
+          journalDate: Value(effectiveJournalDate),
         ),
       );
 

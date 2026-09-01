@@ -16,6 +16,7 @@ class SidebarItem extends StatelessWidget {
     this.onSecondaryTap,
     this.isDestructive = false,
     this.customIconColor,
+    this.trailing,
   });
 
   final IconData icon;
@@ -27,6 +28,7 @@ class SidebarItem extends StatelessWidget {
   final VoidCallback? onSecondaryTap;
   final bool isDestructive;
   final Color? customIconColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +114,10 @@ class SidebarItem extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
+                    ],
+                    if (trailing != null) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      trailing!,
                     ],
                   ],
                 ),

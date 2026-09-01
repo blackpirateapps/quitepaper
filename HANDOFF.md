@@ -4456,6 +4456,56 @@ Users reported issues with notes containing images (specifically web-clipped not
 - Full test suite passed (1,071 / 1,071 tests passing).
 - Static analysis clean (`flutter analyze` with 0 issues).
 
+---
+
+## 31. Journal V1 — Daily Writing, On This Day & Zero-Knowledge Architecture
+
+### 1. Architectural Overview & Philosophy
+Journal V1 adds calm, intentional daily reflection to Quiet Paper without altering the clean, standard Markdown writing experience:
+- **Zero Interstitial Barriers**: Tapping **Today** in the navigation sidebar immediately opens today's note in the standard [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart). If today's entry does not exist yet, it is created atomically and opened in a single fluid motion.
+- **Natural Markdown Notes**: Journal entries are 100% normal Markdown notes persisted in SQLite and fully interoperable with tags, backlinks, search, export, and zero-knowledge encryption.
+- **Canonical Frontmatter**: Journal metadata is stored as standard YAML frontmatter:
+  ```yaml
+  ---
+  journal: true
+  date: YYYY-MM-DD
+  ---
+  ```
+- **At-Most-One-Per-Day Invariant**: At most one journal note can exist per local calendar date (`YYYY-MM-DD`). This invariant is enforced at both the database level via a SQLite partial unique index (`CREATE UNIQUE INDEX notes_journal_date_unique_idx ON notes (journal_date) WHERE journal_date IS NOT NULL`) and repository level via atomic `getOrCreateJournalEntry` race-condition handling.
+- **On This Day Editorial Surface**: Historical reflections from previous years on the matching calendar month and day (`MM-DD`) are presented in a quiet, distraction-free reading surface with subtle relative year chips ("A year ago", "Two years ago", etc.).
+
+### 2. Core Modules & Changes
+1. **Domain & Application Services**:
+   - [`lib/core/journal/domain/journal_date_helper.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_date_helper.dart): Calendar date normalization (`YYYY-MM-DD`), timezone-safe validation, relative year labels, leap year calculations, and historical `isOnThisDayMatch` evaluation (excluding current/future years, strict leap day matching).
+   - [`lib/core/journal/application/journal_metadata_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/journal_metadata_service.dart): Idempotent YAML frontmatter extraction, insertion, and frontmatter stripping for sync conflict copies.
+   - [`lib/features/journal/application/journal_service.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_service.dart): High-level flow orchestrator for `openOrCreateTodayFlow` (including trash recovery confirmation dialogs and dual-pane tablet/phone navigation).
+   - [`lib/features/journal/application/journal_providers.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_providers.dart): Riverpod stream providers for `todayJournalDateProvider`, `todayJournalEntryStreamProvider`, `hasTodayJournalEntryProvider`, and `onThisDayEntriesStreamProvider`.
+2. **Database & Schema Migration (v13 $\rightarrow$ v14)**:
+   - Added `journal_date TEXT NULL` to `notes` table in [`lib/core/database/tables/notes_table.dart`](file:///home/dog/git/quitepaper/lib/core/database/tables/notes_table.dart).
+   - Added migration in [`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart) creating partial unique index `notes_journal_date_unique_idx` and lookup index `notes_journal_date_lookup_idx`.
+   - Added `getJournalEntry`, `watchJournalEntry`, `getOnThisDayEntries`, `watchOnThisDayEntries`, and `validateJournalIntegrity`.
+   - Updated `DriftNotesRepository` in [`lib/features/notes/data/notes_repository.dart`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_repository.dart) with atomic `getOrCreateJournalEntry`.
+3. **UI & Navigation**:
+   - Updated [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart) with a `JOURNAL` section containing `Today` (with active dot indicator) and `On This Day`.
+   - Created [`lib/features/journal/presentation/on_this_day_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/on_this_day_view.dart) with responsive layout, relative year tags, preview snippets, and calm empty state.
+   - Wired `AppDestination.onThisDay` into [`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart) for both phone and tablet split-view layouts.
+4. **Sync, Backup & Conflict Safety**:
+   - `BackupNote` in [`lib/core/backup/backup_models.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_models.dart) serializes and restores `journalDate`.
+   - `BackupService` and `ConflictResolver` automatically strip journal metadata and clear `journal_date` on `keepBoth` duplicate conflict copies to ensure the unique date invariant is never breached.
+   - `MarkdownImportService` validates and normalizes imported frontmatter, preventing duplicate date collisions.
+
+### 3. Verification & Test Coverage
+- `test/journal/journal_date_helper_test.dart`: 10 unit tests covering normalization, validation, leap years, and relative year formatting.
+- `test/journal/journal_metadata_service_test.dart`: 7 unit tests covering frontmatter serialization, idempotency, and stripping.
+- `test/journal/journal_database_test.dart`: 6 database tests verifying schema v14, partial unique index, reverse-chronological ordering, and integrity checking.
+- `test/journal/journal_repository_test.dart`: 4 integration tests verifying atomic creation, custom titles, and stream reactivity.
+- `test/journal/journal_service_test.dart`: 3 tests verifying `getOrCreateToday`, `getJournalEntryForDate`, and `getOnThisDayEntries`.
+- `test/journal/on_this_day_widget_test.dart`: 2 widget tests verifying empty states and historical entry selection.
+- `test/journal/sidebar_journal_widget_test.dart`: 3 widget tests verifying navigation, active dot indicator, and Today tap flows.
+- Total test suite: **1,107 passed / 0 failed** (`flutter test`).
+- Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
+
+
 
 
 

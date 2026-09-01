@@ -20,6 +20,7 @@ class BackupNote {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.journalDate,
   });
 
   final String id;
@@ -32,6 +33,7 @@ class BackupNote {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
+  final String? journalDate;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -44,6 +46,7 @@ class BackupNote {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+        if (journalDate != null) 'journalDate': journalDate,
       };
 
   factory BackupNote.fromJson(Map<String, dynamic> json) {
@@ -62,6 +65,7 @@ class BackupNote {
       deletedAt: json['deletedAt'] != null
           ? DateTime.tryParse(json['deletedAt'] as String)
           : null,
+      journalDate: json['journalDate'] as String?,
     );
   }
 }

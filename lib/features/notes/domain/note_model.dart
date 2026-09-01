@@ -14,6 +14,7 @@ class Note {
     this.isTrashed = false,
     this.deletedAt,
     this.tags = const [],
+    this.journalDate,
   });
 
   final String id;
@@ -26,6 +27,10 @@ class Note {
   final bool isTrashed;
   final DateTime? deletedAt;
   final List<String> tags;
+  final String? journalDate;
+
+  /// Whether the note is classified as a journal entry
+  bool get isJournal => journalDate != null && journalDate!.isNotEmpty;
 
   /// Whether the note is active (not archived and not trashed)
   bool get isActive => !isArchived && !isTrashed;
@@ -78,6 +83,8 @@ class Note {
     bool? isTrashed,
     DateTime? deletedAt,
     List<String>? tags,
+    String? journalDate,
+    bool clearJournalDate = false,
   }) {
     return Note(
       id: id ?? this.id,
@@ -90,6 +97,7 @@ class Note {
       isTrashed: isTrashed ?? this.isTrashed,
       deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
+      journalDate: clearJournalDate ? null : (journalDate ?? this.journalDate),
     );
   }
 
@@ -107,6 +115,7 @@ class Note {
           isArchived == other.isArchived &&
           isTrashed == other.isTrashed &&
           deletedAt == other.deletedAt &&
+          journalDate == other.journalDate &&
           listEquals(tags, other.tags);
 
   @override
@@ -120,5 +129,6 @@ class Note {
       isArchived.hashCode ^
       isTrashed.hashCode ^
       deletedAt.hashCode ^
+      journalDate.hashCode ^
       tags.hashCode;
 }

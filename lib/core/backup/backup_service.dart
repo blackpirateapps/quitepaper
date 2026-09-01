@@ -10,6 +10,7 @@ import '../attachments/attachment_storage.dart';
 import '../crypto/crypto_service.dart';
 import '../database/app_database.dart';
 import '../documents/document_storage.dart';
+import '../journal/application/journal_metadata_service.dart';
 import 'backup_models.dart';
 
 class BackupService {
@@ -145,6 +146,7 @@ class BackupService {
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
         deletedAt: n.deletedAt,
+        journalDate: n.journalDate,
       );
     }).toList();
 
@@ -538,6 +540,8 @@ class BackupService {
       for (final backupNote in payload.notes) {
         var noteIdToSave = backupNote.id;
         var titleToSave = backupNote.title;
+        var contentToSave = backupNote.content;
+        String? journalDateToSave = backupNote.journalDate;
 
         if (strategy == RestoreStrategy.merge) {
           final existing = await (database.select(database.notesTable)
@@ -567,6 +571,9 @@ class BackupService {
             if (titleToSave.isNotEmpty) {
               titleToSave = '$titleToSave (Restored)';
             }
+            // Strip journalDate and frontmatter from conflict duplicate
+            journalDateToSave = null;
+            contentToSave = JournalMetadataService.removeJournalFrontmatter(contentToSave);
             totalConflicts++;
           } else {
             totalRestored++;
@@ -579,7 +586,7 @@ class BackupService {
         await database.saveNote(
           id: noteIdToSave,
           title: titleToSave,
-          content: backupNote.content,
+          content: contentToSave,
           createdAt: backupNote.createdAt,
           updatedAt: backupNote.updatedAt,
           isPinned: backupNote.isPinned,
@@ -587,6 +594,7 @@ class BackupService {
           isTrashed: backupNote.isTrashed,
           deletedAt: backupNote.deletedAt,
           tags: backupNote.tags,
+          journalDate: journalDateToSave,
           serverRevision: 0,
           isDirty: true,
           syncedAt: null,

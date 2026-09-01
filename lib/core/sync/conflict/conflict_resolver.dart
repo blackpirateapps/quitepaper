@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../../crypto/crypto_service.dart';
 import '../../database/app_database.dart';
+import '../../journal/application/journal_metadata_service.dart';
 import 'conflict_model.dart';
 import 'conflict_region.dart';
 import 'markdown_merge_engine.dart';
@@ -354,18 +355,20 @@ class ConflictResolver {
           ? '${remote!.title.trim()} (Conflict Copy)'
           : 'Untitled (Conflict Copy)';
       final remoteContent = remote?.body ?? '';
+      final cleanContent = JournalMetadataService.removeJournalFrontmatter(remoteContent);
       final remoteTags = remote?.tags ?? [];
 
       await database.saveNote(
         id: newNoteId,
         title: remoteTitle,
-        content: remoteContent,
+        content: cleanContent,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isPinned: false,
         isArchived: false,
         isTrashed: false,
         tags: remoteTags,
+        journalDate: null,
         serverRevision: 0,
         isDirty: true,
       );

@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 import '../../../core/crypto/key_manager.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/journal/application/journal_metadata_service.dart';
+import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/note_links/note_link_models.dart';
 import '../../../core/ocr/ocr_crypto.dart';
 import '../domain/note_model.dart';
@@ -61,6 +64,14 @@ abstract class NotesRepository {
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId);
   Stream<List<NoteLinkEntity>> watchOutgoingLinksForNote(String sourceNoteId);
   Future<void> rebuildNoteLinkIndex();
+
+  // Journal Methods
+  Future<Note?> getJournalEntry(String journalDate);
+  Stream<Note?> watchJournalEntry(String journalDate);
+  Future<List<Note>> getOnThisDayEntries({required int month, required int day, required int beforeYear});
+  Stream<List<Note>> watchOnThisDayEntries({required int month, required int day, required int beforeYear});
+  Future<Note> getOrCreateJournalEntry(DateTime localDate);
+  Future<List<String>> validateJournalIntegrity();
 }
 
 
@@ -93,6 +104,7 @@ class DriftNotesRepository implements NotesRepository {
       isTrashed: entity.note.isTrashed,
       deletedAt: entity.note.deletedAt,
       tags: entity.tagNames,
+      journalDate: entity.note.journalDate,
     );
   }
 
@@ -218,6 +230,7 @@ class DriftNotesRepository implements NotesRepository {
       isTrashed: note.isTrashed,
       deletedAt: note.deletedAt,
       tags: note.tags,
+      journalDate: note.journalDate,
     );
 
     // Sync any renamed document titles referenced inside the note's markdown body
@@ -486,6 +499,95 @@ class DriftNotesRepository implements NotesRepository {
   @override
   Future<void> rebuildNoteLinkIndex() {
     return _db.rebuildNoteLinkIndex();
+  }
+
+  @override
+  Future<Note?> getJournalEntry(String journalDate) async {
+    final result = await _db.getJournalEntry(journalDate);
+    return result != null ? _mapToDomain(result) : null;
+  }
+
+  @override
+  Stream<Note?> watchJournalEntry(String journalDate) {
+    return _db.watchJournalEntry(journalDate).map((res) => res != null ? _mapToDomain(res) : null);
+  }
+
+  @override
+  Future<List<Note>> getOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  }) async {
+    final list = await _db.getOnThisDayEntries(
+      month: month,
+      day: day,
+      beforeYear: beforeYear,
+    );
+    return list.map(_mapToDomain).toList();
+  }
+
+  @override
+  Stream<List<Note>> watchOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  }) {
+    return _db
+        .watchOnThisDayEntries(
+          month: month,
+          day: day,
+          beforeYear: beforeYear,
+        )
+        .map((list) => list.map(_mapToDomain).toList());
+  }
+
+  @override
+  Future<Note> getOrCreateJournalEntry(DateTime localDate) async {
+    final dateStr = JournalDateHelper.toDateString(localDate);
+    final existing = await _db.getJournalEntry(dateStr);
+    if (existing != null) {
+      return _mapToDomain(existing);
+    }
+
+    const uuid = Uuid();
+    final newId = uuid.v4();
+    final now = DateTime.now();
+    final defaultTitle = JournalDateHelper.formatDisplayDate(localDate);
+    final initialContent = JournalMetadataService.createInitialJournalContent(journalDate: dateStr);
+
+    try {
+      await _db.saveNote(
+        id: newId,
+        title: defaultTitle,
+        content: initialContent,
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        isArchived: false,
+        isTrashed: false,
+        journalDate: dateStr,
+      );
+      final created = await _db.getJournalEntry(dateStr);
+      if (created != null) return _mapToDomain(created);
+    } catch (_) {
+      // Catch concurrent creation race and query existing record
+      final raced = await _db.getJournalEntry(dateStr);
+      if (raced != null) return _mapToDomain(raced);
+    }
+
+    return Note(
+      id: newId,
+      title: defaultTitle,
+      content: initialContent,
+      createdAt: now,
+      updatedAt: now,
+      journalDate: dateStr,
+    );
+  }
+
+  @override
+  Future<List<String>> validateJournalIntegrity() {
+    return _db.validateJournalIntegrity();
   }
 }
 

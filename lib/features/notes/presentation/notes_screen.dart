@@ -18,6 +18,7 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../../core/utils/tag_parser.dart';
+import '../../journal/presentation/on_this_day_view.dart';
 import '../../tags/presentation/widgets/tag_browser_view.dart';
 import '../../tags/presentation/widgets/tag_context_header.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
@@ -124,6 +125,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         return 'Tags';
       case AppDestination.tagBrowser:
         return 'Tags';
+      case AppDestination.onThisDay:
+        return 'On This Day';
     }
   }
 
@@ -133,8 +136,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   ) async {
     final noteId = _selectedNoteIdForTablet;
     if (noteId == null) return;
-    // Requirement 29: Opening Tag Browser preserves the open note in editor!
-    if (destination == AppDestination.tagBrowser) return;
+    // Opening Tag Browser or On This Day preserves the open note in editor
+    if (destination == AppDestination.tagBrowser || destination == AppDestination.onThisDay) return;
 
     final repo = ref.read(notesRepositoryProvider);
     final note = await repo.getNoteById(noteId);
@@ -258,10 +261,35 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             ),
             appBar: isTagBrowser
                 ? null
-                : (_isMultiSelecting
-                    ? _buildMultiSelectAppBar(context, colors, destination, repository)
-                    : destination == AppDestination.tag
-                        ? PreferredSize(
+                : destination == AppDestination.onThisDay
+                    ? AppBar(
+                        backgroundColor: colors.background,
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        leading: Builder(
+                          builder: (scaffoldCtx) => QuietIconButton(
+                            icon: Icons.menu_rounded,
+                            tooltip: 'Open navigation',
+                            onPressed: () {
+                              Scaffold.of(scaffoldCtx).openDrawer();
+                            },
+                          ),
+                        ),
+                        title: Text(
+                          title,
+                          style: AppTypography.title.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )
+                    : (_isMultiSelecting
+                        ? _buildMultiSelectAppBar(context, colors, destination, repository)
+                        : destination == AppDestination.tag
+                            ? PreferredSize(
                         preferredSize: const Size.fromHeight(52),
                         child: Builder(
                           builder: (scaffoldCtx) => TagContextHeader(
@@ -419,8 +447,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         ),
                       ),
                     )
-                  : SafeArea(
-                      key: const ValueKey('phone_notes_list'),
+                  : destination == AppDestination.onThisDay
+                      ? const SafeArea(
+                          key: ValueKey('phone_on_this_day'),
+                          child: OnThisDayView(),
+                        )
+                      : SafeArea(
+                          key: const ValueKey('phone_notes_list'),
                       child: Builder(
                         builder: (scaffoldCtx) => GestureDetector(
                           behavior: HitTestBehavior.translucent,
@@ -791,7 +824,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     .state = !isNavSidebarVisible;
                               },
                             )
-                          : PullDownSearchReveal(
+                          : destination == AppDestination.onThisDay
+                              ? OnThisDayView(
+                                  key: const ValueKey('tablet_on_this_day'),
+                                  onNoteSelected: (note) {
+                                    setState(() {
+                                      _selectedNoteIdForTablet = note.id;
+                                    });
+                                  },
+                                )
+                              : PullDownSearchReveal(
                               key: const ValueKey('tablet_notes_list'),
                               isTabletPane: true,
                               onOpenSearch: () => _openSearchScreen(context),

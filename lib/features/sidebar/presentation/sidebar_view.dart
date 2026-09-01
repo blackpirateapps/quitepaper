@@ -22,6 +22,7 @@ import '../../tags/domain/tag_model.dart';
 import '../../tags/presentation/widgets/tag_action_dialogs.dart';
 import '../../tags/presentation/widgets/tag_color_picker_sheet.dart';
 import '../../tags/presentation/widgets/tag_icon_picker_sheet.dart';
+import '../../journal/application/journal_providers.dart';
 import '../../web_clipper/presentation/web_clip_dialog.dart';
 import 'widgets/sidebar_item.dart';
 
@@ -50,6 +51,7 @@ class SidebarView extends ConsumerWidget {
     final pinnedCount = ref.watch(pinnedNotesCountProvider).valueOrNull;
     final archiveCount = ref.watch(archivedNotesCountProvider).valueOrNull;
     final trashCount = ref.watch(trashedNotesCountProvider).valueOrNull;
+    final hasTodayEntry = ref.watch(hasTodayJournalEntryProvider);
     final tagsAsync = ref.watch(allTagsStreamProvider);
 
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
@@ -218,6 +220,48 @@ class SidebarView extends ConsumerWidget {
                       onTap: () {
                         ref.read(currentDestinationProvider.notifier).state =
                             AppDestination.trash;
+                        ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
+                        onItemSelected?.call();
+                      },
+                    ),
+
+                    // JOURNAL Section Header
+                    const SizedBox(height: AppSpacing.md),
+                    _buildSectionHeader(context, 'JOURNAL'),
+
+                    SidebarItem(
+                      icon: PhosphorIconsRegular.calendarCheck,
+                      label: 'Today',
+                      trailing: hasTodayEntry
+                          ? Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: colors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                            )
+                          : null,
+                      onTap: () async {
+                        onItemSelected?.call();
+                        final journalService = ref.read(journalServiceProvider);
+                        await journalService.openOrCreateTodayFlow(
+                          context,
+                          isTablet: isCollapsible,
+                        );
+                      },
+                    ),
+
+                    SidebarItem(
+                      icon: currentDestination == AppDestination.onThisDay
+                          ? PhosphorIconsFill.clockCounterClockwise
+                          : PhosphorIconsRegular.clockCounterClockwise,
+                      label: 'On This Day',
+                      isSelected: currentDestination == AppDestination.onThisDay,
+                      onTap: () {
+                        ref.read(currentDestinationProvider.notifier).state =
+                            AppDestination.onThisDay;
                         ref.read(selectedTagFilterProvider.notifier).state = null;
                         ref.read(notesQueryProvider.notifier).clearAllFilters();
                         onItemSelected?.call();

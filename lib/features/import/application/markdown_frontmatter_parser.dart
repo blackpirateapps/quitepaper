@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 
 class ParsedMarkdown {
@@ -11,6 +12,8 @@ class ParsedMarkdown {
     this.author,
     this.description,
     this.createdRaw,
+    this.isJournal = false,
+    this.journalDate,
     required this.body,
     this.contentBody = '',
     this.hasFrontmatter = false,
@@ -24,16 +27,20 @@ class ParsedMarkdown {
   final String? author;
   final String? description;
   final String? createdRaw;
+  final bool isJournal;
+  final String? journalDate;
   final String body; // Preserves full original raw content with frontmatter
   final String contentBody; // Content after frontmatter block
   final bool hasFrontmatter;
 
   /// Returns true if there are displayable metadata fields (author, source, created, description).
   bool get hasDisplayableMetadata {
-    return (source != null && source!.trim().isNotEmpty) ||
+    final hasStandard = (source != null && source!.trim().isNotEmpty) ||
         (author != null && author!.trim().isNotEmpty) ||
-        (createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty)) ||
         (description != null && description!.trim().isNotEmpty);
+    if (hasStandard) return true;
+    if (isJournal) return false;
+    return createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty);
   }
 }
 
@@ -68,6 +75,8 @@ abstract final class MarkdownFrontmatterParser {
     String? description;
     final descriptionLines = <String>[];
     final tags = <String>{};
+    bool isJournal = false;
+    String? journalDate;
 
     final lines = frontmatterBlock.split(RegExp(r'\r?\n'));
     String? currentListKey;
@@ -125,7 +134,12 @@ abstract final class MarkdownFrontmatterParser {
 
       final cleanVal = _stripQuotes(val);
 
-      if (_isTitleKey(key)) {
+      if (key == 'journal') {
+        final lower = cleanVal.toLowerCase();
+        if (lower == 'true' || lower == 'yes' || lower == '1') {
+          isJournal = true;
+        }
+      } else if (_isTitleKey(key)) {
         if (cleanVal.isNotEmpty) {
           title = cleanVal;
         }
@@ -151,6 +165,16 @@ abstract final class MarkdownFrontmatterParser {
         final parsedTags = _parseTagsValue(val);
         tags.addAll(parsedTags);
       } else if (_isCreatedDateKey(key)) {
+        if (key == 'date') {
+          if (JournalDateHelper.isValidDateString(cleanVal)) {
+            journalDate = cleanVal;
+          } else {
+            final parsed = JournalDateHelper.tryParseDateString(cleanVal);
+            if (parsed != null) {
+              journalDate = JournalDateHelper.toDateString(parsed);
+            }
+          }
+        }
         if (cleanVal.isNotEmpty) {
           createdRaw = cleanVal;
           final dt = _parseDateTime(cleanVal);
@@ -190,6 +214,8 @@ abstract final class MarkdownFrontmatterParser {
       updatedAt: updatedAt,
       description: description,
       tags: tags.toList(),
+      isJournal: isJournal && journalDate != null,
+      journalDate: (isJournal && journalDate != null) ? journalDate : null,
       body: rawContent, // Preserve full content as-is (do not strip frontmatter)
       contentBody: contentBody,
       hasFrontmatter: true,

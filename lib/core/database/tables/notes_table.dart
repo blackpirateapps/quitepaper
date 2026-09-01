@@ -17,6 +17,7 @@ class NotesTable extends Table {
   IntColumn get serverRevision => integer().withDefault(const Constant(0))();
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
+  TextColumn get journalDate => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/attachments/attachment_service.dart';
+import '../../../core/journal/application/journal_metadata_service.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
@@ -38,6 +39,7 @@ class MarkdownImportService {
     final service = attachmentService;
     // Map from file path to imported markdown snippet to avoid duplicate encryption
     final importedSnippetsByPath = <String, String>{};
+    final importedJournalDates = <String>{};
     var importedCount = 0;
 
     for (final item in selectedItems) {
@@ -87,6 +89,21 @@ class MarkdownImportService {
         }
       }
 
+      final journalMeta = JournalMetadataService.extractJournalMetadata(noteContent);
+      String? journalDateToAssign;
+
+      if (journalMeta.isJournal && journalMeta.journalDate != null) {
+        final dateStr = journalMeta.journalDate!;
+        final existing = await _repository.getJournalEntry(dateStr);
+        if (existing == null && !importedJournalDates.contains(dateStr)) {
+          journalDateToAssign = dateStr;
+          importedJournalDates.add(dateStr);
+        } else {
+          // Collision: strip duplicate journal metadata so note imports cleanly as a normal note
+          noteContent = JournalMetadataService.removeJournalFrontmatter(noteContent);
+        }
+      }
+
       final note = Note(
         id: item.id,
         title: item.title,
@@ -97,6 +114,7 @@ class MarkdownImportService {
         isArchived: false,
         isTrashed: false,
         tags: item.tags,
+        journalDate: journalDateToAssign,
       );
 
       await _repository.saveNote(note);
