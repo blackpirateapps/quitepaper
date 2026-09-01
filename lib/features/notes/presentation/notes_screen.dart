@@ -18,6 +18,7 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../../core/utils/tag_parser.dart';
+import '../../journal/presentation/journal_all_entries_view.dart';
 import '../../journal/presentation/on_this_day_view.dart';
 import '../../tags/presentation/widgets/tag_browser_view.dart';
 import '../../tags/presentation/widgets/tag_context_header.dart';
@@ -125,6 +126,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         return 'Tags';
       case AppDestination.tagBrowser:
         return 'Tags';
+      case AppDestination.allJournalEntries:
+        return 'All Entries';
       case AppDestination.onThisDay:
         return 'On This Day';
     }
@@ -136,8 +139,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   ) async {
     final noteId = _selectedNoteIdForTablet;
     if (noteId == null) return;
-    // Opening Tag Browser or On This Day preserves the open note in editor
-    if (destination == AppDestination.tagBrowser || destination == AppDestination.onThisDay) return;
+    // Opening Tag Browser, All Entries, or On This Day preserves the open note in editor
+    if (destination == AppDestination.tagBrowser ||
+        destination == AppDestination.allJournalEntries ||
+        destination == AppDestination.onThisDay) {
+      return;
+    }
 
     final repo = ref.read(notesRepositoryProvider);
     final note = await repo.getNoteById(noteId);
@@ -447,6 +454,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         ),
                       ),
                     )
+                  : destination == AppDestination.allJournalEntries
+                      ? SafeArea(
+                          key: const ValueKey('phone_all_journal_entries'),
+                          child: Builder(
+                            builder: (scaffoldCtx) => JournalAllEntriesView(
+                              onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
+                            ),
+                          ),
+                        )
                   : destination == AppDestination.onThisDay
                       ? const SafeArea(
                           key: ValueKey('phone_on_this_day'),
@@ -824,6 +840,22 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     .state = !isNavSidebarVisible;
                               },
                             )
+                          : destination == AppDestination.allJournalEntries
+                              ? JournalAllEntriesView(
+                                  key: const ValueKey('tablet_all_journal_entries'),
+                                  isTablet: true,
+                                  isSidebarVisible: isNavSidebarVisible,
+                                  onToggleSidebar: () {
+                                    ref
+                                        .read(isNavSidebarVisibleProvider.notifier)
+                                        .state = !isNavSidebarVisible;
+                                  },
+                                  onNoteSelected: (note) {
+                                    setState(() {
+                                      _selectedNoteIdForTablet = note.id;
+                                    });
+                                  },
+                                )
                           : destination == AppDestination.onThisDay
                               ? OnThisDayView(
                                   key: const ValueKey('tablet_on_this_day'),

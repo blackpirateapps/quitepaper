@@ -68,6 +68,10 @@ abstract class NotesRepository {
   // Journal Methods
   Future<Note?> getJournalEntry(String journalDate);
   Stream<Note?> watchJournalEntry(String journalDate);
+  Future<Set<String>> getJournalDatesForMonth(int year, int month);
+  Stream<Set<String>> watchJournalDatesForMonth(int year, int month);
+  Future<List<Note>> getAllJournalEntries();
+  Stream<List<Note>> watchAllJournalEntries();
   Future<List<Note>> getOnThisDayEntries({required int month, required int day, required int beforeYear});
   Stream<List<Note>> watchOnThisDayEntries({required int month, required int day, required int beforeYear});
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
@@ -510,6 +514,27 @@ class DriftNotesRepository implements NotesRepository {
   @override
   Stream<Note?> watchJournalEntry(String journalDate) {
     return _db.watchJournalEntry(journalDate).map((res) => res != null ? _mapToDomain(res) : null);
+  }
+
+  @override
+  Future<Set<String>> getJournalDatesForMonth(int year, int month) {
+    return _db.getJournalDatesForMonth(year, month);
+  }
+
+  @override
+  Stream<Set<String>> watchJournalDatesForMonth(int year, int month) {
+    return _db.watchJournalDatesForMonth(year, month);
+  }
+
+  @override
+  Future<List<Note>> getAllJournalEntries() async {
+    final list = await _db.getAllJournalEntries();
+    return list.map(_mapToDomain).toList();
+  }
+
+  @override
+  Stream<List<Note>> watchAllJournalEntries() {
+    return _db.watchAllJournalEntries().map((list) => list.map(_mapToDomain).toList());
   }
 
   @override

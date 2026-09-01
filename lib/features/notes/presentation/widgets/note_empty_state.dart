@@ -68,6 +68,11 @@ class NoteEmptyState extends StatelessWidget {
           subtitle = 'Add tags to your notes to organize them here.';
           showCreateButton = false;
           break;
+        case AppDestination.allJournalEntries:
+          title = 'No journal entries yet.';
+          subtitle = 'Write your first entry in Today.';
+          showCreateButton = false;
+          break;
         case AppDestination.onThisDay:
           title = 'Nothing from this date yet.';
           subtitle = 'Your first entry here will appear next year.';

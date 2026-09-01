@@ -4536,6 +4536,73 @@ Users reported that AVIF and modern web-clipped images were failing to load or s
 - All 1,117 unit and widget tests pass with 0 errors (`flutter test`).
 - Static analysis clean (`flutter analyze` with 0 issues).
 
+---
+
+## 33. Journal All Entries & Paper Calendar Archive
+
+### 1. Product Architecture & Navigation
+Expanded the Journal subsystem from Today and On This Day into a complete time-oriented chronological archive:
+- **Sidebar Destination (`AppDestination.allJournalEntries`)**:
+  - The `JOURNAL` section in [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart) now features:
+    1. `Today` (with active entry indicator dot `·` and single-entry atomic creation flow)
+    2. `All Entries` (`PhosphorIconsRegular.calendarDots` / `PhosphorIconsFill.calendarDots`)
+    3. `On This Day` (`PhosphorIconsRegular.clockCounterClockwise` / `PhosphorIconsFill.clockCounterClockwise`)
+- **Workspace Context & Routing**:
+  - Added `allJournalEntries` to `AppDestination` and `WorkspaceContextType` in [`lib/features/notes/application/notes_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_provider.dart) and [`lib/features/notes/application/notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart).
+  - Integrated `JournalAllEntriesView` in [`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart) for both phone layout and tablet 3-pane responsive layout.
+
+### 2. Embedded Typeset Paper Calendar (`JournalCalendarView`)
+Embedded an understated, typography-focused paper calendar within the All Entries view (not a separate screen or 4th sidebar item):
+- **Visual Design**:
+  - Naked date numbers (1..31) in clean editorial typography.
+  - Subtle entry indicator dot (`·`, 4px accent) directly underneath dates with active journal entries.
+  - Today indicator: understated rounded border outline (`Border.all(color: colors.accent, width: 1.2)`), not a solid filled bubble.
+  - Selected date: soft background tint (`colors.accent.withValues(alpha: 0.16)`).
+  - Zero gamification: no heatmaps, streaks, or word-count badges.
+- **Collapsible Architecture (`calendarIsCollapsedProvider`)**:
+  - Expanded: Full monthly grid + selected date preview.
+  - Collapsed: Compact single-row header with month label, expand chevron, and "Today" quick-jump shortcut.
+  - Animated with smooth, non-bouncy size transitions that respect user reduced motion preferences (`AccessibilityFeatures.reduceMotion`).
+- **Month Navigation & Year Picker (`JournalMonthYearPicker`)**:
+  - Previous (`‹`) / Next (`›`) buttons and quick "Today" return pill.
+  - Tapping the month title opens a compact 4x3 month grid and year selector dialog for effortless navigation across past years.
+- **Selected Date Preview (`_SelectedDatePreview`)**:
+  - Tapping a calendar date selects the date and displays an inline preview card below the grid without navigating away.
+  - Shows uppercase date header (e.g. `SEPTEMBER 16, 2026`), relative time/weekday (`Tuesday · 9:42 PM`), user's note title, and markdown excerpt snippet.
+  - If date has no entry: displays a quiet, un-gamified `No journal entry` message.
+  - "Show in All Entries →" action button collapses the calendar, smoothly scrolls to the entry in the timeline, and triggers a temporary highlight animation (~1200ms fade).
+
+### 3. Chronological Time-Oriented Timeline (`JournalTimelineTile` & `JournalMonthGroup`)
+- **Grouped by Month & Year**:
+  - Only dates with actual journal entries appear in the timeline (zero empty day rows).
+  - Reverse chronological ordering: newest month to oldest month, newest date to oldest date within each month.
+  - Month group headers formatted in uppercase (e.g. `SEPTEMBER 2026`).
+- **Editorial Time-Oriented Tile**:
+  - Left column: 2-digit day number (`01`..`31`, 22sp bold) + short weekday (`Tue`, `Wed`).
+  - Right column: Real note title (`displayTitle`, with lock icon if password protected), relative time metadata, tag chips (`#tag`), and 2-line markdown snippet.
+  - Smooth jump-to-entry highlight animation with easing curves.
+
+### 4. High-Performance SQLite Queries & Invariants
+- **Targeted Month Date Query (`getJournalDatesForMonth` / `watchJournalDatesForMonth`)**:
+  - Uses `notes_journal_date_lookup_idx` to query only the active `journal_date` strings for the visible month using `WHERE journal_date LIKE 'YYYY-MM-%' AND is_trashed = 0`.
+  - Does NOT load note bodies, attachments, or tags into memory.
+- **All Entries Stream (`watchAllJournalEntries` / `getAllJournalEntries`)**:
+  - Queries active journal notes (`WHERE journal_date IS NOT NULL AND is_trashed = 0 ORDER BY journal_date DESC`).
+  - Fully reactive via Drift SQLite streams: local edits, sync pushes, and restores update the timeline and calendar dots automatically with zero manual refresh.
+- **Privacy & Security**:
+  - Password-protected journal entries mask their preview snippets and require unlock before displaying.
+  - Trashed entries are excluded from timeline and calendar dots. Restoring from trash restores the entry to both.
+
+### 5. Automated Verification & Test Coverage
+- `test/journal/journal_date_helper_test.dart`: 20 unit tests covering days in month, leap year edge cases, month navigation, ISO weekday computation, and month keys.
+- `test/journal/journal_database_test.dart`: 8 database tests verifying `getJournalDatesForMonth`, `watchJournalDatesForMonth`, `getAllJournalEntries`, and `watchAllJournalEntries`.
+- `test/journal/journal_repository_test.dart`: 6 repository tests verifying stream reactivity and ordering.
+- `test/journal/sidebar_journal_widget_test.dart`: 4 widget tests verifying sidebar item rendering and navigation state transitions.
+- `test/journal/journal_all_entries_widget_test.dart`: 7 comprehensive widget tests verifying empty states, month headers, calendar date selection, "Show in All Entries" jump and collapse, month/year picker dialog, and tablet split-view callbacks.
+- Full test suite: **1,125 passed / 0 failed** (`flutter test`).
+- Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
+
+
 
 
 

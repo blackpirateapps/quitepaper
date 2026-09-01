@@ -139,5 +139,84 @@ void main() {
         isTrue,
       );
     });
+
+    test('formatMonthYear formats month and year correctly', () {
+      expect(JournalDateHelper.formatMonthYear(DateTime(2026, 9, 15)), 'September 2026');
+      expect(JournalDateHelper.formatMonthYear('2026-09-15'), 'September 2026');
+      expect(JournalDateHelper.formatMonthYear(DateTime(2025, 1, 1)), 'January 2025');
+    });
+
+    test('formatMonthYearHeader formats uppercase month and year header', () {
+      expect(JournalDateHelper.formatMonthYearHeader(2026, 9), 'SEPTEMBER 2026');
+      expect(JournalDateHelper.formatMonthYearHeader(2025, 12), 'DECEMBER 2025');
+    });
+
+    test('formatWeekday and formatWeekdayShort return correct names', () {
+      final dt = DateTime(2026, 9, 1); // Tuesday
+      expect(JournalDateHelper.formatWeekday(dt), 'Tuesday');
+      expect(JournalDateHelper.formatWeekday('2026-09-01'), 'Tuesday');
+      expect(JournalDateHelper.formatWeekdayShort(dt), 'Tue');
+      expect(JournalDateHelper.formatWeekdayShort('2026-09-01'), 'Tue');
+    });
+
+    test('daysInMonth computes correct days including leap years', () {
+      expect(JournalDateHelper.daysInMonth(2026, 1), 31);
+      expect(JournalDateHelper.daysInMonth(2026, 2), 28); // Not a leap year
+      expect(JournalDateHelper.daysInMonth(2024, 2), 29); // Leap year
+      expect(JournalDateHelper.daysInMonth(2000, 2), 29); // Leap year
+      expect(JournalDateHelper.daysInMonth(1900, 2), 28); // Not leap year
+      expect(JournalDateHelper.daysInMonth(2026, 4), 30);
+      expect(JournalDateHelper.daysInMonth(2026, 5), 31);
+      expect(JournalDateHelper.daysInMonth(2026, 6), 30);
+      expect(JournalDateHelper.daysInMonth(2026, 7), 31);
+      expect(JournalDateHelper.daysInMonth(2026, 8), 31);
+      expect(JournalDateHelper.daysInMonth(2026, 9), 30);
+      expect(JournalDateHelper.daysInMonth(2026, 10), 31);
+      expect(JournalDateHelper.daysInMonth(2026, 11), 30);
+      expect(JournalDateHelper.daysInMonth(2026, 12), 31);
+    });
+
+    test('firstWeekdayOfMonth returns correct ISO weekday', () {
+      // 2026-09-01 is a Tuesday (2)
+      expect(JournalDateHelper.firstWeekdayOfMonth(2026, 9), 2);
+      // 2026-08-01 is a Saturday (6)
+      expect(JournalDateHelper.firstWeekdayOfMonth(2026, 8), 6);
+      // 2026-03-01 is a Sunday (7)
+      expect(JournalDateHelper.firstWeekdayOfMonth(2026, 3), 7);
+    });
+
+    test('previousMonth and nextMonth handle year wrap-around', () {
+      expect(JournalDateHelper.previousMonth(2026, 9), (year: 2026, month: 8));
+      expect(JournalDateHelper.previousMonth(2026, 1), (year: 2025, month: 12));
+
+      expect(JournalDateHelper.nextMonth(2026, 9), (year: 2026, month: 10));
+      expect(JournalDateHelper.nextMonth(2026, 12), (year: 2027, month: 1));
+    });
+
+    test('monthKey and tryParseMonthKey format and parse keys reliably', () {
+      expect(JournalDateHelper.monthKey(2026, 9), '2026-09');
+      expect(JournalDateHelper.monthKey(2026, 12), '2026-12');
+
+      final parsed = JournalDateHelper.tryParseMonthKey('2026-09');
+      expect(parsed, (year: 2026, month: 9));
+
+      expect(JournalDateHelper.tryParseMonthKey(null), isNull);
+      expect(JournalDateHelper.tryParseMonthKey('invalid'), isNull);
+      expect(JournalDateHelper.tryParseMonthKey('2026-13'), isNull);
+    });
+
+    test('formatDayTwoDigits formats day string with leading zero', () {
+      expect(JournalDateHelper.formatDayTwoDigits(1), '01');
+      expect(JournalDateHelper.formatDayTwoDigits(9), '09');
+      expect(JournalDateHelper.formatDayTwoDigits(16), '16');
+      expect(JournalDateHelper.formatDayTwoDigits(31), '31');
+    });
+
+    test('formatTimelineEntryMetadata formats combined weekday and time', () {
+      final updated = DateTime(2026, 9, 1, 21, 42);
+      final meta = JournalDateHelper.formatTimelineEntryMetadata('2026-09-01', updated);
+      expect(meta, contains('Tuesday'));
+      expect(meta, contains('9:42 PM'));
+    });
   });
 }

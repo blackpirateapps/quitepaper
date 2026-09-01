@@ -95,5 +95,39 @@ void main() {
 
       await expectation;
     });
+
+    test('getJournalDatesForMonth and watchJournalDatesForMonth stream active dates for month', () async {
+      final sepDates = await repository.getJournalDatesForMonth(2026, 9);
+      expect(sepDates, isEmpty);
+
+      final expectation = expectLater(
+        repository.watchJournalDatesForMonth(2026, 9),
+        emitsInOrder([
+          isEmpty,
+          contains('2026-09-01'),
+        ]),
+      );
+
+      await pumpEventQueue();
+      await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await pumpEventQueue();
+
+      await expectation;
+    });
+
+    test('getAllJournalEntries and watchAllJournalEntries stream chronological entries', () async {
+      await repository.getOrCreateJournalEntry(DateTime(2026, 8, 15));
+      await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await repository.getOrCreateJournalEntry(DateTime(2025, 12, 25));
+
+      final all = await repository.getAllJournalEntries();
+      expect(all.length, 3);
+      expect(all[0].journalDate, '2026-09-01');
+      expect(all[1].journalDate, '2026-08-15');
+      expect(all[2].journalDate, '2025-12-25');
+
+      final streamAll = await repository.watchAllJournalEntries().first;
+      expect(streamAll.map((n) => n.journalDate).toList(), ['2026-09-01', '2026-08-15', '2025-12-25']);
+    });
   });
 }

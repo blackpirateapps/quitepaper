@@ -777,6 +777,68 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Retrieves the set of calendar date strings (YYYY-MM-DD) that have active journal entries for a given month
+  Future<Set<String>> getJournalDatesForMonth(int year, int month) async {
+    final yStr = year.toString().padLeft(4, '0');
+    final mStr = month.toString().padLeft(2, '0');
+    final prefix = '$yStr-$mStr-';
+
+    final query = selectOnly(notesTable)
+      ..addColumns([notesTable.journalDate])
+      ..where(notesTable.journalDate.isNotNull() &
+          notesTable.isTrashed.equals(false) &
+          notesTable.journalDate.like('$prefix%'));
+
+    final rows = await query.get();
+    return rows.map((r) => r.read(notesTable.journalDate)!).toSet();
+  }
+
+  /// Watches the set of calendar date strings (YYYY-MM-DD) that have active journal entries for a given month
+  Stream<Set<String>> watchJournalDatesForMonth(int year, int month) {
+    final yStr = year.toString().padLeft(4, '0');
+    final mStr = month.toString().padLeft(2, '0');
+    final prefix = '$yStr-$mStr-';
+
+    final query = selectOnly(notesTable)
+      ..addColumns([notesTable.journalDate])
+      ..where(notesTable.journalDate.isNotNull() &
+          notesTable.isTrashed.equals(false) &
+          notesTable.journalDate.like('$prefix%'));
+
+    return query.watch().map((rows) =>
+      rows.map((r) => r.read(notesTable.journalDate)!).toSet(),
+    );
+  }
+
+  /// Retrieves all active journal entries ordered chronologically (newest date first)
+  Future<List<NoteWithTags>> getAllJournalEntries() async {
+    final query = select(notesTable)
+      ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
+      ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
+
+    final rawNotes = await query.get();
+    if (rawNotes.isEmpty) return const [];
+    final ids = rawNotes.map((n) => n.id).toList();
+    final tagsMap = await getTagsForNoteIds(ids);
+
+    return rawNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+  }
+
+  /// Watches all active journal entries ordered chronologically (newest date first)
+  Stream<List<NoteWithTags>> watchAllJournalEntries() {
+    final query = select(notesTable)
+      ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
+      ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
+
+    return query.watch().asyncMap((rawNotes) async {
+      if (rawNotes.isEmpty) return <NoteWithTags>[];
+      final ids = rawNotes.map((n) => n.id).toList();
+      final tagsMap = await getTagsForNoteIds(ids);
+
+      return rawNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+    });
+  }
+
   /// Internal consistency check utility to detect any duplicate journal dates
   Future<List<String>> validateJournalIntegrity() async {
     try {

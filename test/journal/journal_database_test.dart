@@ -187,6 +187,116 @@ void main() {
       expect(results[2].note.id, 'hist-2023');
     });
 
+    test('getJournalDatesForMonth and watchJournalDatesForMonth return only dates for specified month', () async {
+      final now = DateTime(2026, 9, 1);
+
+      await db.saveNote(
+        id: 'sep-1',
+        title: 'Sep 1',
+        content: 'Content 1',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        journalDate: '2026-09-01',
+      );
+
+      await db.saveNote(
+        id: 'sep-15',
+        title: 'Sep 15',
+        content: 'Content 15',
+        createdAt: DateTime(2026, 9, 15),
+        updatedAt: DateTime(2026, 9, 15),
+        isPinned: false,
+        journalDate: '2026-09-15',
+      );
+
+      // Trashed note in Sep (should be excluded)
+      await db.saveNote(
+        id: 'sep-20-trashed',
+        title: 'Sep 20',
+        content: 'Content 20',
+        createdAt: DateTime(2026, 9, 20),
+        updatedAt: DateTime(2026, 9, 20),
+        isPinned: false,
+        isTrashed: true,
+        journalDate: '2026-09-20',
+      );
+
+      // August note (different month)
+      await db.saveNote(
+        id: 'aug-31',
+        title: 'Aug 31',
+        content: 'Content Aug',
+        createdAt: DateTime(2026, 8, 31),
+        updatedAt: DateTime(2026, 8, 31),
+        isPinned: false,
+        journalDate: '2026-08-31',
+      );
+
+      final dates = await db.getJournalDatesForMonth(2026, 9);
+      expect(dates, containsAll(['2026-09-01', '2026-09-15']));
+      expect(dates, isNot(contains('2026-09-20'))); // Trashed excluded
+      expect(dates, isNot(contains('2026-08-31'))); // Different month excluded
+      expect(dates.length, 2);
+
+      // Verify stream emits the same
+      final streamDates = await db.watchJournalDatesForMonth(2026, 9).first;
+      expect(streamDates, equals(dates));
+    });
+
+    test('getAllJournalEntries and watchAllJournalEntries return active entries ordered newest date first', () async {
+      await db.saveNote(
+        id: 'j-2025-12',
+        title: 'Dec 2025',
+        content: 'Dec',
+        createdAt: DateTime(2025, 12, 1),
+        updatedAt: DateTime(2025, 12, 1),
+        isPinned: false,
+        journalDate: '2025-12-01',
+      );
+
+      await db.saveNote(
+        id: 'j-2026-09',
+        title: 'Sep 2026',
+        content: 'Sep',
+        createdAt: DateTime(2026, 9, 15),
+        updatedAt: DateTime(2026, 9, 15),
+        isPinned: false,
+        journalDate: '2026-09-15',
+      );
+
+      await db.saveNote(
+        id: 'j-2026-08',
+        title: 'Aug 2026',
+        content: 'Aug',
+        createdAt: DateTime(2026, 8, 10),
+        updatedAt: DateTime(2026, 8, 10),
+        isPinned: false,
+        journalDate: '2026-08-10',
+      );
+
+      // Trashed entry
+      await db.saveNote(
+        id: 'j-trashed',
+        title: 'Trashed',
+        content: 'Trashed',
+        createdAt: DateTime(2026, 9, 20),
+        updatedAt: DateTime(2026, 9, 20),
+        isPinned: false,
+        isTrashed: true,
+        journalDate: '2026-09-20',
+      );
+
+      final entries = await db.getAllJournalEntries();
+      expect(entries.length, 3);
+      expect(entries[0].note.id, 'j-2026-09'); // 2026-09-15 first
+      expect(entries[1].note.id, 'j-2026-08'); // 2026-08-10 second
+      expect(entries[2].note.id, 'j-2025-12'); // 2025-12-01 third
+
+      final streamEntries = await db.watchAllJournalEntries().first;
+      expect(streamEntries.map((e) => e.note.id).toList(), ['j-2026-09', 'j-2026-08', 'j-2025-12']);
+    });
+
     test('validateJournalIntegrity returns empty list when database has no collisions', () async {
       await db.saveNote(
         id: 'j-1',

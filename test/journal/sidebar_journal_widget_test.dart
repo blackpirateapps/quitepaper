@@ -59,7 +59,7 @@ void main() {
   }
 
   group('SidebarView Journal Section Widget Tests', () {
-    testWidgets('renders JOURNAL section with Today and On This Day', (tester) async {
+    testWidgets('renders JOURNAL section with Today, All Entries, and On This Day', (tester) async {
       tester.view.physicalSize = const Size(1200, 1800);
       tester.view.devicePixelRatio = 1.0;
 
@@ -68,7 +68,26 @@ void main() {
 
       expect(find.text('JOURNAL'), findsOneWidget);
       expect(find.text('Today'), findsOneWidget);
+      expect(find.text('All Entries'), findsOneWidget);
       expect(find.text('On This Day'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tapping All Entries updates currentDestination to AppDestination.allJournalEntries', (tester) async {
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(tester.element(find.byType(SidebarView)));
+      expect(container.read(currentDestinationProvider), AppDestination.allNotes);
+
+      await tester.tap(find.text('All Entries'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(currentDestinationProvider), AppDestination.allJournalEntries);
 
       await finishTest(tester);
     });

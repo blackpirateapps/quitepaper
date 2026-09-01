@@ -254,6 +254,21 @@ class SidebarView extends ConsumerWidget {
                     ),
 
                     SidebarItem(
+                      icon: currentDestination == AppDestination.allJournalEntries
+                          ? PhosphorIconsFill.calendarDots
+                          : PhosphorIconsRegular.calendarDots,
+                      label: 'All Entries',
+                      isSelected: currentDestination == AppDestination.allJournalEntries,
+                      onTap: () {
+                        ref.read(currentDestinationProvider.notifier).state =
+                            AppDestination.allJournalEntries;
+                        ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
+                        onItemSelected?.call();
+                      },
+                    ),
+
+                    SidebarItem(
                       icon: currentDestination == AppDestination.onThisDay
                           ? PhosphorIconsFill.clockCounterClockwise
                           : PhosphorIconsRegular.clockCounterClockwise,

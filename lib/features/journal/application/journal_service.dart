@@ -21,6 +21,26 @@ class JournalService {
     return _repository.getJournalEntry(dateStr);
   }
 
+  /// Retrieves the set of calendar date strings (YYYY-MM-DD) for active journal entries in a month.
+  Future<Set<String>> getJournalDatesForMonth(int year, int month) {
+    return _repository.getJournalDatesForMonth(year, month);
+  }
+
+  /// Watches the set of calendar date strings (YYYY-MM-DD) for active journal entries in a month.
+  Stream<Set<String>> watchJournalDatesForMonth(int year, int month) {
+    return _repository.watchJournalDatesForMonth(year, month);
+  }
+
+  /// Retrieves all active journal entries ordered chronologically.
+  Future<List<Note>> getAllJournalEntries() {
+    return _repository.getAllJournalEntries();
+  }
+
+  /// Watches all active journal entries ordered chronologically.
+  Stream<List<Note>> watchAllJournalEntries() {
+    return _repository.watchAllJournalEntries();
+  }
+
   /// Fetches historical journal entries for On This Day.
   Future<List<Note>> getOnThisDayEntries([DateTime? now]) {
     final reference = JournalDateHelper.toLocalDate(now ?? DateTime.now());

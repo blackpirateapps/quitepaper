@@ -143,4 +143,106 @@ abstract final class JournalDateHelper {
     // Strict month and day match
     return hist.month == ref.month && hist.day == ref.day;
   }
+
+  /// Formats month and year (e.g. "September 2026").
+  static String formatMonthYear(dynamic date) {
+    DateTime? dt;
+    if (date is DateTime) {
+      dt = toLocalDate(date);
+    } else if (date is String) {
+      dt = tryParseDateString(date);
+    }
+    if (dt == null) return date?.toString() ?? '';
+    return DateFormat('MMMM yyyy').format(dt);
+  }
+
+  /// Formats uppercase month and year header for timeline grouping (e.g. "SEPTEMBER 2026").
+  static String formatMonthYearHeader(int year, int month) {
+    final dt = DateTime(year, month);
+    return DateFormat('MMMM yyyy').format(dt).toUpperCase();
+  }
+
+  /// Formats full weekday name (e.g. "Tuesday").
+  static String formatWeekday(dynamic date) {
+    DateTime? dt;
+    if (date is DateTime) {
+      dt = toLocalDate(date);
+    } else if (date is String) {
+      dt = tryParseDateString(date);
+    }
+    if (dt == null) return '';
+    return DateFormat('EEEE').format(dt);
+  }
+
+  /// Formats short weekday name (e.g. "Tue").
+  static String formatWeekdayShort(dynamic date) {
+    DateTime? dt;
+    if (date is DateTime) {
+      dt = toLocalDate(date);
+    } else if (date is String) {
+      dt = tryParseDateString(date);
+    }
+    if (dt == null) return '';
+    return DateFormat('E').format(dt);
+  }
+
+  /// Formats timeline entry time metadata (e.g. "Tuesday · 9:42 PM" or "Tuesday").
+  static String formatTimelineEntryMetadata(dynamic journalDate, DateTime? updatedAt) {
+    final weekday = formatWeekday(journalDate);
+    if (updatedAt == null) return weekday;
+    final timeStr = DateFormat('h:mm a').format(updatedAt.toLocal());
+    if (weekday.isEmpty) return timeStr;
+    return '$weekday · $timeStr';
+  }
+
+  /// Returns the number of days in [month] for [year], accounting for leap years.
+  static int daysInMonth(int year, int month) {
+    if (month == 2) {
+      return isLeapYear(year) ? 29 : 28;
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) {
+      return 30;
+    }
+    return 31;
+  }
+
+  /// Returns the first weekday of [month] in [year] (1 = Monday, 7 = Sunday).
+  static int firstWeekdayOfMonth(int year, int month) {
+    return DateTime(year, month, 1).weekday;
+  }
+
+  /// Returns the previous month as a `({int year, int month})` record.
+  static ({int year, int month}) previousMonth(int year, int month) {
+    if (month == 1) return (year: year - 1, month: 12);
+    return (year: year, month: month - 1);
+  }
+
+  /// Returns the next month as a `({int year, int month})` record.
+  static ({int year, int month}) nextMonth(int year, int month) {
+    if (month == 12) return (year: year + 1, month: 1);
+    return (year: year, month: month + 1);
+  }
+
+  /// Returns a normalized month key string (e.g. "2026-09").
+  static String monthKey(int year, int month) {
+    final y = year.toString().padLeft(4, '0');
+    final m = month.toString().padLeft(2, '0');
+    return '$y-$m';
+  }
+
+  /// Parses a month key string (e.g. "2026-09") into `({int year, int month})`.
+  static ({int year, int month})? tryParseMonthKey(String? key) {
+    if (key == null) return null;
+    final parts = key.trim().split('-');
+    if (parts.length != 2) return null;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (y == null || m == null || m < 1 || m > 12) return null;
+    return (year: y, month: m);
+  }
+
+  /// Returns a 2-digit day number string (e.g. "01", "16", "31").
+  static String formatDayTwoDigits(int day) {
+    return day.toString().padLeft(2, '0');
+  }
 }
