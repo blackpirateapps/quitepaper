@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'phosphor_icon_data_map.g.dart';
+import 'phosphor_icons.dart';
 import 'tag_icon_definition.dart';
 
 /// Legacy category enum preserved for backward compatibility.

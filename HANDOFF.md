@@ -4349,12 +4349,15 @@ Note Linking V1 introduces bidirectional note linking to Quiet Paper, integratin
 ## 28. Phosphor Icon System & Full Offline Tag Icon Picker (v1.5.7)
 
 ### 1. Architectural Overview & System Design
-Quiet Paper transitioned its entire iconographic design language from Material Symbols to **Phosphor Icons (`phosphor_flutter: 2.1.0` / `@phosphor-icons/core@2.1.1`)**, establishing a cohesive, editorial, and calm visual rhythm across all form factors.
+Quiet Paper transitioned its entire iconographic design language from Material Symbols to **Phosphor Icons (`@phosphor-icons/core@2.1.1`)**, establishing a cohesive, editorial, and calm visual rhythm across all form factors. To ensure 100% compatibility with modern Dart/Flutter SDKs (where `IconData` is declared as a `final class`) and prevent third-party package subclassing errors in CI/CD runners, Quiet Paper uses a **self-contained, zero-dependency Phosphor font and code architecture**.
 
 Key components introduced:
 1. **Catalog Pipeline & Code Generation**:
-   - `tool/generate_phosphor_catalog.dart`: Build tool that downloads `@phosphor-icons/core@2.1.1` metadata and generates `phosphor_catalog.json` (484 KB raw, 55 KB gzip) and `phosphor_manifest.json` (SHA-256 integrity check: `8e7144187ab78fc7978c9fbd5da86adc4e1793641e712874c0b991610797824a`).
-   - `lib/features/tags/domain/phosphor_icon_data_map.g.dart`: Generated lookup tables (`kPhosphorRegularIcons`, `kPhosphorBoldIcons`, `kPhosphorFillIcons`, `kPhosphorLightIcons`) mapping all 1,512 Phosphor icons for instantaneous $O(1)$ synchronous glyph rendering without disk I/O.
+   - `tool/generate_phosphor_catalog.dart`: Build tool that downloads `@phosphor-icons/core@2.1.1` metadata and generates:
+     - `assets/icons/phosphor_catalog.json` (484 KB raw, 55 KB gzip) and `assets/icons/phosphor_manifest.json` (SHA-256 integrity check: `8e7144187ab78fc7978c9fbd5da86adc4e1793641e712874c0b991610797824a`).
+     - `lib/features/tags/domain/phosphor_icons.dart`: Generated self-contained icon definitions (`PhosphorIconsRegular`, `PhosphorIconsBold`, `PhosphorIconsFill`, `PhosphorIconsLight`, `PhosphorIconsThin`, `PhosphorIconsDuotone`) using pure `const IconData(codePoint, fontFamily: ...)`, without subclassing `IconData` or relying on external packages.
+     - `lib/features/tags/domain/phosphor_icon_data_map.g.dart`: Generated lookup tables (`kPhosphorRegularIcons`, `kPhosphorBoldIcons`, `kPhosphorFillIcons`, `kPhosphorLightIcons`) mapping all 1,512 Phosphor icons for instantaneous $O(1)$ synchronous glyph rendering without disk I/O.
+   - `assets/fonts/`: Bundled TTF fonts (`Phosphor.ttf`, `Phosphor-Bold.ttf`, `Phosphor-Fill.ttf`, `Phosphor-Light.ttf`, `Phosphor-Thin.ttf`, `Phosphor-Duotone.ttf`) declared directly in `pubspec.yaml`.
 2. **Domain & Registry Resolution**:
    - `lib/features/tags/domain/tag_icon_definition.dart`: Encapsulates `PhosphorIconDefinition` with dynamic weight resolution (`getIconData([weight])`) and category metadata.
    - `lib/features/tags/domain/tag_icon_registry.dart`: Canonical resolution engine that cleans keys (`cleanId`), maps legacy aliases (`'star'`, `'bulb'`, `'home'`, `'health'`, etc.), strips namespaces (`phosphor:`, `ph:`, `icon:`), and renders the fallback `PhosphorIconsRegular.tag`.

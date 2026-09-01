@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/features/tags/domain/tag_icon_definition.dart';
 import 'package:quitepaper/features/tags/domain/tag_icon_registry.dart';
 

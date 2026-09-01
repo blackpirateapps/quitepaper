@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'phosphor_icon_data_map.g.dart';
+import 'phosphor_icons.dart';
 
 /// Weight variants supported for Phosphor icons.
 enum PhosphorIconWeight {
@@ -32,7 +32,7 @@ class PhosphorIconDefinition {
   /// PascalCase name, e.g. "BookOpen".
   final String pascalName;
 
-  /// camelCase name matching phosphor_flutter field, e.g. "bookOpen".
+  /// camelCase name matching field in PhosphorIcons, e.g. "bookOpen".
   final String camelName;
 
   /// Unicode font codepoint.
@@ -51,13 +51,13 @@ class PhosphorIconDefinition {
   IconData getIconData([PhosphorIconWeight weight = PhosphorIconWeight.regular]) {
     switch (weight) {
       case PhosphorIconWeight.regular:
-        return kPhosphorRegularIcons[id] ?? PhosphorFlatIconData(codePoint, 'Regular');
+        return kPhosphorRegularIcons[id] ?? PhosphorIconsRegular.tag;
       case PhosphorIconWeight.light:
-        return kPhosphorLightIcons[id] ?? PhosphorFlatIconData(codePoint, 'Light');
+        return kPhosphorLightIcons[id] ?? PhosphorIconsLight.tag;
       case PhosphorIconWeight.bold:
-        return kPhosphorBoldIcons[id] ?? PhosphorFlatIconData(codePoint, 'Bold');
+        return kPhosphorBoldIcons[id] ?? PhosphorIconsBold.tag;
       case PhosphorIconWeight.fill:
-        return kPhosphorFillIcons[id] ?? PhosphorFlatIconData(codePoint, 'Fill');
+        return kPhosphorFillIcons[id] ?? PhosphorIconsFill.tag;
     }
   }
 

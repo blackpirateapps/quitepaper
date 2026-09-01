@@ -35,7 +35,6 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  phosphor_flutter: ^2.1.0
   flutter_riverpod: ^2.6.1
   drift: ^2.34.3
   sqlite3_flutter_libs: ^0.6.0+eol
@@ -93,4 +92,24 @@ flutter:
 
   assets:
     - assets/icons/
+
+  fonts:
+    - family: Phosphor
+      fonts:
+        - asset: assets/fonts/Phosphor.ttf
+    - family: Phosphor-Bold
+      fonts:
+        - asset: assets/fonts/Phosphor-Bold.ttf
+    - family: Phosphor-Fill
+      fonts:
+        - asset: assets/fonts/Phosphor-Fill.ttf
+    - family: Phosphor-Light
+      fonts:
+        - asset: assets/fonts/Phosphor-Light.ttf
+    - family: Phosphor-Thin
+      fonts:
+        - asset: assets/fonts/Phosphor-Thin.ttf
+    - family: Phosphor-Duotone
+      fonts:
+        - asset: assets/fonts/Phosphor-Duotone.ttf
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/widgets/quiet_tag_chip.dart';
