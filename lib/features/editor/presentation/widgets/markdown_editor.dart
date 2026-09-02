@@ -7,6 +7,8 @@ import '../../application/markdown_formatter.dart';
 import '../../application/markdown_table_controller.dart';
 import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
+import '../../application/wysiwyg_editing_controller.dart';
+import '../../domain/editor_editing_style.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
 import '../../../../core/markdown/markdown_helper.dart';
@@ -16,14 +18,16 @@ import 'link_prompt_dialog.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
 
-/// A dedicated, distraction-free Markdown editor widget.
-/// Renders dynamic Markdown visual styling while preserving exact underlying Markdown source.
-/// Seamlessly provides a hybrid spreadsheet editing experience for Markdown tables.
+/// A dedicated, distraction-free Markdown and WYSIWYG editor widget.
+/// Supports both Markdown mode (syntax visible) and WYSIWYG mode (syntax hidden),
+/// while preserving exact canonical Markdown persistence and hybrid table spreadsheet editing.
 class MarkdownEditor extends StatefulWidget {
   const MarkdownEditor({
     super.key,
     required this.controller,
     required this.focusNode,
+    this.editingStyle = EditorEditingStyle.markdown,
+    this.stripFrontmatter = false,
     this.hintText = 'Start writing...',
     this.textCapitalization = TextCapitalization.sentences,
     this.keyboardType = TextInputType.multiline,
@@ -37,6 +41,8 @@ class MarkdownEditor extends StatefulWidget {
 
   final MarkdownEditingController controller;
   final FocusNode focusNode;
+  final EditorEditingStyle editingStyle;
+  final bool stripFrontmatter;
   final String hintText;
   final TextCapitalization textCapitalization;
   final TextInputType keyboardType;
@@ -47,7 +53,6 @@ class MarkdownEditor extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final VoidCallback? onNoteLinkPrompt;
 
-
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
 }
@@ -57,32 +62,91 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   MarkdownTable? _activeTable;
   MarkdownTableController? _activeTableController;
+  WysiwygEditingController? _wysiwygController;
+  bool _isSyncingFromWysiwyg = false;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onControllerChanged);
+    _initWysiwygController();
+    widget.controller.addListener(_onSourceControllerChanged);
+  }
+
+  void _initWysiwygController() {
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
+      _wysiwygController?.dispose();
+      _wysiwygController = WysiwygEditingController(
+        sourceText: widget.controller.text,
+        styles: widget.controller.styles,
+        stripFrontmatter: widget.stripFrontmatter,
+        onSourceChanged: _onWysiwygSourceChanged,
+      );
+      _wysiwygController!.searchQuery = widget.searchQuery;
+    } else {
+      _wysiwygController?.dispose();
+      _wysiwygController = null;
+    }
   }
 
   @override
   void didUpdateWidget(MarkdownEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.editingStyle != widget.editingStyle ||
+        oldWidget.stripFrontmatter != widget.stripFrontmatter) {
+      _initWysiwygController();
+    }
+
     if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_onControllerChanged);
-      widget.controller.addListener(_onControllerChanged);
+      oldWidget.controller.removeListener(_onSourceControllerChanged);
+      widget.controller.addListener(_onSourceControllerChanged);
+      if (_wysiwygController != null) {
+        _wysiwygController!.styles = widget.controller.styles;
+        _wysiwygController!.sourceText = widget.controller.text;
+      }
       _syncActiveTableWithDocument();
+    } else if (_wysiwygController != null) {
+      if (widget.controller.styles != _wysiwygController!.styles) {
+        _wysiwygController!.styles = widget.controller.styles;
+      }
+      if (widget.searchQuery != _wysiwygController!.searchQuery) {
+        _wysiwygController!.searchQuery = widget.searchQuery;
+      }
     }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onControllerChanged);
+    widget.controller.removeListener(_onSourceControllerChanged);
+    _wysiwygController?.dispose();
     _activeTableController?.dispose();
     _activeTableController = null;
     super.dispose();
   }
 
-  void _onControllerChanged() {
+  void _onWysiwygSourceChanged(String newSource) {
+    if (_isSyncingFromWysiwyg) return;
+    _isSyncingFromWysiwyg = true;
+    try {
+      final oldVal = widget.controller.value;
+      widget.controller.value = TextEditingValue(
+        text: newSource,
+        selection: _wysiwygController?.sourceValue.selection ?? oldVal.selection,
+      );
+      widget.onChanged?.call(newSource);
+    } finally {
+      _isSyncingFromWysiwyg = false;
+    }
+  }
+
+  void _onSourceControllerChanged() {
+    if (_isSyncingFromWysiwyg) return;
+
+    if (_wysiwygController != null &&
+        _wysiwygController!.sourceText != widget.controller.text) {
+      _wysiwygController!.sourceText = widget.controller.text;
+    }
+
     _syncActiveTableWithDocument();
   }
 
@@ -94,7 +158,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         _activeTable = reloaded;
         _activeTableController?.updateTableProjection(reloaded);
       } else {
-        // Table was deleted or malformed
         _deactivateTable();
       }
     }
@@ -114,6 +177,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       getDocumentValue: () => widget.controller.value,
       onUpdateDocument: (newVal) {
         widget.controller.value = newVal;
+        if (_wysiwygController != null) {
+          _wysiwygController!.sourceText = newVal.text;
+        }
         widget.onChanged?.call(newVal.text);
       },
       initialPosition: position ?? const TablePosition(row: 0, column: 0),
@@ -133,8 +199,13 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _activeTableController?.dispose();
     _activeTableController = null;
     _activeTable = null;
+
+    final targetCtrl = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null
+        ? _wysiwygController!
+        : widget.controller;
+
     widget.onActiveTargetChanged?.call(
-      widget.controller,
+      targetCtrl,
       widget.focusNode,
     );
     if (mounted) {
@@ -143,8 +214,15 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
-    final updated = action(value: widget.controller.value);
+    final currentSourceVal = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null
+        ? _wysiwygController!.sourceValue
+        : widget.controller.value;
+
+    final updated = action(value: currentSourceVal);
     widget.controller.value = updated;
+    if (_wysiwygController != null) {
+      _wysiwygController!.setSourceValue(updated);
+    }
     widget.onChanged?.call(widget.controller.text);
     if (!widget.focusNode.hasFocus) {
       widget.focusNode.requestFocus();
@@ -152,8 +230,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   Future<void> _promptLink(BuildContext context) async {
-    final selection = widget.controller.selection;
-    final text = widget.controller.text;
+    final activeCtrl = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null
+        ? _wysiwygController!
+        : widget.controller;
+
+    final selection = activeCtrl.selection;
+    final text = activeCtrl.text;
     var initialTitle = '';
     if (selection.isValid && !selection.isCollapsed) {
       final selStart = selection.start;
@@ -167,12 +249,19 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     );
 
     if (result != null) {
+      final currentSourceVal = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null
+          ? _wysiwygController!.sourceValue
+          : widget.controller.value;
+
       final updated = MarkdownFormatter.createLink(
-        value: widget.controller.value,
+        value: currentSourceVal,
         url: result.url,
         title: result.title,
       );
       widget.controller.value = updated;
+      if (_wysiwygController != null) {
+        _wysiwygController!.setSourceValue(updated);
+      }
       widget.onChanged?.call(widget.controller.text);
       if (!widget.focusNode.hasFocus) {
         widget.focusNode.requestFocus();
@@ -181,7 +270,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _handleTap() {
-    final val = widget.controller.value;
+    final isWysiwyg = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null;
+    final activeCtrl = isWysiwyg ? _wysiwygController! : widget.controller;
+    final val = activeCtrl.value;
     final text = val.text;
     final sel = val.selection;
     if (!sel.isValid) return;
@@ -190,37 +281,78 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (cursor < 0 || cursor > text.length) return;
 
     // Check if tapped inside a table
-    final table = _tableParser.findTableAtOffset(text, cursor);
+    final sourceText = widget.controller.text;
+    final sourceOffset = isWysiwyg ? _wysiwygController!.mapping.visualToSource(cursor) : cursor;
+
+    final table = _tableParser.findTableAtOffset(sourceText, sourceOffset);
     if (table != null && !widget.readOnly) {
-      final pos = table.findPositionAtSourceOffset(cursor) ?? const TablePosition(row: 0, column: 0);
+      final pos = table.findPositionAtSourceOffset(sourceOffset) ?? const TablePosition(row: 0, column: 0);
       _activateTable(table, pos);
       return;
     }
 
     // Find line surrounding tap for checklist toggling
-    var lineStart = 0;
-    if (cursor > 0) {
-      lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    }
-    var lineEnd = text.indexOf('\n', cursor);
-    if (lineEnd == -1) {
-      lineEnd = text.length;
-    }
+    if (isWysiwyg) {
+      // In WYSIWYG mode, check if tapped on visual checkbox (e.g. "☐ " or "☑ ")
+      var lineStart = 0;
+      if (cursor > 0) {
+        lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+      }
+      var lineEnd = text.indexOf('\n', cursor);
+      if (lineEnd == -1) lineEnd = text.length;
 
-    final line = text.substring(lineStart, lineEnd);
-    final match = RegExp(r'^(\s*[-*+]\s*\[)([ xX])(\])').firstMatch(line);
-    if (match != null) {
-      final markerEnd = lineStart + match.end;
-      if (cursor <= markerEnd + 1) {
-        final state = match.group(2);
-        final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
-        final stateOffset = lineStart + (match.group(1)?.length ?? 3);
-        final newText = text.replaceRange(stateOffset, stateOffset + 1, newState);
-        widget.controller.value = TextEditingValue(
-          text: newText,
-          selection: sel,
-        );
-        widget.onChanged?.call(newText);
+      final line = text.substring(lineStart, lineEnd);
+      final isCheckboxLine = line.startsWith('☐ ') || line.startsWith('☑ ');
+      if (isCheckboxLine && cursor <= lineStart + 3) {
+        // Toggle checkbox in source
+        var srcLineStart = 0;
+        if (sourceOffset > 0) {
+          srcLineStart = sourceText.lastIndexOf('\n', sourceOffset - 1) + 1;
+        }
+        var srcLineEnd = sourceText.indexOf('\n', sourceOffset);
+        if (srcLineEnd == -1) srcLineEnd = sourceText.length;
+
+        final srcLine = sourceText.substring(srcLineStart, srcLineEnd);
+        final match = RegExp(r'^(\s*[-*+]\s*\[)([ xX])(\])').firstMatch(srcLine);
+        if (match != null) {
+          final state = match.group(2);
+          final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
+          final stateOffset = srcLineStart + (match.group(1)?.length ?? 3);
+          final newSourceText = sourceText.replaceRange(stateOffset, stateOffset + 1, newState);
+
+          widget.controller.value = TextEditingValue(
+            text: newSourceText,
+            selection: widget.controller.selection,
+          );
+          _wysiwygController!.setSourceValue(widget.controller.value);
+          widget.onChanged?.call(newSourceText);
+          return;
+        }
+      }
+    } else {
+      // In Markdown mode, check if tapped on - [ ]
+      var lineStart = 0;
+      if (cursor > 0) {
+        lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+      }
+      var lineEnd = text.indexOf('\n', cursor);
+      if (lineEnd == -1) lineEnd = text.length;
+
+      final line = text.substring(lineStart, lineEnd);
+      final match = RegExp(r'^(\s*[-*+]\s*\[)([ xX])(\])').firstMatch(line);
+      if (match != null) {
+        final markerEnd = lineStart + match.end;
+        if (cursor <= markerEnd + 1) {
+          final state = match.group(2);
+          final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
+          final stateOffset = lineStart + (match.group(1)?.length ?? 3);
+          final newText = text.replaceRange(stateOffset, stateOffset + 1, newState);
+          widget.controller.value = TextEditingValue(
+            text: newText,
+            selection: sel,
+          );
+          widget.onChanged?.call(newText);
+        }
       }
     }
   }
@@ -243,6 +375,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   Widget _buildSingleTextField(BuildContext context, AppColors colors) {
+    final isWysiwyg = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null;
+    final activeCtrl = isWysiwyg ? _wysiwygController! : widget.controller;
+
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyB, control: true): () =>
@@ -272,18 +407,18 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         readOnly: widget.readOnly,
         onChanged: widget.onChanged,
         child: TextField(
-          controller: widget.controller,
+          controller: activeCtrl,
           focusNode: widget.focusNode,
           readOnly: widget.readOnly,
           cursorColor: colors.accent,
           style: (widget.controller.styles?.body ?? AppTypography.editorBody).copyWith(
             color: colors.textPrimary,
           ),
-          inputFormatters: const [
-            MarkdownTextInputFormatter(),
-          ],
+          inputFormatters: isWysiwyg
+              ? null
+              : const [MarkdownTextInputFormatter()],
           onTap: () {
-            widget.onActiveTargetChanged?.call(widget.controller, widget.focusNode);
+            widget.onActiveTargetChanged?.call(activeCtrl, widget.focusNode);
             _handleTap();
           },
           contextMenuBuilder: _buildContextMenu,
@@ -301,7 +436,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           maxLines: null,
           keyboardType: widget.keyboardType,
           textCapitalization: widget.textCapitalization,
-          onChanged: widget.onChanged,
+          onChanged: (val) {
+            if (!isWysiwyg) {
+              widget.onChanged?.call(val);
+            }
+          },
           scrollPadding: widget.scrollPadding,
         ),
       ),
@@ -335,6 +474,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             readOnly: widget.readOnly,
             hintText: currentOffset == 0 ? widget.hintText : '',
             searchQuery: widget.searchQuery,
+            editingStyle: widget.editingStyle,
             onActiveTarget: widget.onActiveTargetChanged,
             onTap: _handleTap,
             onChanged: (newSegText) {
@@ -343,6 +483,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
                 text: newFullText,
                 selection: TextSelection.collapsed(offset: segmentStart + newSegText.length),
               );
+              if (_wysiwygController != null) {
+                _wysiwygController!.sourceText = newFullText;
+              }
               widget.onChanged?.call(newFullText);
             },
           ),
@@ -393,6 +536,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: '',
           searchQuery: widget.searchQuery,
+          editingStyle: widget.editingStyle,
           onActiveTarget: widget.onActiveTargetChanged,
           onTap: _handleTap,
           onChanged: (newSegText) {
@@ -401,6 +545,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               text: newFullText,
               selection: TextSelection.collapsed(offset: segmentStart + newSegText.length),
             );
+            if (_wysiwygController != null) {
+              _wysiwygController!.sourceText = newFullText;
+            }
             widget.onChanged?.call(newFullText);
           },
         ),
@@ -415,6 +562,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: 'Continue writing...',
           searchQuery: widget.searchQuery,
+          editingStyle: widget.editingStyle,
           onActiveTarget: widget.onActiveTargetChanged,
           onChanged: (newSegText) {
             final newFullText = '$text\n\n$newSegText';
@@ -422,6 +570,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               text: newFullText,
               selection: TextSelection.collapsed(offset: newFullText.length),
             );
+            if (_wysiwygController != null) {
+              _wysiwygController!.sourceText = newFullText;
+            }
             widget.onChanged?.call(newFullText);
           },
         ),
@@ -439,7 +590,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     final buttonItems = editableTextState.contextMenuButtonItems;
     final isSelectionActive =
         !editableTextState.textEditingValue.selection.isCollapsed;
-    final val = editableTextState.textEditingValue;
+    final val = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(val);
     final codeLangButton = currentLang != null
         ? ContextMenuButtonItem(
@@ -457,6 +608,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
                   newLanguage: selected.id,
                 );
                 widget.controller.value = updated;
+                if (_wysiwygController != null) {
+                  _wysiwygController!.setSourceValue(updated);
+                }
                 widget.onChanged?.call(updated.text);
                 if (!widget.focusNode.hasFocus) {
                   widget.focusNode.requestFocus();
@@ -519,7 +673,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             _applyFormat(MarkdownFormatter.toggleChecklist);
           },
         ),
-
       ];
 
       return AdaptiveTextSelectionToolbar.buttonItems(
@@ -551,6 +704,7 @@ class _TextSegmentField extends StatefulWidget {
     required this.hintText,
     required this.onChanged,
     this.searchQuery,
+    this.editingStyle = EditorEditingStyle.wysiwyg,
     this.onTap,
     this.onActiveTarget,
   });
@@ -561,6 +715,7 @@ class _TextSegmentField extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onChanged;
   final String? searchQuery;
+  final EditorEditingStyle editingStyle;
   final VoidCallback? onTap;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTarget;
 
@@ -569,24 +724,40 @@ class _TextSegmentField extends StatefulWidget {
 }
 
 class _TextSegmentFieldState extends State<_TextSegmentField> {
-  late final MarkdownEditingController _controller;
+  late final MarkdownEditingController _sourceController;
+  WysiwygEditingController? _wysiwygController;
   late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
-    _controller = MarkdownEditingController(
+    _sourceController = MarkdownEditingController(
       text: widget.initialText,
       styles: widget.styles,
     );
     _focusNode = FocusNode();
     _focusNode.addListener(_handleFocusChanged);
-    _controller.addListener(_onTextChanged);
+    _sourceController.addListener(_onTextChanged);
+
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
+      _wysiwygController = WysiwygEditingController(
+        sourceText: widget.initialText,
+        styles: widget.styles,
+        onSourceChanged: (newSrc) {
+          if (_sourceController.text != newSrc) {
+            _sourceController.text = newSrc;
+          }
+        },
+      );
+    }
   }
 
   void _handleFocusChanged() {
     if (_focusNode.hasFocus) {
-      widget.onActiveTarget?.call(_controller, _focusNode);
+      final active = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null
+          ? _wysiwygController!
+          : _sourceController;
+      widget.onActiveTarget?.call(active, _focusNode);
     }
   }
 
@@ -594,54 +765,66 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
   void didUpdateWidget(_TextSegmentField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialText != widget.initialText &&
-        widget.initialText != _controller.text) {
-      _controller.text = widget.initialText;
+        widget.initialText != _sourceController.text) {
+      _sourceController.text = widget.initialText;
+      if (_wysiwygController != null) {
+        _wysiwygController!.sourceText = widget.initialText;
+      }
     }
     if (oldWidget.styles != widget.styles) {
-      _controller.styles = widget.styles;
+      _sourceController.styles = widget.styles;
+      if (_wysiwygController != null) {
+        _wysiwygController!.styles = widget.styles;
+      }
     }
     if (oldWidget.searchQuery != widget.searchQuery) {
-      _controller.searchQuery = widget.searchQuery;
+      _sourceController.searchQuery = widget.searchQuery;
+      if (_wysiwygController != null) {
+        _wysiwygController!.searchQuery = widget.searchQuery;
+      }
     }
   }
 
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChanged);
-    _controller.removeListener(_onTextChanged);
-    _controller.dispose();
+    _sourceController.removeListener(_onTextChanged);
+    _wysiwygController?.dispose();
+    _sourceController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _onTextChanged() {
-    if (_controller.text != widget.initialText) {
-      widget.onChanged(_controller.text);
+    if (_sourceController.text != widget.initialText) {
+      widget.onChanged(_sourceController.text);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isWysiwyg = widget.editingStyle == EditorEditingStyle.wysiwyg && _wysiwygController != null;
+    final activeCtrl = isWysiwyg ? _wysiwygController! : _sourceController;
 
     return CodeBlockOverlay(
-      controller: _controller,
+      controller: _sourceController,
       focusNode: _focusNode,
       readOnly: widget.readOnly,
       onChanged: widget.onChanged,
       child: TextField(
-        controller: _controller,
+        controller: activeCtrl,
         focusNode: _focusNode,
         readOnly: widget.readOnly,
         cursorColor: colors.accent,
         style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
           color: colors.textPrimary,
         ),
-        inputFormatters: const [
-          MarkdownTextInputFormatter(),
-        ],
+        inputFormatters: isWysiwyg
+            ? null
+            : const [MarkdownTextInputFormatter()],
         onTap: () {
-          widget.onActiveTarget?.call(_controller, _focusNode);
+          widget.onActiveTarget?.call(activeCtrl, _focusNode);
           widget.onTap?.call();
         },
         decoration: InputDecoration(

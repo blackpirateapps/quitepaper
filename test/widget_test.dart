@@ -154,17 +154,17 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    // Verify content loaded in text fields
+    // Verify content loaded in text fields (in WYSIWYG mode, bold delimiters are visually hidden)
     expect(find.text('Persistent Title'), findsOneWidget);
     expect(
-      find.text('Paragraph 1\n\nParagraph 2 with **bold**'),
+      find.text('Paragraph 1\n\nParagraph 2 with bold'),
       findsOneWidget,
     );
 
     // Modify content
     await tester.enterText(
       find.byType(TextField).last,
-      'Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3',
+      'Paragraph 1\n\nParagraph 2 with bold\n\nParagraph 3',
     );
     await tester.pump(const Duration(milliseconds: 800));
 
@@ -181,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Paragraph 1\n\nParagraph 2 with **bold**\n\nParagraph 3'),
+      find.text('Paragraph 1\n\nParagraph 2 with bold\n\nParagraph 3'),
       findsOneWidget,
     );
 

@@ -4638,6 +4638,109 @@ Embedded an understated, typography-focused paper calendar within the All Entrie
 - Full test suite: **1,143 passed / 0 failed** (`flutter test`).
 - Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
 
+---
+
+## 35. Dual-Mode WYSIWYG Markdown Editor & Frontmatter Properties (v3)
+
+### 1. Architectural Overview & Invariants
+Quiet Paper's editor has evolved into a dual-mode system delivering a calm, Bear-like rich visual writing canvas while preserving standard Markdown as the single source of truth across all storage, sync, and export layers.
+
+- **Canonical Markdown Invariant**: SQLite (Drift), encrypted cloud backups, E2EE Turso sync, and file exports operate strictly on canonical standard Markdown text. Zero schema migrations or database changes were introduced.
+- **Ephemeral Semantic Projection**: WYSIWYG formatting operates as a dynamic, bidirectional projection layer (`SourceVisualMapping`) between source Markdown and user-facing visual text.
+- **Global & Per-Note Style Switching**:
+  - **Global Setting**: Configured under **Settings → Editor → Editing Style** with options `WYSIWYG` (Default) and `Markdown`, persisted via `SharedPreferences` (`app_editor_editing_style`).
+  - **Per-Note Escape Hatch**: Temporary switch available in the editor overflow menu (`⋯`): `"Edit Markdown"` (when in WYSIWYG) and `"Edit Visually"` (when in Markdown mode).
+
+```
+                      ┌────────────────────────────────────────┐
+                      │      Canonical Markdown Source         │
+                      │   (SQLite Drift / E2EE Sync / Export)  │
+                      └──────────────────┬─────────────────────┘
+                                         │
+                         WysiwygProjectionBuilder.build()
+                                         │
+                                         ▼
+                      ┌────────────────────────────────────────┐
+                      │         SourceVisualMapping            │
+                      │  • Delimiters hidden (**, #, -, >)     │
+                      │  • Visual runs & typography styles     │
+                      │  • Bidirectional index translations   │
+                      └──────────────────┬─────────────────────┘
+                                         │
+                                         ▼
+                      ┌────────────────────────────────────────┐
+                      │       WysiwygEditingController         │
+                      │    (Custom visual editing canvas)      │
+                      └──────────────────┬─────────────────────┘
+                                         │
+                    ┌────────────────────┴────────────────────┐
+                    ▼                                         ▼
+      ┌───────────────────────────┐             ┌───────────────────────────┐
+      │ FrontmatterProperties     │             │      MarkdownEditor       │
+      │ Understated metadata panel│             │  Visual Bear-like canvas  │
+      │  (Author, Date, URL, Tags)│             │ (Live bold, lists, checks)│
+      └───────────────────────────┘             └───────────────────────────┘
+```
+
+### 2. Core Domain Models & Application Layer
+- **`EditorEditingStyle`** ([`lib/features/editor/domain/editor_editing_style.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/editor_editing_style.dart)):
+  - Enum with values `wysiwyg` (default) and `markdown`.
+  - Serializes to storage keys `'wysiwyg'` and `'markdown'`.
+  - Backed by `EditingStyleNotifier` and `editorEditingStyleProvider` in [`lib/features/settings/application/settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/settings_provider.dart).
+- **`SourceVisualMapping` & `MarkdownVisualRun`** ([`lib/features/editor/domain/source_visual_mapping.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/source_visual_mapping.dart)):
+  - Encapsulates visual runs, hidden syntax markers, and bidirectional coordinate mappings (`sourceToVisual`, `visualToSource`, `mapVisualSelectionToSource`, `mapSourceSelectionToVisual`).
+  - Implements `mapVisualEditToSource(oldVisual, newVisual)` to convert delta edits in visual text into exact slice mutations in canonical Markdown without altering unedited syntax.
+- **`WysiwygProjectionBuilder`** ([`lib/features/editor/application/wysiwyg_projection_builder.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/wysiwyg_projection_builder.dart)):
+  - Hides structural and inline delimiters:
+    - Headings: `# `, `## `, `### `, etc.
+    - Inline formatting: `**bold**`, `*italic*`, `~~strike~~`, `==highlight==`, `` `code` ``.
+    - Lists & Checklists: `- ` / `* ` projected as bullets (`• `), `- [ ]` / `- [x]` projected as checkbox symbols (`☐` / `☑`).
+    - Blockquotes: `> ` marker hidden, styled with muted italic body.
+    - Links: `[label](url)` projects label with subtle accent underline and hides raw URL.
+    - Note Links: `[[Note Title]]` hides outer brackets and styles title.
+    - Frontmatter: When `stripFrontmatter: true`, hides entire YAML block from body canvas.
+- **`WysiwygEditingController`** ([`lib/features/editor/application/wysiwyg_editing_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/wysiwyg_editing_controller.dart)):
+  - Subclasses Flutter's `TextEditingController`.
+  - Manages internal `sourceText` and dynamically updates visual value and selections upon edit.
+  - Supports IME composing ranges and in-note search highlight overlays with zero flicker.
+
+### 3. Frontmatter Properties & Surgical Mutation
+- **`FrontmatterDocument` & `FrontmatterProperty`** ([`lib/features/editor/domain/frontmatter_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/frontmatter_document.dart)):
+  - Domain representation tracking exact character and line ranges of all frontmatter properties.
+  - Identifies recognized properties (`title`, `author`, `created`/`date`, `source`/`url`, `description`/`summary`, `tags`) as well as unknown custom keys and comments.
+- **`FrontmatterEditorHelper`** ([`lib/features/editor/application/frontmatter_editor_helper.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/frontmatter_editor_helper.dart)):
+  - Range-based parser and surgical mutator (`updateProperty`, `updateTitle`, `updateTags`, `extractBody`, `assemble`).
+  - **Non-Destructive Invariant**: Updating or adding any property only modifies the exact slice of text for that property. All unknown YAML fields, multiline strings, comments, and spacing are 100% preserved verbatim.
+  - **Title Synchronization**: Editing the visual title in `EditorScreen` automatically updates `title:` in YAML frontmatter (and vice versa).
+- **`FrontmatterPropertiesSection`** ([`lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart)):
+  - Understated, calm editorial card rendered above the body canvas in WYSIWYG mode when frontmatter exists.
+  - **Expanded by default**; tapping the header cleanly collapses it with a metadata summary row (`Dr. Watson · 2026-09-02 · 2 tags`).
+  - Provides direct inline editing for Author, Created Date, Source URL (with browser jump link), Description, and interactive Tag chips.
+  - Displays a subtle warning notice if frontmatter contains malformed YAML syntax, directing users to `"Edit Markdown"`.
+
+### 4. UI & Settings Integration
+- **`MarkdownEditor`** ([`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart)):
+  - Dual-mode support accepting `editingStyle` and `stripFrontmatter`.
+  - In WYSIWYG mode, transparently switches to `WysiwygEditingController`, intercepts checklist tap gestures (`☐` $\leftrightarrow$ `☑`), and synchronizes edits with the canonical controller.
+- **`SettingsScreen`** ([`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart)):
+  - Added the **EDITOR** settings group containing **Editing Style** with radio selector for `WYSIWYG` (Default) and `Markdown`.
+- **`EditorScreen`** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
+  - Reads `effectiveEditingStyle(globalStyle)` combining global preference and per-note override.
+  - Houses `FrontmatterPropertiesSection` above writing canvas in WYSIWYG mode.
+  - Provides `"Edit Markdown"` / `"Edit Visually"` toggle in overflow menu (`⋯`).
+
+### 5. Test Suite & Verification Metrics
+- Created 7 dedicated test suites:
+  1. `test/editor/editing_style_settings_test.dart`: Enum parsing, SharedPreferences persistence, per-note state overrides.
+  2. `test/editor/frontmatter_editor_helper_test.dart`: Parsing, non-destructive surgical mutations, comment/unknown field preservation.
+  3. `test/editor/source_visual_mapping_test.dart`: Syntax hiding, coordinate conversions, selection translations, edit mapping.
+  4. `test/editor/wysiwyg_editing_controller_test.dart`: Controller lifecycle, visual typing to sourceText sync, text span building.
+  5. `test/editor/wysiwyg_editor_widget_test.dart`: WYSIWYG rendering, Markdown mode rendering, dynamic style switching, frontmatter stripping.
+  6. `test/editor/frontmatter_properties_section_test.dart`: Default expanded layout, collapse/expand, inline property editing, malformed notice.
+  7. `test/editor/dual_mode_editor_screen_test.dart`: End-to-end EditorScreen dual-mode, overflow toggle, title synchronization.
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,191 passed / 0 failed (100% pass rate)**.
+
 
 
 
