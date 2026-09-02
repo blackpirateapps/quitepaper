@@ -75,8 +75,8 @@ class SpeechRecognitionService extends ChangeNotifier {
         }
       }
 
-      // 3. Load engine if not loaded
-      if (!recognitionEngine.isLoaded && status.modelPath != null) {
+      // 3. Load engine if needed
+      if (status.modelPath != null) {
         _session = _session.copyWith(state: SpeechSessionState.loadingEngine);
         notifyListeners();
         try {
@@ -122,7 +122,7 @@ class SpeechRecognitionService extends ChangeNotifier {
   /// Stops recording, executes transcription, and returns the transcribed text.
   /// The temporary audio recording is deleted after transcription.
   Future<String?> stopListeningAndTranscribe({
-    String lang = 'en',
+    String? lang,
     void Function(int percent)? onProgress,
   }) async {
     if (!_session.isRecording) {
@@ -140,9 +140,10 @@ class SpeechRecognitionService extends ChangeNotifier {
         return null;
       }
 
+      final effectiveLang = lang ?? modelManager.descriptor.languageCode;
       final transcript = await recognitionEngine.transcribe(
         audioPath: audioFile.path,
-        lang: lang,
+        lang: effectiveLang,
         onProgress: onProgress,
       );
 

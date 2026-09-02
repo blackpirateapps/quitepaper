@@ -12,6 +12,7 @@ import 'package:quitepaper/core/speech/infrastructure/speech_storage_service.dar
 class FakeSpeechRecognitionEngine implements SpeechRecognitionEngine {
   bool _isLoaded = false;
   String? lastAudioPath;
+  String? lastLang;
   String returnedTranscript = 'Transcribed speech text';
 
   @override
@@ -29,6 +30,7 @@ class FakeSpeechRecognitionEngine implements SpeechRecognitionEngine {
     void Function(int percent)? onProgress,
   }) async {
     lastAudioPath = audioPath;
+    lastLang = lang;
     return returnedTranscript;
   }
 
@@ -185,5 +187,41 @@ void main() {
     expect(retried, isTrue);
     expect(service.session.isRecording, isTrue);
     expect(service.session.errorMessage, isNull);
+  });
+
+  test('multilingual model automatically passes lang: auto to engine', () async {
+    const multiDescriptor = FutoMultilingualSpeechModel244();
+    final multiModelFile = await storageService.getModelFile(multiDescriptor);
+    final dummyBytes = List<int>.filled(multiDescriptor.sizeBytes, 0);
+    await multiModelFile.writeAsBytes(dummyBytes);
+    final metadata = SpeechModelMetadata(
+      modelId: multiDescriptor.id,
+      version: multiDescriptor.version,
+      filename: multiDescriptor.filename,
+      sizeBytes: multiDescriptor.sizeBytes,
+      sha256: multiDescriptor.expectedSha256,
+      installedAt: DateTime.now(),
+    );
+    await storageService.saveMetadata(metadata);
+
+    final multiManager = SpeechModelManager(
+      descriptor: multiDescriptor,
+      storageService: storageService,
+      downloader: SpeechDownloader(storageService: storageService),
+    );
+
+    final multiService = SpeechRecognitionService(
+      modelManager: multiManager,
+      recorderService: fakeRecorder,
+      recognitionEngine: fakeEngine,
+      storageService: storageService,
+    );
+    addTearDown(multiService.dispose);
+
+    await multiService.startListening();
+    expect(multiService.session.isRecording, isTrue);
+
+    await multiService.stopListeningAndTranscribe();
+    expect(fakeEngine.lastLang, equals('auto'));
   });
 }

@@ -1473,16 +1473,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (!mounted) return;
 
     final ctrl = _activeTargetController ?? _contentController;
+    final fn = _activeTargetFocusNode ?? _contentFocusNode;
     _capturedDictationController = ctrl;
     _capturedDictationSelection = ctrl.selection.isValid
         ? ctrl.selection
         : TextSelection.collapsed(offset: ctrl.text.length);
 
-    // Dismiss software keyboard while dictating
-    FocusScope.of(context).unfocus();
-    _contentFocusNode.unfocus();
-    _titleFocusNode.unfocus();
-    _activeTargetFocusNode?.unfocus();
+    // Keep software keyboard visible and focus active while dictating
+    if (!fn.hasFocus) {
+      fn.requestFocus();
+    }
 
     final speechService = ref.read(speechRecognitionServiceProvider);
     await speechService.startListening(
@@ -1495,6 +1495,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final transcript = await speechService.stopListeningAndTranscribe();
 
     if (!mounted) return;
+
+    final fn = _activeTargetFocusNode ?? _contentFocusNode;
+    if (!fn.hasFocus) {
+      fn.requestFocus();
+    }
 
     if (transcript != null && transcript.isNotEmpty) {
       final ctrl = _capturedDictationController ??
@@ -1531,6 +1536,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Future<void> _handleCancelDictation() async {
     final speechService = ref.read(speechRecognitionServiceProvider);
     await speechService.cancelListening();
+    if (mounted) {
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) {
+        fn.requestFocus();
+      }
+    }
   }
 
   void _handleDismissSpeechError() {

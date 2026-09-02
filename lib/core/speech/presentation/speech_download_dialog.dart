@@ -6,15 +6,26 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../application/speech_provider.dart';
+import '../domain/speech_model.dart';
 
 class SpeechDownloadDialog extends ConsumerWidget {
-  const SpeechDownloadDialog({super.key});
+  const SpeechDownloadDialog({
+    super.key,
+    this.modelDescriptor,
+  });
 
-  static Future<bool?> show(BuildContext context) {
+  final SpeechModelDescriptor? modelDescriptor;
+
+  static Future<bool?> show(
+    BuildContext context, {
+    SpeechModelDescriptor? modelDescriptor,
+  }) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const SpeechDownloadDialog(),
+      builder: (context) => SpeechDownloadDialog(
+        modelDescriptor: modelDescriptor,
+      ),
     );
   }
 
@@ -26,9 +37,12 @@ class SpeechDownloadDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
-    final status = ref.watch(speechModelStatusProvider);
-    final manager = ref.read(speechModelManagerProvider);
-    final descriptor = manager.descriptor;
+    final SpeechModelDescriptor descriptor =
+        modelDescriptor ?? ref.watch(speechModelDescriptorProvider);
+    final manager = modelDescriptor != null
+        ? ref.watch(speechModelManagerFamily(descriptor))
+        : ref.watch(speechModelManagerProvider);
+    final status = manager.status;
 
     final isDownloading = status.isDownloading;
     final isInstalled = status.isInstalled;
@@ -43,6 +57,14 @@ class SpeechDownloadDialog extends ConsumerWidget {
       });
     }
 
+    final description = descriptor.isMultilingual
+        ? 'Quiet Paper can automatically detect and transcribe your voice in multiple languages entirely on this device.\n\n'
+            'Download the Multilingual speech model once (${_formatMb(descriptor.sizeBytes)}). '
+            'Afterward, transcription works completely offline.'
+        : 'Quiet Paper can transcribe your voice entirely on this device.\n\n'
+            'Download the ${descriptor.name} once (${_formatMb(descriptor.sizeBytes)}). '
+            'Afterward, transcription works completely offline.';
+
     return Dialog(
       backgroundColor: colors.surface,
       surfaceTintColor: Colors.transparent,
@@ -50,7 +72,7 @@ class SpeechDownloadDialog extends ConsumerWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -66,9 +88,7 @@ class SpeechDownloadDialog extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'Quiet Paper can transcribe your voice entirely on this device.\n\n'
-                'Download the English speech model once (${_formatMb(descriptor.sizeBytes)}). '
-                'Afterward, transcription works completely offline.',
+                description,
                 style: AppTypography.bodyMedium.copyWith(
                   color: colors.textSecondary,
                   height: 1.5,

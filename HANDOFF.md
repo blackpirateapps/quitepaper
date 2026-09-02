@@ -4889,6 +4889,33 @@ Changed `ref.watch(speechModelManagerProvider)` to `ref.read(speechModelManagerP
  });
 ```
 
+---
+
+## 45. Speech Dictation Keyboard Retention & Multi-Model Voice Recognition
+
+### 1. Keyboard Visibility During Dictation
+- **Problem**: Previously, tapping the microphone icon in `FormattingToolbar` explicitly unfocused text fields and dismissed the software keyboard. When dictation ended, the editor remained without an active keyboard.
+- **Solution**: Removed explicit unfocus calls in `EditorScreen._handleStartDictation()`. The text field retains focus, keeping the software keyboard visible. The `SpeechRecordingBar` docks seamlessly above the keyboard in place of `FormattingToolbar`. Upon stopping or cancelling, focus is requested/preserved and the caret is positioned immediately after the inserted text without any keyboard flickering.
+
+### 2. Multi-Model FUTO Whisper Speech Recognition
+- **Supported Models**:
+  1. **`futo_voice_input_english_39`** (`voice-input-english-39.bin`): `43,550,795` bytes (~41.5 MB), SHA-256: `4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc`, `languageCode: 'en'` (Fast & Lightweight).
+  2. **`futo_voice_input_english_74`** (`voice-input-english-74.bin`): `81,781,811` bytes (~78.0 MB), SHA-256: `e9b4b7b81b8a28769e8aa9962aa39bb9f21b622cf6a63982e93f065ed5caf1c8`, `languageCode: 'en'` (Balanced).
+  3. **`futo_voice_input_english_244`** (`voice-input-english-244.bin`): `264,477,561` bytes (~252.2 MB), SHA-256: `58fbe949992dafed917590d58bc12ca577b08b9957f0b3e0d7ee71b64bed3aa8`, `languageCode: 'en'` (High Accuracy).
+  4. **`futo_voice_input_multilingual_244`** (`voice-input-multilingual-244.bin`): `264,464,624` bytes (~252.2 MB), SHA-256: `15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4`, `languageCode: 'auto'`, `isMultilingual: true` (Auto Language Detection).
+
+### 3. Automatic Language Detection for Multilingual Speech
+- When using `futo_voice_input_multilingual_244`, `SpeechRecognitionService` passes `lang: 'auto'` with `isTranslate: false` to `WhisperRecognitionEngine`. Whisper GGML automatically detects the spoken language and transcribes the speech verbatim in that language.
+
+### 4. Settings & Selection Management
+- **`SpeechSettingsView`**: Refactored into iOS grouped tables dividing English and Multilingual models. Users can select an active model (persisted in `SharedPreferences`), view real-time download progress, trigger downloads, and delete models independently.
+- **`SpeechDownloadDialog`**: Dynamically adjusts descriptions and downloads the user's selected or requested model with full progress indicators and cancellation support.
+
+### 5. Automated Verification
+- Static analysis: `flutter analyze` $\rightarrow$ **0 issues**.
+- Test suite: `flutter test` $\rightarrow$ **1,249 passed / 0 failed (100% pass rate)**.
+
+
 
 
 

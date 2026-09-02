@@ -103,9 +103,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Offline Speech Recognition'), findsOneWidget);
-    expect(find.text('English Voice Model'), findsOneWidget);
+    expect(find.text('English (Fast)'), findsOneWidget);
     expect(find.text('Download'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  testWidgets('SpeechDownloadDialog with Multilingual model renders auto-detect copy',
+      (tester) async {
+    await tester.pumpWidget(
+      createTestWidget(const SpeechDownloadDialog(
+        modelDescriptor: SpeechModels.multilingual244,
+      )),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Offline Speech Recognition'), findsOneWidget);
+    expect(find.text('Multilingual (Auto-Detect)'), findsOneWidget);
+    expect(find.textContaining('automatically detect and transcribe your voice in multiple languages'), findsOneWidget);
+    expect(find.text('Download'), findsOneWidget);
   });
 
   testWidgets('SpeechRecordingBar renders listening state and responds to stop',
@@ -216,7 +231,7 @@ void main() {
     expect(errorDismissed, isTrue);
   });
 
-  testWidgets('SpeechSettingsView renders model information', (tester) async {
+  testWidgets('SpeechSettingsView renders all 4 models and sections', (tester) async {
     await tester.pumpWidget(
       createTestWidget(const SpeechSettingsView()),
     );
@@ -224,7 +239,21 @@ void main() {
 
     expect(find.text('Speech Recognition'), findsOneWidget);
     expect(find.text('OFFLINE TRANSCRIPTION'), findsOneWidget);
-    expect(find.text('English Voice Model'), findsOneWidget);
+    expect(find.text('ENGLISH VOICE MODELS'), findsOneWidget);
+    expect(find.text('English (Fast)'), findsOneWidget);
+    expect(find.text('English (Balanced)'), findsOneWidget);
+    expect(find.text('English (High Accuracy)'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Multilingual (Auto-Detect)'),
+      100,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('MULTILINGUAL VOICE MODEL'), findsOneWidget);
+    expect(find.text('Multilingual (Auto-Detect)'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsOneWidget);
   });
 
   testWidgets('FormattingToolbar renders Dictate button and fires onDictatePressed',

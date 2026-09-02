@@ -12,6 +12,7 @@ class TestSpeechModelDescriptor implements SpeechModelDescriptor {
   const TestSpeechModelDescriptor({
     required this.id,
     required this.name,
+    this.subtitle = '',
     required this.language,
     required this.languageCode,
     required this.sizeBytes,
@@ -19,12 +20,15 @@ class TestSpeechModelDescriptor implements SpeechModelDescriptor {
     required this.filename,
     required this.downloadUrl,
     required this.expectedSha256,
+    this.isMultilingual = false,
   });
 
   @override
   final String id;
   @override
   final String name;
+  @override
+  final String subtitle;
   @override
   final String language;
   @override
@@ -39,6 +43,8 @@ class TestSpeechModelDescriptor implements SpeechModelDescriptor {
   final String downloadUrl;
   @override
   final String expectedSha256;
+  @override
+  final bool isMultilingual;
 }
 
 void main() {

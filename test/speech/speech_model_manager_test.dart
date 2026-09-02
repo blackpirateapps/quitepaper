@@ -14,6 +14,7 @@ class MockDescriptor implements SpeechModelDescriptor {
   const MockDescriptor({
     required this.id,
     required this.name,
+    this.subtitle = '',
     required this.language,
     required this.languageCode,
     required this.sizeBytes,
@@ -21,12 +22,15 @@ class MockDescriptor implements SpeechModelDescriptor {
     required this.filename,
     required this.downloadUrl,
     required this.expectedSha256,
+    this.isMultilingual = false,
   });
 
   @override
   final String id;
   @override
   final String name;
+  @override
+  final String subtitle;
   @override
   final String language;
   @override
@@ -41,6 +45,8 @@ class MockDescriptor implements SpeechModelDescriptor {
   final String downloadUrl;
   @override
   final String expectedSha256;
+  @override
+  final bool isMultilingual;
 }
 
 void main() {
