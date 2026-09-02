@@ -162,6 +162,60 @@ void main() {
     expect(find.text('Transcribing on device…'), findsOneWidget);
   });
 
+  testWidgets('SpeechRecordingBar renders preparation states with cancel',
+      (tester) async {
+    bool cancelPressed = false;
+    const session = SpeechSession(
+      state: SpeechSessionState.loadingEngine,
+    );
+
+    await tester.pumpWidget(
+      createTestWidget(
+        SpeechRecordingBar(
+          session: session,
+          onStop: () {},
+          onCancel: () => cancelPressed = true,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Loading speech model…'), findsOneWidget);
+    expect(find.byTooltip('Cancel'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cancel'));
+    await tester.pump();
+    expect(cancelPressed, isTrue);
+  });
+
+  testWidgets('SpeechRecordingBar renders error state with dismissal',
+      (tester) async {
+    bool errorDismissed = false;
+    const session = SpeechSession(
+      state: SpeechSessionState.error,
+      errorMessage: 'Microphone access denied.',
+    );
+
+    await tester.pumpWidget(
+      createTestWidget(
+        SpeechRecordingBar(
+          session: session,
+          onStop: () {},
+          onCancel: () {},
+          onErrorDismiss: () => errorDismissed = true,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Microphone access denied.'), findsOneWidget);
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pump();
+    expect(errorDismissed, isTrue);
+  });
+
   testWidgets('SpeechSettingsView renders model information', (tester) async {
     await tester.pumpWidget(
       createTestWidget(const SpeechSettingsView()),

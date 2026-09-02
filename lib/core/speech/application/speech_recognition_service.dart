@@ -36,64 +36,73 @@ class SpeechRecognitionService extends ChangeNotifier {
   Future<bool> startListening({
     void Function()? onMaxDurationReached,
   }) async {
+    // Clear any previous error before starting
+    if (_session.state == SpeechSessionState.error) {
+      _session = const SpeechSession(state: SpeechSessionState.idle);
+      notifyListeners();
+    }
+
     if (_session.isBusy) {
       return false;
     }
 
-    // 1. Verify model is installed
-    _session = _session.copyWith(state: SpeechSessionState.checkingModel);
-    notifyListeners();
-
-    final status = await modelManager.checkStatus();
-    if (!status.isInstalled) {
-      _session = const SpeechSession(state: SpeechSessionState.idle);
-      notifyListeners();
-      return false;
-    }
-
-    // 2. Check & Request permission
-    _session = _session.copyWith(state: SpeechSessionState.requestingPermission);
-    notifyListeners();
-
-    final hasPerm = await recorderService.hasPermission();
-    if (!hasPerm) {
-      final granted = await recorderService.requestPermission();
-      if (!granted) {
-        _session = const SpeechSession(
-          state: SpeechSessionState.error,
-          errorMessage: 'Microphone access is required for dictation.',
-        );
-        notifyListeners();
-        return false;
-      }
-    }
-
-    // 3. Load engine if not loaded
-    if (!recognitionEngine.isLoaded && status.modelPath != null) {
-      _session = _session.copyWith(state: SpeechSessionState.loadingEngine);
-      notifyListeners();
-      try {
-        await recognitionEngine.initialize(modelPath: status.modelPath!);
-      } catch (e) {
-        _session = const SpeechSession(
-          state: SpeechSessionState.error,
-          errorMessage:
-              'Offline speech recognition couldn\'t be started.\n\nThe speech model may be unavailable or incompatible with this device.',
-        );
-        notifyListeners();
-        return false;
-      }
-    }
-
-    // 4. Start recording
     try {
+      // 1. Verify model is installed
+      _session = _session.copyWith(state: SpeechSessionState.checkingModel);
+      notifyListeners();
+
+      final status = await modelManager.checkStatus();
+      if (!status.isInstalled) {
+        _session = const SpeechSession(state: SpeechSessionState.idle);
+        notifyListeners();
+        return false;
+      }
+
+      // 2. Check & Request permission
+      _session = _session.copyWith(state: SpeechSessionState.requestingPermission);
+      notifyListeners();
+
+      final hasPerm = await recorderService.hasPermission();
+      if (!hasPerm) {
+        final granted = await recorderService.requestPermission();
+        if (!granted) {
+          _session = const SpeechSession(
+            state: SpeechSessionState.error,
+            errorMessage: 'Microphone access is required for dictation.',
+          );
+          notifyListeners();
+          return false;
+        }
+      }
+
+      // 3. Load engine if not loaded
+      if (!recognitionEngine.isLoaded && status.modelPath != null) {
+        _session = _session.copyWith(state: SpeechSessionState.loadingEngine);
+        notifyListeners();
+        try {
+          await recognitionEngine
+              .initialize(modelPath: status.modelPath!)
+              .timeout(const Duration(seconds: 15));
+        } catch (e) {
+          _session = const SpeechSession(
+            state: SpeechSessionState.error,
+            errorMessage:
+                'Offline speech recognition couldn\'t be started.\n\nThe speech model may be unavailable or incompatible with this device.',
+          );
+          notifyListeners();
+          return false;
+        }
+      }
+
+      // 4. Start recording
       await recorderService.startRecording(
         onMaxDurationReached: () {
           if (_session.isRecording) {
             onMaxDurationReached?.call();
           }
         },
-      );
+      ).timeout(const Duration(seconds: 10));
+
       _session = const SpeechSession(
         state: SpeechSessionState.recording,
         recordingDuration: Duration.zero,

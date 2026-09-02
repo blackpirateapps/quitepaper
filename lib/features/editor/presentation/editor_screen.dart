@@ -59,7 +59,6 @@ import '../../../core/utils/tag_parser.dart';
 import '../../export/presentation/export_note_sheet.dart';
 import '../../../core/speech/application/speech_provider.dart';
 import '../../../core/speech/application/speech_text_insertion_helper.dart';
-import '../../../core/speech/domain/speech_session_state.dart';
 import '../../../core/speech/presentation/speech_download_dialog.dart';
 import '../../../core/speech/presentation/speech_recording_bar.dart';
 
@@ -1253,9 +1252,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
               // Floating/Docked formatting toolbar or speech recording bar (only in active edit mode)
               if (!editorState.isPreviewMode && !editorState.isReadOnly)
-                if (speechSession.isRecording ||
-                    speechSession.isTranscribing ||
-                    speechSession.state == SpeechSessionState.error)
+                if (!speechSession.isIdle)
                   SpeechRecordingBar(
                     session: speechSession,
                     onStop: _handleStopDictation,
@@ -1269,7 +1266,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     canUndo: _undoRedoManager.canUndo,
                     canRedo: _undoRedoManager.canRedo,
                     canDictate: editorState.isUnlocked && !editorState.isReadOnly,
-                    isDictating: speechSession.isRecording,
+                    isDictating: !speechSession.isIdle,
                     onUndo: _undo,
                     onRedo: _redo,
                     onNoteLinkPressed: _handleNoteLinkPrompt,

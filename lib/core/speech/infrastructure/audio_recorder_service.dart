@@ -33,14 +33,24 @@ class AudioRecorderService {
 
   /// Check whether microphone permission is granted.
   Future<bool> hasPermission() async {
-    final status = await Permission.microphone.status;
-    return status.isGranted;
+    try {
+      final status = await Permission.microphone.status;
+      if (status.isGranted) return true;
+      return await _recorder.hasPermission();
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Request microphone permission explicitly.
   Future<bool> requestPermission() async {
-    final status = await Permission.microphone.request();
-    return status.isGranted;
+    try {
+      final status = await Permission.microphone.request();
+      if (status.isGranted) return true;
+      return await _recorder.hasPermission();
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Start recording audio into a temporary WAV file.

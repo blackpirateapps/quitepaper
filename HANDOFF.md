@@ -4844,16 +4844,22 @@ Quiet Paper includes a fully offline, privacy-first, on-device speech-to-text su
   9. Content change debouncer triggers smart auto-titling and autosave.
   10. Keyboard remains hidden post-insertion for uninterrupted viewing.
 
-### 5. Quality Verification & Metrics
+### 5. Lifecycle Robustness & Error Recovery
+* **Preparation States in UI**: `SpeechRecordingBar` renders distinct visual feedback during `checkingModel`, `requestingPermission` ("Requesting microphone access…"), and `loadingEngine` ("Loading speech model…") with a responsive spinner and Cancel action.
+* **Dual-Layer Microphone Permission**: `AudioRecorderService` queries both `permission_handler` and `_recorder.hasPermission()` as a resilient fallback for all Android runtime targets.
+* **Auto-Recovery on Retries**: `SpeechRecognitionService.startListening()` automatically clears previous error states back to `idle` upon fresh user invocation, preventing UI lockups.
+* **Timeout Guards**: Wrapped engine initialization (15s) and audio recording startup (10s) to guarantee the session never hangs in a busy state indefinitely.
+
+### 6. Quality Verification & Metrics
 * **Unit & Widget Test Suites**:
   - `test/speech/speech_storage_service_test.dart`: Paths, metadata CRUD, model installation checks, deletion, temp cleanup.
   - `test/speech/speech_downloader_test.dart`: Streamed download, exact SHA-256 verification, size mismatch detection, HTTP error handling.
   - `test/speech/speech_model_manager_test.dart`: Lifecycle transitions, progress updates, cancellation, deletion.
   - `test/speech/speech_text_insertion_helper_test.dart`: Whitespace normalization, selection replacement, delimiter preservation.
-  - `test/speech/speech_recognition_service_test.dart`: Session state machine transitions, recording flow, permission handling, audio deletion.
-  - `test/speech/speech_widgets_test.dart`: `SpeechDownloadDialog`, `SpeechRecordingBar`, `SpeechSettingsView`, `FormattingToolbar` dictation button.
+  - `test/speech/speech_recognition_service_test.dart`: Session state machine transitions, recording flow, dual permission handling, error retry recovery, audio deletion.
+  - `test/speech/speech_widgets_test.dart`: `SpeechDownloadDialog`, `SpeechRecordingBar` (listening, transcribing, preparation, error dismissal), `SpeechSettingsView`, `FormattingToolbar` dictation button.
 * **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found**.
-* **Full Test Suite**: `flutter test` $\rightarrow$ **1,227 passed / 0 failed (100% pass rate)**.
+* **Full Test Suite**: `flutter test` $\rightarrow$ **1,237 passed / 0 failed (100% pass rate)**.
 
 
 

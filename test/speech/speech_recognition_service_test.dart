@@ -178,5 +178,12 @@ void main() {
     expect(service.session.state, equals(SpeechSessionState.error));
     expect(service.session.errorMessage,
         contains('Microphone access is required'));
+
+    // Retry after permission is granted should recover and start listening
+    fakeRecorder.permissionGranted = true;
+    final retried = await service.startListening();
+    expect(retried, isTrue);
+    expect(service.session.isRecording, isTrue);
+    expect(service.session.errorMessage, isNull);
   });
 }

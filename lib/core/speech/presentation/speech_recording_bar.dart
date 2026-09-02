@@ -96,6 +96,54 @@ class _SpeechRecordingBarState extends State<SpeechRecordingBar>
       );
     }
 
+    if (session.state == SpeechSessionState.checkingModel ||
+        session.state == SpeechSessionState.requestingPermission ||
+        session.state == SpeechSessionState.loadingEngine) {
+      final label = session.state == SpeechSessionState.requestingPermission
+          ? 'Requesting microphone access…'
+          : session.state == SpeechSessionState.loadingEngine
+              ? 'Loading speech model…'
+              : 'Preparing speech recognition…';
+
+      return Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(
+            top: BorderSide(color: colors.divider, width: 0.8),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.accent,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.close_rounded, size: 18, color: colors.textSecondary),
+              tooltip: 'Cancel',
+              onPressed: widget.onCancel,
+            ),
+          ],
+        ),
+      );
+    }
+
     if (session.isTranscribing) {
       return Container(
         height: 44,
