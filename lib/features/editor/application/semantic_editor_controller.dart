@@ -79,6 +79,27 @@ class SemanticEditorController extends ChangeNotifier {
     onMarkdownChanged?.call(_markdown);
   }
 
+  void updateMarkdownAndRetainSelection(String newMarkdown, int sourceOffset) {
+    _markdown = newMarkdown;
+    _document = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    final newPos = _document.findPositionAtSourceOffset(sourceOffset);
+    if (newPos != null) {
+      _selection = DocumentSelection.collapsed(newPos);
+    }
+    notifyListeners();
+    onMarkdownChanged?.call(_markdown);
+  }
+
+  void splitBlock(String blockId, int offset) {
+    final position = DocumentPosition(blockId: blockId, offset: offset);
+    applyMutation(SemanticMutationService.splitBlock(_markdown, position));
+  }
+
+  void mergeWithPreviousBlock(String blockId) {
+    final position = DocumentPosition(blockId: blockId, offset: 0);
+    applyMutation(SemanticMutationService.mergeWithPreviousBlock(_markdown, position));
+  }
+
   /// Active block at the current selection.
   SemanticBlock? get activeBlock {
     return _document.findBlockById(_selection.base.blockId);

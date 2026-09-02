@@ -5024,3 +5024,21 @@ Section 47 brings **Headings** up to the exact same architectural parity and edi
 
 
 
+
+---
+
+## 49. Visual Document Editor (WYSIWYG) Focus and Enter Key Fixes
+
+### Problem & Root Cause
+1. **Enter Key Not Advancing**: Pressing Enter at the end of a heading or paragraph inserted a `\n` in the active `TextField`, causing the block to split into two blocks. However, focus incorrectly remained trapped in the old block.
+2. **Keyboard Disappearing**: Typing `# ` or tapping a formatting toolbar icon caused a block's underlying ID to change (e.g. `block_X_p` to `block_Y_h1`), resulting in the disposal of its `FocusNode` and dismissing the software keyboard.
+3. **Backspace on Empty Heading**: Tapping Backspace on an empty heading did not correctly convert it to a paragraph.
+
+### Solution
+1. **Focus Retention Mechanism (`VisualDocumentEditor`)**:
+   - `_syncBlockControllers` now correctly records whether the editor was focused before applying a mutation. It computes the new block's ID and explicitly calls `targetFn.requestFocus()` on the newly mapped semantic node while preserving text offset.
+2. **`SemanticBlockInputFormatter`**:
+   - Custom `TextInputFormatter` intercepts newline `\n` insertions and intercepts them, calling the new `SemanticEditorController.splitBlock(blockId, offset)`. This effectively delegates the split to `SemanticMutationService` and flawlessly directs focus to the next block.
+3. **`onKeyEvent` Backspace Interception**:
+   - Attached an `onKeyEvent` handler to each block's `FocusNode`.
+   - Intercepts `LogicalKeyboardKey.backspace` at offset `0` and fires `SemanticEditorController.mergeWithPreviousBlock`, enabling empty headings to smoothly convert to paragraphs.

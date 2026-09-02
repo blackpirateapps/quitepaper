@@ -93,6 +93,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   void _syncBlockControllers() {
     final doc = widget.controller.document;
     final liveIds = <String>{};
+    final wasFocused = _blockFocusNodes.values.any((fn) => fn.hasFocus);
 
     void registerBlock(SemanticBlock block) {
       liveIds.add(block.id);
@@ -113,7 +114,20 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       }
 
       if (!_blockFocusNodes.containsKey(block.id)) {
-        final fn = FocusNode();
+        final fn = FocusNode(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent || event is KeyRepeatEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.backspace) {
+                final ctrl = _blockControllers[block.id];
+                if (ctrl != null && ctrl.selection.isCollapsed && ctrl.selection.start == 0) {
+                  widget.controller.mergeWithPreviousBlock(block.id);
+                  return KeyEventResult.handled;
+                }
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+        );
         fn.addListener(() => _handleBlockFocus(block.id, fn));
         _blockFocusNodes[block.id] = fn;
       }
@@ -134,6 +148,21 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         }
       } else {
         registerBlock(block);
+      }
+    }
+
+    if (wasFocused) {
+      final targetBlockId = widget.controller.selection.base.blockId;
+      final targetFn = _blockFocusNodes[targetBlockId];
+      if (targetFn != null && !targetFn.hasFocus) {
+        targetFn.requestFocus();
+        final targetCtrl = _blockControllers[targetBlockId];
+        if (targetCtrl != null) {
+          final offset = widget.controller.selection.base.offset;
+          targetCtrl.selection = TextSelection.collapsed(
+            offset: offset.clamp(0, targetCtrl.text.length),
+          );
+        }
       }
     }
 
@@ -866,6 +895,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         maxLines: null,
         keyboardType: TextInputType.multiline,
         textCapitalization: TextCapitalization.sentences,
+        inputFormatters: [
+          SemanticBlockInputFormatter(
+            onEnter: (offset) {
+              widget.controller.splitBlock(blockId, offset);
+            },
+          ),
+        ],
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: textStyle.copyWith(
@@ -917,8 +953,8 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
                         : block.sourceRange.end;
 
     final newMarkdown = widget.controller.markdown.replaceRange(contentStart, contentEnd, newText);
-    widget.controller.markdown = newMarkdown;
-    widget.onChanged?.call(newMarkdown);
+    final newSourceOffset = contentStart + selection.baseOffset;
+    widget.controller.updateMarkdownAndRetainSelection(newMarkdown, newSourceOffset);
   }
 
   Widget _buildSelectionContextMenu(
@@ -1007,6 +1043,30 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         ...buttonItems,
       ],
     );
+  }
+}
+
+class SemanticBlockInputFormatter extends TextInputFormatter {
+  SemanticBlockInputFormatter({
+    required this.onEnter,
+  });
+
+  final void Function(int offset) onEnter;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.length == oldValue.text.length + 1 &&
+        newValue.selection.isCollapsed) {
+      final insertedOffset = newValue.selection.start - 1;
+      if (insertedOffset >= 0 && newValue.text[insertedOffset] == '\n') {
+        onEnter(insertedOffset);
+        return oldValue;
+      }
+    }
+    return newValue;
   }
 }
 
