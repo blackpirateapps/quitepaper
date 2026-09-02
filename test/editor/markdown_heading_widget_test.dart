@@ -8,7 +8,6 @@ import 'package:quitepaper/features/editor/domain/source_range.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/heading/markdown_heading_action_sheet.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/heading/markdown_heading_badge.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/visual_document_editor.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
@@ -101,8 +100,6 @@ void main() {
   group('MarkdownHeadingActionSheet Widget Tests', () {
     testWidgets('displays all 6 heading levels and triggers onSelectLevel', (tester) async {
       int? selectedLevel;
-      var convertedToParagraph = false;
-      var cycled = false;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -116,8 +113,6 @@ void main() {
                       context,
                       currentLevel: 1,
                       onSelectLevel: (lvl) => selectedLevel = lvl,
-                      onConvertToParagraph: () => convertedToParagraph = true,
-                      onCycleLevel: () => cycled = true,
                     );
                   },
                   child: const Text('Open Sheet'),
@@ -272,6 +267,7 @@ void main() {
       // Markdown should no longer have ##
       expect(controller.markdown, startsWith('Subheading'));
       expect(controller.markdown, isNot(contains('## Subheading')));
+      expect(updatedMarkdown, startsWith('Subheading'));
 
       focusNode.dispose();
       controller.dispose();
