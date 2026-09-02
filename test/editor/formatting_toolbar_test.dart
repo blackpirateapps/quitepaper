@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/features/editor/application/markdown_editing_controller.dart';
-import 'package:quitepaper/features/editor/application/wysiwyg_editing_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
 
 void main() {
@@ -54,8 +53,9 @@ void main() {
       controller.dispose();
     });
 
-    testWidgets('toggles bold when tapping B button in Wysiwyg mode', (tester) async {
-      final controller = WysiwygEditingController(sourceText: '');
+    testWidgets('toggles bold when tapping B button in Markdown mode', (tester) async {
+      final controller = MarkdownEditingController(text: 'hello');
+      controller.selection = const TextSelection(baseOffset: 0, extentOffset: 5);
       final focusNode = FocusNode();
 
       await tester.pumpWidget(buildTestableWidget(
@@ -63,22 +63,12 @@ void main() {
         focusNode: focusNode,
       ));
 
-      expect(controller.isBoldActive, isFalse);
-
       // Tap Bold button
       final boldFinder = find.byTooltip('Bold (**text**)');
       await tester.tap(boldFinder);
       await tester.pumpAndSettle();
 
-      // Bold is now active
-      expect(controller.isBoldActive, isTrue);
-      expect(controller.sourceText, equals('****'));
-
-      // Tap Bold button again to turn off
-      await tester.tap(boldFinder);
-      await tester.pumpAndSettle();
-
-      expect(controller.isBoldActive, isFalse);
+      expect(controller.text, equals('**hello**'));
 
       focusNode.dispose();
       controller.dispose();

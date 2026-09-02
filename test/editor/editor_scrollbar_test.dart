@@ -93,9 +93,9 @@ Paragraph 9 on session token protection.
       await gesture.moveTo(Offset(scrollbarRect.right - 8, scrollbarRect.center.dy));
       await tester.pumpAndSettle();
 
-      expect(find.text('Architecture Overview'), findsOneWidget);
-      expect(find.text('Database Layer'), findsOneWidget);
-      expect(find.text('Encryption Core'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Architecture Overview'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Database Layer'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Encryption Core'), findsOneWidget);
 
       await finishTest(tester);
     });
@@ -195,8 +195,8 @@ Content B line 10
       await gesture.moveTo(Offset(scrollbarRect.right - 8, scrollbarRect.center.dy));
       await tester.pumpAndSettle();
 
-      expect(find.text('Alpha Section'), findsOneWidget);
-      expect(find.text('Beta Section'), findsNothing);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Alpha Section'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Beta Section'), findsNothing);
 
       // Switch to Note B
       await tester.pumpWidget(createEditorApp(noteB));
@@ -209,8 +209,8 @@ Content B line 10
       await gesture.moveTo(Offset(rectB.right - 8, rectB.center.dy));
       await tester.pumpAndSettle();
 
-      expect(find.text('Beta Section'), findsOneWidget);
-      expect(find.text('Alpha Section'), findsNothing);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Beta Section'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Alpha Section'), findsNothing);
 
       await finishTest(tester);
     });

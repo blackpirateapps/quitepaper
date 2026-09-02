@@ -291,7 +291,7 @@ Hello world!
       await tester.pumpAndSettle();
 
       // Tap 'B' (Bold) button in FormattingToolbar
-      await tester.tap(find.text('B'));
+      await tester.tap(find.byTooltip('Bold (**text**)'));
       await tester.pumpAndSettle();
 
       // Verify active cell and full document reflect bold formatting
@@ -302,7 +302,7 @@ Hello world!
       activeCtrl!.selection = const TextSelection(baseOffset: 2, extentOffset: 7);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('S'));
+      await tester.tap(find.byTooltip('Strikethrough (~~text~~)'));
       await tester.pumpAndSettle();
 
       expect(activeCtrl!.text, '**~~Apple~~**');

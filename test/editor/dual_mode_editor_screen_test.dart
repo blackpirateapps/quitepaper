@@ -71,7 +71,8 @@ void main() {
 
       // Main MarkdownEditor is rendered in WYSIWYG mode without raw YAML
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Heading\nBody text here.'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Heading'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Body text here.'), findsOneWidget);
 
       await finishTest(tester);
     });

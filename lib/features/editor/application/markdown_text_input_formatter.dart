@@ -14,13 +14,13 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
   const MarkdownTextInputFormatter();
 
   static final _emptyChecklistRegex =
-      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\]|[☐☑\ue45e\ue186\ue188])\s*$');
-  static final _emptyUnorderedRegex = RegExp(r'^(\s*)([-*+]|•)\s*$');
+      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])\s*$');
+  static final _emptyUnorderedRegex = RegExp(r'^(\s*)([-*+])\s*$');
   static final _emptyOrderedRegex = RegExp(r'^(\s*)(\d+)[\.\)]\s*$');
   static final _emptyQuoteRegex = RegExp(r'^(\s*)>\s*$');
   static final _checklistRegex =
-      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\]|[☐☑\ue45e\ue186\ue188])(\s+)');
-  static final _unorderedRegex = RegExp(r'^(\s*)([-*+]|•)\s+');
+      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])(\s+)');
+  static final _unorderedRegex = RegExp(r'^(\s*)([-*+])\s+');
   static final _orderedRegex = RegExp(r'^(\s*)(\d+)([\.\)])\s+');
   static final _quoteRegex = RegExp(r'^(\s*)>\s*');
   static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
@@ -267,12 +267,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     final checklistMatch = _checklistRegex.firstMatch(currentLine);
     if (checklistMatch != null) {
       final indent = checklistMatch.group(1) ?? '';
-      final marker = checklistMatch.group(2) ?? '- [ ]';
-      final isPhosphor = marker.contains('\uE45E') || marker.contains('\uE186') || marker.contains('\uE188');
-      final isVisual = marker == '☐' || marker == '☑' || isPhosphor;
-      final continuation = isVisual
-          ? '$indent${isPhosphor ? '\uE45E' : '☐'} '
-          : '$indent- [ ] ';
+      final continuation = '$indent- [ ] ';
       final newText = oldValue.text.replaceRange(
         insertedOffset,
         insertedOffset,
@@ -285,7 +280,7 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
       );
     }
 
-    // 11. Non-empty unordered list item: continue "- " or "• "
+    // 11. Non-empty unordered list item: continue "- ", "* ", "+ "
     final unorderedMatch = _unorderedRegex.firstMatch(currentLine);
     if (unorderedMatch != null) {
       final indent = unorderedMatch.group(1) ?? '';

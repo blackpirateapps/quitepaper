@@ -124,65 +124,7 @@ void main() {
       expect(result.text, equals('# Pasted\n- Item 1\n- Item 2'));
     });
 
-    test('auto-continues visual bullet list (• item) on newline', () {
-      const oldValue = TextEditingValue(
-        text: '• First visual item',
-        selection: TextSelection.collapsed(offset: 19),
-      );
-      const newValue = TextEditingValue(
-        text: '• First visual item\n',
-        selection: TextSelection.collapsed(offset: 20),
-      );
 
-      final result = formatter.formatEditUpdate(oldValue, newValue);
-      expect(result.text, equals('• First visual item\n• '));
-      expect(result.selection.baseOffset, equals(22));
-    });
-
-    test('clears empty visual bullet list (• ) when pressing Enter', () {
-      const oldValue = TextEditingValue(
-        text: '• First\n• ',
-        selection: TextSelection.collapsed(offset: 10),
-      );
-      const newValue = TextEditingValue(
-        text: '• First\n• \n',
-        selection: TextSelection.collapsed(offset: 11),
-      );
-
-      final result = formatter.formatEditUpdate(oldValue, newValue);
-      expect(result.text, equals('• First\n'));
-      expect(result.selection.baseOffset, equals(8));
-    });
-
-    test('auto-continues visual checklist (Phosphor glyph) on newline', () {
-      const oldValue = TextEditingValue(
-        text: '\uE45E Buy grocery',
-        selection: TextSelection.collapsed(offset: 13),
-      );
-      const newValue = TextEditingValue(
-        text: '\uE45E Buy grocery\n',
-        selection: TextSelection.collapsed(offset: 14),
-      );
-
-      final result = formatter.formatEditUpdate(oldValue, newValue);
-      expect(result.text, equals('\uE45E Buy grocery\n\uE45E '));
-      expect(result.selection.baseOffset, equals(16));
-    });
-
-    test('clears empty visual checklist (\uE45E ) when pressing Enter', () {
-      const oldValue = TextEditingValue(
-        text: '\uE45E Task 1\n\uE45E ',
-        selection: TextSelection.collapsed(offset: 11),
-      );
-      const newValue = TextEditingValue(
-        text: '\uE45E Task 1\n\uE45E \n',
-        selection: TextSelection.collapsed(offset: 12),
-      );
-
-      final result = formatter.formatEditUpdate(oldValue, newValue);
-      expect(result.text, equals('\uE45E Task 1\n'));
-      expect(result.selection.baseOffset, equals(9));
-    });
 
     test('auto-completes divider shortcut when typing 3rd dash on empty line', () {
       const oldValue = TextEditingValue(

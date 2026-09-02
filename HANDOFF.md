@@ -4912,8 +4912,52 @@ Changed `ref.watch(speechModelManagerProvider)` to `ref.read(speechModelManagerP
 - **`SpeechDownloadDialog`**: Dynamically adjusts descriptions and downloads the user's selected or requested model with full progress indicators and cancellation support.
 
 ### 5. Automated Verification
-- Static analysis: `flutter analyze` $\rightarrow$ **0 issues**.
-- Test suite: `flutter test` $\rightarrow$ **1,249 passed / 0 failed (100% pass rate)**.
+---
+
+## 46. Editor V4 — Complete Visual Editor Rewrite (Semantic Document Architecture)
+
+### 1. Architectural Motivation & Product Invariants
+Previous versions (Editor V3) relied on visual text projections, artificial Unicode/Phosphor checkbox characters injected into editable text fields, and offset conversion tables. This caused caret jitter, unstable format transitions, and synchronization complexity.
+
+**Editor V4** establishes a clean, robust, and semantic document architecture:
+- **Canonical Markdown Persistence**: Canonical Markdown strings remain the sole persisted source of truth in SQLite, encrypted sync payloads, import/export, and backups. No Delta, JSON rich text, Quill, or Slate state is ever stored.
+- **Zero Fake Visual Characters**: No fake visual glyphs (`☐`, `☑`, `\ue45e`, `\ue186`, `\ue188`, `•`) are injected into text strings or text controllers. Checkboxes are real interactive Flutter widgets that toggle Markdown `- [ ]` $\leftrightarrow$ `- [x]`. Bullet lists and numbered lists use real styled Flutter row decorations.
+- **True Visual Blocks**: The user interacts with visual document blocks (`HeadingBlock`, `ParagraphBlock`, `ListItemBlock`, `OrderedListItemBlock`, `ChecklistItemBlock`, `QuoteBlock`, `CodeBlock`, `TableBlock`, `HorizontalRuleBlock`, `ImageBlock`) and styled inline spans (`BoldRun`, `ItalicRun`, `StrikeRun`, `HighlightRun`, `InlineCodeRun`, `LinkRun`, `NoteLinkRun`, `TagRun`). Delimiters (`#`, `**`, `*`, `~~`, `==`, `` ` ``, `>`) are completely hidden in visual editing mode.
+- **Lossless Mode Switching**: Switching between WYSIWYG mode and Markdown source mode is 100% lossless and source-preserving.
+
+### 2. Core Components Added
+1. **Domain Layer**:
+   - `lib/features/editor/domain/source_range.dart`: `SourceRange` continuous slice model with clamping, slicing, shifting, and boundary collision helpers.
+   - `lib/features/editor/domain/document_position.dart`: `DocumentPosition` and `DocumentSelection` representing caret and selection coordinates in semantic block space.
+   - `lib/features/editor/domain/semantic_nodes.dart`: AST hierarchy defining `SemanticBlock` and `SemanticInline` nodes with exact `SourceRange` metadata.
+   - `lib/features/editor/domain/semantic_document.dart`: In-memory `SemanticDocument` model with bidirectional mapping between logical positions and Markdown source offsets with `TextAffinity` support.
+2. **Application Layer**:
+   - `lib/features/editor/application/semantic_markdown_parser.dart`: High-performance deterministic parser converting Markdown strings to `SemanticDocument` trees.
+   - `lib/features/editor/application/semantic_mutation_service.dart`: Surgical semantic mutations layer handling text insertion, deletion, block splitting/merging, bold/italic/strike/code/highlight toggling, link creation, note links, heading levels, checklists, bullet/ordered lists, blockquotes, code blocks, images, and horizontal rules.
+   - `lib/features/editor/application/semantic_editor_controller.dart`: Visual editing coordinator managing document state, selection, toolbar active states, and mutations.
+3. **Presentation Layer**:
+   - `lib/features/editor/presentation/widgets/visual_document_editor.dart`: Complete semantic visual document editor rendering real heading hierarchy, styled inline spans without syntax noise, bullet decorations, numbered list items, real Phosphor checkbox widgets with instant tap animations, blockquotes, horizontal rules, code block containers with language selector pills & copy actions, embedded tables, and images.
+   - `lib/features/editor/presentation/widgets/markdown_editor.dart`: Dual-mode coordinator hosting `VisualDocumentEditor` for `EditorEditingStyle.wysiwyg` and source `TextField` for `EditorEditingStyle.markdown`.
+   - `lib/features/editor/presentation/widgets/formatting_toolbar.dart`: Clean toolbar decoupled from legacy controllers, providing instant formatting actions for both active visual blocks and source editor.
+
+### 3. Decommissioned Legacy V3 Components
+- Deleted `lib/features/editor/application/wysiwyg_editing_controller.dart`.
+- Deleted `lib/features/editor/application/wysiwyg_projection_builder.dart`.
+- Deleted `lib/features/editor/domain/source_visual_mapping.dart`.
+- Deleted obsolete legacy test files and stripped legacy glyph tests.
+
+### 4. Quality & Verification
+- `flutter analyze` $\rightarrow$ **0 issues found**.
+- `flutter test` $\rightarrow$ **1,258 passed / 0 failed (100% pass rate)** including:
+  - `test/editor/semantic_markdown_parser_test.dart`
+  - `test/editor/semantic_document_model_test.dart`
+  - `test/editor/semantic_mutation_service_test.dart`
+  - `test/editor/visual_document_editor_widget_test.dart`
+  - `test/editor/golden_document_integration_test.dart` (Section 51 Golden Document Fixture)
+  - `test/editor/dual_mode_editor_screen_test.dart`
+  - `test/editor/editor_scrollbar_test.dart`
+  - `test/editor/markdown_table_widget_test.dart`
+  - `test/widget_test.dart`
 
 
 

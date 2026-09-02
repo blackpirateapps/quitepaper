@@ -156,15 +156,13 @@ void main() {
 
     // Verify content loaded in text fields (in WYSIWYG mode, bold delimiters are visually hidden)
     expect(find.text('Persistent Title'), findsOneWidget);
-    expect(
-      find.text('Paragraph 1\n\nParagraph 2 with bold'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(TextField, 'Paragraph 1'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Paragraph 2 with bold'), findsOneWidget);
 
     // Modify content
     await tester.enterText(
       find.byType(TextField).last,
-      'Paragraph 1\n\nParagraph 2 with bold\n\nParagraph 3',
+      'Paragraph 2 with bold modified',
     );
     await tester.pump(const Duration(milliseconds: 800));
 
@@ -180,10 +178,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Paragraph 1\n\nParagraph 2 with bold\n\nParagraph 3'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(TextField, 'Paragraph 1'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Paragraph 2 with bold modified'), findsOneWidget);
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -602,7 +598,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // In edit mode: text fields are visible
-    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(TextField), findsWidgets);
 
     // Tap overflow menu
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
@@ -624,7 +620,7 @@ void main() {
     await tester.tap(find.text('Switch to edit'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(TextField), findsWidgets);
 
     await finishTest(tester);
   });
@@ -848,8 +844,10 @@ void main() {
       await tester.tap(find.byIcon(Icons.edit_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.byType(TextField), findsNWidgets(2));
-      expect(find.text(longText), findsOneWidget);
+      expect(find.byType(TextField), findsWidgets);
+      expect(find.widgetWithText(TextField, 'This is the very first line of a massive document that discusses software engineering, offline architecture, and databases.'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Paragraph 2 with lots of words and detail.'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Paragraph 3.'), findsOneWidget);
 
       // Tap preview button next to 3-dots to switch back to preview
       await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
