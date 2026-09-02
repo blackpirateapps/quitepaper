@@ -4985,9 +4985,59 @@ Section 47 brings **Headings** up to the exact same architectural parity and edi
 - `lib/core/markdown/markdown_helper.dart`: Added `getHeadingLevelAt` and `setHeadingLevelAt`.
 
 ### 3. Automated Test Verification
-- Added `test/editor/markdown_heading_widget_test.dart` (8 comprehensive unit and widget tests covering badge taps, level selection, paragraph conversion, visual document editor integration, and toolbar long-press).
+- Added `test/editor/markdown_heading_widget_test.dart` (unit and widget tests covering level selection, paragraph conversion, and toolbar long-press).
 - Static analysis: `flutter analyze` $\rightarrow$ **0 issues found**.
 - Full test suite: `flutter test` $\rightarrow$ **1,266 passed / 0 failed (100% pass rate)**.
+
+---
+
+## 48. Removal of WYSIWYG / Semantic Document Editor Subsystem
+
+### 1. Architectural Summary & Rationale
+Per explicit requirements, the entire WYSIWYG / Visual Document Editor and semantic AST projection layer has been permanently removed from the codebase. The app now centers strictly around a pure, distraction-free Markdown editor with dynamic syntax styling, table segmentation, interactive checklists (`- [ ]` $\leftrightarrow$ `- [x]`), and heading level action sheets.
+
+### 2. Files and Modules Removed
+- **Domain Models & Enums**:
+  - `lib/features/editor/domain/document_position.dart`
+  - `lib/features/editor/domain/source_range.dart`
+  - `lib/features/editor/domain/semantic_nodes.dart`
+  - `lib/features/editor/domain/semantic_document.dart`
+  - `lib/features/editor/domain/editor_editing_style.dart`
+  - `lib/features/editor/domain/frontmatter_document.dart`
+- **Application & Mutation Services**:
+  - `lib/features/editor/application/frontmatter_editor_helper.dart`
+  - `lib/features/editor/application/semantic_markdown_parser.dart`
+  - `lib/features/editor/application/semantic_mutation_service.dart`
+  - `lib/features/editor/application/semantic_editor_controller.dart`
+- **Presentation Widgets**:
+  - `lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`
+  - `lib/features/editor/presentation/widgets/visual_document_editor.dart`
+  - `lib/features/editor/presentation/widgets/heading/markdown_heading_badge.dart`
+- **Unit & Widget Test Suites**:
+  - `test/editor/editing_style_settings_test.dart`
+  - `test/editor/frontmatter_editor_helper_test.dart`
+  - `test/editor/frontmatter_properties_section_test.dart`
+  - `test/editor/dual_mode_editor_screen_test.dart`
+  - `test/editor/semantic_markdown_parser_test.dart`
+  - `test/editor/semantic_document_model_test.dart`
+  - `test/editor/semantic_mutation_service_test.dart`
+  - `test/editor/visual_document_editor_widget_test.dart`
+  - `test/editor/golden_document_integration_test.dart`
+
+### 3. Files Cleaned & Refactored
+- `lib/features/settings/application/settings_provider.dart`: Removed `EditingStyleNotifier`, `editorEditingStyleProvider`.
+- `lib/features/settings/presentation/settings_screen.dart`: Removed WYSIWYG/Markdown options from the Editor settings group.
+- `lib/features/editor/application/editor_state.dart`: Removed `perNoteEditingStyleOverride` and `effectiveEditingStyle`.
+- `lib/features/editor/application/editor_provider.dart`: Removed `setPerNoteEditingStyle` and `togglePerNoteEditingStyle`.
+- `lib/features/editor/presentation/widgets/markdown_editor.dart`: Streamlined to a pure Markdown editor with syntax styling, table segmentation, and context formatting shortcuts.
+- `lib/features/editor/presentation/editor_screen.dart`: Removed frontmatter properties section, title frontmatter sync, and overflow menu mode switcher.
+- `test/editor/markdown_heading_widget_test.dart`: Retained action sheet and toolbar long-press tests; removed visual document editor assertions.
+- `test/widget_test.dart`: Updated note body assertions to expect single multiline TextField in pure Markdown mode.
+
+### 4. Verification
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Test Suite**: `flutter test` $\rightarrow$ **1,196 passed / 0 failed (100% pass rate)**.
+
 
 
 

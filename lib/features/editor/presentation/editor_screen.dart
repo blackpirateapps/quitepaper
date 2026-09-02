@@ -39,12 +39,7 @@ import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../scanner/presentation/document_scanner_screen.dart';
-import '../../settings/application/settings_provider.dart';
 import '../../settings/application/typography_provider.dart';
-import '../domain/editor_editing_style.dart';
-import '../domain/frontmatter_document.dart';
-import '../application/frontmatter_editor_helper.dart';
-import 'widgets/frontmatter_properties_section.dart';
 import '../domain/markdown_styles.dart';
 import 'package:flutter/rendering.dart';
 
@@ -117,19 +112,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    final frontmatterDoc = FrontmatterEditorHelper.parse(widget.note.content);
-    _isTitleManuallySet = widget.note.title.trim().isNotEmpty ||
-        (frontmatterDoc.title?.trim().isNotEmpty == true);
+    _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
     _lastAutoDerivedTitle = widget.note.title.isEmpty
-        ? (frontmatterDoc.title?.isNotEmpty == true
-            ? frontmatterDoc.title!
-            : Note.deriveTitle(widget.note.content))
+        ? Note.deriveTitle(widget.note.content)
         : '';
-    final initialTitle = frontmatterDoc.title?.isNotEmpty == true
-        ? frontmatterDoc.title!
-        : (widget.note.title.isNotEmpty
-            ? widget.note.title
-            : _lastAutoDerivedTitle);
+    final initialTitle = widget.note.title.isNotEmpty
+        ? widget.note.title
+        : _lastAutoDerivedTitle;
 
     _titleController = TextEditingController(text: initialTitle);
     _contentController = MarkdownEditingController(text: widget.note.content);
@@ -381,21 +370,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
       if (currentTitle.trim().isEmpty) {
         _isTitleManuallySet = false;
-      }
-    }
-
-    // Sync with frontmatter title if frontmatter is present
-    final frontmatterDoc = FrontmatterEditorHelper.parse(_contentController.text);
-    if (frontmatterDoc.hasFrontmatter) {
-      final updatedContent = FrontmatterEditorHelper.updateTitle(
-        documentText: _contentController.text,
-        newTitle: currentTitle,
-      );
-      if (updatedContent != _contentController.text) {
-        _contentController.text = updatedContent;
-        ref
-            .read(editorProviderFamily(_editorParams).notifier)
-            .updateContent(updatedContent);
       }
     }
 
@@ -808,12 +782,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
     final typography = ref.watch(typographySettingsProvider);
-    final globalEditingStyle = ref.watch(editorEditingStyleProvider);
-    final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
-    final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
     final note = editorState.note;
-    final contentText = _contentController.text.isNotEmpty ? _contentController.text : note.content;
-    final frontmatterDoc = isWysiwyg ? FrontmatterEditorHelper.parse(contentText) : FrontmatterDocument.empty;
 
     _contentController.styles = MarkdownStyles.fromColors(
       colors,
@@ -1186,47 +1155,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     const SizedBox(height: 12.0),
                                   ],
 
-                                   // Frontmatter Properties Section (in WYSIWYG mode when matching frontmatter exists)
-                                   if (isWysiwyg && frontmatterDoc.hasMatchingSectionProperties) ...[
-                                     FrontmatterPropertiesSection(
-                                      frontmatter: frontmatterDoc,
-                                      rawDocument: contentText,
-                                      readOnly: editorState.isReadOnly,
-                                      onDocumentChanged: (updated) {
-                                        _contentController.text = updated;
-                                        editorNotifier.updateContent(updated);
-                                        final newDoc = FrontmatterEditorHelper.parse(updated);
-                                        if (newDoc.title != null && newDoc.title != _titleController.text) {
-                                          _titleController.text = newDoc.title!;
-                                          editorNotifier.updateTitle(newDoc.title!);
-                                        }
-                                      },
-                                    ),
-                                  ],
+                                   // Attached web snapshots / documents bar
+                                   _buildAttachedResourcesBar(context, colors),
 
-                                  // Attached web snapshots / documents bar
-                                  _buildAttachedResourcesBar(context, colors),
-
-                                  // Body markdown editor
-                                  MarkdownEditor(
-                                    controller: _contentController,
-                                    focusNode: _contentFocusNode,
-                                    editingStyle: effectiveEditingStyle,
-                                    stripFrontmatter: isWysiwyg && frontmatterDoc.hasFrontmatter,
-                                    readOnly: editorState.isReadOnly,
-                                    onNoteLinkPrompt: _handleNoteLinkPrompt,
-                                    searchQuery: _isSearchVisible
-                                        ? _searchQueryController.text
-                                        : null,
-                                    onActiveTargetChanged: (ctrl, fn) {
-                                      if (mounted) {
-                                        setState(() {
-                                          _activeTargetController = ctrl;
-                                          _activeTargetFocusNode = fn;
-                                        });
-                                      }
-                                    },
-                                  ),
+                                   // Body markdown editor
+                                   MarkdownEditor(
+                                     controller: _contentController,
+                                     focusNode: _contentFocusNode,
+                                     readOnly: editorState.isReadOnly,
+                                     onNoteLinkPrompt: _handleNoteLinkPrompt,
+                                     searchQuery: _isSearchVisible
+                                         ? _searchQueryController.text
+                                         : null,
+                                     onActiveTargetChanged: (ctrl, fn) {
+                                       if (mounted) {
+                                         setState(() {
+                                           _activeTargetController = ctrl;
+                                           _activeTargetFocusNode = fn;
+                                         });
+                                       }
+                                     },
+                                   ),
 
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
@@ -1942,38 +1891,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         currentContent: _contentController.text,
                         currentTags: note.tags,
                         onRestoreVersion: _restoreVersion,
-                      );
-                    },
-                  ),
-                  Builder(
-                    builder: (context) {
-                      final globalStyle = ref.read(editorEditingStyleProvider);
-                      final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
-                      final isCurrentWysiwyg = currentStyle == EditorEditingStyle.wysiwyg;
-
-                      return ListTile(
-                        leading: Icon(
-                          isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
-                          color: colors.textSecondary,
-                        ),
-                        title: Text(
-                          isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        subtitle: Text(
-                          isCurrentWysiwyg ? 'Show raw Markdown syntax' : 'Hide Markdown syntax',
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textTertiary,
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          notifier.setPerNoteEditingStyle(
-                            isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
-                          );
-                        },
                       );
                     },
                   ),

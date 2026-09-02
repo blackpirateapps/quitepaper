@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import '../../notes/domain/note_model.dart';
-import '../domain/editor_editing_style.dart';
 
 @immutable
 class EditorState {
@@ -14,7 +13,6 @@ class EditorState {
     this.isUnlocked = true,
     this.activePassword,
     this.activePasswordHint,
-    this.perNoteEditingStyleOverride,
   });
 
   final Note note;
@@ -26,11 +24,6 @@ class EditorState {
   final bool isUnlocked;
   final String? activePassword;
   final String? activePasswordHint;
-  final EditorEditingStyle? perNoteEditingStyleOverride;
-
-  /// Returns the effective editing style considering per-note override and global preference.
-  EditorEditingStyle effectiveEditingStyle(EditorEditingStyle globalStyle) =>
-      perNoteEditingStyleOverride ?? globalStyle;
 
   EditorState copyWith({
     Note? note,
@@ -44,8 +37,6 @@ class EditorState {
     bool clearActivePassword = false,
     String? activePasswordHint,
     bool clearActivePasswordHint = false,
-    EditorEditingStyle? perNoteEditingStyleOverride,
-    bool clearPerNoteEditingStyleOverride = false,
   }) {
     return EditorState(
       note: note ?? this.note,
@@ -61,9 +52,6 @@ class EditorState {
       activePasswordHint: clearActivePasswordHint
           ? null
           : (activePasswordHint ?? this.activePasswordHint),
-      perNoteEditingStyleOverride: clearPerNoteEditingStyleOverride
-          ? null
-          : (perNoteEditingStyleOverride ?? this.perNoteEditingStyleOverride),
     );
   }
 }

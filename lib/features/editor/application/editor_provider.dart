@@ -6,7 +6,6 @@ import '../../notes/application/note_security_service.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
-import '../domain/editor_editing_style.dart';
 import 'editor_state.dart';
 
 @immutable
@@ -50,21 +49,6 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   void setReadOnly(bool readOnly) {
     state = state.copyWith(isReadOnly: readOnly);
-  }
-
-  void setPerNoteEditingStyle(EditorEditingStyle? style) {
-    state = state.copyWith(
-      perNoteEditingStyleOverride: style,
-      clearPerNoteEditingStyleOverride: style == null,
-    );
-  }
-
-  void togglePerNoteEditingStyle(EditorEditingStyle currentGlobalStyle) {
-    final effective = state.effectiveEditingStyle(currentGlobalStyle);
-    final next = effective == EditorEditingStyle.wysiwyg
-        ? EditorEditingStyle.markdown
-        : EditorEditingStyle.wysiwyg;
-    setPerNoteEditingStyle(next);
   }
 
   Future<bool> unlockWithPassword(String password) async {
