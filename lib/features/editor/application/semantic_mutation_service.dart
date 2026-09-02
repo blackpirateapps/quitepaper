@@ -474,6 +474,23 @@ class SemanticMutationService {
     );
   }
 
+  /// Sets heading level (1 to 6) or converts heading to paragraph (0) by block ID.
+  static MutationResult setHeadingLevelByBlockId(
+    String markdown,
+    String blockId,
+    int targetLevel,
+  ) {
+    final doc = SemanticMarkdownParser.parse(markdown);
+    final block = doc.findBlockById(blockId);
+    if (block == null) {
+      final pos = doc.blocks.isNotEmpty
+          ? DocumentPosition(blockId: doc.blocks.first.id, offset: 0)
+          : const DocumentPosition(blockId: 'block_0_p', offset: 0);
+      return MutationResult(markdown: markdown, document: doc, position: pos);
+    }
+    return setHeadingLevel(markdown, DocumentPosition(blockId: blockId, offset: 0), targetLevel);
+  }
+
   /// Toggles checklist item formatting for the block at [position].
   static MutationResult toggleChecklist(
     String markdown,

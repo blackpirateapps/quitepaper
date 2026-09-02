@@ -120,6 +120,26 @@ class SemanticEditorController extends ChangeNotifier {
     applyMutation(SemanticMutationService.setHeadingLevel(_markdown, _selection.base, level));
   }
 
+  void setHeadingLevelForBlock(String blockId, int level) {
+    applyMutation(SemanticMutationService.setHeadingLevelByBlockId(_markdown, blockId, level));
+  }
+
+  void cycleHeadingLevel({String? blockId}) {
+    final targetId = blockId ?? _selection.base.blockId;
+    final block = _document.findBlockById(targetId);
+    if (block is HeadingBlock) {
+      final next = block.level < 3 ? block.level + 1 : 1;
+      setHeadingLevelForBlock(targetId, next);
+    } else {
+      setHeadingLevelForBlock(targetId, 1);
+    }
+  }
+
+  void convertHeadingToParagraph({String? blockId}) {
+    final targetId = blockId ?? _selection.base.blockId;
+    setHeadingLevelForBlock(targetId, 0);
+  }
+
   void toggleList() {
     applyMutation(SemanticMutationService.toggleList(_markdown, _selection.base));
   }

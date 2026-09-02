@@ -4948,16 +4948,47 @@ Previous versions (Editor V3) relied on visual text projections, artificial Unic
 
 ### 4. Quality & Verification
 - `flutter analyze` $\rightarrow$ **0 issues found**.
-- `flutter test` $\rightarrow$ **1,258 passed / 0 failed (100% pass rate)** including:
-  - `test/editor/semantic_markdown_parser_test.dart`
-  - `test/editor/semantic_document_model_test.dart`
-  - `test/editor/semantic_mutation_service_test.dart`
-  - `test/editor/visual_document_editor_widget_test.dart`
-  - `test/editor/golden_document_integration_test.dart` (Section 51 Golden Document Fixture)
-  - `test/editor/dual_mode_editor_screen_test.dart`
-  - `test/editor/editor_scrollbar_test.dart`
-  - `test/editor/markdown_table_widget_test.dart`
-  - `test/widget_test.dart`
+- `flutter test` $\rightarrow$ **1,266 passed / 0 failed (100% pass rate)**.
+
+---
+
+## 47. First-Class Heading Semantic Object & Visual Editing Parity
+
+### 1. Architectural Motivation & Alignment with Tables
+In Quiet Paper's Semantic Document architecture (Editor V4), Markdown serves as the canonical persistent source of truth while the user interacts with clean, visual semantic objects without raw syntax delimiters (`#`, `|`, `**`). Tables were previously elevated to full first-class semantic objects with dedicated visual views, spreadsheet-style interactive editing, contextual size badges, toolbars, and modal action sheets.
+
+Section 47 brings **Headings** up to the exact same architectural parity and editorial standard:
+- **Zero Markdown Syntax in Editable Fields**: In visual editing mode (`EditorEditingStyle.wysiwyg` / "Edit Visually"), `#` delimiter characters are never rendered or typed into editable heading text fields.
+- **Interactive Heading Level Badge (`MarkdownHeadingBadge`)**: An understated editorial pill (`H1`..`H6` with subtle indicator) is rendered directly alongside the heading text field. Tapping the badge opens the modal level selector.
+- **Modal Heading Action Sheet (`MarkdownHeadingActionSheet`)**: Modeled directly after `MarkdownTableActionSheet`:
+  - 2x3 grid of heading levels (`H1` 30sp Title, `H2` 24sp Section, `H3` 20sp Subsection, `H4` 17sp Sub-heading, `H5` 15sp Small, `H6` 13sp Micro).
+  - Quick action to "Convert to Paragraph (Normal text)" (`PhosphorIconsRegular.paragraph`).
+  - Quick action to "Cycle Heading (H1 → H2 → H3)".
+  - Destructive action to "Delete heading".
+- **Selection & Context Menu Integration**:
+  - In `VisualDocumentEditor`, context menus recognize `HeadingBlock` nodes and provide a `Heading (H#)` button item.
+  - In `MarkdownEditor` (Markdown mode), selecting or placing the cursor on a heading line dynamically surfaces `Heading (H#)` in the context menu to adjust levels or switch to visual editing.
+- **Formatting Toolbar Integration**:
+  - Heading button (`textH`) cycles levels on tap (`H1 → H2 → H3 → None`) and opens `MarkdownHeadingActionSheet` on long-press.
+- **Surgical Mutation & Undo/Redo**:
+  - `SemanticMutationService.setHeadingLevel` and `setHeadingLevelByBlockId` surgically rewrite the exact slice of Markdown text without disturbing surrounding blocks, recording atomic history entries.
+
+### 2. Components Added & Enhanced
+- `lib/features/editor/presentation/widgets/heading/markdown_heading_badge.dart`: Interactive heading level pill.
+- `lib/features/editor/presentation/widgets/heading/markdown_heading_action_sheet.dart`: Modal bottom action sheet with level grid and semantic actions.
+- `lib/features/editor/domain/semantic_nodes.dart`: Enhanced `HeadingBlock` with `badgeLabel`, `levelDescription`, `nextLevel`, `previousLevel`.
+- `lib/features/editor/application/semantic_mutation_service.dart`: Added `setHeadingLevelByBlockId`.
+- `lib/features/editor/application/semantic_editor_controller.dart`: Added `setHeadingLevelForBlock`, `cycleHeadingLevel`, `convertHeadingToParagraph`.
+- `lib/features/editor/presentation/widgets/visual_document_editor.dart`: Integrated `MarkdownHeadingBadge` into `_buildHeadingBlockItem` and context menu.
+- `lib/features/editor/presentation/widgets/markdown_editor.dart`: Added heading level detection and context menu action item.
+- `lib/features/editor/presentation/widgets/formatting_toolbar.dart`: Added long-press action to open heading action sheet.
+- `lib/core/markdown/markdown_helper.dart`: Added `getHeadingLevelAt` and `setHeadingLevelAt`.
+
+### 3. Automated Test Verification
+- Added `test/editor/markdown_heading_widget_test.dart` (8 comprehensive unit and widget tests covering badge taps, level selection, paragraph conversion, visual document editor integration, and toolbar long-press).
+- Static analysis: `flutter analyze` $\rightarrow$ **0 issues found**.
+- Full test suite: `flutter test` $\rightarrow$ **1,266 passed / 0 failed (100% pass rate)**.
+
 
 
 

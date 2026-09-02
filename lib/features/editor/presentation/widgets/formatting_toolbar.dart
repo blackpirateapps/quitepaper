@@ -7,6 +7,7 @@ import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
+import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
 
 class FormattingToolbar extends StatelessWidget {
@@ -153,6 +154,24 @@ class FormattingToolbar extends StatelessWidget {
     }
   }
 
+  Future<void> _handleHeadingLongPress(BuildContext context) async {
+    final effectiveValue = controller.value;
+    final currentLevel = MarkdownHelper.getHeadingLevelAt(effectiveValue) ?? 0;
+    await MarkdownHeadingActionSheet.show(
+      context,
+      currentLevel: currentLevel,
+      onSelectLevel: (newLevel) {
+        _applyHelperFormat((val) => MarkdownHelper.setHeadingLevelAt(value: val, level: newLevel));
+      },
+      onConvertToParagraph: () {
+        _applyHelperFormat((val) => MarkdownHelper.setHeadingLevelAt(value: val, level: 0));
+      },
+      onCycleLevel: () {
+        _applyHelperFormat(MarkdownHelper.cycleHeading);
+      },
+    );
+  }
+
   bool _isBoldActive() {
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isBoldActive;
     return MarkdownFormatter.isBoldAt(controller.value);
@@ -267,9 +286,10 @@ class FormattingToolbar extends StatelessWidget {
               const _ToolbarDivider(),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.textH,
-                tooltip: 'Heading (cycle H1-H3)',
+                tooltip: 'Heading (cycle H1-H3, long-press for options)',
                 isActive: isHeading,
                 onPressed: () => _applyHelperFormat(MarkdownHelper.cycleHeading),
+                onLongPress: () => _handleHeadingLongPress(context),
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.checkSquare,

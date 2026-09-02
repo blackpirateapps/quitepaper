@@ -244,6 +244,35 @@ class HeadingBlock extends SemanticBlock {
   @override
   String get plainText => runs.map((r) => r.text).join();
 
+  /// Formatted badge label (e.g. 'H1', 'H2').
+  String get badgeLabel => 'H$level';
+
+  /// Human-readable level description.
+  String get levelDescription {
+    switch (level) {
+      case 1:
+        return 'Title (H1)';
+      case 2:
+        return 'Section (H2)';
+      case 3:
+        return 'Subsection (H3)';
+      case 4:
+        return 'Sub-heading (H4)';
+      case 5:
+        return 'Small (H5)';
+      case 6:
+        return 'Micro (H6)';
+      default:
+        return 'Heading (H$level)';
+    }
+  }
+
+  /// The next level in cycle order (H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H1).
+  int get nextLevel => level < 6 ? level + 1 : 1;
+
+  /// The previous level in cycle order.
+  int get previousLevel => level > 1 ? level - 1 : 6;
+
   @override
   String toString() => 'HeadingBlock(H$level, "$plainText", src: $sourceRange)';
 }

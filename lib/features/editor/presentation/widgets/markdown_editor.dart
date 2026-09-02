@@ -14,6 +14,7 @@ import '../../domain/markdown_table_position.dart';
 import '../../../../core/markdown/markdown_helper.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import 'code_block_overlay.dart';
+import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
@@ -556,8 +557,53 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           )
         : null;
 
+    final currentHeadingLevel = MarkdownHelper.getHeadingLevelAt(val);
+    final headingLevelButton = currentHeadingLevel != null
+        ? ContextMenuButtonItem(
+            label: 'Heading (H$currentHeadingLevel)',
+            onPressed: () {
+              ContextMenuController.removeAny();
+              MarkdownHeadingActionSheet.show(
+                context,
+                currentLevel: currentHeadingLevel,
+                onSelectLevel: (newLevel) {
+                  final updated = MarkdownHelper.setHeadingLevelAt(
+                    value: widget.controller.value,
+                    level: newLevel,
+                  );
+                  widget.controller.value = updated;
+                  widget.onChanged?.call(updated.text);
+                  if (!widget.focusNode.hasFocus) {
+                    widget.focusNode.requestFocus();
+                  }
+                },
+                onConvertToParagraph: () {
+                  final updated = MarkdownHelper.setHeadingLevelAt(
+                    value: widget.controller.value,
+                    level: 0,
+                  );
+                  widget.controller.value = updated;
+                  widget.onChanged?.call(updated.text);
+                  if (!widget.focusNode.hasFocus) {
+                    widget.focusNode.requestFocus();
+                  }
+                },
+                onCycleLevel: () {
+                  final updated = MarkdownHelper.cycleHeading(widget.controller.value);
+                  widget.controller.value = updated;
+                  widget.onChanged?.call(updated.text);
+                  if (!widget.focusNode.hasFocus) {
+                    widget.focusNode.requestFocus();
+                  }
+                },
+              );
+            },
+          )
+        : null;
+
     if (isSelectionActive) {
       final formattingButtons = [
+        ?headingLevelButton,
         ?codeLangButton,
         ContextMenuButtonItem(
           label: 'Bold',
@@ -623,6 +669,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: [
+        ?headingLevelButton,
         ?codeLangButton,
         ...buttonItems,
       ],

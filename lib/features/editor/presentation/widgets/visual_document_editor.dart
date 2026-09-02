@@ -12,6 +12,8 @@ import '../../domain/markdown_styles.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
 import '../../domain/semantic_nodes.dart';
+import 'heading/markdown_heading_action_sheet.dart';
+import 'heading/markdown_heading_badge.dart';
 import 'link_prompt_dialog.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
@@ -344,6 +346,30 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   // Individual Block Builders
   // ---------------------------------------------------------------------------
 
+  void _showHeadingActionSheet(BuildContext context, HeadingBlock block) {
+    if (widget.readOnly) return;
+    MarkdownHeadingActionSheet.show(
+      context,
+      currentLevel: block.level,
+      onSelectLevel: (newLevel) {
+        widget.controller.setHeadingLevelForBlock(block.id, newLevel);
+        widget.onChanged?.call(widget.controller.markdown);
+      },
+      onConvertToParagraph: () {
+        widget.controller.convertHeadingToParagraph(blockId: block.id);
+        widget.onChanged?.call(widget.controller.markdown);
+      },
+      onCycleLevel: () {
+        widget.controller.cycleHeadingLevel(blockId: block.id);
+        widget.onChanged?.call(widget.controller.markdown);
+      },
+      onDeleteHeading: () {
+        widget.controller.deleteBlock(block.id);
+        widget.onChanged?.call(widget.controller.markdown);
+      },
+    );
+  }
+
   Widget _buildHeadingBlockItem(
     BuildContext context,
     AppColors colors,
@@ -358,14 +384,29 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: _buildBlockTextField(
-        context: context,
-        colors: colors,
-        blockId: block.id,
-        controller: ctrl,
-        focusNode: fn,
-        textStyle: headingStyle,
-        hintText: 'Heading ${block.level}',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: MarkdownHeadingBadge(
+              level: block.level,
+              enabled: !widget.readOnly,
+              onTap: () => _showHeadingActionSheet(context, block),
+            ),
+          ),
+          Expanded(
+            child: _buildBlockTextField(
+              context: context,
+              colors: colors,
+              blockId: block.id,
+              controller: ctrl,
+              focusNode: fn,
+              textStyle: headingStyle,
+              hintText: 'Heading ${block.level}',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -887,9 +928,20 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   ) {
     final buttonItems = editableTextState.contextMenuButtonItems;
     final isSelectionActive = !editableTextState.textEditingValue.selection.isCollapsed;
+    final block = widget.controller.document.findBlockById(blockId);
+    final headingButton = block is HeadingBlock
+        ? ContextMenuButtonItem(
+            label: 'Heading (${block.badgeLabel})',
+            onPressed: () {
+              ContextMenuController.removeAny();
+              _showHeadingActionSheet(context, block);
+            },
+          )
+        : null;
 
     if (isSelectionActive) {
       final formattingButtons = [
+        ?headingButton,
         ContextMenuButtonItem(
           label: 'Bold',
           onPressed: () {
@@ -950,7 +1002,10 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
-      buttonItems: buttonItems,
+      buttonItems: [
+        ?headingButton,
+        ...buttonItems,
+      ],
     );
   }
 }

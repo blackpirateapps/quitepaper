@@ -104,6 +104,66 @@ abstract final class MarkdownHelper {
     );
   }
 
+  /// Returns heading level (1..6) at current selection/cursor position, or null if not a heading.
+  static int? getHeadingLevelAt(TextEditingValue value) {
+    final text = value.text;
+    final selection = value.selection;
+    final cursorPosition = selection.isValid ? selection.start : text.length;
+
+    var lineStart = 0;
+    if (cursorPosition > 0 && cursorPosition <= text.length) {
+      lineStart = text.lastIndexOf('\n', cursorPosition - 1) + 1;
+    }
+    var lineEnd = text.indexOf('\n', cursorPosition.clamp(0, text.length));
+    if (lineEnd == -1) lineEnd = text.length;
+
+    final lineText = text.substring(lineStart, lineEnd);
+    final match = RegExp(r'^(#{1,6})\s+').firstMatch(lineText);
+    if (match != null) {
+      return match.group(1)!.length;
+    }
+    return null;
+  }
+
+  /// Sets heading level (1..6) or removes heading (0) on the current line.
+  static TextEditingValue setHeadingLevelAt({
+    required TextEditingValue value,
+    required int level,
+  }) {
+    final text = value.text;
+    final selection = value.selection;
+    final cursorPosition = selection.isValid ? selection.start : text.length;
+
+    var lineStart = 0;
+    if (cursorPosition > 0 && cursorPosition <= text.length) {
+      lineStart = text.lastIndexOf('\n', cursorPosition - 1) + 1;
+    }
+    var lineEnd = text.indexOf('\n', cursorPosition.clamp(0, text.length));
+    if (lineEnd == -1) lineEnd = text.length;
+
+    final lineText = text.substring(lineStart, lineEnd);
+    var cleanLine = lineText;
+    var removedLength = 0;
+
+    final match = RegExp(r'^#{1,6}\s*').firstMatch(lineText);
+    if (match != null) {
+      cleanLine = lineText.substring(match.group(0)!.length);
+      removedLength = match.group(0)!.length;
+    }
+
+    final prefix = level > 0 ? '${'#' * level} ' : '';
+    final newLineText = '$prefix$cleanLine';
+    final cursorOffsetDelta = prefix.length - removedLength;
+
+    final newText = text.replaceRange(lineStart, lineEnd, newLineText);
+    final newCursor = (cursorPosition + cursorOffsetDelta).clamp(0, newText.length);
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
   /// Toggles or prefixes the current line with a given line prefix (e.g. `- `, `1. `, `> `).
   static TextEditingValue toggleLinePrefix({
     required TextEditingValue value,
