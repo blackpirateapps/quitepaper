@@ -27,6 +27,9 @@ subprojects {
                 val android = project.extensions.findByName("android")
                 if (android is com.android.build.gradle.BaseExtension) {
                     android.compileSdkVersion(37)
+                    if (android.ndkVersion == "29.0.13113456" || project.name == "whisper_ggml") {
+                        android.ndkVersion = "27.0.12077973"
+                    }
                 }
             }
         }

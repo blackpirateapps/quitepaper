@@ -95,6 +95,11 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
 
+      - name: Accept Android SDK & NDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+          yes | flutter doctor --android-licenses || true
+
       - name: Build Split-Per-ABI APKs (arm64-v8a, armeabi-v7a, x86_64)
         env:
           KEYSTORE_FILE: ${{ secrets.KEYSTORE_BASE64 != '' && 'upload-keystore.jks' || '' }}
