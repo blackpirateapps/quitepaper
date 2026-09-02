@@ -530,8 +530,24 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
 ### 2. Context-Aware Formatting Utilities (`MarkdownFormatter`)
 - Pure, functional transformations for `TextEditingValue` covering `toggleBold`, `toggleItalic`, `toggleStrikethrough`, `toggleInlineCode`, `createLink`, `toggleChecklist`, `toggleBulletList`, `toggleOrderedList`.
 - Automatically detects if the selected text (or surrounding characters) already have formatting delimiters and toggles them off without creating invalid nested syntax.
+- **Active Style Detection**:
+  - Exposes deterministic state inspection methods: `isBoldAt`, `isItalicAt`, `isStrikethroughAt`, `isInlineCodeAt`, `isHeadingAt`, `isChecklistAt`, `isBulletListAt`, `isOrderedListAt`, `isQuoteAt`.
+  - Seamlessly handles both collapsed carets (inspecting line-level spans and boundary delimiters) and non-collapsed selections.
+- **Collapsed Caret Toggle & Exit**:
+  - Tapping an inline style (e.g. Bold) on an unformatted collapsed cursor inserts `****` and places the caret inside (`**|**`).
+  - Tapping the same style again on an empty marker cleanly removes the empty delimiters.
+  - Tapping the same style when the caret is inside formatted text advances the caret immediately past the closing delimiters (e.g. `**word**|`), cleanly exiting format mode so subsequent typing is unformatted.
 
-### 3. Keyboard Shortcuts (`CallbackShortcuts`)
+### 3. Formatting Toolbar Active Highlighting & Continuous Formatting
+- **Active State Highlighting**:
+  - [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart) wraps toolbar actions in a `ListenableBuilder` observing the active controller (`MarkdownEditingController` or `WysiwygEditingController`).
+  - Whenever the cursor enters a styled span (bold, italic, strikethrough, heading, checklist, bullet list, ordered list, quote, or inline code), the corresponding toolbar button highlights with a warm editorial accent background (`colors.accent.withValues(alpha: 0.16)`), subtle accent border (`colors.accent.withValues(alpha: 0.28)`), and coral accent icon/text color (`colors.accent`).
+- **Continuous Formatting Across Typing (WYSIWYG Mode)**:
+  - [`SourceVisualMapping.mapVisualEditToSource`](file:///home/dog/git/quitepaper/lib/features/editor/domain/source_visual_mapping.dart) supports `insertInsideRun: true`.
+  - When typing with active formatting enabled (e.g. bold), newly typed characters are continuously inserted inside the formatted run (`run.sourceEnd` before closing delimiters such as `**`), preventing newly typed characters from falling outside the delimiters.
+  - When formatting is toggled off, `_lastSourceSelection` preserves the post-delimiter position and `insertInsideRun: false` appends normal unstyled text after closing syntax.
+
+### 4. Keyboard Shortcuts (`CallbackShortcuts`)
 - Physical & hardware keyboard support across Android, desktop, web, and tablets:
   - `Ctrl+B` / `Cmd+B`: Toggle Bold.
   - `Ctrl+I` / `Cmd+I`: Toggle Italic.
@@ -540,16 +556,17 @@ Building upon the V1 presentation-only styling engine, V2 adds rich editing supe
   - `Ctrl+K` / `Cmd+K`: Insert / Edit Link dialog ([`LinkPromptDialog`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/link_prompt_dialog.dart)).
   - Standard editing shortcuts (`Ctrl+C`, `Ctrl+V`, `Ctrl+X`, `Ctrl+A`, `Ctrl+Z`, `Ctrl+Shift+Z`) remain completely native.
 
-### 4. Selection-Aware Formatting Toolbar (`contextMenuBuilder`)
+### 5. Selection-Aware Formatting Toolbar (`contextMenuBuilder`)
 - Integrated into Flutter's `contextMenuBuilder` to provide floating, touch-friendly formatting actions (`Bold`, `Italic`, `Strike`, `Code`, `Link`, `Checklist`) alongside native text actions (`Cut`, `Copy`, `Paste`, `Select All`).
 - Responsive positioning adapts automatically to viewport, orientations, and keyboard insets.
 
-### 5. Interactive Markdown Checklists
+### 6. Interactive Markdown Checklists
 - **Visual Presentation**: Checklist markers `- [ ] ` and `- [x] ` / `- [X] ` are tokenized with distinct syntax styling (`checklistMarker` and `checklistMarkerChecked`), with completed task text styled using `taskTextCompleted` (subtle strikethrough).
 - **Tap Hit-Testing & Direct Toggling**: Tapping directly on the checkbox marker area of a checklist item immediately toggles between `- [ ] ` and `- [x] ` in the Markdown source, updates controller text, triggers autosave, and preserves selection.
 
 ---
 
+- [x] Formatting toolbar active state highlighting and continuous formatting typing: Bold, Italic, Strikethrough, Heading, Checklist, Bullet, Ordered List, Quote, and Inline Code highlight in the toolbar with warm editorial accents when active at the caret or selection; typing with active formatting continuously applies formatting across all typed characters; tapping an active format icon finishes formatting and resumes unformatted text.
 - [x] Search is 100% local and functions completely without network connectivity.
 - [x] Trash notes are persisted indefinitely with zero auto-delete.
 - [x] Idempotency keys prevent duplicate note creation on network retries.

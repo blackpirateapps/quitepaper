@@ -50,6 +50,59 @@ void main() {
       expect(result.text, equals('Hello ****'));
       expect(result.selection.baseOffset, equals(8));
     });
+
+    test('toggles off when collapsed inside empty ****', () {
+      const initial = TextEditingValue(
+        text: 'Hello **** world',
+        selection: TextSelection.collapsed(offset: 8), // inside **|**
+      );
+
+      final result = MarkdownFormatter.toggleBold(value: initial);
+      expect(result.text, equals('Hello  world'));
+      expect(result.selection.baseOffset, equals(6));
+    });
+
+    test('toggles off by moving cursor after ** when collapsed inside **word**', () {
+      const initial = TextEditingValue(
+        text: 'Hello **world** today',
+        selection: TextSelection.collapsed(offset: 13), // at end of "world" inside **
+      );
+
+      final result = MarkdownFormatter.toggleBold(value: initial);
+      expect(result.text, equals('Hello **world** today'));
+      expect(result.selection.baseOffset, equals(15)); // after closing **
+    });
+
+    test('isBoldAt returns true when cursor is inside bold and false when outside', () {
+      expect(
+        MarkdownFormatter.isBoldAt(const TextEditingValue(
+          text: 'Hello **world** today',
+          selection: TextSelection.collapsed(offset: 10), // inside "world"
+        )),
+        isTrue,
+      );
+      expect(
+        MarkdownFormatter.isBoldAt(const TextEditingValue(
+          text: 'Hello **world** today',
+          selection: TextSelection.collapsed(offset: 8), // at start of "world" inside **
+        )),
+        isTrue,
+      );
+      expect(
+        MarkdownFormatter.isBoldAt(const TextEditingValue(
+          text: 'Hello **world** today',
+          selection: TextSelection.collapsed(offset: 15), // after closing **
+        )),
+        isFalse,
+      );
+      expect(
+        MarkdownFormatter.isBoldAt(const TextEditingValue(
+          text: 'Hello **** today',
+          selection: TextSelection.collapsed(offset: 8), // inside **|**
+        )),
+        isTrue,
+      );
+    });
   });
 
   group('MarkdownFormatter - Italic', () {

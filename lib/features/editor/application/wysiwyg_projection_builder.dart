@@ -11,7 +11,7 @@ abstract final class WysiwygProjectionBuilder {
   static final String checkedGlyph = '${String.fromCharCode(PhosphorIconsRegular.checkSquare.codePoint)} ';
 
   static final _codeFenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
-  static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
+  static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3}|\*{5,}|_{3}|_{5,})\s*$');
   static final _blockquoteCheckRegex = RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)');
   static final _blockquoteParseRegex = RegExp(r'^(\s*)(>{1,3})([ \t]?)(.*)$');
   static final _checklistCheckRegex = RegExp(r'^(\s*)([-*+]\s*\[)([ xX])(\])(?:([ \t]+.*)|$)');
@@ -788,7 +788,7 @@ abstract final class WysiwygProjectionBuilder {
         final closeIndex = _findClosingDelimiter(text, delimiter, i + 3);
         if (closeIndex != -1) {
           final inner = text.substring(i + 3, closeIndex);
-          if (inner.isNotEmpty && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+          if (inner.isEmpty || (!inner.startsWith(' ') && !inner.endsWith(' '))) {
             flushPlain(i);
 
             // Hide opening ***
@@ -804,16 +804,18 @@ abstract final class WysiwygProjectionBuilder {
             ));
 
             // Visible text with bold italic style
-            final boldItalicStyle = baseStyle.merge(styles.boldItalic);
-            _addVisualRun(
-              runs: runs,
-              visualBuffer: visualBuffer,
-              sourceStart: baseOffset + i + 3,
-              sourceEnd: baseOffset + closeIndex,
-              visualText: inner,
-              type: MarkdownTokenType.boldItalic,
-              style: boldItalicStyle,
-            );
+            if (inner.isNotEmpty) {
+              final boldItalicStyle = baseStyle.merge(styles.boldItalic);
+              _addVisualRun(
+                runs: runs,
+                visualBuffer: visualBuffer,
+                sourceStart: baseOffset + i + 3,
+                sourceEnd: baseOffset + closeIndex,
+                visualText: inner,
+                type: MarkdownTokenType.boldItalic,
+                style: boldItalicStyle,
+              );
+            }
 
             // Hide closing ***
             runs.add(MarkdownVisualRun(
@@ -840,7 +842,7 @@ abstract final class WysiwygProjectionBuilder {
         final closeIndex = _findClosingDelimiter(text, delimiter, i + 2);
         if (closeIndex != -1) {
           final inner = text.substring(i + 2, closeIndex);
-          if (inner.isNotEmpty && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+          if (inner.isEmpty || (!inner.startsWith(' ') && !inner.endsWith(' '))) {
             flushPlain(i);
 
             // Hide opening **
@@ -856,16 +858,18 @@ abstract final class WysiwygProjectionBuilder {
             ));
 
             // Visible text with bold style
-            final boldStyle = baseStyle.merge(styles.bold);
-            _addVisualRun(
-              runs: runs,
-              visualBuffer: visualBuffer,
-              sourceStart: baseOffset + i + 2,
-              sourceEnd: baseOffset + closeIndex,
-              visualText: inner,
-              type: MarkdownTokenType.bold,
-              style: boldStyle,
-            );
+            if (inner.isNotEmpty) {
+              final boldStyle = baseStyle.merge(styles.bold);
+              _addVisualRun(
+                runs: runs,
+                visualBuffer: visualBuffer,
+                sourceStart: baseOffset + i + 2,
+                sourceEnd: baseOffset + closeIndex,
+                visualText: inner,
+                type: MarkdownTokenType.bold,
+                style: boldStyle,
+              );
+            }
 
             // Hide closing **
             runs.add(MarkdownVisualRun(
@@ -891,7 +895,7 @@ abstract final class WysiwygProjectionBuilder {
         final closeIndex = _findClosingDelimiter(text, '~~', i + 2);
         if (closeIndex != -1) {
           final inner = text.substring(i + 2, closeIndex);
-          if (inner.isNotEmpty && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+          if (inner.isEmpty || (!inner.startsWith(' ') && !inner.endsWith(' '))) {
             flushPlain(i);
 
             // Hide opening ~~
@@ -906,16 +910,18 @@ abstract final class WysiwygProjectionBuilder {
               isHiddenSyntax: true,
             ));
 
-            final strikeStyle = baseStyle.merge(styles.strikethrough);
-            _addVisualRun(
-              runs: runs,
-              visualBuffer: visualBuffer,
-              sourceStart: baseOffset + i + 2,
-              sourceEnd: baseOffset + closeIndex,
-              visualText: inner,
-              type: MarkdownTokenType.strikethrough,
-              style: strikeStyle,
-            );
+            if (inner.isNotEmpty) {
+              final strikeStyle = baseStyle.merge(styles.strikethrough);
+              _addVisualRun(
+                runs: runs,
+                visualBuffer: visualBuffer,
+                sourceStart: baseOffset + i + 2,
+                sourceEnd: baseOffset + closeIndex,
+                visualText: inner,
+                type: MarkdownTokenType.strikethrough,
+                style: strikeStyle,
+              );
+            }
 
             // Hide closing ~~
             runs.add(MarkdownVisualRun(
@@ -941,7 +947,7 @@ abstract final class WysiwygProjectionBuilder {
         final closeIndex = _findClosingDelimiter(text, '==', i + 2);
         if (closeIndex != -1) {
           final inner = text.substring(i + 2, closeIndex);
-          if (inner.isNotEmpty && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+          if (inner.isEmpty || (!inner.startsWith(' ') && !inner.endsWith(' '))) {
             flushPlain(i);
 
             // Hide opening ==
@@ -956,16 +962,18 @@ abstract final class WysiwygProjectionBuilder {
               isHiddenSyntax: true,
             ));
 
-            final highlightStyle = baseStyle.merge(styles.highlight);
-            _addVisualRun(
-              runs: runs,
-              visualBuffer: visualBuffer,
-              sourceStart: baseOffset + i + 2,
-              sourceEnd: baseOffset + closeIndex,
-              visualText: inner,
-              type: MarkdownTokenType.highlight,
-              style: highlightStyle,
-            );
+            if (inner.isNotEmpty) {
+              final highlightStyle = baseStyle.merge(styles.highlight);
+              _addVisualRun(
+                runs: runs,
+                visualBuffer: visualBuffer,
+                sourceStart: baseOffset + i + 2,
+                sourceEnd: baseOffset + closeIndex,
+                visualText: inner,
+                type: MarkdownTokenType.highlight,
+                style: highlightStyle,
+              );
+            }
 
             // Hide closing ==
             runs.add(MarkdownVisualRun(
@@ -994,7 +1002,7 @@ abstract final class WysiwygProjectionBuilder {
           final closeIndex = _findClosingDelimiter(text, delimiter, i + 1);
           if (closeIndex != -1) {
             final inner = text.substring(i + 1, closeIndex);
-            if (inner.isNotEmpty && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+            if (inner.isEmpty || (!inner.startsWith(' ') && !inner.endsWith(' '))) {
               flushPlain(i);
 
               // Hide opening *
@@ -1009,16 +1017,18 @@ abstract final class WysiwygProjectionBuilder {
                 isHiddenSyntax: true,
               ));
 
-              final italicStyle = baseStyle.merge(styles.italic);
-              _addVisualRun(
-                runs: runs,
-                visualBuffer: visualBuffer,
-                sourceStart: baseOffset + i + 1,
-                sourceEnd: baseOffset + closeIndex,
-                visualText: inner,
-                type: MarkdownTokenType.italic,
-                style: italicStyle,
-              );
+              if (inner.isNotEmpty) {
+                final italicStyle = baseStyle.merge(styles.italic);
+                _addVisualRun(
+                  runs: runs,
+                  visualBuffer: visualBuffer,
+                  sourceStart: baseOffset + i + 1,
+                  sourceEnd: baseOffset + closeIndex,
+                  visualText: inner,
+                  type: MarkdownTokenType.italic,
+                  style: italicStyle,
+                );
+              }
 
               // Hide closing *
               runs.add(MarkdownVisualRun(

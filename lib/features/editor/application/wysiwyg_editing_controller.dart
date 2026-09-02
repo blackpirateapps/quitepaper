@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
 import '../domain/markdown_styles.dart';
 import '../domain/source_visual_mapping.dart';
+import 'markdown_formatter.dart';
 import 'wysiwyg_projection_builder.dart';
 
 /// A [TextEditingController] that manages visual WYSIWYG editing while maintaining
@@ -34,6 +35,7 @@ class WysiwygEditingController extends TextEditingController {
   SourceVisualMapping get mapping => _mapping;
 
   TextEditingValue _lastVisualValue = TextEditingValue.empty;
+  TextSelection _lastSourceSelection = const TextSelection.collapsed(offset: 0);
   bool _isInternalUpdate = false;
 
   String? _searchQuery;
@@ -65,11 +67,38 @@ class WysiwygEditingController extends TextEditingController {
     }
   }
 
+  /// Checks if bold formatting is active at current selection or cursor.
+  bool get isBoldActive => MarkdownFormatter.isBoldAt(sourceValue);
+
+  /// Checks if italic formatting is active at current selection or cursor.
+  bool get isItalicActive => MarkdownFormatter.isItalicAt(sourceValue);
+
+  /// Checks if strikethrough formatting is active at current selection or cursor.
+  bool get isStrikethroughActive => MarkdownFormatter.isStrikethroughAt(sourceValue);
+
+  /// Checks if inline code formatting is active at current selection or cursor.
+  bool get isInlineCodeActive => MarkdownFormatter.isInlineCodeAt(sourceValue);
+
+  /// Checks if heading formatting is active at current selection or cursor.
+  bool get isHeadingActive => MarkdownFormatter.isHeadingAt(sourceValue);
+
+  /// Checks if checklist formatting is active at current selection or cursor.
+  bool get isChecklistActive => MarkdownFormatter.isChecklistAt(sourceValue);
+
+  /// Checks if bullet list formatting is active at current selection or cursor.
+  bool get isBulletListActive => MarkdownFormatter.isBulletListAt(sourceValue);
+
+  /// Checks if ordered list formatting is active at current selection or cursor.
+  bool get isOrderedListActive => MarkdownFormatter.isOrderedListAt(sourceValue);
+
+  /// Checks if blockquote formatting is active at current selection or cursor.
+  bool get isQuoteActive => MarkdownFormatter.isQuoteAt(sourceValue);
+
   void _rebuildProjection(String source, {bool initial = false}) {
     final effectiveStyles = styles ?? MarkdownStyles.fromColors(AppColors.light);
     final oldSourceSelection = initial
         ? const TextSelection.collapsed(offset: 0)
-        : _mapping.mapVisualSelectionToSource(_lastVisualValue.selection);
+        : _lastSourceSelection;
 
     _mapping = WysiwygProjectionBuilder.build(
       sourceText: source,
@@ -87,12 +116,14 @@ class WysiwygEditingController extends TextEditingController {
           : TextSelection.collapsed(offset: _mapping.visualText.length),
     );
     _lastVisualValue = value;
+    _lastSourceSelection = oldSourceSelection;
     _isInternalUpdate = false;
   }
 
   /// Sets source value directly with specific source selection (e.g. from formatting toolbar).
   void setSourceValue(TextEditingValue sourceValue) {
     _sourceText = sourceValue.text;
+    _lastSourceSelection = sourceValue.selection;
     final effectiveStyles = styles ?? MarkdownStyles.fromColors(AppColors.light);
     _mapping = WysiwygProjectionBuilder.build(
       sourceText: _sourceText,
@@ -114,11 +145,33 @@ class WysiwygEditingController extends TextEditingController {
     notifyListeners();
   }
 
+  /// Applies a functional Markdown format transformation on the underlying source value.
+  void applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
+    final current = sourceValue;
+    final updated = action(value: current);
+    setSourceValue(updated);
+    onSourceChanged?.call(_sourceText);
+  }
+
   /// Returns the current canonical Markdown source value with mapped selection.
   TextEditingValue get sourceValue {
+    // If the visual selection matches the projection of _lastSourceSelection,
+    // preserve the exact source boundary (e.g. before vs after closing delimiter).
+    final mappedVisualFromLastSource = _mapping.mapSourceSelectionToVisual(_lastSourceSelection);
+    final currentVisualSel = value.selection;
+
+    final TextSelection effectiveSourceSel;
+    if (mappedVisualFromLastSource.isValid &&
+        mappedVisualFromLastSource.baseOffset == currentVisualSel.baseOffset &&
+        mappedVisualFromLastSource.extentOffset == currentVisualSel.extentOffset) {
+      effectiveSourceSel = _lastSourceSelection;
+    } else {
+      effectiveSourceSel = _mapping.mapVisualSelectionToSource(currentVisualSel);
+    }
+
     return TextEditingValue(
       text: _sourceText,
-      selection: _mapping.mapVisualSelectionToSource(value.selection),
+      selection: effectiveSourceSel,
       composing: value.isComposingRangeValid
           ? TextRange(
               start: _mapping.visualToSource(value.composing.start),
@@ -136,13 +189,20 @@ class WysiwygEditingController extends TextEditingController {
     }
 
     if (newValue.text != _lastVisualValue.text) {
+      final isAnyInlineActive = isBoldActive ||
+          isItalicActive ||
+          isStrikethroughActive ||
+          isInlineCodeActive;
+
       // Visual text was edited -> mutate source
       final newSourceVal = _mapping.mapVisualEditToSource(
         oldVisualValue: _lastVisualValue,
         newVisualValue: newValue,
+        insertInsideRun: isAnyInlineActive,
       );
 
       _sourceText = newSourceVal.text;
+      _lastSourceSelection = newSourceVal.selection;
       final effectiveStyles = styles ?? MarkdownStyles.fromColors(AppColors.light);
       _mapping = WysiwygProjectionBuilder.build(
         sourceText: _sourceText,
@@ -157,6 +217,7 @@ class WysiwygEditingController extends TextEditingController {
     } else {
       // Only selection or composing changed
       _lastVisualValue = newValue;
+      _lastSourceSelection = _mapping.mapVisualSelectionToSource(newValue.selection);
       super.value = newValue;
     }
   }

@@ -3,7 +3,192 @@ import 'package:flutter/services.dart';
 
 /// Reusable, pure-function Markdown formatting operations for selections and cursors.
 abstract final class MarkdownFormatter {
-  /// Toggles bold (`**text**`) on the current selection or inserts `****` at cursor.
+  /// Checks if bold formatting is active at current selection or cursor.
+  static bool isBoldAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final sel = value.selection;
+    if (!sel.isCollapsed) {
+      final start = min(sel.start, sel.end);
+      final end = max(sel.start, sel.end);
+      final selText = text.substring(start, end);
+      if ((selText.startsWith('**') && selText.endsWith('**') && selText.length >= 4) ||
+          (selText.startsWith('__') && selText.endsWith('__') && selText.length >= 4)) {
+        return true;
+      }
+      if (start >= 2 && end + 2 <= text.length) {
+        if ((text.substring(start - 2, start) == '**' && text.substring(end, end + 2) == '**') ||
+            (text.substring(start - 2, start) == '__' && text.substring(end, end + 2) == '__')) {
+          return true;
+        }
+      }
+      return false;
+    }
+    final cursor = sel.start;
+    if (cursor >= 2 && cursor + 2 <= text.length) {
+      if ((text.substring(cursor - 2, cursor) == '**' && text.substring(cursor, cursor + 2) == '**') ||
+          (text.substring(cursor - 2, cursor) == '__' && text.substring(cursor, cursor + 2) == '__')) {
+        return true;
+      }
+    }
+    return _findSpanAroundOffset(text, cursor, '**') != null;
+  }
+
+  /// Checks if italic formatting is active at current selection or cursor.
+  static bool isItalicAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final sel = value.selection;
+    if (!sel.isCollapsed) {
+      final start = min(sel.start, sel.end);
+      final end = max(sel.start, sel.end);
+      final selText = text.substring(start, end);
+      if ((selText.startsWith('*') && selText.endsWith('*') && !selText.startsWith('**') && selText.length >= 2) ||
+          (selText.startsWith('_') && selText.endsWith('_') && !selText.startsWith('__') && selText.length >= 2)) {
+        return true;
+      }
+      if (start >= 1 && end + 1 <= text.length) {
+        final before = text.substring(start - 1, start);
+        final after = text.substring(end, end + 1);
+        if ((before == '*' && after == '*') || (before == '_' && after == '_')) {
+          if ((start < 2 || text.substring(start - 2, start) != '**') &&
+              (end + 2 > text.length || text.substring(end, end + 2) != '**')) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    final cursor = sel.start;
+    if (cursor >= 1 && cursor + 1 <= text.length) {
+      if ((text.substring(cursor - 1, cursor) == '*' && text.substring(cursor, cursor + 1) == '*') ||
+          (text.substring(cursor - 1, cursor) == '_' && text.substring(cursor, cursor + 1) == '_')) {
+        if ((cursor < 2 || text.substring(cursor - 2, cursor) != '**') &&
+            (cursor + 2 > text.length || text.substring(cursor, cursor + 2) != '**')) {
+          return true;
+        }
+      }
+    }
+    return _findSpanAroundOffset(text, cursor, '*', disallowDouble: true) != null;
+  }
+
+  /// Checks if strikethrough formatting is active at current selection or cursor.
+  static bool isStrikethroughAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final sel = value.selection;
+    if (!sel.isCollapsed) {
+      final start = min(sel.start, sel.end);
+      final end = max(sel.start, sel.end);
+      final selText = text.substring(start, end);
+      if (selText.startsWith('~~') && selText.endsWith('~~') && selText.length >= 4) {
+        return true;
+      }
+      if (start >= 2 && end + 2 <= text.length) {
+        if (text.substring(start - 2, start) == '~~' && text.substring(end, end + 2) == '~~') {
+          return true;
+        }
+      }
+      return false;
+    }
+    final cursor = sel.start;
+    if (cursor >= 2 && cursor + 2 <= text.length) {
+      if (text.substring(cursor - 2, cursor) == '~~' && text.substring(cursor, cursor + 2) == '~~') {
+        return true;
+      }
+    }
+    return _findSpanAroundOffset(text, cursor, '~~') != null;
+  }
+
+  /// Checks if inline code formatting is active at current selection or cursor.
+  static bool isInlineCodeAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final sel = value.selection;
+    if (!sel.isCollapsed) {
+      final start = min(sel.start, sel.end);
+      final end = max(sel.start, sel.end);
+      final selText = text.substring(start, end);
+      if (selText.startsWith('`') && selText.endsWith('`') && selText.length >= 2) {
+        return true;
+      }
+      if (start >= 1 && end + 1 <= text.length) {
+        if (text.substring(start - 1, start) == '`' && text.substring(end, end + 1) == '`') {
+          return true;
+        }
+      }
+      return false;
+    }
+    final cursor = sel.start;
+    if (cursor >= 1 && cursor + 1 <= text.length) {
+      if (text.substring(cursor - 1, cursor) == '`' && text.substring(cursor, cursor + 1) == '`') {
+        return true;
+      }
+    }
+    return _findSpanAroundOffset(text, cursor, '`') != null;
+  }
+
+  /// Checks if the cursor or selection is on a heading line.
+  static bool isHeadingAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final cursor = value.selection.start.clamp(0, text.length);
+    final lineStart = cursor > 0 ? (text.lastIndexOf('\n', cursor - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', cursor);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    return RegExp(r'^(\s*)#{1,6}(\s|$)').hasMatch(lineText);
+  }
+
+  /// Checks if the cursor or selection is on a checklist item.
+  static bool isChecklistAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final cursor = value.selection.start.clamp(0, text.length);
+    final lineStart = cursor > 0 ? (text.lastIndexOf('\n', cursor - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', cursor);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    return RegExp(r'^\s*[-*+]\s*\[[ xX]\]').hasMatch(lineText);
+  }
+
+  /// Checks if the cursor or selection is on an unordered bullet list item.
+  static bool isBulletListAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final cursor = value.selection.start.clamp(0, text.length);
+    final lineStart = cursor > 0 ? (text.lastIndexOf('\n', cursor - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', cursor);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    return RegExp(r'^\s*[-*+]\s+(?!\[[ xX]\])').hasMatch(lineText);
+  }
+
+  /// Checks if the cursor or selection is on an ordered numbered list item.
+  static bool isOrderedListAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final cursor = value.selection.start.clamp(0, text.length);
+    final lineStart = cursor > 0 ? (text.lastIndexOf('\n', cursor - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', cursor);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    return RegExp(r'^\s*\d+[\.\)]\s+').hasMatch(lineText);
+  }
+
+  /// Checks if the cursor or selection is on a blockquote.
+  static bool isQuoteAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final cursor = value.selection.start.clamp(0, text.length);
+    final lineStart = cursor > 0 ? (text.lastIndexOf('\n', cursor - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', cursor);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    return RegExp(r'^\s*>\s*').hasMatch(lineText);
+  }
+
+  /// Toggles bold (`**text**`) on the current selection or inserts/exits `****` at cursor.
   static TextEditingValue toggleBold({required TextEditingValue value}) {
     return _toggleInlineWrapper(
       value: value,
@@ -12,7 +197,7 @@ abstract final class MarkdownFormatter {
     );
   }
 
-  /// Toggles italic (`*text*`) on the current selection or inserts `**` at cursor.
+  /// Toggles italic (`*text*`) on the current selection or inserts/exits `**` at cursor.
   static TextEditingValue toggleItalic({required TextEditingValue value}) {
     return _toggleInlineWrapper(
       value: value,
@@ -22,7 +207,7 @@ abstract final class MarkdownFormatter {
     );
   }
 
-  /// Toggles strikethrough (`~~text~~`) on current selection or inserts `~~~~` at cursor.
+  /// Toggles strikethrough (`~~text~~`) on current selection or inserts/exits `~~~~` at cursor.
   static TextEditingValue toggleStrikethrough({required TextEditingValue value}) {
     return _toggleInlineWrapper(
       value: value,
@@ -31,7 +216,7 @@ abstract final class MarkdownFormatter {
     );
   }
 
-  /// Toggles inline code (`` `code` ``) on current selection or inserts ```` `` ```` at cursor.
+  /// Toggles inline code (`` `code` ``) on current selection or inserts/exits ```` `` ```` at cursor.
   static TextEditingValue toggleInlineCode({required TextEditingValue value}) {
     return _toggleInlineWrapper(
       value: value,
@@ -253,9 +438,34 @@ abstract final class MarkdownFormatter {
     final mLen = marker.length;
 
     if (!selection.isValid || selection.isCollapsed) {
-      final start = selection.isValid ? selection.start : text.length;
-      final newText = text.replaceRange(start, start, '$marker$marker');
-      final newCursor = start + mLen;
+      final cursor = selection.isValid ? selection.start : text.length;
+
+      // 1. Check if cursor is directly inside an empty marker pair: e.g. "**|**"
+      if (cursor >= mLen &&
+          cursor + mLen <= text.length &&
+          text.substring(cursor - mLen, cursor) == marker &&
+          text.substring(cursor, cursor + mLen) == marker) {
+        // Remove the empty marker pair
+        final newText = text.replaceRange(cursor - mLen, cursor + mLen, '');
+        return TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: cursor - mLen),
+        );
+      }
+
+      // 2. Check if cursor is inside an existing formatted span on the line
+      final span = _findSpanAroundOffset(text, cursor, marker, disallowDouble: disallowDoubleMarker);
+      if (span != null) {
+        // If cursor is inside, toggle OFF by advancing cursor to after the closing delimiter
+        return TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: span.end),
+        );
+      }
+
+      // 3. Otherwise, insert new empty marker pair and position cursor inside
+      final newText = text.replaceRange(cursor, cursor, '$marker$marker');
+      final newCursor = cursor + mLen;
       return TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newCursor),
@@ -315,6 +525,80 @@ abstract final class MarkdownFormatter {
     );
   }
 
+  static _SpanMatch? _findSpanAroundOffset(
+    String text,
+    int offset,
+    String marker, {
+    bool disallowDouble = false,
+  }) {
+    if (text.isEmpty) return null;
+    final clampedOffset = offset.clamp(0, text.length);
+    final lineStart = clampedOffset > 0 ? (text.lastIndexOf('\n', clampedOffset - 1) + 1) : 0;
+    final nextNewline = text.indexOf('\n', clampedOffset);
+    final lineEnd = nextNewline == -1 ? text.length : nextNewline;
+    final lineText = text.substring(lineStart, lineEnd);
+    final relOffset = clampedOffset - lineStart;
+    final mLen = marker.length;
+
+    var idx = 0;
+    while (idx < lineText.length) {
+      final openIdx = lineText.indexOf(marker, idx);
+      if (openIdx == -1) break;
+
+      if (disallowDouble && marker == '*') {
+        if ((openIdx > 0 && lineText[openIdx - 1] == '*') ||
+            (openIdx + 1 < lineText.length && lineText[openIdx + 1] == '*')) {
+          idx = openIdx + 1;
+          continue;
+        }
+      }
+
+      var searchClose = openIdx + mLen;
+      var closeIdx = -1;
+      while (searchClose < lineText.length) {
+        final candidate = lineText.indexOf(marker, searchClose);
+        if (candidate == -1) break;
+        if (disallowDouble && marker == '*') {
+          if ((candidate > 0 && lineText[candidate - 1] == '*') ||
+              (candidate + 1 < lineText.length && lineText[candidate + 1] == '*')) {
+            searchClose = candidate + 1;
+            continue;
+          }
+        }
+        closeIdx = candidate;
+        break;
+      }
+
+      if (closeIdx != -1) {
+        final spanStart = openIdx;
+        final spanEnd = closeIdx + mLen;
+        final contentStart = openIdx + mLen;
+        final contentEnd = closeIdx;
+
+        if (relOffset >= contentStart && relOffset <= contentEnd) {
+          return _SpanMatch(
+            start: lineStart + spanStart,
+            end: lineStart + spanEnd,
+            contentStart: lineStart + contentStart,
+            contentEnd: lineStart + contentEnd,
+          );
+        }
+        idx = spanEnd;
+      } else {
+        idx = openIdx + mLen;
+      }
+    }
+
+    if (marker == '**') {
+      return _findSpanAroundOffset(text, clampedOffset, '__', disallowDouble: disallowDouble);
+    }
+    if (marker == '*' && !disallowDouble) {
+      return _findSpanAroundOffset(text, clampedOffset, '_', disallowDouble: true);
+    }
+
+    return null;
+  }
+
   static TextEditingValue _transformSelectedLines({
     required TextEditingValue value,
     required List<String> Function(List<String>) transformer,
@@ -364,3 +648,18 @@ abstract final class MarkdownFormatter {
     );
   }
 }
+
+class _SpanMatch {
+  final int start;
+  final int end;
+  final int contentStart;
+  final int contentEnd;
+
+  const _SpanMatch({
+    required this.start,
+    required this.end,
+    required this.contentStart,
+    required this.contentEnd,
+  });
+}
+

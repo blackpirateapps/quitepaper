@@ -97,20 +97,25 @@ class SourceVisualMapping {
   }
 
   /// Converts a character index in the projected visual text into a canonical Markdown source offset.
-  int visualToSource(int visualOffset) {
+  /// If [insertInsideRun] is true, visual offsets at the end of a styled run remain inside the run
+  /// (before closing hidden syntax markers such as `**`, `*`, `~~`), enabling continuous formatted typing.
+  int visualToSource(int visualOffset, {bool insertInsideRun = true}) {
     if (runs.isEmpty || sourceText.isEmpty) return 0;
     final clampedVisual = visualOffset.clamp(0, visualText.length);
 
     // Fast-path: start of document
     if (clampedVisual == 0) {
       if (runs.isNotEmpty && runs.first.isHiddenSyntax) {
-        // If first token is hidden prefix (like "# "), cursor in visual index 0 is at content start
+        // If first token is hidden prefix (like "# " or opening "**"), cursor in visual index 0 is at content start
         return runs.first.sourceEnd;
       }
       return 0;
     }
 
     if (clampedVisual == visualText.length) {
+      if (insertInsideRun && runs.isNotEmpty && runs.last.isHiddenSyntax && runs.length >= 2) {
+        return runs[runs.length - 2].sourceEnd;
+      }
       return sourceText.length;
     }
 
@@ -121,7 +126,7 @@ class SourceVisualMapping {
       if (clampedVisual >= run.visualStart && clampedVisual <= run.visualEnd) {
         final delta = clampedVisual - run.visualStart;
         if (clampedVisual == run.visualEnd && i + 1 < runs.length && runs[i + 1].isHiddenSyntax) {
-          return runs[i + 1].sourceEnd;
+          return insertInsideRun ? run.sourceEnd : runs[i + 1].sourceEnd;
         }
         return (run.sourceStart + delta).clamp(0, sourceText.length);
       }
@@ -131,11 +136,14 @@ class SourceVisualMapping {
   }
 
   /// Maps a visual selection to the corresponding canonical Markdown source selection.
-  TextSelection mapVisualSelectionToSource(TextSelection visualSel) {
+  TextSelection mapVisualSelectionToSource(
+    TextSelection visualSel, {
+    bool insertInsideRun = true,
+  }) {
     if (!visualSel.isValid) return const TextSelection.collapsed(offset: -1);
 
-    var sourceBase = visualToSource(visualSel.baseOffset);
-    var sourceExtent = visualToSource(visualSel.extentOffset);
+    var sourceBase = visualToSource(visualSel.baseOffset, insertInsideRun: insertInsideRun);
+    var sourceExtent = visualToSource(visualSel.extentOffset, insertInsideRun: insertInsideRun);
 
     // If selection covers the whole visual run, expand to encompass hidden delimiters around it
     if (!visualSel.isCollapsed) {
@@ -148,6 +156,13 @@ class SourceVisualMapping {
             sourceBase = runs[i - 1].sourceStart;
           } else {
             sourceExtent = runs[i - 1].sourceStart;
+          }
+        }
+        if (visualSel.end == run.visualEnd && i + 1 < runs.length && runs[i + 1].isHiddenSyntax) {
+          if (visualSel.baseOffset <= visualSel.extentOffset) {
+            sourceExtent = runs[i + 1].sourceEnd;
+          } else {
+            sourceBase = runs[i + 1].sourceEnd;
           }
         }
       }
@@ -176,17 +191,21 @@ class SourceVisualMapping {
   TextEditingValue mapVisualEditToSource({
     required TextEditingValue oldVisualValue,
     required TextEditingValue newVisualValue,
+    bool insertInsideRun = true,
   }) {
     final oldVText = oldVisualValue.text;
     final newVText = newVisualValue.text;
 
     // If text is identical, only selection/composing changed
     if (oldVText == newVText) {
-      final newSourceSel = mapVisualSelectionToSource(newVisualValue.selection);
+      final newSourceSel = mapVisualSelectionToSource(
+        newVisualValue.selection,
+        insertInsideRun: insertInsideRun,
+      );
       final newSourceComp = newVisualValue.isComposingRangeValid
           ? TextRange(
-              start: visualToSource(newVisualValue.composing.start),
-              end: visualToSource(newVisualValue.composing.end),
+              start: visualToSource(newVisualValue.composing.start, insertInsideRun: insertInsideRun),
+              end: visualToSource(newVisualValue.composing.end, insertInsideRun: insertInsideRun),
             )
           : TextRange.empty;
 
@@ -217,12 +236,23 @@ class SourceVisualMapping {
         newVText.substring(prefixLen, newVText.length - suffixLen);
 
     // Map the edited range from visual coordinates to canonical source coordinates
-    final sourceEditStart = oldVisualEditStart == 0
-        ? 0
-        : visualToSource(oldVisualEditStart);
-    final sourceEditEnd = oldVisualEditEnd == oldVText.length
-        ? sourceText.length
-        : visualToSource(oldVisualEditEnd);
+    final int sourceEditStart;
+    final int sourceEditEnd;
+
+    if (!insertInsideRun && oldVisualEditStart == 0 && oldVisualEditEnd == oldVText.length) {
+      sourceEditStart = 0;
+      sourceEditEnd = sourceText.length;
+    } else {
+      sourceEditStart = oldVisualEditStart == 0
+          ? (runs.isNotEmpty && runs.first.isHiddenSyntax && insertInsideRun ? runs.first.sourceEnd : 0)
+          : visualToSource(oldVisualEditStart, insertInsideRun: insertInsideRun);
+
+      sourceEditEnd = oldVisualEditEnd == oldVText.length
+          ? (insertInsideRun && runs.isNotEmpty && runs.last.isHiddenSyntax && runs.length >= 2
+              ? runs[runs.length - 2].sourceEnd
+              : sourceText.length)
+          : visualToSource(oldVisualEditEnd, insertInsideRun: insertInsideRun);
+    }
 
     final newSourceText = sourceText.replaceRange(
       sourceEditStart,

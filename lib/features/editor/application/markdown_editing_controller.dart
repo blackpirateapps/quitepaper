@@ -3,6 +3,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../core/syntax/application/syntax_highlighter.dart';
 import '../../../core/syntax/application/syntax_language_resolver.dart';
 import '../domain/markdown_styles.dart';
+import 'markdown_formatter.dart';
 import 'markdown_parser.dart';
 
 /// A [TextEditingController] that dynamically styles Markdown syntax into a rich
@@ -59,6 +60,33 @@ class MarkdownEditingController extends TextEditingController {
       notifyListeners();
     }
   }
+
+  /// Checks if bold formatting is active at current selection or cursor.
+  bool get isBoldActive => MarkdownFormatter.isBoldAt(value);
+
+  /// Checks if italic formatting is active at current selection or cursor.
+  bool get isItalicActive => MarkdownFormatter.isItalicAt(value);
+
+  /// Checks if strikethrough formatting is active at current selection or cursor.
+  bool get isStrikethroughActive => MarkdownFormatter.isStrikethroughAt(value);
+
+  /// Checks if inline code formatting is active at current selection or cursor.
+  bool get isInlineCodeActive => MarkdownFormatter.isInlineCodeAt(value);
+
+  /// Checks if heading formatting is active at current selection or cursor.
+  bool get isHeadingActive => MarkdownFormatter.isHeadingAt(value);
+
+  /// Checks if checklist formatting is active at current selection or cursor.
+  bool get isChecklistActive => MarkdownFormatter.isChecklistAt(value);
+
+  /// Checks if bullet list formatting is active at current selection or cursor.
+  bool get isBulletListActive => MarkdownFormatter.isBulletListAt(value);
+
+  /// Checks if ordered list formatting is active at current selection or cursor.
+  bool get isOrderedListActive => MarkdownFormatter.isOrderedListAt(value);
+
+  /// Checks if blockquote formatting is active at current selection or cursor.
+  bool get isQuoteActive => MarkdownFormatter.isQuoteAt(value);
 
   @override
   TextSpan buildTextSpan({
