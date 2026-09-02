@@ -4861,7 +4861,33 @@ Quiet Paper includes a fully offline, privacy-first, on-device speech-to-text su
 * **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found**.
 * **Full Test Suite**: `flutter test` $\rightarrow$ **1,237 passed / 0 failed (100% pass rate)**.
 
+---
 
+## 44. SpeechRecordingBar Blank UI Bugfix (Provider Lifecycle)
+
+### Problem
+After downloading the speech model for the first time, tapping the microphone button to start transcription resulted in a blank UI — the `SpeechRecordingBar` never appeared and the `FormattingToolbar` remained visible.
+
+### Root Cause
+In `lib/core/speech/application/speech_provider.dart`, `speechRecognitionServiceProvider` used `ref.watch(speechModelManagerProvider)` to obtain the `SpeechModelManager` instance. Since `speechModelManagerProvider` is a `ChangeNotifierProvider`, every call to `SpeechModelManager.notifyListeners()` — which occurs inside `startListening()` when calling `modelManager.checkStatus()` — caused Riverpod to **dispose and recreate** the entire `SpeechRecognitionService`.
+
+This meant:
+1. The `startListening()` method continued mutating the **orphaned** old service instance (setting states to `checkingModel`, `requestingPermission`, `loadingEngine`, `recording`).
+2. The UI watched the **new** service instance via `speechSessionProvider`, which was permanently stuck at `SpeechSession.initial` (idle).
+3. Since `!speechSession.isIdle` was always `false` from the UI's perspective, `SpeechRecordingBar` was never rendered.
+
+### Fix
+Changed `ref.watch(speechModelManagerProvider)` to `ref.read(speechModelManagerProvider)` in the `speechRecognitionServiceProvider` builder. The `SpeechRecognitionService` is a stateful, long-lived session coordinator that must not be recreated when the model manager emits notifications. It only needs a stable reference to the singleton `SpeechModelManager` instance.
+
+```diff
+ final speechRecognitionServiceProvider =
+     ChangeNotifierProvider<SpeechRecognitionService>((ref) {
+-  final modelManager = ref.watch(speechModelManagerProvider);
++  final modelManager = ref.read(speechModelManagerProvider);
+   final recorder = ref.watch(audioRecorderServiceProvider);
+   ...
+ });
+```
 
 
 

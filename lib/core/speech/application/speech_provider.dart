@@ -52,7 +52,7 @@ final speechRecognitionEngineProvider =
 
 final speechRecognitionServiceProvider =
     ChangeNotifierProvider<SpeechRecognitionService>((ref) {
-  final modelManager = ref.watch(speechModelManagerProvider);
+  final modelManager = ref.read(speechModelManagerProvider);
   final recorder = ref.watch(audioRecorderServiceProvider);
   final engine = ref.watch(speechRecognitionEngineProvider);
   final storage = ref.watch(speechStorageServiceProvider);
