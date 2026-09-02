@@ -4773,6 +4773,71 @@ Quiet Paper's editor has evolved into a dual-mode system delivering a calm, Bear
 
 ---
 
+## 43. Offline On-Device Speech Recognition (`transcription.md`)
+
+Quiet Paper includes a fully offline, privacy-first, on-device speech-to-text subsystem powered by the FUTO English Voice Model and `whisper.cpp`.
+
+### 1. Core Principles & Privacy Invariants
+* **Zero Network Dependency**: Speech recognition runs entirely on the local device via GGML quantization. No audio, partial tokens, or transcribed text are ever transmitted over the network or uploaded to cloud storage.
+* **Ephemeral Audio**: Microphone audio is captured as a temporary 16kHz mono 16-bit PCM WAV file and is deleted immediately upon transcription completion, error, cancellation, or app lifecycle teardown.
+* **Zero Audio / Transcript Logging**: Raw audio bytes and transcription strings are never logged to console or crash reporting.
+* **Separate Storage Scope**: Model binaries and temporary audio reside in app-private directories outside encrypted note SQLite databases and backup archives.
+
+### 2. Model Specifications & Cryptographic Verification
+* **Model ID**: `futo_voice_input_english_39`
+* **Filename**: `voice-input-english-39.bin`
+* **Source URL**: `https://dl.keyboard.futo.org/voice-input-english-39.bin`
+* **Exact Size**: `43,550,795` bytes (~41.53 MB)
+* **Verified SHA-256 Checksum**: `4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc`
+* **Format**: GGML quantized model binary (`0x67676d6c` / `lmgg`).
+* **Integrity Enforcement**: Downloads write to `.part` files with streamed SHA-256 calculation. Files are validated for exact size and SHA-256 match before atomic installation to `models/speech/futo_voice_input_english_39/voice-input-english-39.bin` and writing `metadata.json`. Corrupted or incomplete downloads are deleted immediately.
+
+### 3. Layered Subsystem Architecture
+* **Domain (`lib/core/speech/domain/`)**:
+  - `SpeechModelDescriptor`, `FutoEnglishSpeechModel`, `SpeechModelMetadata`: Model definitions, parameters, and metadata serialization.
+  - `SpeechModelStatus`, `SpeechModelInstallationStatus`: Installation state tracking (`notInstalled`, `downloading`, `verifying`, `installed`, `error`).
+  - `SpeechSession`, `SpeechSessionState`: Session state machine (`idle`, `checkingModel`, `requestingPermission`, `loadingEngine`, `recording`, `transcribing`, `error`).
+  - `SpeechRecognitionEngine`: Abstract interface for speech inference.
+* **Infrastructure (`lib/core/speech/infrastructure/`)**:
+  - `SpeechStorageService`: Model paths, metadata CRUD, `.part` download management, orphaned audio sweep (`cleanOrphanedAudioFiles`).
+  - `SpeechDownloader`: Streamed HTTPS download, SHA-256 verification, atomic installation, cancellation support.
+  - `AudioRecorderService`: 16kHz mono 16-bit PCM WAV recording using `record`, permission management, live duration broadcast timer, max duration auto-stop (60s), immediate file deletion.
+  - `WhisperRecognitionEngine`: On-device inference wrapper for `whisper_ggml` (`whisper.cpp`), off-UI isolate execution, model residency management.
+* **Application (`lib/core/speech/application/`)**:
+  - `SpeechModelManager`: `ChangeNotifier` coordinating model checks, downloads, verification progress, cancellation, and deletion.
+  - `SpeechRecognitionService`: `ChangeNotifier` coordinating recording, engine lifecycle, transcription, duration streams, error recovery, and cleanup.
+  - `SpeechTextInsertionHelper`: Context-aware text insertion engine handling leading/trailing whitespace normalization, selection replacement, start/middle/end insertion, and markdown delimiter preservation.
+  - `SpeechProvider`: Riverpod providers wiring up all speech domain and application services.
+* **Presentation (`lib/core/speech/presentation/`)**:
+  - `SpeechDownloadDialog`: Warm editorial download prompt displaying model size, download progress bar, retry, and cancellation.
+  - `SpeechRecordingBar`: Minimal 44dp bottom bar replacing `FormattingToolbar` during dictation with pulsing accent dot, live timer, tap-to-stop, and cancel actions.
+  - `SpeechSettingsView`: iOS grouped table settings screen under `Settings > Editor > Speech Recognition` displaying installation status, disk footprint, download, and delete actions with confirmation dialog.
+
+### 4. Editor Integration & User Flow
+* **Toolbar Dictation Button**: Located in `FormattingToolbar` (`PhosphorIconsRegular.microphone`, tooltip: `Dictate`). Disabled when note is password-locked or in read-only mode.
+* **Dictation Lifecycle**:
+  1. Tapping Dictate checks model installation; prompts download dialog if missing.
+  2. Captures logical editor selection and dismisses software keyboard.
+  3. Replaces `FormattingToolbar` with `SpeechRecordingBar` (`● Listening 00:04`, `Tap to stop recording`, `Cancel`).
+  4. User speaks and taps Stop.
+  5. Bar switches to `Transcribing on device…` with progress indicator.
+  6. Transcript is inserted via `SpeechTextInsertionHelper` at captured offset/selection.
+  7. Caret is placed immediately after inserted text.
+  8. Single-step undo entry is registered in `UndoRedoManager`.
+  9. Content change debouncer triggers smart auto-titling and autosave.
+  10. Keyboard remains hidden post-insertion for uninterrupted viewing.
+
+### 5. Quality Verification & Metrics
+* **Unit & Widget Test Suites**:
+  - `test/speech/speech_storage_service_test.dart`: Paths, metadata CRUD, model installation checks, deletion, temp cleanup.
+  - `test/speech/speech_downloader_test.dart`: Streamed download, exact SHA-256 verification, size mismatch detection, HTTP error handling.
+  - `test/speech/speech_model_manager_test.dart`: Lifecycle transitions, progress updates, cancellation, deletion.
+  - `test/speech/speech_text_insertion_helper_test.dart`: Whitespace normalization, selection replacement, delimiter preservation.
+  - `test/speech/speech_recognition_service_test.dart`: Session state machine transitions, recording flow, permission handling, audio deletion.
+  - `test/speech/speech_widgets_test.dart`: `SpeechDownloadDialog`, `SpeechRecordingBar`, `SpeechSettingsView`, `FormattingToolbar` dictation button.
+* **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found**.
+* **Full Test Suite**: `flutter test` $\rightarrow$ **1,227 passed / 0 failed (100% pass rate)**.
+
 
 
 

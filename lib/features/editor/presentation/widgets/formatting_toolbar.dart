@@ -19,11 +19,14 @@ class FormattingToolbar extends StatelessWidget {
     this.onPdfPressed,
     this.onFilePressed,
     this.onNoteLinkPressed,
+    this.onDictatePressed,
     this.focusNode,
     this.onUndo,
     this.onRedo,
     this.canUndo = false,
     this.canRedo = false,
+    this.isDictating = false,
+    this.canDictate = true,
     this.onApplyAtomicEdit,
   });
 
@@ -35,12 +38,15 @@ class FormattingToolbar extends StatelessWidget {
   final VoidCallback? onPdfPressed;
   final VoidCallback? onFilePressed;
   final VoidCallback? onNoteLinkPressed;
+  final VoidCallback? onDictatePressed;
   final FocusNode? focusNode;
 
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
   final bool canUndo;
   final bool canRedo;
+  final bool isDictating;
+  final bool canDictate;
   final void Function(TextEditingValue value)? onApplyAtomicEdit;
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
@@ -286,6 +292,13 @@ class FormattingToolbar extends StatelessWidget {
             isBold: true,
             onPressed: onTagPressed,
           ),
+          if (onDictatePressed != null)
+            _ToolbarButton(
+              icon: PhosphorIconsRegular.microphone,
+              tooltip: 'Dictate',
+              isEnabled: canDictate,
+              onPressed: onDictatePressed!,
+            ),
         ],
       ),
     );

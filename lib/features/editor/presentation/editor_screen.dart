@@ -57,9 +57,11 @@ import 'widgets/note_link_inline_overlay.dart';
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../export/presentation/export_note_sheet.dart';
-
-
-
+import '../../../core/speech/application/speech_provider.dart';
+import '../../../core/speech/application/speech_text_insertion_helper.dart';
+import '../../../core/speech/domain/speech_session_state.dart';
+import '../../../core/speech/presentation/speech_download_dialog.dart';
+import '../../../core/speech/presentation/speech_recording_bar.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -802,6 +804,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   Widget build(BuildContext context) {
     final editorState = ref.watch(editorProviderFamily(_editorParams));
+    final speechSession = ref.watch(speechSessionProvider);
     final editorNotifier =
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
@@ -1248,52 +1251,64 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                 ),
 
-              // Floating/Docked formatting toolbar (only in active edit mode)
+              // Floating/Docked formatting toolbar or speech recording bar (only in active edit mode)
               if (!editorState.isPreviewMode && !editorState.isReadOnly)
-                FormattingToolbar(
-                  controller: _activeTargetController ?? _contentController,
-                  focusNode: _activeTargetFocusNode ?? _contentFocusNode,
-                  canUndo: _undoRedoManager.canUndo,
-                  canRedo: _undoRedoManager.canRedo,
-                  onUndo: _undo,
-                  onRedo: _redo,
-                  onNoteLinkPressed: _handleNoteLinkPrompt,
-                  onApplyAtomicEdit: (val) {
-
-                    if ((_activeTargetController ?? _contentController) != _contentController) {
-                      _undoRedoManager.pushAtomicEdit(_contentController.value);
-                    } else {
-                      _undoRedoManager.pushAtomicEdit(val);
-                    }
-                  },
-                  onTagPressed: () {
-                    final ctrl = _activeTargetController ?? _contentController;
-                    final fn = _activeTargetFocusNode ?? _contentFocusNode;
-                    final val = ctrl.value;
-                    final text = val.text;
-                    final sel = val.selection;
-                    final start = sel.isValid ? sel.start : text.length;
-                    final newText = text.replaceRange(start, start, '#');
-                    final updated = TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(offset: start + 1),
-                    );
-                    ctrl.value = updated;
-                    if (ctrl != _contentController) {
-                      _undoRedoManager.pushAtomicEdit(_contentController.value);
-                    } else {
-                      _undoRedoManager.pushAtomicEdit(updated);
-                    }
-                    if (!fn.hasFocus) {
-                      fn.requestFocus();
-                    }
-                  },
-                  onTablePressed: _handleInsertTable,
-                  onImagePressed: _handleInsertImage,
-                  onScanPressed: _handleScanDocument,
-                  onPdfPressed: _handleAttachPdf,
-                  onFilePressed: _handleAttachFile,
-                ),
+                if (speechSession.isRecording ||
+                    speechSession.isTranscribing ||
+                    speechSession.state == SpeechSessionState.error)
+                  SpeechRecordingBar(
+                    session: speechSession,
+                    onStop: _handleStopDictation,
+                    onCancel: _handleCancelDictation,
+                    onErrorDismiss: _handleDismissSpeechError,
+                  )
+                else
+                  FormattingToolbar(
+                    controller: _activeTargetController ?? _contentController,
+                    focusNode: _activeTargetFocusNode ?? _contentFocusNode,
+                    canUndo: _undoRedoManager.canUndo,
+                    canRedo: _undoRedoManager.canRedo,
+                    canDictate: editorState.isUnlocked && !editorState.isReadOnly,
+                    isDictating: speechSession.isRecording,
+                    onUndo: _undo,
+                    onRedo: _redo,
+                    onNoteLinkPressed: _handleNoteLinkPrompt,
+                    onDictatePressed: _handleStartDictation,
+                    onApplyAtomicEdit: (val) {
+                      if ((_activeTargetController ?? _contentController) != _contentController) {
+                        _undoRedoManager.pushAtomicEdit(_contentController.value);
+                      } else {
+                        _undoRedoManager.pushAtomicEdit(val);
+                      }
+                    },
+                    onTagPressed: () {
+                      final ctrl = _activeTargetController ?? _contentController;
+                      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+                      final val = ctrl.value;
+                      final text = val.text;
+                      final sel = val.selection;
+                      final start = sel.isValid ? sel.start : text.length;
+                      final newText = text.replaceRange(start, start, '#');
+                      final updated = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(offset: start + 1),
+                      );
+                      ctrl.value = updated;
+                      if (ctrl != _contentController) {
+                        _undoRedoManager.pushAtomicEdit(_contentController.value);
+                      } else {
+                        _undoRedoManager.pushAtomicEdit(updated);
+                      }
+                      if (!fn.hasFocus) {
+                        fn.requestFocus();
+                      }
+                    },
+                    onTablePressed: _handleInsertTable,
+                    onImagePressed: _handleInsertImage,
+                    onScanPressed: _handleScanDocument,
+                    onPdfPressed: _handleAttachPdf,
+                    onFilePressed: _handleAttachFile,
+                  ),
             ],
           ),
         ),
@@ -1439,6 +1454,91 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         );
       }
     }
+  }
+
+  TextEditingController? _capturedDictationController;
+  TextSelection? _capturedDictationSelection;
+
+  Future<void> _handleStartDictation() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly || !editorState.isUnlocked) {
+      return;
+    }
+
+    final speechManager = ref.read(speechModelManagerProvider);
+    final status = await speechManager.checkStatus();
+    if (!status.isInstalled) {
+      if (!mounted) return;
+      final installed = await SpeechDownloadDialog.show(context);
+      if (installed != true) return;
+    }
+
+    if (!mounted) return;
+
+    final ctrl = _activeTargetController ?? _contentController;
+    _capturedDictationController = ctrl;
+    _capturedDictationSelection = ctrl.selection.isValid
+        ? ctrl.selection
+        : TextSelection.collapsed(offset: ctrl.text.length);
+
+    // Dismiss software keyboard while dictating
+    FocusScope.of(context).unfocus();
+    _contentFocusNode.unfocus();
+    _titleFocusNode.unfocus();
+    _activeTargetFocusNode?.unfocus();
+
+    final speechService = ref.read(speechRecognitionServiceProvider);
+    await speechService.startListening(
+      onMaxDurationReached: _handleStopDictation,
+    );
+  }
+
+  Future<void> _handleStopDictation() async {
+    final speechService = ref.read(speechRecognitionServiceProvider);
+    final transcript = await speechService.stopListeningAndTranscribe();
+
+    if (!mounted) return;
+
+    if (transcript != null && transcript.isNotEmpty) {
+      final ctrl = _capturedDictationController ??
+          _activeTargetController ??
+          _contentController;
+      final sel = _capturedDictationSelection ?? ctrl.selection;
+
+      final updated = SpeechTextInsertionHelper.insertTranscript(
+        currentText: ctrl.text,
+        selection: sel,
+        transcript: transcript,
+      );
+
+      ctrl.value = updated;
+      if (ctrl != _contentController) {
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+      } else {
+        _undoRedoManager.pushAtomicEdit(updated);
+      }
+      _onContentChanged();
+    } else if (transcript != null && transcript.isEmpty) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No speech detected.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+          persist: false,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleCancelDictation() async {
+    final speechService = ref.read(speechRecognitionServiceProvider);
+    await speechService.cancelListening();
+  }
+
+  void _handleDismissSpeechError() {
+    final speechService = ref.read(speechRecognitionServiceProvider);
+    speechService.clearError();
   }
 
   Future<void> _handleInsertTable() async {

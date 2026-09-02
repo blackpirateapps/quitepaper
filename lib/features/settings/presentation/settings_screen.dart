@@ -33,6 +33,7 @@ import '../../../core/maintenance/maintenance_provider.dart';
 import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
 import 'widgets/maintenance_progress_sheet.dart';
+import '../../../core/speech/presentation/speech_settings_view.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -887,6 +888,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         ref
                             .read(editorEditingStyleProvider.notifier)
                             .setEditingStyle(EditorEditingStyle.markdown);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.mic_none_rounded,
+                      title: 'Speech Recognition',
+                      subtitle: 'Offline voice input and model management',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        SpeechSettingsView.show(context);
                       },
                     ),
                   ],

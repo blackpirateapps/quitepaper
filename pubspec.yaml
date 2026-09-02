@@ -65,6 +65,8 @@ dependencies:
   archive: ^4.0.9
   share_plus: ^10.1.4
   highlight: ^0.7.0
+  whisper_ggml: ^2.6.0
+  record: ^7.1.1
 
 dev_dependencies:
   flutter_test:
