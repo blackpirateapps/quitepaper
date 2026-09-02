@@ -7,6 +7,8 @@ import '../../application/markdown_formatter.dart';
 import '../../application/markdown_table_controller.dart';
 import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
+import '../../application/semantic_editor_controller.dart';
+import '../../domain/editor_editing_style.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
 import '../../../../core/markdown/markdown_helper.dart';
@@ -16,13 +18,20 @@ import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
+import 'visual_document_editor.dart';
 
-/// A dedicated, distraction-free Markdown editor widget.
+/// A dedicated, distraction-free Markdown and Visual (WYSIWYG) editor widget.
+///
+/// In [EditorEditingStyle.wysiwyg], renders the semantic visual document editor
+/// where users edit real headings, checklists, lists, tables, and formatted runs without syntax noise.
+/// In [EditorEditingStyle.markdown], renders the source-oriented Markdown editor.
 class MarkdownEditor extends StatefulWidget {
   const MarkdownEditor({
     super.key,
     required this.controller,
     required this.focusNode,
+    this.editingStyle = EditorEditingStyle.markdown,
+    this.stripFrontmatter = false,
     this.hintText = 'Start writing...',
     this.textCapitalization = TextCapitalization.sentences,
     this.keyboardType = TextInputType.multiline,
@@ -36,6 +45,8 @@ class MarkdownEditor extends StatefulWidget {
 
   final MarkdownEditingController controller;
   final FocusNode focusNode;
+  final EditorEditingStyle editingStyle;
+  final bool stripFrontmatter;
   final String hintText;
   final TextCapitalization textCapitalization;
   final TextInputType keyboardType;
@@ -55,33 +66,92 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   MarkdownTable? _activeTable;
   MarkdownTableController? _activeTableController;
+  SemanticEditorController? _semanticController;
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
+    _initSemanticController();
     widget.controller.addListener(_onSourceControllerChanged);
+  }
+
+  void _initSemanticController() {
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
+      _semanticController?.dispose();
+      _semanticController = SemanticEditorController(
+        initialMarkdown: widget.controller.text,
+        styles: widget.controller.styles,
+        stripFrontmatter: widget.stripFrontmatter,
+        onMarkdownChanged: _onSemanticMarkdownChanged,
+      );
+      _semanticController!.searchQuery = widget.searchQuery;
+    } else {
+      _semanticController?.dispose();
+      _semanticController = null;
+    }
   }
 
   @override
   void didUpdateWidget(MarkdownEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (oldWidget.editingStyle != widget.editingStyle ||
+        oldWidget.stripFrontmatter != widget.stripFrontmatter) {
+      _initSemanticController();
+    }
+
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onSourceControllerChanged);
       widget.controller.addListener(_onSourceControllerChanged);
+      if (_semanticController != null) {
+        _semanticController!.styles = widget.controller.styles;
+        _semanticController!.markdown = widget.controller.text;
+      }
       _syncActiveTableWithDocument();
+    } else if (_semanticController != null) {
+      if (widget.controller.styles != _semanticController!.styles) {
+        _semanticController!.styles = widget.controller.styles;
+      }
+      if (widget.searchQuery != _semanticController!.searchQuery) {
+        _semanticController!.searchQuery = widget.searchQuery;
+      }
     }
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onSourceControllerChanged);
+    _semanticController?.dispose();
     _activeTableController?.dispose();
     _activeTableController = null;
     super.dispose();
   }
 
+  void _onSemanticMarkdownChanged(String newMarkdown) {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      if (widget.controller.text != newMarkdown) {
+        widget.controller.value = TextEditingValue(
+          text: newMarkdown,
+          selection: widget.controller.selection,
+        );
+        widget.onChanged?.call(newMarkdown);
+      }
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
   void _onSourceControllerChanged() {
+    if (_isSyncing) return;
+
+    if (_semanticController != null &&
+        _semanticController!.markdown != widget.controller.text) {
+      _semanticController!.markdown = widget.controller.text;
+    }
+
     _syncActiveTableWithDocument();
   }
 
@@ -112,6 +182,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       getDocumentValue: () => widget.controller.value,
       onUpdateDocument: (newVal) {
         widget.controller.value = newVal;
+        if (_semanticController != null) {
+          _semanticController!.markdown = newVal.text;
+        }
         widget.onChanged?.call(newVal.text);
       },
       initialPosition: position ?? const TablePosition(row: 0, column: 0),
@@ -144,6 +217,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
     final updated = action(value: widget.controller.value);
     widget.controller.value = updated;
+    if (_semanticController != null) {
+      _semanticController!.markdown = updated.text;
+    }
     widget.onChanged?.call(widget.controller.text);
     if (!widget.focusNode.hasFocus) {
       widget.focusNode.requestFocus();
@@ -172,6 +248,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         title: result.title,
       );
       widget.controller.value = updated;
+      if (_semanticController != null) {
+        _semanticController!.markdown = updated.text;
+      }
       widget.onChanged?.call(widget.controller.text);
       if (!widget.focusNode.hasFocus) {
         widget.focusNode.requestFocus();
@@ -197,7 +276,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       return;
     }
 
-    // Check if tapped on `- [ ]` or `- [x]`
+    // In Markdown mode, check if tapped on `- [ ]` or `- [x]`
     var lineStart = 0;
     if (cursor > 0) {
       lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
@@ -225,6 +304,21 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg && _semanticController != null) {
+      return VisualDocumentEditor(
+        controller: _semanticController!,
+        focusNode: widget.focusNode,
+        readOnly: widget.readOnly,
+        hintText: widget.hintText,
+        searchQuery: widget.searchQuery,
+        onActiveTargetChanged: widget.onActiveTargetChanged,
+        onNoteLinkPrompt: widget.onNoteLinkPrompt,
+        onChanged: (newVal) {
+          widget.onChanged?.call(newVal);
+        },
+      );
+    }
+
     final colors = context.appColors;
     final text = widget.controller.text;
 
@@ -331,6 +425,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             readOnly: widget.readOnly,
             hintText: currentOffset == 0 ? widget.hintText : '',
             searchQuery: widget.searchQuery,
+            editingStyle: widget.editingStyle,
             onActiveTarget: widget.onActiveTargetChanged,
             onTap: _handleTap,
             onChanged: (newSegText) {
@@ -389,6 +484,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: '',
           searchQuery: widget.searchQuery,
+          editingStyle: widget.editingStyle,
           onActiveTarget: widget.onActiveTargetChanged,
           onTap: _handleTap,
           onChanged: (newSegText) {
@@ -410,6 +506,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: 'Continue writing...',
           searchQuery: widget.searchQuery,
+          editingStyle: widget.editingStyle,
           onActiveTarget: widget.onActiveTargetChanged,
           onChanged: (newSegText) {
             final newFullText = '$text\n\n$newSegText';
@@ -590,6 +687,7 @@ class _TextSegmentField extends StatefulWidget {
     required this.hintText,
     required this.onChanged,
     this.searchQuery,
+    this.editingStyle = EditorEditingStyle.markdown,
     this.onTap,
     this.onActiveTarget,
   });
@@ -600,6 +698,7 @@ class _TextSegmentField extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onChanged;
   final String? searchQuery;
+  final EditorEditingStyle editingStyle;
   final VoidCallback? onTap;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTarget;
 

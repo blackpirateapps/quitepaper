@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/theme/theme_family.dart';
+import '../../editor/domain/editor_editing_style.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('Initialize sharedPreferencesProvider in main()');
@@ -115,5 +116,34 @@ final appearanceModeProvider = Provider<AppearanceMode>((ref) {
 
 final themeModeProvider = Provider<ThemeMode>((ref) {
   return ref.watch(themeSettingsProvider).appearance.toThemeMode();
+});
+
+class EditingStyleNotifier extends StateNotifier<EditorEditingStyle> {
+  EditingStyleNotifier(this._prefs) : super(_loadEditingStyle(_prefs));
+
+  final SharedPreferences? _prefs;
+  static const String _editingStyleKey = 'app_editor_editing_style';
+
+  static EditorEditingStyle _loadEditingStyle(SharedPreferences? prefs) {
+    if (prefs == null) return EditorEditingStyle.wysiwyg;
+    final val = prefs.getString(_editingStyleKey);
+    return EditorEditingStyle.fromString(val);
+  }
+
+  Future<void> setEditingStyle(EditorEditingStyle style) async {
+    state = style;
+    await _prefs?.setString(_editingStyleKey, style.storageKey);
+  }
+}
+
+final editorEditingStyleProvider =
+    StateNotifierProvider<EditingStyleNotifier, EditorEditingStyle>((ref) {
+  SharedPreferences? prefs;
+  try {
+    prefs = ref.watch(sharedPreferencesProvider);
+  } catch (_) {
+    // If not provided in a test scope, fallback to in-memory defaults
+  }
+  return EditingStyleNotifier(prefs);
 });
 

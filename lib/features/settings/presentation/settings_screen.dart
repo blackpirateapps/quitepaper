@@ -19,6 +19,7 @@ import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
+import '../../editor/domain/editor_editing_style.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/sample_notes.dart';
 import '../../sync/presentation/change_account_password_dialog.dart';
@@ -392,6 +393,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final themeSettings = ref.watch(themeSettingsProvider);
+    final editingStyle = ref.watch(editorEditingStyleProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
@@ -865,6 +867,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 _buildSectionHeader(context, 'EDITOR'),
                 _SettingsGroup(
                   children: [
+                    _SettingsRow(
+                      icon: Icons.edit_note_rounded,
+                      title: 'WYSIWYG',
+                      subtitle: 'Hide Markdown syntax for a cleaner writing experience',
+                      isSelected: editingStyle == EditorEditingStyle.wysiwyg,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.wysiwyg);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.code_rounded,
+                      title: 'Markdown',
+                      subtitle: 'Show Markdown syntax while editing',
+                      isSelected: editingStyle == EditorEditingStyle.markdown,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.markdown);
+                      },
+                    ),
+                    _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.mic_none_rounded,
                       title: 'Speech Recognition',
