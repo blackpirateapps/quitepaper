@@ -1184,9 +1184,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     const SizedBox(height: 12.0),
                                   ],
 
-                                  // Frontmatter Properties Section (in WYSIWYG mode when frontmatter exists)
-                                  if (isWysiwyg && frontmatterDoc.hasFrontmatter) ...[
-                                    FrontmatterPropertiesSection(
+                                   // Frontmatter Properties Section (in WYSIWYG mode when matching frontmatter exists)
+                                   if (isWysiwyg && frontmatterDoc.hasMatchingSectionProperties) ...[
+                                     FrontmatterPropertiesSection(
                                       frontmatter: frontmatterDoc,
                                       rawDocument: contentText,
                                       readOnly: editorState.isReadOnly,

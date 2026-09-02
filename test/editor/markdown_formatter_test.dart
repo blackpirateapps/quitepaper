@@ -190,5 +190,27 @@ void main() {
       final toggledOff = MarkdownFormatter.toggleOrderedList(value: result);
       expect(toggledOff.text, equals('First\nSecond\nThird'));
     });
+
+    test('toggling list with collapsed cursor keeps cursor collapsed at end of line without selecting line', () {
+      const initial = TextEditingValue(
+        text: 'Single line item',
+        selection: TextSelection.collapsed(offset: 16),
+      );
+
+      final bulletResult = MarkdownFormatter.toggleBulletList(value: initial);
+      expect(bulletResult.text, equals('- Single line item'));
+      expect(bulletResult.selection.isCollapsed, isTrue);
+      expect(bulletResult.selection.baseOffset, equals(18));
+
+      final orderedResult = MarkdownFormatter.toggleOrderedList(value: initial);
+      expect(orderedResult.text, equals('1. Single line item'));
+      expect(orderedResult.selection.isCollapsed, isTrue);
+      expect(orderedResult.selection.baseOffset, equals(19));
+
+      final checkResult = MarkdownFormatter.toggleChecklist(value: initial);
+      expect(checkResult.text, equals('- [ ] Single line item'));
+      expect(checkResult.selection.isCollapsed, isTrue);
+      expect(checkResult.selection.baseOffset, equals(22));
+    });
   });
 }

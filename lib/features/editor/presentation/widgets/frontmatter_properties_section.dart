@@ -145,8 +145,8 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
       );
     }
 
-    final hasAnyDisplayable = doc.hasDisplayableProperties;
-    if (!hasAnyDisplayable && widget.readOnly) {
+    final hasAnyDisplayable = doc.hasMatchingSectionProperties;
+    if (!hasAnyDisplayable) {
       return const SizedBox.shrink();
     }
 

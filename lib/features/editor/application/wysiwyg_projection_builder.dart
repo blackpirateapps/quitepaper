@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../tags/domain/phosphor_icons.dart';
 import '../domain/markdown_styles.dart';
 import '../domain/markdown_token.dart';
 import '../domain/source_visual_mapping.dart';
@@ -6,6 +7,9 @@ import '../domain/source_visual_mapping.dart';
 /// Builds a [SourceVisualMapping] from canonical Markdown source, hiding raw delimiters
 /// and producing visual runs with appropriate typography and styling.
 abstract final class WysiwygProjectionBuilder {
+  static final String uncheckedGlyph = '${String.fromCharCode(PhosphorIconsRegular.square.codePoint)} ';
+  static final String checkedGlyph = '${String.fromCharCode(PhosphorIconsRegular.checkSquare.codePoint)} ';
+
   static final _codeFenceRegex = RegExp(r'^(\s*)(```|~~~)(.*)$');
   static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
   static final _blockquoteCheckRegex = RegExp(r'^(\s*)(>{1,3})(?:([ \t]?)(.*)|$)');
@@ -209,7 +213,7 @@ abstract final class WysiwygProjectionBuilder {
           visualBuffer: visualBuffer,
           sourceStart: lineStart,
           sourceEnd: lineStart + lineText.length,
-          visualText: '────────────────────────',
+          visualText: lineText,
           type: MarkdownTokenType.horizontalRule,
           style: styles.horizontalRule,
         );
@@ -338,8 +342,8 @@ abstract final class WysiwygProjectionBuilder {
         final markerBaseStyle = isChecked ? styles.taskTextCompleted : styles.body;
         final markerText = '$prefix$stateChar$closeBracket$sep';
 
-        // Checkbox marker in WYSIWYG is mapped cleanly to visual checkbox symbol
-        final visualCheckbox = isChecked ? '☑ ' : '☐ ';
+        // Checkbox marker in WYSIWYG is mapped to Phosphor icon symbol
+        final visualCheckbox = isChecked ? checkedGlyph : uncheckedGlyph;
         _addVisualRun(
           runs: runs,
           visualBuffer: visualBuffer,
@@ -350,10 +354,11 @@ abstract final class WysiwygProjectionBuilder {
               ? MarkdownTokenType.checklistMarkerChecked
               : MarkdownTokenType.checklistMarkerUnchecked,
           style: markerBaseStyle.copyWith(
+            fontFamily: PhosphorIconsRegular.fontFamily,
             color: isChecked
                 ? styles.checklistMarkerChecked.color
                 : styles.checklistMarker.color,
-            fontWeight: FontWeight.w600,
+            fontWeight: isChecked ? FontWeight.w700 : FontWeight.w500,
           ),
         );
         currentOffset += markerText.length;

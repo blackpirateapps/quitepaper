@@ -130,6 +130,23 @@ tags: [case, investigation]
       expect(find.text('YAML frontmatter could not be parsed. Use Edit Markdown to inspect.'), findsOneWidget);
     });
 
+    testWidgets('renders empty SizedBox when document only has title in frontmatter', (tester) async {
+      final doc = FrontmatterEditorHelper.parse('''---
+title: Only A Title
+---
+# Main Content
+''');
+      expect(doc.hasMatchingSectionProperties, isFalse);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: '--- \ntitle: Only A Title\n---\n# Main Content\n',
+        onDocumentChanged: (_) {},
+      ));
+
+      expect(find.text('PROPERTIES'), findsNothing);
+    });
+
     testWidgets('renders empty SizedBox when document has no frontmatter', (tester) async {
       await tester.pumpWidget(buildTestSection(
         frontmatter: FrontmatterDocument.empty,

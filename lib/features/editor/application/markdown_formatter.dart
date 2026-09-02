@@ -346,6 +346,15 @@ abstract final class MarkdownFormatter {
     final newText = text.replaceRange(blockStart, blockEnd, newBlockText);
     final newEnd = blockStart + newBlockText.length;
 
+    if (!selection.isValid || selection.isCollapsed) {
+      final delta = newBlockText.length - blockText.length;
+      final newCursor = (minOffset + delta).clamp(blockStart, newEnd);
+      return TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+    }
+
     return TextEditingValue(
       text: newText,
       selection: TextSelection(

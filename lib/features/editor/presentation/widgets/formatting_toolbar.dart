@@ -202,7 +202,7 @@ class FormattingToolbar extends StatelessWidget {
             onPressed: () => _applyHelperFormat(MarkdownHelper.cycleHeading),
           ),
           _ToolbarButton(
-            label: '☐',
+            icon: PhosphorIconsRegular.checkSquare,
             tooltip: 'Checklist (- [ ] item)',
             onPressed: () => _applyFormat(MarkdownFormatter.toggleChecklist),
           ),

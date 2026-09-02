@@ -124,5 +124,23 @@ void main() {
       expect(textField.controller?.text, equals('Main Heading\nParagraph.'));
       expect(controller.text, equals(fullDoc));
     });
+
+    testWidgets('renders checklist with Phosphor glyphs in WYSIWYG mode', (tester) async {
+      const fullDoc = '- [ ] Buy groceries\n- [x] Finished task';
+      final controller = MarkdownEditingController(text: fullDoc);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestEditor(
+        controller: controller,
+        focusNode: focusNode,
+        editingStyle: EditorEditingStyle.wysiwyg,
+      ));
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.controller?.text, contains('Buy groceries'));
+      expect(textField.controller?.text, contains('Finished task'));
+      expect(textField.controller?.text, contains('\uE45E '));
+      expect(textField.controller?.text, contains('\uE186 '));
+    });
   });
 }

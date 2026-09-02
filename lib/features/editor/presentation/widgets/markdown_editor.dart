@@ -8,6 +8,7 @@ import '../../application/markdown_table_controller.dart';
 import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
 import '../../application/wysiwyg_editing_controller.dart';
+import '../../application/wysiwyg_projection_builder.dart';
 import '../../domain/editor_editing_style.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
@@ -300,9 +301,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       }
       var lineEnd = text.indexOf('\n', cursor);
       if (lineEnd == -1) lineEnd = text.length;
-
       final line = text.substring(lineStart, lineEnd);
-      final isCheckboxLine = line.startsWith('☐ ') || line.startsWith('☑ ');
+      final isCheckboxLine = line.startsWith('☐ ') ||
+          line.startsWith('☑ ') ||
+          line.startsWith(WysiwygProjectionBuilder.uncheckedGlyph) ||
+          line.startsWith(WysiwygProjectionBuilder.checkedGlyph);
       if (isCheckboxLine && cursor <= lineStart + 3) {
         // Toggle checkbox in source
         var srcLineStart = 0;
@@ -414,9 +417,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           style: (widget.controller.styles?.body ?? AppTypography.editorBody).copyWith(
             color: colors.textPrimary,
           ),
-          inputFormatters: isWysiwyg
-              ? null
-              : const [MarkdownTextInputFormatter()],
+          inputFormatters: const [MarkdownTextInputFormatter()],
           onTap: () {
             widget.onActiveTargetChanged?.call(activeCtrl, widget.focusNode);
             _handleTap();
@@ -820,9 +821,7 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
         style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
           color: colors.textPrimary,
         ),
-        inputFormatters: isWysiwyg
-            ? null
-            : const [MarkdownTextInputFormatter()],
+        inputFormatters: const [MarkdownTextInputFormatter()],
         onTap: () {
           widget.onActiveTarget?.call(activeCtrl, _focusNode);
           widget.onTap?.call();

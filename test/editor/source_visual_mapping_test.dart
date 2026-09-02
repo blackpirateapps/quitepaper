@@ -56,14 +56,17 @@ void main() {
       expect(mapping.visualText, equals('• Item 1\n• Item 2\n• Item 3'));
     });
 
-    test('formats checklist markers as visual checkbox symbols', () {
+    test('formats checklist markers as visual checkbox symbols using Phosphor glyphs', () {
       const source = '- [ ] Task pending\n- [x] Task done';
       final mapping = WysiwygProjectionBuilder.build(
         sourceText: source,
         styles: styles,
       );
 
-      expect(mapping.visualText, equals('☐ Task pending\n☑ Task done'));
+      expect(
+        mapping.visualText,
+        equals('${WysiwygProjectionBuilder.uncheckedGlyph}Task pending\n${WysiwygProjectionBuilder.checkedGlyph}Task done'),
+      );
     });
 
     test('hides link url part in WYSIWYG projection', () {

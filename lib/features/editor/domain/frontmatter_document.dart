@@ -127,6 +127,19 @@ class FrontmatterDocument {
         tags.isNotEmpty;
   }
 
+  /// Returns true if there are matching frontmatter properties to display in the dedicated Properties card
+  /// (Author, Created, Source, Description, Tags, or malformed YAML notice).
+  /// Note: Title is displayed and edited directly in the main note's title field.
+  bool get hasMatchingSectionProperties {
+    if (!hasFrontmatter) return false;
+    if (isMalformed) return true; // Show error notice
+    return (author != null && author!.trim().isNotEmpty) ||
+        (created != null && created!.trim().isNotEmpty) ||
+        (source != null && source!.trim().isNotEmpty) ||
+        (description != null && description!.trim().isNotEmpty) ||
+        tags.isNotEmpty;
+  }
+
   /// Finds a parsed property by its normalized key name.
   FrontmatterProperty? getProperty(String key) {
     final lowerKey = key.toLowerCase();

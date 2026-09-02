@@ -4739,7 +4739,40 @@ Quiet Paper's editor has evolved into a dual-mode system delivering a calm, Bear
   6. `test/editor/frontmatter_properties_section_test.dart`: Default expanded layout, collapse/expand, inline property editing, malformed notice.
   7. `test/editor/dual_mode_editor_screen_test.dart`: End-to-end EditorScreen dual-mode, overflow toggle, title synchronization.
 - **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found**.
-- **Full Test Suite**: `flutter test` $\rightarrow$ **1,191 passed / 0 failed (100% pass rate)**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,200 passed / 0 failed (100% pass rate)**.
+
+---
+
+## 29. WYSIWYG Mode Refinements & Bug Fixes (Editor V3.1)
+
+### 1. Frontmatter Display Condition
+- **Issue**: The `FrontmatterPropertiesSection` previously rendered whenever `hasFrontmatter` was true, creating an unnecessary empty card for notes that only had a `title:` property or no standard recognized fields.
+- **Fix**: Added `hasMatchingSectionProperties` to [`FrontmatterDocument`](file:///home/dog/git/quitepaper/lib/features/editor/domain/frontmatter_document.dart). The Properties card is only displayed when at least one recognized property (`author`, `created`/`date`, `source`/`url`, `description`/`summary`, `tags`) exists or if YAML frontmatter is malformed.
+
+### 2. Divider (`---` / `***`) Syntax & Clean Styling
+- **Issue**: Typing `---` replaced the line with 24 unicode box-drawing characters `'────────────────────────'` which caused cursor coordinate jumps and pixelated layout.
+- **Fix**: In [`WysiwygProjectionBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/application/wysiwyg_projection_builder.dart), horizontal rules use 1:1 character mapping styled with `styles.horizontalRule` (subtle divider color and elegant letter spacing). Added automatic divider conversion in [`MarkdownTextInputFormatter`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_text_input_formatter.dart): typing the 3rd `-`, `*`, or `_` on an empty line or pressing Enter automatically completes the divider and places the cursor on the next line.
+
+### 3. Formatting Toolbar List Selection Fix
+- **Issue**: Tapping the bullet, numbered, or checklist button in [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart) selected the whole line including the marker.
+- **Fix**: Updated `_transformSelectedLines` in [`MarkdownFormatter`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_formatter.dart) so collapsed selections remain collapsed (`TextSelection.collapsed(offset: newCursor)`) right after the inserted marker instead of selecting the line.
+
+### 4. Smart Enter Auto-Continuation in WYSIWYG & Markdown Modes
+- **Issue**: Pressing Enter in WYSIWYG mode did not continue lists or checkboxes because input formatters were inactive in WYSIWYG mode.
+- **Fix**: Enabled [`MarkdownTextInputFormatter`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_text_input_formatter.dart) in WYSIWYG mode. Added support for visual prefixes (`•`, `1.`, `\uE45E` / `\uE186`):
+  - Pressing Enter on bullet items (`• ` / `- `) auto-continues the bullet.
+  - Pressing Enter on numbered items (`1. `) auto-increments the next number (`2. `).
+  - Pressing Enter on checklist items (`\uE45E ` / `- [ ] `) auto-continues with an unchecked checkbox.
+  - Pressing Enter on an empty list or checklist item clears the marker and restores a clean blank line.
+
+### 5. Phosphor Icons for Checklists
+- **Implementation**:
+  - Replaced unicode checkbox symbols (`☐`/`☑`) with Phosphor icon font glyphs (`PhosphorIconsRegular.square` `\uE45E` for unchecked and `PhosphorIconsRegular.checkSquare` `\uE186` for checked).
+  - Updated the checklist button in [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart) to use `PhosphorIconsRegular.checkSquare`.
+  - Updated tap gesture detection in [`MarkdownEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart) to toggle checklist states on Phosphor glyph taps.
+
+---
+
 
 
 
