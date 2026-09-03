@@ -340,8 +340,58 @@ class SemanticMutationService {
     return MutationResult(markdown: markdown, document: doc, position: position);
   }
 
-  /// Merges adjacent runs that share identical styling and are not atomic tokens.
+  /// Merges adjacent runs that share identical styling and are not atomic tokens,
+  /// and coalesces styled runs across intervening pure-whitespace runs.
   static List<SemanticInline> mergeAdjacentRuns(List<SemanticInline> runs) {
+    if (runs.length <= 1) return runs;
+
+    final pass1 = _mergeDirectAdjacentRuns(runs);
+
+    final result = <SemanticInline>[];
+    var i = 0;
+    while (i < pass1.length) {
+      var current = pass1[i];
+      while (i + 2 < pass1.length) {
+        final ws = pass1[i + 1];
+        final next = pass1[i + 2];
+
+        final isPureWhitespace = ws is PlainRun && ws.text.isNotEmpty && ws.text.trim().isEmpty;
+        final hasMatchingStyle = (current is! InlineCodeRun && next is! InlineCodeRun) &&
+            (current is! LinkRun && next is! LinkRun) &&
+            (current is! NoteLinkRun && next is! NoteLinkRun) &&
+            (current is! TagRun && next is! TagRun) &&
+            (current.isBold || current.isItalic || current.isStrike || current.isHighlight) &&
+            current.isBold == next.isBold &&
+            current.isItalic == next.isItalic &&
+            current.isStrike == next.isStrike &&
+            current.isHighlight == next.isHighlight;
+
+        if (isPureWhitespace && hasMatchingStyle) {
+          final combinedText = current.text + ws.text + next.text;
+          final combinedSource = SourceRange(current.sourceRange.start, next.sourceRange.end);
+          final combinedContent = SourceRange(
+            current.contentRange?.start ?? current.sourceRange.start,
+            next.contentRange?.end ?? next.sourceRange.end,
+          );
+          current = _cloneRunWithText(
+            current,
+            combinedText,
+            sourceRange: combinedSource,
+            contentRange: combinedContent,
+          );
+          i += 2;
+        } else {
+          break;
+        }
+      }
+      result.add(current);
+      i++;
+    }
+
+    return _mergeDirectAdjacentRuns(result);
+  }
+
+  static List<SemanticInline> _mergeDirectAdjacentRuns(List<SemanticInline> runs) {
     if (runs.length <= 1) return runs;
 
     final merged = <SemanticInline>[];
@@ -368,46 +418,12 @@ class SemanticMutationService {
           prev.contentRange?.start ?? prev.sourceRange.start,
           run.contentRange?.end ?? run.sourceRange.end,
         );
-
-        if (!prev.isBold && !prev.isItalic && !prev.isStrike && !prev.isHighlight) {
-          merged[merged.length - 1] = PlainRun(combinedText, combinedSource);
-        } else if (prev.isBold) {
-          merged[merged.length - 1] = BoldRun(
-            combinedText,
-            combinedSource,
-            combinedContent,
-            isItalic: prev.isItalic,
-            isStrike: prev.isStrike,
-            isHighlight: prev.isHighlight,
-          );
-        } else if (prev.isItalic) {
-          merged[merged.length - 1] = ItalicRun(
-            combinedText,
-            combinedSource,
-            combinedContent,
-            isBold: prev.isBold,
-            isStrike: prev.isStrike,
-            isHighlight: prev.isHighlight,
-          );
-        } else if (prev.isStrike) {
-          merged[merged.length - 1] = StrikeRun(
-            combinedText,
-            combinedSource,
-            combinedContent,
-            isBold: prev.isBold,
-            isItalic: prev.isItalic,
-            isHighlight: prev.isHighlight,
-          );
-        } else {
-          merged[merged.length - 1] = HighlightRun(
-            combinedText,
-            combinedSource,
-            combinedContent,
-            isBold: prev.isBold,
-            isItalic: prev.isItalic,
-            isStrike: prev.isStrike,
-          );
-        }
+        merged[merged.length - 1] = _cloneRunWithText(
+          prev,
+          combinedText,
+          sourceRange: combinedSource,
+          contentRange: combinedContent,
+        );
       } else {
         merged.add(run);
       }
@@ -455,40 +471,44 @@ class SemanticMutationService {
     bool? isItalic,
     bool? isStrike,
     bool? isHighlight,
+    SourceRange? sourceRange,
+    SourceRange? contentRange,
   }) {
     final b = isBold ?? run.isBold;
     final i = isItalic ?? run.isItalic;
     final s = isStrike ?? run.isStrike;
     final h = isHighlight ?? run.isHighlight;
+    final src = sourceRange ?? run.sourceRange;
+    final cnt = contentRange ?? run.contentRange ?? src;
 
     if (run is InlineCodeRun) {
-      return InlineCodeRun(newText, run.sourceRange, run.contentRange);
+      return InlineCodeRun(newText, src, cnt);
     } else if (run is LinkRun) {
       return LinkRun(
         text: newText,
         destination: run.destination,
-        sourceRange: run.sourceRange,
+        sourceRange: src,
         labelRange: run.labelRange,
         urlRange: run.urlRange,
       );
     } else if (run is NoteLinkRun) {
       return NoteLinkRun(
         noteTitle: newText,
-        sourceRange: run.sourceRange,
+        sourceRange: src,
         titleRange: run.titleRange,
       );
     } else if (run is TagRun) {
-      return TagRun(newText, run.sourceRange);
+      return TagRun(newText, src);
     }
 
     if (!b && !i && !s && !h) {
-      return PlainRun(newText, run.sourceRange);
+      return PlainRun(newText, src);
     }
     if (b) {
       return BoldRun(
         newText,
-        run.sourceRange,
-        run.contentRange ?? run.sourceRange,
+        src,
+        cnt,
         isItalic: i,
         isStrike: s,
         isHighlight: h,
@@ -497,8 +517,8 @@ class SemanticMutationService {
     if (i) {
       return ItalicRun(
         newText,
-        run.sourceRange,
-        run.contentRange ?? run.sourceRange,
+        src,
+        cnt,
         isBold: b,
         isStrike: s,
         isHighlight: h,
@@ -507,8 +527,8 @@ class SemanticMutationService {
     if (s) {
       return StrikeRun(
         newText,
-        run.sourceRange,
-        run.contentRange ?? run.sourceRange,
+        src,
+        cnt,
         isBold: b,
         isItalic: i,
         isHighlight: h,
@@ -516,8 +536,8 @@ class SemanticMutationService {
     }
     return HighlightRun(
       newText,
-      run.sourceRange,
-      run.contentRange ?? run.sourceRange,
+      src,
+      cnt,
       isBold: b,
       isItalic: i,
       isStrike: s,
@@ -661,10 +681,13 @@ class SemanticMutationService {
       currentOffset += r.text.length;
     }
 
-    final targetBold = toggleBold ? !runsInRange.every((r) => r.isBold) : null;
-    final targetItalic = toggleItalic ? !runsInRange.every((r) => r.isItalic) : null;
-    final targetStrike = toggleStrike ? !runsInRange.every((r) => r.isStrike) : null;
-    final targetHighlight = toggleHighlight ? !runsInRange.every((r) => r.isHighlight) : null;
+    final nonWhitespaceRuns = runsInRange.where((r) => r.text.trim().isNotEmpty).toList();
+    final effectiveRuns = nonWhitespaceRuns.isNotEmpty ? nonWhitespaceRuns : runsInRange;
+
+    final targetBold = toggleBold ? !effectiveRuns.every((r) => r.isBold) : null;
+    final targetItalic = toggleItalic ? !effectiveRuns.every((r) => r.isItalic) : null;
+    final targetStrike = toggleStrike ? !effectiveRuns.every((r) => r.isStrike) : null;
+    final targetHighlight = toggleHighlight ? !effectiveRuns.every((r) => r.isHighlight) : null;
 
     currentOffset = 0;
     final updatedRuns = <SemanticInline>[];

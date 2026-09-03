@@ -4,6 +4,7 @@ import '../domain/semantic_nodes.dart';
 import '../domain/source_range.dart';
 import 'frontmatter_editor_helper.dart';
 import 'markdown_table_parser.dart';
+import 'semantic_mutation_service.dart';
 
 /// Deterministic, high-performance semantic Markdown parser.
 /// Converts canonical Markdown strings into ephemeral [SemanticDocument] trees
@@ -373,7 +374,8 @@ class SemanticMarkdownParser {
       isHighlight: false,
       outerSourceRange: null,
     );
-    return runs.isEmpty ? [PlainRun('', baseRange)] : runs;
+    final coalesced = SemanticMutationService.mergeAdjacentRuns(runs);
+    return coalesced.isEmpty ? [PlainRun('', baseRange)] : coalesced;
   }
 
   static List<SemanticInline> _parseInlineRunsInternal(

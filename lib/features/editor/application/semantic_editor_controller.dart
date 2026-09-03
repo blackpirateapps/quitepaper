@@ -491,6 +491,7 @@ class SemanticEditorController extends ChangeNotifier {
     final offset = _selection.base.offset;
     var currentOffset = 0;
     SemanticInline? targetRun;
+    SemanticInline? previousNonWhitespaceRun;
     for (final r in runs) {
       final rLen = r.text.length;
       if (offset >= currentOffset && offset <= currentOffset + rLen) {
@@ -498,9 +499,17 @@ class SemanticEditorController extends ChangeNotifier {
           targetRun = r;
         }
       }
+      if (currentOffset + rLen <= offset && r.text.trim().isNotEmpty) {
+        previousNonWhitespaceRun = r;
+      }
       currentOffset += rLen;
     }
     targetRun ??= runs.last;
+
+    if (targetRun.text.trim().isEmpty && previousNonWhitespaceRun != null) {
+      targetRun = previousNonWhitespaceRun;
+    }
+
     return ActiveTypingFormats(
       isBold: targetRun.isBold,
       isItalic: targetRun.isItalic,
@@ -523,7 +532,9 @@ class SemanticEditorController extends ChangeNotifier {
     final start = min(_selection.base.offset, _selection.extent.offset);
     final end = max(_selection.base.offset, _selection.extent.offset);
     final selectedRuns = _getRunsInRange(runs, start, end);
-    return selectedRuns.isNotEmpty && selectedRuns.every((r) => r.isBold);
+    final nonWhitespace = selectedRuns.where((r) => r.text.trim().isNotEmpty).toList();
+    final effective = nonWhitespace.isNotEmpty ? nonWhitespace : selectedRuns;
+    return effective.isNotEmpty && effective.every((r) => r.isBold);
   }
 
   bool get isItalicActive {
@@ -540,7 +551,9 @@ class SemanticEditorController extends ChangeNotifier {
     final start = min(_selection.base.offset, _selection.extent.offset);
     final end = max(_selection.base.offset, _selection.extent.offset);
     final selectedRuns = _getRunsInRange(runs, start, end);
-    return selectedRuns.isNotEmpty && selectedRuns.every((r) => r.isItalic);
+    final nonWhitespace = selectedRuns.where((r) => r.text.trim().isNotEmpty).toList();
+    final effective = nonWhitespace.isNotEmpty ? nonWhitespace : selectedRuns;
+    return effective.isNotEmpty && effective.every((r) => r.isItalic);
   }
 
   bool get isStrikeActive {
@@ -557,7 +570,9 @@ class SemanticEditorController extends ChangeNotifier {
     final start = min(_selection.base.offset, _selection.extent.offset);
     final end = max(_selection.base.offset, _selection.extent.offset);
     final selectedRuns = _getRunsInRange(runs, start, end);
-    return selectedRuns.isNotEmpty && selectedRuns.every((r) => r.isStrike);
+    final nonWhitespace = selectedRuns.where((r) => r.text.trim().isNotEmpty).toList();
+    final effective = nonWhitespace.isNotEmpty ? nonWhitespace : selectedRuns;
+    return effective.isNotEmpty && effective.every((r) => r.isStrike);
   }
 
   bool get isHighlightActive {
@@ -574,7 +589,9 @@ class SemanticEditorController extends ChangeNotifier {
     final start = min(_selection.base.offset, _selection.extent.offset);
     final end = max(_selection.base.offset, _selection.extent.offset);
     final selectedRuns = _getRunsInRange(runs, start, end);
-    return selectedRuns.isNotEmpty && selectedRuns.every((r) => r.isHighlight);
+    final nonWhitespace = selectedRuns.where((r) => r.text.trim().isNotEmpty).toList();
+    final effective = nonWhitespace.isNotEmpty ? nonWhitespace : selectedRuns;
+    return effective.isNotEmpty && effective.every((r) => r.isHighlight);
   }
 
   bool get isCodeActive {

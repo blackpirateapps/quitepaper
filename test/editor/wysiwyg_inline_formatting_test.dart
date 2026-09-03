@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/features/editor/application/semantic_editor_controller.dart';
 import 'package:quitepaper/features/editor/domain/document_position.dart';
+import 'package:quitepaper/features/editor/domain/semantic_nodes.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/visual_document_editor.dart';
 
@@ -219,6 +220,150 @@ void main() {
       // Canonical markdown should wrap typed characters in **bold**, peeling leading spaces
       expect(controller.markdown, equals('Hello **bold**'));
       expect(updatedMarkdown, equals('Hello **bold**'));
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Typing a full sentence letter-by-letter in bold produces unified **I am good boy**', (tester) async {
+      final controller = SemanticEditorController(initialMarkdown: '');
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestApp(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      final bButton = find.byTooltip('Bold (**text**)');
+      await tester.tap(bButton);
+      await tester.pumpAndSettle();
+      expect(controller.isBoldActive, isTrue);
+
+      final blockId = controller.document.blocks.first.id;
+      const sentence = 'I am good boy';
+      for (var i = 1; i <= sentence.length; i++) {
+        final currentText = sentence.substring(0, i);
+        controller.handleVisualBlockTextChange(
+          blockId,
+          currentText,
+          TextSelection.collapsed(offset: i),
+        );
+      }
+      await tester.pumpAndSettle();
+
+      // Must produce single unified **I am good boy**, NOT **I** **am** **good** **boy**
+      expect(controller.markdown, equals('**I am good boy**'));
+      expect(find.widgetWithText(TextField, 'I am good boy'), findsOneWidget);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Typing a full sentence in bold+italic produces unified ***heyyy thanks.the typing exp is actually great.***', (tester) async {
+      final controller = SemanticEditorController(initialMarkdown: '');
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestApp(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      // Turn on Bold and Italic
+      final bButton = find.byTooltip('Bold (**text**)');
+      final iButton = find.byTooltip('Italic (*text*)');
+      await tester.tap(bButton);
+      await tester.pumpAndSettle();
+      await tester.tap(iButton);
+      await tester.pumpAndSettle();
+      expect(controller.isBoldActive, isTrue);
+      expect(controller.isItalicActive, isTrue);
+
+      final blockId = controller.document.blocks.first.id;
+      const sentence = 'heyyy thanks.the typing exp is actually great.';
+      for (var i = 1; i <= sentence.length; i++) {
+        final currentText = sentence.substring(0, i);
+        controller.handleVisualBlockTextChange(
+          blockId,
+          currentText,
+          TextSelection.collapsed(offset: i),
+        );
+      }
+      await tester.pumpAndSettle();
+
+      // Must produce single unified ***...***, NOT ***word*** ***word***
+      expect(controller.markdown, equals('***heyyy thanks.the typing exp is actually great.***'));
+      expect(find.widgetWithText(TextField, 'heyyy thanks.the typing exp is actually great.'), findsOneWidget);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Selecting a full multi-word sentence on plain text formats as unified **I am good boy**', (tester) async {
+      const initial = 'Hello I am good boy today';
+      final controller = SemanticEditorController(initialMarkdown: initial);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestApp(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      final bButton = find.byTooltip('Bold (**text**)');
+
+      // Select "I am good boy" (offset 6 to 19)
+      controller.selection = DocumentSelection(
+        base: DocumentPosition(blockId: controller.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: controller.document.blocks.first.id, offset: 19),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(bButton);
+      await tester.pumpAndSettle();
+
+      expect(controller.markdown, equals('Hello **I am good boy** today'));
+      expect(find.widgetWithText(TextField, 'Hello I am good boy today'), findsOneWidget);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Fragmented Markdown normalizes into unified sentence syntax upon edit', (tester) async {
+      const fragmented = '**name** **the** **date.** and you will be great.';
+      final controller = SemanticEditorController(initialMarkdown: fragmented);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestApp(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      // Visual editor displays clean text
+      expect(find.widgetWithText(TextField, 'name the date. and you will be great.'), findsOneWidget);
+
+      // AST runs are unified into a single bold run
+      final block = controller.document.blocks.first as ParagraphBlock;
+      expect(block.runs.first.text, equals('name the date.'));
+      expect(block.runs.first.isBold, isTrue);
+
+      // Position cursor at end of plain text (offset 36) before typing '!'
+      controller.selection = DocumentSelection.collapsed(
+        DocumentPosition(blockId: block.id, offset: 36),
+      );
+      await tester.pumpAndSettle();
+
+      // Any edit in the block normalizes canonical Markdown
+      controller.handleVisualBlockTextChange(
+        block.id,
+        'name the date. and you will be great!',
+        const TextSelection.collapsed(offset: 37),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.markdown, equals('**name the date.** and you will be great!'));
 
       focusNode.dispose();
       controller.dispose();

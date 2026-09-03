@@ -5187,5 +5187,61 @@ In the WYSIWYG document editor (`VisualDocumentEditor`), inline formatting for b
 - **Editor Suite**: `test/editor/` $\rightarrow$ **295/295 tests passed**.
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,282 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 53. Unified Sentence Formatting & Whitespace Coalescing Engine in Markdown
+
+### 1. Problem Overview & Defect Analysis
+When formatting text in the WYSIWYG document editor (`VisualDocumentEditor`)—either by enabling formatting and typing continuously or applying styles to a phrase—the canonical Markdown fragmented every word into its own pair of syntax markers:
+```markdown
+**name** **the** **date.** and you will be great.
+***heyyy*** ***thanks.the*** ***typing*** ***exp*** ***is*** ***actually*** ***great.***
+```
+instead of wrapping the entire styled phrase or sentence under unified delimiters:
+```markdown
+**name the date.** and you will be great.
+***heyyy thanks.the typing exp is actually great.***
+**I am good boy**
+```
+
+**Root Cause Investigation**:
+1. **Transient Space Peeling during Continuous Typing**:
+   - In `SemanticMutationService.serializeRuns`, trailing spaces on styled runs were unconditionally peeled outside syntax delimiters to enforce CommonMark right-flanking rules (avoiding `**word **`).
+   - When a user was typing in bold, typing `"name "` serialized to markdown as `**name** `.
+   - Re-parsing with `SemanticMarkdownParser.parse("**name** ")` produced two separate runs: `BoldRun("name")` and an unformatted `PlainRun(" ")`.
+   - When the user typed the next character/word `"the"`, the unformatted `PlainRun(" ")` stood between `BoldRun("name")` and `BoldRun("the")`.
+   - Because `mergeAdjacentRuns` required identical styling on immediately contiguous runs, the intermediate plain space blocked merging across words.
+   - Consequently, every word received its own delimiter pair (`**name** **the** **date.**`).
+2. **Absence of Whitespace Coalescing**:
+   - In standard typography and Markdown semantics, spaces between words inside a styled sentence belong to that styled sentence.
+   - Consecutive runs sharing identical formatting (bold, italic, strike, highlight) separated only by pure whitespace (`PlainRun(" ")`) represent a single continuous styled sentence.
+3. **Selection Formatting Across Whitespace Runs**:
+   - In `_currentFormatsAtCursor`, `isBoldActive`, and `toggleInlineFormat`: checking `runsInRange.every((r) => r.isBold)` across sentences containing plain space runs failed because the spaces had `isBold == false`.
+
+### 2. Implementation & Architectural Solutions
+1. **Multi-Pass Run Coalescing (`SemanticMutationService.mergeAdjacentRuns`)**:
+   - **Pass 1 (Direct Adjacency)**: Cleanly fuses immediately contiguous runs sharing identical style flags.
+   - **Pass 2 (Whitespace Coalescing)**: Scans for styled runs (`current`) followed by a pure-whitespace `PlainRun` (`ws`), followed by a run (`next`) with **identical style attributes** (`isBold`, `isItalic`, `isStrike`, `isHighlight`).
+   - Coalesces `current + ws + next` into a unified `StyledRun` spanning the combined source and content ranges.
+   - Loops until all internal whitespace runs in the formatted sentence are absorbed.
+   - **Pass 3 (Final Merge)**: Runs direct adjacent merging again to ensure any remaining boundaries are fused.
+2. **Effective Non-Whitespace Selection Formatting (`toggleInlineFormat`)**:
+   - Filtered out pure-whitespace runs (`r.text.trim().isNotEmpty`) when evaluating `targetBold`, `targetItalic`, `targetStrike`, and `targetHighlight`.
+   - Prevents unstyled internal spaces from distorting toolbar active states or falsely flipping toggle behavior.
+   - Applies formatting to all runs within range (including internal spaces) so sentences merge into single runs.
+3. **Parser Normalization (`SemanticMarkdownParser._parseInlineRuns`)**:
+   - Wired `SemanticMutationService.mergeAdjacentRuns` into `_parseInlineRuns`.
+   - When opening existing notes with fragmented word-by-word syntax (`**name** **the** **date.**`), the AST automatically unifies them into single styled runs (`BoldRun("name the date.")`), which serialize back to clean, canonical sentence syntax on any mutation.
+4. **Caret Format Inheritance (`SemanticEditorController`)**:
+   - Updated `_currentFormatsAtCursor` so that when the caret rests on a pure whitespace run immediately following a styled run, it inherits the format of the preceding styled run.
+   - Updated `isBoldActive`, `isItalicActive`, `isStrikeActive`, and `isHighlightActive` to inspect non-whitespace runs for active selection highlights.
+
+### 3. Verification & Quality Metrics
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Targeted Formatting Suite**: `test/editor/wysiwyg_inline_formatting_test.dart` $\rightarrow$ **8/8 tests passed** (including continuous letter-by-letter typing of `"I am good boy"`, multi-style combinations `***heyyy thanks.the typing exp is actually great.***`, multi-word selection formatting, and fragmented AST normalization).
+- **Editor Test Suite**: `test/editor/` $\rightarrow$ **299/299 tests passed**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,286 passed / 0 failed (100% pass rate)**.
+
+
 
 
