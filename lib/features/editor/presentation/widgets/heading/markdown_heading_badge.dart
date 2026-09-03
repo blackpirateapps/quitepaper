@@ -32,6 +32,7 @@ class MarkdownHeadingBadge extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          canRequestFocus: false,
           onTap: enabled ? onTap : null,
           borderRadius: AppRadii.borderSm,
           child: Container(

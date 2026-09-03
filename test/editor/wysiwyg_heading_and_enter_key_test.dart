@@ -221,5 +221,175 @@ void main() {
       textController.dispose();
       controller.dispose();
     });
+
+    testWidgets('Tapping heading button in FormattingToolbar on an empty line preserves focus and collapsed selection at 0', (tester) async {
+      const md = '';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+      final textController = TextEditingController(text: '');
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              VisualDocumentEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+              FormattingToolbar(
+                controller: textController,
+                focusNode: focusNode,
+                semanticController: controller,
+                onTagPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final headingBtn = find.byTooltip('Heading (cycle H1-H6, long-press for options)');
+      expect(headingBtn, findsOneWidget);
+
+      // Tap heading on empty line -> becomes H1
+      await tester.tap(headingBtn);
+      await tester.pumpAndSettle();
+
+      expect(controller.document.blocks.first, isA<HeadingBlock>());
+      expect(controller.markdown, equals('# '));
+      expect(controller.selection.base.offset, equals(0));
+
+      final headingField = find.byType(TextField);
+      expect(headingField, findsOneWidget);
+
+      final textFieldWidget = tester.widget<TextField>(headingField);
+      expect(textFieldWidget.focusNode?.hasFocus, isTrue);
+      expect(textFieldWidget.controller?.selection.isCollapsed, isTrue);
+      expect(textFieldWidget.controller?.selection.baseOffset, equals(0));
+      expect(textFieldWidget.showCursor, isTrue);
+      expect(textFieldWidget.key, isNotNull);
+
+      focusNode.dispose();
+      textController.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Converting empty paragraph to heading preserves TextField GlobalKey and focus', (tester) async {
+      const md = '';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: VisualDocumentEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final initialField = find.byType(TextField);
+      expect(initialField, findsOneWidget);
+      final initialKey = tester.widget<TextField>(initialField).key;
+      expect(initialKey, isNotNull);
+
+      // Focus the field
+      await tester.tap(initialField);
+      await tester.pumpAndSettle();
+
+      // Type # and space
+      await tester.enterText(initialField, '# ');
+      await tester.pumpAndSettle();
+
+      expect(controller.document.blocks.first, isA<HeadingBlock>());
+      expect(controller.markdown, equals('# '));
+
+      final headingField = find.byType(TextField);
+      expect(headingField, findsOneWidget);
+
+      final headingTextField = tester.widget<TextField>(headingField);
+      // Key should be preserved across widget tree transformations (GlobalKey)
+      expect(headingTextField.key, equals(initialKey));
+      expect(headingTextField.focusNode?.hasFocus, isTrue);
+      expect(headingTextField.controller?.selection.baseOffset, equals(0));
+      expect(headingTextField.showCursor, isTrue);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Parent focusNode forwards focus to active block in VisualDocumentEditor', (tester) async {
+      const md = '# Header\nParagraph';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final parentFocusNode = FocusNode();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: VisualDocumentEditor(
+            controller: controller,
+            focusNode: parentFocusNode,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Request focus on parentFocusNode (as EditorScreen does when tapping blank area)
+      parentFocusNode.requestFocus();
+      await tester.pumpAndSettle();
+
+      // The first block in VisualDocumentEditor should receive focus
+      final textFields = find.byType(TextField);
+      expect(textFields, findsNWidgets(2));
+      final firstTextField = tester.widget<TextField>(textFields.first);
+      expect(firstTextField.focusNode?.hasFocus, isTrue);
+
+      parentFocusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Empty heading block has visible cursor and clean TextSpan root with heading fontSize', (tester) async {
+      const md = '# ';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: VisualDocumentEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final headingField = find.byType(TextField);
+      expect(headingField, findsOneWidget);
+
+      final textFieldWidget = tester.widget<TextField>(headingField);
+      expect(textFieldWidget.controller?.text, isEmpty);
+      expect(textFieldWidget.showCursor, isTrue);
+      expect(textFieldWidget.cursorWidth, equals(2.0));
+
+      final BuildContext context = tester.element(headingField);
+      final span = textFieldWidget.controller?.buildTextSpan(
+        context: context,
+        style: textFieldWidget.style,
+        withComposing: false,
+      );
+
+      // Verify root span has text '' directly (not nested empty children)
+      expect(span, isA<TextSpan>());
+      final textSpan = span as TextSpan;
+      expect(textSpan.text, equals(''));
+      expect(textSpan.children, isNull);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
   });
 }

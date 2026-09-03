@@ -54,11 +54,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
   final Map<String, TextEditingController> _blockControllers = {};
   final Map<String, FocusNode> _blockFocusNodes = {};
+  final Map<String, GlobalKey> _blockKeys = {};
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
+    widget.focusNode.addListener(_handleParentFocusChange);
     _syncBlockControllers();
   }
 
@@ -70,10 +72,15 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       widget.controller.addListener(_onControllerChanged);
       _syncBlockControllers();
     }
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_handleParentFocusChange);
+      widget.focusNode.addListener(_handleParentFocusChange);
+    }
   }
 
   @override
   void dispose() {
+    widget.focusNode.removeListener(_handleParentFocusChange);
     widget.controller.removeListener(_onControllerChanged);
     for (final ctrl in _blockControllers.values) {
       ctrl.dispose();
@@ -81,8 +88,20 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     for (final fn in _blockFocusNodes.values) {
       fn.dispose();
     }
+    _blockKeys.clear();
     _activeTableController?.dispose();
     super.dispose();
+  }
+
+  void _handleParentFocusChange() {
+    if (!mounted) return;
+    if (widget.focusNode.hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
+      final targetBlockId = widget.controller.selection.base.blockId;
+      final targetFn = _blockFocusNodes[targetBlockId] ?? _blockFocusNodes.values.firstOrNull;
+      if (targetFn != null && !targetFn.hasFocus) {
+        targetFn.requestFocus();
+      }
+    }
   }
 
   void _onControllerChanged() {
@@ -93,7 +112,8 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   void _syncBlockControllers() {
     final doc = widget.controller.document;
     final liveIds = <String>{};
-    final wasFocused = _blockFocusNodes.values.any((fn) => fn.hasFocus);
+    final wasFocused = _blockFocusNodes.values.any((fn) => fn.hasFocus) ||
+        widget.focusNode.hasFocus;
 
     void registerBlock(SemanticBlock block) {
       liveIds.add(block.id);
@@ -166,6 +186,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
             offset: targetOffset.clamp(0, targetCtrl.text.length),
           );
         }
+        if (targetCtrl != null && targetFn != null) {
+          widget.onActiveTargetChanged?.call(targetCtrl, targetFn);
+        }
       });
     }
 
@@ -179,6 +202,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         if (c != null) deadCtrls.add(c);
         final f = _blockFocusNodes.remove(deadId);
         if (f != null) deadFns.add(f);
+        _blockKeys.remove(deadId);
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         for (final c in deadCtrls) {
@@ -266,10 +290,21 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       blockWidgets.add(_buildBlockWidget(context, colors, block, i));
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: blockWidgets,
+    return Focus(
+      focusNode: widget.focusNode,
+      canRequestFocus: true,
+      onFocusChange: (hasFocus) {
+        if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
+          final targetBlockId = widget.controller.selection.base.blockId;
+          final targetFn = _blockFocusNodes[targetBlockId] ?? _blockFocusNodes.values.firstOrNull;
+          targetFn?.requestFocus();
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: blockWidgets,
+      ),
     );
   }
 
@@ -890,10 +925,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () => _promptLink(context, blockId),
       },
       child: TextField(
+        key: _blockKeys.putIfAbsent(blockId, () => GlobalKey(debugLabel: 'block_field_$blockId')),
         controller: controller,
         focusNode: focusNode,
         readOnly: widget.readOnly,
         cursorColor: colors.accent,
+        cursorWidth: 2.0,
+        showCursor: !widget.readOnly,
         style: textStyle,
         maxLines: null,
         keyboardType: TextInputType.multiline,
@@ -1117,6 +1155,10 @@ class _RichBlockEditingController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
+    if (text.isEmpty) {
+      return TextSpan(text: '', style: style);
+    }
+
     final colors = context.appColors;
     final spans = <InlineSpan>[];
 

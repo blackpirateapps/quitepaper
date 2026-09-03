@@ -5087,3 +5087,51 @@ Despite earlier mitigation attempts in Section 49, multiple critical bugs remain
 - **Editor Suite**: `test/editor/` $\rightarrow$ **284/284 tests passed**.
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,271 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 51. WYSIWYG Heading Focus Retention, IME Keyboard Persistence & Caret Restoration
+
+### 1. Architectural Problem & Root Cause Analysis
+In the Semantic Document visual editor (WYSIWYG mode), converting an empty line into a heading (via `# ` or the formatting toolbar icon) caused two critical UX issues:
+1. **Software Keyboard Disappearance**:
+   - In `VisualDocumentEditor`, `ParagraphBlock` rendered `Padding -> TextField` directly, whereas `HeadingBlock` rendered `Padding -> Row -> [MarkdownHeadingBadge, Expanded -> TextField]`.
+   - Because `TextField` lacked a stable `GlobalKey`, Flutter treated the element movement across different parent layouts as an incompatible element type, unmounting and disposing `TextFieldState` and `EditableTextState`.
+   - `EditableTextState.dispose()` invoked `_closeInputConnectionIfNeeded()`, which sent `TextInput.hide` to the OS platform and dismissed the software keyboard.
+2. **Missing Blinking Caret on Re-Focus**:
+   - When the newly instantiated `EditableTextState` mounted with the existing `FocusNode` (which was already focused), Flutter's FocusManager emitted no focus change event. `EditableTextState._handleFocusChanged()` was never called, and `_startCursorBlink()` was never triggered, leaving `_cursorBlinkOpacityController.value` at `0.0` (fully transparent).
+   - In `_RichBlockEditingController.buildTextSpan`, empty blocks returned `TextSpan(children: [TextSpan(text: '', style: runStyle)], style: style)` with `text: null`. Flutter's `RenderEditable` caret metrics computation depends on clean text metrics at the root span to calculate preferred line height (`33.0` for H1) and caret bounds.
+   - When the user tapped on the empty heading field to bring back the keyboard, `requestKeyboard()` called `_openInputConnection()`, but did not restart `_cursorBlinkOpacityController`. Because selection offset was already 0 and text was empty, no text value changes occurred to restart the cursor, leaving the heading without a visible blinking cursor.
+3. **Toolbar & Badge Focus Stealing**:
+   - `_ToolbarButton` in `FormattingToolbar` and `MarkdownHeadingBadge` used `InkWell` widgets without `canRequestFocus: false`, which could steal primary focus away from the editor during tap interactions.
+4. **Parent Focus Node Disconnect**:
+   - `VisualDocumentEditor` did not attach or listen to `widget.focusNode`, causing parent-level focus requests (such as tapping the empty sheet area below notes in `EditorScreen`) to fail to forward focus to the active block.
+
+### 2. Solutions Implemented
+1. **Stable Block GlobalKeys (`VisualDocumentEditor`)**:
+   - Added `final Map<String, GlobalKey> _blockKeys = {};` to `_VisualDocumentEditorState`.
+   - Configured `key: _blockKeys.putIfAbsent(blockId, () => GlobalKey(debugLabel: 'block_field_$blockId'))` on `TextField` in `_buildBlockTextField`.
+   - When blocks transition from paragraph to heading (or list/checklist/quote), Flutter reparents the existing `TextFieldElement` (and its underlying `EditableTextState`) without unmounting or disposal. The IME connection stays active, keeping the software keyboard open continuously with zero flickering.
+2. **Clean Root TextSpan for Empty Blocks (`_RichBlockEditingController`)**:
+   - Added an immediate short-circuit to `buildTextSpan`:
+     ```dart
+     if (text.isEmpty) {
+       return TextSpan(text: '', style: style);
+     }
+     ```
+   - Passes the heading `style` (26sp, bold, height 33/26) directly to `TextPainter`, enabling accurate preferred line height (`33.0`) and caret rectangle layout when empty.
+   - Configured `showCursor: !widget.readOnly` and `cursorWidth: 2.0` on `_buildBlockTextField`.
+3. **Non-Focus-Stealing Formatting Controls (`FormattingToolbar` & `MarkdownHeadingBadge`)**:
+   - Added `canRequestFocus: false` to `InkWell` across `_ToolbarButton` and `MarkdownHeadingBadge`, ensuring formatting actions never steal focus from the editor.
+4. **Parent Focus Attachment & Delegation (`VisualDocumentEditor`)**:
+   - Wrapped `VisualDocumentEditor`'s `Column` in a `Focus(focusNode: widget.focusNode, ...)` widget, properly attaching `widget.focusNode` to the widget tree and delegating incoming focus to the active block's `FocusNode`.
+5. **Post-Frame Target Synchronization (`_syncBlockControllers`)**:
+   - Updated `_syncBlockControllers` to evaluate `wasFocused = _blockFocusNodes.values.any((fn) => fn.hasFocus) || widget.focusNode.hasFocus;`.
+   - Calls `widget.onActiveTargetChanged?.call(targetCtrl, targetFn)` in post-frame callbacks so `EditorScreen` maintains synchronized active controller references.
+
+### 3. Verification & Quality Metrics
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Heading & Enter Key Suite**: `test/editor/wysiwyg_heading_and_enter_key_test.dart` $\rightarrow$ **9/9 tests passed**.
+- **Editor Suite**: `test/editor/` $\rightarrow$ **288/288 tests passed**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,275 passed / 0 failed (100% pass rate)**.
+
+

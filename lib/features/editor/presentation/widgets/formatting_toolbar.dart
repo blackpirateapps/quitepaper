@@ -338,9 +338,7 @@ class FormattingToolbar extends StatelessWidget {
                     onCycleHeading!();
                   } else if (semanticController != null) {
                     semanticController!.cycleHeadingLevel();
-                    if (focusNode != null && !focusNode!.hasFocus) {
-                      focusNode!.requestFocus();
-                    }
+                    focusNode?.requestFocus();
                   } else {
                     _applyHelperFormat(MarkdownHelper.cycleHeading);
                   }
@@ -500,6 +498,7 @@ class _ToolbarButton extends StatelessWidget {
         color: backgroundColor,
         borderRadius: AppRadii.borderSm,
         child: InkWell(
+          canRequestFocus: false,
           borderRadius: AppRadii.borderSm,
           onTap: isEnabled ? onPressed : null,
           onLongPress: isEnabled ? onLongPress : null,
