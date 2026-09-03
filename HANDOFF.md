@@ -5042,3 +5042,48 @@ Section 47 brings **Headings** up to the exact same architectural parity and edi
 3. **`onKeyEvent` Backspace Interception**:
    - Attached an `onKeyEvent` handler to each block's `FocusNode`.
    - Intercepts `LogicalKeyboardKey.backspace` at offset `0` and fires `SemanticEditorController.mergeWithPreviousBlock`, enabling empty headings to smoothly convert to paragraphs.
+
+---
+
+## 50. Bear Notes-Grade WYSIWYG Heading, Focus, and Enter Key Complete Fixes
+
+### 1. Architectural Problem & Root Cause Analysis
+Despite earlier mitigation attempts in Section 49, multiple critical bugs remained in the visual editor:
+1. **Enter Key Not Advancing Anywhere**:
+   - **Boundary collision**: `findBlockAtSourceOffset` in `SemanticDocument` was evaluating `block.sourceRange.contains(offset)`. Because consecutive blocks have contiguous ranges where `block_0.end == block_1.start`, querying the boundary offset returned `block_0` instead of `block_1`. Cursor stayed trapped at the end of the previous block.
+   - **EOF newline omission**: In `SemanticMutationService.splitBlock` and `insertText`, splitting at EOF on documents without trailing newlines inserted only a single `\n`, which canonical markdown parser treats as a line terminator rather than an empty line block.
+   - **Premature focus request**: `_syncBlockControllers` invoked `targetFn.requestFocus()` synchronously in the same frame the `FocusNode` was instantiated, before Flutter had mounted its associated `TextField` widget in the tree.
+2. **Keyboard Disappearing on `# ` Typing**:
+   - `SemanticMarkdownParser` assigned block IDs containing type suffixes (e.g. `block_0_p` vs `block_0_h1`). When a user typed `# `, the re-parsed line received a new ID, causing `_syncBlockControllers` to dispose the active `FocusNode` and close the software keyboard.
+3. **Formatting Toolbar Heading Button Inserting Raw `# `**:
+   - In WYSIWYG mode, the toolbar controller was a per-block `_RichBlockEditingController` containing plain text. Tapping the heading button ran source-mode `MarkdownHelper.cycleHeading`, inserting `# ` characters into the block's visible text instead of executing a semantic AST transformation.
+4. **Paragraph Content Overwriting Newlines**:
+   - `ParagraphBlock` lacked a dedicated `contentRange`, falling back to its full `sourceRange` which included trailing newlines. Editing text inside a paragraph replaced the trailing newline, collapsing adjacent blocks.
+
+### 2. Solutions Implemented
+1. **Type-Agnostic Stable Block IDs (`SemanticMarkdownParser`)**:
+   - Block IDs are now generated as `block_0`, `block_1`, ... without type suffixes (`_p`, `_h1`, `_check`, etc.). When a paragraph transitions into a heading (via `# ` or toolbar), it retains its block ID. `_syncBlockControllers` preserves the existing `FocusNode` and `_RichBlockEditingController` without teardown, keeping the software keyboard open continuously.
+2. **Boundary-Safe Block Lookup (`SemanticDocument.findBlockAtSourceOffset`)**:
+   - Non-terminal blocks now evaluate `sourceRange.containsStrict(offset)` (`start <= offset < end`), reserving the boundary equality exclusively for the true document terminus. Newly inserted blocks cleanly receive focus.
+3. **Post-Frame Deferred Focus Scheduling (`VisualDocumentEditor`)**:
+   - Focus transfer in `_syncBlockControllers` uses `WidgetsBinding.instance.addPostFrameCallback`, guaranteeing that the target block's widget is fully attached before `targetFn.requestFocus()` and selection clamping execute.
+4. **EOF Empty Line Preservation (`SemanticMutationService`)**:
+   - `splitBlock` (for headings) and `insertText` (for paragraphs) detect when Enter is pressed at EOF without trailing newlines, ensuring a proper `\n\n` boundary is created so an empty paragraph block is instantiated below.
+5. **WYSIWYG Toolbar Integration (`FormattingToolbar` & `EditorScreen`)**:
+   - `FormattingToolbar` now accepts an optional `SemanticEditorController`. In WYSIWYG mode:
+     - Heading button tap calls `semanticController.cycleHeadingLevel()`, cleanly cycling through all available heading styles: `H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> Paragraph (0) -> H1`.
+     - Heading button long-press opens `MarkdownHeadingActionSheet` connected to the semantic controller.
+     - Heading active state dynamically reflects `semanticController.activeHeadingLevel != null`.
+6. **Paragraph `contentRange` Boundary Accuracy**:
+   - `ParagraphBlock` now includes `contentRange`, separating visible text bounds from source trailing newlines in `_handleBlockTextChanged`.
+7. **Robust Enter vs. Multiline Paste Interception (`SemanticBlockInputFormatter`)**:
+   - Differentiates single Enter key strokes (including text replacement) from multiline paste/batch input, allowing pasting multiline text to flow through to full document parsing.
+8. **Scrollbar Clamp Protection (`IntelligentHeadingScrollbar`)**:
+   - Guarded thumb height calculations against small layout heights (< 24.0px) preventing `ArgumentError` during window resize or split animations.
+
+### 3. Verification
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Targeted Suite**: `test/editor/wysiwyg_heading_and_enter_key_test.dart` $\rightarrow$ **5/5 tests passed**.
+- **Editor Suite**: `test/editor/` $\rightarrow$ **284/284 tests passed**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,271 passed / 0 failed (100% pass rate)**.
+

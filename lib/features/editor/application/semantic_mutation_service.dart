@@ -40,11 +40,14 @@ class SemanticMutationService {
     final doc = SemanticMarkdownParser.parse(markdown);
     final sourceOffset = doc.sourceOffsetAtPosition(position);
 
-    final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, text);
+    final actualText = (text == '\n' && sourceOffset == markdown.length && !markdown.endsWith('\n'))
+        ? '\n\n'
+        : text;
+    final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, actualText);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown);
-    final newOffset = sourceOffset + text.length;
+    final newOffset = sourceOffset + actualText.length;
     final newPosition = newDoc.findPositionAtSourceOffset(newOffset) ??
-        DocumentPosition(blockId: position.blockId, offset: position.offset + text.length);
+        DocumentPosition(blockId: position.blockId, offset: position.offset + actualText.length);
 
     return MutationResult(
       markdown: newMarkdown,
@@ -236,10 +239,13 @@ class SemanticMutationService {
 
     if (block is HeadingBlock) {
       final sourceOffset = doc.sourceOffsetAtPosition(position);
-      const insertion = '\n';
+      final isAtEnd = position.offset >= block.plainText.length;
+      final insertion = (isAtEnd && sourceOffset == markdown.length && !markdown.endsWith('\n'))
+          ? '\n\n'
+          : '\n';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
       final newDoc = SemanticMarkdownParser.parse(newMarkdown);
-      final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + 1) ??
+      final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
       return MutationResult(

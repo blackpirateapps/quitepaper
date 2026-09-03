@@ -27,6 +27,7 @@ import '../../notes/domain/note_version_model.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
+import '../application/semantic_editor_controller.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -111,6 +112,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
+  SemanticEditorController? _semanticEditorController;
 
   @override
   void initState() {
@@ -1226,6 +1228,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                         });
                                       }
                                     },
+                                    onSemanticControllerChanged: (ctrl) {
+                                      _semanticEditorController = ctrl;
+                                    },
                                   ),
 
                                   // Generous bottom scroll area for comfortable typing above keyboard
@@ -1263,6 +1268,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   FormattingToolbar(
                     controller: _activeTargetController ?? _contentController,
                     focusNode: _activeTargetFocusNode ?? _contentFocusNode,
+                    semanticController: isWysiwyg ? _semanticEditorController : null,
                     canUndo: _undoRedoManager.canUndo,
                     canRedo: _undoRedoManager.canRedo,
                     canDictate: editorState.isUnlocked && !editorState.isReadOnly,

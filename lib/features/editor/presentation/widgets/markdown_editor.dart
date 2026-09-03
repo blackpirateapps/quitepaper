@@ -41,6 +41,7 @@ class MarkdownEditor extends StatefulWidget {
     this.searchQuery,
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
+    this.onSemanticControllerChanged,
   });
 
   final MarkdownEditingController controller;
@@ -56,6 +57,10 @@ class MarkdownEditor extends StatefulWidget {
   final String? searchQuery;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final VoidCallback? onNoteLinkPrompt;
+
+  /// Called when the [SemanticEditorController] is created or disposed.
+  /// Allows the parent to wire semantic operations (e.g., heading cycling) to the toolbar.
+  final ValueChanged<SemanticEditorController?>? onSemanticControllerChanged;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -86,7 +91,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         onMarkdownChanged: _onSemanticMarkdownChanged,
       );
       _semanticController!.searchQuery = widget.searchQuery;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onSemanticControllerChanged?.call(_semanticController);
+      });
     } else {
+      widget.onSemanticControllerChanged?.call(null);
       _semanticController?.dispose();
       _semanticController = null;
     }
@@ -122,7 +131,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   void dispose() {
     widget.controller.removeListener(_onSourceControllerChanged);
+    widget.onSemanticControllerChanged?.call(null);
     _semanticController?.dispose();
+    _semanticController = null;
     _activeTableController?.dispose();
     _activeTableController = null;
     super.dispose();

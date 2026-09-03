@@ -153,17 +153,20 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
     if (wasFocused) {
       final targetBlockId = widget.controller.selection.base.blockId;
-      final targetFn = _blockFocusNodes[targetBlockId];
-      if (targetFn != null && !targetFn.hasFocus) {
-        targetFn.requestFocus();
+      final targetOffset = widget.controller.selection.base.offset;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final targetFn = _blockFocusNodes[targetBlockId];
+        if (targetFn != null && !targetFn.hasFocus) {
+          targetFn.requestFocus();
+        }
         final targetCtrl = _blockControllers[targetBlockId];
         if (targetCtrl != null) {
-          final offset = widget.controller.selection.base.offset;
           targetCtrl.selection = TextSelection.collapsed(
-            offset: offset.clamp(0, targetCtrl.text.length),
+            offset: targetOffset.clamp(0, targetCtrl.text.length),
           );
         }
-      }
+      });
     }
 
     // Clean up unmounted block controllers safely after frame
@@ -938,7 +941,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
                     ? block.contentRange.start
                     : (block is QuoteBlock)
                         ? block.contentRange.start
-                        : block.sourceRange.start;
+                        : (block is ParagraphBlock)
+                            ? (block.contentRange?.start ?? block.sourceRange.start)
+                            : block.sourceRange.start;
 
     final contentEnd = (block is HeadingBlock)
         ? block.contentRange.end
@@ -950,7 +955,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
                     ? block.contentRange.end
                     : (block is QuoteBlock)
                         ? block.contentRange.end
-                        : block.sourceRange.end;
+                        : (block is ParagraphBlock)
+                            ? (block.contentRange?.end ?? block.sourceRange.end)
+                            : block.sourceRange.end;
 
     final newMarkdown = widget.controller.markdown.replaceRange(contentStart, contentEnd, newText);
     final newSourceOffset = contentStart + selection.baseOffset;
@@ -1058,10 +1065,16 @@ class SemanticBlockInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.length == oldValue.text.length + 1 &&
-        newValue.selection.isCollapsed) {
+    final selectionSpan = oldValue.selection.isValid && !oldValue.selection.isCollapsed
+        ? (oldValue.selection.end - oldValue.selection.start)
+        : 0;
+    final isSingleCharInsertion = newValue.text.length == oldValue.text.length - selectionSpan + 1;
+
+    if (isSingleCharInsertion && newValue.selection.isCollapsed) {
       final insertedOffset = newValue.selection.start - 1;
-      if (insertedOffset >= 0 && newValue.text[insertedOffset] == '\n') {
+      if (insertedOffset >= 0 &&
+          insertedOffset < newValue.text.length &&
+          newValue.text[insertedOffset] == '\n') {
         onEnter(insertedOffset);
         return oldValue;
       }

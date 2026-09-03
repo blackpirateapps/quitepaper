@@ -283,6 +283,7 @@ class ParagraphBlock extends SemanticBlock {
     required this.id,
     required this.runs,
     required this.sourceRange,
+    this.contentRange,
   });
 
   @override
@@ -292,6 +293,8 @@ class ParagraphBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  final SourceRange? contentRange;
 
   @override
   String get plainText => runs.map((r) => r.text).join();

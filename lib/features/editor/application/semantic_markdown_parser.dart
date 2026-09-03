@@ -79,7 +79,7 @@ class SemanticMarkdownParser {
       if (table != null && table.sourceStart == currentOffset) {
         blocks.add(
           TableBlock(
-            id: 'block_${blockCounter++}_table',
+            id: 'block_${blockCounter++}',
             table: table,
             sourceRange: SourceRange(table.sourceStart, table.sourceEnd),
           ),
@@ -127,7 +127,7 @@ class SemanticMarkdownParser {
 
         blocks.add(
           CodeBlock(
-            id: 'block_${blockCounter++}_code',
+            id: 'block_${blockCounter++}',
             language: lang.isEmpty ? null : lang,
             code: codeText,
             sourceRange: totalRange,
@@ -147,7 +147,7 @@ class SemanticMarkdownParser {
       if (RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$').hasMatch(lineText)) {
         blocks.add(
           HorizontalRuleBlock(
-            id: 'block_${blockCounter++}_hr',
+            id: 'block_${blockCounter++}',
             marker: trimmedLine,
             sourceRange: lineSourceRange,
           ),
@@ -170,7 +170,7 @@ class SemanticMarkdownParser {
 
         blocks.add(
           HeadingBlock(
-            id: 'block_${blockCounter++}_h$level',
+            id: 'block_${blockCounter++}',
             level: level,
             runs: runs,
             sourceRange: lineSourceRange,
@@ -202,7 +202,7 @@ class SemanticMarkdownParser {
         final runs = _parseInlineRuns(itemContent, contentRange);
 
         final itemBlock = ChecklistItemBlock(
-          id: 'block_${blockCounter++}_check',
+          id: 'block_${blockCounter++}',
           checked: isChecked,
           runs: runs,
           indent: indentStr.length,
@@ -229,7 +229,7 @@ class SemanticMarkdownParser {
         final runs = _parseInlineRuns(itemContent, contentRange);
 
         final itemBlock = ListItemBlock(
-          id: 'block_${blockCounter++}_list',
+          id: 'block_${blockCounter++}',
           runs: runs,
           indent: indentStr.length,
           marker: markerChar,
@@ -258,7 +258,7 @@ class SemanticMarkdownParser {
         final runs = _parseInlineRuns(itemContent, contentRange);
 
         final itemBlock = OrderedListItemBlock(
-          id: 'block_${blockCounter++}_ordered',
+          id: 'block_${blockCounter++}',
           number: number,
           delimiter: delimiter,
           runs: runs,
@@ -284,7 +284,7 @@ class SemanticMarkdownParser {
 
         blocks.add(
           QuoteBlock(
-            id: 'block_${blockCounter++}_quote',
+            id: 'block_${blockCounter++}',
             runs: runs,
             sourceRange: lineSourceRange,
             markerRange: markerRange,
@@ -302,7 +302,7 @@ class SemanticMarkdownParser {
         final url = imageMatch.group(2) ?? '';
         blocks.add(
           ImageBlock(
-            id: 'block_${blockCounter++}_img',
+            id: 'block_${blockCounter++}',
             altText: alt,
             url: url,
             sourceRange: lineSourceRange,
@@ -318,9 +318,10 @@ class SemanticMarkdownParser {
 
       blocks.add(
         ParagraphBlock(
-          id: 'block_${blockCounter++}_p',
+          id: 'block_${blockCounter++}',
           runs: runs,
           sourceRange: lineSourceRange,
+          contentRange: contentRange,
         ),
       );
 
@@ -330,7 +331,7 @@ class SemanticMarkdownParser {
     if (blocks.isEmpty) {
       blocks.add(
         ParagraphBlock(
-          id: 'block_0_p',
+          id: 'block_0',
           runs: [PlainRun('', SourceRange(0, markdown.length))],
           sourceRange: SourceRange(0, markdown.length),
         ),

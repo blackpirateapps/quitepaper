@@ -7,6 +7,7 @@ import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
+import '../../application/semantic_editor_controller.dart';
 import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
 
@@ -30,6 +31,9 @@ class FormattingToolbar extends StatelessWidget {
     this.isDictating = false,
     this.canDictate = true,
     this.onApplyAtomicEdit,
+    this.onCycleHeading,
+    this.onCycleHeadingLongPress,
+    this.semanticController,
   });
 
   final TextEditingController controller;
@@ -50,6 +54,17 @@ class FormattingToolbar extends StatelessWidget {
   final bool isDictating;
   final bool canDictate;
   final void Function(TextEditingValue value)? onApplyAtomicEdit;
+
+  /// Optional [SemanticEditorController] when running in WYSIWYG mode.
+  final SemanticEditorController? semanticController;
+
+  /// When provided (WYSIWYG mode), tapping the heading button calls this
+  /// instead of inserting raw `#` markdown syntax.
+  final VoidCallback? onCycleHeading;
+
+  /// When provided (WYSIWYG mode), long-pressing the heading button calls this
+  /// instead of opening the source-mode heading action sheet.
+  final VoidCallback? onCycleHeadingLongPress;
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
     final updated = action(value: controller.value);
@@ -155,6 +170,33 @@ class FormattingToolbar extends StatelessWidget {
   }
 
   Future<void> _handleHeadingLongPress(BuildContext context) async {
+    if (semanticController != null) {
+      final currentLevel = semanticController!.activeHeadingLevel ?? 0;
+      await MarkdownHeadingActionSheet.show(
+        context,
+        currentLevel: currentLevel,
+        onSelectLevel: (newLevel) {
+          semanticController!.setHeadingLevel(newLevel);
+          if (focusNode != null && !focusNode!.hasFocus) {
+            focusNode!.requestFocus();
+          }
+        },
+        onConvertToParagraph: () {
+          semanticController!.convertHeadingToParagraph();
+          if (focusNode != null && !focusNode!.hasFocus) {
+            focusNode!.requestFocus();
+          }
+        },
+        onCycleLevel: () {
+          semanticController!.cycleHeadingLevel();
+          if (focusNode != null && !focusNode!.hasFocus) {
+            focusNode!.requestFocus();
+          }
+        },
+      );
+      return;
+    }
+
     final effectiveValue = controller.value;
     final currentLevel = MarkdownHelper.getHeadingLevelAt(effectiveValue) ?? 0;
     await MarkdownHeadingActionSheet.show(
@@ -193,6 +235,9 @@ class FormattingToolbar extends StatelessWidget {
   }
 
   bool _isHeadingActive() {
+    if (semanticController != null) {
+      return semanticController!.activeHeadingLevel != null;
+    }
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isHeadingActive;
     return MarkdownFormatter.isHeadingAt(controller.value);
   }
@@ -286,10 +331,21 @@ class FormattingToolbar extends StatelessWidget {
               const _ToolbarDivider(),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.textH,
-                tooltip: 'Heading (cycle H1-H3, long-press for options)',
+                tooltip: 'Heading (cycle H1-H6, long-press for options)',
                 isActive: isHeading,
-                onPressed: () => _applyHelperFormat(MarkdownHelper.cycleHeading),
-                onLongPress: () => _handleHeadingLongPress(context),
+                onPressed: () {
+                  if (onCycleHeading != null) {
+                    onCycleHeading!();
+                  } else if (semanticController != null) {
+                    semanticController!.cycleHeadingLevel();
+                    if (focusNode != null && !focusNode!.hasFocus) {
+                      focusNode!.requestFocus();
+                    }
+                  } else {
+                    _applyHelperFormat(MarkdownHelper.cycleHeading);
+                  }
+                },
+                onLongPress: onCycleHeadingLongPress ?? () => _handleHeadingLongPress(context),
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.checkSquare,

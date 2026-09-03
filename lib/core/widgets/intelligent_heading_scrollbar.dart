@@ -548,7 +548,9 @@ class _IntelligentHeadingScrollbarState extends State<IntelligentHeadingScrollba
                       final rawThumbHeight = totalContentHeight > 0
                           ? (viewportDim / totalContentHeight) * trackHeight
                           : trackHeight;
-                      final thumbHeight = rawThumbHeight.clamp(24.0, (trackHeight * 0.85).clamp(24.0, trackHeight));
+                      final minThumb = trackHeight < 24.0 ? trackHeight : 24.0;
+                      final maxThumb = (trackHeight * 0.85).clamp(minThumb, trackHeight);
+                      final thumbHeight = rawThumbHeight.clamp(minThumb, maxThumb);
 
                       final travelDistance = (trackHeight - thumbHeight).clamp(0.0, double.infinity);
                       final scrollFraction = maxScroll > 0 ? (currentScroll / maxScroll).clamp(0.0, 1.0) : 0.0;

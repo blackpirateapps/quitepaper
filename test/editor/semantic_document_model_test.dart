@@ -57,7 +57,7 @@ void main() {
       // Find heading position
       final headingPos = doc.findPositionAtSourceOffset(4); // inside "Heading"
       expect(headingPos, isNotNull);
-      expect(headingPos!.blockId, contains('h1'));
+      expect(headingPos!.blockId, equals('block_0'));
       expect(headingPos.offset, equals(2)); // '# ' is prefix of 2 chars, so offset 4 is char index 2 ('a')
 
       // Map back from heading position to source offset

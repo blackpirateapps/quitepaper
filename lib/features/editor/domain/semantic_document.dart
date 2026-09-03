@@ -83,19 +83,39 @@ class SemanticDocument {
 
   /// Finds the semantic block at a given [sourceOffset] in [canonicalMarkdown].
   SemanticBlock? findBlockAtSourceOffset(int sourceOffset) {
-    for (final block in blocks) {
-      if (block.sourceRange.contains(sourceOffset)) {
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      final isLast = i == blocks.length - 1;
+      final inRange = isLast
+          ? block.sourceRange.contains(sourceOffset)
+          : block.sourceRange.containsStrict(sourceOffset);
+      if (inRange) {
         if (block is ListBlock) {
-          for (final item in block.items) {
-            if (item.sourceRange.contains(sourceOffset)) return item;
+          for (var j = 0; j < block.items.length; j++) {
+            final item = block.items[j];
+            final isLastItem = isLast && j == block.items.length - 1;
+            final inItemRange = isLastItem
+                ? item.sourceRange.contains(sourceOffset)
+                : item.sourceRange.containsStrict(sourceOffset);
+            if (inItemRange) return item;
           }
         } else if (block is OrderedListBlock) {
-          for (final item in block.items) {
-            if (item.sourceRange.contains(sourceOffset)) return item;
+          for (var j = 0; j < block.items.length; j++) {
+            final item = block.items[j];
+            final isLastItem = isLast && j == block.items.length - 1;
+            final inItemRange = isLastItem
+                ? item.sourceRange.contains(sourceOffset)
+                : item.sourceRange.containsStrict(sourceOffset);
+            if (inItemRange) return item;
           }
         } else if (block is ChecklistBlock) {
-          for (final item in block.items) {
-            if (item.sourceRange.contains(sourceOffset)) return item;
+          for (var j = 0; j < block.items.length; j++) {
+            final item = block.items[j];
+            final isLastItem = isLast && j == block.items.length - 1;
+            final inItemRange = isLastItem
+                ? item.sourceRange.contains(sourceOffset)
+                : item.sourceRange.containsStrict(sourceOffset);
+            if (inItemRange) return item;
           }
         }
         return block;

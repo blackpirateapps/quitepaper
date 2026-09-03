@@ -52,7 +52,7 @@ class SemanticEditorController extends ChangeNotifier {
       final pos = DocumentPosition(blockId: firstBlock.id, offset: 0);
       return DocumentSelection.collapsed(pos);
     }
-    const pos = DocumentPosition(blockId: 'block_0_p', offset: 0);
+    const pos = DocumentPosition(blockId: 'block_0', offset: 0);
     return const DocumentSelection.collapsed(pos);
   }
 
@@ -149,7 +149,7 @@ class SemanticEditorController extends ChangeNotifier {
     final targetId = blockId ?? _selection.base.blockId;
     final block = _document.findBlockById(targetId);
     if (block is HeadingBlock) {
-      final next = block.level < 3 ? block.level + 1 : 1;
+      final next = block.level < 6 ? block.level + 1 : 0;
       setHeadingLevelForBlock(targetId, next);
     } else {
       setHeadingLevelForBlock(targetId, 1);
