@@ -21,6 +21,21 @@ abstract class SemanticInline extends SemanticNode {
 
   /// Source range of the inner content excluding Markdown delimiters, if applicable.
   SourceRange? get contentRange;
+
+  /// Whether this run is styled with bold typography.
+  bool get isBold => false;
+
+  /// Whether this run is styled with italic typography.
+  bool get isItalic => false;
+
+  /// Whether this run is styled with strikethrough (line-through) typography.
+  bool get isStrike => false;
+
+  /// Whether this run is styled with highlight background tint.
+  bool get isHighlight => false;
+
+  /// Whether this run is inline code.
+  bool get isCode => false;
 }
 
 /// Plain, unstyled text run.
@@ -40,9 +55,18 @@ class PlainRun extends SemanticInline {
   String toString() => 'PlainRun("$text", $sourceRange)';
 }
 
-/// Bold text run (**text** or __text__).
-class BoldRun extends SemanticInline {
-  const BoldRun(this.text, this.sourceRange, this.contentRange);
+/// General styled inline text run supporting any combination of bold, italic,
+/// strikethrough, and highlight formatting.
+class StyledRun extends SemanticInline {
+  const StyledRun(
+    this.text,
+    this.sourceRange,
+    this.contentRange, {
+    this.isBold = false,
+    this.isItalic = false,
+    this.isStrike = false,
+    this.isHighlight = false,
+  });
 
   @override
   final String text;
@@ -54,58 +78,88 @@ class BoldRun extends SemanticInline {
   final SourceRange contentRange;
 
   @override
-  String toString() => 'BoldRun("$text", src: $sourceRange, content: $contentRange)';
+  final bool isBold;
+
+  @override
+  final bool isItalic;
+
+  @override
+  final bool isStrike;
+
+  @override
+  final bool isHighlight;
+
+  @override
+  String toString() =>
+      'StyledRun("$text", bold: $isBold, italic: $isItalic, strike: $isStrike, highlight: $isHighlight, src: $sourceRange)';
 }
 
-/// Italic text run (*text* or _text_).
-class ItalicRun extends SemanticInline {
-  const ItalicRun(this.text, this.sourceRange, this.contentRange);
+/// Bold text run (**text** or __text__), optionally combined with other inline styles.
+class BoldRun extends StyledRun {
+  const BoldRun(
+    super.text,
+    super.sourceRange,
+    super.contentRange, {
+    super.isItalic,
+    super.isStrike,
+    super.isHighlight,
+  }) : super(
+          isBold: true,
+        );
 
   @override
-  final String text;
-
-  @override
-  final SourceRange sourceRange;
-
-  @override
-  final SourceRange contentRange;
-
-  @override
-  String toString() => 'ItalicRun("$text", src: $sourceRange, content: $contentRange)';
+  String toString() => 'BoldRun("$text", italic: $isItalic, strike: $isStrike, src: $sourceRange, content: $contentRange)';
 }
 
-/// Strikethrough text run (~~text~~).
-class StrikeRun extends SemanticInline {
-  const StrikeRun(this.text, this.sourceRange, this.contentRange);
+/// Italic text run (*text* or _text_), optionally combined with other inline styles.
+class ItalicRun extends StyledRun {
+  const ItalicRun(
+    super.text,
+    super.sourceRange,
+    super.contentRange, {
+    super.isBold,
+    super.isStrike,
+    super.isHighlight,
+  }) : super(
+          isItalic: true,
+        );
 
   @override
-  final String text;
-
-  @override
-  final SourceRange sourceRange;
-
-  @override
-  final SourceRange contentRange;
-
-  @override
-  String toString() => 'StrikeRun("$text", src: $sourceRange, content: $contentRange)';
+  String toString() => 'ItalicRun("$text", bold: $isBold, strike: $isStrike, src: $sourceRange, content: $contentRange)';
 }
 
-/// Highlighted text run (==text==).
-class HighlightRun extends SemanticInline {
-  const HighlightRun(this.text, this.sourceRange, this.contentRange);
+/// Strikethrough text run (~~text~~), optionally combined with other inline styles.
+class StrikeRun extends StyledRun {
+  const StrikeRun(
+    super.text,
+    super.sourceRange,
+    super.contentRange, {
+    super.isBold,
+    super.isItalic,
+    super.isHighlight,
+  }) : super(
+          isStrike: true,
+        );
 
   @override
-  final String text;
+  String toString() => 'StrikeRun("$text", bold: $isBold, italic: $isItalic, src: $sourceRange, content: $contentRange)';
+}
+
+/// Highlighted text run (==text==), optionally combined with other inline styles.
+class HighlightRun extends StyledRun {
+  const HighlightRun(
+    super.text,
+    super.sourceRange,
+    super.contentRange, {
+    super.isBold,
+    super.isItalic,
+    super.isStrike,
+  }) : super(
+          isHighlight: true,
+        );
 
   @override
-  final SourceRange sourceRange;
-
-  @override
-  final SourceRange contentRange;
-
-  @override
-  String toString() => 'HighlightRun("$text", src: $sourceRange, content: $contentRange)';
+  String toString() => 'HighlightRun("$text", bold: $isBold, italic: $isItalic, strike: $isStrike, src: $sourceRange, content: $contentRange)';
 }
 
 /// Inline monospace code run (`code`).
@@ -120,6 +174,9 @@ class InlineCodeRun extends SemanticInline {
 
   @override
   final SourceRange contentRange;
+
+  @override
+  bool get isCode => true;
 
   @override
   String toString() => 'InlineCodeRun("$text", src: $sourceRange, content: $contentRange)';

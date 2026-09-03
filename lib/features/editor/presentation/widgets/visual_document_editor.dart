@@ -123,6 +123,15 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           styles: widget.controller.styles,
           searchQuery: widget.searchQuery,
         );
+        ctrl.addListener(() {
+          final fn = _blockFocusNodes[block.id];
+          if (fn != null &&
+              fn.hasFocus &&
+              ctrl.text == block.plainText &&
+              widget.controller.selection.base.blockId == block.id) {
+            widget.controller.updateSelectionFromBlock(block.id, ctrl.selection);
+          }
+        });
         _blockControllers[block.id] = ctrl;
       } else {
         final ctrl = _blockControllers[block.id]!;
@@ -890,34 +899,42 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyB, control: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleBold();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.keyB, meta: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleBold();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.keyI, control: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleItalic();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.keyI, meta: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleItalic();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleStrike();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleStrike();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.backquote, control: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleInlineCode();
           widget.onChanged?.call(widget.controller.markdown);
         },
         const SingleActivator(LogicalKeyboardKey.backquote, meta: true): () {
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
           widget.controller.toggleInlineCode();
           widget.onChanged?.call(widget.controller.markdown);
         },
@@ -964,42 +981,8 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   }
 
   void _handleBlockTextChanged(String blockId, String newText, TextSelection selection) {
-    final doc = widget.controller.document;
-    final block = doc.findBlockById(blockId);
-    if (block == null) return;
-
-    // Direct content edit within this block
-    final contentStart = (block is HeadingBlock)
-        ? block.contentRange.start
-        : (block is ListItemBlock)
-            ? block.contentRange.start
-            : (block is OrderedListItemBlock)
-                ? block.contentRange.start
-                : (block is ChecklistItemBlock)
-                    ? block.contentRange.start
-                    : (block is QuoteBlock)
-                        ? block.contentRange.start
-                        : (block is ParagraphBlock)
-                            ? (block.contentRange?.start ?? block.sourceRange.start)
-                            : block.sourceRange.start;
-
-    final contentEnd = (block is HeadingBlock)
-        ? block.contentRange.end
-        : (block is ListItemBlock)
-            ? block.contentRange.end
-            : (block is OrderedListItemBlock)
-                ? block.contentRange.end
-                : (block is ChecklistItemBlock)
-                    ? block.contentRange.end
-                    : (block is QuoteBlock)
-                        ? block.contentRange.end
-                        : (block is ParagraphBlock)
-                            ? (block.contentRange?.end ?? block.sourceRange.end)
-                            : block.sourceRange.end;
-
-    final newMarkdown = widget.controller.markdown.replaceRange(contentStart, contentEnd, newText);
-    final newSourceOffset = contentStart + selection.baseOffset;
-    widget.controller.updateMarkdownAndRetainSelection(newMarkdown, newSourceOffset);
+    widget.controller.handleVisualBlockTextChange(blockId, newText, selection);
+    widget.onChanged?.call(widget.controller.markdown);
   }
 
   Widget _buildSelectionContextMenu(
@@ -1027,6 +1010,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           label: 'Bold',
           onPressed: () {
             ContextMenuController.removeAny();
+            widget.controller.updateSelectionFromBlock(blockId, editableTextState.textEditingValue.selection);
             widget.controller.toggleBold();
             widget.onChanged?.call(widget.controller.markdown);
           },
@@ -1035,6 +1019,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           label: 'Italic',
           onPressed: () {
             ContextMenuController.removeAny();
+            widget.controller.updateSelectionFromBlock(blockId, editableTextState.textEditingValue.selection);
             widget.controller.toggleItalic();
             widget.onChanged?.call(widget.controller.markdown);
           },
@@ -1043,6 +1028,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           label: 'Strike',
           onPressed: () {
             ContextMenuController.removeAny();
+            widget.controller.updateSelectionFromBlock(blockId, editableTextState.textEditingValue.selection);
             widget.controller.toggleStrike();
             widget.onChanged?.call(widget.controller.markdown);
           },
@@ -1051,6 +1037,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           label: 'Code',
           onPressed: () {
             ContextMenuController.removeAny();
+            widget.controller.updateSelectionFromBlock(blockId, editableTextState.textEditingValue.selection);
             widget.controller.toggleInlineCode();
             widget.onChanged?.call(widget.controller.markdown);
           },
@@ -1184,15 +1171,7 @@ class _RichBlockEditingController extends TextEditingController {
     for (final run in runs) {
       TextStyle? runStyle = style;
 
-      if (run is BoldRun) {
-        runStyle = runStyle?.merge(styles?.bold ?? const TextStyle(fontWeight: FontWeight.bold));
-      } else if (run is ItalicRun) {
-        runStyle = runStyle?.merge(styles?.italic ?? const TextStyle(fontStyle: FontStyle.italic));
-      } else if (run is StrikeRun) {
-        runStyle = runStyle?.merge(styles?.strikethrough ?? const TextStyle(decoration: TextDecoration.lineThrough));
-      } else if (run is HighlightRun) {
-        runStyle = runStyle?.merge(styles?.highlight ?? TextStyle(backgroundColor: colors.accent.withValues(alpha: 0.22)));
-      } else if (run is InlineCodeRun) {
+      if (run is InlineCodeRun) {
         runStyle = runStyle?.merge(styles?.inlineCode ?? TextStyle(color: colors.accentDark, backgroundColor: colors.tagBackground));
       } else if (run is LinkRun) {
         runStyle = runStyle?.merge(styles?.link ?? TextStyle(color: colors.accent, decoration: TextDecoration.underline));
@@ -1200,6 +1179,19 @@ class _RichBlockEditingController extends TextEditingController {
         runStyle = runStyle?.merge(styles?.link ?? TextStyle(color: colors.accent, fontWeight: FontWeight.w600));
       } else if (run is TagRun) {
         runStyle = runStyle?.merge(styles?.tag ?? TextStyle(color: colors.accent, fontWeight: FontWeight.w500));
+      } else {
+        if (run.isBold) {
+          runStyle = runStyle?.merge(styles?.bold ?? const TextStyle(fontWeight: FontWeight.bold));
+        }
+        if (run.isItalic) {
+          runStyle = runStyle?.merge(styles?.italic ?? const TextStyle(fontStyle: FontStyle.italic));
+        }
+        if (run.isStrike) {
+          runStyle = runStyle?.merge(styles?.strikethrough ?? const TextStyle(decoration: TextDecoration.lineThrough));
+        }
+        if (run.isHighlight) {
+          runStyle = runStyle?.merge(styles?.highlight ?? TextStyle(backgroundColor: colors.accent.withValues(alpha: 0.22)));
+        }
       }
 
       // Handle in-note search highlight

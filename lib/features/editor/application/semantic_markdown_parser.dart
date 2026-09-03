@@ -346,84 +346,88 @@ class SemanticMarkdownParser {
     );
   }
 
+  static final RegExp _inlineRegex = RegExp(
+    r'`(?<codeText>[^`]+)`|'
+    r'\[\[(?<noteText>[^\]]+)\]\]|'
+    r'\[(?<linkLabel>[^\]]+)\]\((?<linkUrl>[^)]+)\)|'
+    r'(?<tagText>#[\w\-_/]+)|'
+    r'==(?<highlightText>.*?)==|'
+    r'~~(?<strikeText>.*?)~~|'
+    r'(?<biDelim>\*\*\*|___)(?<biText>.*?)\k<biDelim>|'
+    r'(?<bDelim>\*\*|__)(?<bText>.*?)\k<bDelim>|'
+    r'(?<iDelim>\*|_)(?<iText>.*?)\k<iDelim>',
+  );
+
   /// Parses inline formatting runs (**bold**, *italic*, ~~strike~~, `code`, [link](url), [[Note]], #tag, ==highlight==)
-  /// within [content] positioned at [baseRange] in the document source.
+  /// and any combination thereof within [content] positioned at [baseRange] in the document source.
   static List<SemanticInline> _parseInlineRuns(String content, SourceRange baseRange) {
     if (content.isEmpty) {
       return [PlainRun('', baseRange)];
     }
-
-    // Regex matching all supported inline delimiters
-    final inlineRegex = RegExp(
-      r'(\*\*|__)(.*?)\1|' // 1: Bold (**text** or __text__)
-      r'(\*|_)(.*?)\3|' // 3: Italic (*text* or _text_)
-      r'~~(.*?)~~|' // 5: Strikethrough (~~text~~)
-      r'==(.*?)==|' // 6: Highlight (==text==)
-      r'`([^`]+)`|' // 7: Inline Code (`code`)
-      r'\[\[([^\]]+)\]\]|' // 8: Wiki Note Link ([[Note Title]])
-      r'\[([^\]]+)\]\(([^)]+)\)|' // 9, 10: Markdown Link ([title](url))
-      r'(#[\w\-_/]+)', // 11: Tag (#tag)
+    final runs = _parseInlineRunsInternal(
+      content,
+      baseRange,
+      isBold: false,
+      isItalic: false,
+      isStrike: false,
+      isHighlight: false,
+      outerSourceRange: null,
     );
+    return runs.isEmpty ? [PlainRun('', baseRange)] : runs;
+  }
+
+  static List<SemanticInline> _parseInlineRunsInternal(
+    String content,
+    SourceRange baseRange, {
+    required bool isBold,
+    required bool isItalic,
+    required bool isStrike,
+    required bool isHighlight,
+    SourceRange? outerSourceRange,
+  }) {
+    if (content.isEmpty) return [];
 
     final runs = <SemanticInline>[];
     var lastIndex = 0;
 
-    for (final match in inlineRegex.allMatches(content)) {
+    for (final match in _inlineRegex.allMatches(content)) {
       if (match.start > lastIndex) {
         final plainSlice = content.substring(lastIndex, match.start);
         final sliceRange = SourceRange(
           baseRange.start + lastIndex,
           baseRange.start + match.start,
         );
-        runs.add(PlainRun(plainSlice, sliceRange));
+        runs.addAll(_parseInlineRunsInternal(
+          plainSlice,
+          sliceRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: outerSourceRange,
+        ));
       }
 
-      final fullMatch = match.group(0)!;
       final matchStart = baseRange.start + match.start;
       final matchEnd = baseRange.start + match.end;
       final matchRange = SourceRange(matchStart, matchEnd);
+      final effectiveOuterRange = outerSourceRange ?? matchRange;
 
-      if (match.group(1) != null) {
-        // Bold (**text** or __text__)
-        final innerText = match.group(2) ?? '';
-        final delimLen = match.group(1)!.length;
-        final contentRange = SourceRange(matchStart + delimLen, matchEnd - delimLen);
-        runs.add(BoldRun(innerText, matchRange, contentRange));
-      } else if (match.group(3) != null) {
-        // Italic (*text* or _text_)
-        final innerText = match.group(4) ?? '';
-        final delimLen = match.group(3)!.length;
-        final contentRange = SourceRange(matchStart + delimLen, matchEnd - delimLen);
-        runs.add(ItalicRun(innerText, matchRange, contentRange));
-      } else if (match.group(5) != null) {
-        // Strikethrough (~~text~~)
-        final innerText = match.group(5)!;
-        final contentRange = SourceRange(matchStart + 2, matchEnd - 2);
-        runs.add(StrikeRun(innerText, matchRange, contentRange));
-      } else if (match.group(6) != null) {
-        // Highlight (==text==)
-        final innerText = match.group(6)!;
-        final contentRange = SourceRange(matchStart + 2, matchEnd - 2);
-        runs.add(HighlightRun(innerText, matchRange, contentRange));
-      } else if (match.group(7) != null) {
-        // Inline Code (`code`)
-        final innerText = match.group(7)!;
+      if (match.namedGroup('codeText') != null) {
+        final code = match.namedGroup('codeText')!;
         final contentRange = SourceRange(matchStart + 1, matchEnd - 1);
-        runs.add(InlineCodeRun(innerText, matchRange, contentRange));
-      } else if (match.group(8) != null) {
-        // Wiki Note Link ([[Note Title]])
-        final noteTitle = match.group(8)!;
+        runs.add(InlineCodeRun(code, matchRange, contentRange));
+      } else if (match.namedGroup('noteText') != null) {
+        final noteTitle = match.namedGroup('noteText')!;
         final titleRange = SourceRange(matchStart + 2, matchEnd - 2);
         runs.add(NoteLinkRun(noteTitle: noteTitle, sourceRange: matchRange, titleRange: titleRange));
-      } else if (match.group(9) != null && match.group(10) != null) {
-        // Link ([label](url))
-        final label = match.group(9)!;
-        final destination = match.group(10)!;
+      } else if (match.namedGroup('linkLabel') != null && match.namedGroup('linkUrl') != null) {
+        final label = match.namedGroup('linkLabel')!;
+        final destination = match.namedGroup('linkUrl')!;
         final labelStart = matchStart + 1;
         final labelEnd = labelStart + label.length;
-        final urlStart = labelEnd + 2; // ']('
+        final urlStart = labelEnd + 2;
         final urlEnd = urlStart + destination.length;
-
         runs.add(
           LinkRun(
             text: label,
@@ -433,25 +437,137 @@ class SemanticMarkdownParser {
             urlRange: SourceRange(urlStart, urlEnd),
           ),
         );
-      } else if (match.group(11) != null) {
-        // Tag (#tag)
-        final rawTag = match.group(11)!;
+      } else if (match.namedGroup('tagText') != null) {
+        final rawTag = match.namedGroup('tagText')!;
         final tagName = rawTag.startsWith('#') ? rawTag.substring(1) : rawTag;
         runs.add(TagRun(tagName, matchRange));
-      } else {
-        runs.add(PlainRun(fullMatch, matchRange));
+      } else if (match.namedGroup('highlightText') != null) {
+        final inner = match.namedGroup('highlightText')!;
+        final innerRange = SourceRange(matchStart + 2, matchEnd - 2);
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: true,
+          outerSourceRange: effectiveOuterRange,
+        ));
+      } else if (match.namedGroup('strikeText') != null) {
+        final inner = match.namedGroup('strikeText')!;
+        final innerRange = SourceRange(matchStart + 2, matchEnd - 2);
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: true,
+          isHighlight: isHighlight,
+          outerSourceRange: effectiveOuterRange,
+        ));
+      } else if (match.namedGroup('biText') != null) {
+        final inner = match.namedGroup('biText')!;
+        final delimLen = match.namedGroup('biDelim')?.length ?? 3;
+        final innerRange = SourceRange(matchStart + delimLen, matchEnd - delimLen);
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: true,
+          isItalic: true,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: effectiveOuterRange,
+        ));
+      } else if (match.namedGroup('bText') != null) {
+        final inner = match.namedGroup('bText')!;
+        final delimLen = match.namedGroup('bDelim')?.length ?? 2;
+        final innerRange = SourceRange(matchStart + delimLen, matchEnd - delimLen);
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: true,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: effectiveOuterRange,
+        ));
+      } else if (match.namedGroup('iText') != null) {
+        final inner = match.namedGroup('iText')!;
+        final delimLen = match.namedGroup('iDelim')?.length ?? 1;
+        final innerRange = SourceRange(matchStart + delimLen, matchEnd - delimLen);
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: isBold,
+          isItalic: true,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: effectiveOuterRange,
+        ));
       }
 
       lastIndex = match.end;
     }
 
     if (lastIndex < content.length) {
-      final plainSlice = content.substring(lastIndex);
-      final sliceRange = SourceRange(
-        baseRange.start + lastIndex,
-        baseRange.start + content.length,
-      );
-      runs.add(PlainRun(plainSlice, sliceRange));
+      if (lastIndex == 0) {
+        // Base case: no delimiters matched in this content chunk
+        final resolvedOuter = outerSourceRange ?? baseRange;
+        if (!isBold && !isItalic && !isStrike && !isHighlight) {
+          runs.add(PlainRun(content, baseRange));
+        } else if (isBold) {
+          runs.add(BoldRun(
+            content,
+            resolvedOuter,
+            baseRange,
+            isItalic: isItalic,
+            isStrike: isStrike,
+            isHighlight: isHighlight,
+          ));
+        } else if (isItalic) {
+          runs.add(ItalicRun(
+            content,
+            resolvedOuter,
+            baseRange,
+            isBold: isBold,
+            isStrike: isStrike,
+            isHighlight: isHighlight,
+          ));
+        } else if (isStrike) {
+          runs.add(StrikeRun(
+            content,
+            resolvedOuter,
+            baseRange,
+            isBold: isBold,
+            isItalic: isItalic,
+            isHighlight: isHighlight,
+          ));
+        } else {
+          runs.add(HighlightRun(
+            content,
+            resolvedOuter,
+            baseRange,
+            isBold: isBold,
+            isItalic: isItalic,
+            isStrike: isStrike,
+          ));
+        }
+      } else {
+        final plainSlice = content.substring(lastIndex);
+        final sliceRange = SourceRange(
+          baseRange.start + lastIndex,
+          baseRange.start + content.length,
+        );
+        runs.addAll(_parseInlineRunsInternal(
+          plainSlice,
+          sliceRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: outerSourceRange,
+        ));
+      }
     }
 
     return runs;

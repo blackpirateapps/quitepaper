@@ -215,21 +215,25 @@ class FormattingToolbar extends StatelessWidget {
   }
 
   bool _isBoldActive() {
+    if (semanticController != null) return semanticController!.isBoldActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isBoldActive;
     return MarkdownFormatter.isBoldAt(controller.value);
   }
 
   bool _isItalicActive() {
+    if (semanticController != null) return semanticController!.isItalicActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isItalicActive;
     return MarkdownFormatter.isItalicAt(controller.value);
   }
 
   bool _isStrikethroughActive() {
+    if (semanticController != null) return semanticController!.isStrikeActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isStrikethroughActive;
     return MarkdownFormatter.isStrikethroughAt(controller.value);
   }
 
   bool _isInlineCodeActive() {
+    if (semanticController != null) return semanticController!.isCodeActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isInlineCodeActive;
     return MarkdownFormatter.isInlineCodeAt(controller.value);
   }
@@ -243,21 +247,25 @@ class FormattingToolbar extends StatelessWidget {
   }
 
   bool _isChecklistActive() {
+    if (semanticController != null) return semanticController!.isChecklistActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isChecklistActive;
     return MarkdownFormatter.isChecklistAt(controller.value);
   }
 
   bool _isBulletListActive() {
+    if (semanticController != null) return semanticController!.isListActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isBulletListActive;
     return MarkdownFormatter.isBulletListAt(controller.value);
   }
 
   bool _isOrderedListActive() {
+    if (semanticController != null) return semanticController!.isOrderedListActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isOrderedListActive;
     return MarkdownFormatter.isOrderedListAt(controller.value);
   }
 
   bool _isQuoteActive() {
+    if (semanticController != null) return semanticController!.isQuoteActive;
     if (controller is MarkdownEditingController) return (controller as MarkdownEditingController).isQuoteActive;
     return MarkdownFormatter.isQuoteAt(controller.value);
   }
@@ -275,7 +283,10 @@ class FormattingToolbar extends StatelessWidget {
         ),
       ),
       child: ListenableBuilder(
-        listenable: controller,
+        listenable: Listenable.merge([
+          controller,
+          ?semanticController,
+        ]),
         builder: (context, _) {
           final isBold = _isBoldActive();
           final isItalic = _isItalicActive();
@@ -308,25 +319,49 @@ class FormattingToolbar extends StatelessWidget {
                 icon: PhosphorIconsRegular.textB,
                 tooltip: 'Bold (**text**)',
                 isActive: isBold,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleBold),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleBold();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleBold);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.textItalic,
                 tooltip: 'Italic (*text*)',
                 isActive: isItalic,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleItalic),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleItalic();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleItalic);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.textStrikethrough,
                 tooltip: 'Strikethrough (~~text~~)',
                 isActive: isStrikethrough,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleStrikethrough),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleStrike();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleStrikethrough);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.code,
                 tooltip: 'Inline Code (`code`)',
                 isActive: isCode,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleInlineCode),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleInlineCode();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleInlineCode);
+                  }
+                },
               ),
               const _ToolbarDivider(),
               _ToolbarButton(

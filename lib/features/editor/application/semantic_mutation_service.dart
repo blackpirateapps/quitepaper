@@ -2,6 +2,7 @@ import 'dart:math';
 import '../domain/document_position.dart';
 import '../domain/semantic_document.dart';
 import '../domain/semantic_nodes.dart';
+import '../domain/source_range.dart';
 import 'semantic_markdown_parser.dart';
 
 /// Encapsulates the result of a surgical semantic mutation on canonical Markdown.
@@ -339,23 +340,402 @@ class SemanticMutationService {
     return MutationResult(markdown: markdown, document: doc, position: position);
   }
 
+  /// Merges adjacent runs that share identical styling and are not atomic tokens.
+  static List<SemanticInline> mergeAdjacentRuns(List<SemanticInline> runs) {
+    if (runs.length <= 1) return runs;
+
+    final merged = <SemanticInline>[];
+    for (final run in runs) {
+      if (run.text.isEmpty) continue;
+      if (merged.isEmpty) {
+        merged.add(run);
+        continue;
+      }
+      final prev = merged.last;
+      final canMerge = (prev is! InlineCodeRun && run is! InlineCodeRun) &&
+          (prev is! LinkRun && run is! LinkRun) &&
+          (prev is! NoteLinkRun && run is! NoteLinkRun) &&
+          (prev is! TagRun && run is! TagRun) &&
+          prev.isBold == run.isBold &&
+          prev.isItalic == run.isItalic &&
+          prev.isStrike == run.isStrike &&
+          prev.isHighlight == run.isHighlight;
+
+      if (canMerge) {
+        final combinedText = prev.text + run.text;
+        final combinedSource = SourceRange(prev.sourceRange.start, run.sourceRange.end);
+        final combinedContent = SourceRange(
+          prev.contentRange?.start ?? prev.sourceRange.start,
+          run.contentRange?.end ?? run.sourceRange.end,
+        );
+
+        if (!prev.isBold && !prev.isItalic && !prev.isStrike && !prev.isHighlight) {
+          merged[merged.length - 1] = PlainRun(combinedText, combinedSource);
+        } else if (prev.isBold) {
+          merged[merged.length - 1] = BoldRun(
+            combinedText,
+            combinedSource,
+            combinedContent,
+            isItalic: prev.isItalic,
+            isStrike: prev.isStrike,
+            isHighlight: prev.isHighlight,
+          );
+        } else if (prev.isItalic) {
+          merged[merged.length - 1] = ItalicRun(
+            combinedText,
+            combinedSource,
+            combinedContent,
+            isBold: prev.isBold,
+            isStrike: prev.isStrike,
+            isHighlight: prev.isHighlight,
+          );
+        } else if (prev.isStrike) {
+          merged[merged.length - 1] = StrikeRun(
+            combinedText,
+            combinedSource,
+            combinedContent,
+            isBold: prev.isBold,
+            isItalic: prev.isItalic,
+            isHighlight: prev.isHighlight,
+          );
+        } else {
+          merged[merged.length - 1] = HighlightRun(
+            combinedText,
+            combinedSource,
+            combinedContent,
+            isBold: prev.isBold,
+            isItalic: prev.isItalic,
+            isStrike: prev.isStrike,
+          );
+        }
+      } else {
+        merged.add(run);
+      }
+    }
+
+    if (merged.isEmpty) {
+      return [const PlainRun('', SourceRange(0, 0))];
+    }
+    return merged;
+  }
+
+  /// Splits [runs] at visual [splitOffset] within the block's visual text.
+  static List<SemanticInline> splitRunsAt(List<SemanticInline> runs, int splitOffset) {
+    if (runs.isEmpty) return runs;
+
+    final result = <SemanticInline>[];
+    var currentOffset = 0;
+
+    for (final run in runs) {
+      final runLen = run.text.length;
+      final runStart = currentOffset;
+      final runEnd = currentOffset + runLen;
+
+      if (splitOffset > runStart && splitOffset < runEnd) {
+        final splitIndex = splitOffset - runStart;
+        final leftText = run.text.substring(0, splitIndex);
+        final rightText = run.text.substring(splitIndex);
+
+        final leftRun = _cloneRunWithText(run, leftText);
+        final rightRun = _cloneRunWithText(run, rightText);
+        result.add(leftRun);
+        result.add(rightRun);
+      } else {
+        result.add(run);
+      }
+      currentOffset += runLen;
+    }
+    return result;
+  }
+
+  static SemanticInline _cloneRunWithText(
+    SemanticInline run,
+    String newText, {
+    bool? isBold,
+    bool? isItalic,
+    bool? isStrike,
+    bool? isHighlight,
+  }) {
+    final b = isBold ?? run.isBold;
+    final i = isItalic ?? run.isItalic;
+    final s = isStrike ?? run.isStrike;
+    final h = isHighlight ?? run.isHighlight;
+
+    if (run is InlineCodeRun) {
+      return InlineCodeRun(newText, run.sourceRange, run.contentRange);
+    } else if (run is LinkRun) {
+      return LinkRun(
+        text: newText,
+        destination: run.destination,
+        sourceRange: run.sourceRange,
+        labelRange: run.labelRange,
+        urlRange: run.urlRange,
+      );
+    } else if (run is NoteLinkRun) {
+      return NoteLinkRun(
+        noteTitle: newText,
+        sourceRange: run.sourceRange,
+        titleRange: run.titleRange,
+      );
+    } else if (run is TagRun) {
+      return TagRun(newText, run.sourceRange);
+    }
+
+    if (!b && !i && !s && !h) {
+      return PlainRun(newText, run.sourceRange);
+    }
+    if (b) {
+      return BoldRun(
+        newText,
+        run.sourceRange,
+        run.contentRange ?? run.sourceRange,
+        isItalic: i,
+        isStrike: s,
+        isHighlight: h,
+      );
+    }
+    if (i) {
+      return ItalicRun(
+        newText,
+        run.sourceRange,
+        run.contentRange ?? run.sourceRange,
+        isBold: b,
+        isStrike: s,
+        isHighlight: h,
+      );
+    }
+    if (s) {
+      return StrikeRun(
+        newText,
+        run.sourceRange,
+        run.contentRange ?? run.sourceRange,
+        isBold: b,
+        isItalic: i,
+        isHighlight: h,
+      );
+    }
+    return HighlightRun(
+      newText,
+      run.sourceRange,
+      run.contentRange ?? run.sourceRange,
+      isBold: b,
+      isItalic: i,
+      isStrike: s,
+    );
+  }
+
+  /// Serializes a list of [runs] to canonical Markdown syntax.
+  static String serializeRuns(List<SemanticInline> runs) {
+    final merged = mergeAdjacentRuns(runs);
+    final buffer = StringBuffer();
+
+    for (final run in merged) {
+      final text = run.text;
+      if (text.isEmpty) continue;
+
+      if (run is InlineCodeRun) {
+        buffer.write('`$text`');
+      } else if (run is LinkRun) {
+        buffer.write('[$text](${run.destination})');
+      } else if (run is NoteLinkRun) {
+        buffer.write('[[${run.noteTitle}]]');
+      } else if (run is TagRun) {
+        buffer.write('#${run.tag}');
+      } else if (!run.isBold && !run.isItalic && !run.isStrike && !run.isHighlight) {
+        buffer.write(text);
+      } else {
+        if (text.trim().isEmpty) {
+          buffer.write(text);
+          continue;
+        }
+
+        final leadingSpaces = text.length - text.trimLeft().length;
+        final trailingSpaces = text.length - text.trimRight().length;
+        final prefix = text.substring(0, leadingSpaces);
+        final core = text.substring(leadingSpaces, text.length - trailingSpaces);
+        final suffix = text.substring(text.length - trailingSpaces);
+
+        var wrapped = core;
+        if (run.isBold && run.isItalic) {
+          wrapped = '***$wrapped***';
+        } else if (run.isBold) {
+          wrapped = '**$wrapped**';
+        } else if (run.isItalic) {
+          wrapped = '*$wrapped*';
+        }
+
+        if (run.isStrike) {
+          wrapped = '~~$wrapped~~';
+        }
+
+        if (run.isHighlight) {
+          wrapped = '==$wrapped==';
+        }
+
+        buffer.write('$prefix$wrapped$suffix');
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  /// Serializes a block with its [runs] to canonical Markdown syntax.
+  static String serializeBlockMarkdown(SemanticBlock block, List<SemanticInline> runs) {
+    final serializedRuns = serializeRuns(runs);
+    if (block is HeadingBlock) {
+      return '${'#' * block.level} $serializedRuns';
+    } else if (block is ChecklistItemBlock) {
+      final indent = ' ' * block.indent;
+      final state = block.checked ? 'x' : ' ';
+      return '$indent- [$state] $serializedRuns';
+    } else if (block is ListItemBlock) {
+      final indent = ' ' * block.indent;
+      return '$indent${block.marker} $serializedRuns';
+    } else if (block is OrderedListItemBlock) {
+      final indent = ' ' * block.indent;
+      return '$indent${block.number}${block.delimiter} $serializedRuns';
+    } else if (block is QuoteBlock) {
+      return '> $serializedRuns';
+    }
+    return serializedRuns;
+  }
+
+  /// Toggles an inline format on [selection] within the semantic block model.
+  static MutationResult toggleInlineFormat(
+    String markdown,
+    DocumentSelection selection, {
+    bool toggleBold = false,
+    bool toggleItalic = false,
+    bool toggleStrike = false,
+    bool toggleHighlight = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown);
+    final block = doc.findBlockById(selection.base.blockId);
+
+    if (block == null) {
+      return MutationResult(markdown: markdown, document: doc, position: selection.base, selection: selection);
+    }
+
+    List<SemanticInline> runs;
+    if (block is ParagraphBlock) {
+      runs = block.runs;
+    } else if (block is HeadingBlock) {
+      runs = block.runs;
+    } else if (block is ListItemBlock) {
+      runs = block.runs;
+    } else if (block is OrderedListItemBlock) {
+      runs = block.runs;
+    } else if (block is ChecklistItemBlock) {
+      runs = block.runs;
+    } else if (block is QuoteBlock) {
+      runs = block.runs;
+    } else {
+      return MutationResult(markdown: markdown, document: doc, position: selection.base, selection: selection);
+    }
+
+    if (selection.isCollapsed) {
+      return MutationResult(markdown: markdown, document: doc, position: selection.base, selection: selection);
+    }
+
+    final plain = block.plainText;
+    final start = min(selection.base.offset, selection.extent.offset).clamp(0, plain.length);
+    final end = max(selection.base.offset, selection.extent.offset).clamp(0, plain.length);
+
+    if (start >= end) {
+      return MutationResult(markdown: markdown, document: doc, position: selection.base, selection: selection);
+    }
+
+    // Split runs at visual boundaries
+    var split = splitRunsAt(runs, start);
+    split = splitRunsAt(split, end);
+
+    // Find runs within [start, end)
+    var currentOffset = 0;
+    final runsInRange = <SemanticInline>[];
+    for (final r in split) {
+      final rStart = currentOffset;
+      final rEnd = currentOffset + r.text.length;
+      if (rStart >= start && rEnd <= end) {
+        runsInRange.add(r);
+      }
+      currentOffset += r.text.length;
+    }
+
+    final targetBold = toggleBold ? !runsInRange.every((r) => r.isBold) : null;
+    final targetItalic = toggleItalic ? !runsInRange.every((r) => r.isItalic) : null;
+    final targetStrike = toggleStrike ? !runsInRange.every((r) => r.isStrike) : null;
+    final targetHighlight = toggleHighlight ? !runsInRange.every((r) => r.isHighlight) : null;
+
+    currentOffset = 0;
+    final updatedRuns = <SemanticInline>[];
+    for (final r in split) {
+      final rStart = currentOffset;
+      final rEnd = currentOffset + r.text.length;
+      if (rStart >= start && rEnd <= end) {
+        updatedRuns.add(_cloneRunWithText(
+          r,
+          r.text,
+          isBold: targetBold ?? r.isBold,
+          isItalic: targetItalic ?? r.isItalic,
+          isStrike: targetStrike ?? r.isStrike,
+          isHighlight: targetHighlight ?? r.isHighlight,
+        ));
+      } else {
+        updatedRuns.add(r);
+      }
+      currentOffset += r.text.length;
+    }
+
+    final merged = mergeAdjacentRuns(updatedRuns);
+    final blockMarkdown = serializeBlockMarkdown(block, merged);
+
+    final lineEnd = block.sourceRange.end;
+    final hasTrailingNewline = lineEnd <= markdown.length && lineEnd > 0 && markdown[lineEnd - 1] == '\n';
+    final replacement = hasTrailingNewline ? '$blockMarkdown\n' : blockMarkdown;
+
+    final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newBase = DocumentPosition(blockId: block.id, offset: start);
+    final newExtent = DocumentPosition(blockId: block.id, offset: end);
+    final newSelection = DocumentSelection(base: newBase, extent: newExtent);
+
+    return MutationResult(
+      markdown: newMarkdown,
+      document: newDoc,
+      position: newExtent,
+      selection: newSelection,
+    );
+  }
+
   /// Toggles bold (**text**) formatting on [selection].
   static MutationResult toggleBold(String markdown, DocumentSelection selection) {
+    if (!selection.isCollapsed) {
+      return toggleInlineFormat(markdown, selection, toggleBold: true);
+    }
     return _toggleInlineDelimiter(markdown, selection, '**');
   }
 
   /// Toggles italic (*text*) formatting on [selection].
   static MutationResult toggleItalic(String markdown, DocumentSelection selection) {
+    if (!selection.isCollapsed) {
+      return toggleInlineFormat(markdown, selection, toggleItalic: true);
+    }
     return _toggleInlineDelimiter(markdown, selection, '*');
   }
 
   /// Toggles strikethrough (~~text~~) formatting on [selection].
   static MutationResult toggleStrike(String markdown, DocumentSelection selection) {
+    if (!selection.isCollapsed) {
+      return toggleInlineFormat(markdown, selection, toggleStrike: true);
+    }
     return _toggleInlineDelimiter(markdown, selection, '~~');
   }
 
   /// Toggles highlight (==text==) formatting on [selection].
   static MutationResult toggleHighlight(String markdown, DocumentSelection selection) {
+    if (!selection.isCollapsed) {
+      return toggleInlineFormat(markdown, selection, toggleHighlight: true);
+    }
     return _toggleInlineDelimiter(markdown, selection, '==');
   }
 

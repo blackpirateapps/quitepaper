@@ -5134,4 +5134,58 @@ In the Semantic Document visual editor (WYSIWYG mode), converting an empty line 
 - **Editor Suite**: `test/editor/` $\rightarrow$ **288/288 tests passed**.
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,275 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 52. WYSIWYG Bold, Italic & Strikethrough Formatting Engine & Combinations Architecture
+
+### 1. Problem Overview & Defect Analysis
+In the WYSIWYG document editor (`VisualDocumentEditor`), inline formatting for bold (`**`), italic (`*`/`_`), and strikethrough (`~~`) was incomplete and fragile:
+1. **Broken Format Combinations**:
+   - The AST domain model previously represented inline formatting with separate single-purpose run classes (`BoldRun`, `ItalicRun`, `StrikeRun`), making combined styles (e.g. bold + italic `***text***`, bold + strikethrough `~~**text**~~`, or all three `~~***text***~~`) mutually exclusive or lost during parsing and rendering.
+2. **Visible Delimiters in Visual Mode**:
+   - When users typed or edited markdown syntax, delimiters (`**`, `*`, `_`, `~~`) were occasionally exposed or left in the visual `TextField`, violating the core WYSIWYG guarantee that markdown syntax must be invisible while editing.
+3. **Disconnected Toolbar State**:
+   - The `FormattingToolbar` was reading formatting states (`_isBoldActive`, `_isItalicActive`, `_isStrikethroughActive`) solely from the raw string controller or legacy regexes. When editing inside semantic visual blocks, toolbar buttons did not highlight when the caret was placed inside styled runs or across styled selections.
+4. **Typing with Active Formatting**:
+   - Toggling bold, italic, or strike with a collapsed caret did not track "active typing formats" for subsequent keystrokes, nor did it update the canonical markdown source with proper CommonMark flanking whitespace rules (`Hello **world**` instead of invalid `Hello** world**`).
+
+### 2. Implementation & Architectural Changes
+1. **Multi-Style Run Hierarchy (`StyledRun` & `SemanticInline`)**:
+   - Added boolean format getters to `SemanticInline`: `isBold`, `isItalic`, `isStrike`, `isHighlight`, `isCode`.
+   - Created `StyledRun` supporting arbitrary simultaneous combinations of `isBold`, `isItalic`, `isStrike`, and `isHighlight`.
+   - Re-architected `BoldRun`, `ItalicRun`, `StrikeRun`, and `HighlightRun` as subclasses of `StyledRun` utilizing `super` parameters, maintaining 100% backward compatibility with existing type checks (`r is BoldRun`, etc.).
+2. **Recursive-Descent Inline Markdown Parser (`SemanticMarkdownParser`)**:
+   - Implemented named-group regular expression matching (`_inlineRegex`) with backreferences (`\k<biDelim>`, `\k<bDelim>`, `\k<iDelim>`) to accurately match triple delimiters (`***`, `___`), double delimiters (`**`, `__`), single delimiters (`*`, `_`), and strikethrough (`~~`).
+   - Implemented recursive descent parser `_parseInlineRunsInternal` to unwrap nested and stacked delimiters (`~~***text***~~`, `**_text_**`, `_**text**_`, `~~**text**~~`, `**bold and *italic* inside**`).
+   - Completely strips all markdown syntax delimiters from `run.text` and `plainText` so visual editor textfields contain zero delimiter artifacts.
+3. **Run-Based Position & Source Mapping (`SemanticDocument`)**:
+   - Generalized `_findPositionInRuns` and `_sourceOffsetInRuns` across all block types (`HeadingBlock`, `ListItemBlock`, `OrderedListItemBlock`, `ChecklistItemBlock`, `QuoteBlock`, `ParagraphBlock`), providing exact bidirectional mapping between visual block cursor positions and canonical markdown byte offsets.
+4. **Semantic Mutation Service & Smart Serialization (`SemanticMutationService`)**:
+   - Added `splitRunsAt`: cleanly splits styled runs at arbitrary visual character boundaries without losing formatting attributes.
+   - Added `mergeAdjacentRuns`: coalesces contiguous runs with identical formatting attributes.
+   - Added `serializeRuns`: transforms styled runs into canonical CommonMark/GFM markdown syntax. Implemented whitespace peeling to ensure delimiters wrap only trimmed content, adhering to CommonMark flanking rules (preventing `**word **`).
+   - Added `serializeBlockMarkdown`: formats block prefixes (`#`, `- [ ]`, etc.) with serialized inline runs.
+   - Implemented `toggleInlineFormat`: cleanly toggles any format flag across selection ranges, intelligently splitting, toggling, and re-merging runs.
+5. **Semantic Controller Active Typing & Real-Time Diffing (`SemanticEditorController`)**:
+   - Added `ActiveTypingFormats` record and `_activeTypingFormats` state to track formatting enabled at collapsed carets.
+   - Wired `isBoldActive`, `isItalicActive`, and `isStrikeActive` to inspect active typing formats when caret is collapsed, or runs within active selections.
+   - Implemented `handleVisualBlockTextChange`: diffs visual edits against block runs, applies active typing formats to inserted text, and updates canonical markdown without re-introducing syntax delimiters.
+   - Handled block conversion shortcuts (`# `, `- `, etc.) and multiline splits (`\n`) within visual edits.
+6. **Visual Document Editor Rendering & Real-Time Sync (`VisualDocumentEditor`)**:
+   - Updated `_RichBlockEditingController.buildTextSpan` to merge `run.isBold`, `run.isItalic`, `run.isStrike`, and `run.isHighlight` styles cumulatively onto `TextStyle`.
+   - Wired text controller listeners to synchronize cursor position and selection changes with `widget.controller.updateSelectionFromBlock` only when active, preventing focus or selection overwrites.
+7. **FormattingToolbar WYSIWYG Integration (`FormattingToolbar`)**:
+   - Wired `semanticController` into `Listenable.merge` to ensure toolbar reacts to semantic editor events.
+   - Updated `_isBoldActive`, `_isItalicActive`, `_isStrikethroughActive`, `_isHeadingActive`, `_isChecklistActive`, `_isBulletListActive`, `_isOrderedListActive`, and `_isQuoteActive` to query `semanticController` when present.
+   - Updated Bold, Italic, Strikethrough, and Inline Code button `onPressed` callbacks to dispatch directly to `semanticController`.
+
+### 3. Verification & Quality Metrics
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Targeted WYSIWYG Suite**: `test/editor/wysiwyg_inline_formatting_test.dart` $\rightarrow$ **4/4 tests passed**.
+- **Parser Suite**: `test/editor/semantic_markdown_parser_test.dart` $\rightarrow$ **13/13 tests passed**.
+- **Mutation Suite**: `test/editor/semantic_mutation_service_test.dart` $\rightarrow$ **16/16 tests passed**.
+- **Editor Suite**: `test/editor/` $\rightarrow$ **295/295 tests passed**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,282 passed / 0 failed (100% pass rate)**.
+
+
 

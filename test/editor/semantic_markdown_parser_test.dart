@@ -45,6 +45,54 @@ void main() {
       expect(p.runs.any((r) => r is TagRun && r.tag == 'flutter'), isTrue);
     });
 
+    test('parses arbitrary combinations of bold, italic, and strikethrough cleanly without delimiters', () {
+      const md = '***bold italic*** and ~~***all three***~~ and ~~**bold strike**~~ and ~~*italic strike*~~ and **_alt bold italic_** and **bold with *nested italic* inside**';
+      final doc = SemanticMarkdownParser.parse(md);
+
+      expect(doc.blocks.length, equals(1));
+      final p = doc.blocks.first as ParagraphBlock;
+
+      // Plain visual text must have ZERO '*', '_', '~' syntax delimiters
+      expect(p.plainText, contains('bold italic'));
+      expect(p.plainText, contains('all three'));
+      expect(p.plainText, contains('bold strike'));
+      expect(p.plainText, contains('italic strike'));
+      expect(p.plainText, contains('alt bold italic'));
+      expect(p.plainText, contains('bold with nested italic inside'));
+      expect(p.plainText.contains('*'), isFalse);
+      expect(p.plainText.contains('~'), isFalse);
+      expect(p.plainText.contains('_'), isFalse);
+
+      // Verify run format combinations
+      final bi = p.runs.firstWhere((r) => r.text == 'bold italic');
+      expect(bi.isBold, isTrue);
+      expect(bi.isItalic, isTrue);
+      expect(bi.isStrike, isFalse);
+
+      final allThree = p.runs.firstWhere((r) => r.text == 'all three');
+      expect(allThree.isBold, isTrue);
+      expect(allThree.isItalic, isTrue);
+      expect(allThree.isStrike, isTrue);
+
+      final bs = p.runs.firstWhere((r) => r.text == 'bold strike');
+      expect(bs.isBold, isTrue);
+      expect(bs.isItalic, isFalse);
+      expect(bs.isStrike, isTrue);
+
+      final isRun = p.runs.firstWhere((r) => r.text == 'italic strike');
+      expect(isRun.isBold, isFalse);
+      expect(isRun.isItalic, isTrue);
+      expect(isRun.isStrike, isTrue);
+
+      final altBi = p.runs.firstWhere((r) => r.text == 'alt bold italic');
+      expect(altBi.isBold, isTrue);
+      expect(altBi.isItalic, isTrue);
+
+      final nestedItalic = p.runs.firstWhere((r) => r.text == 'nested italic');
+      expect(nestedItalic.isBold, isTrue);
+      expect(nestedItalic.isItalic, isTrue);
+    });
+
     test('parses unordered list items with markers -, *, +', () {
       const md = '- Item 1\n* Item 2\n+ Item 3';
       final doc = SemanticMarkdownParser.parse(md);

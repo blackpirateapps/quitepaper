@@ -99,6 +99,76 @@ void main() {
       expect(resWrap.markdown, equals('This is ~~struck~~ text.'));
     });
 
+    test('arbitrary combinations of bold, italic, and strikethrough mutate canonically', () {
+      const initial = 'Hello world';
+      final doc = SemanticMarkdownParser.parse(initial);
+      final p = doc.blocks.first;
+
+      final sel = DocumentSelection(
+        base: DocumentPosition(blockId: p.id, offset: 6),
+        extent: DocumentPosition(blockId: p.id, offset: 11),
+      );
+
+      // Apply bold -> **world**
+      final res1 = SemanticMutationService.toggleBold(initial, sel);
+      expect(res1.markdown, equals('Hello **world**'));
+
+      // Apply italic on top -> ***world***
+      final sel1 = DocumentSelection(
+        base: DocumentPosition(blockId: res1.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: res1.document.blocks.first.id, offset: 11),
+      );
+      final res2 = SemanticMutationService.toggleItalic(res1.markdown, sel1);
+      expect(res2.markdown, equals('Hello ***world***'));
+
+      // Apply strikethrough on top -> ~~***world***~~
+      final sel2 = DocumentSelection(
+        base: DocumentPosition(blockId: res2.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: res2.document.blocks.first.id, offset: 11),
+      );
+      final res3 = SemanticMutationService.toggleStrike(res2.markdown, sel2);
+      expect(res3.markdown, equals('Hello ~~***world***~~'));
+
+      // Toggle bold off -> ~~*world*~~
+      final sel3 = DocumentSelection(
+        base: DocumentPosition(blockId: res3.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: res3.document.blocks.first.id, offset: 11),
+      );
+      final res4 = SemanticMutationService.toggleBold(res3.markdown, sel3);
+      expect(res4.markdown, equals('Hello ~~*world*~~'));
+
+      // Toggle strike off -> *world*
+      final sel4 = DocumentSelection(
+        base: DocumentPosition(blockId: res4.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: res4.document.blocks.first.id, offset: 11),
+      );
+      final res5 = SemanticMutationService.toggleStrike(res4.markdown, sel4);
+      expect(res5.markdown, equals('Hello *world*'));
+
+      // Toggle italic off -> world
+      final sel5 = DocumentSelection(
+        base: DocumentPosition(blockId: res5.document.blocks.first.id, offset: 6),
+        extent: DocumentPosition(blockId: res5.document.blocks.first.id, offset: 11),
+      );
+      final res6 = SemanticMutationService.toggleItalic(res5.markdown, sel5);
+      expect(res6.markdown, equals('Hello world'));
+    });
+
+    test('selection with trailing space serializes cleanly preserving CommonMark flanking', () {
+      const initial = 'Hello world peace';
+      final doc = SemanticMarkdownParser.parse(initial);
+      final p = doc.blocks.first;
+
+      // Select "world " (with trailing space)
+      final sel = DocumentSelection(
+        base: DocumentPosition(blockId: p.id, offset: 6),
+        extent: DocumentPosition(blockId: p.id, offset: 12),
+      );
+
+      final res = SemanticMutationService.toggleBold(initial, sel);
+      expect(res.markdown, equals('Hello **world** peace'));
+    });
+
     test('toggleInlineCode wraps and unwraps inline code', () {
       const initial = 'Run flutter test now.';
       final doc = SemanticMarkdownParser.parse(initial);

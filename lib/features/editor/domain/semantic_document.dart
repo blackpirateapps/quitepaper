@@ -130,39 +130,17 @@ class SemanticDocument {
     if (block == null) return null;
 
     if (block is ParagraphBlock) {
-      var currentVisibleOffset = 0;
-      for (final run in block.runs) {
-        if (run.sourceRange.contains(sourceOffset)) {
-          final runInnerStart = run.contentRange?.start ?? run.sourceRange.start;
-          final runOffset = (sourceOffset - runInnerStart).clamp(0, run.text.length);
-          return DocumentPosition(
-            blockId: block.id,
-            offset: currentVisibleOffset + runOffset,
-          );
-        }
-        currentVisibleOffset += run.text.length;
-      }
-      return DocumentPosition(blockId: block.id, offset: currentVisibleOffset);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is HeadingBlock) {
-      final contentStart = block.contentRange.start;
-      final offsetInContent = (sourceOffset - contentStart).clamp(0, block.plainText.length);
-      return DocumentPosition(blockId: block.id, offset: offsetInContent);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is ListItemBlock) {
-      final contentStart = block.contentRange.start;
-      final offsetInContent = (sourceOffset - contentStart).clamp(0, block.plainText.length);
-      return DocumentPosition(blockId: block.id, offset: offsetInContent);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is OrderedListItemBlock) {
-      final contentStart = block.contentRange.start;
-      final offsetInContent = (sourceOffset - contentStart).clamp(0, block.plainText.length);
-      return DocumentPosition(blockId: block.id, offset: offsetInContent);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is ChecklistItemBlock) {
-      final contentStart = block.contentRange.start;
-      final offsetInContent = (sourceOffset - contentStart).clamp(0, block.plainText.length);
-      return DocumentPosition(blockId: block.id, offset: offsetInContent);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is QuoteBlock) {
-      final contentStart = block.contentRange.start;
-      final offsetInContent = (sourceOffset - contentStart).clamp(0, block.plainText.length);
-      return DocumentPosition(blockId: block.id, offset: offsetInContent);
+      return _findPositionInRuns(block.runs, block.id, sourceOffset);
     } else if (block is CodeBlock) {
       final codeStart = block.codeRange.start;
       final offsetInCode = (sourceOffset - codeStart).clamp(0, block.code.length);
@@ -170,6 +148,26 @@ class SemanticDocument {
     }
 
     return DocumentPosition(blockId: block.id, offset: 0);
+  }
+
+  static DocumentPosition _findPositionInRuns(
+    List<SemanticInline> runs,
+    String blockId,
+    int sourceOffset,
+  ) {
+    var currentVisibleOffset = 0;
+    for (final run in runs) {
+      if (run.sourceRange.contains(sourceOffset)) {
+        final runInnerStart = run.contentRange?.start ?? run.sourceRange.start;
+        final runOffset = (sourceOffset - runInnerStart).clamp(0, run.text.length);
+        return DocumentPosition(
+          blockId: blockId,
+          offset: currentVisibleOffset + runOffset,
+        );
+      }
+      currentVisibleOffset += run.text.length;
+    }
+    return DocumentPosition(blockId: blockId, offset: currentVisibleOffset);
   }
 
   /// Maps a logical [DocumentPosition] back to a canonical Markdown source offset.
@@ -181,41 +179,50 @@ class SemanticDocument {
     if (block == null) return canonicalMarkdown.length;
 
     if (block is ParagraphBlock) {
-      var remaining = position.offset;
-      for (var i = 0; i < block.runs.length; i++) {
-        final run = block.runs[i];
-        final isLast = i == block.runs.length - 1;
-        final runLen = run.text.length;
-
-        if (affinity == TextAffinity.upstream) {
-          if (remaining <= runLen || isLast) {
-            final innerStart = run.contentRange?.start ?? run.sourceRange.start;
-            return innerStart + remaining.clamp(0, runLen);
-          }
-        } else {
-          if (remaining < runLen || isLast) {
-            final innerStart = run.contentRange?.start ?? run.sourceRange.start;
-            return innerStart + remaining.clamp(0, runLen);
-          }
-        }
-        remaining -= runLen;
-      }
-      return block.sourceRange.end;
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.sourceRange.end);
     } else if (block is HeadingBlock) {
-      return (block.contentRange.start + position.offset).clamp(block.contentRange.start, block.contentRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is ListItemBlock) {
-      return (block.contentRange.start + position.offset).clamp(block.contentRange.start, block.contentRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is OrderedListItemBlock) {
-      return (block.contentRange.start + position.offset).clamp(block.contentRange.start, block.contentRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is ChecklistItemBlock) {
-      return (block.contentRange.start + position.offset).clamp(block.contentRange.start, block.contentRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is QuoteBlock) {
-      return (block.contentRange.start + position.offset).clamp(block.contentRange.start, block.contentRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is CodeBlock) {
       return (block.codeRange.start + position.offset).clamp(block.codeRange.start, block.codeRange.end);
     }
 
     return block.sourceRange.start;
+  }
+
+  static int _sourceOffsetInRuns(
+    List<SemanticInline> runs,
+    int offset, {
+    required TextAffinity affinity,
+    required int fallbackEnd,
+  }) {
+    var remaining = offset;
+    for (var i = 0; i < runs.length; i++) {
+      final run = runs[i];
+      final isLast = i == runs.length - 1;
+      final runLen = run.text.length;
+
+      if (affinity == TextAffinity.upstream) {
+        if (remaining <= runLen || isLast) {
+          final innerStart = run.contentRange?.start ?? run.sourceRange.start;
+          return innerStart + remaining.clamp(0, runLen);
+        }
+      } else {
+        if (remaining < runLen || isLast) {
+          final innerStart = run.contentRange?.start ?? run.sourceRange.start;
+          return innerStart + remaining.clamp(0, runLen);
+        }
+      }
+      remaining -= runLen;
+    }
+    return fallbackEnd;
   }
 
   /// Maps a logical [DocumentSelection] to a canonical Markdown [SourceRange].
