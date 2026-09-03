@@ -5242,6 +5242,59 @@ instead of wrapping the entire styled phrase or sentence under unified delimiter
 - **Editor Test Suite**: `test/editor/` $\rightarrow$ **299/299 tests passed**.
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,286 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 54. WYSIWYG Checklist Fixes: Immediate Toolbar Appearance, Reliable Checkbox Toggling with Strikethrough & Phosphor Icons Integration
+
+### 1. Problem Overview & Defect Analysis
+In the WYSIWYG visual document editor (`VisualDocumentEditor` / `SemanticEditorController`), checklists had three major usability and rendering defects:
+
+1. **Delayed Toolbar Appearance**:
+   - Tapping the Checklist icon (`PhosphorIconsRegular.checkSquare`) from `FormattingToolbar` did not immediately render the checklist item or checkbox widget. The line only transformed into a checklist after the user started typing.
+   - **Root Cause**: In `FormattingToolbar`, the checklist button's `onPressed` unconditionally called `_applyFormat(MarkdownFormatter.toggleChecklist)`. In WYSIWYG mode, this prepended `"- [ ] "` to the active block's `_RichBlockEditingController.text` without mutating the `SemanticDocument` AST. Because programmatic text changes do not fire Flutter's `TextField.onChanged`, the block remained an unstyled `ParagraphBlock` until keyboard typing triggered `handleVisualBlockTextChange`.
+   - The Bullet List, Numbered List, and Quote toolbar buttons suffered from the identical routing defect.
+
+2. **Unresponsive Checkbox Clicking & Missing Strikethrough**:
+   - Clicking on a checklist checkbox often failed to mark the item as done (`- [x] `), and the text of completed items did not reliably display with strikethrough.
+   - **Root Cause 1 (Hit-Testing)**: `_buildChecklistItem` wrapped the icon in `GestureDetector` with default `HitTestBehavior.deferToChild`. Because `PhosphorIconsRegular.square` is a 1.5px wireframe glyph, clicks landing inside the hollow center or outer padding were dropped. Furthermore, the adjacent `TextField` had zero padding, meaning clicks slightly to the right were stolen by the `TextField` focus handler.
+   - **Root Cause 2 (Frontmatter Block Offset Mismatch)**: `SemanticMutationService.toggleChecklistState` parsed the document with `stripFrontmatter: false`. For notes with YAML frontmatter, `_semanticController` had frontmatter stripped (body blocks began at `block_0`), whereas `toggleChecklistState` created blocks for frontmatter lines (so `block_0` was `---`). `findBlockById` failed silently.
+   - **Root Cause 3 (Span Strikethrough Enforcement)**: `_RichBlockEditingController.buildTextSpan` did not explicitly enforce strikethrough on `runs` when `block.checked` was true, relying on ambient `style` which could be overwritten or omitted during inline run styling.
+
+3. **Phosphor Icons Verification**:
+   - Verified and guaranteed that Phosphor icons are used exclusively for checklists:
+     - Unchecked / Incomplete: `PhosphorIconsRegular.square` (`0xe45E`)
+     - Checked / Done: `PhosphorIconsFill.checkSquare` (`0xe186`)
+     - Toolbar: `PhosphorIconsRegular.checkSquare` (`0xe186`)
+
+### 2. Implementation & Architectural Solutions
+1. **Formatting Toolbar Direct Controller Dispatch (`FormattingToolbar`)**:
+   - Updated `Checklist (- [ ])`, `Bullet List (-)`, `Numbered List (1.)`, and `Quote (>)` buttons in `FormattingToolbar`:
+     - When `semanticController != null`, they dispatch directly to `semanticController!.toggleChecklist()`, `toggleList()`, `toggleOrderedList()`, and `toggleQuote()`, followed by `focusNode?.requestFocus()`.
+     - Immediately transforms the active block into a `ChecklistItemBlock` (or list/quote) and triggers AST mutation, displaying the interactive checkbox immediately with zero typing required.
+2. **Robust Checkbox Hit-Testing & Touch Target (`_buildChecklistItem`)**:
+   - Wrapped the checkbox in `MouseRegion(cursor: widget.readOnly ? SystemMouseCursors.basic : SystemMouseCursors.click)`.
+   - Set `behavior: HitTestBehavior.opaque` on `GestureDetector`.
+   - Placed the icon in an aligned `Container(width: 28.0, height: 28.0, alignment: Alignment.center, margin: EdgeInsets.only(right: 6.0))` ensuring 100% of clicks and touches reliably register.
+3. **Deterministic Strikethrough & Completed Text Styling (`_RichBlockEditingController.buildTextSpan`)**:
+   - Added `final isCheckedItem = _block is ChecklistItemBlock && (_block as ChecklistItemBlock).checked;`.
+   - When `isCheckedItem == true`, all rendered text spans explicitly receive:
+     - `decoration: TextDecoration.lineThrough`
+     - `decorationColor: colors.textTertiary`
+     - `color: colors.textSecondary.withValues(alpha: 0.6)` (while preserving special colors for tags and links).
+   - Toggling back to uncompleted immediately removes strikethrough.
+4. **Frontmatter Offset Resilience (`SemanticMutationService` & `SemanticEditorController`)**:
+   - Added optional `{bool stripFrontmatter = false}` parameter to `toggleChecklist`, `toggleChecklistState`, `toggleList`, `toggleOrderedList`, `toggleQuote`, `splitBlock`, `mergeWithPreviousBlock`, and `insertText`.
+   - Passed `stripFrontmatter: stripFrontmatter` from `SemanticEditorController`, ensuring block IDs match 100% when YAML frontmatter exists.
+5. **Unified Phosphor Checkbox Rendering in Markdown Preview (`QuietMarkdownPreview`)**:
+   - Passed `checkboxBuilder` with `PhosphorIconsFill.checkSquare` (checked) and `PhosphorIconsRegular.square` (unchecked) to both `MarkdownBody` instances in `QuietMarkdownPreview`, unifying checklist presentation across edit and preview modes.
+
+### 3. Verification & Quality Metrics
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Targeted Checklist Suite**: `test/editor/wysiwyg_checklist_test.dart` $\rightarrow$ **5/5 tests passed** (immediate toolbar creation, toggle check/uncheck, strikethrough styling verification, frontmatter resilience, and Phosphor icons verification).
+- **Editor Test Suite**: `test/editor/` $\rightarrow$ **304/304 tests passed**.
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,291 passed / 0 failed (100% pass rate)**.
+
+
 
 
 

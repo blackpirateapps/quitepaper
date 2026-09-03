@@ -29,6 +29,7 @@ import '../../features/editor/presentation/editor_screen.dart';
 import '../../features/editor/presentation/widgets/backlinks_section.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../../features/notes/domain/note_model.dart';
+import '../../features/tags/domain/phosphor_icons.dart';
 
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
@@ -608,6 +609,16 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               styleSheet: customStyleSheet,
               inlineSyntaxes: inlineSyntaxes,
               builders: builders,
+              checkboxBuilder: (bool checked) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4.0),
+                  child: Icon(
+                    checked ? PhosphorIconsFill.checkSquare : PhosphorIconsRegular.square,
+                    size: 18,
+                    color: checked ? colors.accent : colors.textTertiary,
+                  ),
+                );
+              },
               // ignore: deprecated_member_use
               imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
@@ -630,6 +641,16 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 styleSheet: customStyleSheet,
                 inlineSyntaxes: inlineSyntaxes,
                 builders: builders,
+                checkboxBuilder: (bool checked) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4.0),
+                    child: Icon(
+                      checked ? PhosphorIconsFill.checkSquare : PhosphorIconsRegular.square,
+                      size: 18,
+                      color: checked ? colors.accent : colors.textTertiary,
+                    ),
+                  );
+                },
                 // ignore: deprecated_member_use
                 imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,

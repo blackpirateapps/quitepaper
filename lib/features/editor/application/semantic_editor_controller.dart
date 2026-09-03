@@ -149,12 +149,12 @@ class SemanticEditorController extends ChangeNotifier {
 
   void splitBlock(String blockId, int offset) {
     final position = DocumentPosition(blockId: blockId, offset: offset);
-    applyMutation(SemanticMutationService.splitBlock(_markdown, position));
+    applyMutation(SemanticMutationService.splitBlock(_markdown, position, stripFrontmatter: stripFrontmatter));
   }
 
   void mergeWithPreviousBlock(String blockId) {
     final position = DocumentPosition(blockId: blockId, offset: 0);
-    applyMutation(SemanticMutationService.mergeWithPreviousBlock(_markdown, position));
+    applyMutation(SemanticMutationService.mergeWithPreviousBlock(_markdown, position, stripFrontmatter: stripFrontmatter));
   }
 
   /// Active block at the current selection.
@@ -250,23 +250,23 @@ class SemanticEditorController extends ChangeNotifier {
   }
 
   void toggleList() {
-    applyMutation(SemanticMutationService.toggleList(_markdown, _selection.base));
+    applyMutation(SemanticMutationService.toggleList(_markdown, _selection.base, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleOrderedList() {
-    applyMutation(SemanticMutationService.toggleOrderedList(_markdown, _selection.base));
+    applyMutation(SemanticMutationService.toggleOrderedList(_markdown, _selection.base, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleChecklist() {
-    applyMutation(SemanticMutationService.toggleChecklist(_markdown, _selection.base));
+    applyMutation(SemanticMutationService.toggleChecklist(_markdown, _selection.base, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleChecklistState(String blockId, {bool? targetState}) {
-    applyMutation(SemanticMutationService.toggleChecklistState(_markdown, blockId, targetState: targetState));
+    applyMutation(SemanticMutationService.toggleChecklistState(_markdown, blockId, targetState: targetState, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleQuote() {
-    applyMutation(SemanticMutationService.toggleQuote(_markdown, _selection.base));
+    applyMutation(SemanticMutationService.toggleQuote(_markdown, _selection.base, stripFrontmatter: stripFrontmatter));
   }
 
   void insertCodeBlock({String? language}) {

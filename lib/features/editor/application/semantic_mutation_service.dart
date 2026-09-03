@@ -36,16 +36,17 @@ class SemanticMutationService {
   static MutationResult insertText(
     String markdown,
     DocumentPosition position,
-    String text,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    String text, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final sourceOffset = doc.sourceOffsetAtPosition(position);
 
     final actualText = (text == '\n' && sourceOffset == markdown.length && !markdown.endsWith('\n'))
         ? '\n\n'
         : text;
     final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, actualText);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newOffset = sourceOffset + actualText.length;
     final newPosition = newDoc.findPositionAtSourceOffset(newOffset) ??
         DocumentPosition(blockId: position.blockId, offset: position.offset + actualText.length);
@@ -124,20 +125,21 @@ class SemanticMutationService {
   /// Handles Enter key press: splits block or creates next list/checklist item.
   static MutationResult splitBlock(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
 
     if (block == null) {
-      return insertText(markdown, position, '\n');
+      return insertText(markdown, position, '\n', stripFrontmatter: stripFrontmatter);
     }
 
     if (block is ChecklistItemBlock) {
       if (block.plainText.trim().isEmpty) {
         // Empty checklist item -> exit checklist by clearing marker to normal paragraph
         final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
-        final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+        final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
         final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
             DocumentPosition(blockId: position.blockId, offset: 0);
         return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -148,7 +150,7 @@ class SemanticMutationService {
       final indent = ' ' * block.indent;
       final insertion = '\n$indent- [ ] ';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
@@ -164,7 +166,7 @@ class SemanticMutationService {
       if (block.plainText.trim().isEmpty) {
         // Empty list item -> exit list
         final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
-        final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+        final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
         final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
             DocumentPosition(blockId: position.blockId, offset: 0);
         return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -174,7 +176,7 @@ class SemanticMutationService {
       final indent = ' ' * block.indent;
       final insertion = '\n$indent${block.marker} ';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
@@ -190,7 +192,7 @@ class SemanticMutationService {
       if (block.plainText.trim().isEmpty) {
         // Empty ordered list item -> exit list
         final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
-        final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+        final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
         final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
             DocumentPosition(blockId: position.blockId, offset: 0);
         return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -198,10 +200,10 @@ class SemanticMutationService {
 
       final sourceOffset = doc.sourceOffsetAtPosition(position);
       final indent = ' ' * block.indent;
-      final nextNum = block.number + 1;
-      final insertion = '\n$indent$nextNum${block.delimiter} ';
+      final nextNumber = block.number + 1;
+      final insertion = '\n$indent$nextNumber${block.delimiter} ';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
@@ -217,7 +219,7 @@ class SemanticMutationService {
       if (block.plainText.trim().isEmpty) {
         // Empty quote -> exit quote
         final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
-        final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+        final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
         final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
             DocumentPosition(blockId: position.blockId, offset: 0);
         return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -226,7 +228,7 @@ class SemanticMutationService {
       final sourceOffset = doc.sourceOffsetAtPosition(position);
       const insertion = '\n> ';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
@@ -245,7 +247,7 @@ class SemanticMutationService {
           ? '\n\n'
           : '\n';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
 
@@ -258,15 +260,16 @@ class SemanticMutationService {
     }
 
     // Paragraph / other block splitting
-    return insertText(markdown, position, '\n');
+    return insertText(markdown, position, '\n', stripFrontmatter: stripFrontmatter);
   }
 
   /// Merges block at [position] with previous block or clears list/checklist/quote prefix.
   static MutationResult mergeWithPreviousBlock(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) {
       return MutationResult(
@@ -279,7 +282,7 @@ class SemanticMutationService {
     // 1. If in a checklist, list, or quote at offset 0, convert to normal paragraph
     if (block is ChecklistItemBlock) {
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.boxRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
           DocumentPosition(blockId: block.id, offset: 0);
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -287,7 +290,7 @@ class SemanticMutationService {
 
     if (block is ListItemBlock) {
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
           DocumentPosition(blockId: block.id, offset: 0);
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -295,7 +298,7 @@ class SemanticMutationService {
 
     if (block is OrderedListItemBlock) {
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
           DocumentPosition(blockId: block.id, offset: 0);
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -303,7 +306,7 @@ class SemanticMutationService {
 
     if (block is QuoteBlock) {
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
           DocumentPosition(blockId: block.id, offset: 0);
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -312,7 +315,7 @@ class SemanticMutationService {
     if (block is HeadingBlock) {
       // Convert heading to paragraph (remove `# `)
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
           DocumentPosition(blockId: block.id, offset: 0);
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -330,7 +333,7 @@ class SemanticMutationService {
 
       if (newlineOffset >= 0 && newlineOffset < markdown.length) {
         final newMarkdown = markdown.replaceRange(newlineOffset, newlineOffset + 1, '');
-        final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+        final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
         final newPos = newDoc.findPositionAtSourceOffset(newlineOffset) ??
             DocumentPosition(blockId: prevBlock.id, offset: prevBlock.plainText.length);
         return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -903,16 +906,17 @@ class SemanticMutationService {
   /// Toggles checklist item formatting for the block at [position].
   static MutationResult toggleChecklist(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) return MutationResult(markdown: markdown, document: doc, position: position);
 
     if (block is ChecklistItemBlock) {
       // Remove checklist formatting -> convert to normal paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.boxRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
@@ -927,7 +931,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$newBlockMarkdown\n' : newBlockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -938,8 +942,9 @@ class SemanticMutationService {
     String markdown,
     String blockId, {
     bool? targetState,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(blockId);
     if (block == null || block is! ChecklistItemBlock) {
       return MutationResult(markdown: markdown, document: doc, position: const DocumentPosition(blockId: '', offset: 0));
@@ -956,7 +961,7 @@ class SemanticMutationService {
     }
 
     final newMarkdown = markdown.replaceRange(bracketIndex + 1, bracketIndex + 2, stateChar);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.contentRange.start) ??
         DocumentPosition(blockId: blockId, offset: 0);
 
@@ -971,16 +976,17 @@ class SemanticMutationService {
   /// Toggles unordered bullet list item formatting.
   static MutationResult toggleList(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) return MutationResult(markdown: markdown, document: doc, position: position);
 
     if (block is ListItemBlock) {
       // Remove list marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
@@ -995,7 +1001,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$newBlockMarkdown\n' : newBlockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -1004,16 +1010,17 @@ class SemanticMutationService {
   /// Toggles ordered list item formatting.
   static MutationResult toggleOrderedList(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) return MutationResult(markdown: markdown, document: doc, position: position);
 
     if (block is OrderedListItemBlock) {
       // Remove ordered list marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
@@ -1028,7 +1035,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$newBlockMarkdown\n' : newBlockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
@@ -1037,21 +1044,22 @@ class SemanticMutationService {
   /// Toggles blockquote formatting.
   static MutationResult toggleQuote(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) return MutationResult(markdown: markdown, document: doc, position: position);
 
     if (block is QuoteBlock) {
       // Remove quote marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
 
-    // Convert to quote
+    // Convert to blockquote
     final prefix = '> ';
     final blockText = block.plainText;
     final newBlockMarkdown = '$prefix$blockText';
@@ -1061,7 +1069,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$newBlockMarkdown\n' : newBlockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);

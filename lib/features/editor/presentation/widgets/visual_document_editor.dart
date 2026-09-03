@@ -530,6 +530,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
             baseStyle.copyWith(
               color: colors.textSecondary.withValues(alpha: 0.6),
               decoration: TextDecoration.lineThrough,
+              decorationColor: colors.textTertiary,
             ))
         : baseStyle;
 
@@ -542,22 +543,29 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Real interactive checkbox control
-          GestureDetector(
-            onTap: widget.readOnly
-                ? null
-                : () {
-                    widget.controller.toggleChecklistState(block.id);
-                    widget.onChanged?.call(widget.controller.markdown);
-                  },
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2.0, right: 8.0),
-              child: Icon(
-                block.checked
-                    ? PhosphorIconsFill.checkSquare
-                    : PhosphorIconsRegular.square,
-                size: 20,
-                color: block.checked ? colors.accent : colors.textTertiary,
+          // Real interactive checkbox control with generous touch/click target
+          MouseRegion(
+            cursor: widget.readOnly ? SystemMouseCursors.basic : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.readOnly
+                  ? null
+                  : () {
+                      widget.controller.toggleChecklistState(block.id);
+                      widget.onChanged?.call(widget.controller.markdown);
+                    },
+              child: Container(
+                width: 28.0,
+                height: 28.0,
+                alignment: Alignment.center,
+                margin: const EdgeInsets.only(right: 6.0),
+                child: Icon(
+                  block.checked
+                      ? PhosphorIconsFill.checkSquare
+                      : PhosphorIconsRegular.square,
+                  size: 20,
+                  color: block.checked ? colors.accent : colors.textTertiary,
+                ),
               ),
             ),
           ),
@@ -1168,6 +1176,8 @@ class _RichBlockEditingController extends TextEditingController {
       return TextSpan(text: text, style: style);
     }
 
+    final isCheckedItem = _block is ChecklistItemBlock && (_block as ChecklistItemBlock).checked;
+
     for (final run in runs) {
       TextStyle? runStyle = style;
 
@@ -1192,6 +1202,16 @@ class _RichBlockEditingController extends TextEditingController {
         if (run.isHighlight) {
           runStyle = runStyle?.merge(styles?.highlight ?? TextStyle(backgroundColor: colors.accent.withValues(alpha: 0.22)));
         }
+      }
+
+      if (isCheckedItem) {
+        final completedColor = styles?.taskTextCompleted.color ?? colors.textSecondary.withValues(alpha: 0.6);
+        final completedDecorationColor = styles?.taskTextCompleted.decorationColor ?? colors.textTertiary;
+        runStyle = (runStyle ?? const TextStyle()).copyWith(
+          decoration: TextDecoration.lineThrough,
+          decorationColor: completedDecorationColor,
+          color: (run is TagRun || run is LinkRun || run is NoteLinkRun) ? null : completedColor,
+        );
       }
 
       // Handle in-note search highlight

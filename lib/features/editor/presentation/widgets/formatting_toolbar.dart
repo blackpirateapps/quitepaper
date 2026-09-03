@@ -384,25 +384,53 @@ class FormattingToolbar extends StatelessWidget {
                 icon: PhosphorIconsRegular.checkSquare,
                 tooltip: 'Checklist (- [ ])',
                 isActive: isChecklist,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleChecklist),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleChecklist();
+                    focusNode?.requestFocus();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleChecklist);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.listBullets,
                 tooltip: 'Bullet List (-)',
                 isActive: isBullet,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleBulletList),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleList();
+                    focusNode?.requestFocus();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleBulletList);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.listNumbers,
                 tooltip: 'Numbered List (1.)',
                 isActive: isOrdered,
-                onPressed: () => _applyFormat(MarkdownFormatter.toggleOrderedList),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleOrderedList();
+                    focusNode?.requestFocus();
+                  } else {
+                    _applyFormat(MarkdownFormatter.toggleOrderedList);
+                  }
+                },
               ),
               _ToolbarButton(
                 icon: PhosphorIconsRegular.quotes,
                 tooltip: 'Quote (>)',
                 isActive: isQuote,
-                onPressed: () => _applyHelperFormat((val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> ')),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.toggleQuote();
+                    focusNode?.requestFocus();
+                  } else {
+                    _applyHelperFormat((val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> '));
+                  }
+                },
               ),
               const _ToolbarDivider(),
               _ToolbarButton(
