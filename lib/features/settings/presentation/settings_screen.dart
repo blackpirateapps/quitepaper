@@ -870,6 +870,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     _SettingsRow(
                       icon: Icons.edit_note_rounded,
                       title: 'WYSIWYG',
+                      badge: const _BetaBadge(),
                       subtitle: 'Hide Markdown syntax for a cleaner writing experience',
                       isSelected: editingStyle == EditorEditingStyle.wysiwyg,
                       onTap: () {
@@ -1326,7 +1327,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       iconColor: colors.accent,
                       title: 'Quiet Paper',
                       description:
-                          'A quiet place to think.\nVersion 1.5.6 • Offline-first • End-to-End Encrypted Sync',
+                          'A quiet place to think.\nVersion 1.5.7 • Offline-first • End-to-End Encrypted Sync',
 
                     ),
                     _buildDivider(colors),
@@ -1601,6 +1602,7 @@ class _SettingsRow extends StatelessWidget {
     this.icon,
     this.leading,
     required this.title,
+    this.badge,
     this.subtitle,
     this.iconColor,
     this.titleColor,
@@ -1616,6 +1618,7 @@ class _SettingsRow extends StatelessWidget {
   final IconData? icon;
   final Widget? leading;
   final String title;
+  final Widget? badge;
   final String? subtitle;
   final Color? iconColor;
   final Color? titleColor;
@@ -1675,15 +1678,26 @@ class _SettingsRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: resolvedTitleColor,
-                        fontWeight: (isSelected || isPrimaryAction)
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        fontSize: 16.0,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: resolvedTitleColor,
+                              fontWeight: (isSelected || isPrimaryAction)
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              fontSize: 16.0,
+                            ),
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8.0),
+                          badge!,
+                        ],
+                      ],
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2.0),
@@ -1738,6 +1752,36 @@ class _SettingsRow extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact editorial Beta badge pill matching Quiet Paper's aesthetic.
+class _BetaBadge extends StatelessWidget {
+  const _BetaBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4.0),
+        border: Border.all(
+          color: colors.accent.withValues(alpha: 0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Text(
+        'BETA',
+        style: AppTypography.caption.copyWith(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: colors.accent,
         ),
       ),
     );

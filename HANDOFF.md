@@ -5294,6 +5294,36 @@ In the WYSIWYG visual document editor (`VisualDocumentEditor` / `SemanticEditorC
 - **Editor Test Suite**: `test/editor/` $\rightarrow$ **304/304 tests passed**.
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,291 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 54. WYSIWYG Editor Beta Designation & Release Version 1.5.7
+
+### 1. Overview & Motivation
+As Quiet Paper continues to expand its dual-mode editing capabilities, the Markdown WYSIWYG (visual document) editor is designated as **Beta** to clearly communicate feature maturity to users while retaining source Markdown as the single canonical source of truth.
+
+### 2. Architectural & UI Enhancements
+1. **Domain Labeling (`lib/features/editor/domain/editor_editing_style.dart`)**:
+   - Updated `EditorEditingStyle.wysiwyg.label` to return `'WYSIWYG (Beta)'`.
+   - Updated doc comments to reflect the active beta lifecycle of the visual editing engine.
+2. **Settings Screen Beta Pill Badge (`lib/features/settings/presentation/settings_screen.dart`)**:
+   - Added `badge` widget support to `_SettingsRow`.
+   - Added `_BetaBadge` widget rendering a subtle editorial badge (`BETA`) with warm accent styling (`colors.accent.withValues(alpha: 0.12)`, `colors.accent.withValues(alpha: 0.35)` border, and 9.5sp bold typography) next to `WYSIWYG`.
+3. **Editor Overflow Menu (`lib/features/editor/presentation/editor_screen.dart`)**:
+   - In the overflow menu (`⋯`), switching from Markdown mode to visual editing displays `Edit Visually` accompanied by a matching `BETA` badge pill and `Hide Markdown syntax (Beta)` descriptive subtitle.
+4. **Public Landing Pages (`public/index.html` & `backend/public/index.html`)**:
+   - Updated feature card 02 heading to `Markdown WYSIWYG V2 (Beta)`.
+
+### 3. Version Bump Checklist (v1.5.7+15)
+The application version and build number have been bumped consistently across all repository configurations:
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): `version: 1.5.7+15`
+- [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): `currentVersion: '1.5.7'`
+- [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): `appVersion: '1.5.7'`
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): `this.appVersion = '1.5.7'`
+- [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): `'Version 1.5.7 • Offline-first • End-to-End Encrypted Sync'`
+- [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart): `'appVersion': '1.5.7'` (manifest and envelope)
+- [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html): `v1.5.7 Free`, `Version 1.5.7`, and all architecture download cards
+- [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): `v1.5.7 Free`, `Version 1.5.7`, and all architecture download cards
+
 
 
 

@@ -1,6 +1,6 @@
 /// Supported editing styles for the Quiet Paper Markdown editor.
 enum EditorEditingStyle {
-  /// WYSIWYG mode: Markdown syntax is hidden during editing for a calm, Bear-like writing experience.
+  /// WYSIWYG mode (Beta): Markdown syntax is hidden during editing for a calm, Bear-like writing experience.
   wysiwyg,
 
   /// Markdown mode: Raw Markdown syntax remains visible during editing.
@@ -13,7 +13,7 @@ enum EditorEditingStyle {
   String get label {
     switch (this) {
       case EditorEditingStyle.wysiwyg:
-        return 'WYSIWYG';
+        return 'WYSIWYG (Beta)';
       case EditorEditingStyle.markdown:
         return 'Markdown';
     }

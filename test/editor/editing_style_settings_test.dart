@@ -22,7 +22,7 @@ void main() {
     test('storageKey and labels are consistent', () {
       expect(EditorEditingStyle.wysiwyg.storageKey, equals('wysiwyg'));
       expect(EditorEditingStyle.markdown.storageKey, equals('markdown'));
-      expect(EditorEditingStyle.wysiwyg.label, equals('WYSIWYG'));
+      expect(EditorEditingStyle.wysiwyg.label, equals('WYSIWYG (Beta)'));
       expect(EditorEditingStyle.markdown.label, equals('Markdown'));
       expect(EditorEditingStyle.wysiwyg.description, contains('Hide Markdown syntax'));
       expect(EditorEditingStyle.markdown.description, contains('Show Markdown syntax'));

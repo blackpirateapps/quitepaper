@@ -1962,14 +1962,47 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
                           color: colors.textSecondary,
                         ),
-                        title: Text(
-                          isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: colors.textPrimary,
-                          ),
+                        title: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            if (!isCurrentWysiwyg) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5.5,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4.0),
+                                  border: Border.all(
+                                    color: colors.accent.withValues(alpha: 0.35),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  'BETA',
+                                  style: AppTypography.caption.copyWith(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                    color: colors.accent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         subtitle: Text(
-                          isCurrentWysiwyg ? 'Show raw Markdown syntax' : 'Hide Markdown syntax',
+                          isCurrentWysiwyg
+                              ? 'Show raw Markdown syntax'
+                              : 'Hide Markdown syntax (Beta)',
                           style: AppTypography.caption.copyWith(
                             color: colors.textTertiary,
                           ),
