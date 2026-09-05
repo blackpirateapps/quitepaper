@@ -1,1376 +1,831 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quiet Paper — Calm Writing. Blind Sync.</title>
-  <meta name="description" content="Quiet Paper is an offline-first, privacy-focused Markdown notes application inspired by the calm editorial aesthetic of Bear Notes, featuring client-side zero-knowledge end-to-end encryption.">
-  <link rel="canonical" href="https://quitepaper.vercel.app">
-  
-  <!-- Open Graph / Meta -->
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="Quiet Paper — Calm Writing. Blind Sync.">
-  <meta property="og:description" content="Offline-first Markdown notes with client-side zero-knowledge encryption and warm editorial typography.">
-  <meta property="og:image" content="https://raw.githubusercontent.com/blackpirateapps/quitepaper/main/assets/branding/banner.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#1D1C1A">
-
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-
-  <!-- Lenis Smooth Scroll CDN -->
-  <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiet Paper — Notes that belong to you</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
   <style>
-    /* -------------------------------------------------------------
-       1. CSS CUSTOM PROPERTIES & THEMES
-       ------------------------------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-serif: 'Newsreader', 'Lora', Georgia, serif;
-      --font-mono: 'JetBrains Mono', 'Space Mono', monospace;
-
-      --transition-fast: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      --transition-smooth: 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-      --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
-      --radius-full: 9999px;
-
-      --max-width: 1280px;
+      --paper:    #F7F6F2;
+      --ink:      #1D1C1A;
+      --parchment:#EAE7E0;
+      --rule:     #D8D4CC;
+      --muted:    #7A7570;
+      --accent:   #8B7355;
+      --accent-light: rgba(139,115,85,0.12);
+      --surface:  #EFEFEB;
+      --white:    #FDFCFA;
+      --max:      720px;
     }
 
-    /* Dark Theme (Default) */
-    [data-theme="dark"] {
-      --bg-canvas: #161513;
-      --bg-surface: #1E1D1A;
-      --bg-surface-elevated: #262521;
-      --bg-surface-hover: #2E2D28;
-      --border-subtle: #2B2A26;
-      --border-strong: #3D3C36;
-      --text-primary: #FAF8F5;
-      --text-secondary: #9E9B93;
-      --text-tertiary: #6E6B64;
-      --accent: #D65F55;
-      --accent-hover: #E27269;
-      --accent-tint: rgba(214, 95, 85, 0.15);
-      --amber: #FBBF24;
-      --amber-tint: rgba(251, 191, 36, 0.16);
-      --amber-active: #F59E0B;
-      --green: #4ADE80;
-      --green-tint: rgba(74, 222, 128, 0.15);
-      --code-bg: #141311;
-      --card-gradient: linear-gradient(180deg, rgba(38, 37, 33, 0.9) 0%, rgba(30, 29, 26, 0.95) 100%);
-      --header-blur-bg: rgba(22, 21, 19, 0.82);
-    }
-
-    /* Light Theme (Warm Paper) */
-    [data-theme="light"] {
-      --bg-canvas: #F7F6F2;
-      --bg-surface: #FFFFFF;
-      --bg-surface-elevated: #FBFAF7;
-      --bg-surface-hover: #EFECE6;
-      --border-subtle: #E6E2D8;
-      --border-strong: #D2CDC2;
-      --text-primary: #24221D;
-      --text-secondary: #5F6368;
-      --text-tertiary: #8C8B87;
-      --accent: #D65F55;
-      --accent-hover: #C54C42;
-      --accent-tint: rgba(214, 95, 85, 0.1);
-      --amber: #D97706;
-      --amber-tint: rgba(251, 191, 36, 0.22);
-      --amber-active: #B45309;
-      --green: #15803D;
-      --green-tint: rgba(34, 197, 94, 0.14);
-      --code-bg: #ECE9E1;
-      --card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(251, 250, 247, 0.9) 100%);
-      --header-blur-bg: rgba(247, 246, 242, 0.86);
-    }
-
-    /* -------------------------------------------------------------
-       2. RESET & GLOBAL RESETS
-       ------------------------------------------------------------- */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html.lenis, html.lenis body {
-      height: auto;
-    }
-
-    .lenis.lenis-smooth {
-      scroll-behavior: auto !important;
-    }
-
-    .lenis.lenis-smooth [data-lenis-prevent] {
-      overscroll-behavior: contain;
-    }
-
-    .lenis.lenis-stopped {
-      overflow: hidden;
-    }
-
-    .lenis.lenis-smooth iframe {
-      pointer-events: none;
-    }
+    html { scroll-behavior: smooth; }
 
     body {
-      background-color: var(--bg-canvas);
-      color: var(--text-primary);
-      font-family: var(--font-sans);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
       font-size: 16px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      overflow-x: hidden;
-      transition: background-color var(--transition-smooth), color var(--transition-smooth);
     }
 
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    button {
-      font-family: inherit;
-      border: none;
-      background: none;
-      cursor: pointer;
-    }
-
-    /* Top Scroll Progress Bar */
-    #scroll-progress {
-      position: fixed;
-      top: 0;
-      left: 0;
-      height: 2.5px;
-      width: 0%;
-      background: var(--accent);
-      z-index: 1000;
-      transition: width 0.08s linear;
-      box-shadow: 0 0 10px var(--accent);
-    }
-
-    /* -------------------------------------------------------------
-       3. GRID SYSTEM & CONTAINER
-       ------------------------------------------------------------- */
-    .container {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-
-    .grid-lines {
-      background-image: 
-        linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
-        linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
-      background-size: 64px 64px;
-      background-position: center top;
-    }
-
-    /* -------------------------------------------------------------
-       4. STICKY HEADER & NAVIGATION
-       ------------------------------------------------------------- */
-    .site-header {
+    /* ── NAV ── */
+    nav {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: var(--header-blur-bg);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border-subtle);
-      transition: background-color var(--transition-smooth), border-color var(--transition-smooth);
-    }
-
-    .header-inner {
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      padding: 0 clamp(24px, 6vw, 80px);
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 72px;
     }
 
-    .brand-logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-weight: 600;
+    .nav-logo {
+      font-family: 'Lora', serif;
       font-size: 17px;
-      letter-spacing: -0.3px;
-      color: var(--text-primary);
-    }
-
-    .brand-logo svg {
-      width: 28px;
-      height: 28px;
-      transition: transform var(--transition-fast);
-    }
-
-    .brand-logo:hover svg {
-      transform: rotate(-5deg) scale(1.05);
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.01em;
     }
 
     .nav-links {
       display: flex;
-      align-items: center;
       gap: 32px;
       list-style: none;
     }
 
-    .nav-link {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      letter-spacing: -0.2px;
-      transition: color var(--transition-fast);
-      position: relative;
-    }
-
-    .nav-link:hover {
-      color: var(--text-primary);
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    /* Theme Switcher Toggle */
-    .theme-toggle-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      border-radius: var(--radius-full);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-      color: var(--text-secondary);
-      transition: all var(--transition-fast);
-    }
-
-    .theme-toggle-btn:hover {
-      color: var(--text-primary);
-      border-color: var(--border-strong);
-      transform: scale(1.04);
-    }
-
-    /* -------------------------------------------------------------
-       5. LENIS-STYLE BUTTONS (Dual Slide Hover Animation)
-       ------------------------------------------------------------- */
-    .lenis-btn {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 12px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: -0.2px;
-      border-radius: var(--radius-full);
-      overflow: hidden;
-      cursor: pointer;
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
       text-decoration: none;
-      transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+      transition: color 0.15s;
     }
+    .nav-links a:hover { color: var(--ink); }
 
-    .lenis-btn-primary {
-      background: var(--text-primary);
-      color: var(--bg-canvas);
-      border: 1px solid transparent;
-    }
-
-    .lenis-btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-    }
-
-    .lenis-btn-secondary {
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      border: 1px solid var(--border-strong);
-    }
-
-    .lenis-btn-secondary:hover {
-      border-color: var(--text-primary);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-    }
-
-    .lenis-btn-accent {
-      background: var(--accent);
-      color: #FFFFFF;
-      border: 1px solid var(--accent);
-    }
-
-    .lenis-btn-accent:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 22px var(--accent-tint);
-    }
-
-    .btn-content-slider {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      height: 18px;
-      overflow: hidden;
-    }
-
-    .btn-text-visible,
-    .btn-text-hidden {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      height: 18px;
-      line-height: 18px;
-      transition: transform 0.35s var(--ease-expo);
-    }
-
-    .btn-text-hidden {
-      position: absolute;
-      top: 100%;
-      left: 0;
-    }
-
-    .lenis-btn:hover .btn-text-visible {
-      transform: translateY(-100%);
-    }
-
-    .lenis-btn:hover .btn-text-hidden {
-      transform: translateY(-100%);
-    }
-
-    /* -------------------------------------------------------------
-       6. HERO SECTION
-       ------------------------------------------------------------- */
-    .hero-section {
-      padding: 100px 0 80px;
-      position: relative;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .hero-badge-wrap {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: var(--radius-full);
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
+    .nav-cta {
       font-size: 13px;
       font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 32px;
-      animation: fadeInDown 0.8s var(--ease-expo) forwards;
+      color: var(--ink) !important;
+      border: 1px solid var(--rule);
+      padding: 6px 16px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: var(--parchment) !important; color: var(--ink) !important; }
+
+    /* ── SHARED LAYOUT ── */
+    .wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 clamp(24px, 6vw, 48px);
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: pulse 2s infinite ease-in-out;
-    }
+    section { padding: 80px 0; }
+    section + section { border-top: 1px solid var(--rule); }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
-    }
-
-    .hero-headline {
-      font-family: var(--font-serif);
-      font-size: clamp(44px, 7.5vw, 84px);
-      font-weight: 400;
-      line-height: 1.05;
-      letter-spacing: -0.035em;
-      color: var(--text-primary);
-      max-width: 1020px;
-      margin-bottom: 28px;
-    }
-
-    .hero-headline em {
-      font-style: italic;
-      font-weight: 400;
-      color: var(--accent);
-    }
-
-    .hero-subtitle {
-      font-size: clamp(17px, 2.2vw, 21px);
-      color: var(--text-secondary);
-      max-width: 680px;
-      line-height: 1.55;
-      font-weight: 400;
-      letter-spacing: -0.2px;
+    h2 {
+      font-family: 'Lora', serif;
+      font-size: clamp(22px, 3vw, 28px);
+      font-weight: 500;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      color: var(--ink);
       margin-bottom: 40px;
     }
 
-    .hero-cta-group {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 64px;
+    p { color: var(--muted); line-height: 1.75; }
+
+    /* ── HERO ── */
+    #hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--rule);
     }
 
-    .hero-meta-strip {
+    #hero .wrap {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 24px;
-      padding-top: 36px;
-      border-top: 1px solid var(--border-subtle);
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
     }
 
-    .meta-item {
+    .hero-text h1 {
+      font-family: 'Lora', serif;
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 500;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+
+    .hero-text h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .hero-text p {
+      font-size: 16px;
+      line-height: 1.75;
+      margin-bottom: 36px;
+      max-width: 380px;
+    }
+
+    .hero-actions {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 8px;
     }
 
-    .meta-label {
-      font-size: 12px;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-tertiary);
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 24px;
     }
 
-    .meta-value {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-primary);
+    .badge {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      padding: 4px 10px;
+      border-radius: 2px;
     }
 
-    /* Scroll Prompt Indicator */
-    .scroll-hint {
-      position: absolute;
-      right: 24px;
-      bottom: 24px;
+    /* ── SIMULATED EDITOR ── */
+    .editor-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(29,28,26,0.06);
+    }
+
+    .editor-topbar {
+      height: 40px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      color: var(--text-tertiary);
-      letter-spacing: 0.05em;
+      padding: 0 16px;
+      gap: 12px;
+    }
+
+    .editor-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--rule);
+    }
+
+    .editor-body {
+      padding: 28px 28px 32px;
+    }
+
+    .editor-title {
+      font-family: 'Lora', serif;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 14px;
+      line-height: 1.3;
+    }
+
+    .editor-content {
+      font-family: 'Lora', serif;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .editor-content .tag {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .editor-content .bold { font-weight: 600; color: var(--ink); }
+    .editor-content .hl {
+      background: rgba(139,115,85,0.15);
+      border-radius: 2px;
+      padding: 1px 2px;
+    }
+
+    .editor-cursor {
+      display: inline-block;
+      width: 1.5px;
+      height: 14px;
+      background: var(--ink);
+      vertical-align: middle;
+      margin-left: 1px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .editor-toolbar {
+      border-top: 1px solid var(--rule);
+      height: 36px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 2px;
+    }
+
+    .tool-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: default;
+    }
+    .tool-btn.active {
+      background: var(--parchment);
+      color: var(--ink);
+    }
+
+    /* ── DOWNLOAD BUTTONS ── */
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity 0.15s;
+      width: fit-content;
+    }
+    .dl-btn:hover { opacity: 0.85; }
+    .dl-btn.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--rule);
+    }
+    .dl-btn.secondary:hover { background: var(--parchment); opacity: 1; }
+
+    .dl-btn svg { flex-shrink: 0; }
+
+    .dl-btn-sub {
+      font-size: 10px;
+      font-weight: 400;
+      opacity: 0.7;
+      display: block;
+      line-height: 1;
+    }
+
+    .dl-btn-label strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    /* ── SCREENSHOTS ── */
+    .wrap-wide {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 clamp(24px, 6vw, 48px);
+    }
+
+    .section-eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
     }
 
-    .scroll-hint svg {
-      animation: bounceDown 2s infinite ease-in-out;
+    .section-intro {
+      margin-bottom: 48px;
     }
 
-    @keyframes bounceDown {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(5px); }
+    .section-intro h2 {
+      margin-bottom: 14px;
     }
 
-    /* -------------------------------------------------------------
-       6.5 SCREENSHOTS & INTERFACE GALLERY SECTION
-       ------------------------------------------------------------- */
-    .screenshots-section {
-      padding: 96px 0 108px;
-      border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-canvas);
+    .section-intro p {
+      max-width: 580px;
+      font-size: 15px;
+      line-height: 1.7;
     }
 
     .screenshots-list {
       display: flex;
       flex-direction: column;
-      gap: 76px;
-      margin-top: 52px;
+      gap: 64px;
     }
 
     .screenshot-row {
       display: flex;
       flex-direction: column;
-      gap: 26px;
+      gap: 20px;
     }
 
-    .screenshot-row-header {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 840px;
+    .screenshot-row-header h3 {
+      font-family: 'Lora', serif;
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
     }
 
-    .screenshot-row-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--accent);
+    .screenshot-row-header p {
+      font-size: 14px;
+      line-height: 1.7;
+      max-width: 640px;
     }
 
-    .screenshot-row-title {
-      font-family: var(--font-serif);
-      font-size: clamp(24px, 3.4vw, 36px);
-      font-weight: 400;
-      letter-spacing: -0.025em;
-      color: var(--text-primary);
-      line-height: 1.18;
-    }
-
-    .screenshot-row-desc {
-      font-size: 15px;
-      color: var(--text-secondary);
-      line-height: 1.6;
-    }
-
-    /* Side-by-side tablet and phone layout */
-    .screenshot-duo-grid {
+    .screenshot-duo {
       display: grid;
-      grid-template-columns: minmax(0, 1.85fr) minmax(280px, 360px);
-      gap: 28px;
+      grid-template-columns: minmax(0, 1.85fr) minmax(240px, 320px);
+      gap: 24px;
       align-items: start;
     }
 
-    @media (max-width: 1024px) {
-      .screenshot-duo-grid {
-        grid-template-columns: 1fr;
-        gap: 32px;
-      }
-    }
-
-    /* Minimal Editorial Frame Card */
-    .screenshot-frame {
-      background: var(--card-gradient);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
+    .screenshot-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
-      transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
-      display: flex;
-      flex-direction: column;
+      box-shadow: 0 2px 12px rgba(29,28,26,0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
-    .screenshot-frame:hover {
-      transform: translateY(-3px);
-      border-color: var(--border-strong);
-      box-shadow: 0 20px 42px rgba(0, 0, 0, 0.13);
+    .screenshot-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(29,28,26,0.08);
     }
 
-    /* Top bar simulating editorial window chrome */
-    .frame-top-bar {
+    .screenshot-topbar {
+      height: 38px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 18px;
-      background: var(--bg-surface-elevated);
-      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 14px;
+      font-size: 11.5px;
+      color: var(--muted);
+      letter-spacing: 0.01em;
     }
 
-    .frame-device-badge {
-      display: inline-flex;
+    .screenshot-device {
+      display: flex;
       align-items: center;
-      gap: 8px;
-      font-family: var(--font-mono);
-      font-size: 12px;
+      gap: 6px;
       font-weight: 500;
-      letter-spacing: 0.03em;
-      color: var(--text-secondary);
+      color: var(--ink);
     }
 
-    .frame-device-badge svg {
+    .screenshot-device svg {
       color: var(--accent);
       flex-shrink: 0;
     }
 
-    .frame-tag-badge {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-tertiary);
-      padding: 3px 8px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
+    .screenshot-pill {
+      font-size: 10.5px;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      padding: 2px 8px;
+      border-radius: 3px;
     }
 
-    /* Screenshot image container */
-    .frame-media-wrap {
-      width: 100%;
-      background: var(--bg-surface);
+    .screenshot-media {
+      background: var(--white);
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
     }
 
-    .frame-media-wrap img {
-      display: block;
+    .screenshot-media img {
       width: 100%;
       height: auto;
+      display: block;
       object-fit: contain;
     }
 
-    /* Caption bar */
-    .frame-caption {
-      padding: 16px 20px;
-      border-top: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-      font-size: 13.5px;
-      line-height: 1.55;
-      color: var(--text-secondary);
-    }
-
-    /* -------------------------------------------------------------
-       7. HORIZONTAL FEATURE SHOWCASE CAROUSEL
-       ------------------------------------------------------------- */
-    .showcase-section {
-      padding: 90px 0;
-      border-bottom: 1px solid var(--border-subtle);
-      overflow: hidden;
-    }
-
-    .section-header {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 48px;
-    }
-
-    .section-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--accent);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .section-title {
-      font-family: var(--font-serif);
-      font-size: clamp(32px, 4.5vw, 48px);
-      font-weight: 400;
-      line-height: 1.15;
-      letter-spacing: -0.025em;
-      color: var(--text-primary);
-    }
-
-    .cards-carousel-container {
-      position: relative;
-      width: 100%;
-    }
-
-    .cards-carousel {
-      display: flex;
-      gap: 24px;
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      padding-bottom: 24px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border-strong) transparent;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .cards-carousel::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .cards-carousel::-webkit-scrollbar-thumb {
-      background: var(--border-strong);
-      border-radius: var(--radius-full);
-    }
-
-    .feature-card {
-      flex: 0 0 clamp(300px, 38vw, 420px);
-      scroll-snap-align: start;
-      background: var(--card-gradient);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 32px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      min-height: 380px;
-      transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
-      position: relative;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-4px);
-      border-color: var(--border-strong);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
-    }
-
-    .card-top {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .card-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: var(--radius-md);
-      background: var(--accent-tint);
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .card-num {
-      position: absolute;
-      top: 32px;
-      right: 32px;
-      font-family: var(--font-mono);
-      font-size: 13px;
-      color: var(--text-tertiary);
-    }
-
-    .card-title {
-      font-size: 22px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      color: var(--text-primary);
-    }
-
-    .card-desc {
-      font-size: 14.5px;
-      color: var(--text-secondary);
+    .screenshot-caption {
+      padding: 12px 16px;
+      border-top: 1px solid var(--rule);
+      background: var(--white);
+      font-size: 12.5px;
+      color: var(--muted);
       line-height: 1.6;
     }
 
-    .card-footer-tag {
+    @media (max-width: 768px) {
+      .screenshot-duo {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+
+    /* ── FEATURES ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .feature-item {
+      padding: 36px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .feature-item:nth-child(odd) {
+      padding-right: 48px;
+      border-right: 1px solid var(--rule);
+    }
+
+    .feature-item:nth-child(even) {
+      padding-left: 48px;
+    }
+
+    .feature-item:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+
+    .feature-glyph {
+      font-size: 18px;
+      margin-bottom: 14px;
+      display: block;
+    }
+
+    .feature-item h3 {
+      font-family: 'Lora', serif;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-item p {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    /* ── WHO IT'S FOR ── */
+    .audience-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .audience-item {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 32px;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: start;
+    }
+
+    .audience-item:first-child { padding-top: 0; }
+    .audience-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .audience-label {
+      font-family: 'Lora', serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+      padding-top: 2px;
+    }
+
+    .audience-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── ROADMAP ── */
+    .roadmap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .roadmap-item {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      gap: 28px;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: start;
+    }
+    .roadmap-item:first-child { padding-top: 0; }
+    .roadmap-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .roadmap-status {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      font-family: var(--font-mono);
-      color: var(--text-secondary);
-      margin-top: 24px;
-      align-self: flex-start;
-    }
-
-    /* -------------------------------------------------------------
-       8. INTERACTIVE DUAL-TAB SANDBOX PLAYGROUND
-       ------------------------------------------------------------- */
-    .playground-section {
-      padding: 90px 0;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .playground-tabs-bar {
-      display: inline-flex;
-      gap: 4px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-full);
-      padding: 4px;
-      margin-bottom: 32px;
-    }
-
-    .tab-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 22px;
-      border-radius: var(--radius-full);
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      transition: all var(--transition-fast);
-    }
-
-    .tab-btn.active {
-      background: var(--text-primary);
-      color: var(--bg-canvas);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .tab-btn:not(.active):hover {
-      color: var(--text-primary);
-    }
-
-    .playground-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
-    }
-
-    .playground-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-surface-elevated);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .font-presets-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .font-pill {
-      padding: 5px 12px;
-      font-size: 13px;
-      font-weight: 500;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-      color: var(--text-secondary);
-      transition: all var(--transition-fast);
-    }
-
-    .font-pill.active {
-      background: var(--accent);
-      color: #FFFFFF;
-      border-color: var(--accent);
-    }
-
-    .editor-grid-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      min-height: 440px;
-    }
-
-    @media (max-width: 860px) {
-      .editor-grid-layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .editor-pane-left {
-      border-right: 1px solid var(--border-subtle);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .pane-header {
-      padding: 10px 18px;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-tertiary);
-      border-bottom: 1px solid var(--border-subtle);
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .editor-textarea {
-      width: 100%;
-      flex: 1;
-      padding: 20px;
-      background: transparent;
-      border: none;
-      outline: none;
-      resize: none;
-      font-family: var(--font-mono);
-      font-size: 14.5px;
-      line-height: 1.65;
-      color: var(--text-primary);
-    }
-
-    .editor-pane-right {
-      padding: 24px;
-      overflow-y: auto;
-      background: var(--bg-surface);
-      font-family: var(--font-sans);
-    }
-
-    /* Live Preview Elements */
-    .preview-h1 {
-      font-family: var(--font-serif);
-      font-size: 28px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 16px;
-      letter-spacing: -0.02em;
-    }
-
-    .preview-p {
-      font-size: 15.5px;
-      line-height: 1.65;
-      color: var(--text-secondary);
-      margin-bottom: 14px;
-    }
-
-    .preview-highlight {
-      background: var(--amber-tint);
-      color: var(--amber);
-      padding: 2px 5px;
-      border-radius: 4px;
-      font-weight: 500;
-    }
-
-    .preview-checklist-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 6px 0;
-      font-size: 15px;
-      color: var(--text-primary);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .preview-checkbox {
-      width: 18px;
-      height: 18px;
-      border-radius: 4px;
-      border: 1.5px solid var(--border-strong);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all var(--transition-fast);
-    }
-
-    .preview-checkbox.checked {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #FFFFFF;
-    }
-
-    .preview-checklist-item.checked span {
-      text-decoration: line-through;
-      color: var(--text-tertiary);
-    }
-
-    /* Tab 2: Crypto Simulator Layout */
-    .crypto-simulator-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      padding: 28px;
-    }
-
-    @media (max-width: 860px) {
-      .crypto-simulator-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .crypto-box {
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 20px;
-      background: var(--bg-surface-elevated);
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .crypto-box-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 13px;
-      font-family: var(--font-mono);
-      color: var(--text-tertiary);
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 10px;
-    }
-
-    .crypto-input {
-      width: 100%;
-      padding: 10px 14px;
-      background: var(--code-bg);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      color: var(--text-primary);
-      font-family: var(--font-mono);
-      font-size: 13.5px;
-      outline: none;
-    }
-
-    .crypto-output-blob {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      line-height: 1.5;
-      padding: 12px;
-      background: var(--code-bg);
-      border-radius: var(--radius-sm);
-      color: var(--amber);
-      word-break: break-all;
-      max-height: 160px;
-      overflow-y: auto;
-    }
-
-    /* -------------------------------------------------------------
-       9. MULTI-ARCHITECTURE DOWNLOAD MATRIX
-       ------------------------------------------------------------- */
-    .download-section {
-      padding: 90px 0;
-      border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-    }
-
-    .download-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-      margin-top: 40px;
-    }
-
-    .download-card {
-      background: var(--bg-canvas);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 28px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: all var(--transition-fast);
-      position: relative;
-    }
-
-    .download-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-4px);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
-    }
-
-    .download-card.recommended {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent);
-    }
-
-    .recommended-badge {
-      position: absolute;
-      top: -11px;
-      right: 20px;
-      background: var(--accent);
-      color: #FFFFFF;
       font-size: 11px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      padding: 2px 10px;
-      border-radius: var(--radius-full);
-      text-transform: uppercase;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      padding-top: 3px;
     }
 
-    .download-arch-name {
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: -0.2px;
-      color: var(--text-primary);
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-shipped .status-dot { background: #5A8A5A; }
+    .status-shipped { color: #5A8A5A; }
+    .status-beta .status-dot { background: var(--accent); }
+    .status-beta { color: var(--accent); }
+    .status-soon .status-dot { background: var(--muted); }
+    .status-soon { color: var(--muted); }
+
+    .roadmap-text h3 {
+      font-family: 'Lora', serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
       margin-bottom: 4px;
     }
 
-    .download-arch-desc {
-      font-size: 13.5px;
-      color: var(--text-secondary);
+    .roadmap-text p {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* ── FAQ ── */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    details {
+      border-bottom: 1px solid var(--rule);
+    }
+
+    details:last-child { border-bottom: none; }
+
+    summary {
+      font-family: 'Lora', serif;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+      padding: 24px 0;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      letter-spacing: -0.01em;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    .summary-icon {
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--rule);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-style: normal;
+      transition: background 0.15s;
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+    }
+
+    details[open] .summary-icon {
+      background: var(--parchment);
+    }
+
+    details[open] .plus-icon { display: none; }
+    details:not([open]) .minus-icon { display: none; }
+
+    .faq-answer {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.8;
+      padding-bottom: 24px;
+      max-width: 560px;
+    }
+
+    .faq-answer a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ── DOWNLOAD SECTION ── */
+    #download {
+      text-align: center;
+    }
+
+    #download h2 {
+      margin-bottom: 12px;
+    }
+
+    #download > .wrap > p {
+      margin-bottom: 40px;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .dl-grid {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
       margin-bottom: 20px;
     }
 
-    .download-meta-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12.5px;
-      font-family: var(--font-mono);
-      color: var(--text-tertiary);
-      margin-bottom: 24px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border-subtle);
+    .dl-note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
     }
 
-    /* -------------------------------------------------------------
-       10. TECHNICAL SPECIFICATIONS & CRYPTOGRAPHY INVARIANTS
-       ------------------------------------------------------------- */
-    .specs-section {
-      padding: 90px 0;
-      border-bottom: 1px solid var(--border-subtle);
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--rule);
+      padding: 40px 0;
     }
 
-    .specs-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 24px;
-      margin-top: 40px;
-    }
-
-    .spec-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 24px;
-    }
-
-    .spec-card-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 16px;
-    }
-
-    .spec-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .spec-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.5;
-    }
-
-    .spec-item svg {
-      flex-shrink: 0;
-      margin-top: 3px;
-      color: var(--green);
-    }
-
-    /* -------------------------------------------------------------
-       11. FOOTER
-       ------------------------------------------------------------- */
-    .site-footer {
-      padding: 70px 0 40px;
-      background: var(--bg-canvas);
-    }
-
-    .footer-inner {
+    footer .wrap {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 24px;
-      padding-bottom: 40px;
-      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .footer-logo {
+      font-family: 'Lora', serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .footer-meta {
+      font-size: 12px;
+      color: var(--muted);
     }
 
     .footer-links {
       display: flex;
-      align-items: center;
       gap: 24px;
       list-style: none;
-      flex-wrap: wrap;
     }
 
-    .footer-link {
-      font-size: 14px;
-      color: var(--text-secondary);
-      transition: color var(--transition-fast);
+    .footer-links a {
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--ink); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      #hero .wrap {
+        grid-template-columns: 1fr;
+        gap: 48px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-item:nth-child(odd) {
+        padding-right: 0;
+        border-right: none;
+      }
+
+      .feature-item:nth-child(even) {
+        padding-left: 0;
+      }
+
+      .feature-item:nth-last-child(-n+2) {
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .feature-item:last-child { border-bottom: none; }
+
+      .audience-item {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .roadmap-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      footer .wrap {
+        flex-direction: column;
+        gap: 24px;
+        text-align: center;
+      }
+
+      .nav-links { display: none; }
     }
 
-    .footer-link:hover {
-      color: var(--text-primary);
-    }
-
-    .footer-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 24px;
-      font-size: 13px;
-      color: var(--text-tertiary);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    /* -------------------------------------------------------------
-       12. RESPONSIVENESS & MOBILE
-       ------------------------------------------------------------- */
-    @media (max-width: 768px) {
-      .nav-links {
-        display: none;
-      }
-
-      .hero-section {
-        padding: 60px 0 50px;
-      }
-
-      .hero-meta-strip {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .scroll-hint {
-        display: none;
-      }
+    @media (prefers-reduced-motion: reduce) {
+      .editor-cursor { animation: none; opacity: 1; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Top Scroll Progress Bar -->
-  <div id="scroll-progress"></div>
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">Quiet Paper</a>
+    <ul class="nav-links">
+      <li><a href="#screenshots">Screenshots</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="#download" class="nav-cta">Download</a></li>
+    </ul>
+  </nav>
 
-  <!-- STICKY NAVIGATION -->
-  <header class="site-header">
-    <div class="container header-inner">
-      <a href="#" class="brand-logo" aria-label="Quiet Paper Home">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 3H20L26 9V29H6V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-          <path d="M20 3V9H26" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-          <line x1="10" y1="14" x2="22" y2="14" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-          <line x1="10" y1="19" x2="22" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="10" y1="24" x2="17" y2="24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span>Quiet Paper</span>
-      </a>
-
-      <nav>
-        <ul class="nav-links">
-          <li><a href="#screenshots" class="nav-link">Screenshots</a></li>
-          <li><a href="#showcase" class="nav-link">Showcase</a></li>
-          <li><a href="#playground" class="nav-link">Playground</a></li>
-          <li><a href="#specs" class="nav-link">Security Specs</a></li>
-          <li><a href="#download" class="nav-link">Releases</a></li>
-        </ul>
-      </nav>
-
-      <div class="header-actions">
-        <!-- Theme Switcher -->
-        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Warm Dark / Light Mode" title="Toggle Theme">
-          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-        </button>
-
-        <!-- GitHub Source Code Link -->
-        <a href="https://github.com/blackpirateapps/quitepaper" target="_blank" rel="noopener" class="lenis-btn lenis-btn-secondary" aria-label="GitHub Repository">
-          <span class="btn-content-slider">
-            <span class="btn-text-visible">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-              Source Code
-            </span>
-            <span class="btn-text-hidden">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-              View on GitHub
-            </span>
-          </span>
-        </a>
-
-        <!-- Download APK Link -->
-        <a href="#download" class="lenis-btn lenis-btn-accent">
-          <span class="btn-content-slider">
-            <span class="btn-text-visible">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download APK
-            </span>
-            <span class="btn-text-hidden">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              v1.5.7 Free
-            </span>
-          </span>
-        </a>
-      </div>
-    </div>
-  </header>
-
-  <!-- HERO SECTION -->
-  <section class="hero-section grid-lines">
-    <div class="container">
-      
-      <div class="hero-badge-wrap">
-        <span class="status-dot"></span>
-        <span>Version 1.5.7 • Zero-Knowledge E2EE • Offline-First</span>
-      </div>
-
-      <h1 class="hero-headline">
-        Calm editorial writing. <em>Crypto-blind</em> cloud sync.
-      </h1>
-
-      <p class="hero-subtitle">
-        An offline-first Markdown notes experience inspired by Bear Notes. Beautiful typography, instant local SQLite persistence, and zero-knowledge client encryption.
-      </p>
-
-      <div class="hero-cta-group">
-        <a href="#download" class="lenis-btn lenis-btn-primary" style="padding: 14px 32px; font-size: 15px;">
-          <span class="btn-content-slider">
-            <span class="btn-text-visible">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Get Quiet Paper APK
-            </span>
-            <span class="btn-text-hidden">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Direct GitHub Release &darr;
-            </span>
-          </span>
-        </a>
-
-        <a href="https://github.com/blackpirateapps/quitepaper" target="_blank" rel="noopener" class="lenis-btn lenis-btn-secondary" style="padding: 14px 28px; font-size: 15px;">
-          <span class="btn-content-slider">
-            <span class="btn-text-visible">
-              Explore Source Code
-            </span>
-            <span class="btn-text-hidden">
-              Star on GitHub ★
-            </span>
-          </span>
-        </a>
-      </div>
-
-      <div class="hero-meta-strip">
-        <div class="meta-item">
-          <span class="meta-label">Encryption</span>
-          <span class="meta-value">Argon2id + XChaCha20-Poly1305</span>
+  <!-- HERO -->
+  <section id="hero">
+    <div class="wrap">
+      <div class="hero-text">
+        <h1>Writing without<br><em>the noise.</em></h1>
+        <p>Quiet Paper is an offline-first notes app built around one belief: your words belong to you. Markdown-native, end-to-end encrypted, and deliberately calm.</p>
+        <div class="hero-actions">
+          <a href="#download" class="dl-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dl-btn-label">
+              <span class="dl-btn-sub">Free download</span>
+              <strong>Get for Android</strong>
+            </div>
+          </a>
         </div>
-        <div class="meta-item">
-          <span class="meta-label">Database</span>
-          <span class="meta-value">Local Drift SQLite + Turso Cloud</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Typography</span>
-          <span class="meta-value">iA Writer Quattro & Custom TTF</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Platforms</span>
-          <span class="meta-value">Android (ARM64, x86_64, Universal)</span>
+        <div class="badge-row">
+          <span class="badge">v1.5.7</span>
+          <span class="badge">Offline-first</span>
+          <span class="badge">E2E Encrypted</span>
         </div>
       </div>
 
-      <div class="scroll-hint">
-        <span>Scroll to explore</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+      <div class="editor-card">
+        <div class="editor-topbar">
+          <div class="editor-dot"></div>
+          <div class="editor-dot"></div>
+          <div class="editor-dot"></div>
+        </div>
+        <div class="editor-body">
+          <div class="editor-title">On the habit of deep work</div>
+          <div class="editor-content">
+            <p>The rarest thing in modern life isn't talent — it's <span class="bold">uninterrupted time</span>. Most productivity systems fail because they optimize for <span class="hl">looking busy</span> rather than being present.</p>
+            <br />
+            <p>Start with a single, durable question. Write it at the top of your note and don't move on until you've answered it <span class="tag">#deepwork</span> <span class="tag">#writing</span><span class="editor-cursor"></span></p>
+          </div>
+        </div>
+        <div class="editor-toolbar">
+          <div class="tool-btn active">B</div>
+          <div class="tool-btn"><em>I</em></div>
+          <div class="tool-btn" style="text-decoration:line-through; font-size:10px;">S</div>
+          <div class="tool-btn" style="font-family: 'Lora'; font-style: italic; font-size: 13px;">H</div>
+          <div class="tool-btn" style="letter-spacing:-1px; font-size:9px;">==</div>
+        </div>
       </div>
-
     </div>
   </section>
 
-  <!-- SCREENSHOTS & INTERFACE GALLERY -->
-  <section id="screenshots" class="screenshots-section">
-    <div class="container">
-      
-      <div class="section-header">
-        <span class="section-tag">// Interface Gallery</span>
-        <h2 class="section-title">Crafted for dual dimensions: mobile focus & tablet command.</h2>
-        <p style="color: var(--text-secondary); max-width: 720px; font-size: 16px; line-height: 1.6;">
-          Whether composing on an ultra-compact phone screen or orchestrating an expansive 3-pane tablet canvas, Quiet Paper delivers the same warm, distraction-free editorial experience.
-        </p>
+  <!-- SCREENSHOTS -->
+  <section id="screenshots">
+    <div class="wrap-wide">
+      <div class="section-intro">
+        <span class="section-eyebrow">Interface Gallery</span>
+        <h2>Crafted for dual dimensions:<br>mobile focus &amp; tablet command.</h2>
+        <p>Whether composing on an ultra-compact phone screen or orchestrating an expansive 3-pane tablet canvas, Quiet Paper delivers the same warm, distraction-free editorial experience.</p>
       </div>
 
       <div class="screenshots-list">
@@ -1378,42 +833,40 @@
         <!-- Row 1: Notes & Editor -->
         <div class="screenshot-row">
           <div class="screenshot-row-header">
-            <span class="screenshot-row-pill">01 / Writing & Multi-Pane Layout</span>
-            <h3 class="screenshot-row-title">Instant Notes List & Focused Markdown Editor</h3>
-            <p class="screenshot-row-desc">
-              On tablets, view your sidebar navigation, notes list with active filters, and the uninterrupted digital sheet editor simultaneously. On phones, enjoy a fast, single-column notes index with dynamic tag pills and quick search.
-            </p>
+            <span class="section-eyebrow" style="margin-bottom: 4px;">01 / Dual-Pane Layout</span>
+            <h3>Instant Notes List &amp; Focused Markdown Editor</h3>
+            <p>On tablets, view your sidebar navigation, notes list with active filters, and the uninterrupted digital sheet editor simultaneously. On phones, enjoy a fast, single-column notes index with dynamic tag pills and quick search.</p>
           </div>
-          <div class="screenshot-duo-grid">
+          <div class="screenshot-duo">
             <!-- Tablet Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                   Tablet Split-View
                 </span>
-                <span class="frame-tag-badge">3-Pane Workspace</span>
+                <span class="screenshot-pill">3-Pane Workspace</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/tablet/notes-list.png" alt="Quiet Paper tablet 3-pane split view with notes list and editor" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Simultaneous navigation drawer, notes list with pinned items, and digital sheet editor on widescreen displays.
               </div>
             </div>
             <!-- Phone Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                   Phone Layout
                 </span>
-                <span class="frame-tag-badge">Single Column</span>
+                <span class="screenshot-pill">Single Column</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/phone/phone-notes.jpeg" alt="Quiet Paper mobile phone notes list view with tag filter bar" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Streamlined mobile browsing with horizontal tag pills, pinned highlights, and floating creation button.
               </div>
             </div>
@@ -1423,42 +876,40 @@
         <!-- Row 2: Journal & Calendar -->
         <div class="screenshot-row">
           <div class="screenshot-row-header">
-            <span class="screenshot-row-pill">02 / Chronological Timeline</span>
-            <h3 class="screenshot-row-title">Interactive Journal & Daily Reflection Calendar</h3>
-            <p class="screenshot-row-desc">
-              Track daily entries, habit notes, and thoughts across time. Interactive calendar dots indicate days with entries, with instant switching between monthly calendars and chronological daily entries.
-            </p>
+            <span class="section-eyebrow" style="margin-bottom: 4px;">02 / Chronological Timeline</span>
+            <h3>Interactive Journal &amp; Daily Reflection Calendar</h3>
+            <p>Track daily entries, habit notes, and thoughts across time. Interactive calendar dots indicate days with entries, with instant switching between monthly calendars and chronological daily entries.</p>
           </div>
-          <div class="screenshot-duo-grid">
+          <div class="screenshot-duo">
             <!-- Tablet Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
-                  Tablet Calendar & Timeline
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Tablet Calendar &amp; Timeline
                 </span>
-                <span class="frame-tag-badge">Monthly Calendar Matrix</span>
+                <span class="screenshot-pill">Monthly Matrix</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/tablet/journal.png" alt="Quiet Paper tablet journal view with monthly calendar grid and active editor" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Full-width calendar matrix with entry dots alongside chronological timeline and open reflection editor.
               </div>
             </div>
             <!-- Phone Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                   Phone Journal
                 </span>
-                <span class="frame-tag-badge">Calendar Picker</span>
+                <span class="screenshot-pill">Calendar Picker</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/phone/phone-journal.jpeg" alt="Quiet Paper phone journal view with calendar month grid" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Compact calendar header with entry indicators and vertically scrollable daily journal reflections.
               </div>
             </div>
@@ -1468,42 +919,40 @@
         <!-- Row 3: Sidebar Navigation & Tag Organization -->
         <div class="screenshot-row">
           <div class="screenshot-row-header">
-            <span class="screenshot-row-pill">03 / Tag System & Navigation</span>
-            <h3 class="screenshot-row-title">Deep Tag Directory & Editorial Navigation</h3>
-            <p class="screenshot-row-desc">
-              Organize your notebook with flexible tags and structured system sections (Library, Journal, Trash, Settings). Fast tag counting and search keep large note collections manageable.
-            </p>
+            <span class="section-eyebrow" style="margin-bottom: 4px;">03 / Tag System &amp; Navigation</span>
+            <h3>Deep Tag Directory &amp; Editorial Navigation</h3>
+            <p>Organize your notebook with flexible tags and structured system sections (Library, Journal, Trash, Settings). Fast tag counting and search keep large note collections manageable.</p>
           </div>
-          <div class="screenshot-duo-grid">
+          <div class="screenshot-duo">
             <!-- Tablet Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                   Tablet Tag Directory
                 </span>
-                <span class="frame-tag-badge">Multi-Column Hub</span>
+                <span class="screenshot-pill">Multi-Column Hub</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/tablet/tags.png" alt="Quiet Paper tablet tag directory hub with note counts" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Alphabetical tag registry with exact note counters, quick sorting, and multi-pane tag browsing.
               </div>
             </div>
             <!-- Phone Card -->
-            <div class="screenshot-frame">
-              <div class="frame-top-bar">
-                <span class="frame-device-badge">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <div class="screenshot-card">
+              <div class="screenshot-topbar">
+                <span class="screenshot-device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                   Phone Navigation
                 </span>
-                <span class="frame-tag-badge">Slide-Over Drawer</span>
+                <span class="screenshot-pill">Slide-Over Drawer</span>
               </div>
-              <div class="frame-media-wrap">
+              <div class="screenshot-media">
                 <img src="images/phone/phone-sidebar.jpeg" alt="Quiet Paper mobile navigation drawer with library, journal, and tags" loading="lazy">
               </div>
-              <div class="frame-caption">
+              <div class="screenshot-caption">
                 Comfortable slide-over drawer organizing notes library, journal timeline, tag hierarchy, and settings.
               </div>
             </div>
@@ -1515,653 +964,275 @@
     </div>
   </section>
 
-  <!-- HORIZONTAL FEATURE SHOWCASE CAROUSEL -->
-  <section id="showcase" class="showcase-section">
-    <div class="container">
-      
-      <div class="section-header">
-        <span class="section-tag">// Core Superpowers</span>
-        <h2 class="section-title">Engineered for focus, built with zero compromises.</h2>
-      </div>
-
-      <div class="cards-carousel-container">
-        <div class="cards-carousel">
-          
-          <!-- Card 1 -->
-          <div class="feature-card">
-            <div class="card-top">
-              <span class="card-num">01</span>
-              <div class="card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              </div>
-              <h3 class="card-title">Zero-Knowledge Cloud Sync</h3>
-              <p class="card-desc">
-                Notes are encrypted client-side using Argon2id and XChaCha20-Poly1305 AEAD before leaving the device. The Turso libSQL database is crypto-blind and holds zero plaintext content.
-              </p>
-            </div>
-            <span class="card-footer-tag">Argon2id (19MB, 2 iter)</span>
-          </div>
-
-          <!-- Card 2 -->
-          <div class="feature-card">
-            <div class="card-top">
-              <span class="card-num">02</span>
-              <div class="card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
-              </div>
-              <h3 class="card-title">Markdown WYSIWYG V2 (Beta)</h3>
-              <p class="card-desc">
-                Raw Markdown remains the single source of truth. Features dynamic TextSpan styling, smart checklist auto-continuation, physical keyboard shortcuts, and interactive checkbox tapping.
-              </p>
-            </div>
-            <span class="card-footer-tag">1:1 Selection & Caret Invariant</span>
-          </div>
-
-          <!-- Card 3 -->
-          <div class="feature-card">
-            <div class="card-top">
-              <span class="card-num">03</span>
-              <div class="card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              </div>
-              <h3 class="card-title">Living Typography Engine</h3>
-              <p class="card-desc">
-                Tailor font sizes, line heights, letter tracking, paragraph widths, and indents with real-time preview. Includes iA Writer Quattro, Lora, Inter, and local TTF/OTF font loading.
-              </p>
-            </div>
-            <span class="card-footer-tag">iA Writer Quattro CDN</span>
-          </div>
-
-          <!-- Card 4 -->
-          <div class="feature-card">
-            <div class="card-top">
-              <span class="card-num">04</span>
-              <div class="card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              </div>
-              <h3 class="card-title">SAF Backups & Rolling Snapshots</h3>
-              <p class="card-desc">
-                Scoped storage safe backup engine utilizing Android Storage Access Framework. Daily automated rolling backups with retention pruning and optional Argon2id vault encryption.
-              </p>
-            </div>
-            <span class="card-footer-tag">.qpbackup Unified Format</span>
-          </div>
-
-          <!-- Card 5 -->
-          <div class="feature-card">
-            <div class="card-top">
-              <span class="card-num">05</span>
-              <div class="card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              </div>
-              <h3 class="card-title">Encrypted Attachments & OCR</h3>
-              <p class="card-desc">
-                Direct-to-cloud signed upload protocol bypassing serverless limits. Camera scanner with MLKit on-device OCR text extraction and encrypted raw binary storage.
-              </p>
-            </div>
-            <span class="card-footer-tag">qp:// Canonical Resource URI</span>
-          </div>
-
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <h2>Everything a writer needs.<br>Nothing they don't.</h2>
+      <div class="features-grid">
+        <div class="feature-item">
+          <span class="feature-glyph">✦</span>
+          <h3>Zero-knowledge encryption</h3>
+          <p>Note titles, bodies, and tags are encrypted on your device using Argon2id and XChaCha20-Poly1305 before they ever leave. The server holds ciphertext — nothing else.</p>
+        </div>
+        <div class="feature-item">
+          <span class="feature-glyph">◎</span>
+          <h3>Offline by default</h3>
+          <p>Quiet Paper runs entirely from local SQLite storage. No connection required. Sync is an optional layer on top — not a dependency your writing relies on.</p>
+        </div>
+        <div class="feature-item">
+          <span class="feature-glyph">⌨</span>
+          <h3>Markdown-native editor</h3>
+          <p>Write in Markdown and switch to WYSIWYG visual mode anytime. Headings cycle, selections are preserved, and the formatting toolbar stays out of the way until you need it.</p>
+        </div>
+        <div class="feature-item">
+          <span class="feature-glyph">⟳</span>
+          <h3>Reliable autosave</h3>
+          <p>Changes are flushed on a 700ms debounce, on focus change, and on exit — silently, without prompts. Empty drafts are discarded automatically. You never manage saving.</p>
+        </div>
+        <div class="feature-item">
+          <span class="feature-glyph">⊞</span>
+          <h3>Cross-device sync</h3>
+          <p>Cursor-based delta sync keeps all your devices in agreement with conflict detection built in. Password rotation re-wraps your master key without re-encrypting notes.</p>
+        </div>
+        <div class="feature-item">
+          <span class="feature-glyph">↓</span>
+          <h3>Markdown folder import</h3>
+          <p>Import entire folder hierarchies of .md files. Subfolder names become tags, YAML frontmatter metadata and timestamps are preserved, and duplicates are handled gracefully.</p>
         </div>
       </div>
-
     </div>
   </section>
 
-  <!-- INTERACTIVE DUAL-TAB SANDBOX PLAYGROUND -->
-  <section id="playground" class="playground-section">
-    <div class="container">
-      
-      <div class="section-header">
-        <span class="section-tag">// Interactive Sandbox</span>
-        <h2 class="section-title">Experience the editor and crypto engine live.</h2>
-      </div>
-
-      <div class="playground-tabs-bar">
-        <button id="tab-editor-btn" class="tab-btn active" onclick="switchSandboxTab('editor')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-          Live Markdown & Typography
-        </button>
-        <button id="tab-crypto-btn" class="tab-btn" onclick="switchSandboxTab('crypto')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-          Zero-Knowledge Simulator
-        </button>
-      </div>
-
-      <!-- Tab 1: Live Markdown Editor -->
-      <div id="sandbox-tab-editor" class="playground-card">
-        <div class="playground-toolbar">
-          <div class="font-presets-group">
-            <span style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary);">TYPEFACE:</span>
-            <button class="font-pill active" onclick="setPreviewFont('ia-quattro', this)">iA Writer Quattro</button>
-            <button class="font-pill" onclick="setPreviewFont('newsreader', this)">Newsreader Serif</button>
-            <button class="font-pill" onclick="setPreviewFont('inter', this)">Inter Sans</button>
-            <button class="font-pill" onclick="setPreviewFont('jetbrains', this)">JetBrains Mono</button>
-          </div>
-          <div id="editor-stats" style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary);">
-            28 words • 176 chars
-          </div>
+  <!-- WHO IT'S FOR -->
+  <section id="audience">
+    <div class="wrap">
+      <h2>Who writes with Quiet Paper</h2>
+      <div class="audience-list">
+        <div class="audience-item">
+          <div class="audience-label">Researchers</div>
+          <div class="audience-desc">Keep field notes, literature summaries, and draft sections in one place with YAML frontmatter for structured metadata. Import entire Obsidian or Markdown vaults without reformatting.</div>
         </div>
-
-        <div class="editor-grid-layout">
-          <div class="editor-pane-left">
-            <div class="pane-header">
-              <span>Markdown Source</span>
-              <span>UTF-8</span>
-            </div>
-            <textarea id="live-markdown-input" class="editor-textarea" spellcheck="false"># Morning Reflections
-
-Writing without friction allows thoughts to ==crystallize naturally==.
-
-- [x] Review end-to-end encryption specs
-- [ ] Export quarterly notes to PDF
-- [ ] Try iA Writer Quattro typography
-
-*The simplicity of paper, the resilience of SQLite.*</textarea>
-          </div>
-
-          <div class="editor-pane-right">
-            <div class="pane-header" style="margin: -24px -24px 20px -24px;">
-              <span>Live Editorial Preview</span>
-              <span>Bear Aesthetic</span>
-            </div>
-            <div id="live-rendered-preview">
-              <!-- Rendered dynamically via JS -->
-            </div>
-          </div>
+        <div class="audience-item">
+          <div class="audience-label">Journalists</div>
+          <div class="audience-desc">Source notes, interview transcripts, and story drafts that need genuine privacy — not a terms-of-service promise. End-to-end encryption means even the sync server never reads your work.</div>
+        </div>
+        <div class="audience-item">
+          <div class="audience-label">Writers & novelists</div>
+          <div class="audience-desc">Long-form writing benefits from the borderless, distraction-free editor. The app gets out of the way. Automatic daily backups with rolling retention mean drafts are never lost.</div>
+        </div>
+        <div class="audience-item">
+          <div class="audience-label">Privacy-first users</div>
+          <div class="audience-desc">You shouldn't have to trust a company's privacy policy to take notes. Quiet Paper's zero-knowledge model means there's nothing on the server side to breach, subpoena, or sell.</div>
+        </div>
+        <div class="audience-item">
+          <div class="audience-label">Markdown power users</div>
+          <div class="audience-desc">Inline formatting with highlight syntax (<code>==like this==</code>), YAML properties, hashtag-based tagging, and a WYSIWYG mode that keeps Markdown as the single source of truth.</div>
         </div>
       </div>
-
-      <!-- Tab 2: Crypto Simulator -->
-      <div id="sandbox-tab-crypto" class="playground-card" style="display: none;">
-        <div class="crypto-simulator-grid">
-          
-          <div class="crypto-box">
-            <div class="crypto-box-header">
-              <span>Device Client (Unlocked Vault)</span>
-              <span style="color: var(--green);">● Plaintext In-Memory</span>
-            </div>
-
-            <div>
-              <label style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: block; margin-bottom: 6px;">NOTE TITLE</label>
-              <input id="crypto-input-title" class="crypto-input" value="Private Architectural Strategy" oninput="updateCryptoSimulation()">
-            </div>
-
-            <div>
-              <label style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: block; margin-bottom: 6px;">NOTE CONTENT</label>
-              <textarea id="crypto-input-body" class="crypto-input" rows="4" oninput="updateCryptoSimulation()">Confidential master passphrase and infrastructure security keys.</textarea>
-            </div>
-
-            <div>
-              <label style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: block; margin-bottom: 6px;">ENCRYPTION PASSWORD (ARGON2ID)</label>
-              <input id="crypto-input-pass" type="password" class="crypto-input" value="quiet-master-key-2026" oninput="updateCryptoSimulation()">
-            </div>
-          </div>
-
-          <div class="crypto-box">
-            <div class="crypto-box-header">
-              <span>Turso Cloud Database (Crypto-Blind)</span>
-              <span style="color: var(--amber);">● Ciphertext Blob Only</span>
-            </div>
-
-            <div>
-              <label style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: block; margin-bottom: 6px;">DERIVED KEY (ARGON2ID 19MB)</label>
-              <div id="crypto-out-key" class="crypto-output-blob" style="max-height: 48px;">
-                0x7f4e92a83c11d08bf53a4791...
-              </div>
-            </div>
-
-            <div>
-              <label style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: block; margin-bottom: 6px;">XCHACHA20-POLY1305 CIPHERTEXT (24-BYTE NONCE)</label>
-              <div id="crypto-out-ciphertext" class="crypto-output-blob">
-                <!-- Calculated dynamically -->
-              </div>
-            </div>
-
-            <div style="font-size: 12px; color: var(--text-tertiary); line-height: 1.5; padding-top: 8px; border-top: 1px solid var(--border-subtle);">
-              🛡️ The backend schema has zero title/body columns. Even with full database access, no one can decrypt without your client-side password.
-            </div>
-          </div>
-
-        </div>
-      </div>
-
     </div>
   </section>
 
-  <!-- TECHNICAL SPECIFICATIONS & CRYPTOGRAPHY INVARIANTS -->
-  <section id="specs" class="specs-section">
-    <div class="container">
-      
-      <div class="section-header">
-        <span class="section-tag">// Cryptographic Architecture</span>
-        <h2 class="section-title">Zero-knowledge guarantees and security invariants.</h2>
+  <!-- ROADMAP -->
+  <section id="roadmap">
+    <div class="wrap">
+      <h2>What's been built.<br>What's coming next.</h2>
+      <div class="roadmap-list">
+        <div class="roadmap-item">
+          <div class="roadmap-status status-shipped"><span class="status-dot"></span>Shipped</div>
+          <div class="roadmap-text">
+            <h3>End-to-end encrypted sync</h3>
+            <p>XChaCha20-Poly1305 content encryption with Argon2id key derivation. The backend is cryptographically blind to all note content.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-shipped"><span class="status-dot"></span>Shipped</div>
+          <div class="roadmap-text">
+            <h3>Local backup with optional encryption</h3>
+            <p>Manual and daily rolling .qpbackup archives with merge, keep-both, and clean-replace restore strategies.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-shipped"><span class="status-dot"></span>Shipped</div>
+          <div class="roadmap-text">
+            <h3>Markdown folder import</h3>
+            <p>Recursive import from any local folder with frontmatter parsing, subfolder-to-tag conversion, and timestamp preservation.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-shipped"><span class="status-dot"></span>Shipped</div>
+          <div class="roadmap-text">
+            <h3>Tablet split-view layout</h3>
+            <p>Three-pane sidebar for tablet and large-screen devices with full adaptive layout and 720dp max-width centering.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-beta"><span class="status-dot"></span>Beta</div>
+          <div class="roadmap-text">
+            <h3>WYSIWYG visual editor</h3>
+            <p>A live visual editing mode that renders Markdown as you type — checklists, lists, headings, highlights — while keeping source Markdown as the canonical format.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-soon"><span class="status-dot"></span>Planned</div>
+          <div class="roadmap-text">
+            <h3>iOS release</h3>
+            <p>Native Swift/Flutter client for iPhone and iPad with full feature parity, iCloud Keychain key storage, and seamless sync with Android devices.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-soon"><span class="status-dot"></span>Planned</div>
+          <div class="roadmap-text">
+            <h3>Desktop (macOS &amp; Linux)</h3>
+            <p>Standalone desktop builds with keyboard-centric navigation, multi-window support, and native file system integration.</p>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-status status-soon"><span class="status-dot"></span>Planned</div>
+          <div class="roadmap-text">
+            <h3>Attachments &amp; inline images</h3>
+            <p>Local-first image storage with encrypted sync for attached files, rendered inline in preview and WYSIWYG modes.</p>
+          </div>
+        </div>
       </div>
-
-      <div class="specs-grid">
-        
-        <div class="spec-card">
-          <h3 class="spec-card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            Key Derivation & AEAD
-          </h3>
-          <ul class="spec-list">
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Argon2id KDF</strong>: 19MB RAM, 2 iterations, 16-byte cryptographically secure random salt.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>XChaCha20-Poly1305</strong>: 256-bit key, 192-bit (24-byte) random nonce, 16-byte Poly1305 MAC tag.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Separate Passwords</strong>: Firebase Auth password never decrypts notes or wraps master keys.</span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="spec-card">
-          <h3 class="spec-card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-            Database & Sync Invariants
-          </h3>
-          <ul class="spec-list">
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Crypto-Blind Backend</strong>: Zero plaintext columns in Turso libSQL schema.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Offline-First SQLite</strong>: 100% operable offline with Drift SQLite local persistence.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Idempotent Delta Sync</strong>: Cursor-based revision log with conflict detection.</span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="spec-card">
-          <h3 class="spec-card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            Editor & Local Storage
-          </h3>
-          <ul class="spec-list">
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Canonical Markdown</strong>: Pure text model without AST document lock-in or proprietary JSON.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>Hardware Keystore</strong>: Unlocked master keys secured in Android Keystore / iOS Keychain.</span>
-            </li>
-            <li class="spec-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span><strong>SAF Storage Access</strong>: Modern Scoped Storage compliance for .qpbackup files.</span>
-            </li>
-          </ul>
-        </div>
-
-      </div>
-
     </div>
   </section>
 
-  <!-- MULTI-ARCHITECTURE DOWNLOAD MATRIX -->
-  <section id="download" class="download-section">
-    <div class="container">
-      
-      <div class="section-header">
-        <span class="section-tag">// Direct Downloads</span>
-        <h2 class="section-title">Download Quiet Paper for Android.</h2>
-        <p style="color: var(--text-secondary); max-width: 600px; font-size: 15px;">
-          Choose the optimized binary for your device architecture, or download the Universal package. All releases are open-source and hosted directly on GitHub.
-        </p>
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <h2>Questions people ask</h2>
+      <div class="faq-list">
+
+        <details>
+          <summary>
+            Is Quiet Paper really free?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">Yes. The app and all core features — writing, offline storage, tagging, Markdown, local backup — are completely free. Cloud sync uses a small serverless backend; if infrastructure costs grow significantly, a fair optional subscription may be introduced in future, but nothing is paywalled today.</div>
+        </details>
+
+        <details>
+          <summary>
+            What does "zero-knowledge" actually mean here?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">It means the server never receives your note content in readable form. Encryption happens on your device before any network request is made. The database table that stores notes has no title, body, or tags columns — only encrypted ciphertext blobs. Even if the server or its database were compromised, an attacker would find nothing readable.</div>
+        </details>
+
+        <details>
+          <summary>
+            What happens if I forget my encryption password?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">During sync setup you are given a recovery key — a long random string that can unlock your encrypted vault without your password. Store it somewhere safe. If you lose both your password and your recovery key, your encrypted data cannot be recovered. This is an intentional property of the encryption design, not a limitation to fix.</div>
+        </details>
+
+        <details>
+          <summary>
+            Is the encryption password the same as my login password?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">No, and this is important. Your account password (managed by Firebase) answers the question "who are you?" Your encryption password answers "can you read your notes?" Resetting your account password — or losing it — does not affect your ability to decrypt notes. Changing your encryption password re-wraps your master key but does not re-encrypt your existing notes.</div>
+        </details>
+
+        <details>
+          <summary>
+            Can I import from Obsidian, Bear, or Notion?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">Yes, for any tool that can export to Markdown files. The Markdown folder importer handles arbitrary folder depths, YAML frontmatter, inline hashtags, and file timestamps. Obsidian vaults and Bear exports (via .md export) import well. Notion exports require converting to Markdown first — Notion's built-in "Export as Markdown" works for this.</div>
+        </details>
+
+        <details>
+          <summary>
+            Does Quiet Paper work without an internet connection?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">Completely. All notes are stored locally in SQLite. You can write, edit, search, and organize notes with no network access at all. If sync is enabled, changes made offline are queued locally and pushed automatically when a connection is next available — with conflict detection to handle edits made on other devices in the interim.</div>
+        </details>
+
+        <details>
+          <summary>
+            Which Android versions are supported?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">Quiet Paper targets Android 7.0 (API 24) and above. Four APK builds are published per release — arm64-v8a (most modern phones), armeabi-v7a (32-bit legacy devices), x86_64 (Chromebooks and emulators), and a universal fallback. The in-app updater selects the right binary for your device automatically.</div>
+        </details>
+
+        <details>
+          <summary>
+            Is there an iOS or desktop version?
+            <span class="summary-icon">
+              <span class="minus-icon">−</span>
+              <span class="plus-icon">+</span>
+            </span>
+          </summary>
+          <div class="faq-answer">Not yet. iOS and desktop (macOS, Linux) releases are on the roadmap. The codebase is Flutter, so the architecture supports multi-platform builds — it's a matter of platform-specific work for things like Keychain integration, filesystem access, and keyboard navigation. Follow the GitHub repository for updates.</div>
+        </details>
+
       </div>
+    </div>
+  </section>
 
-      <div class="download-grid">
-        
-        <!-- ARM64-v8a -->
-        <div class="download-card recommended">
-          <div class="recommended-badge">Recommended</div>
-          <div>
-            <h3 class="download-arch-name">ARM64-v8a</h3>
-            <p class="download-arch-desc">Modern 64-bit Android smartphones and tablets (Pixel, Galaxy, OnePlus, Xiaomi).</p>
+  <!-- DOWNLOAD -->
+  <section id="download">
+    <div class="wrap">
+      <h2>Take your notes back</h2>
+      <p>Free for Android. No account required to get started — just install and write.</p>
+      <div class="dl-grid">
+        <a href="https://github.com/blackpirateapps/quitepaper/releases/latest" class="dl-btn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1.667A8.333 8.333 0 0 0 7.5 18.166V15.5c-3 .666-3.667-1.5-3.667-1.5-.5-1.333-1.166-1.666-1.166-1.666-1-.667.083-.667.083-.667 1.083.083 1.667 1.083 1.667 1.083.916 1.667 2.5 1.167 3.083.917.083-.75.333-1.167.666-1.417-2.416-.25-4.916-1.167-4.916-5.25 0-1.167.416-2.083 1.083-2.834-.083-.25-.5-1.333.083-2.75 0 0 .917-.25 3 1.084a10.417 10.417 0 0 1 5.5 0C14.083 1.25 15 1.5 15 1.5c.583 1.417.167 2.5.083 2.75.667.75 1.083 1.667 1.083 2.834 0 4.083-2.5 5-4.916 5.25.416.333.75 1 .75 2v2.916A8.333 8.333 0 0 0 10 1.667Z" fill="currentColor"/></svg>
+          <div class="dl-btn-label">
+            <span class="dl-btn-sub">Latest release</span>
+            <strong>Download APK</strong>
           </div>
-          <div>
-            <div class="download-meta-row">
-              <span>Version: 1.5.7</span>
-              <span>Fast & Compact</span>
-            </div>
-            <a href="https://github.com/blackpirateapps/quitepaper/releases/latest/download/quiet-paper-arm64-v8a.apk" class="lenis-btn lenis-btn-primary" style="width: 100%;">
-              <span class="btn-content-slider">
-                <span class="btn-text-visible">Download APK (ARM64)</span>
-                <span class="btn-text-hidden">Direct Download &darr;</span>
-              </span>
-            </a>
+        </a>
+        <a href="https://github.com/blackpirateapps/quitepaper" class="dl-btn secondary">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1.667A8.333 8.333 0 0 0 7.5 18.166V15.5c-3 .666-3.667-1.5-3.667-1.5-.5-1.333-1.166-1.666-1.166-1.666-1-.667.083-.667.083-.667 1.083.083 1.667 1.083 1.667 1.083.916 1.667 2.5 1.167 3.083.917.083-.75.333-1.167.666-1.417-2.416-.25-4.916-1.167-4.916-5.25 0-1.167.416-2.083 1.083-2.834-.083-.25-.5-1.333.083-2.75 0 0 .917-.25 3 1.084a10.417 10.417 0 0 1 5.5 0C14.083 1.25 15 1.5 15 1.5c.583 1.417.167 2.5.083 2.75.667.75 1.083 1.667 1.083 2.834 0 4.083-2.5 5-4.916 5.25.416.333.75 1 .75 2v2.916A8.333 8.333 0 0 0 10 1.667Z" stroke="currentColor" stroke-width="1.25" fill="none"/></svg>
+          <div class="dl-btn-label">
+            <span class="dl-btn-sub">Open source</span>
+            <strong>View on GitHub</strong>
           </div>
-        </div>
-
-        <!-- Universal APK -->
-        <div class="download-card">
-          <div>
-            <h3 class="download-arch-name">Universal APK</h3>
-            <p class="download-arch-desc">All-in-one FAT binary with broad compatibility across all supported Android ABIs.</p>
-          </div>
-          <div>
-            <div class="download-meta-row">
-              <span>Version: 1.5.7</span>
-              <span>Universal Binary</span>
-            </div>
-            <a href="https://github.com/blackpirateapps/quitepaper/releases/latest/download/quiet-paper-universal.apk" class="lenis-btn lenis-btn-secondary" style="width: 100%;">
-              <span class="btn-content-slider">
-                <span class="btn-text-visible">Download Universal APK</span>
-                <span class="btn-text-hidden">Direct Download &darr;</span>
-              </span>
-            </a>
-          </div>
-        </div>
-
-        <!-- x86_64 -->
-        <div class="download-card">
-          <div>
-            <h3 class="download-arch-name">x86_64</h3>
-            <p class="download-arch-desc">Chromebooks, Android Studio emulators, and Intel/AMD Android devices.</p>
-          </div>
-          <div>
-            <div class="download-meta-row">
-              <span>Version: 1.5.7</span>
-              <span>Intel / AMD 64-bit</span>
-            </div>
-            <a href="https://github.com/blackpirateapps/quitepaper/releases/latest/download/quiet-paper-x86_64.apk" class="lenis-btn lenis-btn-secondary" style="width: 100%;">
-              <span class="btn-content-slider">
-                <span class="btn-text-visible">Download APK (x86_64)</span>
-                <span class="btn-text-hidden">Direct Download &darr;</span>
-              </span>
-            </a>
-          </div>
-        </div>
-
-        <!-- ARMeabi-v7a -->
-        <div class="download-card">
-          <div>
-            <h3 class="download-arch-name">ARMeabi-v7a</h3>
-            <p class="download-arch-desc">Legacy 32-bit Android hardware and older device architectures.</p>
-          </div>
-          <div>
-            <div class="download-meta-row">
-              <span>Version: 1.5.7</span>
-              <span>Legacy 32-bit</span>
-            </div>
-            <a href="https://github.com/blackpirateapps/quitepaper/releases/latest/download/quiet-paper-armeabi-v7a.apk" class="lenis-btn lenis-btn-secondary" style="width: 100%;">
-              <span class="btn-content-slider">
-                <span class="btn-text-visible">Download APK (ARMv7)</span>
-                <span class="btn-text-hidden">Direct Download &darr;</span>
-              </span>
-            </a>
-          </div>
-        </div>
-
+        </a>
       </div>
-
+      <p class="dl-note">arm64-v8a · armeabi-v7a · x86_64 · universal · Android 7.0+</p>
     </div>
   </section>
 
   <!-- FOOTER -->
-  <footer class="site-footer">
-    <div class="container">
-      
-      <div class="footer-inner">
-        <a href="#" class="brand-logo" aria-label="Quiet Paper">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 3H20L26 9V29H6V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M20 3V9H26" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <line x1="10" y1="14" x2="22" y2="14" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-            <line x1="10" y1="19" x2="22" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="10" y1="24" x2="17" y2="24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span>Quiet Paper</span>
-        </a>
-
-        <ul class="footer-links">
-          <li><a href="#screenshots" class="footer-link">Screenshots</a></li>
-          <li><a href="https://github.com/blackpirateapps/quitepaper/releases" target="_blank" rel="noopener" class="footer-link">Releases</a></li>
-          <li><a href="https://github.com/blackpirateapps/quitepaper" target="_blank" rel="noopener" class="footer-link">GitHub</a></li>
-          <li><a href="https://github.com/blackpirateapps/quitepaper/blob/main/docs/encryption.md" target="_blank" rel="noopener" class="footer-link">Encryption Spec</a></li>
-          <li><a href="https://github.com/blackpirateapps/quitepaper/blob/main/HANDOFF.md" target="_blank" rel="noopener" class="footer-link">Handoff Doc</a></li>
-          <li><a href="/api/v1/health" class="footer-link">API Health</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-bottom">
-        <span>© 2026 Quiet Paper. Open-source under MIT License.</span>
-        <span>Built with Flutter, Drift SQLite, and Vercel Serverless.</span>
-      </div>
-
+  <footer>
+    <div class="wrap">
+      <div class="footer-logo">Quiet Paper</div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/blackpirateapps/quitepaper">GitHub</a></li>
+        <li><a href="#screenshots">Screenshots</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#roadmap">Roadmap</a></li>
+      </ul>
+      <div class="footer-meta">v1.5.7 · Free &amp; open source</div>
     </div>
   </footer>
-
-  <!-- SCRIPT: Lenis Smooth Scroll, Theme Toggle & Interactive Sandbox Engine -->
-  <script>
-    // 1. Initialize Lenis Smooth Scroll Engine
-    let lenis;
-    try {
-      lenis = new Lenis({
-        duration: 1.15,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        smoothWheel: true,
-        orientation: 'vertical'
-      });
-
-      function raf(time) {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      }
-      requestAnimationFrame(raf);
-    } catch (e) {
-      console.warn('Lenis could not be initialized:', e);
-    }
-
-    // Scroll Progress Bar Update
-    window.addEventListener('scroll', () => {
-      const scrollTotal = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = scrollTotal > 0 ? (window.scrollY / scrollTotal) * 100 : 0;
-      document.getElementById('scroll-progress').style.width = progress + '%';
-    });
-
-    // 2. Theme Toggle (Warm Dark <-> Warm Light)
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    const htmlElement = document.documentElement;
-
-    function setTheme(theme) {
-      htmlElement.setAttribute('data-theme', theme);
-      localStorage.setItem('qp-theme', theme);
-    }
-
-    themeToggleBtn.addEventListener('click', () => {
-      const currentTheme = htmlElement.getAttribute('data-theme');
-      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      setTheme(nextTheme);
-    });
-
-    // Restore saved theme preference if present
-    const savedTheme = localStorage.getItem('qp-theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-
-    // 3. Interactive Sandbox Tab Switching
-    function switchSandboxTab(tab) {
-      const editorTab = document.getElementById('sandbox-tab-editor');
-      const cryptoTab = document.getElementById('sandbox-tab-crypto');
-      const editorBtn = document.getElementById('tab-editor-btn');
-      const cryptoBtn = document.getElementById('tab-crypto-btn');
-
-      if (tab === 'editor') {
-        editorTab.style.display = 'block';
-        cryptoTab.style.display = 'none';
-        editorBtn.classList.add('active');
-        cryptoBtn.classList.remove('active');
-      } else {
-        editorTab.style.display = 'none';
-        cryptoTab.style.display = 'block';
-        editorBtn.classList.remove('active');
-        cryptoBtn.classList.add('active');
-        updateCryptoSimulation();
-      }
-    }
-
-    // 4. Live Markdown Editor Engine
-    const markdownInput = document.getElementById('live-markdown-input');
-    const renderedPreview = document.getElementById('live-rendered-preview');
-    const editorStats = document.getElementById('editor-stats');
-
-    function renderMarkdownToHtml(md) {
-      const lines = md.split('\n');
-      let html = '';
-
-      lines.forEach((line, index) => {
-        let trimmed = line.trim();
-
-        // Heading 1
-        if (trimmed.startsWith('# ')) {
-          html += `<h1 class="preview-h1">${escapeHtml(trimmed.substring(2))}</h1>`;
-          return;
-        }
-
-        // Heading 2
-        if (trimmed.startsWith('## ')) {
-          html += `<h2 style="font-family: var(--font-serif); font-size: 22px; font-weight: 600; margin: 16px 0 8px; color: var(--text-primary);">${escapeHtml(trimmed.substring(3))}</h2>`;
-          return;
-        }
-
-        // Checkbox completed
-        if (trimmed.startsWith('- [x] ') || trimmed.startsWith('- [X] ')) {
-          const taskText = formatInline(trimmed.substring(6));
-          html += `<div class="preview-checklist-item checked" onclick="toggleCheckboxInSource(${index})">
-            <div class="preview-checkbox checked">✓</div>
-            <span>${taskText}</span>
-          </div>`;
-          return;
-        }
-
-        // Checkbox uncompleted
-        if (trimmed.startsWith('- [ ] ')) {
-          const taskText = formatInline(trimmed.substring(6));
-          html += `<div class="preview-checklist-item" onclick="toggleCheckboxInSource(${index})">
-            <div class="preview-checkbox"></div>
-            <span>${taskText}</span>
-          </div>`;
-          return;
-        }
-
-        // Empty line
-        if (trimmed === '') {
-          html += `<div style="height: 10px;"></div>`;
-          return;
-        }
-
-        // Standard paragraph
-        html += `<p class="preview-p">${formatInline(trimmed)}</p>`;
-      });
-
-      return html;
-    }
-
-    function formatInline(str) {
-      let formatted = escapeHtml(str);
-      // Highlights ==text==
-      formatted = formatted.replace(/==([^=]+)==/g, '<span class="preview-highlight">$1</span>');
-      // Bold **text**
-      formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong style="color: var(--text-primary);">$1</strong>');
-      // Italic *text*
-      formatted = formatted.replace(/\*([^*]+)\*/g, '<em style="font-family: var(--font-serif);">$1</em>');
-      return formatted;
-    }
-
-    function escapeHtml(text) {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-      return text.replace(/[&<>"']/g, (m) => map[m]);
-    }
-
-    function updateLivePreview() {
-      const content = markdownInput.value;
-      renderedPreview.innerHTML = renderMarkdownToHtml(content);
-
-      // Update statistics
-      const words = content.trim().length > 0 ? content.trim().split(/\s+/).length : 0;
-      const chars = content.length;
-      editorStats.textContent = `${words} words • ${chars} chars`;
-    }
-
-    function toggleCheckboxInSource(lineIndex) {
-      const lines = markdownInput.value.split('\n');
-      if (lineIndex >= 0 && lineIndex < lines.length) {
-        if (lines[lineIndex].includes('- [ ] ')) {
-          lines[lineIndex] = lines[lineIndex].replace('- [ ] ', '- [x] ');
-        } else if (lines[lineIndex].includes('- [x] ') || lines[lineIndex].includes('- [X] ')) {
-          lines[lineIndex] = lines[lineIndex].replace(/- \[[xX]\] /, '- [ ] ');
-        }
-        markdownInput.value = lines.join('\n');
-        updateLivePreview();
-      }
-    }
-
-    markdownInput.addEventListener('input', updateLivePreview);
-    updateLivePreview();
-
-    // 5. Typography Switcher for Playground
-    function setPreviewFont(fontKey, element) {
-      document.querySelectorAll('.font-pill').forEach(btn => btn.classList.remove('active'));
-      element.classList.add('active');
-
-      if (fontKey === 'ia-quattro') {
-        renderedPreview.style.fontFamily = "'Newsreader', 'Lora', Georgia, serif";
-      } else if (fontKey === 'newsreader') {
-        renderedPreview.style.fontFamily = "'Newsreader', serif";
-      } else if (fontKey === 'inter') {
-        renderedPreview.style.fontFamily = "'Inter', sans-serif";
-      } else if (fontKey === 'jetbrains') {
-        renderedPreview.style.fontFamily = "'JetBrains Mono', monospace";
-      }
-    }
-
-    // 6. Zero-Knowledge Crypto Simulator Engine
-    function simpleHash(str, salt) {
-      let hash = 0x811c9dc5;
-      const combined = str + ':' + salt;
-      for (let i = 0; i < combined.length; i++) {
-        hash ^= combined.charCodeAt(i);
-        hash = Math.imul(hash, 0x01000193);
-      }
-      return ('00000000' + (hash >>> 0).toString(16)).slice(-8);
-    }
-
-    function updateCryptoSimulation() {
-      const title = document.getElementById('crypto-input-title').value;
-      const body = document.getElementById('crypto-input-body').value;
-      const pass = document.getElementById('crypto-input-pass').value;
-
-      // Simulated Argon2id Key Derivation
-      const salt = "9f2a71d8e3b4012c";
-      const derivedKey = "0x" + simpleHash(pass, salt) + simpleHash(pass, "iter2") + simpleHash(pass, "mem19mb") + simpleHash(pass, "quietpaper");
-      document.getElementById('crypto-out-key').textContent = derivedKey;
-
-      // Simulated XChaCha20-Poly1305 Ciphertext
-      const payload = JSON.stringify({ title, body, tags: ["confidential", "security"] });
-      let ciphertextHex = "";
-      for (let i = 0; i < payload.length; i++) {
-        const byte = (payload.charCodeAt(i) ^ (derivedKey.charCodeAt(i % derivedKey.length))) % 256;
-        ciphertextHex += ('00' + byte.toString(16)).slice(-2);
-      }
-      const nonce = "01a8f93e4b7c209d115e884a";
-      const macTag = "c84e1b092f6a7391";
-
-      const formattedEnvelope = `<!-- qp-e2ee:v1:{"v":1,"nonce":"${nonce}","tag":"${macTag}","ciphertext":"${ciphertextHex.substring(0, 96)}..."} -->`;
-      document.getElementById('crypto-out-ciphertext').textContent = formattedEnvelope;
-    }
-  </script>
 
 </body>
 </html>
