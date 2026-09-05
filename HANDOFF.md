@@ -5483,6 +5483,33 @@ Aligned the static landing page (`backend/public/index.html` and `public/index.h
 5. **Directory Parity**:
    - Fully synchronized changes between `backend/public/index.html` and `public/index.html`.
 
+---
+
+## 95. Editorial Changelog Page with Commit & Architectural Deep-Dives
+
+### Overview
+Built a dedicated changelog and engineering history page (`backend/public/changelog.html` and `public/changelog.html`) providing an interactive, reverse-chronological timeline of Quiet Paper's major commits, releases, and architectural iterations.
+
+### Key Highlights
+1. **Editorial Aesthetic & Brand Alignment**:
+   - Adopts Quiet Paper's signature warm paper background (`#F7F6F2`), terracotta coral accent (`#D65F55`), and editorial typography (`Lora` serif headlines, `Inter` UI text, and `JetBrains Mono` code blocks).
+   - Features a continuous vertical timeline connecting release nodes with major milestone markers.
+2. **Commit Explanations & Technical Context**:
+   - Deep-dives into major milestones including:
+     - **WYSIWYG Editor V4 Beta (v1.5.7)**: Dynamic semantic projection layer maintaining raw Markdown as the canonical truth, interactive Phosphor checklists, and whitespace inline coalescing.
+     - **Terracotta Coral Palette Harmonization**: Full brand alignment across mobile app, tablet interface, documentation, and web portal.
+     - **Offline On-Device Voice Dictation (v1.5.6)**: 100% private neural speech recognition with FUTO / Sherpa-ONNX models, simultaneous typing, and floating waveform toolbar.
+     - **Daily Reflection Journal & Paper Calendar**: Quick-entry today prompts, monthly dot calendar, and "On This Day" historical reflection.
+     - **Bi-Directional Note Linking & Backlinks**: Notion-style `[[Note]]` autocomplete and dynamic SQLite relationship graph.
+     - **Living Typography Engine (v1.5.5)**: On-demand font CDN delivery saving 20MB+ APK size, and centralized multi-theme architecture (`Classic Paper`, `Warm Paper`, `Midnight`).
+     - **Continuous Paper Stream**: Bear Notes-inspired borderless list, distinct document badges (`PDF`, `CSV`, `WEB`), and LRU metadata caching.
+     - **Scoped Storage SAF Backups (v1.5.4)**: Native Android Storage Access Framework integration, Argon2id encryption envelopes, and daily rolling retention.
+3. **Interactive Category Filtering**:
+   - Allows visitors to filter changelog entries by topic: *All Updates*, *WYSIWYG Editor*, *Voice & Dictation*, *Journal & Calendar*, *Typography & Themes*, and *Security & Backups*.
+4. **Navigation Integration & Parity**:
+   - Added `Changelog` links to the top sticky navigation and footer across both `backend/public/index.html` and `public/index.html`.
+
+
 
 
 

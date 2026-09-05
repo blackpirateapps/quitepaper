@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Changelog — Quiet Paper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper:    #F7F6F2;
+      --ink:      #1D1C1A;
+      --parchment:#EAE7E0;
+      --rule:     #D8D4CC;
+      --muted:    #7A7570;
+      --accent:   #D65F55;
+      --accent-light: rgba(214, 95, 85, 0.12);
+      --surface:  #EFEFEB;
+      --white:    #FDFCFA;
+      --max:      760px;
+    }
+
+    ::selection {
+      background: rgba(214, 95, 85, 0.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      padding: 0 clamp(24px, 6vw, 80px);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-logo {
+      font-family: 'Lora', serif;
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-back {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.15s ease;
+    }
+    .nav-back:hover { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-cta {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink) !important;
+      border: 1px solid var(--rule);
+      padding: 6px 16px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: var(--parchment) !important; color: var(--ink) !important; }
+
+    /* ── LAYOUT ── */
+    .wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 clamp(24px, 6vw, 48px);
+    }
+
+    /* ── HEADER ── */
+    header.page-header {
+      padding: 80px 0 48px;
+      border-bottom: 1px solid var(--rule);
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(214, 95, 85, 0.05) 0%, transparent 70%),
+        var(--paper);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .page-title {
+      font-family: 'Lora', serif;
+      font-size: clamp(32px, 5vw, 44px);
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+
+    .page-lead {
+      font-size: 17px;
+      color: var(--muted);
+      font-weight: 300;
+      line-height: 1.75;
+      max-width: 620px;
+      margin-bottom: 32px;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .filter-pill {
+      font-size: 12px;
+      padding: 5px 13px;
+      border-radius: 20px;
+      border: 1px solid var(--rule);
+      background: var(--white);
+      color: var(--muted);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-weight: 400;
+    }
+    .filter-pill:hover,
+    .filter-pill.active {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    /* ── TIMELINE CONTAINER ── */
+    .timeline {
+      padding: 56px 0 88px;
+      position: relative;
+    }
+
+    /* Connecting vertical line */
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 64px;
+      bottom: 80px;
+      left: 19px;
+      width: 1px;
+      background: var(--rule);
+      z-index: 0;
+    }
+
+    /* ── RELEASE ENTRY CARD ── */
+    .release-entry {
+      position: relative;
+      margin-bottom: 64px;
+      padding-left: 48px;
+    }
+
+    .release-entry:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Timeline node dot */
+    .timeline-dot {
+      position: absolute;
+      left: 14px;
+      top: 6px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 2px solid var(--accent);
+      z-index: 1;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .release-entry.major .timeline-dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-light);
+    }
+
+    .release-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .version-tag {
+      font-family: 'Lora', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .status-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(214, 95, 85, 0.12);
+      color: var(--accent);
+    }
+
+    .status-badge.stable {
+      background: rgba(90, 138, 90, 0.12);
+      color: #4B854B;
+    }
+
+    .release-date {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .entry-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      padding: 28px 30px;
+      box-shadow: 0 2px 8px rgba(29, 28, 26, 0.03);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .entry-card:hover {
+      border-color: rgba(214, 95, 85, 0.4);
+      box-shadow: 0 4px 16px rgba(29, 28, 26, 0.06);
+    }
+
+    .entry-header {
+      margin-bottom: 14px;
+    }
+
+    .entry-title {
+      font-family: 'Lora', serif;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.35;
+      margin-bottom: 8px;
+      letter-spacing: -0.015em;
+    }
+
+    .commit-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .commit-hash {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      background: var(--surface);
+      border: 1px solid rgba(216, 212, 204, 0.6);
+      color: var(--ink);
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .commit-hash:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--white);
+    }
+
+    .category-chip {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    /* Explanation Section */
+    .explanation-box {
+      margin: 18px 0;
+      padding: 16px 18px;
+      border-left: 3px solid var(--accent);
+      background: rgba(214, 95, 85, 0.04);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .explanation-heading {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .explanation-text {
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .details-list {
+      margin: 16px 0 8px 18px;
+      list-style-type: square;
+    }
+
+    .details-list li {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.75;
+      margin-bottom: 8px;
+    }
+
+    .details-list li strong {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .details-list li code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      background: var(--surface);
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: var(--ink);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--rule);
+      padding: 40px 0;
+      background: var(--paper);
+    }
+
+    footer .wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      font-family: 'Lora', serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--ink); }
+
+    .footer-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .timeline::before { left: 11px; }
+      .timeline-dot { left: 6px; }
+      .release-entry { padding-left: 32px; }
+      .entry-card { padding: 20px 18px; }
+      header.page-header { padding: 56px 0 36px; }
+      .nav-links { display: none; }
+      footer .wrap { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-left">
+      <a href="index.html" class="nav-logo">Quiet Paper</a>
+      <a href="index.html" class="nav-back">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Landing
+      </a>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html#screenshots">Screenshots</a></li>
+      <li><a href="index.html#features">Features</a></li>
+      <li><a href="index.html#roadmap">Roadmap</a></li>
+      <li><a href="https://github.com/blackpirateapps/quitepaper">GitHub</a></li>
+      <li><a href="index.html#download" class="nav-cta">Download APK</a></li>
+    </ul>
+  </nav>
+
+  <!-- HEADER -->
+  <header class="page-header">
+    <div class="wrap">
+      <span class="eyebrow">Engineering Log &amp; Releases</span>
+      <h1 class="page-title">Quiet Paper Changelog</h1>
+      <p class="page-lead">
+        A chronological breakdown of recent major commits, architectural iterations, and release milestones. Discover the technical decisions behind each feature.
+      </p>
+
+      <div class="filter-bar">
+        <button class="filter-pill active" onclick="filterChangelog('all', this)">All Updates</button>
+        <button class="filter-pill" onclick="filterChangelog('editor', this)">WYSIWYG Editor</button>
+        <button class="filter-pill" onclick="filterChangelog('voice', this)">Voice &amp; Dictation</button>
+        <button class="filter-pill" onclick="filterChangelog('journal', this)">Journal &amp; Calendar</button>
+        <button class="filter-pill" onclick="filterChangelog('typography', this)">Typography &amp; Themes</button>
+        <button class="filter-pill" onclick="filterChangelog('sync', this)">Security &amp; Backups</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TIMELINE -->
+  <main class="timeline">
+    <div class="wrap">
+
+      <!-- ITEM 1: Accent Color Alignment -->
+      <article class="release-entry major" data-category="typography">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Brand &amp; Design Harmonization</span>
+          <span class="status-badge">Design System</span>
+          <span class="release-date">September 5, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Signature Terracotta Coral Palette (#D65F55) Alignment</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/e66f234" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                e66f234
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/9a3d085" target="_blank" class="commit-hash">9a3d085</a>
+              <span class="category-chip">Landing Page</span>
+              <span class="category-chip">Theme System</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Quiet Paper's core app identity is anchored by its warm Classic Paper theme featuring a restrained reddish terracotta accent (<code>#D65F55</code>). The static web presence was previously using a generic brownish tone (<code>#8B7355</code>). This update establishes 100% visual consistency between the mobile app, tablet interface, documentation, and web portals.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Terracotta Accent System</strong>: Updated <code>--accent</code> to <code>#D65F55</code> and translucent washes to <code>rgba(214, 95, 85, 0.12)</code> across CSS variables.</li>
+            <li><strong>Atmospheric Hero Lighting</strong>: Replaced background radial gradient with a soft coral atmospheric light, evoking warm stationery paper under daylight.</li>
+            <li><strong>Interactive Editor Preview</strong>: Mirrored in-app formatting toolbar behavior by tinting active buttons and highlight spans with warm terracotta tones.</li>
+            <li><strong>Custom Text Selection</strong>: Added a subtle <code>::selection</code> rule that matches the app's editorial text highlighter.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 2: Version 1.5.7 Release & WYSIWYG V4 Beta -->
+      <article class="release-entry major" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.7</span>
+          <span class="status-badge">Beta Release</span>
+          <span class="release-date">September 4, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Interactive WYSIWYG Editor V4 &amp; Smart Checklists</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/f3aae62" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                f3aae62
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/6384782" target="_blank" class="commit-hash">6384782</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/c7141dd" target="_blank" class="commit-hash">c7141dd</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/cce4251" target="_blank" class="commit-hash">cce4251</a>
+              <span class="category-chip">Editor V4</span>
+              <span class="category-chip">Checklists</span>
+              <span class="category-chip">Markdown</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Most note apps either force raw Markdown with ugly syntax markers or adopt heavy proprietary document formats (like Quill or ProseMirror) that break offline file portability and risk data corruption. Quiet Paper solved this with <strong>Editor V4</strong>: a dynamic semantic projection layer where Markdown remains the 100% single canonical data store, but headings, checklists, and inline formats render visually as you write.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Interactive Phosphor Checklists</strong>: Interactive <code>- [ ]</code> checkboxes rendered with custom vector glyphs. Tapping immediately strikes through completed items and toggles Markdown state in place with smooth haptic feedback.</li>
+            <li><strong>Smart Enter &amp; Backspace Flow</strong>: Pressing Enter on an active task automatically creates a new task; pressing Enter on an empty checklist cleanly terminates the list without manual editing.</li>
+            <li><strong>Sentence-Wide Inline Coalescing</strong>: Formatting across word boundaries and whitespaces (e.g. bolding an entire clause) coalesces smoothly into a single unified visual span without delimiter leaking.</li>
+            <li><strong>Keyboard &amp; Caret Invariants</strong>: Selecting headings or toggling styles never hides the virtual keyboard or resets caret position, preserving the writing flow.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 3: Offline On-Device Voice Recognition -->
+      <article class="release-entry major" data-category="voice">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.6 — Dictation Engine</span>
+          <span class="status-badge stable">Stable</span>
+          <span class="release-date">September 2, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Zero-Cloud On-Device Speech-to-Text with FUTO Models</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/857ea94" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                857ea94
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/6851b32" target="_blank" class="commit-hash">6851b32</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/67fa332" target="_blank" class="commit-hash">67fa332</a>
+              <span class="category-chip">Speech Recognition</span>
+              <span class="category-chip">On-Device AI</span>
+              <span class="category-chip">Privacy Invariant</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Almost all mobile voice dictation sends unencrypted audio snippets to remote corporate servers for inference. For a zero-knowledge, privacy-first notes app, that is an unacceptable compromise. Quiet Paper embedded on-device ONNX neural speech recognition (Sherpa-ONNX + FUTO models) that processes audio locally using the device's own hardware with zero network traffic.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Zero Network Footprint</strong>: Audio never leaves the local sandbox. You can dictate entire journals on airplane mode with zero connectivity.</li>
+            <li><strong>Dual Keyboard Dictation</strong>: Kept the software keyboard active during speech capture, so users can seamlessly edit words, fix typos, or insert punctuation while speaking.</li>
+            <li><strong>Floating Speech Bar</strong>: Designed a minimal 44dp recording toolbar showing real-time audio waveforms, elapsed timer, live transcribed tokens, and one-tap cancellation.</li>
+            <li><strong>Multi-Model Architecture</strong>: On-demand model manager supporting fast English models (~40MB) and multilingual models with automatic speech language detection.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 4: Journal & Calendar -->
+      <article class="release-entry" data-category="journal">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Chronological Memory</span>
+          <span class="status-badge stable">Feature</span>
+          <span class="release-date">September 1, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Daily Reflection Journal &amp; Embedded Paper Calendar</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/0388054" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                0388054
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/fd5e371" target="_blank" class="commit-hash">fd5e371</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/96a5b7a" target="_blank" class="commit-hash">96a5b7a</a>
+              <span class="category-chip">Journal V1</span>
+              <span class="category-chip">Calendar Grid</span>
+              <span class="category-chip">On This Day</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Notes capture ideas, but journals capture life across time. Combining traditional topical tagging with chronological reflection lets users treat Quiet Paper as both a second brain and an intimate daily diary without needing a second application.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Today Quick-Reflection Workflow</strong>: Dedicated shortcut creating or resuming the day's reflection sheet with customizable morning and evening prompt templates.</li>
+            <li><strong>Embedded Paper Calendar</strong>: Quiet monthly calendar view with delicate terracotta indicator dots under dates with entries and clean outlined rings for Today.</li>
+            <li><strong>"On This Day" Surface</strong>: Automatically surfaces entries written on the same calendar day in previous months and years for nostalgic reflection.</li>
+            <li><strong>Seamless Navigation</strong>: Quick toggle between high-level calendar heatmaps and uninterrupted chronological scroll streams.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 5: Note Linking & Backlinks -->
+      <article class="release-entry" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Knowledge Architecture</span>
+          <span class="status-badge stable">Feature</span>
+          <span class="release-date">August 28, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Bi-Directional Note Linking ([[Note]]) &amp; Backlinks Graph</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/87036ce" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                87036ce
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/f970936" target="_blank" class="commit-hash">f970936</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/86a57f0" target="_blank" class="commit-hash">86a57f0</a>
+              <span class="category-chip">Zettelkasten</span>
+              <span class="category-chip">Backlinks</span>
+              <span class="category-chip">Autocomplete</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Ideas thrive on connections. By adopting the standard double-bracket syntax (<code>[[Link]]</code>), Quiet Paper enables associative thinking similar to Roam and Obsidian, but renders backlinks in an elegant two-line editorial drawer at the foot of each document.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Notion-Style Inline Autocomplete</strong>: Typing <code>[[</code> triggers a floating search popup that queries SQLite titles in real time, inserting links with a single tap.</li>
+            <li><strong>Derived Relationship Graph</strong>: Links are parsed dynamically from note contents into an indexed SQLite virtual table, eliminating manual link management.</li>
+            <li><strong>Expandable Backlinks Drawer</strong>: Notes display incoming references in an editorial tray showing surrounding snippet context without cluttering the main sheet.</li>
+            <li><strong>Tablet 3-Pane Preservation</strong>: Clicking a linked note smoothly loads into the editor view without popping route history or turning tablet split-views blank.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 6: Living Typography Engine -->
+      <article class="release-entry" data-category="typography">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.5</span>
+          <span class="status-badge stable">Stable</span>
+          <span class="release-date">August 20, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Living Typography Engine &amp; On-Demand Font CDN</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/d7a1241" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                d7a1241
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/b5c0c28" target="_blank" class="commit-hash">b5c0c28</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/f373faa" target="_blank" class="commit-hash">f373faa</a>
+              <span class="category-chip">Typography</span>
+              <span class="category-chip">iA Writer Quattro</span>
+              <span class="category-chip">CDN Delivery</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Typeface is the voice of the written word. Packaging high-quality font families directly inside the APK added over 20MB of dead weight. Quiet Paper implemented an on-demand CDN delivery system that downloads fonts with cryptographic hash verification only when chosen by the user.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>iA Writer Quattro &amp; SF Pro</strong>: Added legendary writing typefaces including iA Writer Quattro (the iconic hybrid duospace) and Apple SF Pro with automatic optical sizing.</li>
+            <li><strong>20MB+ APK Footprint Reduction</strong>: Bundled fonts are streamed dynamically from verified edge storage, keeping the download package nimble and fast to install.</li>
+            <li><strong>Full UI Typography Sync</strong>: Font selections can be set exclusively for note editing or propagated globally across the entire interface and PDF exports.</li>
+            <li><strong>Dual Theme Families</strong>: Formalized <code>Classic Paper</code> (Warm terracotta on soft parchment) and <code>Warm Paper / Midnight</code> (Serene slate blue on cool paper).</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 7: Continuous Notes Stream -->
+      <article class="release-entry" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Editorial Reading</span>
+          <span class="status-badge stable">UI Overhaul</span>
+          <span class="release-date">August 12, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Continuous Paper Stream &amp; Document Mini-Previews</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/9aaaecf" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                9aaaecf
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/1af2a04" target="_blank" class="commit-hash">1af2a04</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/aaf8468" target="_blank" class="commit-hash">aaf8468</a>
+              <span class="category-chip">Bear Notes Style</span>
+              <span class="category-chip">PDF Rasterizer</span>
+              <span class="category-chip">LRU Cache</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Material Design cards create heavy visual boxes and disjointed padding. Quiet Paper migrated its middle list pane into an uninterrupted, flowing river of paper inspired by Bear Notes. Note titles, clean previews, document badges, and timestamps sit harmoniously on the canvas.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Continuous Stream Layout</strong>: Removed bulky elevation boxes and substituted 0.8dp soft dividers that flow naturally with the background paper color.</li>
+            <li><strong>Distinct Document Badges</strong>: Notes containing files display clean typography badges (<code>PDF · 12 pages</code>, <code>CSV Table</code>, <code>HTML Web Archive</code>) instead of noisy icons.</li>
+            <li><strong>PDF First-Page Thumbnails</strong>: Background worker rasterizes the cover page of PDF documents into crisp, rounded thumbnail cards.</li>
+            <li><strong>Zero-Lag LRU Caching</strong>: Eliminates scroll stutter by caching parsed YAML frontmatter and image textures in RAM.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM 8: Scoped Storage Local Backups -->
+      <article class="release-entry" data-category="sync">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.4</span>
+          <span class="status-badge stable">Security</span>
+          <span class="release-date">August 4, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Android Scoped Storage SAF Backups &amp; Rolling Archives</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/505dbf0" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                505dbf0
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/796de96" target="_blank" class="commit-hash">796de96</a>
+              <span class="category-chip">SAF Integration</span>
+              <span class="category-chip">Encrypted .qpbackup</span>
+              <span class="category-chip">Auto Rolling</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Android 11+ Scoped Storage broke legacy POSIX file creation outside app-private directories. Users need true data sovereignty: the ability to export their notebooks to external SD cards, Google Drive, or local storage without OS permission failures.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Storage Access Framework (SAF)</strong>: Implemented native <code>ACTION_CREATE_DOCUMENT</code> intents, letting users stream <code>.qpbackup</code> files directly into any system folder.</li>
+            <li><strong>Client-Side Argon2id Encryption</strong>: Backups can be unencrypted JSON or wrapped in <strong>Argon2id + XChaCha20-Poly1305</strong> envelopes protected by your personal password.</li>
+            <li><strong>Automated Daily Rolling Backups</strong>: Executes silent non-blocking snapshots every 24 hours with automatic pruning (retention limit of 3, 5, 10, or 30 files).</li>
+            <li><strong>Three Restore Modes</strong>: Smart Merge (keeps newer edits), Keep Both (re-UUID with restored tags), or Clean Replace (exact notebook snapshot).</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-logo">Quiet Paper</div>
+      <ul class="footer-links">
+        <li><a href="index.html">Landing Page</a></li>
+        <li><a href="https://github.com/blackpirateapps/quitepaper">GitHub</a></li>
+        <li><a href="index.html#download">Download APK</a></li>
+        <li><a href="index.html#faq">FAQ</a></li>
+      </ul>
+      <div class="footer-meta">v1.5.7 · Free &amp; open source notes</div>
+    </div>
+  </footer>
+
+  <!-- FILTER SCRIPT -->
+  <script>
+    function filterChangelog(category, btn) {
+      const pills = document.querySelectorAll('.filter-pill');
+      pills.forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      const entries = document.querySelectorAll('.release-entry');
+      entries.forEach(entry => {
+        if (category === 'all' || entry.getAttribute('data-category') === category) {
+          entry.style.display = 'block';
+        } else {
+          entry.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
