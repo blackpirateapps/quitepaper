@@ -5377,6 +5377,49 @@ To allow users who prefer traditional overscroll bouncing or undisturbed note wr
 - **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
 - **Full Test Suite**: `flutter test` $\rightarrow$ **1,303 passed / 0 failed (100% pass rate)**.
 
+---
+
+## 56. Responsive Screenshots & Interface Gallery Landing Page Section
+
+### 1. Overview & Motivation
+To showcase Quiet Paper's dual-dimension experience across phone and tablet form factors, a new dedicated **Interface Gallery / Screenshots Section** (`#screenshots`) was introduced on the landing page (`backend/public/index.html` and `public/index.html`). 
+
+The section is positioned directly beneath the Hero section and presents a feature-based comparison across three stacked rows displaying the **Tablet** (3-pane split view) and **Phone** (focused single-column view) layouts side-by-side.
+
+### 2. Architectural & Design Details
+1. **Feature-Based Comparison Rows**:
+   - **01 / Notes & Editor**:
+     - Tablet: 3-pane split view (`images/tablet/notes-list.png`) showing persistent sidebar navigation, notes list with active filters and pinned notes, and open digital sheet editor.
+     - Phone: Single-column notes list (`images/phone/phone-notes.jpeg`) with dynamic tag filter bar, pinned notes, and floating action button.
+   - **02 / Journal & Calendar**:
+     - Tablet: Workspace view (`images/tablet/journal.png`) showing monthly calendar matrix with entry activity dots, chronological timeline, and reflection editor.
+     - Phone: Journal calendar picker (`images/phone/phone-journal.jpeg`) showing monthly grid with activity indicators and scrollable daily entries.
+   - **03 / Sidebar & Tag System**:
+     - Tablet: Tag directory hub (`images/tablet/tags.png`) with exact note counters, alphabetical registry, and clean empty state.
+     - Phone: Slide-over navigation drawer (`images/phone/phone-sidebar.jpeg`) organizing Library, Journal, Tags, and Settings.
+2. **Minimal Editorial Framing**:
+   - Frames adhere to Quiet Paper's Bear Notes aesthetic with `var(--card-gradient)`, `var(--border-subtle)` (1px), subtle corner radius (`var(--radius-lg)`), and soft elevation shadows (`0 16px 36px rgba(0,0,0,0.08)`).
+   - Each card features a top chrome bar with device iconography (tablet/smartphone SVG), device layout badge, and view pill tag.
+   - Images use `object-fit: contain` and clean background containers for responsive fidelity across themes.
+   - Captions are set in 13.5sp secondary typography with warm editorial spacing.
+3. **Asset Sanitization & Directory Parity**:
+   - Phone screenshot files were sanitized from loose/temporary names into web-standard semantic filenames:
+     - `phone-sidebar.jpeg` (from `WhatsApp Image 2026-09-05 at 22.41.45.jpeg`)
+     - `phone-journal.jpeg` (from `new.jpeg`)
+     - `phone-notes.jpeg` (from `new2.jpeg`)
+   - Assets are mirrored identically in both `backend/public/images/` and root `public/images/` so both Vercel output directories function identically.
+4. **Navigation Integration**:
+   - Added `Screenshots` link as the first item in the sticky header `<nav>` (`#screenshots`).
+   - Added `Screenshots` link in the footer links list.
+
+### 3. Verification & Quality Assurance
+- **Backend Tests & Build**: `cd backend && npm test && npm run build` $\rightarrow$ 11 test suites (43 tests) passed; TypeScript build clean with zero errors.
+- **Image Source Verification**: Automated check verified all 6 image paths in both `backend/public/index.html` and `public/index.html` resolve to existing files on disk.
+- **HTML Parity**: `diff -u backend/public/index.html public/index.html` $\rightarrow$ 0 differences.
+- **Static Analysis**: `flutter analyze` $\rightarrow$ No issues found (0 warnings, 0 errors).
+- **Flutter Test Suite**: `flutter test` $\rightarrow$ 1,303 passed / 0 failed (100% pass rate).
+
+
 
 
 

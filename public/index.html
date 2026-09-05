@@ -475,6 +475,158 @@
     }
 
     /* -------------------------------------------------------------
+       6.5 SCREENSHOTS & INTERFACE GALLERY SECTION
+       ------------------------------------------------------------- */
+    .screenshots-section {
+      padding: 96px 0 108px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-canvas);
+    }
+
+    .screenshots-list {
+      display: flex;
+      flex-direction: column;
+      gap: 76px;
+      margin-top: 52px;
+    }
+
+    .screenshot-row {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    .screenshot-row-header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 840px;
+    }
+
+    .screenshot-row-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .screenshot-row-title {
+      font-family: var(--font-serif);
+      font-size: clamp(24px, 3.4vw, 36px);
+      font-weight: 400;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+      line-height: 1.18;
+    }
+
+    .screenshot-row-desc {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* Side-by-side tablet and phone layout */
+    .screenshot-duo-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.85fr) minmax(280px, 360px);
+      gap: 28px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .screenshot-duo-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+    }
+
+    /* Minimal Editorial Frame Card */
+    .screenshot-frame {
+      background: var(--card-gradient);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
+      transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screenshot-frame:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-strong);
+      box-shadow: 0 20px 42px rgba(0, 0, 0, 0.13);
+    }
+
+    /* Top bar simulating editorial window chrome */
+    .frame-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: var(--bg-surface-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .frame-device-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      color: var(--text-secondary);
+    }
+
+    .frame-device-badge svg {
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .frame-tag-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      padding: 3px 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Screenshot image container */
+    .frame-media-wrap {
+      width: 100%;
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .frame-media-wrap img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    /* Caption bar */
+    .frame-caption {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+    }
+
+    /* -------------------------------------------------------------
        7. HORIZONTAL FEATURE SHOWCASE CAROUSEL
        ------------------------------------------------------------- */
     .showcase-section {
@@ -1084,6 +1236,7 @@
 
       <nav>
         <ul class="nav-links">
+          <li><a href="#screenshots" class="nav-link">Screenshots</a></li>
           <li><a href="#showcase" class="nav-link">Showcase</a></li>
           <li><a href="#playground" class="nav-link">Playground</a></li>
           <li><a href="#specs" class="nav-link">Security Specs</a></li>
@@ -1203,6 +1356,160 @@
       <div class="scroll-hint">
         <span>Scroll to explore</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SCREENSHOTS & INTERFACE GALLERY -->
+  <section id="screenshots" class="screenshots-section">
+    <div class="container">
+      
+      <div class="section-header">
+        <span class="section-tag">// Interface Gallery</span>
+        <h2 class="section-title">Crafted for dual dimensions: mobile focus & tablet command.</h2>
+        <p style="color: var(--text-secondary); max-width: 720px; font-size: 16px; line-height: 1.6;">
+          Whether composing on an ultra-compact phone screen or orchestrating an expansive 3-pane tablet canvas, Quiet Paper delivers the same warm, distraction-free editorial experience.
+        </p>
+      </div>
+
+      <div class="screenshots-list">
+        
+        <!-- Row 1: Notes & Editor -->
+        <div class="screenshot-row">
+          <div class="screenshot-row-header">
+            <span class="screenshot-row-pill">01 / Writing & Multi-Pane Layout</span>
+            <h3 class="screenshot-row-title">Instant Notes List & Focused Markdown Editor</h3>
+            <p class="screenshot-row-desc">
+              On tablets, view your sidebar navigation, notes list with active filters, and the uninterrupted digital sheet editor simultaneously. On phones, enjoy a fast, single-column notes index with dynamic tag pills and quick search.
+            </p>
+          </div>
+          <div class="screenshot-duo-grid">
+            <!-- Tablet Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Tablet Split-View
+                </span>
+                <span class="frame-tag-badge">3-Pane Workspace</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/tablet/notes-list.png" alt="Quiet Paper tablet 3-pane split view with notes list and editor" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Simultaneous navigation drawer, notes list with pinned items, and digital sheet editor on widescreen displays.
+              </div>
+            </div>
+            <!-- Phone Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Phone Layout
+                </span>
+                <span class="frame-tag-badge">Single Column</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/phone/phone-notes.jpeg" alt="Quiet Paper mobile phone notes list view with tag filter bar" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Streamlined mobile browsing with horizontal tag pills, pinned highlights, and floating creation button.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: Journal & Calendar -->
+        <div class="screenshot-row">
+          <div class="screenshot-row-header">
+            <span class="screenshot-row-pill">02 / Chronological Timeline</span>
+            <h3 class="screenshot-row-title">Interactive Journal & Daily Reflection Calendar</h3>
+            <p class="screenshot-row-desc">
+              Track daily entries, habit notes, and thoughts across time. Interactive calendar dots indicate days with entries, with instant switching between monthly calendars and chronological daily entries.
+            </p>
+          </div>
+          <div class="screenshot-duo-grid">
+            <!-- Tablet Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Tablet Calendar & Timeline
+                </span>
+                <span class="frame-tag-badge">Monthly Calendar Matrix</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/tablet/journal.png" alt="Quiet Paper tablet journal view with monthly calendar grid and active editor" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Full-width calendar matrix with entry dots alongside chronological timeline and open reflection editor.
+              </div>
+            </div>
+            <!-- Phone Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Phone Journal
+                </span>
+                <span class="frame-tag-badge">Calendar Picker</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/phone/phone-journal.jpeg" alt="Quiet Paper phone journal view with calendar month grid" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Compact calendar header with entry indicators and vertically scrollable daily journal reflections.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3: Sidebar Navigation & Tag Organization -->
+        <div class="screenshot-row">
+          <div class="screenshot-row-header">
+            <span class="screenshot-row-pill">03 / Tag System & Navigation</span>
+            <h3 class="screenshot-row-title">Deep Tag Directory & Editorial Navigation</h3>
+            <p class="screenshot-row-desc">
+              Organize your notebook with flexible tags and structured system sections (Library, Journal, Trash, Settings). Fast tag counting and search keep large note collections manageable.
+            </p>
+          </div>
+          <div class="screenshot-duo-grid">
+            <!-- Tablet Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Tablet Tag Directory
+                </span>
+                <span class="frame-tag-badge">Multi-Column Hub</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/tablet/tags.png" alt="Quiet Paper tablet tag directory hub with note counts" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Alphabetical tag registry with exact note counters, quick sorting, and multi-pane tag browsing.
+              </div>
+            </div>
+            <!-- Phone Card -->
+            <div class="screenshot-frame">
+              <div class="frame-top-bar">
+                <span class="frame-device-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  Phone Navigation
+                </span>
+                <span class="frame-tag-badge">Slide-Over Drawer</span>
+              </div>
+              <div class="frame-media-wrap">
+                <img src="images/phone/phone-sidebar.jpeg" alt="Quiet Paper mobile navigation drawer with library, journal, and tags" loading="lazy">
+              </div>
+              <div class="frame-caption">
+                Comfortable slide-over drawer organizing notes library, journal timeline, tag hierarchy, and settings.
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -1618,6 +1925,7 @@ Writing without friction allows thoughts to ==crystallize naturally==.
         </a>
 
         <ul class="footer-links">
+          <li><a href="#screenshots" class="footer-link">Screenshots</a></li>
           <li><a href="https://github.com/blackpirateapps/quitepaper/releases" target="_blank" rel="noopener" class="footer-link">Releases</a></li>
           <li><a href="https://github.com/blackpirateapps/quitepaper" target="_blank" rel="noopener" class="footer-link">GitHub</a></li>
           <li><a href="https://github.com/blackpirateapps/quitepaper/blob/main/docs/encryption.md" target="_blank" rel="noopener" class="footer-link">Encryption Spec</a></li>
