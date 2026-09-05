@@ -16,11 +16,15 @@
       --parchment:#EAE7E0;
       --rule:     #D8D4CC;
       --muted:    #7A7570;
-      --accent:   #8B7355;
-      --accent-light: rgba(139,115,85,0.12);
+      --accent:   #D65F55;
+      --accent-light: rgba(214, 95, 85, 0.12);
       --surface:  #EFEFEB;
       --white:    #FDFCFA;
       --max:      720px;
+    }
+
+    ::selection {
+      background: rgba(214, 95, 85, 0.18);
     }
 
     html { scroll-behavior: smooth; }
@@ -134,7 +138,7 @@
       padding: 120px 0 96px;
       border-bottom: 1px solid var(--rule);
       background:
-        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(139,115,85,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(214, 95, 85, 0.06) 0%, transparent 70%),
         var(--paper);
     }
 
@@ -271,7 +275,7 @@
 
     .editor-content .bold { font-weight: 600; color: var(--ink); }
     .editor-content .hl {
-      background: rgba(139,115,85,0.15);
+      background: rgba(214, 95, 85, 0.15);
       border-radius: 2px;
       padding: 1px 2px;
     }
@@ -310,8 +314,8 @@
       cursor: default;
     }
     .tool-btn.active {
-      background: var(--parchment);
-      color: var(--ink);
+      background: rgba(214, 95, 85, 0.14);
+      color: var(--accent);
     }
 
     /* ── DOWNLOAD BUTTONS ── */
@@ -578,7 +582,7 @@
       width: 40px;
       height: 40px;
       border-radius: 10px;
-      background: rgba(139,115,85,0.08);
+      background: rgba(214, 95, 85, 0.08);
       display: flex;
       align-items: center;
       justify-content: center;

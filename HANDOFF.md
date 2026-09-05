@@ -5461,6 +5461,29 @@ A comprehensive aesthetic and structural polish of the Quiet Paper landing page 
    - **Accessibility**: Full `prefers-reduced-motion: reduce` styling to suppress animations for users requesting reduced motion.
    - **Directory Parity**: Mirrored changes across `backend/public/index.html` and `public/index.html`.
 
+---
+
+## 94. Landing Page Accent Color Alignment with App Signature Terracotta (#D65F55)
+
+### Overview
+Aligned the static landing page (`backend/public/index.html` and `public/index.html`) accent color palette to exactly match Quiet Paper's signature reddish terracotta coral tone (`#D65F55` in `classicLight` / `AppColors.accent`).
+
+### Key Adjustments
+1. **Root Palette Tokens**:
+   - Updated `--accent` from `#8B7355` (brown) to `#D65F55` (reddish terracotta / coral).
+   - Updated `--accent-light` to `rgba(214, 95, 85, 0.12)`.
+   - Added `::selection` pseudo-element with `background: rgba(214, 95, 85, 0.18)` matching the app's soft selection styling.
+2. **Atmospheric & Hero Gradient**:
+   - Updated top radial glow in `#hero` from `rgba(139,115,85,0.06)` to `rgba(214, 95, 85, 0.06)`.
+3. **Interactive Editor Showcase Card**:
+   - Highlighted text span (`.editor-content .hl`) updated to `rgba(214, 95, 85, 0.15)`.
+   - Active formatting button in the editor toolbar (`.tool-btn.active`) updated with `background: rgba(214, 95, 85, 0.14)` and `color: var(--accent)`, mirroring the app's formatting toolbar active state.
+4. **Feature Icons**:
+   - Updated feature icon container badge background from `rgba(139,115,85,0.08)` to `rgba(214, 95, 85, 0.08)`.
+5. **Directory Parity**:
+   - Fully synchronized changes between `backend/public/index.html` and `public/index.html`.
+
+
 
 
 
