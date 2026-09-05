@@ -15,6 +15,7 @@ import 'package:quitepaper/core/sync/sync_models.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/settings/presentation/default_settings_screen.dart';
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
 import 'package:quitepaper/features/sync/presentation/change_account_password_dialog.dart';
 import 'package:quitepaper/features/sync/presentation/change_encryption_password_screen.dart';
@@ -523,5 +524,30 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('CLOUD SYNC & ENCRYPTION'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping Default Settings navigates to DefaultSettingsScreen',
+      (tester) async {
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Default Settings'),
+      200.0,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.text('Default Settings'), findsOneWidget);
+
+    await tester.tap(find.text('Default Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DefaultSettingsScreen), findsOneWidget);
+    expect(find.text('GESTURES & SEARCH'), findsOneWidget);
+    expect(find.text('Swipe to Search in Editor'), findsOneWidget);
+    expect(find.text('Swipe Down to Search in Notes List'), findsOneWidget);
   });
 }

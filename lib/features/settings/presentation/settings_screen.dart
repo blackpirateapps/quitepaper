@@ -30,6 +30,7 @@ import '../application/settings_provider.dart';
 import '../application/typography_provider.dart';
 import '../../../core/maintenance/maintenance_models.dart';
 import '../../../core/maintenance/maintenance_provider.dart';
+import 'default_settings_screen.dart';
 import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
 import 'widgets/maintenance_progress_sheet.dart';
@@ -852,6 +853,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           MaterialPageRoute(
                             builder: (_) =>
                                 const TypographySettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // Section: General
+                // ==========================================
+                _buildSectionHeader(context, 'GENERAL'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.tune_rounded,
+                      title: 'Default Settings',
+                      subtitle: 'Gestures and search shortcuts',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const DefaultSettingsScreen(),
                           ),
                         );
                       },

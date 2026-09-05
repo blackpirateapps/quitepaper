@@ -233,5 +233,41 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets(
+        'pulling down on notes list when swipeDownToSearchNotes is disabled does not open SearchScreen',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-disabled-search',
+          title: 'Disabled Gesture Note',
+          content: 'Swipe down should not trigger search.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      SharedPreferences.setMockInitialValues({
+        'setting_swipe_down_to_search_notes': false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Disabled Gesture Note'), findsOneWidget);
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Drag down on notes list past threshold
+      await tester.drag(find.text('Disabled Gesture Note'), const Offset(0, 250));
+      await tester.pumpAndSettle();
+
+      // SearchScreen should NOT be opened
+      expect(find.byType(SearchScreen), findsNothing);
+
+      await finishTest(tester);
+    });
   });
 }

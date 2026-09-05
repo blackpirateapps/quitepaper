@@ -22,6 +22,7 @@ class PullDownSearchReveal extends StatefulWidget {
     this.threshold = 70.0,
     this.maxPullOffset = 130.0,
     this.isTabletPane = false,
+    this.enabled = true,
   });
 
   final Widget child;
@@ -29,6 +30,7 @@ class PullDownSearchReveal extends StatefulWidget {
   final double threshold;
   final double maxPullOffset;
   final bool isTabletPane;
+  final bool enabled;
 
   @override
   State<PullDownSearchReveal> createState() => _PullDownSearchRevealState();
@@ -147,6 +149,10 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.enabled) {
+      return widget.child;
+    }
+
     final colors = context.appColors;
     final double revealRatio = (_pullOffset / widget.threshold).clamp(0.0, 1.0);
 

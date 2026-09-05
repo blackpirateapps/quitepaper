@@ -38,6 +38,7 @@ import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
+import '../../settings/application/default_settings_provider.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -216,6 +217,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
+    final defaultSettings = ref.watch(defaultSettingsProvider);
 
     final title = _getDestinationTitle(destination);
 
@@ -246,6 +248,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ref.read(notesQueryProvider.notifier).clearAllFilters();
         },
         child: PullDownSearchReveal(
+          enabled: defaultSettings.swipeDownToSearchNotes,
           onOpenSearch: () => _openSearchScreen(context),
           child: Scaffold(
             backgroundColor: colors.background,
@@ -758,6 +761,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
     final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
+    final defaultSettings = ref.watch(defaultSettingsProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -866,9 +870,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   },
                                 )
                               : PullDownSearchReveal(
-                              key: const ValueKey('tablet_notes_list'),
-                              isTabletPane: true,
-                              onOpenSearch: () => _openSearchScreen(context),
+                                  key: const ValueKey('tablet_notes_list'),
+                                  isTabletPane: true,
+                                  enabled: defaultSettings.swipeDownToSearchNotes,
+                                  onOpenSearch: () => _openSearchScreen(context),
                               child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragEnd: (details) {

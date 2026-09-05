@@ -40,6 +40,7 @@ import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../scanner/presentation/document_scanner_screen.dart';
+import '../../settings/application/default_settings_provider.dart';
 import '../../settings/application/settings_provider.dart';
 import '../../settings/application/typography_provider.dart';
 import '../domain/editor_editing_style.dart';
@@ -811,6 +812,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final colors = context.appColors;
     final typography = ref.watch(typographySettingsProvider);
     final globalEditingStyle = ref.watch(editorEditingStyleProvider);
+    final defaultSettings = ref.watch(defaultSettingsProvider);
     final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
     final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
     final note = editorState.note;
@@ -1049,6 +1051,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (notification) {
+                      if (!defaultSettings.swipeToSearchEditor) {
+                        return false;
+                      }
                       if (notification is OverscrollNotification &&
                           notification.overscroll < -15) {
                         if (!_isSearchVisible) {

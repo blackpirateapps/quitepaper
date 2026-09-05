@@ -12,6 +12,7 @@ import 'package:quitepaper/features/editor/presentation/widgets/in_note_search_b
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -145,11 +146,13 @@ void main() {
       await db.close();
     });
 
-    Widget createEditorApp(Note note, {bool initialPreview = false}) {
+    Widget createEditorApp(Note note,
+        {bool initialPreview = false, SharedPreferences? prefs}) {
       return ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
           notesRepositoryProvider.overrideWithValue(repository),
+          if (prefs != null) sharedPreferencesProvider.overrideWithValue(prefs),
         ],
         child: MaterialApp(
           home: EditorScreen(
@@ -290,6 +293,40 @@ void main() {
 
       // Search bar should now appear
       expect(find.byType(InNoteSearchBar), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'pulling / swiping down when swipeToSearchEditor is disabled does not reveal in-note search',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'swipe-down-disabled-test',
+        title: 'Swipe Disabled Search',
+        content: 'First line of writing\nSecond line\nThird line',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      SharedPreferences.setMockInitialValues({
+        'setting_swipe_to_search_editor': false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(createEditorApp(note, prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InNoteSearchBar), findsNothing);
+
+      // Drag down in editor area
+      await tester.drag(find.text('Swipe Disabled Search'), const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      // Search bar should NOT appear
+      expect(find.byType(InNoteSearchBar), findsNothing);
 
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();

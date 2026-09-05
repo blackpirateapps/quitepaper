@@ -5324,6 +5324,60 @@ The application version and build number have been bumped consistently across al
 - [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html): `v1.5.7 Free`, `Version 1.5.7`, and all architecture download cards
 - [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): `v1.5.7 Free`, `Version 1.5.7`, and all architecture download cards
 
+---
+
+## 55. Default Settings Subpage & Search Gesture Toggles
+
+### 1. Overview & Motivation
+Quiet Paper features two pull-down search gestures:
+1. **Swipe Down to Search in Notes List**: Pulling down past the 70dp threshold at the top of the notes list smoothly reveals the search preview header and navigates into `SearchScreen`.
+2. **Swipe to Search in Editor**: Swiping down / overscrolling at the top of an open note reveals the in-note search and replace bar (`InNoteSearchBar`).
+
+To allow users who prefer traditional overscroll bouncing or undisturbed note writing to disable these gestures while preserving search shortcuts and toolbar buttons, a new **Default Settings** subpage is added under a dedicated **GENERAL** section in Settings.
+
+### 2. Architectural Components & State Management
+1. **Domain Model (`lib/features/settings/domain/default_settings.dart`)**:
+   - `DefaultSettings`: Immutable model with `swipeToSearchEditor: bool` (default `true`) and `swipeDownToSearchNotes: bool` (default `true`), with `copyWith`, equality, and hashcode implementations.
+2. **Application State & Persistence (`lib/features/settings/application/default_settings_provider.dart`)**:
+   - `DefaultSettingsNotifier`: Manages state and persists boolean flags to `SharedPreferences`:
+     - `'setting_swipe_to_search_editor'`
+     - `'setting_swipe_down_to_search_notes'`
+   - `defaultSettingsProvider`: Riverpod `StateNotifierProvider` reading from `sharedPreferencesProvider` with safe fallback for test scopes.
+3. **Default Settings Subpage (`lib/features/settings/presentation/default_settings_screen.dart`)**:
+   - Matches Quiet Paper's iOS Grouped Table & Bear Notes editorial design:
+     - Constrained to `maxWidth: 680` on tablet viewports.
+     - Section header: `GESTURES & SEARCH`.
+     - Grouped container with 12dp border radius, subtle dividers (`indent: 52`), and `CupertinoSwitch` toggles.
+     - Row 1: **Swipe to Search in Editor** (`Icons.find_in_page_outlined`).
+     - Row 2: **Swipe Down to Search in Notes List** (`Icons.manage_search_rounded`).
+     - Explanatory footnote reassuring users that search remains accessible via toolbar buttons and keyboard shortcuts (Ctrl+F / ⌘F).
+4. **Settings Navigation Entry Point (`lib/features/settings/presentation/settings_screen.dart`)**:
+   - Added a new `GENERAL` section positioned between `APPEARANCE` and `EDITOR`.
+   - `Default Settings` row with `Icons.tune_rounded`, subtitle `"Gestures and search shortcuts"`, and trailing chevron.
+5. **Gesture Integration & Hooks**:
+   - **Notes List (`PullDownSearchReveal`)**:
+     - Added `final bool enabled;` (defaults to `true`).
+     - When `!enabled`, returns `widget.child` directly without mounting `NotificationListener`, `GestureDetector`, or `Stack` translation layers, eliminating gesture interception.
+     - Passed `enabled: defaultSettings.swipeDownToSearchNotes` in both phone layout and tablet split-view pane.
+   - **Editor (`EditorScreen`)**:
+     - In `NotificationListener<ScrollNotification>`, checks `if (!defaultSettings.swipeToSearchEditor) return false;` before intercepting overscroll and scroll update deltas.
+     - When disabled, scrolling or overscrolling at the top of a note does not trigger `_openSearch()`.
+
+### 3. Verification & Automated Test Coverage
+- **Unit & Widget Tests (`test/settings/default_settings_test.dart`)**:
+  - Model defaults, copyWith, equality, and hashcode.
+  - Notifier loading from SharedPreferences and updating/persisting state.
+  - Widget tests for `DefaultSettingsScreen` rendering and toggling switches.
+- **Settings Screen Integration (`test/settings/settings_screen_test.dart`)**:
+  - Verifies tapping "Default Settings" under the `GENERAL` section opens `DefaultSettingsScreen`.
+- **Notes List Gesture Disabling (`test/features/notes/gestures_test.dart`)**:
+  - Verifies that when `swipeDownToSearchNotes` is `false`, pulling down on the notes list does not open `SearchScreen`.
+- **Editor Gesture Disabling (`test/editor/in_note_search_test.dart`)**:
+  - Verifies that when `swipeToSearchEditor` is `false`, dragging down at the top of an open note does not reveal `InNoteSearchBar`.
+- **Static Analysis**: `flutter analyze` $\rightarrow$ **0 issues found** (zero errors, zero warnings).
+- **Full Test Suite**: `flutter test` $\rightarrow$ **1,303 passed / 0 failed (100% pass rate)**.
+
+
 
 
 
