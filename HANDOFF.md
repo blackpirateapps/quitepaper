@@ -5420,6 +5420,48 @@ The section is positioned directly beneath the Hero section and presents a featu
 - **Static Analysis**: `flutter analyze` $\rightarrow$ No issues found (0 warnings, 0 errors).
 - **Flutter Test Suite**: `flutter test` $\rightarrow$ 1,303 passed / 0 failed (100% pass rate).
 
+---
+
+## 57. Landing Page Editorial Redesign & Polish (Hero, Gallery, Features, Audience, Roadmap, FAQ)
+
+### 1. Overview & Motivation
+A comprehensive aesthetic and structural polish of the Quiet Paper landing page (`backend/public/index.html` and root `public/index.html`) to elevate it to a premium, minimal, editorial design language consistent with Bear Notes and Apple keynote presentation style.
+
+### 2. Architectural & Visual Improvements
+1. **Hero Section Redesign**:
+   - **Centered Keynote Layout**: Replaced the previous 2-column grid with a center-aligned hierarchy featuring an enlarged, elegant headline (`clamp(40px, 7vw, 64px)` at 400 weight).
+   - **Visual Atmosphere**: Added a subtle warm radial gradient (`radial-gradient(ellipse 80% 60% at 50% 0%, rgba(139,115,85,0.06), transparent)`).
+   - **Entrance Animations**: Implemented staggered `@keyframes heroFadeUp` transitions across headline, subtext, call-to-action, and the showcase editor card.
+   - **Premium Actions & Badges**: Redesigned download button with a pill form factor, enhanced drop shadows, and hover elevation. Restyled badges into minimal dot-separated text markers.
+   - **Editor Showcase Card**: Centered and enlarged (max-width 640px) with 12px border radius, soft elevation, and hover reaction.
+
+2. **Screenshots & Gallery Section Overhaul**:
+   - **Magazine Editorial Composition**: Converted card containers into an editorial stage with overlapping device positioning (phone screenshot elegantly floating over the bottom corner of the tablet mockup).
+   - **Alternating Rhythm**: Alternated layout direction (`.screenshot-feature.reverse`) between sections.
+   - **Refined Typography**: Lighter weights, increased whitespace, and cleaner section subtitles.
+
+3. **Features Section Polish**:
+   - **Minimal Icon Cards**: Transformed from bordered table cells into distinct card elements with 24px gap, soft borders, and hover micro-interactions.
+   - **SVG Iconography**: Replaced raw unicode text glyphs with crisp, modern SVG line icons enclosed within soft accent badge containers.
+
+4. **Who Writes With Quiet Paper**:
+   - **Flowing Editorial List**: Replaced rigid two-column key-value rows with a vertical list where titles and descriptive passages flow naturally with generous spacing and thin dividers.
+
+5. **Roadmap Timeline**:
+   - **Connected Vertical Timeline**: Built a continuous vertical connecting line with styled milestone nodes: filled green for Shipped, filled accent for Beta, and hollow ring for Planned features.
+   - Restructured layout with small uppercase status tags above feature titles.
+
+6. **Questions People Ask (FAQ)**:
+   - **Smooth Rotating Toggle**: Replaced split plus/minus spans with a single `+` icon that smoothly rotates $45^\circ$ into a `×` indicator upon opening.
+   - Refined accordion line height, hover color transitions, and typography weights.
+
+7. **Universal Polish & Motion**:
+   - **Scroll-Triggered Reveals**: Integrated an `IntersectionObserver` that dynamically reveals all `.screenshot-feature` and `.reveal-section` elements as they scroll into viewport.
+   - **Alternating Section Tints**: Alternated section backgrounds using `var(--surface)` for Features and Roadmap sections.
+   - **Accessibility**: Full `prefers-reduced-motion: reduce` styling to suppress animations for users requesting reduced motion.
+   - **Directory Parity**: Mirrored changes across `backend/public/index.html` and `public/index.html`.
+
+
 
 
 
