@@ -5578,14 +5578,60 @@ In Quiet Paper's dual-mode editor, Markdown Preview mode was previously strictly
    - `test/editor/editor_preview_checklist_integration_test.dart`: 3 end-to-end integration tests verifying toggle in `EditorScreen`, controller state sync, undo revert, and settings override.
    - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
 
+---
 
+## 98. WYSIWYG Divider Fixes & Ergonomics (Typing `---`, Line Below Creation, Toolbar Button & Deletion)
 
+### Problem & Motivation
+In Quiet Paper's WYSIWYG document editor (`VisualDocumentEditor` & `SemanticEditorController`), horizontal rule dividers suffered from several usability and focus issues:
+1. **Cursor Jumping Upward**: When typing `---` to create a divider, the divider was created but the blinking cursor immediately jumped to the previous line instead of staying after the divider.
+2. **Cannot Write Below Divider**: When a divider was inserted at the end of a document or line, there was no empty line created below it, leaving no way for the user to position the cursor or continue typing below the divider.
+3. **Toolbar Divider Button Inoperative**: Clicking the divider icon in the formatting toolbar was broken in WYSIWYG mode because it was attempting direct `TextEditingController` substring manipulation instead of routing through `SemanticEditorController`.
+4. **Divider Interaction & Deletion**: Tapping on or near the divider line did not focus the text line below it, and pressing Backspace at the beginning of the line below a divider failed to cleanly remove the divider.
 
+### Architectural Solution
+1. **Markdown Helper Rule Formatting (`lib/core/markdown/markdown_helper.dart`)**:
+   - Added `insertHorizontalRule(TextEditingValue value)`:
+     - Inspects prefix and suffix around current selection to dynamically inject required leading/trailing newlines (`$prefix---$suffix`).
+     - Places the cursor offset cleanly on the new paragraph below the divider.
 
+2. **Formatting Toolbar WYSIWYG Dispatch (`lib/features/editor/presentation/widgets/formatting_toolbar.dart`)**:
+   - Updated the horizontal rule button `onPressed` callback:
+     - Checks if `widget.semanticController != null`.
+     - When in WYSIWYG mode, dispatches `widget.semanticController!.insertHorizontalRule()`, records an atomic undo step, and requests editor focus.
+     - Preserves existing fallback logic for raw text editing mode.
 
+3. **Semantic Mutation Service (`lib/features/editor/application/semantic_mutation_service.dart`)**:
+   - Refactored `insertHorizontalRule(markdown, position, {bool stripFrontmatter = false})`:
+     - Correctly handles insertions in empty documents, empty paragraph lines, and end-of-block positions.
+     - Appends trailing `\n\n` to guarantee CommonMark AST parsers instantiate an editable `ParagraphBlock` below the divider.
+     - Searches the parsed document for the newly created `HorizontalRuleBlock` and sets `newPos` to the start offset of the block immediately below it.
+   - Enhanced `mergeWithPreviousBlock`:
+     - Added divider deletion logic: when pressing Backspace at `offset == 0` on a line below a `HorizontalRuleBlock`, detects `prevBlock is HorizontalRuleBlock`, strips the divider markdown and any redundant trailing newline, cleanly deleting the divider and restoring cursor position.
 
+4. **Selection Forwarding on Non-Editable Blocks (`lib/features/editor/domain/semantic_document.dart`)**:
+   - Updated `findPositionAtSourceOffset`:
+     - When source offset resolves inside a `HorizontalRuleBlock` (which has `isEditable = false`), the method now automatically forwards the resolved position to the first character of the next editable block below it, preventing focus loss.
 
+5. **Semantic Editor Controller (`lib/features/editor/application/semantic_editor_controller.dart`)**:
+   - Added `insertParagraphBelow(String hrBlockId)`:
+     - When a divider is terminal or tapped, appends an empty paragraph to the document and requests focus on the newly created line.
+   - Enhanced `handleVisualBlockTextChange`:
+     - Added immediate regex detection for horizontal rule triggers (`^\s*(?:-{3,}|\*{3,}|_{3,})\s*$`).
+     - Immediately upon typing the 3rd dash, executes `insertHorizontalRule`, seamlessly transforming the line into a divider and moving focus to the line below without needing an Enter keypress.
 
+6. **Visual Document Editor Interaction (`lib/features/editor/presentation/widgets/visual_document_editor.dart`)**:
+   - Wrapped the rendered `Divider` in a `GestureDetector(behavior: HitTestBehavior.opaque, onTap: ...)`:
+     - Tapping the divider directs focus to the block below it (or invokes `insertParagraphBelow` if at the end).
+   - In `Focus.onFocusChange`:
+     - If focus lands on a non-editable divider block, automatically redirects focus to the block below it.
 
-
-
+### Verification & Quality
+- `test/editor/semantic_mutation_service_test.dart`: 17 tests verifying divider insertion, cursor position below divider, empty document handling, and Backspace deletion.
+- `test/editor/wysiwyg_divider_test.dart`: 4 comprehensive widget tests verifying:
+  - Typing `---` creates divider and moves cursor below.
+  - Toolbar divider button inserts divider and focuses line below.
+  - Tapping divider focuses line below.
+  - Pressing Backspace below divider deletes divider cleanly.
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full test suite: `flutter test` (**1,308 / 1,308 tests passing, 100% pass rate**).

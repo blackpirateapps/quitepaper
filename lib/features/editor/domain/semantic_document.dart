@@ -145,6 +145,11 @@ class SemanticDocument {
       final codeStart = block.codeRange.start;
       final offsetInCode = (sourceOffset - codeStart).clamp(0, block.code.length);
       return DocumentPosition(blockId: block.id, offset: offsetInCode);
+    } else if (block is HorizontalRuleBlock) {
+      final idx = blocks.indexOf(block);
+      if (idx != -1 && idx + 1 < blocks.length) {
+        return findPositionAtSourceOffset(blocks[idx + 1].sourceRange.start);
+      }
     }
 
     return DocumentPosition(blockId: block.id, offset: 0);

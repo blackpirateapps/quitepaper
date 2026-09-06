@@ -464,7 +464,15 @@ class FormattingToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: PhosphorIconsRegular.minus,
                 tooltip: 'Divider (---)',
-                onPressed: () => _applyHelperFormat((val) => MarkdownHelper.wrapSelection(value: val, prefix: '\n---\n', suffix: '')),
+                onPressed: () {
+                  if (semanticController != null) {
+                    semanticController!.insertHorizontalRule();
+                    onApplyAtomicEdit?.call(controller.value);
+                    focusNode?.requestFocus();
+                  } else {
+                    _applyHelperFormat(MarkdownHelper.insertHorizontalRule);
+                  }
+                },
               ),
               if (onImagePressed != null || onScanPressed != null || onPdfPressed != null || onFilePressed != null) ...[
                 const _ToolbarDivider(),

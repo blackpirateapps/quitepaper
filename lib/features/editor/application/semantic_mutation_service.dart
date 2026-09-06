@@ -325,6 +325,49 @@ class SemanticMutationService {
     final blockIndex = doc.findBlockIndexById(block.id);
     if (blockIndex > 0) {
       final prevBlock = doc.blocks[blockIndex - 1];
+      if (prevBlock is HorizontalRuleBlock) {
+        // Delete the HorizontalRuleBlock and its separating newlines
+        final hrStart = prevBlock.sourceRange.start;
+        var hrEnd = prevBlock.sourceRange.end;
+        if (hrEnd < markdown.length && markdown[hrEnd] == '\n') {
+          hrEnd++;
+        }
+
+        if (block.plainText.isEmpty) {
+          // Current line is also empty: remove the divider and this empty line
+          var deleteStart = hrStart;
+          if (deleteStart > 0 && markdown[deleteStart - 1] == '\n') {
+            deleteStart--;
+          }
+          final deleteEnd = block.sourceRange.end;
+          final newMarkdown = markdown.replaceRange(deleteStart, deleteEnd, '');
+          final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+          final targetOffset = max(0, deleteStart);
+          final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ??
+              (newDoc.blocks.isNotEmpty
+                  ? DocumentPosition(blockId: newDoc.blocks.last.id, offset: newDoc.blocks.last.plainText.length)
+                  : const DocumentPosition(blockId: 'block_0', offset: 0));
+          return MutationResult(
+            markdown: newMarkdown,
+            document: newDoc,
+            position: newPos,
+            selection: DocumentSelection.collapsed(newPos),
+          );
+        } else {
+          // Current line has content: delete only the divider
+          final newMarkdown = markdown.replaceRange(hrStart, hrEnd, '');
+          final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+          final newPos = newDoc.findPositionAtSourceOffset(hrStart) ??
+              DocumentPosition(blockId: block.id, offset: 0);
+          return MutationResult(
+            markdown: newMarkdown,
+            document: newDoc,
+            position: newPos,
+            selection: DocumentSelection.collapsed(newPos),
+          );
+        }
+      }
+
       final prevBlockEnd = prevBlock.sourceRange.end;
       // Delete the newline delimiter separating the two blocks
       final newlineOffset = prevBlockEnd > 0 && markdown[prevBlockEnd - 1] == '\n'
@@ -1198,18 +1241,93 @@ class SemanticMutationService {
     );
   }
 
-  /// Inserts a horizontal rule divider (---).
+  /// Inserts a horizontal rule divider (---) with clean newline boundaries
+  /// and positions the selection on the editable block below the divider.
   static MutationResult insertHorizontalRule(
     String markdown,
-    DocumentPosition position,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
-    final offset = doc.sourceOffsetAtPosition(position);
-    const hrMarkdown = '\n---\n';
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
+    final block = doc.findBlockById(position.blockId);
 
-    final newMarkdown = markdown.replaceRange(offset, offset, hrMarkdown);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
-    final newPos = newDoc.findPositionAtSourceOffset(offset + hrMarkdown.length) ?? position;
+    // 1. Empty document: insert divider and an empty line below
+    if (markdown.trim().isEmpty) {
+      const newMarkdown = '---\n\n';
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+      final nextBlock = newDoc.blocks.length > 1 ? newDoc.blocks[1] : newDoc.blocks.first;
+      final newPos = DocumentPosition(blockId: nextBlock.id, offset: 0);
+      return MutationResult(
+        markdown: newMarkdown,
+        document: newDoc,
+        position: newPos,
+        selection: DocumentSelection.collapsed(newPos),
+      );
+    }
+
+    String newMarkdown;
+    int targetSearchOffset;
+
+    if (block != null &&
+        block is ParagraphBlock &&
+        (block.plainText.trim().isEmpty || RegExp(r'^(?:-{1,3}|\*{1,3}|_{1,3})$').hasMatch(block.plainText.trim()))) {
+      // 2. The cursor is on an empty line or line of dashes: replace block with divider + line below
+      final start = block.sourceRange.start;
+      final end = block.sourceRange.end;
+
+      final needsLeadingNewline = start > 0 && markdown[start - 1] != '\n';
+      final prefix = needsLeadingNewline ? '\n' : '';
+
+      final after = end < markdown.length ? markdown.substring(end) : '';
+      final needsTrailingNewline = after.isEmpty || !after.startsWith('\n');
+      final suffix = needsTrailingNewline ? '\n\n' : '\n';
+
+      final replacement = '$prefix---$suffix';
+      newMarkdown = markdown.replaceRange(start, end, replacement);
+      targetSearchOffset = start + prefix.length + 3;
+    } else if (block != null) {
+      // 3. Cursor is in or at the end of an existing content block
+      if (position.offset >= block.plainText.length) {
+        final insertOffset = block.sourceRange.end;
+        final needsLeadingNewline = insertOffset > 0 && markdown[insertOffset - 1] != '\n';
+        final prefix = needsLeadingNewline ? '\n' : '';
+
+        final after = insertOffset < markdown.length ? markdown.substring(insertOffset) : '';
+        final needsTrailingNewline = after.isEmpty || !after.startsWith('\n');
+        final suffix = needsTrailingNewline ? '\n\n' : '\n';
+
+        final insertion = '$prefix---$suffix';
+        newMarkdown = markdown.replaceRange(insertOffset, insertOffset, insertion);
+        targetSearchOffset = insertOffset + prefix.length + 3;
+      } else {
+        final sourceOffset = doc.sourceOffsetAtPosition(position);
+        const insertion = '\n---\n';
+        newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
+        targetSearchOffset = sourceOffset + 4;
+      }
+    } else {
+      final offset = doc.sourceOffsetAtPosition(position);
+      final needsLeading = offset > 0 && markdown[offset - 1] != '\n';
+      final prefix = needsLeading ? '\n' : '';
+      final insertion = '$prefix---\n\n';
+      newMarkdown = markdown.replaceRange(offset, offset, insertion);
+      targetSearchOffset = offset + prefix.length + 3;
+    }
+
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+
+    // Locate the HorizontalRuleBlock and target the block immediately following it
+    DocumentPosition newPos;
+    final hrIndex = newDoc.blocks.indexWhere(
+      (b) => b is HorizontalRuleBlock && b.sourceRange.start <= targetSearchOffset && b.sourceRange.end >= targetSearchOffset,
+    );
+
+    if (hrIndex != -1 && hrIndex + 1 < newDoc.blocks.length) {
+      final nextBlock = newDoc.blocks[hrIndex + 1];
+      newPos = DocumentPosition(blockId: nextBlock.id, offset: 0);
+    } else {
+      newPos = newDoc.findPositionAtSourceOffset(targetSearchOffset + 1) ?? position;
+    }
 
     return MutationResult(
       markdown: newMarkdown,

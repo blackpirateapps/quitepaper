@@ -250,6 +250,33 @@ abstract final class MarkdownHelper {
     );
   }
 
+  /// Inserts a horizontal rule divider (---) with clean newline boundaries
+  /// and positions cursor on the line below the divider.
+  static TextEditingValue insertHorizontalRule(TextEditingValue value) {
+    final text = value.text;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+
+    final before = text.substring(0, start);
+    final after = text.substring(end);
+
+    final needsLeadingNewline = before.isNotEmpty && !before.endsWith('\n');
+    final needsTrailingNewline = after.isEmpty || !after.startsWith('\n');
+
+    final prefix = needsLeadingNewline ? '\n' : '';
+    final suffix = needsTrailingNewline ? '\n\n' : '\n';
+    final hrString = '$prefix---$suffix';
+
+    final newText = text.replaceRange(start, end, hrString);
+    final newCursor = start + hrString.length;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
   /// Inserts a code block
   static TextEditingValue insertCodeBlock(TextEditingValue value, {String language = ''}) {
     return wrapSelection(

@@ -305,8 +305,22 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       onFocusChange: (hasFocus) {
         if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
           final targetBlockId = widget.controller.selection.base.blockId;
-          final targetFn = _blockFocusNodes[targetBlockId] ?? _blockFocusNodes.values.firstOrNull;
-          targetFn?.requestFocus();
+          final targetBlock = widget.controller.document.findBlockById(targetBlockId);
+          if (targetBlock != null && targetBlock.isEditable) {
+            _blockFocusNodes[targetBlockId]?.requestFocus();
+          } else {
+            final lastBlock = widget.controller.document.blocks.lastOrNull;
+            if (lastBlock is HorizontalRuleBlock) {
+              widget.controller.insertParagraphBelow(lastBlock.id);
+            } else {
+              final editable = widget.controller.document.blocks.reversed.where((b) => b.isEditable).firstOrNull;
+              if (editable != null) {
+                _blockFocusNodes[editable.id]?.requestFocus();
+              } else {
+                _blockFocusNodes.values.firstOrNull?.requestFocus();
+              }
+            }
+          }
         }
       },
       child: Column(
@@ -723,14 +737,40 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     AppColors colors,
     HorizontalRuleBlock block,
   ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14.0),
-      child: Divider(
-        height: 1,
-        thickness: 1,
-        color: colors.divider,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (widget.readOnly) return;
+        _focusBlockBelow(block.id);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14.0),
+        child: Divider(
+          height: 1,
+          thickness: 1,
+          color: colors.divider,
+        ),
       ),
     );
+  }
+
+  void _focusBlockBelow(String hrBlockId) {
+    final doc = widget.controller.document;
+    final blockIndex = doc.findBlockIndexById(hrBlockId);
+    if (blockIndex != -1 && blockIndex + 1 < doc.blocks.length) {
+      final nextBlock = doc.blocks[blockIndex + 1];
+      final fn = _blockFocusNodes[nextBlock.id];
+      if (fn != null) {
+        fn.requestFocus();
+        final ctrl = _blockControllers[nextBlock.id];
+        if (ctrl != null) {
+          ctrl.selection = const TextSelection.collapsed(offset: 0);
+          widget.onActiveTargetChanged?.call(ctrl, fn);
+        }
+      }
+    } else {
+      widget.controller.insertParagraphBelow(hrBlockId);
+    }
   }
 
   Widget _buildCodeBlockItem(

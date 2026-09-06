@@ -348,5 +348,62 @@ void main() {
       final resLang = SemanticMutationService.changeCodeBlockLanguage(resCode.markdown, codeBlock.id, 'python');
       expect(resLang.markdown, contains('```python'));
     });
+
+    test('horizontal rule mutations (empty doc, empty line, end of block, backspace deletion)', () {
+      // 1. Insert on empty doc
+      final resEmpty = SemanticMutationService.insertHorizontalRule('', const DocumentPosition(blockId: '', offset: 0));
+      expect(resEmpty.markdown, equals('---\n\n'));
+      expect(resEmpty.document.blocks.first, isA<HorizontalRuleBlock>());
+      expect(resEmpty.document.blocks.length, greaterThanOrEqualTo(2));
+      expect(resEmpty.document.blocks[1], isA<ParagraphBlock>());
+      expect(resEmpty.position.blockId, equals(resEmpty.document.blocks[1].id));
+      expect(resEmpty.position.offset, equals(0));
+
+      // 2. Insert on empty line in multi-line doc
+      const multiLine = 'First line\n\nThird line';
+      final docMulti = SemanticMarkdownParser.parse(multiLine);
+      final emptyLineBlock = docMulti.blocks[1];
+      final resLine = SemanticMutationService.insertHorizontalRule(
+        multiLine,
+        DocumentPosition(blockId: emptyLineBlock.id, offset: 0),
+      );
+      expect(resLine.markdown, equals('First line\n---\n\nThird line'));
+      expect(resLine.document.blocks[1], isA<HorizontalRuleBlock>());
+      expect(resLine.document.blocks[2], isA<ParagraphBlock>());
+      expect(resLine.position.blockId, equals(resLine.document.blocks[2].id));
+      expect(resLine.position.offset, equals(0));
+
+      // 3. Insert at end of block
+      const singleLine = 'Hello world';
+      final docSingle = SemanticMarkdownParser.parse(singleLine);
+      final resEnd = SemanticMutationService.insertHorizontalRule(
+        singleLine,
+        DocumentPosition(blockId: docSingle.blocks.first.id, offset: 11),
+      );
+      expect(resEnd.markdown, equals('Hello world\n---\n\n'));
+      expect(resEnd.document.blocks[1], isA<HorizontalRuleBlock>());
+      expect(resEnd.document.blocks[2], isA<ParagraphBlock>());
+      expect(resEnd.position.blockId, equals(resEnd.document.blocks[2].id));
+      expect(resEnd.position.offset, equals(0));
+
+      // 4. Backspace at offset 0 of empty line below divider deletes divider
+      final resBackEmpty = SemanticMutationService.mergeWithPreviousBlock(
+        resEnd.markdown,
+        DocumentPosition(blockId: resEnd.document.blocks[2].id, offset: 0),
+      );
+      expect(resBackEmpty.markdown, equals('Hello world'));
+      expect(resBackEmpty.document.blocks.any((b) => b is HorizontalRuleBlock), isFalse);
+
+      // 5. Backspace at offset 0 of line with text below divider deletes divider
+      const textBelow = 'Hello world\n---\nNext line';
+      final docTextBelow = SemanticMarkdownParser.parse(textBelow);
+      final nextLineBlock = docTextBelow.blocks.last;
+      final resBackText = SemanticMutationService.mergeWithPreviousBlock(
+        textBelow,
+        DocumentPosition(blockId: nextLineBlock.id, offset: 0),
+      );
+      expect(resBackText.markdown, equals('Hello world\nNext line'));
+      expect(resBackText.document.blocks.any((b) => b is HorizontalRuleBlock), isFalse);
+    });
   });
 }

@@ -282,7 +282,32 @@ class SemanticEditorController extends ChangeNotifier {
   }
 
   void insertHorizontalRule() {
-    applyMutation(SemanticMutationService.insertHorizontalRule(_markdown, _selection.base));
+    applyMutation(SemanticMutationService.insertHorizontalRule(_markdown, _selection.base, stripFrontmatter: stripFrontmatter));
+  }
+
+  /// Inserts a new empty paragraph line below the specified horizontal rule divider block
+  /// and moves the cursor to that line.
+  void insertParagraphBelow(String hrBlockId) {
+    final block = _document.findBlockById(hrBlockId);
+    if (block == null) return;
+    final blockEnd = block.sourceRange.end;
+    final needsLeading = blockEnd > 0 && _markdown[blockEnd - 1] != '\n';
+    final insertion = needsLeading ? '\n\n' : '\n';
+    final newMarkdown = _markdown.replaceRange(blockEnd, blockEnd, insertion);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    final hrIndex = newDoc.findBlockIndexById(hrBlockId);
+    DocumentPosition newPos;
+    if (hrIndex != -1 && hrIndex + 1 < newDoc.blocks.length) {
+      newPos = DocumentPosition(blockId: newDoc.blocks[hrIndex + 1].id, offset: 0);
+    } else {
+      newPos = DocumentPosition(blockId: hrBlockId, offset: 0);
+    }
+    applyMutation(MutationResult(
+      markdown: newMarkdown,
+      document: newDoc,
+      position: newPos,
+      selection: DocumentSelection.collapsed(newPos),
+    ));
   }
 
   void deleteBlock(String blockId) {
@@ -317,6 +342,18 @@ class SemanticEditorController extends ChangeNotifier {
     if (block is CodeBlock) {
       final newMarkdown = _markdown.replaceRange(block.codeRange.start, block.codeRange.end, newText);
       markdown = newMarkdown;
+      return;
+    }
+
+    final isHorizontalRule = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$').hasMatch(newText);
+    if (isHorizontalRule) {
+      applyMutation(
+        SemanticMutationService.insertHorizontalRule(
+          _markdown,
+          DocumentPosition(blockId: blockId, offset: newSelection.baseOffset),
+          stripFrontmatter: stripFrontmatter,
+        ),
+      );
       return;
     }
 
