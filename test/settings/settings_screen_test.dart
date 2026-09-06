@@ -565,6 +565,8 @@ void main() {
       300.0,
       scrollable: find.byType(Scrollable),
     );
+    await tester.ensureVisible(find.text('Privacy Policy'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.text('Terms & Conditions'), findsOneWidget);
@@ -583,6 +585,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap Terms & Conditions row
+    await tester.ensureVisible(find.text('Terms & Conditions'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Terms & Conditions'));
     await tester.pumpAndSettle();
 

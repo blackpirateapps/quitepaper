@@ -28,9 +28,6 @@ import '../application/notes_query_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
-import '../domain/notes_list_style.dart';
-import '../application/notes_list_style_provider.dart';
-import 'editorial/editorial_notes_list.dart';
 import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
@@ -221,7 +218,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
-    final notesListStyle = ref.watch(notesListStyleProvider);
 
     final title = _getDestinationTitle(destination);
 
@@ -273,10 +269,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 },
               ),
             ),
-            appBar: (isTagBrowser ||
-                    destination == AppDestination.allJournalEntries ||
-                    (notesListStyle == NotesListStyle.editorial &&
-                        destination != AppDestination.onThisDay))
+            appBar: (isTagBrowser || destination == AppDestination.allJournalEntries)
                 ? null
                 : destination == AppDestination.onThisDay
                     ? AppBar(
@@ -480,34 +473,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         )
                       : SafeArea(
                           key: const ValueKey('phone_notes_list'),
-                          child: notesListStyle == NotesListStyle.editorial
-                              ? EditorialNotesList(
-                                  isTablet: false,
-                                  onNoteSelected: (note) =>
-                                      _openNote(context, note),
-                                  onCreateNote: () =>
-                                      _createAndOpenNote(context),
-                                  onOpenSearch: () =>
-                                      _openSearchScreen(context),
-                                  onEmptyTrash: () =>
-                                      _confirmEmptyTrash(context),
-                                  isMultiSelecting: _isMultiSelecting,
-                                  selectedNoteIds: _selectedNoteIds,
-                                  onToggleNoteMultiSelect: (id) =>
-                                      _toggleNoteMultiSelect(id),
-                                  onExitMultiSelect: _exitMultiSelect,
-                                  onArchiveNoteWithUndo:
-                                      _archiveNoteWithUndo,
-                                  onTrashNoteWithUndo:
-                                      _trashNoteWithUndo,
-                                  onRestoreNoteWithUndo:
-                                      _restoreNoteWithUndo,
-                                  onUnarchiveNoteWithUndo:
-                                      _unarchiveNoteWithUndo,
-                                  onDeletePermanently:
-                                      _deletePermanently,
-                                )
-                              : Builder(
+                      child: Builder(
                         builder: (scaffoldCtx) => GestureDetector(
                           behavior: HitTestBehavior.translucent,
                           onHorizontalDragEnd: (details) {
@@ -595,8 +561,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       ),
                     ),
             ),
-            floatingActionButton: (notesListStyle != NotesListStyle.editorial &&
-                    !isTagBrowser &&
+            floatingActionButton: (!isTagBrowser &&
                     (destination == AppDestination.allNotes ||
                         destination == AppDestination.pinned ||
                         destination == AppDestination.tag))
@@ -780,7 +745,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
     final title = _getDestinationTitle(destination);
-    final notesListStyle = ref.watch(notesListStyleProvider);
 
     // Watch active note if one is selected in tablet mode
     Note? activeNote;
@@ -905,47 +869,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     });
                                   },
                                 )
-                              : notesListStyle == NotesListStyle.editorial
-                                  ? EditorialNotesList(
-                                      key: const ValueKey('tablet_editorial_notes_list'),
-                                      isTablet: true,
-                                      selectedNoteId: _selectedNoteIdForTablet,
-                                      isSidebarVisible: isNavSidebarVisible,
-                                      onToggleSidebar: () {
-                                        ref
-                                            .read(isNavSidebarVisibleProvider.notifier)
-                                            .state = !isNavSidebarVisible;
-                                      },
-                                      onNoteSelected: (note) {
-                                        setState(() {
-                                          _selectedNoteIdForTablet = note.id;
-                                          _shouldAutoFocusTablet = false;
-                                        });
-                                      },
-                                      onCreateNote: () => _createAndOpenNoteTablet(),
-                                      onOpenSearch: () => _openSearchScreen(context),
-                                      onEmptyTrash: () => _confirmEmptyTrash(context),
-                                      onHideNoteList: () {
-                                        ref
-                                            .read(isNoteListVisibleProvider.notifier)
-                                            .state = false;
-                                      },
-                                      isMultiSelecting: _isMultiSelecting,
-                                      selectedNoteIds: _selectedNoteIds,
-                                      onToggleNoteMultiSelect: (id) =>
-                                          _toggleNoteMultiSelect(id),
-                                      onExitMultiSelect: _exitMultiSelect,
-                                      onArchiveNoteWithUndo: _archiveNoteWithUndo,
-                                      onTrashNoteWithUndo: _trashNoteWithUndo,
-                                      onRestoreNoteWithUndo: _restoreNoteWithUndo,
-                                      onUnarchiveNoteWithUndo: _unarchiveNoteWithUndo,
-                                      onDeletePermanently: _deletePermanently,
-                                    )
-                                  : PullDownSearchReveal(
-                                      key: const ValueKey('tablet_notes_list'),
-                                      isTabletPane: true,
-                                      enabled: defaultSettings.swipeDownToSearchNotes,
-                                      onOpenSearch: () => _openSearchScreen(context),
+                              : PullDownSearchReveal(
+                                  key: const ValueKey('tablet_notes_list'),
+                                  isTabletPane: true,
+                                  enabled: defaultSettings.swipeDownToSearchNotes,
+                                  onOpenSearch: () => _openSearchScreen(context),
                               child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragEnd: (details) {
