@@ -5635,3 +5635,48 @@ In Quiet Paper's WYSIWYG document editor (`VisualDocumentEditor` & `SemanticEdit
   - Pressing Backspace below divider deletes divider cleanly.
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Full test suite: `flutter test` (**1,308 / 1,308 tests passing, 100% pass rate**).
+
+---
+
+## 99. Editor 3-Dot Overflow Menu Streamlining, Phosphor Submenu Drill-Down & Top Bar Decluttering
+
+### Motivation & Design Philosophy
+To align with Quiet Paper's Bear Notes editorial philosophy and declutter the note reading/editing experience:
+1. **Editor Top Bar Decluttering**: In edit and preview modes, the AppBar previously displayed a dedicated "Find in note" search icon button. Since in-note search is readily accessible via the 3-dot overflow menu, keyboard shortcuts (`Ctrl+F` / `⌘F`), and pull-down gestures, having an extra icon in the AppBar cluttered the minimalist document header.
+2. **Consolidated Insertion Options**: The 3-dot overflow menu previously listed 4 separate insertion actions at the top level ("Insert image", "Scan document", "Insert table", "Attach file"), bloating the menu to 14+ items. Consolidating these into a single "Insert" action with animated drill-down navigation significantly streamlines the menu while preserving quick access.
+3. **Removed Redundant Markdown Preview Toggle**: The overflow menu also included a redundant "Markdown preview" / "Switch to edit" tile, which duplicated the permanent eye/pencil toggle icon in the top AppBar actions.
+
+### Key Architectural & UI Enhancements
+1. **Phosphor-Powered Submenu Drill-Down (`lib/features/editor/presentation/editor_screen.dart`)**:
+   - Introduced `enum _OverflowMenuPage { main, insert }`.
+   - Wrapped `showModalBottomSheet` contents in `StatefulBuilder`, `AnimatedSize` (220ms, `Curves.easeInOutCubic`), and `AnimatedSwitcher` (180ms).
+   - **Main Menu**: Replaced the 4 standalone tiles with a single consolidated tile:
+     - Title: "Insert"
+     - Leading icon: `PhosphorIconsRegular.plusCircle`
+     - Trailing icon: `PhosphorIconsRegular.caretRight`
+     - Hidden when note is read-only (`isReadOnly`) or in preview mode (`isPreview`).
+   - **Insert Submenu**:
+     - Header: `← Insert` back button (`PhosphorIconsRegular.arrowLeft`) and subtle divider.
+     - 4 sub-options with Phosphor icons:
+       - `Insert image` (`PhosphorIconsRegular.image`) -> `_handleInsertImage()`
+       - `Scan document` (`PhosphorIconsRegular.scan`) -> `_handleScanDocument()`
+       - `Insert table` (`PhosphorIconsRegular.table`) -> `_handleInsertTable()`
+       - `Attach file` (`PhosphorIconsRegular.paperclip`) -> `_handleAttachFile()`
+     - Tapping any option closes the sheet and triggers the corresponding action; tapping Back returns smoothly to the main menu.
+2. **Top Bar Search Icon Removal**:
+   - Removed the `QuietIconButton` with `Icons.search_rounded` from the editor `AppBar.actions` across both edit and preview modes.
+3. **Removed Redundant Markdown Preview Tile**:
+   - Eliminated the redundant "Markdown preview" / "Switch to edit" ListTile from the 3-dot overflow menu.
+
+### Automated Test Coverage & Verification
+- `test/editor/editor_overflow_menu_test.dart`: 5 comprehensive widget tests covering:
+  - Search icon absence in AppBar across edit and preview modes.
+  - Consolidated "Insert" option with Phosphor icons and absence of redundant preview tile in 3-dot menu.
+  - Tapping "Insert" reveals all 4 Phosphor-icon options and back button returns to main menu.
+  - Tapping "Insert table" from submenu closes sheet and opens `TableInsertDialog`.
+  - Read-only note hides the "Insert" option.
+- `test/editor/in_note_search_test.dart`: Updated 3 tests to trigger in-note search from overflow menu.
+- `test/widget_test.dart`: Updated preview toggle integration test.
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full test suite: `flutter test` (**1,341 / 1,341 tests passing, 100% pass rate**).
+

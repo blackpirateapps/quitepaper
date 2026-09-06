@@ -63,6 +63,9 @@ import '../../../core/speech/application/speech_provider.dart';
 import '../../../core/speech/application/speech_text_insertion_helper.dart';
 import '../../../core/speech/presentation/speech_download_dialog.dart';
 import '../../../core/speech/presentation/speech_recording_bar.dart';
+import '../../tags/domain/phosphor_icons.dart';
+
+enum _OverflowMenuPage { main, insert }
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -965,18 +968,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         currentlyCollapsed;
                   },
                 ),
-              QuietIconButton(
-                icon: Icons.search_rounded,
-                tooltip: 'Find in note',
-                isActive: _isSearchVisible,
-                onPressed: () {
-                  if (_isSearchVisible) {
-                    _closeSearch();
-                  } else {
-                    _openSearch();
-                  }
-                },
-              ),
               if (editorState.isReadOnly)
                 QuietIconButton(
                   icon: Icons.lock_outline_rounded,
@@ -1825,6 +1816,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final colors = context.appColors;
     final isPreview = ref.read(editorProviderFamily(_editorParams)).isPreviewMode;
     final isReadOnly = ref.read(editorProviderFamily(_editorParams)).isReadOnly;
+    _OverflowMenuPage currentPage = _OverflowMenuPage.main;
 
     showModalBottomSheet(
       context: context,
@@ -1834,80 +1826,153 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                if (!note.isTrashed) ...[
-                  if (!isPreview && !isReadOnly) ...[
-                    ListTile(
-                      leading: Icon(
-                        Icons.image_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Insert image',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        _handleInsertImage();
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.document_scanner_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Scan document',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        _handleScanDocument();
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.table_chart_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Insert table',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        _handleInsertTable();
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.attach_file_rounded,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Attach file',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        _handleAttachFile();
-                      },
-                    ),
-                  ],
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOutCubic,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: currentPage == _OverflowMenuPage.insert
+                          ? Column(
+                              key: const ValueKey('overflow_insert_submenu'),
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    AppSpacing.xs,
+                                    0,
+                                    AppSpacing.md,
+                                    AppSpacing.xs,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(
+                                          PhosphorIconsRegular.arrowLeft,
+                                          color: colors.textSecondary,
+                                          size: 20,
+                                        ),
+                                        tooltip: 'Back',
+                                        onPressed: () {
+                                          setSheetState(() {
+                                            currentPage = _OverflowMenuPage.main;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Text(
+                                        'Insert',
+                                        style: AppTypography.headline.copyWith(
+                                          color: colors.textPrimary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Divider(height: 1, color: colors.divider),
+                                const SizedBox(height: AppSpacing.xs),
+                                ListTile(
+                                  leading: Icon(
+                                    PhosphorIconsRegular.image,
+                                    color: colors.textSecondary,
+                                  ),
+                                  title: Text(
+                                    'Insert image',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    _handleInsertImage();
+                                  },
+                                ),
+                                ListTile(
+                                  leading: Icon(
+                                    PhosphorIconsRegular.scan,
+                                    color: colors.textSecondary,
+                                  ),
+                                  title: Text(
+                                    'Scan document',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    _handleScanDocument();
+                                  },
+                                ),
+                                ListTile(
+                                  leading: Icon(
+                                    PhosphorIconsRegular.table,
+                                    color: colors.textSecondary,
+                                  ),
+                                  title: Text(
+                                    'Insert table',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    _handleInsertTable();
+                                  },
+                                ),
+                                ListTile(
+                                  leading: Icon(
+                                    PhosphorIconsRegular.paperclip,
+                                    color: colors.textSecondary,
+                                  ),
+                                  title: Text(
+                                    'Attach file',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    _handleAttachFile();
+                                  },
+                                ),
+                              ],
+                            )
+                          : Column(
+                              key: const ValueKey('overflow_main_menu'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!note.isTrashed) ...[
+                                  if (!isPreview && !isReadOnly) ...[
+                                    ListTile(
+                                      leading: Icon(
+                                        PhosphorIconsRegular.plusCircle,
+                                        color: colors.textSecondary,
+                                      ),
+                                      title: Text(
+                                        'Insert',
+                                        style: AppTypography.bodyMedium.copyWith(
+                                          color: colors.textPrimary,
+                                        ),
+                                      ),
+                                      trailing: Icon(
+                                        PhosphorIconsRegular.caretRight,
+                                        color: colors.textTertiary,
+                                        size: 18,
+                                      ),
+                                      onTap: () {
+                                        setSheetState(() {
+                                          currentPage = _OverflowMenuPage.insert;
+                                        });
+                                      },
+                                    ),
+                                  ],
                   ListTile(
                     leading: Icon(
                       Icons.search_rounded,
@@ -2030,22 +2095,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           );
                         },
                       );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      isPreview ? Icons.edit_outlined : Icons.remove_red_eye_outlined,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      isPreview ? 'Switch to edit' : 'Markdown preview',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      notifier.togglePreviewMode();
                     },
                   ),
                   ListTile(
@@ -2521,39 +2570,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     );
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.copy_rounded,
-                    color: colors.textSecondary,
-                  ),
-                  title: Text(
-                    'Copy markdown',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: colors.textPrimary,
+                    ListTile(
+                      leading: Icon(
+                        Icons.copy_rounded,
+                        color: colors.textSecondary,
+                      ),
+                      title: Text(
+                        'Copy markdown',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        Clipboard.setData(
+                          ClipboardData(
+                            text: '${note.title}\n\n${note.content}'.trim(),
+                          ),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Note copied to clipboard'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    Clipboard.setData(
-                      ClipboardData(
-                        text: '${note.title}\n\n${note.content}'.trim(),
-                      ),
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note copied to clipboard'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       );
     },
   );
+},
+);
 }
 
   Widget _buildAttachedResourcesBar(BuildContext context, AppColors colors) {

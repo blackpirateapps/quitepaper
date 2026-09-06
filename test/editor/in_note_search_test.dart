@@ -163,13 +163,13 @@ void main() {
       );
     }
 
-    testWidgets('triggers in-note search from AppBar action, navigates matches, and highlights',
+    testWidgets('triggers in-note search from overflow menu, navigates matches, and highlights',
         (tester) async {
       final now = DateTime.now();
       final note = Note(
         id: 'search-test-1',
-        title: 'Editorial Design',
-        content: 'Bear style editorial writing is calm. Editorial focus is essential.',
+        title: 'Editorial Test',
+        content: 'Quiet Paper provides an editorial writing experience. Editorial design matters.',
         createdAt: now,
         updatedAt: now,
       );
@@ -181,8 +181,10 @@ void main() {
       // Search bar initially closed
       expect(find.byType(InNoteSearchBar), findsNothing);
 
-      // Tap search icon in AppBar
-      await tester.tap(find.byTooltip('Find in note'));
+      // Trigger search via overflow menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Find in note'));
       await tester.pumpAndSettle();
 
       // Search bar is now visible
@@ -234,8 +236,10 @@ void main() {
       await tester.pumpWidget(createEditorApp(note));
       await tester.pumpAndSettle();
 
-      // Open search with replace via shortcut or button
-      await tester.tap(find.byTooltip('Find in note'));
+      // Open search with replace via overflow menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Find in note'));
       await tester.pumpAndSettle();
 
       await tester.enterText(find.widgetWithText(TextField, 'Find in note...'), 'apple');
@@ -349,8 +353,10 @@ void main() {
 
       expect(find.byType(QuietMarkdownPreview), findsOneWidget);
 
-      // Trigger search via AppBar
-      await tester.tap(find.byTooltip('Find in note'));
+      // Trigger search via overflow menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Find in note'));
       await tester.pumpAndSettle();
 
       expect(find.byType(InNoteSearchBar), findsOneWidget);

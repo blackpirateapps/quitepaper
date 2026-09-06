@@ -567,7 +567,7 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Overflow menu toggles Markdown preview cleanly in Editor', (
+  testWidgets('AppBar preview action toggles Markdown preview cleanly in Editor', (
     tester,
   ) async {
     setPhoneSize(tester);
@@ -600,27 +600,27 @@ void main() {
     // In edit mode: text fields are visible
     expect(find.byType(TextField), findsWidgets);
 
-    // Tap overflow menu
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Markdown preview'), findsOneWidget);
-    await tester.tap(find.text('Markdown preview'));
+    // Tap preview button in AppBar
+    await tester.tap(find.byTooltip('Preview note'));
     await tester.pumpAndSettle();
 
     // TextFields are gone, rendered preview is shown
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Heading One'), findsOneWidget);
 
-    // Tap overflow menu to switch back to edit
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Switch to edit'), findsOneWidget);
-    await tester.tap(find.text('Switch to edit'));
+    // Tap edit button in AppBar to switch back to edit
+    await tester.tap(find.byTooltip('Edit note'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TextField), findsWidgets);
+
+    // Verify that the overflow menu does not contain redundant Markdown preview toggle
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Markdown preview'), findsNothing);
+    expect(find.text('Switch to edit'), findsNothing);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
 
     await finishTest(tester);
   });
