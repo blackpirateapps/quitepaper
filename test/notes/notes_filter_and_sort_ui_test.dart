@@ -21,6 +21,7 @@ import 'package:quitepaper/features/notes/presentation/widgets/notes_filter_shee
 import 'package:quitepaper/features/notes/presentation/widgets/notes_sort_sheet.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/saved_filters_sheet.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
 void main() {
   late AppDatabase db;
@@ -359,7 +360,7 @@ void main() {
   });
 
   group('Responsive NotesScreen Header Tests', () {
-    testWidgets('header title remains Notes when a tag filter is active', (tester) async {
+    testWidgets('header title remains All Notes when a tag filter is active', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -379,14 +380,55 @@ void main() {
       container.read(notesQueryProvider.notifier).setTag('simplenote');
       await tester.pumpAndSettle();
 
-      // Title must remain Notes, not #simplenote
-      expect(find.text('Notes'), findsOneWidget);
-      expect(find.byIcon(Icons.close_rounded), findsNothing);
+      // Title must remain All Notes, not #simplenote
+      expect(find.text('All Notes'), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.x), findsNothing);
 
       await finishTest(tester);
     });
 
-    testWidgets('tablet middle pane collapses gracefully on narrow constraints', (tester) async {
+    testWidgets('notes list screen displays only 3 options (Create, Search, More) and exposes Sort & Filter in More menu', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        createTestWidget(
+          child: const NotesScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('All Notes'), findsOneWidget);
+
+      // Verify the 3 top bar options
+      expect(find.byIcon(PhosphorIconsRegular.plus), findsWidgets); // Top bar + FAB
+      expect(find.byIcon(PhosphorIconsRegular.magnifyingGlass), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.dotsThreeVertical), findsOneWidget);
+
+      // Open the More menu
+      await tester.tap(find.byIcon(PhosphorIconsRegular.dotsThreeVertical));
+      await tester.pumpAndSettle();
+
+      // Verify options inside More menu
+      expect(find.text('Sort notes'), findsOneWidget);
+      expect(find.text('Filter notes'), findsOneWidget);
+      expect(find.text('Clip webpage'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+
+      // Tap Sort notes and verify NotesSortSheet opens
+      await tester.tap(find.text('Sort notes'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotesSortSheet), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tablet middle pane displays only 3 options (Create, Search, More) with Phosphor icons', (tester) async {
       tester.view.physicalSize = const Size(1024, 768);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -401,10 +443,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Notes'), findsWidgets);
-      expect(find.byType(NotesFilterButton), findsOneWidget);
-      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+      expect(find.text('All Notes'), findsWidgets);
+      expect(find.byIcon(PhosphorIconsRegular.plus), findsWidgets);
+      expect(find.byIcon(PhosphorIconsRegular.magnifyingGlass), findsWidgets);
+      expect(find.byIcon(PhosphorIconsRegular.dotsThree), findsWidgets);
+
+      // Open tablet more actions
+      await tester.tap(find.byIcon(PhosphorIconsRegular.dotsThree).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sort notes'), findsOneWidget);
+      expect(find.text('Filter notes'), findsOneWidget);
+      expect(find.text('Clip webpage'), findsOneWidget);
 
       await finishTest(tester);
     });

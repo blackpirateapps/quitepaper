@@ -32,13 +32,13 @@ import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
 import 'widgets/note_list_tile.dart';
-import 'widgets/notes_filter_button.dart';
 import 'widgets/notes_filter_sheet.dart';
 import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
 import '../../settings/application/default_settings_provider.dart';
+import '../../tags/domain/phosphor_icons.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -116,7 +116,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   String _getDestinationTitle(AppDestination destination) {
     switch (destination) {
       case AppDestination.allNotes:
-        return 'Notes';
+        return 'All Notes';
       case AppDestination.pinned:
         return 'Pinned';
       case AppDestination.archive:
@@ -278,7 +278,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         scrolledUnderElevation: 0,
                         leading: Builder(
                           builder: (scaffoldCtx) => QuietIconButton(
-                            icon: Icons.menu_rounded,
+                            icon: PhosphorIconsRegular.list,
                             tooltip: 'Open navigation',
                             onPressed: () {
                               Scaffold.of(scaffoldCtx).openDrawer();
@@ -321,7 +321,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         scrolledUnderElevation: 0,
                         leading: Builder(
                           builder: (scaffoldCtx) => QuietIconButton(
-                            icon: Icons.menu_rounded,
+                            icon: PhosphorIconsRegular.list,
                             tooltip: 'Open navigation',
                             onPressed: () {
                               Scaffold.of(scaffoldCtx).openDrawer();
@@ -340,21 +340,17 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         ),
                         actions: [
                           QuietIconButton(
-                            icon: Icons.swap_vert_rounded,
-                            tooltip: 'Sort notes',
-                            onPressed: () => NotesSortSheet.show(context),
-                          ),
-                          NotesFilterButton(
-                            advancedFilterCount: query.filter.advancedFilterCount,
-                            onPressed: () => NotesFilterSheet.show(context),
+                            icon: PhosphorIconsRegular.plus,
+                            tooltip: 'New note',
+                            onPressed: () => _createAndOpenNote(context),
                           ),
                           QuietIconButton(
-                            icon: Icons.search_rounded,
+                            icon: PhosphorIconsRegular.magnifyingGlass,
                             tooltip: 'Search notes',
                             onPressed: () => _openSearchScreen(context),
                           ),
                           PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert_rounded, size: 20),
+                            icon: const Icon(PhosphorIconsRegular.dotsThreeVertical, size: 20),
                             tooltip: 'More options',
                             color: colors.surface,
                             elevation: 3,
@@ -363,7 +359,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               side: BorderSide(color: colors.divider, width: 0.8),
                             ),
                             onSelected: (val) {
-                              if (val == 'clip') {
+                              if (val == 'sort') {
+                                NotesSortSheet.show(context);
+                              } else if (val == 'filter') {
+                                NotesFilterSheet.show(context);
+                              } else if (val == 'clip') {
                                 WebClipDialog.show(context);
                               } else if (val == 'settings') {
                                 Navigator.of(context).push(
@@ -375,10 +375,49 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             },
                             itemBuilder: (context) => [
                               PopupMenuItem(
+                                value: 'sort',
+                                child: Row(
+                                  children: [
+                                    Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Sort notes',
+                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'filter',
+                                child: Row(
+                                  children: [
+                                    Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Text(
+                                        query.filter.advancedFilterCount > 0
+                                            ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                            : 'Filter notes',
+                                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                      ),
+                                    ),
+                                    if (query.filter.advancedFilterCount > 0)
+                                      Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: BoxDecoration(
+                                          color: colors.accent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
                                 value: 'clip',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
+                                    Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
                                     const SizedBox(width: AppSpacing.sm),
                                     Text(
                                       'Clip webpage',
@@ -391,7 +430,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 value: 'settings',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                                    Icon(PhosphorIconsRegular.gear, size: 18, color: colors.textSecondary),
                                     const SizedBox(width: AppSpacing.sm),
                                     Text(
                                       'Settings',
@@ -406,7 +445,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   value: 'empty_trash',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.delete_forever_outlined, size: 18, color: colors.error),
+                                      Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
                                       const SizedBox(width: AppSpacing.sm),
                                       Text(
                                         'Empty trash',
@@ -587,7 +626,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       backgroundColor: colors.surface,
       elevation: 1,
       leading: QuietIconButton(
-        icon: Icons.close_rounded,
+        icon: PhosphorIconsRegular.x,
         tooltip: 'Close selection',
         onPressed: _exitMultiSelect,
       ),
@@ -601,7 +640,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       actions: [
         if (destination == AppDestination.trash) ...[
           QuietIconButton(
-            icon: Icons.restore_rounded,
+            icon: PhosphorIconsRegular.arrowCounterClockwise,
             tooltip: 'Restore selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -622,7 +661,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
           ),
           QuietIconButton(
-            icon: Icons.delete_forever_rounded,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Delete permanently',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -648,7 +687,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         ] else if (destination == AppDestination.archive) ...[
           QuietIconButton(
-            icon: Icons.unarchive_outlined,
+            icon: PhosphorIconsRegular.arrowUUpLeft,
             tooltip: 'Unarchive selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -669,7 +708,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
           ),
           QuietIconButton(
-            icon: Icons.delete_outline_rounded,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Move to Trash',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -691,7 +730,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         ] else ...[
           QuietIconButton(
-            icon: Icons.archive_outlined,
+            icon: PhosphorIconsRegular.archive,
             tooltip: 'Archive selected',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -712,7 +751,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
           ),
           QuietIconButton(
-            icon: Icons.delete_outline_rounded,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Move to Trash',
             onPressed: () async {
               final ids = _selectedNoteIds.toList();
@@ -913,162 +952,157 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                         horizontal: AppSpacing.sm,
                                         vertical: AppSpacing.xs,
                                       ),
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final availableWidth = constraints.maxWidth;
-                                          final isVeryNarrow = availableWidth < 300;
-
-                                          return Row(
-                                            children: [
-                                              QuietIconButton(
-                                                icon: isNavSidebarVisible
-                                                    ? Icons.menu_open_rounded
-                                                    : Icons.view_sidebar_outlined,
-                                                tooltip: isNavSidebarVisible
-                                                    ? 'Hide navigation'
-                                                    : 'Show navigation',
-                                                onPressed: () {
-                                                  ref
-                                                      .read(isNavSidebarVisibleProvider.notifier)
-                                                      .state = !isNavSidebarVisible;
-                                                },
+                                      child: Row(
+                                        children: [
+                                          QuietIconButton(
+                                            icon: isNavSidebarVisible
+                                                ? PhosphorIconsRegular.sidebarSimple
+                                                : PhosphorIconsRegular.sidebarSimple,
+                                            tooltip: isNavSidebarVisible
+                                                ? 'Hide navigation'
+                                                : 'Show navigation',
+                                            onPressed: () {
+                                              ref
+                                                  .read(isNavSidebarVisibleProvider.notifier)
+                                                  .state = !isNavSidebarVisible;
+                                            },
+                                          ),
+                                          const SizedBox(width: 4.0),
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              style: AppTypography.title.copyWith(
+                                                color: colors.textPrimary,
+                                                fontSize: 19,
+                                                fontWeight: FontWeight.w700,
                                               ),
-                                              const SizedBox(width: 4.0),
-                                              Expanded(
-                                                child: Text(
-                                                  title,
-                                                  style: AppTypography.title.copyWith(
-                                                    color: colors.textPrimary,
-                                                    fontSize: 19,
-                                                    fontWeight: FontWeight.w700,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                          QuietIconButton(
+                                            icon: PhosphorIconsRegular.plus,
+                                            tooltip: 'New note',
+                                            isActive: true,
+                                            onPressed: () => _createAndOpenNoteTablet(),
+                                          ),
+                                          QuietIconButton(
+                                            icon: PhosphorIconsRegular.magnifyingGlass,
+                                            tooltip: 'Search notes',
+                                            onPressed: () => _openSearchScreen(context),
+                                          ),
+                                          PopupMenuButton<String>(
+                                            icon: const Icon(PhosphorIconsRegular.dotsThree, size: 20),
+                                            tooltip: 'More actions',
+                                            color: colors.surface,
+                                            elevation: 3,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: AppRadii.borderMd,
+                                              side: BorderSide(color: colors.divider, width: 0.8),
+                                            ),
+                                            onSelected: (val) {
+                                              if (val == 'sort') {
+                                                NotesSortSheet.show(context);
+                                              } else if (val == 'filter') {
+                                                NotesFilterSheet.show(context);
+                                              } else if (val == 'clip') {
+                                                WebClipDialog.show(context);
+                                              } else if (val == 'hide_list') {
+                                                ref
+                                                    .read(isNoteListVisibleProvider.notifier)
+                                                    .state = false;
+                                              } else if (val == 'settings') {
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                                );
+                                              } else if (val == 'empty_trash') {
+                                                _confirmEmptyTrash(context);
+                                              }
+                                            },
+                                            itemBuilder: (context) => [
+                                              PopupMenuItem(
+                                                value: 'sort',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
+                                                    const SizedBox(width: AppSpacing.sm),
+                                                    Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'filter',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
+                                                    const SizedBox(width: AppSpacing.sm),
+                                                    Expanded(
+                                                      child: Text(
+                                                        query.filter.advancedFilterCount > 0
+                                                            ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                                            : 'Filter notes',
+                                                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                                      ),
+                                                    ),
+                                                    if (query.filter.advancedFilterCount > 0)
+                                                      Container(
+                                                        width: 7,
+                                                        height: 7,
+                                                        decoration: BoxDecoration(
+                                                          color: colors.accent,
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'clip',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
+                                                    const SizedBox(width: AppSpacing.sm),
+                                                    Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (activeNote != null)
+                                                PopupMenuItem(
+                                                  value: 'hide_list',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(PhosphorIconsRegular.sidebarSimple, size: 18, color: colors.textSecondary),
+                                                      const SizedBox(width: AppSpacing.sm),
+                                                      Text('Hide notes list', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                    ],
                                                   ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                  maxLines: 1,
+                                                ),
+                                              PopupMenuItem(
+                                                value: 'settings',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(PhosphorIconsRegular.gear, size: 18, color: colors.textSecondary),
+                                                    const SizedBox(width: AppSpacing.sm),
+                                                    Text('Settings', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                                                  ],
                                                 ),
                                               ),
-                                              if (!isVeryNarrow) ...[
-                                                QuietIconButton(
-                                                  icon: Icons.swap_vert_rounded,
-                                                  tooltip: 'Sort notes',
-                                                  onPressed: () => NotesSortSheet.show(context),
-                                                ),
-                                                NotesFilterButton(
-                                                  advancedFilterCount: query.filter.advancedFilterCount,
-                                                  onPressed: () => NotesFilterSheet.show(context),
-                                                ),
-                                                QuietIconButton(
-                                                  icon: Icons.search_rounded,
-                                                  tooltip: 'Search notes',
-                                                  onPressed: () => _openSearchScreen(context),
+                                              if (destination == AppDestination.trash) ...[
+                                                const PopupMenuDivider(),
+                                                PopupMenuItem(
+                                                  value: 'empty_trash',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
+                                                      const SizedBox(width: AppSpacing.sm),
+                                                      Text('Empty trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                                                    ],
+                                                  ),
                                                 ),
                                               ],
-                                              QuietIconButton(
-                                                icon: Icons.add_rounded,
-                                                tooltip: 'New note',
-                                                isActive: true,
-                                                onPressed: () => _createAndOpenNoteTablet(),
-                                              ),
-                                              PopupMenuButton<String>(
-                                                icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                                                tooltip: 'More actions',
-                                                color: colors.surface,
-                                                elevation: 3,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius: AppRadii.borderMd,
-                                                  side: BorderSide(color: colors.divider, width: 0.8),
-                                                ),
-                                                onSelected: (val) {
-                                                  if (val == 'sort') {
-                                                    NotesSortSheet.show(context);
-                                                  } else if (val == 'filter') {
-                                                    NotesFilterSheet.show(context);
-                                                  } else if (val == 'search') {
-                                                    _openSearchScreen(context);
-                                                  } else if (val == 'clip') {
-                                                    WebClipDialog.show(context);
-                                                  } else if (val == 'hide_list') {
-                                                    ref
-                                                        .read(isNoteListVisibleProvider.notifier)
-                                                        .state = false;
-                                                  } else if (val == 'empty_trash') {
-                                                    _confirmEmptyTrash(context);
-                                                  }
-                                                },
-                                                itemBuilder: (context) => [
-                                                  if (isVeryNarrow) ...[
-                                                    PopupMenuItem(
-                                                      value: 'sort',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.swap_vert_rounded, size: 18, color: colors.textSecondary),
-                                                          const SizedBox(width: AppSpacing.sm),
-                                                          Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    PopupMenuItem(
-                                                      value: 'filter',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.filter_list_rounded, size: 18, color: colors.textSecondary),
-                                                          const SizedBox(width: AppSpacing.sm),
-                                                          Text(
-                                                            query.filter.advancedFilterCount > 0
-                                                                ? 'Filter notes (${query.filter.advancedFilterCount})'
-                                                                : 'Filter notes',
-                                                            style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    PopupMenuItem(
-                                                      value: 'search',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.search_rounded, size: 18, color: colors.textSecondary),
-                                                          const SizedBox(width: AppSpacing.sm),
-                                                          Text('Search notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                  PopupMenuItem(
-                                                    value: 'clip',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(Icons.language_rounded, size: 18, color: colors.textSecondary),
-                                                        const SizedBox(width: AppSpacing.sm),
-                                                        Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (activeNote != null)
-                                                    PopupMenuItem(
-                                                      value: 'hide_list',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.fullscreen_rounded, size: 18, color: colors.textSecondary),
-                                                          const SizedBox(width: AppSpacing.sm),
-                                                          Text('Hide note list', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  if (destination == AppDestination.trash)
-                                                    PopupMenuItem(
-                                                      value: 'empty_trash',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.delete_sweep_outlined, size: 18, color: colors.error),
-                                                          const SizedBox(width: AppSpacing.sm),
-                                                          Text('Empty trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
                                             ],
-                                          );
-                                        },
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   if (destination == AppDestination.allNotes) ...[
@@ -1189,7 +1223,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.edit_note_rounded,
+                              PhosphorIconsRegular.notePencil,
                               size: 48,
                               color: colors.textTertiary.withValues(alpha: 0.35),
                             ),
@@ -1213,7 +1247,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               const SizedBox(height: AppSpacing.lg),
                               QuietButton(
                                 label: 'Show note list',
-                                icon: Icons.view_sidebar_outlined,
+                                icon: PhosphorIconsRegular.sidebarSimple,
                                 variant: QuietButtonVariant.secondary,
                                 onPressed: () {
                                   ref
@@ -1284,7 +1318,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: const Icon(
-              Icons.restore_rounded,
+              PhosphorIconsRegular.arrowCounterClockwise,
               color: Colors.white,
             ),
           );
@@ -1295,7 +1329,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Icon(
-              Icons.unarchive_outlined,
+              PhosphorIconsRegular.arrowUUpLeft,
               color: context.appColors.textPrimary,
             ),
           );
@@ -1304,7 +1338,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: const Icon(
-              Icons.delete_outline_rounded,
+              PhosphorIconsRegular.trash,
               color: Colors.white,
             ),
           );
@@ -1318,7 +1352,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Icon(
-              Icons.archive_outlined,
+              PhosphorIconsRegular.archive,
               color: context.appColors.accent,
             ),
           );
@@ -1327,7 +1361,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: const Icon(
-              Icons.delete_outline_rounded,
+              PhosphorIconsRegular.trash,
               color: Colors.white,
             ),
           );

@@ -8,7 +8,6 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/application/notes_provider.dart';
 import '../../../notes/application/notes_query_provider.dart';
-import '../../../notes/presentation/widgets/notes_filter_button.dart';
 import '../../../web_clipper/presentation/web_clip_dialog.dart';
 import '../../application/tag_providers.dart';
 import '../../domain/tag_icon_registry.dart';
@@ -205,18 +204,13 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
       color: colors.background,
       child: SafeArea(
         bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final availableWidth = constraints.maxWidth;
-            final isVeryNarrow = availableWidth < 310;
-
-            return Container(
-              height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: colors.background,
-              ),
-              child: Row(
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: colors.background,
+          ),
+          child: Row(
             children: [
               if (onOpenDrawer != null)
                 QuietIconButton(
@@ -261,32 +255,19 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                 ),
               ),
 
-              if (!isVeryNarrow) ...[
-                if (onSortPressed != null)
-                  QuietIconButton(
-                    icon: PhosphorIconsRegular.arrowsDownUp,
-                    tooltip: 'Sort notes',
-                    onPressed: onSortPressed,
-                  ),
-                if (onFilterPressed != null)
-                  NotesFilterButton(
-                    advancedFilterCount: advancedFilterCount,
-                    onPressed: onFilterPressed!,
-                  ),
-                if (onSearchPressed != null)
-                  QuietIconButton(
-                    icon: PhosphorIconsRegular.magnifyingGlass,
-                    tooltip: 'Search notes',
-                    onPressed: onSearchPressed,
-                  ),
-              ],
-
               if (onCreateNotePressed != null)
                 QuietIconButton(
                   icon: PhosphorIconsRegular.plus,
                   tooltip: 'New note in #$tagName',
                   isActive: true,
                   onPressed: onCreateNotePressed,
+                ),
+
+              if (onSearchPressed != null)
+                QuietIconButton(
+                  icon: PhosphorIconsRegular.magnifyingGlass,
+                  tooltip: 'Search notes',
+                  onPressed: onSearchPressed,
                 ),
 
               // Tag Context Actions Menu
@@ -326,51 +307,62 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                     case 'filter':
                       onFilterPressed?.call();
                       break;
-                    case 'search':
-                      onSearchPressed?.call();
-                      break;
                     case 'clip':
                       WebClipDialog.show(context);
                       break;
                   }
                 },
                 itemBuilder: (context) => [
-                  if (isVeryNarrow) ...[
-                    if (onSortPressed != null)
-                      PopupMenuItem(
-                        value: 'sort',
-                        child: Row(
-                          children: [
-                            Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                          ],
-                        ),
+                  if (onSortPressed != null)
+                    PopupMenuItem(
+                      value: 'sort',
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                        ],
                       ),
-                    if (onFilterPressed != null)
-                      PopupMenuItem(
-                        value: 'filter',
-                        child: Row(
-                          children: [
-                            Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text('Filter notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                          ],
-                        ),
+                    ),
+                  if (onFilterPressed != null)
+                    PopupMenuItem(
+                      value: 'filter',
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              advancedFilterCount > 0
+                                  ? 'Filter notes ($advancedFilterCount)'
+                                  : 'Filter notes',
+                              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                            ),
+                          ),
+                          if (advancedFilterCount > 0)
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: colors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
                       ),
-                    if (onSearchPressed != null)
-                      PopupMenuItem(
-                        value: 'search',
-                        child: Row(
-                          children: [
-                            Icon(PhosphorIconsRegular.magnifyingGlass, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text('Search notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                          ],
-                        ),
-                      ),
+                    ),
+                  PopupMenuItem(
+                    value: 'clip',
+                    child: Row(
+                      children: [
+                        Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                      ],
+                    ),
+                  ),
+                  if (tag != null)
                     const PopupMenuDivider(),
-                  ],
                   if (tag != null) ...[
                     PopupMenuItem(
                       value: 'rename',
@@ -452,10 +444,8 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
               ),
             ],
           ),
-        );
-      },
-    ),
-  ),
-);
+        ),
+      ),
+    );
   }
 }

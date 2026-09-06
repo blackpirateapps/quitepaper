@@ -5792,3 +5792,98 @@ Reverted commit `0d9445c787be26d34faeb803996a0f6aef9fedf9` ("feat(notes): implem
 - Removed Notes List appearance settings group from `SettingsScreen`.
 - Removed associated unit and widget tests for editorial notes list presentation style.
 - Cleanly preserved all subsequent fixes and features (WYSIWYG YAML frontmatter preservation fix, legal privacy policy and terms web pages, and in-app legal settings navigation).
+
+---
+
+## 103. Streamlined 3-Option Notes List Screen Header with Phosphor Icons & Title Case Headings
+
+### 1. Motivation & User Requirements
+The notes list screen top app bar previously contained a fragmented array of buttons (such as search, filter, web clipping, sort, and settings), which varied across phone, tablet, and tag filter views. Additionally, headings in the notes list screen used mixed casing (e.g. `'Notes'` instead of `'All Notes'`), and several icons were still using Material `Icons.*` rather than Quiet Paper's canonical Phosphor icon set.
+
+The requirements for this refactor:
+1. Streamline the notes list screen header to exactly **3 options**:
+   - **Create** (`+`)
+   - **Search** (magnifying glass)
+   - **More** (`...` menu)
+2. The **More** menu consolidates secondary actions:
+   - **Sort notes** (opens the Sort bottom sheet)
+   - **Filter notes** (opens the Filter bottom sheet, with an active filter badge indicator dot when filters are active)
+   - **Clip webpage** (opens the Web Clipper dialog)
+   - **Hide notes list** (tablet/split-view layout only, when an active note is selected)
+   - **Settings**
+   - **Empty trash** (displayed conditionally when viewing Trash)
+3. Ensure heading titles display in consistent Title Case:
+   - `'All Notes'`, `'Pinned'`, `'Archive'`, `'Trash'`
+4. Standardize on **Phosphor icons** (`PhosphorIconsRegular` and `PhosphorIconsFill`) across `notes_screen.dart` and `tag_context_header.dart`, eliminating all legacy Material icon references.
+
+---
+
+### 2. Architecture & Design Implementation
+
+#### A. Title Case Headings (`_getDestinationTitle`)
+In `lib/features/notes/presentation/notes_screen.dart`:
+- Updated `AppDestination.allNotes` display title from `'Notes'` to `'All Notes'`.
+- Ensured other destinations cleanly render `'Pinned'`, `'Archive'`, and `'Trash'`, maintaining consistency with the navigation sidebar and tags header.
+
+#### B. Streamlined 3-Option Header (Phone Layout)
+In `_NotesPhoneLayout`:
+- **App Bar Leading**: Drawer trigger using `PhosphorIconsRegular.list`.
+- **App Bar Title**: Title Case destination heading (`'All Notes'`, `'Pinned'`, etc.).
+- **App Bar Actions**: Exactly 3 controls:
+  1. `IconButton` for **Create Note** (`PhosphorIconsRegular.plus`, tooltip `'New note'`).
+  2. `IconButton` for **Search** (`PhosphorIconsRegular.magnifyingGlass`, tooltip `'Search notes'`).
+  3. `PopupMenuButton` for **More** (`PhosphorIconsRegular.dotsThreeVertical`, tooltip `'More options'`), containing:
+     - `_NotesMenuAction.sortNotes`: "Sort notes" with `PhosphorIconsRegular.arrowsDownUp`.
+     - `_NotesMenuAction.filterNotes`: "Filter notes" with `PhosphorIconsRegular.funnel` and active indicator badge.
+     - `_NotesMenuAction.clipWebpage`: "Clip webpage" with `PhosphorIconsRegular.globe`.
+     - `_NotesMenuAction.settings`: "Settings" with `PhosphorIconsRegular.gear`.
+     - `_NotesMenuAction.emptyTrash`: "Empty trash" with `PhosphorIconsRegular.trash` (when viewing Trash).
+- Preserved the thumb-friendly floating action button (FAB) at bottom-right on phone layouts for one-handed reachability.
+
+#### C. Streamlined 3-Option Header (Tablet / Multi-Pane Layout)
+In `_NotesTabletLayout`:
+- **Middle Pane Header Title**: Destination title or active tag name.
+- **Middle Pane Header Actions**: Exactly 3 controls:
+  1. `IconButton` for **Create Note** (`PhosphorIconsRegular.plus`, tooltip `'New note'`).
+  2. `IconButton` for **Search** (`PhosphorIconsRegular.magnifyingGlass`, tooltip `'Search'`).
+  3. `PopupMenuButton` for **More** (`PhosphorIconsRegular.dotsThree`, tooltip `'More options'`), containing:
+     - "Sort notes" (`PhosphorIconsRegular.arrowsDownUp`).
+     - "Filter notes" (`PhosphorIconsRegular.funnel`, with badge when filters active).
+     - "Clip webpage" (`PhosphorIconsRegular.globe`).
+     - "Hide notes list" (`PhosphorIconsRegular.sidebarSimple`), enabled when an active note is selected to collapse the middle note list and maximize the editor workspace.
+     - "Settings" (`PhosphorIconsRegular.gear`).
+     - "Empty trash" (`PhosphorIconsRegular.trash`, conditional).
+
+#### D. Streamlined Tag Context Header (`tag_context_header.dart`)
+In `TagContextHeader`:
+- Refactored the action row to present the 3-option pattern:
+  1. Create Note (`PhosphorIconsRegular.plus`)
+  2. Search (`PhosphorIconsRegular.magnifyingGlass`)
+  3. More (`PhosphorIconsRegular.dotsThreeVertical`), containing Sort, Filter, Clip webpage, and Tag Management actions (Rename tag, Change icon, Change color, Pin/Unpin tag, Merge tag, Delete tag).
+
+#### E. 100% Phosphor Icon Migration in Notes Screen
+Replaced all legacy `Icons.*` references across `notes_screen.dart`:
+- Navigation leading: `PhosphorIconsRegular.list`.
+- Multi-select action bar: `PhosphorIconsRegular.x` (clear selection), `PhosphorIconsRegular.arrowCounterClockwise` (restore), `PhosphorIconsRegular.trash` (delete), `PhosphorIconsRegular.arrowUUpLeft` (unarchive), `PhosphorIconsRegular.archive` (archive).
+- Swipe-to-dismiss background indicators: `PhosphorIconsRegular.arrowCounterClockwise`, `PhosphorIconsRegular.arrowUUpLeft`, `PhosphorIconsRegular.trash`, `PhosphorIconsRegular.archive`.
+- Empty state icon: `PhosphorIconsRegular.notePencil`.
+- Tablet sidebar collapse: `PhosphorIconsRegular.sidebarSimple`.
+- Zero `Icons.*` occurrences remain in `notes_screen.dart`.
+
+---
+
+### 3. Automated Test Coverage & Quality Verification
+- **`test/notes/notes_filter_and_sort_ui_test.dart`**:
+  - Verified title displays `'All Notes'`.
+  - Verified exactly 3 action options appear in phone AppBar (Create, Search, More).
+  - Verified More popup menu displays "Sort notes" and "Filter notes".
+  - Verified selecting "Sort notes" and "Filter notes" from the More menu properly launches their respective bottom sheets.
+  - All 14 tests in suite passing.
+- **`test/widget_test.dart`**:
+  - Updated destination assertions to `'All Notes'`.
+  - Updated widget finder selectors to use Phosphor icons (`PhosphorIconsRegular.list`, `PhosphorIconsRegular.magnifyingGlass`, `PhosphorIconsRegular.dotsThreeVertical`).
+  - Disambiguated `SidebarView` drawer navigation item matches from the AppBar title.
+  - All 18 tests in suite passing.
+- **Static Analysis**: `flutter analyze` (**0 issues found**).
+- **Full Test Suite**: `flutter test` (**1,349 / 1,349 tests passing, 100% pass rate**).
+

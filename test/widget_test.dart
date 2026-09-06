@@ -12,6 +12,7 @@ import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -62,7 +63,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify main screen header and empty state
-    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('All Notes'), findsOneWidget);
     expect(find.text('No notes yet'), findsOneWidget);
     expect(find.text('Start writing something.'), findsOneWidget);
 
@@ -88,7 +89,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Check that we are back on main screen and note is listed
-    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('All Notes'), findsOneWidget);
     expect(find.text('First Thoughts'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
 
@@ -199,14 +200,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // Open drawer
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
     // Verify Sidebar contents
     expect(find.byType(SidebarView), findsOneWidget);
     expect(find.text('Quiet Paper'), findsOneWidget);
     expect(find.text('LIBRARY'), findsOneWidget);
-    expect(find.text('All Notes'), findsOneWidget);
+    expect(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')), findsOneWidget);
     expect(find.text('Pinned'), findsOneWidget);
     expect(find.text('Archive'), findsOneWidget);
     expect(find.text('Trash'), findsOneWidget);
@@ -220,7 +221,7 @@ void main() {
     expect(find.text('Archived notes will appear here.'), findsOneWidget);
 
     // Open drawer again and navigate to Trash
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Trash'));
@@ -234,13 +235,13 @@ void main() {
     );
 
     // Open drawer again and navigate back to All Notes
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('All Notes'));
+    await tester.tap(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('All Notes'), findsOneWidget);
 
     await finishTest(tester);
   });
@@ -279,7 +280,7 @@ void main() {
     expect(find.text('Note archived'), findsOneWidget);
 
     // Open drawer and navigate to Archive
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Archive'));
@@ -299,10 +300,10 @@ void main() {
     expect(find.text('Note to Archive'), findsNothing);
 
     // Back to All Notes
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('All Notes'));
+    await tester.tap(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')));
     await tester.pumpAndSettle();
 
     expect(find.text('Note to Archive'), findsOneWidget);
@@ -345,7 +346,7 @@ void main() {
     expect(find.text('Note moved to Trash'), findsOneWidget);
 
     // Navigate to Trash
-    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Trash'));
@@ -414,7 +415,7 @@ void main() {
     expect(find.text('Grocery list'), findsOneWidget);
 
     // Tap Search icon
-    await tester.tap(find.byIcon(Icons.search_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.magnifyingGlass));
     await tester.pumpAndSettle();
 
     // Type query
@@ -461,7 +462,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap more options -> Settings
-    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.dotsThreeVertical));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
@@ -512,7 +513,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap more options -> Settings
-    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.dotsThreeVertical));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
@@ -687,8 +688,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. Collapse Navigation Sidebar via its collapse button in header
-    expect(find.byIcon(Icons.menu_open_rounded), findsWidgets);
-    await tester.tap(find.byIcon(Icons.menu_open_rounded).first);
+    expect(find.byTooltip('Hide navigation sidebar'), findsOneWidget);
+    await tester.tap(find.byTooltip('Hide navigation sidebar'));
     await tester.pumpAndSettle();
 
     // Navigation sidebar width animated to 0
@@ -828,7 +829,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Back on note list, note exists with auto-title
-      expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('All Notes'), findsOneWidget);
       expect(find.text('This is the very first line...'), findsOneWidget);
 
       // Reopen the note (opens in preview mode)
@@ -861,7 +862,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.arrow_back_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('All Notes'), findsOneWidget);
 
       await finishTest(tester);
     },
