@@ -3768,7 +3768,8 @@ An **intelligent heading-aware scrollbar** was engineered for Quiet Paper, combi
 
 3. **Editor & Preview Integration**:
    - **Editor Screen** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
-     - Wraps the central constrained content sheet (`BoxConstraints(maxWidth: typography.paragraphWidth.maxWidth)`) with `IntelligentHeadingScrollbar`, ensuring the scrollbar track attaches directly to the note container edge on both mobile and 3-pane desktop/tablet layouts.
+     - Repositioned `IntelligentHeadingScrollbar` to wrap the full-width editor viewport rather than sitting inside the centered paragraph `ConstrainedBox`. This attaches the scrollbar thumb and interactive heading window to the far right edge of the screen / pane on wide desktop and tablet displays, while maintaining centered note content at the configured `paragraphWidth` (Narrow [540dp], Medium [720dp], Full [unconstrained]).
+     - Margin pointer scroll handling: `IntelligentHeadingScrollbar` incorporates a pointer signal listener utilizing `GestureBinding.instance.pointerSignalResolver` to smoothly dispatch mouse-wheel scrolling even when hovering over blank side margins.
      - Single scroll controller ownership (`_scrollController`) shared seamlessly across both Editor mode and Markdown Preview mode.
    - **Markdown Preview** ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart)):
      - Added `showScrollbar` parameter (defaulting to `true` for standalone previews like attachment viewers, and `false` when embedded inside `EditorScreen` to avoid nested duplicate scrollbars).
@@ -3776,9 +3777,9 @@ An **intelligent heading-aware scrollbar** was engineered for Quiet Paper, combi
 4. **Automated Verification**:
    - Unit tests: [`test/markdown/heading_parser_test.dart`](file:///home/dog/git/quitepaper/test/markdown/heading_parser_test.dart) (13 tests verifying heading parsing, frontmatter skipping, code block skipping, duplicate IDs, dynamic window sliding, and binary search).
    - Widget tests: [`test/widgets/intelligent_heading_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/widgets/intelligent_heading_scrollbar_test.dart) (7 tests verifying hover appearance, tap jump navigation, dynamic window scrolling on 50+ headings, empty notes, live text editing, and accessibility semantics).
-   - Integration tests: [`test/editor/editor_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_scrollbar_test.dart) (3 tests verifying editor mode, preview mode, and cross-note navigation).
+   - Integration tests: [`test/editor/editor_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_scrollbar_test.dart) (4 tests verifying editor mode, preview mode, cross-note navigation, and wide-display scrollbar edge pinning with margin scrolling).
    - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
-   - Full Test Suite: `flutter test` (**907 / 907 tests passing, 100% pass rate**).
+   - Full Test Suite: `flutter test` (**1,304 / 1,304 tests passing, 100% pass rate**).
 
 ---
 
@@ -5508,6 +5509,32 @@ Built a dedicated changelog and engineering history page (`backend/public/change
    - Allows visitors to filter changelog entries by topic: *All Updates*, *WYSIWYG Editor*, *Voice & Dictation*, *Journal & Calendar*, *Typography & Themes*, and *Security & Backups*.
 4. **Navigation Integration & Parity**:
    - Added `Changelog` links to the top sticky navigation and footer across both `backend/public/index.html` and `public/index.html`.
+
+---
+
+## 96. Viewport Edge Scrollbar Repositioning & Margin Scrolling Architecture
+
+### Problem & Motivation
+When typography settings configure paragraph width to **Medium** (720dp) or **Narrow** (540dp), the note reading/editing column is horizontally centered within the editor pane. Previously, `IntelligentHeadingScrollbar` was wrapped inside the centered `ConstrainedBox`. On wide desktop screens and maximized tablet windows, this caused the vertical scrollbar track, thumb, and the hover heading window to render at the right boundary of the centered column (e.g. at x = 960dp on a 1200dp screen) rather than at the window's right edge (x = 1200dp). This made the scrollbar look awkwardly misplaced in the middle of the screen with a large empty void to its right.
+
+### Architectural Solution
+1. **Viewport Hierarchy Inversion (`lib/features/editor/presentation/editor_screen.dart`)**:
+   - Inverted the widget nesting hierarchy: `IntelligentHeadingScrollbar` now wraps the outer unconstrained editor viewport (`Expanded`), while the centered note sheet (`Align(alignment: Alignment.topCenter, child: ConstrainedBox(maxWidth: typography.paragraphWidth.maxWidth, ...))`) is placed *inside* it.
+   - Pins the scrollbar track and thumb to the true right edge of the editor pane/window across mobile, tablet split view, and wide desktop displays.
+   - When hovered, the dynamic heading navigation overlay gracefully floats inward from the right window edge into the right margin without encroaching on or obscuring the centered text.
+
+2. **Margin Pointer Scroll Handling (`lib/core/widgets/intelligent_heading_scrollbar.dart`)**:
+   - Wrapped the scrollbar stack in a `Listener` that intercepts `PointerScrollEvent` signals.
+   - Utilizes `GestureBinding.instance.pointerSignalResolver` to resolve pointer scroll events:
+     - When the pointer is over the central text column, Flutter's inner `Scrollable` (`SingleChildScrollView` or `ListView`) registers first, providing native smooth scrolling with zero interference.
+     - When the pointer is over the blank side margins (gutters) outside the centered `ConstrainedBox`, no inner scrollable registers; the resolver executes `IntelligentHeadingScrollbar`'s handler to smoothly update `widget.scrollController.offset`.
+   - Ensures mouse-wheel scrolling works everywhere across the screen.
+
+3. **Automated Verification**:
+   - Added integration test in [`test/editor/editor_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_scrollbar_test.dart): `EditorScreen on wide display pins scrollbar to viewport edge with medium paragraph width and supports margin scrolling` (verifies 1200dp viewport width, scrollbar rect edge alignment at 1200dp, heading overlay display, and pointer scroll dispatch in side gutters).
+   - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+   - Full test suite: `flutter test` (**1,304 / 1,304 tests passing, 100% pass rate**).
+
 
 
 

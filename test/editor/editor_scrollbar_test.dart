@@ -30,7 +30,12 @@ void main() {
       await tester.pump(Duration.zero);
     }
 
-    Widget createEditorApp(Note note, {bool initialPreview = false}) {
+    Widget createEditorApp(
+      Note note, {
+      bool initialPreview = false,
+      double width = 400,
+      double height = 400,
+    }) {
       return ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
@@ -38,8 +43,8 @@ void main() {
         ],
         child: MaterialApp(
           home: SizedBox(
-            width: 400,
-            height: 400,
+            width: width,
+            height: height,
             child: EditorScreen(
               note: note,
               initialPreviewMode: initialPreview,
@@ -211,6 +216,70 @@ Content B line 10
 
       expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Beta Section'), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Alpha Section'), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets(
+        'EditorScreen on wide display pins scrollbar to viewport edge with medium paragraph width and supports margin scrolling',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'note-scrollbar-wide',
+        title: 'Wide Document',
+        content: '''
+# Section 1
+${List.generate(25, (i) => 'Line $i of text in Section 1').join('\n')}
+
+# Section 2
+${List.generate(25, (i) => 'Line $i of text in Section 2').join('\n')}
+''',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      // Render on wide display (1200x800)
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(createEditorApp(note, width: 1200, height: 800));
+      await tester.pumpAndSettle();
+
+      final scrollbarFinder = find.byType(IntelligentHeadingScrollbar);
+      expect(scrollbarFinder, findsOneWidget);
+
+      final scrollbarRect = tester.getRect(scrollbarFinder);
+      expect(scrollbarRect.width, equals(1200));
+      expect(scrollbarRect.right, equals(1200));
+
+      // Trigger hover over scrollbar at the far right edge of the screen
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(Offset(scrollbarRect.right - 8, scrollbarRect.center.dy));
+      await tester.pumpAndSettle();
+
+      // Heading labels appear
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Section 1'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Text && w.data == 'Section 2'), findsOneWidget);
+
+      // Verify margin scrolling: pointer scroll event in the left margin (x=100) scrolls the document
+      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
+      final initialOffset = scrollable.position.pixels;
+      await tester.sendEventToBinding(
+        const PointerScrollEvent(
+          position: Offset(100, 300),
+          scrollDelta: Offset(0, 120),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(scrollable.position.pixels, greaterThan(initialOffset));
 
       await finishTest(tester);
     });

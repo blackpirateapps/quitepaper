@@ -1073,35 +1073,35 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       }
                       return false;
                     },
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () {
-                        if (!editorState.isPreviewMode && !editorState.isReadOnly) {
-                          if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
-                            if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
-                              _titleFocusNode.requestFocus();
-                            } else {
-                              _contentFocusNode.requestFocus();
+                    child: IntelligentHeadingScrollbar(
+                      scrollController: _scrollController,
+                      contentController: _contentController,
+                      titleController: _titleController,
+                      markdownData: _contentController.text.isNotEmpty
+                          ? _contentController.text
+                          : note.content,
+                      title: _titleController.text.isNotEmpty
+                          ? _titleController.text
+                          : note.title,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () {
+                          if (!editorState.isPreviewMode && !editorState.isReadOnly) {
+                            if (!_contentFocusNode.hasFocus && !_titleFocusNode.hasFocus) {
+                              if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
+                                _titleFocusNode.requestFocus();
+                              } else {
+                                _contentFocusNode.requestFocus();
+                              }
                             }
                           }
-                        }
-                      },
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: typography.paragraphWidth.maxWidth,
-                          ),
-                          child: IntelligentHeadingScrollbar(
-                            scrollController: _scrollController,
-                            contentController: _contentController,
-                            titleController: _titleController,
-                            markdownData: _contentController.text.isNotEmpty
-                                ? _contentController.text
-                                : note.content,
-                            title: _titleController.text.isNotEmpty
-                                ? _titleController.text
-                                : note.title,
+                        },
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: typography.paragraphWidth.maxWidth,
+                            ),
                             child: editorState.isPreviewMode
                                 ? QuietMarkdownPreview(
                                     markdownData: _contentController.text.isNotEmpty

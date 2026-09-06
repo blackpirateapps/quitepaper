@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -518,133 +519,153 @@ class _IntelligentHeadingScrollbarState extends State<IntelligentHeadingScrollba
       onNotification: _handleScrollMetricsNotification,
       child: NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
-        child: Stack(
-          children: [
-            // 1. Underlying scrollable document content (stable, zero rebuilds during scrolling)
-            Positioned.fill(
-              child: widget.child,
-            ),
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerSignal: (pointerSignal) {
+            if (pointerSignal is PointerScrollEvent &&
+                widget.scrollController.hasClients) {
+              GestureBinding.instance.pointerSignalResolver.register(
+                pointerSignal,
+                (event) {
+                  final scrollEvent = event as PointerScrollEvent;
+                  final maxScroll = _effectiveMaxScrollExtent;
+                  if (maxScroll <= 0) return;
+                  final current = widget.scrollController.offset;
+                  final target = (current + scrollEvent.scrollDelta.dy)
+                      .clamp(0.0, maxScroll);
+                  widget.scrollController.jumpTo(target);
+                },
+              );
+            }
+          },
+          child: Stack(
+            children: [
+              // 1. Underlying scrollable document content (stable, zero rebuilds during scrolling)
+              Positioned.fill(
+                child: widget.child,
+              ),
 
-            // 2. Dynamic heading overlay & scrollbar thumb driven by _scrollTick
-            Positioned.fill(
-              child: ValueListenableBuilder<int>(
-                valueListenable: _scrollTick,
-                builder: (context, _, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final availableHeight = constraints.maxHeight;
-                      final availableWidth = constraints.maxWidth;
+              // 2. Dynamic heading overlay & scrollbar thumb driven by _scrollTick
+              Positioned.fill(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _scrollTick,
+                  builder: (context, _, child) {
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final availableHeight = constraints.maxHeight;
+                        final availableWidth = constraints.maxWidth;
 
-                      final trackHeight = (availableHeight - widget.padding.vertical).clamp(20.0, double.infinity);
+                        final trackHeight = (availableHeight - widget.padding.vertical).clamp(20.0, double.infinity);
 
-                      final maxScroll = _effectiveMaxScrollExtent;
-                      final currentScroll = _effectiveCurrentOffset.clamp(0.0, maxScroll > 0 ? maxScroll : 0.0);
-                      final viewportDim = _viewportDimension > 0 ? _viewportDimension : availableHeight;
+                        final maxScroll = _effectiveMaxScrollExtent;
+                        final currentScroll = _effectiveCurrentOffset.clamp(0.0, maxScroll > 0 ? maxScroll : 0.0);
+                        final viewportDim = _viewportDimension > 0 ? _viewportDimension : availableHeight;
 
-                      final canScroll = maxScroll > 0;
-                      final totalContentHeight = maxScroll + viewportDim;
+                        final canScroll = maxScroll > 0;
+                        final totalContentHeight = maxScroll + viewportDim;
 
-                      // Thumb height calculation
-                      final rawThumbHeight = totalContentHeight > 0
-                          ? (viewportDim / totalContentHeight) * trackHeight
-                          : trackHeight;
-                      final minThumb = trackHeight < 24.0 ? trackHeight : 24.0;
-                      final maxThumb = (trackHeight * 0.85).clamp(minThumb, trackHeight);
-                      final thumbHeight = rawThumbHeight.clamp(minThumb, maxThumb);
+                        // Thumb height calculation
+                        final rawThumbHeight = totalContentHeight > 0
+                            ? (viewportDim / totalContentHeight) * trackHeight
+                            : trackHeight;
+                        final minThumb = trackHeight < 24.0 ? trackHeight : 24.0;
+                        final maxThumb = (trackHeight * 0.85).clamp(minThumb, trackHeight);
+                        final thumbHeight = rawThumbHeight.clamp(minThumb, maxThumb);
 
-                      final travelDistance = (trackHeight - thumbHeight).clamp(0.0, double.infinity);
-                      final scrollFraction = maxScroll > 0 ? (currentScroll / maxScroll).clamp(0.0, 1.0) : 0.0;
-                      final thumbTop = scrollFraction * travelDistance;
+                        final travelDistance = (trackHeight - thumbHeight).clamp(0.0, double.infinity);
+                        final scrollFraction = maxScroll > 0 ? (currentScroll / maxScroll).clamp(0.0, 1.0) : 0.0;
+                        final thumbTop = scrollFraction * travelDistance;
 
-                      // Visible window of headings
-                      final visibleHeadings = _headings.isNotEmpty
-                          ? HeadingParser.computeVisibleWindow(
-                              headings: _headings,
-                              activeIndex: _activeHeadingIndex,
-                              availableHeight: trackHeight,
-                              itemHeight: 32.0,
-                              maxItems: widget.maxVisibleHeadings,
-                            )
-                          : const <HeadingItem>[];
+                        // Visible window of headings
+                        final visibleHeadings = _headings.isNotEmpty
+                            ? HeadingParser.computeVisibleWindow(
+                                headings: _headings,
+                                activeIndex: _activeHeadingIndex,
+                                availableHeight: trackHeight,
+                                itemHeight: 32.0,
+                                maxItems: widget.maxVisibleHeadings,
+                              )
+                            : const <HeadingItem>[];
 
-                      final activeHeading = (_activeHeadingIndex >= 0 && _activeHeadingIndex < _headings.length)
-                          ? _headings[_activeHeadingIndex]
-                          : null;
+                        final activeHeading = (_activeHeadingIndex >= 0 && _activeHeadingIndex < _headings.length)
+                            ? _headings[_activeHeadingIndex]
+                            : null;
 
-                      return Stack(
-                        children: [
-                          // Heading navigation overlay (soft gradient + dynamic moving heading window)
-                          if (canScroll && visibleHeadings.isNotEmpty)
-                            Positioned(
-                              top: widget.padding.top,
-                              bottom: widget.padding.bottom,
-                              right: 0,
-                              child: AnimatedBuilder(
-                                animation: _headingFadeAnimation,
-                                builder: (context, child) {
-                                  if (_headingFadeAnimation.value <= 0) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Opacity(
-                                    opacity: _headingFadeAnimation.value,
-                                    child: IgnorePointer(
-                                      ignoring: !_isHovered && !_isDragging,
-                                      child: _buildHeadingOverlay(
-                                        context,
-                                        colors,
-                                        visibleHeadings,
-                                        activeHeading,
-                                        thumbTop,
-                                        thumbHeight,
-                                        trackHeight,
-                                        availableWidth,
+                        return Stack(
+                          children: [
+                            // Heading navigation overlay (soft gradient + dynamic moving heading window)
+                            if (canScroll && visibleHeadings.isNotEmpty)
+                              Positioned(
+                                top: widget.padding.top,
+                                bottom: widget.padding.bottom,
+                                right: 0,
+                                child: AnimatedBuilder(
+                                  animation: _headingFadeAnimation,
+                                  builder: (context, child) {
+                                    if (_headingFadeAnimation.value <= 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Opacity(
+                                      opacity: _headingFadeAnimation.value,
+                                      child: IgnorePointer(
+                                        ignoring: !_isHovered && !_isDragging,
+                                        child: _buildHeadingOverlay(
+                                          context,
+                                          colors,
+                                          visibleHeadings,
+                                          activeHeading,
+                                          thumbTop,
+                                          thumbHeight,
+                                          trackHeight,
+                                          availableWidth,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
 
-                          // Scrollbar track and thumb with comfortable touch/hover hit zone
-                          if (canScroll)
-                            Positioned(
-                              top: widget.padding.top,
-                              bottom: widget.padding.bottom,
-                              right: widget.padding.right,
-                              child: MouseRegion(
-                                onEnter: (_) => _onPointerEnter(),
-                                onExit: (_) => _onPointerExit(),
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  onVerticalDragStart: (d) => _onDragStart(d, trackHeight, thumbHeight),
-                                  onVerticalDragUpdate: (d) => _onDragUpdate(d, trackHeight, thumbHeight),
-                                  onVerticalDragEnd: _onDragEnd,
-                                  onVerticalDragCancel: () => _onDragEnd(DragEndDetails()),
-                                  onTapDown: (d) => _onTrackTap(d, trackHeight, thumbHeight),
-                                  child: Container(
-                                    width: 36.0, // Generous invisible touch/pointer target
-                                    color: Colors.transparent,
-                                    alignment: Alignment.topRight,
-                                    child: FadeTransition(
-                                      opacity: _thumbFadeAnimation,
-                                      child: _buildScrollbarThumb(
-                                        colors,
-                                        thumbTop,
-                                        thumbHeight,
+                            // Scrollbar track and thumb with comfortable touch/hover hit zone
+                            if (canScroll)
+                              Positioned(
+                                top: widget.padding.top,
+                                bottom: widget.padding.bottom,
+                                right: widget.padding.right,
+                                child: MouseRegion(
+                                  onEnter: (_) => _onPointerEnter(),
+                                  onExit: (_) => _onPointerExit(),
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onVerticalDragStart: (d) => _onDragStart(d, trackHeight, thumbHeight),
+                                    onVerticalDragUpdate: (d) => _onDragUpdate(d, trackHeight, thumbHeight),
+                                    onVerticalDragEnd: _onDragEnd,
+                                    onVerticalDragCancel: () => _onDragEnd(DragEndDetails()),
+                                    onTapDown: (d) => _onTrackTap(d, trackHeight, thumbHeight),
+                                    child: Container(
+                                      width: 36.0, // Generous invisible touch/pointer target
+                                      color: Colors.transparent,
+                                      alignment: Alignment.topRight,
+                                      child: FadeTransition(
+                                        opacity: _thumbFadeAnimation,
+                                        child: _buildScrollbarThumb(
+                                          colors,
+                                          thumbTop,
+                                          thumbHeight,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
-                  );
-                },
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
