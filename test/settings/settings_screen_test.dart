@@ -19,6 +19,7 @@ import 'package:quitepaper/features/settings/presentation/default_settings_scree
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
 import 'package:quitepaper/features/sync/presentation/change_account_password_dialog.dart';
 import 'package:quitepaper/features/sync/presentation/change_encryption_password_screen.dart';
+import 'package:quitepaper/core/utils/link_launcher_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockSyncApiClient extends SyncApiClient {
@@ -549,5 +550,46 @@ void main() {
     expect(find.text('GESTURES & SEARCH'), findsOneWidget);
     expect(find.text('Swipe to Search in Editor'), findsOneWidget);
     expect(find.text('Swipe Down to Search in Notes List'), findsOneWidget);
+  });
+
+  testWidgets(
+      'SettingsScreen renders Privacy Policy and Terms & Conditions rows and triggers link confirmation',
+      (tester) async {
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Privacy Policy'),
+      300.0,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Privacy Policy'), findsOneWidget);
+    expect(find.text('Terms & Conditions'), findsOneWidget);
+
+    // Tap Privacy Policy row
+    await tester.tap(find.text('Privacy Policy'));
+    await tester.pumpAndSettle();
+
+    // LinkConfirmationDialog appears
+    expect(find.byType(LinkConfirmationDialog), findsOneWidget);
+    expect(find.text('Open Link'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+
+    // Dismiss dialog
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Tap Terms & Conditions row
+    await tester.tap(find.text('Terms & Conditions'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinkConfirmationDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
   });
 }

@@ -17,6 +17,7 @@ import '../../../core/backup/presentation/create_backup_dialog.dart';
 import '../../../core/backup/presentation/restore_backup_dialog.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
+import '../../../core/utils/link_launcher_helper.dart';
 import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../editor/domain/editor_editing_style.dart';
@@ -1402,6 +1403,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       description:
                           'A quiet place to think.\nVersion 1.5.7 • Offline-first • End-to-End Encrypted Sync',
 
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy Policy',
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () {
+                        LinkLauncherHelper.handleLinkTap(
+                          context,
+                          'https://quitepaper.vercel.app/privacy.html',
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.description_outlined,
+                      title: 'Terms & Conditions',
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () {
+                        LinkLauncherHelper.handleLinkTap(
+                          context,
+                          'https://quitepaper.vercel.app/terms.html',
+                        );
+                      },
                     ),
                     _buildDivider(colors),
                     _SettingsRow(

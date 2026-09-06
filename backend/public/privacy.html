@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Quiet Paper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper:    #F7F6F2;
+      --ink:      #1D1C1A;
+      --parchment:#EAE7E0;
+      --rule:     #D8D4CC;
+      --muted:    #7A7570;
+      --accent:   #D65F55;
+      --accent-light: rgba(214, 95, 85, 0.12);
+      --surface:  #EFEFEB;
+      --white:    #FDFCFA;
+      --max:      760px;
+    }
+
+    ::selection {
+      background: rgba(214, 95, 85, 0.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      padding: 0 clamp(24px, 6vw, 80px);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-logo {
+      font-family: 'Lora', serif;
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-back {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.15s ease;
+    }
+    .nav-back:hover { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-cta {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink) !important;
+      border: 1px solid var(--rule);
+      padding: 6px 16px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: var(--parchment) !important; color: var(--ink) !important; }
+
+    /* ── LAYOUT ── */
+    .wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 clamp(24px, 6vw, 48px);
+    }
+
+    /* ── HEADER ── */
+    header.page-header {
+      padding: 80px 0 48px;
+      border-bottom: 1px solid var(--rule);
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(214, 95, 85, 0.05) 0%, transparent 70%),
+        var(--paper);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .page-title {
+      font-family: 'Lora', serif;
+      font-size: clamp(32px, 5vw, 44px);
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+
+    .page-lead {
+      font-size: 17px;
+      color: var(--muted);
+      font-weight: 300;
+      line-height: 1.75;
+      max-width: 640px;
+      margin-bottom: 24px;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .meta-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* ── QUICK JUMP PILLS ── */
+    .jump-nav {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+    }
+
+    .jump-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      list-style: none;
+    }
+
+    .jump-link {
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--rule);
+      background: var(--white);
+      color: var(--muted);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      font-weight: 400;
+    }
+    .jump-link:hover {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    /* ── CONTENT ARTICLE ── */
+    article.legal-content {
+      padding: 56px 0 96px;
+    }
+
+    .legal-section {
+      margin-bottom: 56px;
+      scroll-margin-top: 80px;
+    }
+
+    .legal-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: block;
+      letter-spacing: 0.05em;
+    }
+
+    h2 {
+      font-family: 'Lora', serif;
+      font-size: clamp(22px, 3.5vw, 26px);
+      font-weight: 400;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+
+    h3 {
+      font-family: 'Lora', serif;
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--ink);
+      margin: 28px 0 12px;
+      letter-spacing: -0.01em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.8;
+      font-size: 15.5px;
+      margin-bottom: 16px;
+      font-weight: 300;
+    }
+
+    p strong {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    ul, ol {
+      margin: 12px 0 20px 24px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.8;
+    }
+
+    li {
+      margin-bottom: 8px;
+      font-weight: 300;
+    }
+
+    li strong {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      background: var(--surface);
+      border: 1px solid rgba(216, 212, 204, 0.6);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--ink);
+    }
+
+    /* Callout & Principle Box */
+    .principle-box {
+      margin: 28px 0;
+      padding: 22px 24px;
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      box-shadow: 0 2px 10px rgba(29, 28, 26, 0.03);
+    }
+
+    .principle-box h4 {
+      font-family: 'Lora', serif;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .principle-box p {
+      font-size: 14.5px;
+      margin-bottom: 0;
+      line-height: 1.75;
+      color: var(--ink);
+    }
+
+    /* Data Privacy Matrix Table */
+    .table-container {
+      margin: 28px 0;
+      overflow-x: auto;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: 0 1px 6px rgba(29, 28, 26, 0.02);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--surface);
+      color: var(--ink);
+      font-weight: 600;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--rule);
+      letter-spacing: 0.02em;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    td strong {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .badge-blind {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(90, 138, 90, 0.12);
+      color: #4B854B;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-local {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(214, 95, 85, 0.12);
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+
+    .badge-meta {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--rule);
+      padding: 40px 0;
+      background: var(--paper);
+    }
+
+    footer .wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      font-family: 'Lora', serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--ink); }
+
+    .footer-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      header.page-header { padding: 56px 0 36px; }
+      .nav-links { display: none; }
+      footer .wrap { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; gap: 16px; }
+      .table-container { font-size: 12.5px; }
+      th, td { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-left">
+      <a href="index.html" class="nav-logo">Quiet Paper</a>
+      <a href="index.html" class="nav-back">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Landing
+      </a>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html#screenshots">Screenshots</a></li>
+      <li><a href="index.html#features">Features</a></li>
+      <li><a href="changelog.html">Changelog</a></li>
+      <li><a href="terms.html">Terms</a></li>
+      <li><a href="https://github.com/blackpirateapps/quitepaper">GitHub</a></li>
+      <li><a href="index.html#download" class="nav-cta">Download APK</a></li>
+    </ul>
+  </nav>
+
+  <!-- HEADER -->
+  <header class="page-header">
+    <div class="wrap">
+      <span class="eyebrow">Legal &amp; Privacy</span>
+      <h1 class="page-title">Privacy Policy</h1>
+      <p class="page-lead">Your words belong to you. We cannot read your notes, and we cannot sell what we do not have. This document details how your data is protected across our offline-first application and zero-knowledge cloud synchronization.</p>
+      <div class="meta-row">
+        <div class="meta-badge">
+          <span class="dot"></span>
+          Effective Date: September 2026
+        </div>
+        <span>Version 1.0</span>
+        <span>•</span>
+        <span>Applies to Quiet Paper on Android, iOS, &amp; Web</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- QUICK JUMP NAVIGATION -->
+  <nav class="jump-nav">
+    <div class="wrap">
+      <ul class="jump-list">
+        <li><a href="#core-philosophy" class="jump-link">1. Philosophy</a></li>
+        <li><a href="#local-first" class="jump-link">2. Local Storage</a></li>
+        <li><a href="#zero-knowledge" class="jump-link">3. Zero-Knowledge Sync</a></li>
+        <li><a href="#information-we-process" class="jump-link">4. Information Processed</a></li>
+        <li><a href="#never-collected" class="jump-link">5. What We Never Collect</a></li>
+        <li><a href="#third-parties" class="jump-link">6. Third-Party Services</a></li>
+        <li><a href="#data-rights" class="jump-link">7. Your Rights (GDPR/CCPA)</a></li>
+        <li><a href="#contact" class="jump-link">8. Contact Us</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- CONTENT -->
+  <main class="wrap">
+    <article class="legal-content">
+
+      <!-- 1. Core Philosophy -->
+      <section class="legal-section" id="core-philosophy">
+        <span class="section-number">SECTION 01</span>
+        <h2>Our Core Philosophy</h2>
+        <p>Most modern productivity and note-taking services treat your private thoughts, journals, and drafts as proprietary training data or ad-targeting signals. They store plaintext databases on centralized servers and ask you to trust their legal terms not to misuse your private documents.</p>
+        
+        <div class="principle-box">
+          <h4>
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L3 6V10C3 14.418 6.096 18.257 10 19C13.904 18.257 17 14.418 17 10V6L10 2Z" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10L9 12L13 8" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Zero-Knowledge Security Invariant
+          </h4>
+          <p>Quiet Paper does not ask you to trust our intent. We rely on cryptographic math. All note titles, bodies, tags, and attachments are encrypted on your physical device before entering transit. Our servers are crypto-blind: we do not possess the keys to decrypt your notes, and we cannot read them even if compelled by third parties.</p>
+        </div>
+
+        <p>Quiet Paper is designed from the ground up as an <strong>offline-first</strong> application. Cloud synchronization is entirely optional. If you never configure an account or cloud sync, not a single byte of your note data ever leaves your hardware.</p>
+      </section>
+
+      <!-- 2. Local-First Architecture -->
+      <section class="legal-section" id="local-first">
+        <span class="section-number">SECTION 02</span>
+        <h2>Offline-First &amp; Local Persistence</h2>
+        <p>When you create, edit, organize, or search notes in Quiet Paper, all operations execute locally on your device:</p>
+        <ul>
+          <li><strong>Local SQLite Database:</strong> Notes, metadata, tags, and folder hierarchies are stored in an app-private SQLite database managed via Drift.</li>
+          <li><strong>On-Device Search &amp; Indexing:</strong> Full-text search and OCR live-text extraction run 100% locally. Search queries are never sent to remote servers.</li>
+          <li><strong>Manual &amp; Rolling Backups (<code>.qpbackup</code>):</strong> If you create notebook backups or enable automated daily rolling snapshots, the archive file is saved directly to your device storage using Android's native Storage Access Framework (SAF). You choose whether backups are encrypted with your password via Argon2id + XChaCha20-Poly1305.</li>
+          <li><strong>Encrypted Local Storage:</strong> Cryptographic master keys, authentication tokens, and backup passwords cached on-device are protected using platform hardware security modules (Android Keystore / iOS Keychain via FlutterSecureStorage).</li>
+        </ul>
+      </section>
+
+      <!-- 3. Zero-Knowledge Cryptography -->
+      <section class="legal-section" id="zero-knowledge">
+        <span class="section-number">SECTION 03</span>
+        <h2>Zero-Knowledge Cloud Synchronization</h2>
+        <p>If you choose to enable Quiet Paper Cloud Sync to synchronize notes between multiple devices, your data is protected by a multi-layered cryptographic envelope:</p>
+        
+        <h3>How Your Notes Are Encrypted</h3>
+        <ol>
+          <li><strong>Random Master Key:</strong> A cryptographically secure 256-bit secret key is generated directly on your device. This key never leaves your device in plaintext.</li>
+          <li><strong>Argon2id Key Derivation:</strong> Your Quiet Paper encryption password is processed using Argon2id (<code>memory: 19MB</code>, <code>iterations: 2</code>, <code>salt: 16 random bytes</code>) to derive a 256-bit wrapping key.</li>
+          <li><strong>Wrapped Master Key:</strong> The master key is wrapped with the password key using <code>XChaCha20-Poly1305</code> authenticated encryption and uploaded to the server vault.</li>
+          <li><strong>Payload Encryption:</strong> Every note title, body, and tag list is serialized into JSON and encrypted using your Master Key and <code>XChaCha20-Poly1305</code> with a fresh 24-byte random nonce and authenticated associated data (AAD) bound to the note ID.</li>
+        </ol>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Data Category</th>
+                <th>Transmitted to Cloud</th>
+                <th>Storage State on Server</th>
+                <th>Security Guarantee</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Note Title &amp; Body</strong></td>
+                <td><span class="badge-blind">Encrypted</span></td>
+                <td>Ciphertext blob (<code>content_ciphertext</code>)</td>
+                <td>Zero-knowledge; server cannot read</td>
+              </tr>
+              <tr>
+                <td><strong>Tags &amp; Categories</strong></td>
+                <td><span class="badge-blind">Encrypted</span></td>
+                <td>Ciphertext blob (inside encrypted payload)</td>
+                <td>Zero-knowledge; server cannot inspect tags</td>
+              </tr>
+              <tr>
+                <td><strong>Master Encryption Key</strong></td>
+                <td><span class="badge-blind">Encrypted</span></td>
+                <td>Ciphertext (<code>wrapped_master_key</code>)</td>
+                <td>Wrapped client-side with Argon2id; inaccessible to server</td>
+              </tr>
+              <tr>
+                <td><strong>Note ID &amp; Timestamps</strong></td>
+                <td><span class="badge-meta">Plaintext UUID</span></td>
+                <td>Metadata columns (<code>id</code>, <code>updated_at</code>)</td>
+                <td>Required for cursor delta sync and conflict resolution</td>
+              </tr>
+              <tr>
+                <td><strong>Account Email</strong></td>
+                <td><span class="badge-meta">Plaintext</span></td>
+                <td>Firebase Auth identity record</td>
+                <td>Required for identity authentication &amp; password reset</td>
+              </tr>
+              <tr>
+                <td><strong>Search Queries</strong></td>
+                <td><span class="badge-local">Never</span></td>
+                <td>Not transmitted</td>
+                <td>100% offline on-device execution</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Separation of Passwords:</strong> Your account sign-in password (managed by Firebase) authenticates your identity ("who you are"). Your Quiet Paper encryption password derives the key that unlocks your vault ("can you read notes"). The server never receives or stores your encryption password.</p>
+      </section>
+
+      <!-- 4. Information We Process -->
+      <section class="legal-section" id="information-we-process">
+        <span class="section-number">SECTION 04</span>
+        <h2>Information We Process &amp; Legal Basis</h2>
+        <p>We process the absolute minimum data required to deliver the core note-taking and synchronization features:</p>
+        
+        <h3>A. Account Information (Cloud Sync Users Only)</h3>
+        <p>When you register for Cloud Sync, we collect your <strong>email address</strong> and generate an opaque user identification token. This information is processed under the legal basis of contractual necessity (GDPR Art. 6(1)(b)) to authenticate your account across your devices and prevent unauthorized access.</p>
+
+        <h3>B. Encrypted Synchronization Records</h3>
+        <p>When syncing, our serverless backend receives and stores:
+        <ul>
+          <li>Encrypted ciphertext payloads and nonces.</li>
+          <li>Opaque UUID identifiers for notes.</li>
+          <li>Timestamps (<code>createdAt</code>, <code>updatedAt</code>, <code>deletedAt</code>) and monotonic revision counters used solely to determine sync order and resolve conflicting edits across devices.</li>
+          <li>Lifecycle flags (<code>archived</code>, <code>trashed</code>, <code>pinned</code>) to optimize multi-device state syncing.</li>
+        </ul>
+        </p>
+
+        <h3>C. Crash Reports &amp; Diagnostics</h3>
+        <p>Quiet Paper does not embed automatic third-party crash reporting SDKs. If you report an issue via GitHub or email, any logs or diagnostics you provide are shared voluntarily and used exclusively to diagnose and resolve software bugs.</p>
+      </section>
+
+      <!-- 5. What We Never Collect -->
+      <section class="legal-section" id="never-collected">
+        <span class="section-number">SECTION 05</span>
+        <h2>What We Never Collect or Sell</h2>
+        <p>We believe digital privacy requires explicit technical boundaries. Specifically, Quiet Paper:</p>
+        <ul>
+          <li><strong>Never sells, rents, or monetizes user data:</strong> We have never sold user information and will never sell personal information under any circumstance.</li>
+          <li><strong>Zero advertising SDKs or tracking beacons:</strong> There are no advertising frameworks (Google AdMob, Unity, AppLovin, etc.) or behavioural marketing trackers in Quiet Paper.</li>
+          <li><strong>Zero analytics trackers:</strong> No third-party behavioral analytics SDKs (Google Analytics, Mixpanel, Segment, Flurry, Amplitude) are bundled in the application.</li>
+          <li><strong>Zero advertising identifiers:</strong> The app does not collect the Google Advertising ID (AAID) or Apple Identifier for Advertisers (IDFA).</li>
+          <li><strong>Zero unencrypted content access:</strong> We cannot view, inspect, or process the text, titles, or images contained within your encrypted notes.</li>
+        </ul>
+      </section>
+
+      <!-- 6. Third-Party Infrastructure -->
+      <section class="legal-section" id="third-parties">
+        <span class="section-number">SECTION 06</span>
+        <h2>Third-Party Infrastructure &amp; Subprocessors</h2>
+        <p>To provide high-availability synchronization and secure cloud infrastructure, we partner with reputable cloud infrastructure providers:</p>
+        
+        <ul>
+          <li><strong>Firebase Authentication (Google LLC):</strong> Used exclusively to manage user identities, provide secure session tokens, and enable account password resets. Google acts as a data processor subject to standard contractual clauses.</li>
+          <li><strong>Turso / libSQL (ChiselStrike Inc.):</strong> Distributed cloud SQLite database where encrypted ciphertext blobs and sync revision change logs are stored. Turso operates as a crypto-blind storage tier.</li>
+          <li><strong>Vercel Inc.:</strong> Hosts the serverless API router (handling authenticated REST endpoints) and the static landing page. Vercel processes transient HTTPS requests in transit without persisting user data.</li>
+          <li><strong>GitHub (Microsoft Corp.):</strong> Hosts the open-source source code repository and public application APK release binaries.</li>
+        </ul>
+      </section>
+
+      <!-- 7. Data Rights -->
+      <section class="legal-section" id="data-rights">
+        <span class="section-number">SECTION 07</span>
+        <h2>Your Rights Under GDPR, CCPA/CPRA, &amp; Global Regulations</h2>
+        <p>Regardless of your geographic location, Quiet Paper extends universal digital privacy rights to all users:</p>
+        
+        <h3>Right to Data Portability &amp; Export</h3>
+        <p>Your content is never locked in a proprietary database format. You can export all your notes at any time as open-standard Markdown (<code>.md</code>) files with standard YAML frontmatter, directly to any folder on your device. You can also generate complete <code>.qpbackup</code> snapshot archives.</p>
+
+        <h3>Right to Erasure &amp; Account Deletion</h3>
+        <p>You have the absolute right to delete your data at any time:</p>
+        <ul>
+          <li><strong>Local Erasure:</strong> Deleting notes in the app or clearing application storage permanently deletes all local records from your SQLite database.</li>
+          <li><strong>Remote Cloud Deletion:</strong> Permanently emptying your Trash sends cryptographic deletion tombstones that purge associated ciphertext records from the sync database.</li>
+          <li><strong>Full Account Deletion:</strong> You can request complete deletion of your sync account by emailing <a href="mailto:contact@blackpiratex.com" style="color: var(--accent); text-decoration: none; font-weight: 500;">contact@blackpiratex.com</a>. Upon verification, your Firebase user record and all associated encrypted cloud database records are permanently purged within 30 days.</li>
+        </ul>
+
+        <h3>Emergency Recovery Keys &amp; Cryptographic Responsibility</h3>
+        <p>During sync configuration, Quiet Paper generates an emergency recovery key. <strong>Please store this key securely.</strong> Because Quiet Paper operates on a zero-knowledge model, if you forget your Quiet Paper encryption password and lose your emergency recovery key, our staff has zero technical capability to recover or reset your encrypted vault. This is an unavoidable consequence of genuine encryption.</p>
+      </section>
+
+      <!-- 8. Contact Us -->
+      <section class="legal-section" id="contact">
+        <span class="section-number">SECTION 08</span>
+        <h2>Contact Information &amp; Policy Updates</h2>
+        <p>We may update this Privacy Policy from time to time to reflect enhancements in our architecture or legal compliance requirements. Whenever changes occur, the updated policy will be posted on this page with a revised effective date.</p>
+
+        <p>If you have any questions, security disclosures, or data deletion requests, please contact us at:</p>
+        <ul>
+          <li><strong>Email:</strong> <a href="mailto:contact@blackpiratex.com" style="color: var(--accent); text-decoration: none; font-weight: 500;">contact@blackpiratex.com</a></li>
+          <li><strong>GitHub Repository:</strong> <a href="https://github.com/blackpirateapps/quitepaper" style="color: var(--accent); text-decoration: none; font-weight: 500;">github.com/blackpirateapps/quitepaper</a></li>
+        </ul>
+      </section>
+
+    </article>
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-logo">Quiet Paper</div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/blackpirateapps/quitepaper">GitHub</a></li>
+        <li><a href="index.html#screenshots">Screenshots</a></li>
+        <li><a href="changelog.html">Changelog</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="terms.html">Terms</a></li>
+        <li><a href="index.html#faq">FAQ</a></li>
+        <li><a href="index.html#roadmap">Roadmap</a></li>
+      </ul>
+      <div class="footer-meta">v1.5.7 · Free &amp; open source</div>
+    </div>
+  </footer>
+
+</body>
+</html>

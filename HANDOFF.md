@@ -5772,5 +5772,61 @@ When opening a note with YAML frontmatter but an empty markdown body (such as ta
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Full test suite: `flutter test` (**1,366 / 1,366 tests passing, 100% pass rate**).
 
+---
+
+## 102. Privacy Policy & Terms of Service Web Pages and In-App Legal Navigation
+
+### Motivation & Requirements
+Quiet Paper previously lacked formal **Privacy Policy** and **Terms & Conditions** (Terms of Service) pages, which are essential for user transparency, global privacy regulations (GDPR, CCPA/CPRA), and mobile app distribution guidelines (Google Play Developer Distribution Agreement, Apple App Store Review Guidelines).
+
+Because Quiet Paper's foundational ethos is **zero-knowledge privacy, local persistence, and distraction-free writing**, generic or boilerplate legal templates would fail to reflect the application's unique technical guarantees. Dedicated legal documents were created to clearly articulate the client-side cryptographic guarantees, data ownership principles, and absence of tracking.
+
+### Architecture & Design Details
+1. **Editorial Web Pages (`privacy.html` & `terms.html`)**:
+   - Designed to match Quiet Paper's warm editorial Bear Notes aesthetic with Lora serif typography for titles and section headings, Inter for clean legible body copy, and JetBrains Mono for cryptographic primitives and code tokens.
+   - Preserves Quiet Paper's warm paper palette (`#F7F6F2` canvas, `#1D1C1A` ink headlines, `#D8D4CC` subtle borders, `#D65F55` signature terracotta coral accents).
+   - Sticky navigation header with brand logo, "← Landing" back shortcut, and direct navigation links to other sections and documents.
+   - Quick jump anchor pills (`jump-nav`) allowing users to instantly navigate between legal sections on both desktop and mobile viewports.
+   - Callout highlight boxes (`.principle-box` and `.highlight-box`) emphasizing zero-knowledge invariants and the principle that users retain 100% intellectual property ownership of their notes.
+   - Interactive Data Privacy Matrix table detailing every data category (Note titles & bodies, tags, master keys, note IDs/timestamps, account emails, search queries) alongside its transmission status, cloud storage state, and security guarantee.
+
+2. **Core Disclosures in Privacy Policy (`privacy.html`)**:
+   - **Local-First & Offline Storage**: Full functionality without network access; notes, search queries, and local backups remain strictly on-device in Drift SQLite.
+   - **Zero-Knowledge Encryption**: Detailed explanation of Argon2id KDF (`19MB`, `2 iterations`, `16-byte random salt`) and XChaCha20-Poly1305 AEAD (`24-byte random nonces`, note-bound authenticated associated data).
+   - **Crypto-Blind Backend**: Discloses that the cloud database (Turso / libSQL) and serverless API (Vercel) store only encrypted ciphertext blobs with zero ability to read or decrypt note contents.
+   - **Authentication Isolation**: Explains the cryptographic boundary between Firebase Authentication (identity verification) and note encryption keys.
+   - **Zero Trackers or Advertising**: Explicit commitment to zero telemetry, zero advertising identifiers (AAID/IDFA), zero tracking pixels, and zero third-party analytics SDKs.
+   - **Subprocessor Disclosures**: Clear listing of infrastructure partners (Google Firebase, ChiselStrike/Turso, Vercel, Microsoft GitHub).
+   - **User Rights (GDPR & CCPA/CPRA)**: Details user rights to export data as standard Markdown, delete notes, purge remote records, and request full account deletion via `contact@blackpiratex.com`.
+   - **Emergency Recovery Key Warning**: Transparent disclosure that lost passwords and lost recovery keys cannot be recovered or reset by staff due to the zero-knowledge security architecture.
+
+3. **Core Clauses in Terms of Service (`terms.html`)**:
+   - **100% User Ownership**: User retains exclusive intellectual property rights to all notes, drafts, tags, and media.
+   - **Open Source Licensing**: Transparent software licensing terms for the application client and backend.
+   - **Cryptographic Key Custody**: User's sole responsibility for safeguarding encryption credentials and emergency recovery keys.
+   - **Acceptable Use Policy**: Clear prohibitions against attacks on sync infrastructure or transmission of malicious payloads.
+   - **Service Availability & Offline-First Independence**: Uninterrupted offline local access guaranteed regardless of remote server availability.
+   - **Standard Disclaimers & Limitation of Liability**: Comprehensive "as is" and liability protections to the extent permitted by law.
+   - **Contact & Inquiries**: Official support channel via `contact@blackpiratex.com` and GitHub repository.
+
+4. **Web Footer Integration (`index.html` & `changelog.html`)**:
+   - Added `Privacy` (`privacy.html`) and `Terms` (`terms.html`) links to the footer across `index.html` and `changelog.html`.
+   - Ensured responsive wrapping on mobile displays.
+
+5. **100% Directory Parity Invariant**:
+   - Mirrored all changes identically between the root static directory (`public/`) and the Vercel deployment output directory (`backend/public/`), verified via `diff -u` resulting in 0 differences.
+
+6. **In-App Navigation in Settings Screen (`lib/features/settings/presentation/settings_screen.dart`)**:
+   - Added **Privacy Policy** (`Icons.privacy_tip_outlined`) and **Terms & Conditions** (`Icons.description_outlined`) rows inside the **About** grouped table container.
+   - Tapping either row invokes `LinkLauncherHelper.handleLinkTap()`, which checks domain trust, presents the editorial `LinkConfirmationDialog` with selectable URL and domain details, and opens the page safely in the system browser.
+
+### Automated Test Coverage & Quality Verification
+- `test/settings/settings_screen_test.dart`: Added widget test verifying that both "Privacy Policy" and "Terms & Conditions" rows render under the About section and present `LinkConfirmationDialog` when tapped.
+- Directory Parity: Verified 0 differences between `public/` and `backend/public/` across `index.html`, `changelog.html`, `privacy.html`, and `terms.html`.
+- Backend Test Suite: `cd backend && npm test` passed all 11 test suites / 43 tests.
+- Static Analysis: `flutter analyze` clean (**0 issues found**).
+- Full Test Suite: `flutter test` (**1,367 / 1,367 tests passing, 100% pass rate**).
+
+
 
 
