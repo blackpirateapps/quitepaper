@@ -295,6 +295,89 @@ class AttachmentService implements AssetResolver {
     }
   }
 
+  /// Replaces an existing image attachment with newly edited [newBytes].
+  ///
+  /// - Encrypts and persists the new image via [importImageFromBytes] with state `uploadPending` and `isDirty: true`.
+  /// - Discards the old image:
+  ///   - Invalidates local in-memory cache and deletes encrypted file on disk.
+  ///   - Deletes attachment OCR pages.
+  ///   - If the old attachment was already synced (`wasSynced`), enqueues an `attachment_delete` tombstone.
+  ///   - If local-only, permanently deletes the old attachment record.
+  /// - Updates note references: replaces all occurrences of `qp://asset/<oldAssetId>` with `qp://asset/<newAssetId>`
+  ///   in the database and marks notes dirty so reference projection and note syncing will omit the old asset ID.
+  /// - On the backend, dropping the reference transitions the old attachment to `status: 'orphaned'`,
+  ///   where the cloud Garbage Collector permanently destroys the Cloudinary asset.
+  Future<({AttachmentEntity newAttachment, String markdownSnippet})> replaceImage({
+    required String oldAssetId,
+    required Uint8List newBytes,
+    required String mimeType,
+    String? fileName,
+    String? noteId,
+    String? preferredAltText,
+  }) async {
+    if (!keyManager.isUnlocked) {
+      throw StateError(
+        'Quiet Paper encryption keys are locked. Unlock notebook to replace attachments.',
+      );
+    }
+
+    final oldEntity = await database.getAttachment(oldAssetId);
+    final effectiveNoteId = noteId ?? oldEntity?.noteId;
+    final effectiveFileName = fileName ?? oldEntity?.fileName ?? 'image.jpg';
+
+    // 1. Import new edited image (encrypts, stores in SQLite, queues OCR)
+    final importResult = await importImageFromBytes(
+      newBytes,
+      mimeType: mimeType,
+      fileName: effectiveFileName,
+      noteId: effectiveNoteId,
+      preferredAltText: preferredAltText ?? (oldEntity != null ? _defaultAltText(oldEntity.fileName) : 'Image'),
+    );
+    final newAsset = importResult.attachment;
+
+    // 2. Discard old image
+    _storage.invalidateDecryptedCache(oldAssetId);
+    await _storage.deleteEncryptedFile(attachmentId: oldAssetId);
+    await database.deleteAttachmentOcrPages(oldAssetId);
+
+    final wasSynced = oldEntity != null &&
+        (oldEntity.uploadState == 'synced' ||
+            (oldEntity.cloudUrl != null && oldEntity.cloudUrl!.isNotEmpty) ||
+            oldEntity.serverRevision > 0);
+
+    if (wasSynced) {
+      await database.deleteAttachment(oldAssetId, enqueueSync: true);
+    } else {
+      await database.deleteAttachmentLocal(oldAssetId);
+    }
+
+    // 3. Update note references across all notes in local database
+    final allNotes = await database.getAllNotesRaw();
+    for (final note in allNotes) {
+      if (note.content.contains('qp://asset/$oldAssetId')) {
+        final updatedContent = note.content.replaceAll(
+          'qp://asset/$oldAssetId',
+          'qp://asset/${newAsset.id}',
+        );
+        await database.saveNote(
+          id: note.id,
+          title: note.title,
+          content: updatedContent,
+          createdAt: note.createdAt,
+          updatedAt: DateTime.now(),
+          isPinned: note.isPinned,
+          isArchived: note.isArchived,
+          isTrashed: note.isTrashed,
+          deletedAt: note.deletedAt,
+          isDirty: true,
+          journalDate: note.journalDate,
+        );
+      }
+    }
+
+    return (newAttachment: newAsset, markdownSnippet: importResult.markdownSnippet);
+  }
+
   // ==========================================
   // RESOURCE RESOLVER IMPLEMENTATION
   // ==========================================

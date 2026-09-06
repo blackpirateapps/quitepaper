@@ -1112,6 +1112,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onDocumentRenamed: _updateDocumentMarkdownTitle,
                                     onAttachmentRenamed: _updateAttachmentMarkdownTitle,
                                     onAttachmentDeleted: _removeAttachmentMarkdownRef,
+                                    onAttachmentReplaced: _replaceAttachmentMarkdownRef,
                                     onInsertText: _insertExtractedOcrText,
                                     onOpenLinkedNote: widget.onOpenLinkedNote,
                                     onMarkdownChanged: editorState.isReadOnly
@@ -1369,6 +1370,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _contentController.text = newText;
       _undoRedoManager.pushAtomicEdit(_contentController.value);
       _onContentChanged();
+    }
+  }
+
+  void _replaceAttachmentMarkdownRef(String oldAssetId, String newAssetId) {
+    final text = _contentController.text;
+    final regex = RegExp(
+      r'(!?\[[^\]\n]*\]\(qp:\/\/asset\/)' + RegExp.escape(oldAssetId) + r'([^\)]*\))',
+    );
+    if (regex.hasMatch(text)) {
+      final newText = text.replaceAllMapped(regex, (match) {
+        return '${match.group(1)}$newAssetId${match.group(2)}';
+      });
+      _contentController.text = newText;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    } else if (oldAssetId.startsWith('http://') || oldAssetId.startsWith('https://')) {
+      final urlRegex = RegExp(r'!\[([^\]\n]*)\]\(' + RegExp.escape(oldAssetId) + r'([^\)]*\))');
+      if (urlRegex.hasMatch(text)) {
+        final newText = text.replaceAllMapped(urlRegex, (match) {
+          final alt = match.group(1) ?? 'Image';
+          return '![$alt](qp://asset/$newAssetId)';
+        });
+        _contentController.text = newText;
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _onContentChanged();
+      }
     }
   }
 

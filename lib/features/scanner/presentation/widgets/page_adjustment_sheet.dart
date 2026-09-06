@@ -21,15 +21,18 @@ class PageAdjustmentSheet extends StatefulWidget {
     super.key,
     required this.page,
     this.imageProcessor = const DartImageProcessor(),
+    this.title,
   });
 
   final ScannedPage page;
   final ImageProcessor imageProcessor;
+  final String? title;
 
   static Future<ScannedPage?> show(
     BuildContext context, {
     required ScannedPage page,
     ImageProcessor? imageProcessor,
+    String? title,
   }) {
     return showModalBottomSheet<ScannedPage>(
       context: context,
@@ -38,6 +41,7 @@ class PageAdjustmentSheet extends StatefulWidget {
       builder: (_) => PageAdjustmentSheet(
         page: page,
         imageProcessor: imageProcessor ?? const DartImageProcessor(),
+        title: title,
       ),
     );
   }
@@ -122,7 +126,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
                   ),
                 ),
                 Text(
-                  'Page ${widget.page.pageNumber} Adjustments',
+                  widget.title ?? 'Page ${widget.page.pageNumber} Adjustments',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

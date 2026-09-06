@@ -10,7 +10,10 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../../features/notes/application/notes_provider.dart';
+import '../../../../features/scanner/domain/scanned_page.dart';
+import '../../../../features/scanner/presentation/widgets/page_adjustment_sheet.dart';
 import '../../database/app_database.dart';
+import '../../image_processing/image_adjustments.dart';
 import '../../ocr/ocr_models.dart';
 import '../../ocr/ocr_provider.dart';
 import '../../ocr/presentation/ocr_language_dialog.dart';
@@ -41,7 +44,9 @@ class ImageViewerModal extends ConsumerStatefulWidget {
     String? altText,
     Uint8List? initialImageBytes,
     this.initialIndex = 0,
+    this.noteId,
     this.onInsertText,
+    this.onImageReplaced,
   })  : assert(images != null || assetId != null, 'Either images or assetId must be provided'),
         images = images != null && images.isNotEmpty
             ? List.unmodifiable(images)
@@ -58,7 +63,9 @@ class ImageViewerModal extends ConsumerStatefulWidget {
 
   final List<ViewerImageItem> images;
   final int initialIndex;
+  final String? noteId;
   final void Function(String text)? onInsertText;
+  final void Function(String oldAssetId, String newAssetId)? onImageReplaced;
 
   // Backwards-compatible fields for single-item queries
   final String assetId;
@@ -71,7 +78,9 @@ class ImageViewerModal extends ConsumerStatefulWidget {
     required String assetId,
     String? altText,
     Uint8List? initialImageBytes,
+    String? noteId,
     void Function(String text)? onInsertText,
+    void Function(String oldAssetId, String newAssetId)? onImageReplaced,
   }) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -79,7 +88,9 @@ class ImageViewerModal extends ConsumerStatefulWidget {
           assetId: assetId,
           altText: altText,
           initialImageBytes: initialImageBytes,
+          noteId: noteId,
           onInsertText: onInsertText,
+          onImageReplaced: onImageReplaced,
         ),
       ),
     );
@@ -90,14 +101,18 @@ class ImageViewerModal extends ConsumerStatefulWidget {
     BuildContext context, {
     required List<ViewerImageItem> images,
     int initialIndex = 0,
+    String? noteId,
     void Function(String text)? onInsertText,
+    void Function(String oldAssetId, String newAssetId)? onImageReplaced,
   }) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => ImageViewerModal(
           images: images,
           initialIndex: initialIndex,
+          noteId: noteId,
           onInsertText: onInsertText,
+          onImageReplaced: onImageReplaced,
         ),
       ),
     );
@@ -110,6 +125,7 @@ class ImageViewerModal extends ConsumerStatefulWidget {
 class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
   late final PageController _pageController;
   late int _currentIndex;
+  late List<ViewerImageItem> _images;
   bool _isCurrentPageZoomed = false;
 
   final Map<int, GlobalKey<_ViewerImagePageState>> _pageKeys = {};
@@ -117,7 +133,8 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, widget.images.length - 1);
+    _images = List<ViewerImageItem>.from(widget.images);
+    _currentIndex = widget.initialIndex.clamp(0, _images.length - 1);
     _pageController = PageController(initialPage: _currentIndex);
   }
 
@@ -137,7 +154,7 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
   }
 
   void _goToNext() {
-    if (_currentIndex < widget.images.length - 1) {
+    if (_currentIndex < _images.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
@@ -150,14 +167,14 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final currentItem = widget.images[_currentIndex];
-    final totalImages = widget.images.length;
+    final currentItem = _images[_currentIndex];
+    final totalImages = _images.length;
     final hasMultiple = totalImages > 1;
 
     final activeState = _activePageState;
     final hasOcr = activeState?.hasOcr ?? false;
     final isProcessing = activeState?.isProcessing ?? false;
-    final showLiveText = activeState?.showLiveText ?? true;
+    final showLiveText = activeState?.showLiveText ?? false;
 
     return CallbackShortcuts(
       bindings: {
@@ -251,12 +268,16 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
               ),
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert_rounded, color: colors.textPrimary),
+                tooltip: 'More options',
                 color: colors.surface,
                 shape: const RoundedRectangleBorder(
                   borderRadius: AppRadii.borderMd,
                 ),
                 onSelected: (val) {
                   switch (val) {
+                    case 'edit_image':
+                      activeState?.handleEditImage();
+                      break;
                     case 'copy_text':
                       activeState?.copyAllText();
                       break;
@@ -281,6 +302,19 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
                   }
                 },
                 itemBuilder: (ctx) => [
+                  if (activeState?.canEdit ?? false) ...[
+                    PopupMenuItem(
+                      value: 'edit_image',
+                      child: Row(
+                        children: [
+                          Icon(Icons.tune_rounded, size: 18, color: colors.textSecondary),
+                          const SizedBox(width: AppSpacing.sm),
+                          const Text('Edit Image'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                  ],
                   if (hasOcr) ...[
                     PopupMenuItem(
                       value: 'copy_text',
@@ -376,13 +410,20 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
                 });
               },
               itemBuilder: (context, index) {
-                final item = widget.images[index];
+                final item = _images[index];
                 final key = _pageKeys.putIfAbsent(index, () => GlobalKey<_ViewerImagePageState>());
 
                 return _ViewerImagePage(
                   key: key,
                   item: item,
+                  noteId: widget.noteId,
                   onInsertText: widget.onInsertText,
+                  onImageReplaced: widget.onImageReplaced,
+                  onItemUpdated: (updatedItem) {
+                    setState(() {
+                      _images[index] = updatedItem;
+                    });
+                  },
                   onZoomChanged: (isZoomed) {
                     if (index == _currentIndex && _isCurrentPageZoomed != isZoomed) {
                       setState(() {
@@ -464,13 +505,19 @@ class _ViewerImagePage extends ConsumerStatefulWidget {
   const _ViewerImagePage({
     super.key,
     required this.item,
+    this.noteId,
     this.onInsertText,
+    this.onImageReplaced,
+    required this.onItemUpdated,
     required this.onZoomChanged,
     required this.onOcrStateChanged,
   });
 
   final ViewerImageItem item;
+  final String? noteId;
   final void Function(String text)? onInsertText;
+  final void Function(String oldAssetId, String newAssetId)? onImageReplaced;
+  final ValueChanged<ViewerImageItem> onItemUpdated;
   final ValueChanged<bool> onZoomChanged;
   final VoidCallback onOcrStateChanged;
 
@@ -488,9 +535,12 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
   OcrDocument? _ocrDocument;
   bool _isLoading = true;
   bool _isOcrLoading = true;
-  bool _showLiveText = true;
+  bool _showLiveText = false;
+  bool _isSaving = false;
 
   _OcrTextSelection _selection = const _OcrTextSelection.empty();
+
+  bool get canEdit => _imageBytes != null && !_isLoading && !_isSaving;
 
   bool get hasOcr =>
       _ocrDocument != null &&
@@ -796,6 +846,183 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
     }
   }
 
+  Future<void> handleEditImage() async {
+    if (_imageBytes == null || _isSaving) return;
+
+    final imageProcessor = ref.read(imageProcessorProvider);
+    final reps = await imageProcessor.createPageRepresentations(_imageBytes!);
+    final page = ScannedPage(
+      id: widget.item.id,
+      imageBytes: _imageBytes!,
+      rawImageBytes: _imageBytes!,
+      previewBytes: reps.previewBytes,
+      thumbnailBytes: reps.thumbnailBytes,
+      width: reps.width > 0 ? reps.width : (_imageDimensions?.width.toInt() ?? 1000),
+      height: reps.height > 0 ? reps.height : (_imageDimensions?.height.toInt() ?? 1000),
+      pageNumber: 1,
+    );
+
+    if (!mounted) return;
+
+    final updatedPage = await PageAdjustmentSheet.show(
+      context,
+      page: page,
+      imageProcessor: imageProcessor,
+      title: 'Edit Image',
+    );
+
+    if (updatedPage == null || updatedPage.adjustments.isNeutral) {
+      return;
+    }
+
+    if (!mounted) return;
+
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) {
+        final colors = dialogCtx.appColors;
+        return AlertDialog(
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
+          backgroundColor: colors.surface,
+          title: Text(
+            'Save Edited Image?',
+            style: AppTypography.headline.copyWith(color: colors.textPrimary),
+          ),
+          content: Text(
+            'The new edited image will be saved and the previous version will be discarded.',
+            style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: Text('Discard', style: TextStyle(color: colors.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: Text('Save', style: TextStyle(color: colors.accent, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldSave != true || !mounted) return;
+
+    await _saveEditedImage(updatedPage.adjustments);
+  }
+
+  Future<void> _saveEditedImage(ImageAdjustments adjustments) async {
+    setState(() => _isSaving = true);
+    try {
+      final imageProcessor = ref.read(imageProcessorProvider);
+      final processed = await imageProcessor.processHighResolution(
+        _imageBytes!,
+        adjustments,
+      );
+
+      final attachmentService = ref.read(attachmentServiceProvider);
+      final oldAssetId = widget.item.assetId;
+
+      String newAssetId;
+      AttachmentEntity? newAttachment;
+
+      if (oldAssetId != null && oldAssetId.isNotEmpty) {
+        final result = await attachmentService.replaceImage(
+          oldAssetId: oldAssetId,
+          newBytes: processed.imageBytes,
+          mimeType: 'image/jpeg',
+          fileName: _attachment?.fileName ?? 'edited_image.jpg',
+          noteId: widget.noteId ?? _attachment?.noteId,
+          preferredAltText: widget.item.altText ?? 'Image',
+        );
+        newAttachment = result.newAttachment;
+        newAssetId = newAttachment.id;
+        widget.onImageReplaced?.call(oldAssetId, newAssetId);
+      } else {
+        final result = await attachmentService.importImageFromBytes(
+          processed.imageBytes,
+          mimeType: 'image/jpeg',
+          fileName: 'edited_image.jpg',
+          noteId: widget.noteId,
+          preferredAltText: widget.item.altText ?? 'Image',
+        );
+        newAttachment = result.attachment;
+        newAssetId = newAttachment.id;
+        if (widget.item.url != null) {
+          widget.onImageReplaced?.call(widget.item.url!, newAssetId);
+          final allNotes = await ref.read(databaseProvider).getAllNotesRaw();
+          for (final note in allNotes) {
+            if (note.content.contains(widget.item.url!)) {
+              final updatedContent = note.content.replaceAll(
+                widget.item.url!,
+                'qp://asset/$newAssetId',
+              );
+              await ref.read(databaseProvider).saveNote(
+                id: note.id,
+                title: note.title,
+                content: updatedContent,
+                createdAt: note.createdAt,
+                updatedAt: DateTime.now(),
+                isPinned: note.isPinned,
+                isArchived: note.isArchived,
+                isTrashed: note.isTrashed,
+                deletedAt: note.deletedAt,
+                isDirty: true,
+                journalDate: note.journalDate,
+              );
+            }
+          }
+        }
+      }
+
+      try {
+        ref.read(syncEngineProvider).syncNow();
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      final updatedItem = widget.item.copyWith(
+        assetId: newAssetId,
+        initialBytes: processed.imageBytes,
+      );
+      widget.onItemUpdated(updatedItem);
+
+      setState(() {
+        _imageBytes = processed.imageBytes;
+        _attachment = newAttachment;
+        _selection = const _OcrTextSelection.empty();
+        _showLiveText = false;
+      });
+
+      _resolveImageDimensions(processed.imageBytes);
+      await _loadOcrDocument(newAssetId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Image saved'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save edited image: $e'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   Future<void> handleShareImage() async {
     if (_imageBytes == null) return;
 
@@ -953,6 +1180,23 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
                           onSelectionChanged: (newSelection) {
                             setState(() => _selection = newSelection);
                           },
+                        ),
+                      ),
+                    if (_isSaving)
+                      Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: colors.accent),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                'Saving edited image…',
+                                style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                   ],

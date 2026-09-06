@@ -1,18 +1,27 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/attachments/attachment_crypto.dart';
+import 'package:quitepaper/core/attachments/attachment_provider.dart';
+import 'package:quitepaper/core/attachments/attachment_service.dart';
+import 'package:quitepaper/core/attachments/attachment_storage.dart';
 import 'package:quitepaper/core/attachments/presentation/image_viewer_modal.dart';
 import 'package:quitepaper/core/attachments/presentation/viewer_image_item.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/image_processing/image_adjustments.dart';
+import 'package:quitepaper/core/image_processing/image_processor.dart';
 import 'package:quitepaper/core/ocr/ocr_crypto.dart';
 import 'package:quitepaper/core/ocr/ocr_models.dart';
 import 'package:quitepaper/core/ocr/ocr_provider.dart';
+import 'package:quitepaper/core/sync/sync_engine.dart';
+import 'package:quitepaper/core/sync/sync_models.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 
@@ -39,6 +48,58 @@ class MockKeyManager implements KeyManager {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class FakeSyncEngine implements SyncEngine {
+  @override
+  SyncState get state => const SyncState();
+
+  @override
+  Stream<SyncState> get stateStream => const Stream.empty();
+
+  @override
+  Future<void> syncNow() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeImageProcessor implements ImageProcessor {
+  @override
+  Future<PageRepresentations> createPageRepresentations(Uint8List rawBytes) async {
+    return (
+      previewBytes: rawBytes,
+      thumbnailBytes: rawBytes,
+      width: 200,
+      height: 200,
+    );
+  }
+
+  @override
+  Future<({Uint8List imageBytes, int width, int height})> processHighResolution(
+    Uint8List rawBytes,
+    ImageAdjustments adjustments, {
+    int maxDimension = 2048,
+  }) async {
+    return (
+      imageBytes: rawBytes,
+      width: 200,
+      height: 200,
+    );
+  }
+
+  @override
+  Future<Uint8List> process(
+    Uint8List sourceBytes,
+    ImageAdjustments adjustments, {
+    bool isPreview = false,
+    int maxDimension = 2048,
+  }) async {
+    return sourceBytes;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -47,6 +108,9 @@ void main() {
     late MockKeyManager keyManager;
     late OcrCrypto ocrCrypto;
     late Uint8List testImageBytes;
+    late Directory tempDir;
+    late AttachmentLocalStorage storage;
+    late AttachmentService attachmentService;
     const attachmentId = 'att-widget-test-1';
 
     setUp(() async {
@@ -56,9 +120,30 @@ void main() {
       keyManager = MockKeyManager(masterKey: masterKey, isUnlocked: true);
       ocrCrypto = OcrCrypto(cryptoService: cryptoService);
 
+      tempDir = await Directory.systemTemp.createTemp('qp_test_iv_');
+      storage = AttachmentLocalStorage(customBaseDirectory: tempDir);
+
+      final crypto = AttachmentCrypto(cryptoService: cryptoService);
+      attachmentService = AttachmentService(
+        database: database,
+        keyManager: keyManager,
+        crypto: crypto,
+        storage: storage,
+      );
+
       final testImage = img.Image(width: 200, height: 200);
       img.fill(testImage, color: img.ColorRgb8(200, 200, 200));
       testImageBytes = Uint8List.fromList(img.encodePng(testImage));
+
+      final encryptedImageBytes = await crypto.encryptAttachment(
+        plaintextBytes: testImageBytes,
+        masterKeyBytes: masterKey,
+        attachmentId: attachmentId,
+      );
+      await storage.saveEncryptedBytes(
+        attachmentId: attachmentId,
+        encryptedBytes: encryptedImageBytes,
+      );
 
       final now = DateTime.now();
       await database.saveAttachment(
@@ -66,6 +151,8 @@ void main() {
         createdAt: now,
         updatedAt: now,
         ocrState: 'available',
+        mimeType: 'image/png',
+        byteSize: testImageBytes.length,
       );
 
       final ocrDoc = OcrDocument(
@@ -122,14 +209,24 @@ void main() {
 
     tearDown(() async {
       await database.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
     });
 
-    Widget buildTestWidget({void Function(String text)? onInsertText}) {
+    Widget buildTestWidget({
+      void Function(String text)? onInsertText,
+      void Function(String oldAssetId, String newAssetId)? onImageReplaced,
+    }) {
       return ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(database),
           keyManagerProvider.overrideWithValue(keyManager),
           ocrCryptoProvider.overrideWithValue(ocrCrypto),
+          attachmentLocalStorageProvider.overrideWithValue(storage),
+          attachmentServiceProvider.overrideWithValue(attachmentService),
+          imageProcessorProvider.overrideWithValue(FakeImageProcessor()),
+          syncEngineProvider.overrideWithValue(FakeSyncEngine()),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -138,6 +235,7 @@ void main() {
             altText: 'Whiteboard Capture',
             initialImageBytes: testImageBytes,
             onInsertText: onInsertText,
+            onImageReplaced: onImageReplaced,
           ),
         ),
       );
@@ -188,14 +286,37 @@ void main() {
       expect(insertedText, 'Meeting Notes 2026');
     });
 
+    testWidgets('Live text layer is not selectable by default until toggled on', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Show Live Text'), findsOneWidget);
+
+      final imageRect = tester.getRect(find.byType(Image));
+      final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
+
+      await tester.tapAt(word1Center);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Text selection callout should not appear when Live Text is disabled
+      expect(find.text('1 word'), findsNothing);
+      expect(find.text('Copy'), findsNothing);
+    });
+
     testWidgets('Toggle Live Text hides/shows overlay and clears selection', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      final liveTextButton = find.byTooltip('Hide Live Text');
-      expect(liveTextButton, findsOneWidget);
+      final showLiveTextButton = find.byTooltip('Show Live Text');
+      expect(showLiveTextButton, findsOneWidget);
 
-      await tester.tap(liveTextButton);
+      await tester.tap(showLiveTextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Hide Live Text'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Hide Live Text'));
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Show Live Text'), findsOneWidget);
@@ -205,6 +326,10 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      // Enable Live Text
+      await tester.tap(find.byTooltip('Show Live Text'));
+      await tester.pumpAndSettle();
+
       // Verify hardware-accelerated CustomPaint is used rather than hundreds of Positioned widgets
       expect(find.byType(CustomPaint), findsWidgets);
       expect(find.byType(RepaintBoundary), findsWidgets);
@@ -212,6 +337,9 @@ void main() {
 
     testWidgets('Tapping single word selects word and displays selection callout', (tester) async {
       await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Show Live Text'));
       await tester.pumpAndSettle();
 
       final imageRect = tester.getRect(find.byType(Image));
@@ -233,6 +361,9 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byTooltip('Show Live Text'));
+      await tester.pumpAndSettle();
+
       final imageRect = tester.getRect(find.byType(Image));
       final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
 
@@ -252,6 +383,9 @@ void main() {
 
     testWidgets('Drag-to-select range selects multiple words across sweep', (tester) async {
       await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Show Live Text'));
       await tester.pumpAndSettle();
 
       final imageRect = tester.getRect(find.byType(Image));
@@ -282,6 +416,9 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byTooltip('Show Live Text'));
+      await tester.pumpAndSettle();
+
       final imageRect = tester.getRect(find.byType(Image));
       final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
 
@@ -299,6 +436,9 @@ void main() {
     testWidgets('Inserting selected text inserts only selection into note', (tester) async {
       String? insertedText;
       await tester.pumpWidget(buildTestWidget(onInsertText: (t) => insertedText = t));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Show Live Text'));
       await tester.pumpAndSettle();
 
       final imageRect = tester.getRect(find.byType(Image));
@@ -319,6 +459,9 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byTooltip('Show Live Text'));
+      await tester.pumpAndSettle();
+
       final imageRect = tester.getRect(find.byType(Image));
       final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
 
@@ -337,6 +480,9 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byTooltip('Show Live Text'));
+      await tester.pumpAndSettle();
+
       final imageRect = tester.getRect(find.byType(Image));
       final word1Center = imageRect.topLeft + Offset(imageRect.width * 0.25, imageRect.height * 0.15);
 
@@ -350,6 +496,71 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Copy All Text'), findsOneWidget);
+    });
+
+    testWidgets('More options menu exposes Edit Image action', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      final moreButton = find.byTooltip('More options');
+      expect(moreButton, findsOneWidget);
+
+      await tester.tap(moreButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit Image'), findsOneWidget);
+    });
+
+    testWidgets('Selecting Edit Image opens PageAdjustmentSheet and prompts to save on modification', (tester) async {
+      String? replacedOldId;
+      String? replacedNewId;
+
+      await tester.pumpWidget(buildTestWidget(
+        onImageReplaced: (oldId, newId) {
+          replacedOldId = oldId;
+          replacedNewId = newId;
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      // Open popup menu and tap Edit Image
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Edit Image'));
+      await tester.pumpAndSettle();
+
+      // Verify PageAdjustmentSheet is open with title 'Edit Image'
+      expect(find.text('Edit Image'), findsWidgets);
+      expect(find.text('Apply'), findsOneWidget);
+      expect(find.text('B&W'), findsOneWidget);
+
+      // Tap 'B&W' preset to adjust image
+      await tester.tap(find.text('B&W'));
+      await tester.pumpAndSettle();
+
+      // Tap 'Apply'
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+
+      // Save confirmation dialog should appear
+      expect(find.text('Save Edited Image?'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Discard'), findsOneWidget);
+
+      // Confirm Save
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      for (int i = 0; i < 50 && replacedNewId == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Verify replaced callbacks fired
+      expect(replacedOldId, equals(attachmentId));
+      expect(replacedNewId, isNotNull);
+      expect(replacedNewId, isNot(equals(attachmentId)));
+      expect(find.text('Image saved'), findsOneWidget);
     });
 
     testWidgets('Single image does NOT show unnecessary 1 / 1 counter', (tester) async {

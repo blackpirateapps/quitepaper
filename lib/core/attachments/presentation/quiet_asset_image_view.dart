@@ -32,10 +32,12 @@ class QuietAssetImageView extends ConsumerStatefulWidget {
     this.altText,
     this.title,
     this.caption,
+    this.noteId,
     this.variant = 'original',
     this.fit = BoxFit.contain,
     this.maxHeight,
     this.onInsertText,
+    this.onAttachmentReplaced,
     this.galleryImages,
     this.imageIndex,
   }) : assert(assetId != null || url != null, 'Either assetId or url must be provided');
@@ -45,10 +47,12 @@ class QuietAssetImageView extends ConsumerStatefulWidget {
   final String? altText;
   final String? title;
   final String? caption;
+  final String? noteId;
   final String variant;
   final BoxFit fit;
   final double? maxHeight;
   final void Function(String text)? onInsertText;
+  final void Function(String oldAssetId, String newAssetId)? onAttachmentReplaced;
   final List<ViewerImageItem>? galleryImages;
   final int? imageIndex;
 
@@ -336,7 +340,9 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
       context,
       images: images,
       initialIndex: index >= 0 ? index : 0,
+      noteId: widget.noteId,
       onInsertText: widget.onInsertText,
+      onImageReplaced: widget.onAttachmentReplaced,
     );
   }
 

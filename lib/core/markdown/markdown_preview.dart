@@ -54,6 +54,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onDocumentRenamed,
     this.onAttachmentRenamed,
     this.onAttachmentDeleted,
+    this.onAttachmentReplaced,
     this.onInsertText,
     this.onOpenLinkedNote,
     this.softLineBreak = true,
@@ -80,6 +81,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final void Function(String documentId, String newTitle)? onDocumentRenamed;
   final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
+  final void Function(String oldAssetId, String newAssetId)? onAttachmentReplaced;
   final void Function(String text)? onInsertText;
   final void Function(Note note, {bool initialPreviewMode})? onOpenLinkedNote;
   final bool softLineBreak;
@@ -604,7 +606,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           altText: resolvedAlt,
           title: resolvedTitle,
           caption: resolvedCaption,
+          noteId: widget.noteId,
           onInsertText: widget.onInsertText,
+          onAttachmentReplaced: widget.onAttachmentReplaced,
           galleryImages: _documentImages.isNotEmpty ? _documentImages : null,
           imageIndex: matchingIndex >= 0 ? matchingIndex : null,
         );
@@ -615,7 +619,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         altText: resolvedAlt,
         title: resolvedTitle,
         caption: resolvedCaption,
+        noteId: widget.noteId,
         onInsertText: widget.onInsertText,
+        onAttachmentReplaced: widget.onAttachmentReplaced,
         galleryImages: _documentImages.isNotEmpty ? _documentImages : null,
         imageIndex: matchingIndex >= 0 ? matchingIndex : null,
       );

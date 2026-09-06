@@ -5887,3 +5887,74 @@ Replaced all legacy `Icons.*` references across `notes_screen.dart`:
 - **Static Analysis**: `flutter analyze` (**0 issues found**).
 - **Full Test Suite**: `flutter test` (**1,349 / 1,349 tests passing, 100% pass rate**).
 
+---
+
+## 104. Image Viewer: On-Demand Live Text & Integrated Scanner Image Editor
+
+### 1. Motivation & User Requirements
+When viewing images in `ImageViewerModal`, OCR-recognized text bounding boxes were previously active and selectable by default. This created visual noise and interfered with image inspection gestures (e.g. pan and zoom). Furthermore, users needed the ability to edit images directly from within the viewer using the same adjustments available in the scanner, and seamlessly save the modified result with end-to-end encryption and cloud synchronization while safely discarding the old image.
+
+The requirements implemented:
+1. **On-Demand Live Text**:
+   - By default, the image viewer presents the pure image without interactive or highlighted text bounding boxes.
+   - Users can toggle the selectable Live Text layer on demand by tapping the "Tt" (`Icons.text_fields_outlined`) action button in the viewer header.
+2. **Scanner Image Editor Integration**:
+   - Exposed the scanner's image editor (`PageAdjustmentSheet`) inside `ImageViewerModal` under the More (`⋮` / `PhosphorIconsRegular.dotsThreeVertical`) options menu as "Edit Image".
+   - Provides full filter presets (Color, Grayscale, B&W, Crisp), brightness, contrast, and rotation adjustments.
+3. **Save Confirmation & Asset Replacement Pipeline**:
+   - When the user applies modifications and taps "Done", a confirmation dialog is presented: *"Save Edited Image? This will replace the current image and update any notes referencing it."*
+   - Old asset discard: Invalidation from in-memory cache, deletion of the local encrypted file on disk, and deletion of associated OCR pages.
+   - Cloud Garbage Collection: If the old attachment was already synced to the cloud, it is tombstoned/marked deleted with `enqueueSync: true` so the backend and Cloudinary garbage collector purges the remote asset. If local-only, it is permanently deleted locally.
+   - Encryption & Sync Queue: The new edited image is encrypted client-side using `XChaCha20-Poly1305` via `CryptoService` and master key, written to encrypted disk storage, recorded with `upload_pending` state, and queued for background sync (`syncNow()`).
+   - Atomic Note Link Rewriting: All notes in SQLite referencing `qp://asset/$oldAssetId` are rewritten to `qp://asset/$newAssetId` and marked dirty.
+   - In-Editor Live State Update: In active note sessions (`EditorScreen`), markdown editor content and undo histories are updated dynamically without requiring note reloads.
+
+---
+
+### 2. Architecture & Key Changes
+
+#### A. `ImageViewerModal` (`lib/core/attachments/presentation/image_viewer_modal.dart`)
+- Set default `_showLiveText = false`. When toggled, clears active text selection.
+- Added tooltip `'More options'` to `PopupMenuButton` and added `_ImageViewerAction.editImage` ("Edit Image" with `PhosphorIconsRegular.slidersHorizontal`).
+- Added `handleEditImage()` method:
+  - Opens `PageAdjustmentSheet.show` configured with `title: 'Edit Image'`.
+  - Checks if user made changes (`preset != PageFilterPreset.color || brightness != 0.0 || contrast != 1.0 || rotationDegrees != 0`).
+  - Renders confirmation dialog (`'Save Edited Image?'`).
+  - Calls `_saveEditedImage()` which invokes `AttachmentService.replaceImage`, updates the viewer state, triggers `syncEngine.syncNow()`, and invokes `onImageReplaced`.
+
+#### B. `PageAdjustmentSheet` (`lib/features/scanner/presentation/widgets/page_adjustment_sheet.dart`)
+- Added optional `title` parameter to `PageAdjustmentSheet` constructor and static `show(...)` helper.
+- Defaults to `'Page ${widget.page.pageNumber} Adjustments'` when used in scanner, or custom title (e.g. `'Edit Image'`) when opened from the viewer.
+
+#### C. `AttachmentService` (`lib/core/attachments/attachment_service.dart`)
+- Added `replaceImage({required String oldAssetId, required Uint8List newBytes, required String mimeType, ...})`:
+  - Validates key manager state.
+  - Generates new attachment record, encrypts `newBytes` with master key via `cryptoService.encryptAttachmentPayload`, and writes to `AttachmentLocalStorage`.
+  - Enqueues background OCR extraction for new image.
+  - Discards old asset from `_decryptedCache` and deletes encrypted file on disk.
+  - If old attachment was synced (`cloudUrl != null`), marks it deleted with `enqueueSync: true` for server/Cloudinary GC; if local, deletes locally.
+  - Rewrites all note markdown references (`qp://asset/$oldAssetId` -> `qp://asset/${newAsset.id}`) and marks affected notes dirty.
+
+#### D. `AttachmentLocalStorage` (`lib/core/attachments/attachment_storage.dart`)
+- Transitioned file storage methods (`saveEncryptedBytes`, `readEncryptedBytes`, `hasEncryptedFile`, `deleteEncryptedFile`) to synchronous Dart I/O operations (`writeAsBytesSync`, `readAsBytesSync`, `existsSync`, `deleteSync`). This eliminates `fakeAsync` event loop deadlocks in Flutter widget test runners.
+
+#### E. Navigation & Editor Plumbing
+- Propagated `noteId` and `onAttachmentReplaced` from `EditorScreen` (`_replaceAttachmentMarkdownRef`) through `QuietMarkdownPreview` and `QuietAssetImageView` into `ImageViewerModal`.
+
+---
+
+### 3. Verification & Quality Invariants
+- **`test/attachments/image_viewer_modal_test.dart`**:
+  - Verified Live Text layer starts disabled (`_showLiveText = false`), and tapping "Show Live Text" toggles it on.
+  - Verified text selection callouts do not appear when Live Text is disabled.
+  - Verified "Edit Image" popup menu item opens `PageAdjustmentSheet`.
+  - Verified applying filter/adjustments triggers save confirmation and calls `replaceImage`.
+  - All 18 tests in suite passing.
+- **`test/attachments/attachment_service_test.dart`**:
+  - Verified `replaceImage` on local unsynced images purges old file and updates note markdown links.
+  - Verified `replaceImage` on synced images soft-deletes old attachment with `enqueueSync: true` for cloud GC and queues new image with `upload_pending`.
+  - All 6 tests in suite passing.
+- **Static Analysis**: `flutter analyze` clean (**0 issues found**).
+- **Full Test Suite**: `flutter test` (**1,372 / 1,372 tests passing, 100% pass rate**).
+
+

@@ -21,8 +21,8 @@ class AttachmentLocalStorage {
   /// Resolves the app-private directory where encrypted attachment blobs reside.
   Future<Directory> getAttachmentsDirectory() async {
     if (customBaseDirectory != null) {
-      if (!await customBaseDirectory!.exists()) {
-        await customBaseDirectory!.create(recursive: true);
+      if (!customBaseDirectory!.existsSync()) {
+        customBaseDirectory!.createSync(recursive: true);
       }
       return customBaseDirectory!;
     }
@@ -56,7 +56,7 @@ class AttachmentLocalStorage {
     final dir = await getAttachmentsDirectory();
     final fileName = _getFileName(attachmentId, variant);
     final file = File('${dir.path}/$fileName');
-    await file.writeAsBytes(encryptedBytes, flush: true);
+    file.writeAsBytesSync(encryptedBytes, flush: true);
     return file.path;
   }
 
@@ -68,16 +68,16 @@ class AttachmentLocalStorage {
   }) async {
     if (localPath != null && localPath.isNotEmpty) {
       final customFile = File(localPath);
-      if (await customFile.exists()) {
-        return customFile.readAsBytes();
+      if (customFile.existsSync()) {
+        return customFile.readAsBytesSync();
       }
     }
 
     final dir = await getAttachmentsDirectory();
     final fileName = _getFileName(attachmentId, variant);
     final file = File('${dir.path}/$fileName');
-    if (await file.exists()) {
-      return file.readAsBytes();
+    if (file.existsSync()) {
+      return file.readAsBytesSync();
     }
     return null;
   }
@@ -90,13 +90,13 @@ class AttachmentLocalStorage {
   }) async {
     if (localPath != null && localPath.isNotEmpty) {
       final customFile = File(localPath);
-      if (await customFile.exists()) return true;
+      if (customFile.existsSync()) return true;
     }
 
     final dir = await getAttachmentsDirectory();
     final fileName = _getFileName(attachmentId, variant);
     final file = File('${dir.path}/$fileName');
-    return file.exists();
+    return file.existsSync();
   }
 
   /// Deletes local encrypted file for an attachment.
@@ -109,9 +109,9 @@ class AttachmentLocalStorage {
 
     if (localPath != null && localPath.isNotEmpty) {
       final customFile = File(localPath);
-      if (await customFile.exists()) {
+      if (customFile.existsSync()) {
         try {
-          await customFile.delete();
+          customFile.deleteSync();
         } catch (_) {}
       }
     }
@@ -119,9 +119,9 @@ class AttachmentLocalStorage {
     final dir = await getAttachmentsDirectory();
     final fileName = _getFileName(attachmentId, variant);
     final file = File('${dir.path}/$fileName');
-    if (await file.exists()) {
+    if (file.existsSync()) {
       try {
-        await file.delete();
+        file.deleteSync();
       } catch (_) {}
     }
   }
