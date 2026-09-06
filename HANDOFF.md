@@ -5680,3 +5680,50 @@ To align with Quiet Paper's Bear Notes editorial philosophy and declutter the no
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Full test suite: `flutter test` (**1,341 / 1,341 tests passing, 100% pass rate**).
 
+---
+
+## 100. Quiet Paper “Editorial” Notes List Presentation Mode
+
+### Motivation & Design Philosophy
+Quiet Paper previously provided a single notes list layout: a card-based view grouped under date section headers ("Today", "Yesterday", etc.) with a horizontal strip of filter chips at the top. While functional, users seeking a calmer, distraction-free writing environment requested an alternative presentation adhering to the visual language, hierarchy, and information density of Bear Notes.
+
+To satisfy this requirement without compromising the existing user experience:
+1. **Preserve Quiet Paper Default**: The existing card-based Quiet Paper style remains 100% intact and continues as the application's default.
+2. **Settings Choice**: Under `Settings → Appearance`, a new `Notes List` section allows toggling between `Quiet Paper` and `Editorial`. The selection is persisted via `SharedPreferences` (`app_notes_list_style`).
+3. **Independent Presentation Layer**: Instead of scattering dozens of conditionals throughout existing list widgets, a dedicated `EditorialNotesList` component layer was introduced, consuming the existing shared query, filtering, sorting, and selection providers.
+4. **Faithful Visual Replication of Bear Reference**:
+   - **Continuous Flow**: Unselected notes render with transparent backgrounds and subtle hairline dividers, flowing together as an editorial document list without date section headers.
+   - **Visual Emphasis on Selection**: The selected note is housed in a soft rounded container (`10dp` radius) with a narrow vertical accent bar (`3.5dp` wide, using `colors.accent`) on its leading edge.
+   - **Inline Attachment Previews**:
+     - *Single Image*: Preserves aspect ratio with bounded height (~76dp), subtle corner rounding (`8dp`), and `BoxFit.cover`.
+     - *Multiple / Mixed Attachments*: Compact horizontal row (height ~72dp) containing image thumbnails and polished PDF document cards with title text and a distinct "PDF" badge. Excess attachments display a compact `+N` badge.
+   - **Dynamic Header**: Features `[Collection Name] ▾` with a dropdown menu to rapidly switch between collections (`Notes`, `Pinned`, `Archive`, `Trash`, `Tags`, `Journal`), along with Compose, Search, and overflow actions (`⋯`).
+   - **Top Chips Strip Omission**: In Editorial mode, the horizontal strip of large filter chips is omitted, maximizing vertical space for content.
+   - **Full Gesture & Action Parity**: Multi-select, swipe-to-archive/trash with undo, right-click/long-press context menus, search highlighting, and keyboard navigation operate identically across both modes.
+
+### Key Architectural Components
+1. **Domain & Settings Provider (`lib/features/notes/domain/notes_list_style.dart`, `lib/features/notes/application/notes_list_style_provider.dart`)**:
+   - `enum NotesListStyle { quietPaper, editorial }` with `storageKey`, `title`, `description`, and `fromString()`.
+   - `NotesListStyleNotifier` persisted via `SharedPreferences` key `'app_notes_list_style'`.
+2. **Attachment Extraction & In-Memory Caching (`lib/features/notes/domain/editorial_attachment_item.dart`, `lib/features/notes/domain/editorial_attachment_extractor.dart`)**:
+   - High-performance LRU cache parsing image tags `![alt](url)`, scanned documents `[title](qp://document/<id>)`, PDF links `[title](url.pdf)`, and code/data assets `[title](qp://asset/<id>)`.
+   - Bounded LRU cache (500 items) keyed by note ID, content hash, and update timestamp.
+   - Shared reuse of `assetThumbnailCache` and `pdfThumbnailCache` from `note_thumbnail_view.dart` for smooth 60fps scrolling without disk I/O.
+3. **Editorial UI Components (`lib/features/notes/presentation/editorial/`)**:
+   - `EditorialNotesList`: Top-level container managing scroll prefetching, empty states, multi-select headers, and dismissible swipe actions.
+   - `EditorialListHeader`: Header bar with collection dropdown, compose button, search button, and overflow popup menu.
+   - `EditorialNoteRow`: Content-first row rendering semibold title (max 2 lines), stripped Markdown text preview (max 2-3 lines), inline attachments group, subtle `#tag` indicators, and footer pin icon + date.
+   - `EditorialAttachmentGroup`: Renders single image cards or horizontal mixed grids with PDF cards and `+N` count badges.
+4. **Integration in `NotesScreen` (`lib/features/notes/presentation/notes_screen.dart`)**:
+   - Watches `notesListStyleProvider`.
+   - On Tablet: switches middle pane between `EditorialNotesList` and existing `PullDownSearchReveal`.
+   - On Phone: switches note list body between `EditorialNotesList` and existing `SafeArea(child: Builder(...))`, hides the phone AppBar in Editorial mode (since `EditorialNotesList` provides its own header), and hides the FAB to match the desktop header compose model.
+
+### Automated Test Coverage & Quality Verification
+- `test/notes/notes_list_style_test.dart`: 5 unit tests verifying enum properties, serialization, parsing, and SharedPreferences persistence.
+- `test/notes/editorial_attachment_extractor_test.dart`: 8 unit tests verifying image, PDF, scanned document, text file, password-protected, encrypted envelope, and LRU cache invalidation behaviors.
+- `test/notes/editorial_notes_list_test.dart`: 6 widget tests verifying note row rendering, accent bar on selection, unselected divider flow, pin indicator, collection title, and dropdown collection switching.
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full test suite: `flutter test` (**1,360 / 1,360 tests passing, 100% pass rate**).
+
+

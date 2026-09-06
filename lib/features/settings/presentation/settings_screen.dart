@@ -20,7 +20,9 @@ import '../../../core/update/update_provider.dart';
 import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../editor/domain/editor_editing_style.dart';
+import '../../notes/application/notes_list_style_provider.dart';
 import '../../notes/application/notes_provider.dart';
+import '../../notes/domain/notes_list_style.dart';
 import '../../notes/application/sample_notes.dart';
 import '../../sync/presentation/change_account_password_dialog.dart';
 import '../../sync/presentation/change_encryption_password_screen.dart';
@@ -395,6 +397,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final colors = context.appColors;
     final themeSettings = ref.watch(themeSettingsProvider);
     final editingStyle = ref.watch(editorEditingStyleProvider);
+    final notesListStyle = ref.watch(notesListStyleProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
@@ -855,6 +858,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                 const TypographySettingsScreen(),
                           ),
                         );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // Section: Notes List
+                // ==========================================
+                _buildSectionHeader(context, 'NOTES LIST'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.view_agenda_outlined,
+                      title: 'Quiet Paper',
+                      subtitle: 'Your current card-based notes list.',
+                      isSelected: notesListStyle == NotesListStyle.quietPaper,
+                      onTap: () {
+                        ref
+                            .read(notesListStyleProvider.notifier)
+                            .setStyle(NotesListStyle.quietPaper);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.article_outlined,
+                      title: 'Editorial',
+                      subtitle:
+                          'A content-focused list with inline previews and attachments.',
+                      isSelected: notesListStyle == NotesListStyle.editorial,
+                      onTap: () {
+                        ref
+                            .read(notesListStyleProvider.notifier)
+                            .setStyle(NotesListStyle.editorial);
                       },
                     ),
                   ],

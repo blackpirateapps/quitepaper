@@ -14,6 +14,12 @@ final Map<String, Uint8List> _pdfThumbnailCache = {};
 /// In-memory cache for resolved encrypted local asset thumbnails to eliminate disk I/O on scroll.
 final Map<String, Uint8List> _assetThumbnailCache = {};
 
+/// Shared access to PDF page-0 rasterized thumbnails.
+Map<String, Uint8List> get pdfThumbnailCache => _pdfThumbnailCache;
+
+/// Shared access to decrypted local asset thumbnails.
+Map<String, Uint8List> get assetThumbnailCache => _assetThumbnailCache;
+
 /// Clears in-memory thumbnail caches (for tests and memory management).
 @visibleForTesting
 void clearThumbnailCaches() {
