@@ -129,5 +129,36 @@ void main() {
       final streamAll = await repository.watchAllJournalEntries().first;
       expect(streamAll.map((n) => n.journalDate).toList(), ['2026-09-01', '2026-08-15', '2025-12-25']);
     });
+
+    test('watchNotesForDates streams notes matching specified dates and excludes trashed notes', () async {
+      await repository.getOrCreateJournalEntry(DateTime(2025, 9, 2));
+      await repository.getOrCreateJournalEntry(DateTime(2025, 9, 5));
+      await repository.getOrCreateJournalEntry(DateTime(2025, 9, 10));
+
+      final stream = repository.watchNotesForDates(['2025-09-02', '2025-09-05']);
+      final notes = await stream.first;
+
+      expect(notes.length, 2);
+      expect(notes.map((n) => n.journalDate).toList(), ['2025-09-05', '2025-09-02']);
+
+      // Trashed note test
+      final toTrash = notes.first;
+      await repository.trashNote(toTrash.id);
+
+      final updatedNotes = await repository.watchNotesForDates(['2025-09-02', '2025-09-05']).first;
+      expect(updatedNotes.length, 1);
+      expect(updatedNotes.first.journalDate, '2025-09-02');
+    });
+
+    test('getEarliestJournalYear returns the earliest year or null if empty', () async {
+      expect(await repository.getEarliestJournalYear(), isNull);
+
+      await repository.getOrCreateJournalEntry(DateTime(2024, 5, 10));
+      await repository.getOrCreateJournalEntry(DateTime(2021, 9, 1));
+      await repository.getOrCreateJournalEntry(DateTime(2025, 1, 1));
+
+      expect(await repository.getEarliestJournalYear(), 2021);
+    });
   });
 }
+

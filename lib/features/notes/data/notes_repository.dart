@@ -74,6 +74,8 @@ abstract class NotesRepository {
   Stream<List<Note>> watchAllJournalEntries();
   Future<List<Note>> getOnThisDayEntries({required int month, required int day, required int beforeYear});
   Stream<List<Note>> watchOnThisDayEntries({required int month, required int day, required int beforeYear});
+  Stream<List<Note>> watchNotesForDates(List<String> dateStrings);
+  Future<int?> getEarliestJournalYear();
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
   Future<List<String>> validateJournalIntegrity();
 }
@@ -564,6 +566,18 @@ class DriftNotesRepository implements NotesRepository {
           beforeYear: beforeYear,
         )
         .map((list) => list.map(_mapToDomain).toList());
+  }
+
+  @override
+  Stream<List<Note>> watchNotesForDates(List<String> dateStrings) {
+    return _db
+        .watchNotesForDates(dateStrings)
+        .map((list) => list.map(_mapToDomain).toList());
+  }
+
+  @override
+  Future<int?> getEarliestJournalYear() {
+    return _db.getEarliestJournalYear();
   }
 
   @override

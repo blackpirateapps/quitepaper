@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'journal_models.dart';
 
 /// Centralized utility for normalizing, parsing, formatting, and comparing
 /// calendar journal dates (YYYY-MM-DD) independent of timestamps or timezones.
@@ -245,4 +246,98 @@ abstract final class JournalDateHelper {
   static String formatDayTwoDigits(int day) {
     return day.toString().padLeft(2, '0');
   }
+
+  /// Returns the 7 calendar dates for the week containing [date] (Monday through Sunday).
+  static CalendarWeekRange getCurrentWeekRange(DateTime date) {
+    final local = toLocalDate(date);
+    final daysFromMonday = local.weekday - DateTime.monday;
+    final start = DateTime(local.year, local.month, local.day - daysFromMonday);
+    final end = DateTime(start.year, start.month, start.day + 6);
+    final dates = List.generate(
+      7,
+      (i) => DateTime(start.year, start.month, start.day + i),
+    );
+    return CalendarWeekRange(start: start, end: end, dates: dates);
+  }
+
+  /// Projects [currentWeekRange] into a historical [targetYear] strictly preserving
+  /// calendar month and day positions, while safely skipping non-existent leap days
+  /// (e.g. Feb 29 in non-leap years) and correctly handling cross-year periods.
+  static HistoricalWeekPeriod getHistoricalWeekPeriod({
+    required CalendarWeekRange currentWeekRange,
+    required int targetYear,
+    required int referenceYear,
+  }) {
+    final delta = referenceYear - targetYear;
+    final validDates = <DateTime>[];
+    final validDateStrings = <String>[];
+
+    for (final date in currentWeekRange.dates) {
+      final dayYear = date.year - delta;
+      final month = date.month;
+      final day = date.day;
+
+      // Handle leap day: if Feb 29 and the historical year is not a leap year, skip it
+      if (month == 2 && day == 29 && !isLeapYear(dayYear)) {
+        continue;
+      }
+
+      final projectedDate = DateTime(dayYear, month, day);
+      validDates.add(projectedDate);
+    }
+
+    // If targetYear is a leap year and the range spans across Feb 28 to Mar 1,
+    // ensure Feb 29 is included if not already present
+    if (isLeapYear(targetYear) && validDates.isNotEmpty) {
+      final hasFeb28 = validDates.any((d) => d.month == 2 && d.day == 28);
+      final hasMar1 = validDates.any((d) => d.month == 3 && d.day == 1);
+      final hasFeb29 = validDates.any((d) => d.month == 2 && d.day == 29);
+      if (hasFeb28 && hasMar1 && !hasFeb29) {
+        final feb28Index = validDates.indexWhere((d) => d.month == 2 && d.day == 28);
+        validDates.insert(feb28Index + 1, DateTime(targetYear, 2, 29));
+      }
+    }
+
+    validDates.sort((a, b) => a.compareTo(b));
+    for (final d in validDates) {
+      validDateStrings.add(toDateString(d));
+    }
+
+    final startDate = validDates.first;
+    final endDate = validDates.last;
+    final periodLabel = formatPeriodRange(startDate, endDate);
+
+    return HistoricalWeekPeriod(
+      year: targetYear,
+      startDate: startDate,
+      endDate: endDate,
+      validDates: validDates,
+      validDateStrings: validDateStrings,
+      periodLabel: periodLabel,
+    );
+  }
+
+  /// Formats a historical period date range header adhering to Quiet Paper editorial styling:
+  /// - Same month: "September 1–7, 2025" (en-dash)
+  /// - Cross-month: "August 31 – September 6, 2025" (spaced en-dash)
+  /// - Cross-year: "December 29, 2024 – January 4, 2025"
+  static String formatPeriodRange(DateTime start, DateTime end) {
+    final s = toLocalDate(start);
+    final e = toLocalDate(end);
+
+    if (s.year != e.year) {
+      return '${DateFormat('MMMM d, yyyy').format(s)} – ${DateFormat('MMMM d, yyyy').format(e)}';
+    } else if (s.month != e.month) {
+      return '${DateFormat('MMMM d').format(s)} – ${DateFormat('MMMM d, yyyy').format(e)}';
+    } else {
+      return '${DateFormat('MMMM').format(s)} ${s.day}–${e.day}, ${s.year}';
+    }
+  }
+
+  /// Formats the date header for a single day group within a historical year group.
+  /// E.g. "September 2"
+  static String formatDayHeader(dynamic date) {
+    return formatMonthDay(date);
+  }
 }
+

@@ -777,6 +777,48 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Watches active historical journal entries matching any of the specified [dateStrings] (YYYY-MM-DD)
+  Stream<List<NoteWithTags>> watchNotesForDates(List<String> dateStrings) {
+    if (dateStrings.isEmpty) {
+      return Stream.value(<NoteWithTags>[]);
+    }
+
+    final query = select(notesTable)
+      ..where((n) =>
+          n.journalDate.isNotNull() &
+          n.isTrashed.equals(false) &
+          n.journalDate.isIn(dateStrings))
+      ..orderBy([
+        (n) => OrderingTerm.desc(n.journalDate),
+        (n) => OrderingTerm.desc(n.createdAt),
+      ]);
+
+    return query.watch().asyncMap((rawNotes) async {
+      if (rawNotes.isEmpty) return <NoteWithTags>[];
+      final ids = rawNotes.map((n) => n.id).toList();
+      final tagsMap = await getTagsForNoteIds(ids);
+
+      return rawNotes
+          .map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? []))
+          .toList();
+    });
+  }
+
+  /// Returns the earliest calendar year of active journal entries in the database,
+  /// or null if no active journal entries exist.
+  Future<int?> getEarliestJournalYear() async {
+    final query = select(notesTable)
+      ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
+      ..orderBy([(n) => OrderingTerm.asc(n.journalDate)])
+      ..limit(1);
+
+    final first = await query.getSingleOrNull();
+    if (first == null || first.journalDate == null) return null;
+    final parts = first.journalDate!.split('-');
+    if (parts.isEmpty) return null;
+    return int.tryParse(parts[0]);
+  }
+
   /// Retrieves the set of calendar date strings (YYYY-MM-DD) that have active journal entries for a given month
   Future<Set<String>> getJournalDatesForMonth(int year, int month) async {
     final yStr = year.toString().padLeft(4, '0');

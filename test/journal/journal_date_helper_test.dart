@@ -218,5 +218,169 @@ void main() {
       expect(meta, contains('Tuesday'));
       expect(meta, contains('9:42 PM'));
     });
+
+    group('Historical Week Calculations & Formatting', () {
+      test('getCurrentWeekRange computes Monday to Sunday range for standard week', () {
+        // Wednesday Sep 3, 2025
+        final midWeek = DateTime(2025, 9, 3);
+        final range = JournalDateHelper.getCurrentWeekRange(midWeek);
+
+        expect(range.start, DateTime(2025, 9, 1)); // Monday
+        expect(range.end, DateTime(2025, 9, 7)); // Sunday
+        expect(range.dates.length, 7);
+        expect(range.dates.first, DateTime(2025, 9, 1));
+        expect(range.dates.last, DateTime(2025, 9, 7));
+      });
+
+      test('getCurrentWeekRange handles cross-month and Sunday correctly', () {
+        // Sunday Sep 6, 2026
+        final sunday = DateTime(2026, 9, 6);
+        final range = JournalDateHelper.getCurrentWeekRange(sunday);
+
+        expect(range.start, DateTime(2026, 8, 31)); // Monday
+        expect(range.end, DateTime(2026, 9, 6)); // Sunday
+        expect(range.dates.length, 7);
+        expect(range.dates.first, DateTime(2026, 8, 31));
+        expect(range.dates.last, DateTime(2026, 9, 6));
+      });
+
+      test('getCurrentWeekRange handles week crossing year boundary', () {
+        // Friday Jan 2, 2026
+        final newYear = DateTime(2026, 1, 2);
+        final range = JournalDateHelper.getCurrentWeekRange(newYear);
+
+        expect(range.start, DateTime(2025, 12, 29)); // Monday
+        expect(range.end, DateTime(2026, 1, 4)); // Sunday
+        expect(range.dates.length, 7);
+        expect(range.dates[0], DateTime(2025, 12, 29));
+        expect(range.dates[1], DateTime(2025, 12, 30));
+        expect(range.dates[2], DateTime(2025, 12, 31));
+        expect(range.dates[3], DateTime(2026, 1, 1));
+        expect(range.dates[4], DateTime(2026, 1, 2));
+        expect(range.dates[5], DateTime(2026, 1, 3));
+        expect(range.dates[6], DateTime(2026, 1, 4));
+      });
+
+      test('getHistoricalWeekPeriod projects standard week to previous year', () {
+        final currentWeek = JournalDateHelper.getCurrentWeekRange(DateTime(2025, 9, 3));
+        final period = JournalDateHelper.getHistoricalWeekPeriod(
+          currentWeekRange: currentWeek,
+          targetYear: 2024,
+          referenceYear: 2025,
+        );
+
+        expect(period.year, 2024);
+        expect(period.startDate, DateTime(2024, 9, 1));
+        expect(period.endDate, DateTime(2024, 9, 7));
+        expect(period.validDateStrings, [
+          '2024-09-01',
+          '2024-09-02',
+          '2024-09-03',
+          '2024-09-04',
+          '2024-09-05',
+          '2024-09-06',
+          '2024-09-07',
+        ]);
+        expect(period.periodLabel, 'September 1–7, 2024');
+      });
+
+      test('getHistoricalWeekPeriod safely skips Feb 29 in non-leap historical year', () {
+        // 2028 is a leap year; week covering Feb 26 - Mar 3 contains Feb 29
+        final leapDate = DateTime(2028, 2, 29);
+        final leapWeek = JournalDateHelper.getCurrentWeekRange(leapDate);
+        expect(leapWeek.dates.any((d) => d.month == 2 && d.day == 29), isTrue);
+
+        // Project into 2027 (not a leap year)
+        final period = JournalDateHelper.getHistoricalWeekPeriod(
+          currentWeekRange: leapWeek,
+          targetYear: 2027,
+          referenceYear: 2028,
+        );
+
+        // Feb 29 must be skipped, leaving 6 valid dates
+        expect(period.validDates.any((d) => d.month == 2 && d.day == 29), isFalse);
+        expect(period.validDateStrings.contains('2027-02-29'), isFalse);
+        expect(period.startDate, DateTime(2027, 2, 28));
+        expect(period.endDate, DateTime(2027, 3, 5));
+        expect(period.periodLabel, 'February 28 – March 5, 2027');
+      });
+
+      test('getHistoricalWeekPeriod includes Feb 29 when projecting into leap year', () {
+        // 2025 is non-leap; week covering Feb 26 - Mar 2
+        final nonLeapDate = DateTime(2025, 2, 27);
+        final week = JournalDateHelper.getCurrentWeekRange(nonLeapDate);
+
+        // Project into 2024 (a leap year)
+        final period = JournalDateHelper.getHistoricalWeekPeriod(
+          currentWeekRange: week,
+          targetYear: 2024,
+          referenceYear: 2025,
+        );
+
+        expect(period.validDates.any((d) => d.month == 2 && d.day == 29), isTrue);
+        expect(period.validDateStrings.contains('2024-02-29'), isTrue);
+      });
+
+      test('getHistoricalWeekPeriod projects cross-year week correctly', () {
+        // Jan 2, 2026 week: Dec 29, 2025 - Jan 4, 2026
+        final week = JournalDateHelper.getCurrentWeekRange(DateTime(2026, 1, 2));
+
+        // Project to 2025
+        final period = JournalDateHelper.getHistoricalWeekPeriod(
+          currentWeekRange: week,
+          targetYear: 2025,
+          referenceYear: 2026,
+        );
+
+        expect(period.year, 2025);
+        expect(period.startDate, DateTime(2024, 12, 29));
+        expect(period.endDate, DateTime(2025, 1, 4));
+        expect(period.validDateStrings, [
+          '2024-12-29',
+          '2024-12-30',
+          '2024-12-31',
+          '2025-01-01',
+          '2025-01-02',
+          '2025-01-03',
+          '2025-01-04',
+        ]);
+        expect(period.periodLabel, 'December 29, 2024 – January 4, 2025');
+      });
+
+      test('formatPeriodRange formats same-month, cross-month, and cross-year properly', () {
+        // Same month
+        expect(
+          JournalDateHelper.formatPeriodRange(
+            DateTime(2025, 9, 1),
+            DateTime(2025, 9, 7),
+          ),
+          'September 1–7, 2025',
+        );
+
+        // Cross month
+        expect(
+          JournalDateHelper.formatPeriodRange(
+            DateTime(2025, 8, 31),
+            DateTime(2025, 9, 6),
+          ),
+          'August 31 – September 6, 2025',
+        );
+
+        // Cross year
+        expect(
+          JournalDateHelper.formatPeriodRange(
+            DateTime(2024, 12, 29),
+            DateTime(2025, 1, 4),
+          ),
+          'December 29, 2024 – January 4, 2025',
+        );
+      });
+
+      test('formatDayHeader formats day header cleanly', () {
+        expect(JournalDateHelper.formatDayHeader(DateTime(2025, 9, 2)), 'September 2');
+        expect(JournalDateHelper.formatDayHeader('2025-09-02'), 'September 2');
+      });
+    });
   });
 }
+
