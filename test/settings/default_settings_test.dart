@@ -13,10 +13,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('DefaultSettings Domain Model', () {
-    test('default constructor initializes both toggles to true', () {
+    test('default constructor initializes all toggles to true', () {
       const settings = DefaultSettings();
       expect(settings.swipeToSearchEditor, isTrue);
       expect(settings.swipeDownToSearchNotes, isTrue);
+      expect(settings.interactiveChecklistsInPreview, isTrue);
     });
 
     test('copyWith updates specified properties correctly', () {
@@ -24,29 +25,45 @@ void main() {
       final updated = settings.copyWith(swipeToSearchEditor: false);
       expect(updated.swipeToSearchEditor, isFalse);
       expect(updated.swipeDownToSearchNotes, isTrue);
+      expect(updated.interactiveChecklistsInPreview, isTrue);
 
       final updated2 = updated.copyWith(swipeDownToSearchNotes: false);
       expect(updated2.swipeToSearchEditor, isFalse);
       expect(updated2.swipeDownToSearchNotes, isFalse);
+      expect(updated2.interactiveChecklistsInPreview, isTrue);
+
+      final updated3 = updated2.copyWith(interactiveChecklistsInPreview: false);
+      expect(updated3.swipeToSearchEditor, isFalse);
+      expect(updated3.swipeDownToSearchNotes, isFalse);
+      expect(updated3.interactiveChecklistsInPreview, isFalse);
     });
 
     test('equality and hashCode work as expected', () {
       const s1 = DefaultSettings(
         swipeToSearchEditor: true,
         swipeDownToSearchNotes: false,
+        interactiveChecklistsInPreview: true,
       );
       const s2 = DefaultSettings(
         swipeToSearchEditor: true,
         swipeDownToSearchNotes: false,
+        interactiveChecklistsInPreview: true,
       );
       const s3 = DefaultSettings(
         swipeToSearchEditor: false,
         swipeDownToSearchNotes: false,
+        interactiveChecklistsInPreview: true,
+      );
+      const s4 = DefaultSettings(
+        swipeToSearchEditor: true,
+        swipeDownToSearchNotes: false,
+        interactiveChecklistsInPreview: false,
       );
 
       expect(s1, equals(s2));
       expect(s1.hashCode, equals(s2.hashCode));
       expect(s1, isNot(equals(s3)));
+      expect(s1, isNot(equals(s4)));
     });
   });
 
@@ -56,18 +73,21 @@ void main() {
       final notifier = DefaultSettingsNotifier(null);
       expect(notifier.state.swipeToSearchEditor, isTrue);
       expect(notifier.state.swipeDownToSearchNotes, isTrue);
+      expect(notifier.state.interactiveChecklistsInPreview, isTrue);
     });
 
     test('loads saved false values from SharedPreferences', () async {
       SharedPreferences.setMockInitialValues({
         DefaultSettingsNotifier.swipeToSearchEditorKey: false,
         DefaultSettingsNotifier.swipeDownToSearchNotesKey: false,
+        DefaultSettingsNotifier.interactiveChecklistsInPreviewKey: false,
       });
       final prefs = await SharedPreferences.getInstance();
       final notifier = DefaultSettingsNotifier(prefs);
 
       expect(notifier.state.swipeToSearchEditor, isFalse);
       expect(notifier.state.swipeDownToSearchNotes, isFalse);
+      expect(notifier.state.interactiveChecklistsInPreview, isFalse);
     });
 
     test('setSwipeToSearchEditor updates state and persists to SharedPreferences',
@@ -112,6 +132,28 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+        'setInteractiveChecklistsInPreview updates state and persists to SharedPreferences',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = DefaultSettingsNotifier(prefs);
+
+      await notifier.setInteractiveChecklistsInPreview(false);
+      expect(notifier.state.interactiveChecklistsInPreview, isFalse);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.interactiveChecklistsInPreviewKey),
+        isFalse,
+      );
+
+      await notifier.setInteractiveChecklistsInPreview(true);
+      expect(notifier.state.interactiveChecklistsInPreview, isTrue);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.interactiveChecklistsInPreviewKey),
+        isTrue,
+      );
+    });
   });
 
   group('DefaultSettingsScreen Widget Tests', () {
@@ -138,6 +180,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Default Settings'), findsOneWidget);
+      expect(find.text('EDITOR & PREVIEW'), findsOneWidget);
+      expect(find.text('Interactive Checklists in Preview'), findsOneWidget);
+      expect(
+        find.text(
+            'Allow checking and unchecking to-do items while in preview mode'),
+        findsOneWidget,
+      );
       expect(find.text('GESTURES & SEARCH'), findsOneWidget);
       expect(find.text('Swipe to Search in Editor'), findsOneWidget);
       expect(
@@ -150,11 +199,12 @@ void main() {
         findsOneWidget,
       );
 
-      // Both switches should be present and ON
+      // All 3 switches should be present and ON
       final switches = find.byType(CupertinoSwitch);
-      expect(switches, findsNWidgets(2));
+      expect(switches, findsNWidgets(3));
       expect(tester.widget<CupertinoSwitch>(switches.at(0)).value, isTrue);
       expect(tester.widget<CupertinoSwitch>(switches.at(1)).value, isTrue);
+      expect(tester.widget<CupertinoSwitch>(switches.at(2)).value, isTrue);
     });
 
     testWidgets('toggling switches updates values in provider and SharedPreferences',
@@ -167,21 +217,31 @@ void main() {
 
       final switches = find.byType(CupertinoSwitch);
 
-      // Toggle first switch (Editor)
+      // Toggle first switch (Interactive Checklists)
       await tester.tap(switches.at(0));
       await tester.pumpAndSettle();
 
       expect(tester.widget<CupertinoSwitch>(switches.at(0)).value, isFalse);
       expect(
-        prefs.getBool(DefaultSettingsNotifier.swipeToSearchEditorKey),
+        prefs.getBool(DefaultSettingsNotifier.interactiveChecklistsInPreviewKey),
         isFalse,
       );
 
-      // Toggle second switch (Notes)
+      // Toggle second switch (Editor Swipe)
       await tester.tap(switches.at(1));
       await tester.pumpAndSettle();
 
       expect(tester.widget<CupertinoSwitch>(switches.at(1)).value, isFalse);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.swipeToSearchEditorKey),
+        isFalse,
+      );
+
+      // Toggle third switch (Notes Swipe)
+      await tester.tap(switches.at(2));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<CupertinoSwitch>(switches.at(2)).value, isFalse);
       expect(
         prefs.getBool(DefaultSettingsNotifier.swipeDownToSearchNotesKey),
         isFalse,

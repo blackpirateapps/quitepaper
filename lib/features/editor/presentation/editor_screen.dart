@@ -1123,6 +1123,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onAttachmentDeleted: _removeAttachmentMarkdownRef,
                                     onInsertText: _insertExtractedOcrText,
                                     onOpenLinkedNote: widget.onOpenLinkedNote,
+                                    onMarkdownChanged: editorState.isReadOnly
+                                        ? null
+                                        : _onPreviewMarkdownChanged,
                                     showScrollbar: false,
                                   )
                                 : SingleChildScrollView(
@@ -1324,6 +1327,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ),
   );
 }
+
+  void _onPreviewMarkdownChanged(String newMarkdown) {
+    if (_contentController.text != newMarkdown) {
+      _contentController.text = newMarkdown;
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    }
+  }
 
   void _updateDocumentMarkdownTitle(String documentId, String newTitle) {
     final text = _contentController.text;

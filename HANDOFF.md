@@ -5535,6 +5535,50 @@ When typography settings configure paragraph width to **Medium** (720dp) or **Na
    - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
    - Full test suite: `flutter test` (**1,304 / 1,304 tests passing, 100% pass rate**).
 
+---
+
+## 97. Interactive Markdown Preview To-Do Lists with Phosphor Icons & Default Settings
+
+### Problem & Motivation
+In Quiet Paper's dual-mode editor, Markdown Preview mode was previously strictly read-only. Furthermore, in non-shrinkWrap `ListView.builder` mode, the `checkboxBuilder` parameter was omitted, falling back to stock Material checkbox icons (`Icons.check_box` and `Icons.check_box_outline_blank`). Users reading or reviewing notes in Preview mode could not check off to-do list items (`- [ ]` / `- [x]`) without switching back to Edit mode.
+
+### Architectural Solution
+1. **Core Markdown Checklist Engine (`lib/core/markdown/markdown_checklist_helper.dart`)**:
+   - Developed `MarkdownChecklistHelper` to parse, count, and surgically toggle checklist items across CommonMark/GFM formats:
+     - Unordered (`- [ ]`, `* [ ]`, `+ [ ]`), ordered (`1. [ ]`), indented sublists, and blockquote task items (`> - [ ]`).
+     - Fenced code blocks (` ``` ` and `~~~`) are strictly tracked and excluded so checklist-like syntax in code snippets is never miscounted or mutated.
+     - Frontmatter preservation: `toggleChecklistItem` uses regex-based boundary splitting to isolate frontmatter, mutates only the targeted checklist item character in the body (`' '` <-> `'x'`), and reassembles the note, leaving YAML frontmatter 100% byte-for-byte identical.
+     - Preview strikethrough transformation: `preparePreviewMarkdown` wraps completed task labels in `~~...~~` for preview rendering, enabling `flutter_markdown` to render completed tasks with strikethrough and muted tertiary text styling while preserving clean canonical markdown in note storage.
+
+2. **Phosphor Icons & Interactive Checkbox UI in Preview (`lib/core/markdown/markdown_preview.dart`)**:
+   - Replaced checkbox rendering across all modes (`shrinkWrap: true` and `shrinkWrap: false`) with custom `_QuietMarkdownChunkWidget` and interactive Phosphor icons:
+     - Unchecked: `PhosphorIconsRegular.square` with `colors.textTertiary`.
+     - Checked: `PhosphorIconsFill.checkSquare` with `colors.accent`.
+     - Touch targets: generous 28x28px hit test region with `HitTestBehavior.opaque` and `MouseRegion(cursor: SystemMouseCursors.click)`.
+   - Enhanced `MarkdownStyleSheet` with explicit `del` styling matching the body font family, line height, strikethrough decoration, and `colors.textTertiary`.
+   - Deterministic index tracking: each chunk precalculates its base checklist index, allowing synchronous, idempotent AST walks in `MarkdownBody` without index drifting during rebuilds or virtualization.
+
+3. **Editor Screen Synchronization & Undo/Redo (`lib/features/editor/presentation/editor_screen.dart`)**:
+   - `QuietMarkdownPreview` accepts `onMarkdownChanged: editorState.isReadOnly ? null : _onPreviewMarkdownChanged`.
+   - `_onPreviewMarkdownChanged` updates `_contentController.text`, pushes an atomic edit step to `_undoRedoManager`, and fires `_onContentChanged()`.
+   - Toggling checkboxes in preview mode is completely undoable via Undo/Redo shortcuts (Ctrl+Z / ⌘Z) and top-bar buttons, and automatically triggers note autosave.
+
+4. **User Preference Toggle in Default Settings (`lib/features/settings/`)**:
+   - Added `interactiveChecklistsInPreview` (default: `true`) to `DefaultSettings` domain model and persisted in `SharedPreferences` via `DefaultSettingsNotifier`.
+   - Added a dedicated **EDITOR & PREVIEW** section in `DefaultSettingsScreen` with a switch toggle:
+     - Title: `Interactive Checklists in Preview`
+     - Subtitle: `Allow checking and unchecking to-do items while in preview mode`
+     - Icon: `PhosphorIconsRegular.checkSquare`
+   - When toggled OFF, preview checkboxes remain styled with Phosphor icons but behave as pure read-only controls with non-clickable basic mouse cursors.
+
+5. **Verification & Quality**:
+   - `test/core/markdown_checklist_helper_test.dart`: 15 unit tests verifying counting, toggling, code block isolation, frontmatter preservation, and strikethrough preparation.
+   - `test/core/markdown_preview_interactive_checklist_test.dart`: 8 widget tests verifying Phosphor icons, tap callbacks, strikethrough rendering, settings disabling, read-only guards, and multi-item ordering.
+   - `test/settings/default_settings_test.dart`: 10 tests covering domain equality, copyWith, persistence, and UI switch toggling.
+   - `test/editor/editor_preview_checklist_integration_test.dart`: 3 end-to-end integration tests verifying toggle in `EditorScreen`, controller state sync, undo revert, and settings override.
+   - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+
+
 
 
 

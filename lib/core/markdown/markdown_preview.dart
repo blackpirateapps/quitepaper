@@ -29,7 +29,9 @@ import '../../features/editor/presentation/editor_screen.dart';
 import '../../features/editor/presentation/widgets/backlinks_section.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../../features/notes/domain/note_model.dart';
+import '../../features/settings/application/default_settings_provider.dart';
 import '../../features/tags/domain/phosphor_icons.dart';
+import 'markdown_checklist_helper.dart';
 
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
@@ -56,6 +58,8 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.onOpenLinkedNote,
     this.softLineBreak = true,
     this.showScrollbar = true,
+    this.onMarkdownChanged,
+    this.interactiveChecklists,
   });
 
   final String markdownData;
@@ -80,6 +84,8 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final void Function(Note note, {bool initialPreviewMode})? onOpenLinkedNote;
   final bool softLineBreak;
   final bool showScrollbar;
+  final ValueChanged<String>? onMarkdownChanged;
+  final bool? interactiveChecklists;
 
 
   @override
@@ -96,6 +102,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
 
   late ParsedMarkdown _parsedMarkdown;
   late List<String> _chunks;
+  List<int> _chunkChecklistBaseIndices = const [];
   List<ViewerImageItem> _documentImages = [];
 
   @override
@@ -116,6 +123,14 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     _parsedMarkdown = MarkdownFrontmatterParser.parse(widget.markdownData);
     _chunks = MarkdownChunker.split(_parsedMarkdown.contentBody);
     _documentImages = _extractDocumentImages(_parsedMarkdown.contentBody);
+
+    final baseIndices = <int>[];
+    int currentBase = 0;
+    for (final chunk in _chunks) {
+      baseIndices.add(currentBase);
+      currentBase += MarkdownChecklistHelper.countChecklistItems(chunk);
+    }
+    _chunkChecklistBaseIndices = baseIndices;
   }
 
   List<ViewerImageItem> _extractDocumentImages(String content) {
@@ -347,6 +362,18 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       tableBorder: TableBorder.all(color: colors.divider, width: 1),
       tableHeadAlign: TextAlign.left,
       tablePadding: const EdgeInsets.all(AppSpacing.sm),
+      del: FontFamilyHelper.getTextStyle(
+        fontFamily: bodyFont,
+        baseStyle: TextStyle(
+          fontSize: baseFontSize,
+          fontWeight: FontWeight.w400,
+          height: baseHeight,
+          letterSpacing: baseLetterSpacing,
+          color: colors.textTertiary,
+          decoration: TextDecoration.lineThrough,
+          decorationColor: colors.textTertiary,
+        ),
+      ),
     );
 
     final effectiveTitle = (widget.title != null && widget.title!.trim().isNotEmpty)
@@ -594,6 +621,77 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       );
     }
 
+    final defaultSettings = ref.watch(defaultSettingsProvider);
+    final isChecklistInteractive =
+        (widget.interactiveChecklists ?? defaultSettings.interactiveChecklistsInPreview) &&
+            widget.onMarkdownChanged != null;
+
+    void handleToggleCheckbox(int globalIndex) {
+      final updatedMarkdown = MarkdownChecklistHelper.toggleChecklistItem(
+        widget.markdownData,
+        globalIndex,
+      );
+      if (updatedMarkdown != widget.markdownData) {
+        widget.onMarkdownChanged?.call(updatedMarkdown);
+      }
+    }
+
+    Widget buildCheckboxWidget({
+      required bool checked,
+      required int itemIndex,
+    }) {
+      final icon = Icon(
+        checked ? PhosphorIconsFill.checkSquare : PhosphorIconsRegular.square,
+        size: 19.0,
+        color: checked ? colors.accent : colors.textTertiary,
+      );
+
+      final box = Container(
+        width: 28.0,
+        height: 28.0,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(right: 4.0),
+        child: icon,
+      );
+
+      if (!isChecklistInteractive) {
+        return box;
+      }
+
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => handleToggleCheckbox(itemIndex),
+          child: box,
+        ),
+      );
+    }
+
+    Widget buildChunkMarkdownBody({
+      required String chunk,
+      required int chunkIndex,
+      required Key key,
+    }) {
+      final baseIndex = _chunkChecklistBaseIndices.length > chunkIndex
+          ? _chunkChecklistBaseIndices[chunkIndex]
+          : 0;
+      final previewData = MarkdownChecklistHelper.preparePreviewMarkdown(chunk);
+
+      return _QuietMarkdownChunkWidget(
+        key: key,
+        data: previewData,
+        baseIndex: baseIndex,
+        customStyleSheet: customStyleSheet,
+        inlineSyntaxes: inlineSyntaxes,
+        builders: builders,
+        customImageBuilder: customImageBuilder,
+        effectiveOnTapLink: effectiveOnTapLink,
+        softLineBreak: widget.softLineBreak,
+        buildCheckbox: buildCheckboxWidget,
+      );
+    }
+
     Widget content;
     if (widget.shrinkWrap) {
       if (_chunks.isEmpty) {
@@ -609,16 +707,10 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               styleSheet: customStyleSheet,
               inlineSyntaxes: inlineSyntaxes,
               builders: builders,
-              checkboxBuilder: (bool checked) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4.0),
-                  child: Icon(
-                    checked ? PhosphorIconsFill.checkSquare : PhosphorIconsRegular.square,
-                    size: 18,
-                    color: checked ? colors.accent : colors.textTertiary,
-                  ),
-                );
-              },
+              checkboxBuilder: (bool checked) => buildCheckboxWidget(
+                checked: checked,
+                itemIndex: 0,
+              ),
               // ignore: deprecated_member_use
               imageBuilder: customImageBuilder,
               extensionSet: md.ExtensionSet.gitHubFlavored,
@@ -633,29 +725,11 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasHeader) buildHeader(),
-            ..._chunks.map(
-              (chunk) => MarkdownBody(
-                key: ValueKey('preview_chunk_${chunk.hashCode}_${widget.searchQuery ?? ''}'),
-                data: chunk,
-                selectable: false,
-                styleSheet: customStyleSheet,
-                inlineSyntaxes: inlineSyntaxes,
-                builders: builders,
-                checkboxBuilder: (bool checked) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 4.0),
-                    child: Icon(
-                      checked ? PhosphorIconsFill.checkSquare : PhosphorIconsRegular.square,
-                      size: 18,
-                      color: checked ? colors.accent : colors.textTertiary,
-                    ),
-                  );
-                },
-                // ignore: deprecated_member_use
-                imageBuilder: customImageBuilder,
-                extensionSet: md.ExtensionSet.gitHubFlavored,
-                onTapLink: effectiveOnTapLink,
-                softLineBreak: widget.softLineBreak,
+            ..._chunks.asMap().entries.map(
+              (entry) => buildChunkMarkdownBody(
+                chunk: entry.value,
+                chunkIndex: entry.key,
+                key: ValueKey('preview_chunk_${entry.value.hashCode}_${entry.key}_${widget.searchQuery ?? ''}'),
               ),
             ),
             if (widget.noteId != null)
@@ -707,6 +781,10 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 styleSheet: customStyleSheet,
                 inlineSyntaxes: inlineSyntaxes,
                 builders: builders,
+                checkboxBuilder: (bool checked) => buildCheckboxWidget(
+                  checked: checked,
+                  itemIndex: 0,
+                ),
                 // ignore: deprecated_member_use
                 imageBuilder: customImageBuilder,
                 extensionSet: md.ExtensionSet.gitHubFlavored,
@@ -714,18 +792,10 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 softLineBreak: widget.softLineBreak,
               );
             }
-            return MarkdownBody(
+            return buildChunkMarkdownBody(
+              chunk: _chunks[bodyIndex],
+              chunkIndex: bodyIndex,
               key: ValueKey('preview_body_${bodyIndex}_${widget.searchQuery ?? ''}'),
-              data: _chunks[bodyIndex],
-              selectable: false,
-              styleSheet: customStyleSheet,
-              inlineSyntaxes: inlineSyntaxes,
-              builders: builders,
-              // ignore: deprecated_member_use
-              imageBuilder: customImageBuilder,
-              extensionSet: md.ExtensionSet.gitHubFlavored,
-              onTapLink: effectiveOnTapLink,
-              softLineBreak: widget.softLineBreak,
             );
           }
 
@@ -993,4 +1063,54 @@ class _PropertyRow extends StatelessWidget {
     );
   }
 }
+
+class _QuietMarkdownChunkWidget extends StatelessWidget {
+  const _QuietMarkdownChunkWidget({
+    super.key,
+    required this.data,
+    required this.baseIndex,
+    required this.customStyleSheet,
+    required this.inlineSyntaxes,
+    required this.builders,
+    required this.customImageBuilder,
+    required this.effectiveOnTapLink,
+    required this.softLineBreak,
+    required this.buildCheckbox,
+  });
+
+  final String data;
+  final int baseIndex;
+  final MarkdownStyleSheet customStyleSheet;
+  final List<md.InlineSyntax> inlineSyntaxes;
+  final Map<String, MarkdownElementBuilder> builders;
+  final Widget Function(Uri uri, String? title, String? alt) customImageBuilder;
+  final MarkdownTapLinkCallback? effectiveOnTapLink;
+  final bool softLineBreak;
+  final Widget Function({required bool checked, required int itemIndex})
+      buildCheckbox;
+
+  @override
+  Widget build(BuildContext context) {
+    int localIndex = 0;
+
+    return MarkdownBody(
+      data: data,
+      selectable: false,
+      styleSheet: customStyleSheet,
+      inlineSyntaxes: inlineSyntaxes,
+      builders: builders,
+      checkboxBuilder: (bool checked) {
+        final itemIndex = baseIndex + localIndex;
+        localIndex++;
+        return buildCheckbox(checked: checked, itemIndex: itemIndex);
+      },
+      // ignore: deprecated_member_use
+      imageBuilder: customImageBuilder,
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      onTapLink: effectiveOnTapLink,
+      softLineBreak: softLineBreak,
+    );
+  }
+}
+
 

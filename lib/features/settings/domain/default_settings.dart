@@ -6,6 +6,7 @@ class DefaultSettings {
   const DefaultSettings({
     this.swipeToSearchEditor = true,
     this.swipeDownToSearchNotes = true,
+    this.interactiveChecklistsInPreview = true,
   });
 
   /// Whether pulling/swiping down at the top of an open note reveals the in-note search bar.
@@ -14,14 +15,20 @@ class DefaultSettings {
   /// Whether pulling down past threshold at the top of the notes list opens global search.
   final bool swipeDownToSearchNotes;
 
+  /// Whether checklist items in markdown preview mode can be clicked to toggle done/undone.
+  final bool interactiveChecklistsInPreview;
+
   DefaultSettings copyWith({
     bool? swipeToSearchEditor,
     bool? swipeDownToSearchNotes,
+    bool? interactiveChecklistsInPreview,
   }) {
     return DefaultSettings(
       swipeToSearchEditor: swipeToSearchEditor ?? this.swipeToSearchEditor,
       swipeDownToSearchNotes:
           swipeDownToSearchNotes ?? this.swipeDownToSearchNotes,
+      interactiveChecklistsInPreview:
+          interactiveChecklistsInPreview ?? this.interactiveChecklistsInPreview,
     );
   }
 
@@ -31,8 +38,13 @@ class DefaultSettings {
       other is DefaultSettings &&
           runtimeType == other.runtimeType &&
           swipeToSearchEditor == other.swipeToSearchEditor &&
-          swipeDownToSearchNotes == other.swipeDownToSearchNotes;
+          swipeDownToSearchNotes == other.swipeDownToSearchNotes &&
+          interactiveChecklistsInPreview == other.interactiveChecklistsInPreview;
 
   @override
-  int get hashCode => Object.hash(swipeToSearchEditor, swipeDownToSearchNotes);
+  int get hashCode => Object.hash(
+        swipeToSearchEditor,
+        swipeDownToSearchNotes,
+        interactiveChecklistsInPreview,
+      );
 }

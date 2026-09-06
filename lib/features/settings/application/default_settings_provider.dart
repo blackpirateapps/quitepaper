@@ -11,6 +11,8 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   static const String swipeToSearchEditorKey = 'setting_swipe_to_search_editor';
   static const String swipeDownToSearchNotesKey =
       'setting_swipe_down_to_search_notes';
+  static const String interactiveChecklistsInPreviewKey =
+      'setting_interactive_checklists_in_preview';
 
   static DefaultSettings _loadSettings(SharedPreferences? prefs) {
     if (prefs == null) {
@@ -18,10 +20,13 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
     }
     final swipeEditor = prefs.getBool(swipeToSearchEditorKey) ?? true;
     final swipeNotes = prefs.getBool(swipeDownToSearchNotesKey) ?? true;
+    final interactiveChecklists =
+        prefs.getBool(interactiveChecklistsInPreviewKey) ?? true;
 
     return DefaultSettings(
       swipeToSearchEditor: swipeEditor,
       swipeDownToSearchNotes: swipeNotes,
+      interactiveChecklistsInPreview: interactiveChecklists,
     );
   }
 
@@ -33,6 +38,11 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   Future<void> setSwipeDownToSearchNotes(bool value) async {
     state = state.copyWith(swipeDownToSearchNotes: value);
     await _prefs?.setBool(swipeDownToSearchNotesKey, value);
+  }
+
+  Future<void> setInteractiveChecklistsInPreview(bool value) async {
+    state = state.copyWith(interactiveChecklistsInPreview: value);
+    await _prefs?.setBool(interactiveChecklistsInPreviewKey, value);
   }
 }
 

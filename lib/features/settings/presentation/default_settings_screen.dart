@@ -5,6 +5,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../tags/domain/phosphor_icons.dart';
 import '../application/default_settings_provider.dart';
 
 /// Screen allowing the user to configure default behaviors and gestures.
@@ -49,6 +50,24 @@ class DefaultSettingsScreen extends ConsumerWidget {
                 bottom: AppSpacing.xxl,
               ),
               children: [
+                _buildSectionHeader('EDITOR & PREVIEW', colors),
+                _buildGroupCard(
+                  colors: colors,
+                  children: [
+                    _buildSwitchRow(
+                      context: context,
+                      colors: colors,
+                      icon: PhosphorIconsRegular.checkSquare,
+                      title: 'Interactive Checklists in Preview',
+                      subtitle:
+                          'Allow checking and unchecking to-do items while in preview mode',
+                      value: settings.interactiveChecklistsInPreview,
+                      onChanged: (val) =>
+                          notifier.setInteractiveChecklistsInPreview(val),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 _buildSectionHeader('GESTURES & SEARCH', colors),
                 _buildGroupCard(
                   colors: colors,
