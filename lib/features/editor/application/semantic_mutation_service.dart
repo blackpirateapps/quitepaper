@@ -64,14 +64,27 @@ class SemanticMutationService {
     String markdown,
     DocumentSelection selection, {
     bool isBackspace = true,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
+
+    final minOffset = stripFrontmatter && doc.frontmatterRange != null ? doc.frontmatterRange!.end : 0;
 
     if (!selection.isCollapsed) {
       final range = doc.sourceRangeAtSelection(selection);
-      final newMarkdown = markdown.replaceRange(range.start, range.end, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
-      final newPos = newDoc.findPositionAtSourceOffset(range.start) ??
+      final safeStart = max(range.start, minOffset);
+      final safeEnd = max(range.end, minOffset);
+      if (safeStart == safeEnd) {
+        return MutationResult(
+          markdown: markdown,
+          document: doc,
+          position: selection.start,
+          selection: DocumentSelection.collapsed(selection.start),
+        );
+      }
+      final newMarkdown = markdown.replaceRange(safeStart, safeEnd, '');
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+      final newPos = newDoc.findPositionAtSourceOffset(safeStart) ??
           DocumentPosition(blockId: selection.start.blockId, offset: selection.start.offset);
 
       return MutationResult(
@@ -86,16 +99,16 @@ class SemanticMutationService {
     final pos = selection.base;
     if (isBackspace && pos.offset == 0) {
       // Merge with previous block or clear block prefix
-      return mergeWithPreviousBlock(markdown, pos);
+      return mergeWithPreviousBlock(markdown, pos, stripFrontmatter: stripFrontmatter);
     }
 
     final sourceOffset = doc.sourceOffsetAtPosition(pos);
     if (isBackspace) {
-      if (sourceOffset <= 0) {
+      if (sourceOffset <= minOffset) {
         return MutationResult(markdown: markdown, document: doc, position: pos);
       }
       final newMarkdown = markdown.replaceRange(sourceOffset - 1, sourceOffset, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset - 1) ??
           DocumentPosition(blockId: pos.blockId, offset: max(0, pos.offset - 1));
 
@@ -110,7 +123,7 @@ class SemanticMutationService {
         return MutationResult(markdown: markdown, document: doc, position: pos);
       }
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset + 1, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset) ?? pos;
 
       return MutationResult(
@@ -336,7 +349,8 @@ class SemanticMutationService {
         if (block.plainText.isEmpty) {
           // Current line is also empty: remove the divider and this empty line
           var deleteStart = hrStart;
-          if (deleteStart > 0 && markdown[deleteStart - 1] == '\n') {
+          final minOffset = stripFrontmatter && doc.frontmatterRange != null ? doc.frontmatterRange!.end : 0;
+          if (deleteStart > minOffset && markdown[deleteStart - 1] == '\n') {
             deleteStart--;
           }
           final deleteEnd = block.sourceRange.end;
@@ -674,8 +688,9 @@ class SemanticMutationService {
     bool toggleItalic = false,
     bool toggleStrike = false,
     bool toggleHighlight = false,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(selection.base.blockId);
 
     if (block == null) {
@@ -763,7 +778,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$blockMarkdown\n' : blockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newBase = DocumentPosition(blockId: block.id, offset: start);
     final newExtent = DocumentPosition(blockId: block.id, offset: end);
     final newSelection = DocumentSelection(base: newBase, extent: newExtent);
@@ -777,49 +792,50 @@ class SemanticMutationService {
   }
 
   /// Toggles bold (**text**) formatting on [selection].
-  static MutationResult toggleBold(String markdown, DocumentSelection selection) {
+  static MutationResult toggleBold(String markdown, DocumentSelection selection, {bool stripFrontmatter = false}) {
     if (!selection.isCollapsed) {
-      return toggleInlineFormat(markdown, selection, toggleBold: true);
+      return toggleInlineFormat(markdown, selection, toggleBold: true, stripFrontmatter: stripFrontmatter);
     }
-    return _toggleInlineDelimiter(markdown, selection, '**');
+    return _toggleInlineDelimiter(markdown, selection, '**', stripFrontmatter: stripFrontmatter);
   }
 
   /// Toggles italic (*text*) formatting on [selection].
-  static MutationResult toggleItalic(String markdown, DocumentSelection selection) {
+  static MutationResult toggleItalic(String markdown, DocumentSelection selection, {bool stripFrontmatter = false}) {
     if (!selection.isCollapsed) {
-      return toggleInlineFormat(markdown, selection, toggleItalic: true);
+      return toggleInlineFormat(markdown, selection, toggleItalic: true, stripFrontmatter: stripFrontmatter);
     }
-    return _toggleInlineDelimiter(markdown, selection, '*');
+    return _toggleInlineDelimiter(markdown, selection, '*', stripFrontmatter: stripFrontmatter);
   }
 
   /// Toggles strikethrough (~~text~~) formatting on [selection].
-  static MutationResult toggleStrike(String markdown, DocumentSelection selection) {
+  static MutationResult toggleStrike(String markdown, DocumentSelection selection, {bool stripFrontmatter = false}) {
     if (!selection.isCollapsed) {
-      return toggleInlineFormat(markdown, selection, toggleStrike: true);
+      return toggleInlineFormat(markdown, selection, toggleStrike: true, stripFrontmatter: stripFrontmatter);
     }
-    return _toggleInlineDelimiter(markdown, selection, '~~');
+    return _toggleInlineDelimiter(markdown, selection, '~~', stripFrontmatter: stripFrontmatter);
   }
 
   /// Toggles highlight (==text==) formatting on [selection].
-  static MutationResult toggleHighlight(String markdown, DocumentSelection selection) {
+  static MutationResult toggleHighlight(String markdown, DocumentSelection selection, {bool stripFrontmatter = false}) {
     if (!selection.isCollapsed) {
-      return toggleInlineFormat(markdown, selection, toggleHighlight: true);
+      return toggleInlineFormat(markdown, selection, toggleHighlight: true, stripFrontmatter: stripFrontmatter);
     }
-    return _toggleInlineDelimiter(markdown, selection, '==');
+    return _toggleInlineDelimiter(markdown, selection, '==', stripFrontmatter: stripFrontmatter);
   }
 
   /// Toggles inline code (`code`) formatting on [selection].
-  static MutationResult toggleInlineCode(String markdown, DocumentSelection selection) {
-    return _toggleInlineDelimiter(markdown, selection, '`');
+  static MutationResult toggleInlineCode(String markdown, DocumentSelection selection, {bool stripFrontmatter = false}) {
+    return _toggleInlineDelimiter(markdown, selection, '`', stripFrontmatter: stripFrontmatter);
   }
 
   /// Internal helper to toggle an inline formatting delimiter around [selection].
   static MutationResult _toggleInlineDelimiter(
     String markdown,
     DocumentSelection selection,
-    String delimiter,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    String delimiter, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final range = doc.sourceRangeAtSelection(selection);
 
     if (selection.isCollapsed) {
@@ -827,7 +843,7 @@ class SemanticMutationService {
       final offset = range.start;
       final insertion = '$delimiter$delimiter';
       final newMarkdown = markdown.replaceRange(offset, offset, insertion);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final targetOffset = offset + delimiter.length;
       final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ??
           DocumentPosition(blockId: selection.base.blockId, offset: selection.base.offset);
@@ -850,7 +866,7 @@ class SemanticMutationService {
       // Unwrap
       final unwrapped = selectedText.substring(dLen, selectedText.length - dLen);
       final newMarkdown = markdown.replaceRange(range.start, range.end, unwrapped);
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newStartPos = newDoc.findPositionAtSourceOffset(range.start) ?? selection.start;
       final newEndPos = newDoc.findPositionAtSourceOffset(range.start + unwrapped.length) ?? selection.end;
 
@@ -869,7 +885,7 @@ class SemanticMutationService {
         markdown.substring(range.end, range.end + dLen) == delimiter) {
       // Unwrap outer delimiters
       final newMarkdown = markdown.replaceRange(range.end, range.end + dLen, '').replaceRange(range.start - dLen, range.start, '');
-      final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+      final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newStartPos = newDoc.findPositionAtSourceOffset(range.start - dLen) ?? selection.start;
       final newEndPos = newDoc.findPositionAtSourceOffset(range.end - dLen) ?? selection.end;
 
@@ -884,7 +900,7 @@ class SemanticMutationService {
     // Wrap with delimiter
     final wrapped = '$delimiter$selectedText$delimiter';
     final newMarkdown = markdown.replaceRange(range.start, range.end, wrapped);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newStartPos = newDoc.findPositionAtSourceOffset(range.start + dLen) ?? selection.start;
     final newEndPos = newDoc.findPositionAtSourceOffset(range.start + dLen + selectedText.length) ?? selection.end;
 
@@ -900,9 +916,10 @@ class SemanticMutationService {
   static MutationResult setHeadingLevel(
     String markdown,
     DocumentPosition position,
-    int targetLevel,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    int targetLevel, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(position.blockId);
     if (block == null) {
       return MutationResult(markdown: markdown, document: doc, position: position);
@@ -917,7 +934,7 @@ class SemanticMutationService {
     final replacement = hasTrailingNewline ? '$newBlockMarkdown\n' : newBlockMarkdown;
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ??
         DocumentPosition(blockId: position.blockId, offset: position.offset);
 
@@ -933,9 +950,10 @@ class SemanticMutationService {
   static MutationResult setHeadingLevelByBlockId(
     String markdown,
     String blockId,
-    int targetLevel,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    int targetLevel, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(blockId);
     if (block == null) {
       final pos = doc.blocks.isNotEmpty
@@ -943,7 +961,7 @@ class SemanticMutationService {
           : const DocumentPosition(blockId: 'block_0_p', offset: 0);
       return MutationResult(markdown: markdown, document: doc, position: pos);
     }
-    return setHeadingLevel(markdown, DocumentPosition(blockId: blockId, offset: 0), targetLevel);
+    return setHeadingLevel(markdown, DocumentPosition(blockId: blockId, offset: 0), targetLevel, stripFrontmatter: stripFrontmatter);
   }
 
   /// Toggles checklist item formatting for the block at [position].
@@ -1124,8 +1142,9 @@ class SemanticMutationService {
     DocumentSelection selection, {
     required String url,
     String? title,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final range = doc.sourceRangeAtSelection(selection);
     final selectedText = range.slice(markdown);
     final effectiveTitle = (title != null && title.isNotEmpty)
@@ -1134,7 +1153,7 @@ class SemanticMutationService {
 
     final linkMarkdown = '[$effectiveTitle]($url)';
     final newMarkdown = markdown.replaceRange(range.start, range.end, linkMarkdown);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final targetOffset = range.start + linkMarkdown.length;
     final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ?? selection.start;
 
@@ -1151,13 +1170,14 @@ class SemanticMutationService {
     String markdown,
     DocumentSelection selection, {
     required String noteTitle,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final range = doc.sourceRangeAtSelection(selection);
     final linkMarkdown = '[[$noteTitle]]';
 
     final newMarkdown = markdown.replaceRange(range.start, range.end, linkMarkdown);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final targetOffset = range.start + linkMarkdown.length;
     final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ?? selection.start;
 
@@ -1174,14 +1194,15 @@ class SemanticMutationService {
     String markdown,
     DocumentPosition position, {
     String? language,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final offset = doc.sourceOffsetAtPosition(position);
 
     final langStr = language ?? '';
     final codeBlockMarkdown = '\n```$langStr\n\n```\n';
     final newMarkdown = markdown.replaceRange(offset, offset, codeBlockMarkdown);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final cursorOffset = offset + 4 + langStr.length + 1; // after ```lang\n
     final newPos = newDoc.findPositionAtSourceOffset(cursorOffset) ?? position;
 
@@ -1197,9 +1218,10 @@ class SemanticMutationService {
   static MutationResult changeCodeBlockLanguage(
     String markdown,
     String blockId,
-    String? language,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    String? language, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(blockId);
     if (block == null || block is! CodeBlock) {
       return MutationResult(markdown: markdown, document: doc, position: const DocumentPosition(blockId: '', offset: 0));
@@ -1211,7 +1233,7 @@ class SemanticMutationService {
       block.openingFenceRange.end,
       newFence,
     );
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(block.openingFenceRange.start + newFence.length) ??
         DocumentPosition(blockId: blockId, offset: 0);
 
@@ -1224,13 +1246,14 @@ class SemanticMutationService {
     DocumentPosition position, {
     required String alt,
     required String url,
+    bool stripFrontmatter = false,
   }) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final offset = doc.sourceOffsetAtPosition(position);
     final imgMarkdown = '\n![$alt]($url)\n';
 
     final newMarkdown = markdown.replaceRange(offset, offset, imgMarkdown);
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(offset + imgMarkdown.length) ?? position;
 
     return MutationResult(
@@ -1340,16 +1363,17 @@ class SemanticMutationService {
   /// Deletes a block by its identifier.
   static MutationResult deleteBlock(
     String markdown,
-    String blockId,
-  ) {
-    final doc = SemanticMarkdownParser.parse(markdown);
+    String blockId, {
+    bool stripFrontmatter = false,
+  }) {
+    final doc = SemanticMarkdownParser.parse(markdown, stripFrontmatter: stripFrontmatter);
     final block = doc.findBlockById(blockId);
     if (block == null) {
       return MutationResult(markdown: markdown, document: doc, position: const DocumentPosition(blockId: '', offset: 0));
     }
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
-    final newDoc = SemanticMarkdownParser.parse(newMarkdown);
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = newDoc.findPositionAtSourceOffset(max(0, block.sourceRange.start - 1)) ??
         const DocumentPosition(blockId: 'block_0_p', offset: 0);
 

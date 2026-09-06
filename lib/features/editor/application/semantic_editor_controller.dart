@@ -142,6 +142,8 @@ class SemanticEditorController extends ChangeNotifier {
     final newPos = _document.findPositionAtSourceOffset(sourceOffset);
     if (newPos != null) {
       _selection = DocumentSelection.collapsed(newPos);
+    } else if (_document.blocks.isNotEmpty) {
+      _selection = DocumentSelection.collapsed(DocumentPosition(blockId: _document.blocks.first.id, offset: 0));
     }
     notifyListeners();
     onMarkdownChanged?.call(_markdown);
@@ -174,7 +176,7 @@ class SemanticEditorController extends ChangeNotifier {
       return;
     }
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleBold(_markdown, _selection));
+    applyMutation(SemanticMutationService.toggleBold(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleItalic() {
@@ -185,7 +187,7 @@ class SemanticEditorController extends ChangeNotifier {
       return;
     }
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleItalic(_markdown, _selection));
+    applyMutation(SemanticMutationService.toggleItalic(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleStrike() {
@@ -196,7 +198,7 @@ class SemanticEditorController extends ChangeNotifier {
       return;
     }
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleStrike(_markdown, _selection));
+    applyMutation(SemanticMutationService.toggleStrike(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleHighlight() {
@@ -207,30 +209,30 @@ class SemanticEditorController extends ChangeNotifier {
       return;
     }
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleHighlight(_markdown, _selection));
+    applyMutation(SemanticMutationService.toggleHighlight(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleInlineCode() {
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleInlineCode(_markdown, _selection));
+    applyMutation(SemanticMutationService.toggleInlineCode(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleLink({required String url, String? title}) {
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleLink(_markdown, _selection, url: url, title: title));
+    applyMutation(SemanticMutationService.toggleLink(_markdown, _selection, url: url, title: title, stripFrontmatter: stripFrontmatter));
   }
 
   void toggleNoteLink({required String noteTitle}) {
     _activeTypingFormats = null;
-    applyMutation(SemanticMutationService.toggleNoteLink(_markdown, _selection, noteTitle: noteTitle));
+    applyMutation(SemanticMutationService.toggleNoteLink(_markdown, _selection, noteTitle: noteTitle, stripFrontmatter: stripFrontmatter));
   }
 
   void setHeadingLevel(int level) {
-    applyMutation(SemanticMutationService.setHeadingLevel(_markdown, _selection.base, level));
+    applyMutation(SemanticMutationService.setHeadingLevel(_markdown, _selection.base, level, stripFrontmatter: stripFrontmatter));
   }
 
   void setHeadingLevelForBlock(String blockId, int level) {
-    applyMutation(SemanticMutationService.setHeadingLevelByBlockId(_markdown, blockId, level));
+    applyMutation(SemanticMutationService.setHeadingLevelByBlockId(_markdown, blockId, level, stripFrontmatter: stripFrontmatter));
   }
 
   void cycleHeadingLevel({String? blockId}) {
@@ -270,15 +272,15 @@ class SemanticEditorController extends ChangeNotifier {
   }
 
   void insertCodeBlock({String? language}) {
-    applyMutation(SemanticMutationService.createCodeBlock(_markdown, _selection.base, language: language));
+    applyMutation(SemanticMutationService.createCodeBlock(_markdown, _selection.base, language: language, stripFrontmatter: stripFrontmatter));
   }
 
   void changeCodeBlockLanguage(String blockId, String? language) {
-    applyMutation(SemanticMutationService.changeCodeBlockLanguage(_markdown, blockId, language));
+    applyMutation(SemanticMutationService.changeCodeBlockLanguage(_markdown, blockId, language, stripFrontmatter: stripFrontmatter));
   }
 
   void insertImage({required String alt, required String url}) {
-    applyMutation(SemanticMutationService.insertImage(_markdown, _selection.base, alt: alt, url: url));
+    applyMutation(SemanticMutationService.insertImage(_markdown, _selection.base, alt: alt, url: url, stripFrontmatter: stripFrontmatter));
   }
 
   void insertHorizontalRule() {
@@ -311,7 +313,11 @@ class SemanticEditorController extends ChangeNotifier {
   }
 
   void deleteBlock(String blockId) {
-    applyMutation(SemanticMutationService.deleteBlock(_markdown, blockId));
+    applyMutation(SemanticMutationService.deleteBlock(_markdown, blockId, stripFrontmatter: stripFrontmatter));
+  }
+
+  void deleteSelection() {
+    applyMutation(SemanticMutationService.deleteSelection(_markdown, _selection, stripFrontmatter: stripFrontmatter));
   }
 
   // ---------------------------------------------------------------------------
@@ -359,7 +365,7 @@ class SemanticEditorController extends ChangeNotifier {
 
     if (newText.contains('\n') ||
         (block is ParagraphBlock && RegExp(r'^(#{1,6}\s|- \[[ x]\]\s|[-*+]\s|\d+\.\s|>\s)').hasMatch(newText))) {
-      final contentStart = (block is HeadingBlock)
+      var contentStart = (block is HeadingBlock)
           ? block.contentRange.start
           : (block is ListItemBlock)
               ? block.contentRange.start
@@ -373,7 +379,7 @@ class SemanticEditorController extends ChangeNotifier {
                               ? (block.contentRange?.start ?? block.sourceRange.start)
                               : block.sourceRange.start;
 
-      final contentEnd = (block is HeadingBlock)
+      var contentEnd = (block is HeadingBlock)
           ? block.contentRange.end
           : (block is ListItemBlock)
               ? block.contentRange.end
@@ -387,7 +393,20 @@ class SemanticEditorController extends ChangeNotifier {
                               ? (block.contentRange?.end ?? block.sourceRange.end)
                               : block.sourceRange.end;
 
-      final newMarkdown = _markdown.replaceRange(contentStart, contentEnd, newText);
+      var textToInsert = newText;
+      if (stripFrontmatter && _document.hasFrontmatter) {
+        final minOffset = _document.frontmatterRange?.end ?? 0;
+        if (contentStart < minOffset) contentStart = minOffset;
+        if (contentEnd < minOffset) contentEnd = minOffset;
+        if (contentStart == minOffset &&
+            minOffset > 0 &&
+            _markdown.length >= minOffset &&
+            _markdown[minOffset - 1] != '\n') {
+          textToInsert = '\n$textToInsert';
+        }
+      }
+
+      final newMarkdown = _markdown.replaceRange(contentStart, contentEnd, textToInsert);
       final newSourceOffset = contentStart + newSelection.baseOffset;
       updateMarkdownAndRetainSelection(newMarkdown, newSourceOffset);
       return;
@@ -454,11 +473,31 @@ class SemanticEditorController extends ChangeNotifier {
     final merged = SemanticMutationService.mergeAdjacentRuns(updatedRuns);
     final blockMarkdown = SemanticMutationService.serializeBlockMarkdown(block, merged);
 
-    final lineEnd = block.sourceRange.end;
-    final hasTrailingNewline = lineEnd <= _markdown.length && lineEnd > 0 && _markdown[lineEnd - 1] == '\n';
-    final replacement = hasTrailingNewline ? '$blockMarkdown\n' : blockMarkdown;
+    var blockStart = block.sourceRange.start;
+    var blockEnd = block.sourceRange.end;
 
-    final newMarkdown = _markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
+    if (stripFrontmatter && _document.hasFrontmatter) {
+      final minOffset = _document.frontmatterRange?.end ?? 0;
+      if (blockStart < minOffset) blockStart = minOffset;
+      if (blockEnd < minOffset) blockEnd = minOffset;
+    }
+
+    final hasTrailingNewline = block.sourceRange.isNotEmpty &&
+        blockEnd <= _markdown.length &&
+        blockEnd > 0 &&
+        _markdown[blockEnd - 1] == '\n';
+    var replacement = hasTrailingNewline ? '$blockMarkdown\n' : blockMarkdown;
+
+    if (stripFrontmatter &&
+        _document.hasFrontmatter &&
+        blockStart == (_document.frontmatterRange?.end ?? 0) &&
+        blockStart > 0 &&
+        _markdown.length >= blockStart &&
+        _markdown[blockStart - 1] != '\n') {
+      replacement = '\n$replacement';
+    }
+
+    final newMarkdown = _markdown.replaceRange(blockStart, blockEnd, replacement);
     _markdown = newMarkdown;
     _document = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
 

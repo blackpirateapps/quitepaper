@@ -83,6 +83,15 @@ class SemanticDocument {
 
   /// Finds the semantic block at a given [sourceOffset] in [canonicalMarkdown].
   SemanticBlock? findBlockAtSourceOffset(int sourceOffset) {
+    if (blocks.isEmpty) return null;
+    if (sourceOffset <= blocks.first.sourceRange.start) {
+      final first = blocks.first;
+      if (first is ListBlock && first.items.isNotEmpty) return first.items.first;
+      if (first is OrderedListBlock && first.items.isNotEmpty) return first.items.first;
+      if (first is ChecklistBlock && first.items.isNotEmpty) return first.items.first;
+      return first;
+    }
+
     for (var i = 0; i < blocks.length; i++) {
       final block = blocks[i];
       final isLast = i == blocks.length - 1;

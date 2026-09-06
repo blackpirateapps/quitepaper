@@ -330,11 +330,13 @@ class SemanticMarkdownParser {
     }
 
     if (blocks.isEmpty) {
+      final emptyRange = SourceRange(bodyStartIndex, markdown.length);
       blocks.add(
         ParagraphBlock(
           id: 'block_0',
-          runs: [PlainRun('', SourceRange(0, markdown.length))],
-          sourceRange: SourceRange(0, markdown.length),
+          runs: [PlainRun('', emptyRange)],
+          sourceRange: emptyRange,
+          contentRange: emptyRange,
         ),
       );
     }

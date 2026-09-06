@@ -5726,4 +5726,51 @@ To satisfy this requirement without compromising the existing user experience:
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Full test suite: `flutter test` (**1,360 / 1,360 tests passing, 100% pass rate**).
 
+---
+
+## 101. WYSIWYG YAML Frontmatter Preservation Fix
+
+### Problem Statement & Root Cause
+When opening a note with YAML frontmatter but an empty markdown body (such as tapping "Today" in the Journal section, which initializes the note with `---\njournal: true\ndate: YYYY-MM-DD\n---\n`), typing any character in the visual WYSIWYG editor immediately caused the YAML frontmatter to be permanently wiped out. Switching to Markdown mode confirmed that the frontmatter block had vanished.
+
+**Root Causes Identified**:
+1. **Fallback Block SourceRange Assignment (`lib/features/editor/application/semantic_markdown_parser.dart`)**:
+   When parsing with `stripFrontmatter: true` on a document with an empty body (`blocks.isEmpty`), the fallback `ParagraphBlock` was instantiated with `SourceRange(0, markdown.length)`. Because `markdown.length` spanned the entire YAML frontmatter header (e.g. 0..39), the empty visual block was mapped directly over the frontmatter characters instead of starting at `bodyStartIndex`.
+2. **Block Replacement in Visual Controller (`lib/features/editor/application/semantic_editor_controller.dart`)**:
+   When the user typed a keystroke into the empty visual block, `handleVisualBlockTextChange` called `_markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement)`. Because `block.sourceRange` was `0..39`, the mutation replaced the entire YAML frontmatter block with the typed character.
+3. **Trailing Newline Heuristic**:
+   `hasTrailingNewline` checked `_markdown[lineEnd - 1] == '\n'` without checking `block.sourceRange.isNotEmpty`. For an empty block following frontmatter, character `lineEnd - 1` was the closing newline of the frontmatter itself, falsely flagging the empty block as owning a trailing newline.
+4. **Missing `stripFrontmatter` Propagation**:
+   Several mutation and re-parse operations in `SemanticMutationService` (`toggleInlineFormat`, `deleteSelection`, `toggleList`, `createCodeBlock`, `setHeadingLevel`, etc.) did not accept or forward `stripFrontmatter`, causing inline operations or block alterations in WYSIWYG mode to re-parse with `stripFrontmatter: false`.
+5. **Frontmatter Boundary Violations on Deletion**:
+   In `SemanticMutationService.deleteSelection`, backspace and multi-character selection deletions did not enforce a lower bound at `doc.frontmatterRange.end`, allowing backspacing or select-all deletions to delete into the frontmatter.
+
+### Architectural Solution
+1. **Accurate Empty-Body Range Parsing (`SemanticMarkdownParser`)**:
+   - Updated `blocks.isEmpty` fallback logic to use `final emptyRange = SourceRange(bodyStartIndex, markdown.length)`.
+   - The empty `ParagraphBlock` now correctly has `sourceRange: emptyRange` and `contentRange: emptyRange`, anchored safely after the frontmatter closing delimiter.
+2. **Defensive Range Clamping & Delimiter Safety (`SemanticEditorController`)**:
+   - Added frontmatter floor bounds in `handleVisualBlockTextChange`: `contentStart`, `contentEnd`, `blockStart`, and `blockEnd` are clamped to `minOffset` (`_document.frontmatterRange?.end ?? 0`) when `stripFrontmatter && _document.hasFrontmatter`.
+   - Required `block.sourceRange.isNotEmpty` for trailing newline detection so empty blocks do not claim the frontmatter's trailing newline.
+   - Added frontmatter boundary newline preservation: if inserting directly at `minOffset` and `_markdown[minOffset - 1] != '\n'`, automatically prepends a newline separator to ensure YAML delimiters remain intact.
+   - Added `deleteSelection()` on `SemanticEditorController` forwarding `stripFrontmatter: stripFrontmatter`.
+3. **Frontmatter Floor in Mutation Service (`SemanticMutationService`)**:
+   - `deleteSelection`: Clamped non-collapsed selection ranges to `minOffset` and guarded collapsed backspace at `sourceOffset <= minOffset`.
+   - `mergeWithPreviousBlock`: Ensured horizontal rule deletion before an empty block does not decrement `deleteStart` below `minOffset`.
+   - Added `bool stripFrontmatter = false` across all mutation methods and forwarded it to all internal `SemanticMarkdownParser.parse` calls.
+4. **Pre-First-Block Offset Mapping (`SemanticDocument`)**:
+   - In `findBlockAtSourceOffset`, if `sourceOffset <= blocks.first.sourceRange.start`, securely returns `blocks.first` instead of falling through to `blocks.last`.
+
+### Automated Test Coverage & Quality Verification
+- `test/editor/frontmatter_wysiwyg_preservation_test.dart`: Comprehensive test suite containing:
+  - Empty body range verification in `SemanticMarkdownParser` (`sourceRange` starts at `journalFm.length`, NOT 0).
+  - Keystroke typing below frontmatter in `SemanticEditorController` keeping frontmatter 100% intact.
+  - Multi-character typing and backspacing down to empty text without frontmatter loss.
+  - Multiline edits and heading markdown prefixes preservation.
+  - Inline formatting actions (bold, italic) with frontmatter in WYSIWYG mode.
+  - Full widget test with `VisualDocumentEditor` verifying typing into empty body retains frontmatter in canonical markdown.
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full test suite: `flutter test` (**1,366 / 1,366 tests passing, 100% pass rate**).
+
+
 
