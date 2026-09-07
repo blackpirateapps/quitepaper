@@ -6,6 +6,7 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_table_controller.dart';
+import '../../application/markdown_table_parser.dart';
 import '../../application/semantic_editor_controller.dart';
 import '../../domain/document_position.dart';
 import '../../domain/markdown_styles.dart';
@@ -89,12 +90,16 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       fn.dispose();
     }
     _blockKeys.clear();
+    _activeTableController?.removeListener(_onActiveTableChanged);
     _activeTableController?.dispose();
+    _activeTableController = null;
+    _activeTable = null;
     super.dispose();
   }
 
   void _handleParentFocusChange() {
     if (!mounted) return;
+    if (_activeTable != null) return;
     if (widget.focusNode.hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
       final targetBlockId = widget.controller.selection.base.blockId;
       final targetFn = _blockFocusNodes[targetBlockId] ?? _blockFocusNodes.values.firstOrNull;
@@ -105,13 +110,50 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   }
 
   void _onControllerChanged() {
+    _syncActiveTableWithDocument();
     _syncBlockControllers();
     if (mounted) setState(() {});
+  }
+
+  void _syncActiveTableWithDocument() {
+    if (_activeTable != null) {
+      final doc = widget.controller.document;
+      TableBlock? matchingBlock;
+      for (final b in doc.blocks) {
+        if (b is TableBlock) {
+          if (b.table.sourceStart == _activeTable!.sourceStart ||
+              (b.table.sourceStart <= _activeTable!.sourceEnd &&
+                  b.table.sourceEnd >= _activeTable!.sourceStart)) {
+            matchingBlock = b;
+            break;
+          }
+        }
+      }
+
+      if (matchingBlock != null) {
+        _activeTable = matchingBlock.table;
+        _activeTableController?.updateTableProjection(matchingBlock.table);
+      } else {
+        final reloaded = const MarkdownTableParser().findTableAtOffset(
+          widget.controller.markdown,
+          _activeTable!.sourceStart,
+        );
+        if (reloaded != null) {
+          _activeTable = reloaded;
+          _activeTableController?.updateTableProjection(reloaded);
+        } else {
+          _deactivateTable();
+        }
+      }
+    }
   }
 
   void _syncBlockControllers() {
     final doc = widget.controller.document;
     final liveIds = <String>{};
+    final isTableFocused = _activeTable != null ||
+        (_activeTableController != null &&
+            _activeTableController!.cellFocusNode.hasFocus);
     final wasFocused = _blockFocusNodes.values.any((fn) => fn.hasFocus) ||
         widget.focusNode.hasFocus;
 
@@ -180,11 +222,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       }
     }
 
-    if (wasFocused) {
+    if (wasFocused && !isTableFocused) {
       final targetBlockId = widget.controller.selection.base.blockId;
       final targetOffset = widget.controller.selection.base.offset;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        if (_activeTable != null) return;
         final targetFn = _blockFocusNodes[targetBlockId];
         if (targetFn != null && !targetFn.hasFocus) {
           targetFn.requestFocus();
@@ -227,6 +270,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   void _handleBlockFocus(String blockId, FocusNode node) {
     if (!mounted) return;
     if (node.hasFocus) {
+      if (_activeTable != null) {
+        _deactivateTable();
+      }
       final ctrl = _blockControllers[blockId];
       if (ctrl != null) {
         widget.onActiveTargetChanged?.call(ctrl, node);
@@ -239,6 +285,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
   void _activateTable(MarkdownTable table, [TablePosition? position]) {
     if (widget.readOnly) return;
+    _activeTableController?.removeListener(_onActiveTableChanged);
     _activeTableController?.dispose();
     _activeTable = table;
 
@@ -256,14 +303,29 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       styles: widget.controller.styles,
     );
     _activeTableController = controller;
+    controller.addListener(_onActiveTableChanged);
     widget.onActiveTargetChanged?.call(controller.cellController, controller.cellFocusNode);
     setState(() {});
   }
 
+  void _onActiveTableChanged() {
+    if (!mounted || _activeTableController == null) return;
+    widget.onActiveTargetChanged?.call(
+      _activeTableController!.cellController,
+      _activeTableController!.cellFocusNode,
+    );
+  }
+
   void _deactivateTable() {
-    _activeTableController?.dispose();
+    final ctrlToDispose = _activeTableController;
+    ctrlToDispose?.removeListener(_onActiveTableChanged);
     _activeTableController = null;
     _activeTable = null;
+    if (ctrlToDispose != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ctrlToDispose.dispose();
+      });
+    }
     if (_blockControllers.isNotEmpty) {
       final firstKey = _blockControllers.keys.first;
       widget.onActiveTargetChanged?.call(_blockControllers[firstKey]!, _blockFocusNodes[firstKey]!);
@@ -304,6 +366,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       canRequestFocus: true,
       onFocusChange: (hasFocus) {
         if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
+          if (_activeTable != null) return;
           final targetBlockId = widget.controller.selection.base.blockId;
           final targetBlock = widget.controller.document.findBlockById(targetBlockId);
           if (targetBlock != null && targetBlock.isEditable) {
@@ -338,10 +401,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     int index,
   ) {
     if (block is TableBlock) {
-      final isActive = _activeTable != null && _activeTable!.sourceStart == block.table.sourceStart;
+      final isActive = _activeTable != null &&
+          (_activeTable!.sourceStart == block.table.sourceStart ||
+              _activeTableController?.table.sourceStart ==
+                  block.table.sourceStart);
       if (isActive && _activeTableController != null) {
         return MarkdownTableEditor(
-          key: ValueKey('table_editor_${block.id}'),
+          key: ValueKey('table_editor_${_activeTableController.hashCode}'),
           controller: _activeTableController!,
           styles: widget.controller.styles,
           searchQuery: widget.searchQuery,

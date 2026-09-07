@@ -323,8 +323,9 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
         ),
         alignment: alignment.alignment,
         child: TextField(
+          key: ValueKey('cell_${rowIndex}_$columnIndex'),
           controller: widget.controller.cellController,
-          focusNode: widget.controller.cellFocusNode,
+          focusNode: widget.controller.getFocusNodeFor(pos),
           autofocus: true,
           cursorColor: colors.accent,
           style: (styles.body).copyWith(
@@ -343,8 +344,9 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
               color: colors.textTertiary.withValues(alpha: 0.4),
             ),
           ),
-          inputFormatters: const [
-            MarkdownTextInputFormatter(),
+          inputFormatters: [
+            FilteringTextInputFormatter.deny(RegExp(r'[\r\n]')),
+            const MarkdownTextInputFormatter(),
           ],
           contextMenuBuilder: (context, editableTextState) {
             final buttonItems = editableTextState.contextMenuButtonItems;
@@ -404,7 +406,10 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
               buttonItems: buttonItems,
             );
           },
-          maxLines: null,
+          maxLines: 1,
+          textInputAction: TextInputAction.next,
+          onEditingComplete: () {},
+          onSubmitted: (_) => widget.controller.moveToNextCell(createRowIfLast: true),
           keyboardType: TextInputType.text,
           textCapitalization: TextCapitalization.sentences,
         ),
@@ -430,6 +435,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
           );
 
     return InkWell(
+      canRequestFocus: false,
       onTap: () => widget.controller.setActivePosition(pos),
       splashColor: colors.accent.withValues(alpha: 0.1),
       highlightColor: colors.accent.withValues(alpha: 0.05),

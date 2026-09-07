@@ -134,8 +134,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     widget.onSemanticControllerChanged?.call(null);
     _semanticController?.dispose();
     _semanticController = null;
+    _activeTableController?.removeListener(_onActiveTableChanged);
     _activeTableController?.dispose();
     _activeTableController = null;
+    _activeTable = null;
     super.dispose();
   }
 
@@ -185,6 +187,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _activateTable(MarkdownTable table, [TablePosition? position]) {
     if (widget.readOnly) return;
 
+    _activeTableController?.removeListener(_onActiveTableChanged);
     _activeTableController?.dispose();
 
     _activeTable = table;
@@ -202,6 +205,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       styles: widget.controller.styles,
     );
     _activeTableController = controller;
+    controller.addListener(_onActiveTableChanged);
 
     widget.onActiveTargetChanged?.call(
       controller.cellController,
@@ -211,10 +215,24 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     setState(() {});
   }
 
+  void _onActiveTableChanged() {
+    if (!mounted || _activeTableController == null) return;
+    widget.onActiveTargetChanged?.call(
+      _activeTableController!.cellController,
+      _activeTableController!.cellFocusNode,
+    );
+  }
+
   void _deactivateTable() {
-    _activeTableController?.dispose();
+    final ctrlToDispose = _activeTableController;
+    ctrlToDispose?.removeListener(_onActiveTableChanged);
     _activeTableController = null;
     _activeTable = null;
+    if (ctrlToDispose != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ctrlToDispose.dispose();
+      });
+    }
 
     widget.onActiveTargetChanged?.call(
       widget.controller,
@@ -409,6 +427,13 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     );
   }
 
+  void _handleSegmentActiveTarget(TextEditingController ctrl, FocusNode fn) {
+    if (_activeTable != null) {
+      _deactivateTable();
+    }
+    widget.onActiveTargetChanged?.call(ctrl, fn);
+  }
+
   Widget _buildSegmentedTableEditor(
     BuildContext context,
     AppColors colors,
@@ -437,7 +462,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             hintText: currentOffset == 0 ? widget.hintText : '',
             searchQuery: widget.searchQuery,
             editingStyle: widget.editingStyle,
-            onActiveTarget: widget.onActiveTargetChanged,
+            onActiveTarget: _handleSegmentActiveTarget,
             onTap: _handleTap,
             onChanged: (newSegText) {
               final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
@@ -458,7 +483,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       if (isActiveTable && _activeTableController != null) {
         children.add(
           MarkdownTableEditor(
-            key: ValueKey('table_editor_${table.sourceStart}'),
+            key: ValueKey('table_editor_${_activeTableController.hashCode}'),
             controller: _activeTableController!,
             styles: widget.controller.styles,
             searchQuery: widget.searchQuery,
@@ -496,7 +521,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           hintText: '',
           searchQuery: widget.searchQuery,
           editingStyle: widget.editingStyle,
-          onActiveTarget: widget.onActiveTargetChanged,
+          onActiveTarget: _handleSegmentActiveTarget,
           onTap: _handleTap,
           onChanged: (newSegText) {
             final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
@@ -518,7 +543,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           hintText: 'Continue writing...',
           searchQuery: widget.searchQuery,
           editingStyle: widget.editingStyle,
-          onActiveTarget: widget.onActiveTargetChanged,
+          onActiveTarget: _handleSegmentActiveTarget,
           onChanged: (newSegText) {
             final newFullText = '$text\n\n$newSegText';
             widget.controller.value = TextEditingValue(

@@ -6000,5 +6000,80 @@ In Quiet Paper's WYSIWYG editor (`VisualDocumentEditor` + `SemanticMutationServi
 - **Static Analysis**: `flutter analyze` clean (**0 issues found**).
 - **Full Test Suite**: `flutter test` (**1,377 / 1,377 tests passing, 100% pass rate**).
 
+---
+
+## 106. WYSIWYG & Markdown Table Editing: Cell Cursor Jumping & Soft Keyboard Retention Fixes
+
+### 1. Motivation & Problem Analysis
+In Quiet Paper's editor, editing Markdown tables suffered from critical focus and keyboard dismissal regressions:
+1. **Keystroke Cursor Jumping in WYSIWYG Mode**:
+   - When typing or pressing Backspace in any table cell, after entering or deleting a single character, the cursor jumped immediately outside the table into an adjacent paragraph or heading block. The user had to repeatedly tap the cell for every single keystroke.
+   - **Root Cause**: When a keystroke occurred in `MarkdownTableEditor`, `MarkdownTableController.onUpdateDocument` updated `controller.markdown`. In `VisualDocumentEditor`, the markdown update triggered `_onControllerChanged()`, which executed `_syncBlockControllers()`. Because `VisualDocumentEditor` wrapped the entire document in an outer `Focus(focusNode: widget.focusNode)`, `widget.focusNode.hasFocus` was true. `_syncBlockControllers()` saw that the root focus node had focus and scheduled a post-frame callback calling `targetFn.requestFocus()` on `widget.controller.selection.base.blockId` (which was still pointing to whatever block had focus prior to entering the table). This stole focus away from the active cell `TextField` on every single keystroke. Furthermore, `VisualDocumentEditor` rebuilt its widget hierarchy and recreated `MarkdownTableEditor` because its key changed or wasn't keyed stably to the controller instance.
+2. **Soft Keyboard Dismissal on Cell Navigation (WYSIWYG & Markdown Modes)**:
+   - When the user finished typing in one cell and tapped another cell (or pressed Next/Tab to advance to the next cell), the soft keyboard abruptly dismissed. The user was forced to tap the cell a second time to bring the soft keyboard back up.
+   - **Root Cause A (`InkWell` Focus Hijacking)**: In `MarkdownTableEditor`, non-active cells were wrapped in `InkWell`. By default in Flutter, `InkWell.canRequestFocus` is `true`. When the user tapped an inactive cell, the `InkWell` requested primary focus synchronously, unfocusing the previous `TextField` and causing Flutter's platform channel to send a keyboard dismissal signal before the new cell `TextField` could mount.
+   - **Root Cause B (Reused FocusNode & Input Connection Desynchronization)**: `MarkdownTableController` previously held a single `_cellFocusNode`. When switching active cells, the single `_cellFocusNode` remained `hasFocus == true`. Consequently, when the new cell's `TextField` mounted with this already-focused node, Flutter's `EditableTextState.didChangeDependencies()` / `requestKeyboard()` saw that `focusNode.hasFocus` was already true without undergoing an unfocused -> focused transition, failing to re-establish the platform input connection (`_openInputConnection()`) after the previous cell's `EditableTextState` unmounted and closed its connection.
+   - **Root Cause C (Input Action Traversal Stealing Focus)**: Flutter's default `EditableTextState.performAction(TextInputAction.next)` calls `widget.onEditingComplete` and then immediately calls `FocusScope.of(context).nextFocus()`. Without suppressing default scope traversal, the framework automatically forced focus out of the table into the surrounding document.
+
+### 2. Architecture & Implementation
+
+#### A. Position-Keyed Distinct Focus Nodes (`MarkdownTableController`)
+- Replaced the single `_cellFocusNode` with a position-keyed mapping: `Map<TablePosition, FocusNode> _cellFocusNodes = {}`.
+- Added `getFocusNodeFor(TablePosition pos)` which lazily instantiates a distinct `FocusNode` with `debugLabel: 'TableCell_${pos.row}_${pos.column}'` for each cell.
+- Getter `FocusNode get cellFocusNode => getFocusNodeFor(_activePosition)` maintains backwards compatibility while returning the specific node for the active cell.
+- Implemented `_pruneDeadFocusNodes()` during table mutations (deleting rows or columns) to dispose focus nodes that no longer correspond to valid table coordinates.
+- In `setActivePosition(TablePosition position)`:
+  - Updates `_activePosition`, cell controller text, and selection collapsed to the end of the text.
+  - Calls `notifyListeners()`.
+  - Schedules focus acquisition for the new cell's distinct `FocusNode` via `WidgetsBinding.instance.addPostFrameCallback`. Moving between distinct focus nodes forces Flutter's `EditableText` to execute a clean focus transition, ensuring `TextInput.attach()` and soft keyboard persistence across cell navigation.
+- Disposes all managed cell focus nodes cleanly in `dispose()`.
+
+#### B. Stable Table Editor Identity & Focus Protection (`VisualDocumentEditor`)
+- **Focus Shielding in `_syncBlockControllers()`**:
+  - Added an `isTableFocused` guard:
+    ```dart
+    final isTableFocused = _activeTableController != null &&
+        (_activeTableController!.isCellFocused || _activeTableController!.isTableFocused);
+    if (!isTableFocused && hasDocFocus && targetFn != null && !targetFn.hasFocus) { ... }
+    ```
+    This prevents document block re-syncs from scheduling focus restoration to surrounding blocks while the table editor is active.
+- **In-Place Table Synchronization (`_syncActiveTableWithDocument()`)**:
+  - In `_onControllerChanged()`, when `_activeTable != null`, locates the updated `TableBlock` in the new `SemanticDocument` and calls `_activeTableController!.updateTableProjection(tableBlock.table, tableBlock.sourceRange)`.
+  - Avoids tearing down or re-activating the table controller during keystrokes.
+- **Root Focus Event Isolation**:
+  - Added early returns in `_handleParentFocusChange()` and the outer `Focus(onFocusChange: ...)` when `_activeTable != null`, preventing root focus change events from overriding active table cell focus.
+- **Stable Widget Keying**:
+  - Keyed `MarkdownTableEditor` with `ValueKey('table_editor_${_activeTableController.hashCode}')` so Flutter does not recreate or unmount the table editor widget when keystrokes update the document.
+- **Clean Table Deactivation**:
+  - In `_deactivateTable()`, deferred disposing `_activeTableController` using `WidgetsBinding.instance.addPostFrameCallback` to avoid `ConcurrentModificationError` during active Flutter `FocusManager._dirtyNodes` iteration.
+  - Updated block focus handlers so tapping an explicit paragraph or heading block cleanly deactivates the table editor.
+
+#### C. Cell Tap Interaction & Keyboard Action Handling (`MarkdownTableEditor`)
+- **Inactive Cell `canRequestFocus: false`**:
+  - Set `canRequestFocus: false` on the inactive cell `InkWell` widget. Tapping an inactive cell directly triggers `onTap` and switches `activePosition` without the `InkWell` intercepting focus or dismissing the software keyboard.
+- **Active Cell `TextField`**:
+  - Bound to `key: ValueKey('cell_${rowIndex}_$columnIndex')` and `focusNode: widget.controller.getFocusNodeFor(pos)`.
+  - Configured `maxLines: 1`, `keyboardType: TextInputType.text`, `textInputAction: TextInputAction.next`.
+  - Configured `onEditingComplete: () {}` to prevent Flutter's default `FocusScope.of(context).nextFocus()` traversal from stealing focus out of the table.
+  - Configured `onSubmitted: (_) => widget.controller.moveToNextCell(createRowIfLast: true)` to seamlessly advance to the next cell (and create a new row if on the final cell) on soft keyboard Next action or desktop Enter.
+  - Added `FilteringTextInputFormatter.deny(RegExp(r'[\r\n]'))` to prevent newline insertion from breaking single-line table cell formatting.
+
+#### D. Markdown Mode Keyboard Continuity (`MarkdownEditor`)
+- Bound `_activeTableController.addListener` to notify `widget.onActiveTargetChanged` whenever active cell position or text changes.
+- Deferred controller disposal in `_deactivateTable()` via `addPostFrameCallback`.
+- Hooked surrounding text segment focus handlers to cleanly deactivate the table when tapping outside the table.
+
+### 3. Automated Verification & Quality Invariants
+- **`test/editor/wysiwyg_table_editing_test.dart`** (6 test suites, all passing):
+  - `typing inside a cell updates content and retains focus without jumping outside table`: Verified typing and backspacing multiple characters in a cell keeps focus inside the active cell TextField without jumping outside the table.
+  - `moving to the next cell retains focus and soft keyboard active target`: Verified tapping from one cell to another cell preserves active target and focus on the new cell's TextField without dismissing input connections.
+  - `submitting a cell advances to next cell and keeps focus`: Verified soft keyboard Next action advances to the next cell and keeps focus active.
+  - `tapping paragraph outside table deactivates table editor cleanly`: Verified tapping a surrounding paragraph cleanly deactivates the table editor and transfers focus to the paragraph.
+  - `moving to next cell in markdown mode preserves focus and target`: Verified markdown mode table navigation preserves focus and active target.
+  - `maintains distinct focus nodes per cell and prunes on resize`: Verified `MarkdownTableController` manages distinct focus nodes per cell and properly cleans up on row/column deletion.
+- **Static Analysis**: `flutter analyze` clean (**0 issues found**).
+- **Full Test Suite**: `flutter test` (**1,383 / 1,383 tests passing, 100% pass rate**).
+
+
 
 

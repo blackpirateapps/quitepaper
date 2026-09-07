@@ -35,8 +35,16 @@ class MarkdownTableController extends ChangeNotifier {
   late MarkdownEditingController _cellController;
   MarkdownEditingController get cellController => _cellController;
 
-  final FocusNode _cellFocusNode = FocusNode();
-  FocusNode get cellFocusNode => _cellFocusNode;
+  final Map<TablePosition, FocusNode> _cellFocusNodes = {};
+
+  FocusNode getFocusNodeFor(TablePosition pos) {
+    return _cellFocusNodes.putIfAbsent(
+      pos,
+      () => FocusNode(debugLabel: 'table_cell_${pos.row}_${pos.column}'),
+    );
+  }
+
+  FocusNode get cellFocusNode => getFocusNodeFor(_activePosition);
 
   bool _isDisposed = false;
   bool _isInternalSync = false;
@@ -58,7 +66,18 @@ class MarkdownTableController extends ChangeNotifier {
     final validRow = _activePosition.row.clamp(0, table.rowCount - 1);
     final validCol = _activePosition.column.clamp(0, table.columnCount - 1);
     _activePosition = TablePosition(row: validRow, column: validCol);
+    _pruneDeadFocusNodes();
     notifyListeners();
+  }
+
+  void _pruneDeadFocusNodes() {
+    _cellFocusNodes.removeWhere((pos, fn) {
+      if (pos.row >= table.rowCount || pos.column >= table.columnCount) {
+        fn.dispose();
+        return true;
+      }
+      return false;
+    });
   }
 
   void _onCellTextChanged() {
@@ -96,7 +115,13 @@ class MarkdownTableController extends ChangeNotifier {
 
   void setActivePosition(TablePosition position) {
     if (_isDisposed) return;
-    if (_activePosition == position) return;
+    if (_activePosition == position) {
+      final currentNode = getFocusNodeFor(position);
+      if (!currentNode.hasFocus) {
+        currentNode.requestFocus();
+      }
+      return;
+    }
 
     // Flush any changes before switching cell
     final targetRow = position.row.clamp(0, table.rowCount - 1);
@@ -118,9 +143,12 @@ class MarkdownTableController extends ChangeNotifier {
 
     notifyListeners();
 
-    if (!_cellFocusNode.hasFocus) {
-      _cellFocusNode.requestFocus();
-    }
+    final targetNode = getFocusNodeFor(newPos);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isDisposed && targetNode.canRequestFocus && !targetNode.hasFocus) {
+        targetNode.requestFocus();
+      }
+    });
   }
 
   /// Advances to the next cell (Tab). If at the final cell of the table, inserts a new row.
@@ -366,7 +394,10 @@ class MarkdownTableController extends ChangeNotifier {
     _isDisposed = true;
     _cellController.removeListener(_onCellTextChanged);
     _cellController.dispose();
-    _cellFocusNode.dispose();
+    for (final fn in _cellFocusNodes.values) {
+      fn.dispose();
+    }
+    _cellFocusNodes.clear();
     super.dispose();
   }
 }
