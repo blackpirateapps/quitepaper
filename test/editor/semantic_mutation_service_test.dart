@@ -266,11 +266,14 @@ void main() {
       final resEnter = SemanticMutationService.splitBlock(resUntoggled.markdown, posEnd);
       expect(resEnter.markdown, equals('- [ ] Buy milk\n- [ ] '));
 
-      // 5. Press Enter on empty checklist item -> exits checklist
+      // 5. Press Enter on empty checklist item -> exits checklist to new paragraph
       final emptyItem = resEnter.document.blocks.last as ChecklistItemBlock;
       final posEmpty = DocumentPosition(blockId: emptyItem.id, offset: 0);
       final resExit = SemanticMutationService.splitBlock(resEnter.markdown, posEmpty);
-      expect(resExit.markdown, equals('- [ ] Buy milk\n'));
+      expect(resExit.markdown, equals('- [ ] Buy milk\n\n'));
+      expect(resExit.document.blocks.last, isA<ParagraphBlock>());
+      expect(resExit.position.blockId, equals(resExit.document.blocks.last.id));
+      expect(resExit.position.offset, equals(0));
     });
 
     test('list item mutations (toggle bullet, Enter continuation, exit on empty)', () {
@@ -287,11 +290,14 @@ void main() {
       final resEnter = SemanticMutationService.splitBlock(resList.markdown, posListEnd);
       expect(resEnter.markdown, equals('- First item\n- '));
 
-      // Enter on empty bullet exits list
+      // Enter on empty bullet exits list and starts a new paragraph
       final emptyItem = resEnter.document.blocks.last as ListItemBlock;
       final posEmpty = DocumentPosition(blockId: emptyItem.id, offset: 0);
       final resExit = SemanticMutationService.splitBlock(resEnter.markdown, posEmpty);
-      expect(resExit.markdown, equals('- First item\n'));
+      expect(resExit.markdown, equals('- First item\n\n'));
+      expect(resExit.document.blocks.last, isA<ParagraphBlock>());
+      expect(resExit.position.blockId, equals(resExit.document.blocks.last.id));
+      expect(resExit.position.offset, equals(0));
     });
 
     test('ordered list item mutations (toggle ordered, Enter continuation with increment, exit on empty)', () {
@@ -308,11 +314,88 @@ void main() {
       final resEnter = SemanticMutationService.splitBlock(resOrd.markdown, posEnd);
       expect(resEnter.markdown, equals('1. First step\n2. '));
 
-      // Enter on empty ordered item exits list
+      // Enter on empty ordered item exits list and starts a new paragraph
       final emptyItem = resEnter.document.blocks.last as OrderedListItemBlock;
       final posEmpty = DocumentPosition(blockId: emptyItem.id, offset: 0);
       final resExit = SemanticMutationService.splitBlock(resEnter.markdown, posEmpty);
-      expect(resExit.markdown, equals('1. First step\n'));
+      expect(resExit.markdown, equals('1. First step\n\n'));
+      expect(resExit.document.blocks.last, isA<ParagraphBlock>());
+      expect(resExit.position.blockId, equals(resExit.document.blocks.last.id));
+      expect(resExit.position.offset, equals(0));
+    });
+
+    test('pressing enter on item 1 of a 5-item ordered list intelligently renumbers all subsequent items 1 to 6', () {
+      const initial = '1. Item 1\n2. Item 2\n3. Item 3\n4. Item 4\n5. Item 5';
+      final doc = SemanticMarkdownParser.parse(initial);
+
+      // Press Enter at end of Item 1
+      final item1 = doc.blocks[0] as OrderedListItemBlock;
+      final pos = DocumentPosition(blockId: item1.id, offset: item1.plainText.length);
+      final res = SemanticMutationService.splitBlock(initial, pos);
+
+      expect(res.markdown, equals('1. Item 1\n2. \n3. Item 2\n4. Item 3\n5. Item 4\n6. Item 5'));
+      expect(res.document.blocks.length, equals(6));
+
+      // Verify all numbers in sequence 1..6
+      for (var i = 0; i < 6; i++) {
+        expect(res.document.blocks[i], isA<OrderedListItemBlock>());
+        final b = res.document.blocks[i] as OrderedListItemBlock;
+        expect(b.number, equals(i + 1));
+      }
+
+      // Cursor position should be at new item 2 with offset 0
+      expect(res.position.blockId, equals(res.document.blocks[1].id));
+      expect(res.position.offset, equals(0));
+    });
+
+    test('pressing enter in the middle of an ordered list renumbers only following items', () {
+      const initial = '1. A\n2. B\n3. C\n4. D';
+      final doc = SemanticMarkdownParser.parse(initial);
+
+      // Press Enter at end of Item 2 ('B')
+      final item2 = doc.blocks[1] as OrderedListItemBlock;
+      final pos = DocumentPosition(blockId: item2.id, offset: item2.plainText.length);
+      final res = SemanticMutationService.splitBlock(initial, pos);
+
+      expect(res.markdown, equals('1. A\n2. B\n3. \n4. C\n5. D'));
+      expect(res.document.blocks.length, equals(5));
+
+      final numbers = res.document.blocks.map((b) => (b as OrderedListItemBlock).number).toList();
+      expect(numbers, equals([1, 2, 3, 4, 5]));
+    });
+
+    test('ordered list renumbering respects nested sublists and surrounding blocks', () {
+      const initial = '1. Parent 1\n   1. Child 1\n   2. Child 2\n2. Parent 2\n\nParagraph\n\n1. Other list 1\n2. Other list 2';
+      final doc = SemanticMarkdownParser.parse(initial);
+
+      // Press Enter on Parent 1 (indent 0)
+      final parent1 = doc.blocks[0] as OrderedListItemBlock;
+      final pos = DocumentPosition(blockId: parent1.id, offset: parent1.plainText.length);
+      final res = SemanticMutationService.splitBlock(initial, pos);
+
+      // Parent 2 should be renumbered to 3, but Child items and Other list items must remain untouched
+      final orderedBlocks = res.document.blocks.whereType<OrderedListItemBlock>().toList();
+      expect(orderedBlocks.length, equals(7));
+
+      // Parent 1 and newly inserted item 2
+      expect(orderedBlocks[0].number, equals(1));
+      expect(orderedBlocks[0].indent, equals(0));
+      expect(orderedBlocks[1].number, equals(2));
+      expect(orderedBlocks[1].indent, equals(0));
+
+      // Child items remain 1 and 2
+      expect(orderedBlocks[2].number, equals(1));
+      expect(orderedBlocks[2].indent, equals(3));
+      expect(orderedBlocks[3].number, equals(2));
+      expect(orderedBlocks[3].indent, equals(3));
+
+      // Parent 2 became 3
+      expect(orderedBlocks[4].number, equals(3));
+      expect(orderedBlocks[4].indent, equals(0));
+
+      // Other list after paragraph remains 1 and 2
+      expect(orderedBlocks[5].number, equals(1));
+      expect(orderedBlocks[6].number, equals(2));
     });
 
     test('quote block mutations (toggle quote, Enter continuation, exit on empty)', () {

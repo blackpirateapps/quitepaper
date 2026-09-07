@@ -5957,4 +5957,48 @@ The requirements implemented:
 - **Static Analysis**: `flutter analyze` clean (**0 issues found**).
 - **Full Test Suite**: `flutter test` (**1,372 / 1,372 tests passing, 100% pass rate**).
 
+---
+
+## 105. WYSIWYG Editor: Empty List Exit to Paragraph & Ordered List Smart Renumbering
+
+### 1. Motivation & Requirements
+In Quiet Paper's WYSIWYG editor (`VisualDocumentEditor` + `SemanticMutationService`), list editing workflows had two UX pain points:
+1. **Empty List Item Deletion**: When typing a list (ordered, unordered, or checklist), pressing Enter on a newly created empty list item previously deleted the list item line completely and moved the cursor back to the end of the previous item. The desired behavior is for an empty list item to exit the list and transition into a new empty paragraph on Enter, focusing the cursor on the new line so normal writing can continue seamlessly.
+2. **Ordered List Insertion & Renumbering**: In an ordered list (e.g. 5 items numbered 1 to 5), pressing Enter on an item (e.g. item 1) previously created a new item with number 2 while leaving existing item 2 and following items unchanged (resulting in duplicate numbering 1, 2, 2, 3, 4, 5). The desired behavior is to intelligently renumber all subsequent list items sequentially so the list becomes 1 to 6, with the new list item becoming 2 and the remaining items updating to 3, 4, 5, 6.
+
+### 2. Architecture & Implementation
+
+#### A. Empty List Exit to Paragraph (`SemanticMutationService.splitBlock`)
+- In `splitBlock()`, when an active `ListItemBlock`, `OrderedListItemBlock`, or `ChecklistItemBlock` has empty text (`block.plainText.trim().isEmpty`):
+  - Instead of replacing `block.sourceRange` with an empty string `''`, `block.sourceRange` is replaced with `'\n'` (or `''` if the block comprises the entire document).
+  - This converts the empty list line into a standard `ParagraphBlock` in the parsed `SemanticDocument`.
+  - The cursor and selection are placed at offset 0 of this new paragraph (`newDoc.findPositionAtSourceOffset(block.sourceRange.start)`).
+  - In `VisualDocumentEditor`, `_syncBlockControllers` detects the new paragraph block, requests focus on its `FocusNode`, and synchronizes the active target controller.
+
+#### B. Intelligently Renumbering Ordered List Items (`SemanticMutationService.splitBlock`)
+- When splitting an `OrderedListItemBlock` (pressing Enter at the start, middle, or end of an item):
+  - The newly created item receives number `nextNumber = block.number + 1`.
+  - The document is scanned forward from `blockIndex + 1` to identify subsequent contiguous items belonging to the same ordered list at the identical indentation level (`b.indent == block.indent`). Indented child items (`bIndent > block.indent`) are safely traversed without terminating the scan, and un-indented or non-ordered blocks cleanly bound the list.
+  - Subsequent items are renumbered sequentially in reverse order (from bottom to top / highest source offset down to lowest):
+    - Target number: `nextNumber + 1 + idx`.
+    - Digits from `item.sourceRange.start + item.indent` to `numStart + '${item.number}'.length` are replaced with the target number.
+    - Reverse order ensures string replacement offsets remain strictly valid without shifting preceding offsets.
+  - The newly incremented item marker (`\n$indent$nextNumber${block.delimiter} `) is inserted at `sourceOffset`.
+  - The resulting document is parsed, with focus and cursor placed in the newly inserted item.
+
+### 3. Automated Verification & Quality Invariants
+- **`test/editor/semantic_mutation_service_test.dart`**:
+  - Verified pressing Enter on an empty checklist, unordered list, or ordered list exits to a new `ParagraphBlock` with cursor at offset 0.
+  - Verified pressing Enter on item 1 of a 5-item ordered list updates the list to 6 items numbered sequentially 1 to 6.
+  - Verified pressing Enter in the middle of an ordered list renumbers following items cleanly.
+  - Verified nested sublists and adjacent independent lists preserve their respective numbers.
+  - All 20 tests in suite passing.
+- **`test/editor/wysiwyg_heading_and_enter_key_test.dart`**:
+  - Verified widget integration for pressing Enter on an empty list item in `VisualDocumentEditor` transferring focus to the new paragraph `TextField`.
+  - Verified widget integration for pressing Enter on item 1 of an ordered list in `VisualDocumentEditor` updating the UI text representations to 1..6.
+  - All 11 tests in suite passing.
+- **Static Analysis**: `flutter analyze` clean (**0 issues found**).
+- **Full Test Suite**: `flutter test` (**1,377 / 1,377 tests passing, 100% pass rate**).
+
+
 

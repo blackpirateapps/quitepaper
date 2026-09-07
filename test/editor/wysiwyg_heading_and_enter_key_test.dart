@@ -391,5 +391,92 @@ void main() {
       focusNode.dispose();
       controller.dispose();
     });
+
+    testWidgets('Enter key on empty list item exits list to new paragraph and focuses it', (tester) async {
+      const md = '- Item 1\n- ';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: VisualDocumentEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final textFields = find.byType(TextField);
+      expect(textFields, findsNWidgets(2));
+
+      // Focus the second (empty) list item
+      await tester.tap(textFields.at(1));
+      await tester.pumpAndSettle();
+
+      // Simulate pressing Enter on the empty list item
+      await tester.enterText(textFields.at(1), '\n');
+      await tester.pumpAndSettle();
+
+      // Second block is now a ParagraphBlock, not a ListItemBlock
+      expect(controller.document.blocks.length, equals(2));
+      expect(controller.document.blocks[0], isA<ListItemBlock>());
+      expect(controller.document.blocks[1], isA<ParagraphBlock>());
+      expect(controller.selection.base.blockId, equals(controller.document.blocks[1].id));
+      expect(controller.selection.base.offset, equals(0));
+
+      final updatedFields = find.byType(TextField);
+      expect(updatedFields, findsNWidgets(2));
+      final paragraphWidget = tester.widget<TextField>(updatedFields.at(1));
+      expect(paragraphWidget.focusNode?.hasFocus, isTrue);
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Enter key on item 1 of ordered list renumbers subsequent items 1 to 6', (tester) async {
+      const md = '1. One\n2. Two\n3. Three\n4. Four\n5. Five';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: VisualDocumentEditor(
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final textFields = find.byType(TextField);
+      expect(textFields, findsNWidgets(5));
+
+      // Focus item 1
+      await tester.tap(textFields.first);
+      await tester.pumpAndSettle();
+
+      // Press Enter after 'One'
+      await tester.enterText(textFields.first, 'One\n');
+      await tester.pumpAndSettle();
+
+      expect(controller.document.blocks.length, equals(6));
+      expect(controller.markdown, equals('1. One\n2. \n3. Two\n4. Three\n5. Four\n6. Five'));
+
+      for (var i = 0; i < 6; i++) {
+        expect(controller.document.blocks[i], isA<OrderedListItemBlock>());
+        final b = controller.document.blocks[i] as OrderedListItemBlock;
+        expect(b.number, equals(i + 1));
+      }
+
+      // New item 2 is focused
+      expect(controller.selection.base.blockId, equals(controller.document.blocks[1].id));
+      expect(controller.selection.base.offset, equals(0));
+
+      focusNode.dispose();
+      controller.dispose();
+    });
   });
 }

@@ -150,12 +150,23 @@ class SemanticMutationService {
 
     if (block is ChecklistItemBlock) {
       if (block.plainText.trim().isEmpty) {
-        // Empty checklist item -> exit checklist by clearing marker to normal paragraph
-        final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
+        // Empty checklist item -> exit checklist to normal paragraph
+        final isFullDoc = block.sourceRange.start == 0 && block.sourceRange.end == markdown.length;
+        final newMarkdown = isFullDoc
+            ? ''
+            : markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '\n');
         final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-        final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
-            DocumentPosition(blockId: position.blockId, offset: 0);
-        return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
+        final targetOffset = block.sourceRange.start;
+        final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ??
+            (newDoc.blocks.isNotEmpty
+                ? DocumentPosition(blockId: newDoc.blocks.last.id, offset: 0)
+                : DocumentPosition(blockId: position.blockId, offset: 0));
+        return MutationResult(
+          markdown: newMarkdown,
+          document: newDoc,
+          position: newPos,
+          selection: DocumentSelection.collapsed(newPos),
+        );
       }
 
       // Non-empty checklist item -> insert new uncompleted checklist item on new line
@@ -177,12 +188,23 @@ class SemanticMutationService {
 
     if (block is ListItemBlock) {
       if (block.plainText.trim().isEmpty) {
-        // Empty list item -> exit list
-        final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
+        // Empty list item -> exit list and start a new paragraph
+        final isFullDoc = block.sourceRange.start == 0 && block.sourceRange.end == markdown.length;
+        final newMarkdown = isFullDoc
+            ? ''
+            : markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '\n');
         final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-        final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
-            DocumentPosition(blockId: position.blockId, offset: 0);
-        return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
+        final targetOffset = block.sourceRange.start;
+        final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ??
+            (newDoc.blocks.isNotEmpty
+                ? DocumentPosition(blockId: newDoc.blocks.last.id, offset: 0)
+                : DocumentPosition(blockId: position.blockId, offset: 0));
+        return MutationResult(
+          markdown: newMarkdown,
+          document: newDoc,
+          position: newPos,
+          selection: DocumentSelection.collapsed(newPos),
+        );
       }
 
       final sourceOffset = doc.sourceOffsetAtPosition(position);
@@ -203,19 +225,75 @@ class SemanticMutationService {
 
     if (block is OrderedListItemBlock) {
       if (block.plainText.trim().isEmpty) {
-        // Empty ordered list item -> exit list
-        final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '');
+        // Empty ordered list item -> exit list and start a new paragraph
+        final isFullDoc = block.sourceRange.start == 0 && block.sourceRange.end == markdown.length;
+        final newMarkdown = isFullDoc
+            ? ''
+            : markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, '\n');
         final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-        final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start) ??
-            DocumentPosition(blockId: position.blockId, offset: 0);
-        return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
+        final targetOffset = block.sourceRange.start;
+        final newPos = newDoc.findPositionAtSourceOffset(targetOffset) ??
+            (newDoc.blocks.isNotEmpty
+                ? DocumentPosition(blockId: newDoc.blocks.last.id, offset: 0)
+                : DocumentPosition(blockId: position.blockId, offset: 0));
+        return MutationResult(
+          markdown: newMarkdown,
+          document: newDoc,
+          position: newPos,
+          selection: DocumentSelection.collapsed(newPos),
+        );
       }
 
       final sourceOffset = doc.sourceOffsetAtPosition(position);
       final indent = ' ' * block.indent;
       final nextNumber = block.number + 1;
       final insertion = '\n$indent$nextNumber${block.delimiter} ';
-      final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
+
+      // Find subsequent items of the same ordered list at the same indent level
+      final blockIndex = doc.findBlockIndexById(block.id);
+      final subsequentItems = <OrderedListItemBlock>[];
+      if (blockIndex != -1) {
+        for (var i = blockIndex + 1; i < doc.blocks.length; i++) {
+          final b = doc.blocks[i];
+          final bIndent = (b is OrderedListItemBlock)
+              ? b.indent
+              : (b is ListItemBlock)
+                  ? b.indent
+                  : (b is ChecklistItemBlock)
+                      ? b.indent
+                      : 0;
+
+          if (b is OrderedListItemBlock) {
+            if (b.indent == block.indent) {
+              subsequentItems.add(b);
+            } else if (b.indent > block.indent) {
+              // Indented nested item: continue scanning parent list
+              continue;
+            } else {
+              // Less indent: list has ended
+              break;
+            }
+          } else if (bIndent > block.indent) {
+            // Indented block in item: continue scanning
+            continue;
+          } else {
+            // Un-indented non-ordered block: list has ended
+            break;
+          }
+        }
+      }
+
+      // Renumber subsequent items in reverse order so offsets remain strictly valid
+      var updatedMarkdown = markdown;
+      for (var idx = subsequentItems.length - 1; idx >= 0; idx--) {
+        final item = subsequentItems[idx];
+        final newNum = nextNumber + 1 + idx;
+        final numStart = item.sourceRange.start + item.indent;
+        final numEnd = numStart + '${item.number}'.length;
+        updatedMarkdown = updatedMarkdown.replaceRange(numStart, numEnd, '$newNum');
+      }
+
+      final newMarkdown = updatedMarkdown.replaceRange(sourceOffset, sourceOffset, insertion);
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??
           DocumentPosition(blockId: position.blockId, offset: 0);
