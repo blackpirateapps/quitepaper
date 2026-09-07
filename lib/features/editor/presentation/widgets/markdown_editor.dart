@@ -179,10 +179,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         _activeTableController?.updateTableProjection(reloaded);
       } else {
         _deactivateTable();
+        return; // _deactivateTable already calls setState
       }
-    }
-    if (mounted) {
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -772,7 +773,17 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialText != widget.initialText &&
         widget.initialText != _sourceController.text) {
-      _sourceController.text = widget.initialText;
+      // Preserve cursor position when text is updated externally.
+      // Setting .text directly resets the selection to end-of-text,
+      // causing the cursor to jump on every keystroke.
+      final currentSelection = _sourceController.selection;
+      final clampedOffset = currentSelection.isValid
+          ? currentSelection.baseOffset.clamp(0, widget.initialText.length)
+          : widget.initialText.length;
+      _sourceController.value = TextEditingValue(
+        text: widget.initialText,
+        selection: TextSelection.collapsed(offset: clampedOffset),
+      );
     }
     if (oldWidget.styles != widget.styles) {
       _sourceController.styles = widget.styles;

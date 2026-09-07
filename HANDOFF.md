@@ -6154,3 +6154,23 @@ In Quiet Paper's editor, editing Markdown tables suffered from critical focus an
 - **Static Analysis**: `flutter analyze` clean (**0 issues found**).
 - **Full Test Suite**: `flutter test` (**1,402 / 1,402 tests passing, 100% pass rate**).
 
+---
+
+## 108. Markdown Mode: Cursor Jumping Fix When Note Contains Tables
+
+### Problem & Root Cause
+In Markdown editing mode, when a note contained a GFM table, the cursor would jump erratically after every keystroke, making it impossible to type normally in the text segments surrounding the table. The bug was introduced when the `_syncActiveTableWithDocument()` method in [`markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart) was modeled after the same pattern used in `visual_document_editor.dart`, which unconditionally calls `setState(() {})` on every controller change.
+
+The root cause was a destructive rebuild loop:
+1. User types a character in a `_TextSegmentField` → `_onTextChanged()` fires → calls parent `onChanged` callback.
+2. Parent callback updates `widget.controller.value` with the new full document text.
+3. This fires the `_onSourceControllerChanged()` listener → which calls `_syncActiveTableWithDocument()`.
+4. `_syncActiveTableWithDocument()` **unconditionally called `setState(() {})`** even when no active table editing session existed, triggering a full widget tree rebuild.
+5. The rebuild caused `_buildSegmentedTableEditor()` to recompute text segments and pass updated `initialText` to each `_TextSegmentField`.
+6. In `_TextSegmentField.didUpdateWidget()`, the code set `_sourceController.text = widget.initialText`, which **resets the `TextEditingController`'s selection to `TextSelection.collapsed(offset: text.length)`**, jumping the cursor to the end of the segment.
+
+### Solution
+1. **Conditional `setState` in `_syncActiveTableWithDocument()`**: Moved the `setState(() {})` call inside the `_activeTable != null` guard so it only triggers when an active table editing session exists. During normal typing in text segments (no active table), no rebuild is triggered.
+2. **Cursor-preserving `didUpdateWidget` in `_TextSegmentField`**: Replaced `_sourceController.text = widget.initialText` with `_sourceController.value = TextEditingValue(text: widget.initialText, selection: ...)`, clamping the existing cursor offset to the new text length. This ensures the cursor position is preserved when the parent rebuilds the segment field.
+
+
