@@ -34,6 +34,7 @@ class VisualDocumentEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
     this.onChanged,
+    this.onKeyEvent,
   });
 
   final SemanticEditorController controller;
@@ -44,6 +45,7 @@ class VisualDocumentEditor extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final VoidCallback? onNoteLinkPrompt;
   final ValueChanged<String>? onChanged;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
   State<VisualDocumentEditor> createState() => _VisualDocumentEditorState();
@@ -187,6 +189,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       if (!_blockFocusNodes.containsKey(block.id)) {
         final fn = FocusNode(
           onKeyEvent: (node, event) {
+            if (widget.onKeyEvent != null) {
+              final res = widget.onKeyEvent!(node, event);
+              if (res == KeyEventResult.handled) {
+                return KeyEventResult.handled;
+              }
+            }
             if (event is KeyDownEvent || event is KeyRepeatEvent) {
               if (event.logicalKey == LogicalKeyboardKey.backspace) {
                 final ctrl = _blockControllers[block.id];

@@ -55,6 +55,12 @@ import '../../../core/note_links/note_link_search_service.dart';
 import '../application/markdown_formatter.dart';
 import '../application/note_link_autocomplete_trigger.dart';
 import 'widgets/note_link_inline_overlay.dart';
+import '../application/tag_autocomplete_trigger.dart';
+import '../application/tag_search_service.dart';
+import 'widgets/tag_inline_overlay.dart';
+import '../../tags/application/tag_providers.dart';
+import '../../tags/domain/tag_model.dart';
+import '../domain/document_position.dart';
 
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
@@ -143,6 +149,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
     _activeTargetFocusNode = _contentFocusNode;
+    _activeTargetController?.addListener(_onTargetChanged);
     _scrollController = ScrollController();
 
     _undoRedoManager = UndoRedoManager();
@@ -181,12 +188,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _titleFocusNode.addListener(_onFocusChanged);
     _contentFocusNode.addListener(_onFocusChanged);
 
-    _contentFocusNode.onKeyEvent = (node, event) {
-      if (_inlineAutocompleteController?.isOpen == true) {
-        return _inlineAutocompleteController!.handleKeyEvent(event);
-      }
-      return KeyEventResult.ignored;
-    };
+    _contentFocusNode.onKeyEvent = (node, event) => _handleEditorKeyEvent(node, event);
 
     if (widget.autoFocusBody) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -263,10 +265,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  void _setActiveTarget(TextEditingController ctrl, FocusNode fn) {
+    if (_activeTargetController != ctrl) {
+      _activeTargetController?.removeListener(_onTargetChanged);
+      _activeTargetController = ctrl;
+      _activeTargetController?.addListener(_onTargetChanged);
+    }
+    _activeTargetFocusNode = fn;
+  }
+
+  void _onTargetChanged() {
+    _checkAutocompleteTrigger();
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (_inlineAutocompleteController?.isOpen == true) {
+      return _inlineAutocompleteController!.handleKeyEvent(event);
+    }
+    if (_tagAutocompleteController?.isOpen == true) {
+      return _tagAutocompleteController!.handleKeyEvent(event);
+    }
+    return KeyEventResult.ignored;
+  }
+
   void _onFocusChanged() {
     if (_contentFocusNode.hasFocus) {
-      _activeTargetController = _contentController;
-      _activeTargetFocusNode = _contentFocusNode;
+      _setActiveTarget(_contentController, _contentFocusNode);
     }
     if (!_titleFocusNode.hasFocus && !_contentFocusNode.hasFocus) {
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
@@ -438,39 +462,80 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   NoteLinkInlineOverlayController? _inlineAutocompleteController;
+  TagInlineOverlayController? _tagAutocompleteController;
 
-  void _checkAutocompleteTrigger() {
-    final trigger = NoteLinkAutocompleteTrigger.detect(_contentController.value);
-    if (trigger == null) {
-      _inlineAutocompleteController?.hide();
-      return;
-    }
-
-    _inlineAutocompleteController ??= NoteLinkInlineOverlayController(
-      context: context,
-      searchService: ref.read(noteLinkSearchServiceProvider),
-      currentNoteId: widget.note.id,
-      onSelectNote: _onAutocompleteSelectNote,
-      onCreateNote: _onAutocompleteCreateNote,
-    );
-
-    final caretRect = _getCaretRect(trigger.triggerStart);
-    _inlineAutocompleteController!.showOrUpdate(
-      query: trigger.query,
-      triggerStart: trigger.triggerStart,
-      queryEnd: trigger.queryEnd,
-      caretRect: caretRect,
-    );
+  bool get _isWysiwyg {
+    if (_semanticEditorController == null) return false;
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    final globalEditingStyle = ref.read(editorEditingStyleProvider);
+    return editorState.effectiveEditingStyle(globalEditingStyle) == EditorEditingStyle.wysiwyg;
   }
 
-  Rect _getCaretRect(int offset) {
-    final ctx = _contentFocusNode.context;
+  void _checkAutocompleteTrigger() {
+    final targetController = _activeTargetController ?? _contentController;
+    final targetFocusNode = _activeTargetFocusNode ?? _contentFocusNode;
+
+    // 1. Check for Note Link Autocomplete Trigger (`[[query`)
+    final noteTrigger = NoteLinkAutocompleteTrigger.detect(targetController.value);
+    if (noteTrigger != null) {
+      _tagAutocompleteController?.hide();
+      _inlineAutocompleteController ??= NoteLinkInlineOverlayController(
+        context: context,
+        searchService: ref.read(noteLinkSearchServiceProvider),
+        currentNoteId: widget.note.id,
+        onSelectNote: (item, replaceStart, replaceEnd) =>
+            _onAutocompleteSelectNote(item, replaceStart, replaceEnd, targetController, targetFocusNode),
+        onCreateNote: (title, replaceStart, replaceEnd) =>
+            _onAutocompleteCreateNote(title, replaceStart, replaceEnd, targetController, targetFocusNode),
+      );
+
+      final caretRect = _getCaretRect(noteTrigger.triggerStart, targetFocusNode, targetController);
+      _inlineAutocompleteController!.showOrUpdate(
+        query: noteTrigger.query,
+        triggerStart: noteTrigger.triggerStart,
+        queryEnd: noteTrigger.queryEnd,
+        caretRect: caretRect,
+      );
+      return;
+    } else {
+      _inlineAutocompleteController?.hide();
+    }
+
+    // 2. Check for Tag Autocomplete Trigger (`#query`)
+    final tagTrigger = TagAutocompleteTrigger.detect(targetController.value);
+    if (tagTrigger != null) {
+      _inlineAutocompleteController?.hide();
+      _tagAutocompleteController ??= TagInlineOverlayController(
+        context: context,
+        searchService: const TagSearchService(),
+        onSelectTag: (tag, replaceStart, replaceEnd) =>
+            _onAutocompleteSelectTag(tag, replaceStart, replaceEnd, targetController, targetFocusNode),
+      );
+
+      final existingTags = ref.read(allTagsProvider).valueOrNull ?? const [];
+      final caretRect = _getCaretRect(tagTrigger.triggerStart, targetFocusNode, targetController);
+      _tagAutocompleteController!.showOrUpdate(
+        query: tagTrigger.query,
+        triggerStart: tagTrigger.triggerStart,
+        queryEnd: tagTrigger.queryEnd,
+        caretRect: caretRect,
+        existingTags: existingTags,
+        currentNoteContent: _contentController.text,
+      );
+      return;
+    } else {
+      _tagAutocompleteController?.hide();
+    }
+  }
+
+  Rect _getCaretRect(int offset, FocusNode targetFocusNode, TextEditingController targetController) {
+    final ctx = targetFocusNode.context ?? _contentFocusNode.context;
     if (ctx != null) {
       final renderObject = ctx.findRenderObject();
       final renderEditable = _findRenderEditable(renderObject);
       if (renderEditable != null) {
         final endpoints = renderEditable.getEndpointsForSelection(
-          TextSelection.collapsed(offset: offset.clamp(0, _contentController.text.length)),
+          TextSelection.collapsed(offset: offset.clamp(0, targetController.text.length)),
         );
         if (endpoints.isNotEmpty) {
           final globalPoint = renderEditable.localToGlobal(endpoints.first.point);
@@ -494,7 +559,47 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return found;
   }
 
-  void _onAutocompleteSelectNote(NoteLinkSearchResultItem item, int replaceStart, int replaceEnd) {
+  void _onAutocompleteSelectNote(
+    NoteLinkSearchResultItem item,
+    int replaceStart,
+    int replaceEnd,
+    TextEditingController targetController,
+    FocusNode targetFocusNode,
+  ) {
+    if (_isWysiwyg) {
+      var block = _semanticEditorController!.activeBlock;
+      if (block == null) {
+        for (final b in _semanticEditorController!.document.blocks) {
+          if (b.isEditable) {
+            block = b;
+            break;
+          }
+        }
+      }
+      if (block != null) {
+        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
+        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
+        final sel = DocumentSelection(base: startPos, extent: endPos);
+        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
+
+        final linkMd = '[${item.title}](qp://note/${item.id})';
+        final newMarkdown = _semanticEditorController!.markdown.replaceRange(range.start, range.end, linkMd);
+        final targetSourceOffset = range.start + linkMd.length;
+
+        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
+        _contentController.value = TextEditingValue(
+          text: newMarkdown,
+          selection: TextSelection.collapsed(offset: targetSourceOffset),
+        );
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _onContentChanged();
+        if (!targetFocusNode.hasFocus) {
+          targetFocusNode.requestFocus();
+        }
+        return;
+      }
+    }
+
     final updated = MarkdownFormatter.insertNoteLink(
       value: _contentController.value,
       noteId: item.id,
@@ -510,7 +615,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
-  Future<void> _onAutocompleteCreateNote(String title, int replaceStart, int replaceEnd) async {
+  Future<void> _onAutocompleteCreateNote(
+    String title,
+    int replaceStart,
+    int replaceEnd,
+    TextEditingController targetController,
+    FocusNode targetFocusNode,
+  ) async {
     final notesRepo = ref.read(notesRepositoryProvider);
     final newNoteId = const Uuid().v4();
     final newNote = Note(
@@ -521,6 +632,45 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       updatedAt: DateTime.now(),
     );
     await notesRepo.saveNote(newNote);
+
+    if (_isWysiwyg) {
+      var block = _semanticEditorController!.activeBlock;
+      if (block == null) {
+        for (final b in _semanticEditorController!.document.blocks) {
+          if (b.isEditable) {
+            block = b;
+            break;
+          }
+        }
+      }
+      if (block != null) {
+        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
+        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
+        final sel = DocumentSelection(base: startPos, extent: endPos);
+        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
+
+        final linkMd = '[$title](qp://note/$newNoteId)';
+        final newMarkdown = _semanticEditorController!.markdown.replaceRange(range.start, range.end, linkMd);
+        final targetSourceOffset = range.start + linkMd.length;
+
+        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
+        _contentController.value = TextEditingValue(
+          text: newMarkdown,
+          selection: TextSelection.collapsed(offset: targetSourceOffset),
+        );
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _onContentChanged();
+
+        if (mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => EditorScreen(note: newNote),
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     final updated = MarkdownFormatter.insertNoteLink(
       value: _contentController.value,
@@ -539,6 +689,71 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           builder: (_) => EditorScreen(note: newNote),
         ),
       );
+    }
+  }
+
+  void _onAutocompleteSelectTag(
+    Tag tag,
+    int replaceStart,
+    int replaceEnd,
+    TextEditingController targetController,
+    FocusNode targetFocusNode,
+  ) {
+    if (_isWysiwyg) {
+      var block = _semanticEditorController!.activeBlock;
+      if (block == null) {
+        for (final b in _semanticEditorController!.document.blocks) {
+          if (b.isEditable) {
+            block = b;
+            break;
+          }
+        }
+      }
+      if (block != null) {
+        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
+        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
+        final sel = DocumentSelection(base: startPos, extent: endPos);
+        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
+
+        final md = _semanticEditorController!.markdown;
+        final hasTrailingSpace = range.end < md.length && md[range.end] == ' ';
+        final replacement = hasTrailingSpace ? '#${tag.name}' : '#${tag.name} ';
+
+        final newMarkdown = md.replaceRange(range.start, range.end, replacement);
+        final targetSourceOffset = range.start + replacement.length;
+
+        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
+        _contentController.value = TextEditingValue(
+          text: newMarkdown,
+          selection: TextSelection.collapsed(offset: targetSourceOffset),
+        );
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _onContentChanged();
+        if (!targetFocusNode.hasFocus) {
+          targetFocusNode.requestFocus();
+        }
+        return;
+      }
+    }
+
+    // Markdown mode
+    final text = _contentController.text;
+    final start = replaceStart.clamp(0, text.length);
+    final end = replaceEnd.clamp(start, text.length);
+    final hasTrailingSpace = end < text.length && text[end] == ' ';
+    final replacement = hasTrailingSpace ? '#${tag.name}' : '#${tag.name} ';
+
+    final newText = text.replaceRange(start, end, replacement);
+    final newCursor = start + replacement.length;
+
+    _contentController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+    _undoRedoManager.pushAtomicEdit(_contentController.value);
+    _onContentChanged();
+    if (!_contentFocusNode.hasFocus) {
+      _contentFocusNode.requestFocus();
     }
   }
 
@@ -802,12 +1017,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _undoRedoManager.dispose();
     _inlineAutocompleteController?.dispose();
     _inlineAutocompleteController = null;
+    _tagAutocompleteController?.dispose();
+    _tagAutocompleteController = null;
     super.dispose();
   }
 
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(allTagsProvider);
     final editorState = ref.watch(editorProviderFamily(_editorParams));
     final speechSession = ref.watch(speechSessionProvider);
     final editorNotifier =
@@ -1223,14 +1441,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onActiveTargetChanged: (ctrl, fn) {
                                       if (mounted) {
                                         setState(() {
-                                          _activeTargetController = ctrl;
-                                          _activeTargetFocusNode = fn;
+                                          _setActiveTarget(ctrl, fn);
                                         });
                                       }
                                     },
                                     onSemanticControllerChanged: (ctrl) {
                                       _semanticEditorController = ctrl;
                                     },
+                                    onKeyEvent: _handleEditorKeyEvent,
                                   ),
 
                                   // Generous bottom scroll area for comfortable typing above keyboard

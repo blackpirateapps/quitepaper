@@ -42,6 +42,7 @@ class MarkdownEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
     this.onSemanticControllerChanged,
+    this.onKeyEvent,
   });
 
   final MarkdownEditingController controller;
@@ -57,6 +58,7 @@ class MarkdownEditor extends StatefulWidget {
   final String? searchQuery;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final VoidCallback? onNoteLinkPrompt;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   /// Called when the [SemanticEditorController] is created or disposed.
   /// Allows the parent to wire semantic operations (e.g., heading cycling) to the toolbar.
@@ -342,6 +344,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         searchQuery: widget.searchQuery,
         onActiveTargetChanged: widget.onActiveTargetChanged,
         onNoteLinkPrompt: widget.onNoteLinkPrompt,
+        onKeyEvent: widget.onKeyEvent,
         onChanged: (newVal) {
           widget.onChanged?.call(newVal);
         },

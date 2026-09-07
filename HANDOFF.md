@@ -6074,6 +6074,83 @@ In Quiet Paper's editor, editing Markdown tables suffered from critical focus an
 - **Static Analysis**: `flutter analyze` clean (**0 issues found**).
 - **Full Test Suite**: `flutter test` (**1,383 / 1,383 tests passing, 100% pass rate**).
 
+---
 
+## 107. WYSIWYG Note Link Autocomplete & Dual-Mode Tag Autocomplete Subsystem
 
+### 1. Motivation & Problem Analysis
+1. **WYSIWYG Note Link Autocomplete Popup Inactivity**:
+   - In Markdown mode, typing `[[` displayed an inline floating menu enabling note linking and quick note creation.
+   - In Visual WYSIWYG mode (`VisualDocumentEditor`), typing `[[` failed to display any popup.
+   - **Root Cause**: In WYSIWYG mode, users type into block-specific `_RichBlockEditingController` instances. `EditorScreen` previously monitored only `_contentController.value` (whose caret selection was not tracking the active block) and retrieved caret coordinates from `_contentFocusNode` (which was attached to the document column rather than the block's `RenderEditable`).
+2. **Hashtag Autocomplete Popup Across Both Modes**:
+   - When typing hashtags in note content, typing `#` followed immediately by any character (e.g. `#a`) should display an autocomplete menu of existing tags.
+   - Typing `#` alone must display nothing.
+   - Typing `#` followed by a space must retain existing behavior (converting a paragraph block into Heading 1).
+   - Selecting a tag must replace the typed `#query` with `#tagname ` (including a trailing space) and retain block focus and caret position.
+   - Users must be able to ignore the popup, dismiss via Escape or backdrop tap, and navigate via keyboard (ArrowUp, ArrowDown, Enter, Tab).
+
+### 2. Architecture & Implementation
+
+#### A. Tag Autocomplete Trigger Detection (`TagAutocompleteTrigger`)
+- Located in `lib/features/editor/application/tag_autocomplete_trigger.dart`.
+- `TagAutocompleteTrigger.detect(TextEditingValue value)`:
+  - Requires a collapsed, valid selection.
+  - Inspects text backwards from the cursor to detect the active hashtag trigger `#`.
+  - Enforces:
+    - **Single Hash Inactivity**: Returns `null` if the character following `#` is empty or whitespace, allowing `# ` to transform into Heading 1 without popping up tag autocomplete.
+    - **Trigger Activation**: Activates when `#` is immediately followed by 1 or more tag characters (e.g. `#a`, `#arch`).
+    - **Word Boundary Safety**: Hash must be preceded by start-of-line or non-alphanumeric whitespace/punctuation (`\s`, `[`, `(`, `{`, `<`, `"`, `'`, etc.). Preceding alphanumeric text (`word#tag`) returns `null`.
+    - **Escaped Hash Safety**: Preceding backslash (`\#tag`) returns `null`.
+    - **Code Block Safety**: Returns `null` if cursor is inside a fenced code block (` ``` ` or `~~~`).
+    - **Terminators**: Terminates the query if the cursor passes punctuation or whitespace (`[\s.,!?()\[\]{}"`'><:;]`).
+
+#### B. Tag Search & Ranking Service (`TagSearchService`)
+- Located in `lib/features/editor/application/tag_search_service.dart`.
+- Aggregates tags from:
+  - Synchronized repository tags (`allTagsProvider`).
+  - Inline note tags parsed from the current note content via `TagParser.extractTags`.
+- Scoring & Deterministic Sorting:
+  - **Exact match**: 1,000 points.
+  - **Prefix match**: 800 points.
+  - **Substring match**: 400 points.
+  - Tie-breakers: Pinned tags first (`isPinned: true`), highest note count (`noteCount DESC`), and alphabetical order (`name ASC`).
+
+#### C. Warm Editorial Tag Inline Menu & Overlay (`TagInlineMenu` & `TagInlineOverlayController`)
+- Located in `lib/features/editor/presentation/widgets/tag_inline_menu.dart` and `tag_inline_overlay.dart`.
+- **Styling**: Floating card with subtle borders, warm background colors, `'TAGS'` header, Phosphor tag icon / custom tag icon, tag color accents, note count badges, and smooth selection highlighting.
+- **Keyboard Handling**: Consumes ArrowUp, ArrowDown, Enter, Tab, and Escape key events when open.
+- **Positioning**: Calculates exact global caret coordinates using `RenderEditable.getEndpointsForSelection`.
+
+#### D. Active Target Wiring & Key Event Routing (`EditorScreen`, `MarkdownEditor`, `VisualDocumentEditor`)
+- **Active Controller & Focus Node**:
+  - `VisualDocumentEditor` and `MarkdownEditor` forward `onActiveTargetChanged: (ctrl, fn)` and `onKeyEvent: (node, event)`.
+  - `EditorScreen._setActiveTarget(ctrl, fn)` registers `_onTargetChanged` listener on whichever controller is actively receiving input (the raw markdown controller or a visual block controller).
+  - `_checkAutocompleteTrigger()` dynamically evaluates `targetController.value` and positions popups against `targetFocusNode`.
+- **WYSIWYG Link & Tag Insertion**:
+  - In WYSIWYG mode, selecting a note link or tag maps the block's `replaceStart` and `replaceEnd` to document source range offsets via `_semanticEditorController.document.sourceRangeAtSelection`.
+  - Replaces text with canonical markdown (`[Title](qp://note/id)` or `#tagname `).
+  - Invokes `_semanticEditorController.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset)` to parse blocks and re-focus the target block with the caret positioned immediately after the inserted text.
+- **Tag Subscriptions**:
+  - Subscribed to `allTagsProvider` in `EditorScreen.build` so tag data is immediately available in memory when autocomplete triggers.
+  - Added clean disposal of `_tagAutocompleteController` in `dispose()`.
+
+### 3. Automated Verification & Quality Invariants
+- **`test/editor/tag_autocomplete_trigger_test.dart`** (10 tests, all passing):
+  - Verified `#` alone returns null.
+  - Verified `# ` (hash + space) returns null.
+  - Verified `#a` and multi-character `#apple` trigger detection.
+  - Verified code block, backslash escaping, and alphanumeric prefix protections.
+- **`test/editor/tag_search_service_test.dart`** (4 tests, all passing):
+  - Verified exact match, prefix match, and substring ranking.
+  - Verified inline note tag discovery and inclusion.
+- **`test/editor/tag_inline_menu_test.dart`** (1 test, passing):
+  - Verified rendering of `'TAGS'` header, icon, color accents, and candidate items.
+- **`test/editor/wysiwyg_autocomplete_test.dart`** (4 tests, all passing):
+  - Verified typing `[[` in WYSIWYG mode displays note link overlay and inserting note link updates the canonical document.
+  - Verified typing `#` alone displays nothing, typing `#a` displays tag overlay, and selecting a tag inserts `#tagname ` with trailing space.
+  - Verified tag autocomplete in Markdown mode inserts `#tagname ` with trailing space.
+  - Verified Escape key dismisses tag autocomplete overlay in WYSIWYG mode.
+- **Static Analysis**: `flutter analyze` clean (**0 issues found**).
+- **Full Test Suite**: `flutter test` (**1,402 / 1,402 tests passing, 100% pass rate**).
 
