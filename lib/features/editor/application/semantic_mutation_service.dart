@@ -636,7 +636,13 @@ class SemanticMutationService {
         titleRange: run.titleRange,
       );
     } else if (run is TagRun) {
-      return TagRun(newText, src);
+      if (newText.startsWith('#')) {
+        final tag = newText.substring(1);
+        if (tag.isNotEmpty && RegExp(r'^[\w\-_/]+$').hasMatch(tag)) {
+          return TagRun(tag, src);
+        }
+      }
+      return PlainRun(newText, src);
     }
 
     if (!b && !i && !s && !h) {

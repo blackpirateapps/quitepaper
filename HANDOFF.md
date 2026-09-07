@@ -6173,4 +6173,63 @@ The root cause was a destructive rebuild loop:
 1. **Conditional `setState` in `_syncActiveTableWithDocument()`**: Moved the `setState(() {})` call inside the `_activeTable != null` guard so it only triggers when an active table editing session exists. During normal typing in text segments (no active table), no rebuild is triggered.
 2. **Cursor-preserving `didUpdateWidget` in `_TextSegmentField`**: Replaced `_sourceController.text = widget.initialText` with `_sourceController.value = TextEditingValue(text: widget.initialText, selection: ...)`, clamping the existing cursor offset to the new text length. This ensures the cursor position is preserved when the parent rebuilds the segment field.
 
+---
+
+## 109. WYSIWYG Mode: Note Link (`[[`) and Tag (`#`) Autocomplete Backspace & Cursor Fixes
+
+### Problems Reported
+1. **Note Link (`[[`) Backspace Cursor Jump**: In WYSIWYG mode, when typing `[[`, the note link autocomplete popup appeared. Pressing backspace immediately should delete one bracket to leave `[` with the cursor positioned directly after it (`offset = 1`). Instead, one character was deleted and the cursor moved *before* the remaining bracket (`offset = 0`), disrupting normal writing.
+2. **Tag (`#`) Autocomplete Backspace Failure**: When typing `#a`, the tag autofill popup appeared, but pressing backspace failed to delete the `'a'` character entirely.
+
+### Root Causes Identified
+1. **Tag Autocomplete Backspace Failure**:
+   - In [`semantic_mutation_service.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/semantic_mutation_service.dart), `_cloneRunWithText` for `TagRun` was invoking `TagRun(newText, src)`.
+   - Because `newText` already included the leading `#` (e.g. `'#a'` or `'#'`), `TagRun.text` (`'#$tag'`) prepended another `#`, turning it into `'##a'`.
+   - When backspacing `#a` down to `'#'`, the run had text `'##'`. During run-splitting and boundary diff calculations in `handleVisualBlockTextChange`, the `#` was deleted and `'a'` was retained, causing `updateBlock` to restore `'Hello #a'` and position the caret at index 7 (before `'a'`).
+2. **Note Link (`[[`) Backspace Cursor Jump**:
+   - In [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), `_onFocusChanged()` executed:
+     ```dart
+     if (_contentFocusNode.hasFocus) {
+       _setActiveTarget(_contentController, _contentFocusNode);
+     }
+     ```
+   - In WYSIWYG mode, `_contentFocusNode` is an ancestor `Focus` node wrapping all visual block `TextField` widgets, meaning `_contentFocusNode.hasFocus` is `true` whenever *any* block is focused!
+   - When autocomplete overlays dismissed on backspace, Flutter re-evaluated focus, triggering `_onFocusChanged()`, which erroneously overwrote `_activeTargetController` with `_contentController`.
+   - `_contentController` had a stale selection of offset 0, causing post-frame selection synchronization to move the cursor to before `[`.
+3. **Invalid Selection Clamping & Cycle Prevention**:
+   - In `SemanticEditorController.handleVisualBlockTextChange` and `updateSelectionFromBlock`, invalid text selections (`offset = -1`, common in synthetic test events and IME transitions) were clamped to 0 or treated as valid document selections, leading to selection bouncing between 0 and -1.
+4. **Inline Regex Newline Boundary**:
+   - In [`semantic_markdown_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/semantic_markdown_parser.dart), `_inlineRegex` permitted `codeText`, `noteText`, and `linkLabel` to span newlines (`[^`]+`, `[^\]]+`), potentially matching across block boundaries.
+
+### Solutions Implemented
+1. **`SemanticMutationService._cloneRunWithText`**:
+   - For `TagRun`, validated whether `newText` starts with `#`. Strips the `#` prefix and ensures the remaining tag name is non-empty and conforms to `r'^[\w\-_/]+$'`.
+   - If invalid (such as `'#'` alone during backspace), falls back cleanly to `PlainRun(newText, src)`, preventing duplicate `#` tokens and ensuring run boundaries match character offsets.
+2. **`EditorScreen._onFocusChanged`**:
+   - Guarded target activation so `_contentController` is only activated in Markdown mode:
+     ```dart
+     if (!_isWysiwyg && _contentFocusNode.hasFocus) {
+       _setActiveTarget(_contentController, _contentFocusNode);
+     }
+     ```
+   - Added check in `onActiveTargetChanged` to only call `setState` when the controller or focus node actually changes, preventing redundant widget rebuilds during keystrokes.
+   - Cleanly hide `_inlineAutocompleteController` and `_tagAutocompleteController` on atomic edits.
+3. **`SemanticEditorController` Selection Hardening**:
+   - In `updateSelectionFromBlock`: Added `if (!blockSelection.isValid) return;` to ignore uninitialized/invalid selections.
+   - In `handleVisualBlockTextChange`: Safely clamp target offsets using `newSelection.isValid ? newSelection.baseOffset.clamp(0, newText.length) : newText.length`.
+4. **`SemanticMarkdownParser` Inline Regex**:
+   - Constrained inline token patterns to exclude `\n` (`[^`\n]+`, `[^\]\n]+`, `[^)\n]+`).
+5. **`MarkdownEditor` Selection Synchronization**:
+   - Synchronized `_contentController.value` selection using document source position rather than retaining stale selection offsets.
+
+### Automated Verification
+- Added **`test/editor/wysiwyg_backspace_test.dart`** with comprehensive integration tests:
+  - `Typing [[ and pressing backspace removes one bracket and keeps cursor after [`: PASS
+  - `Typing #a and pressing backspace leaves # with cursor after #`: PASS
+- Verified **`test/editor/wysiwyg_autocomplete_test.dart`** (4/4 tests pass).
+- Verified **`test/editor/visual_document_editor_widget_test.dart`** (3/3 tests pass).
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full test suite: `flutter test` (**100% pass rate**).
+
+
 

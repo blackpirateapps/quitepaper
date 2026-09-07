@@ -289,7 +289,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _onFocusChanged() {
-    if (_contentFocusNode.hasFocus) {
+    if (!_isWysiwyg && _contentFocusNode.hasFocus) {
       _setActiveTarget(_contentController, _contentFocusNode);
     }
     if (!_titleFocusNode.hasFocus && !_contentFocusNode.hasFocus) {
@@ -587,11 +587,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         final targetSourceOffset = range.start + linkMd.length;
 
         _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
+        final updatedBlock = _semanticEditorController!.document.findBlockById(block.id);
+        if (updatedBlock != null) {
+          final targetOffset = _semanticEditorController!.selection.base.offset;
+          targetController.value = TextEditingValue(
+            text: updatedBlock.plainText,
+            selection: TextSelection.collapsed(offset: targetOffset.clamp(0, updatedBlock.plainText.length)),
+          );
+        }
         _contentController.value = TextEditingValue(
           text: newMarkdown,
           selection: TextSelection.collapsed(offset: targetSourceOffset),
         );
         _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _inlineAutocompleteController?.hide();
         _onContentChanged();
         if (!targetFocusNode.hasFocus) {
           targetFocusNode.requestFocus();
@@ -723,11 +732,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         final targetSourceOffset = range.start + replacement.length;
 
         _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
+        final updatedBlock = _semanticEditorController!.document.findBlockById(block.id);
+        if (updatedBlock != null) {
+          final targetOffset = _semanticEditorController!.selection.base.offset;
+          targetController.value = TextEditingValue(
+            text: updatedBlock.plainText,
+            selection: TextSelection.collapsed(offset: targetOffset.clamp(0, updatedBlock.plainText.length)),
+          );
+        }
         _contentController.value = TextEditingValue(
           text: newMarkdown,
           selection: TextSelection.collapsed(offset: targetSourceOffset),
         );
         _undoRedoManager.pushAtomicEdit(_contentController.value);
+        _tagAutocompleteController?.hide();
         _onContentChanged();
         if (!targetFocusNode.hasFocus) {
           targetFocusNode.requestFocus();
@@ -1438,13 +1456,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     searchQuery: _isSearchVisible
                                         ? _searchQueryController.text
                                         : null,
-                                    onActiveTargetChanged: (ctrl, fn) {
-                                      if (mounted) {
-                                        setState(() {
-                                          _setActiveTarget(ctrl, fn);
-                                        });
-                                      }
-                                    },
+                                     onActiveTargetChanged: (ctrl, fn) {
+                                       if (mounted && (_activeTargetController != ctrl || _activeTargetFocusNode != fn)) {
+                                         setState(() {
+                                           _setActiveTarget(ctrl, fn);
+                                         });
+                                       }
+                                     },
                                     onSemanticControllerChanged: (ctrl) {
                                       _semanticEditorController = ctrl;
                                     },

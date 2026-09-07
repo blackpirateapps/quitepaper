@@ -148,9 +148,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _isSyncing = true;
     try {
       if (widget.controller.text != newMarkdown) {
+        final sourceOffset = _semanticController != null && _semanticController!.document.blocks.isNotEmpty
+            ? _semanticController!.document.sourceOffsetAtPosition(_semanticController!.selection.base)
+            : widget.controller.selection.baseOffset;
         widget.controller.value = TextEditingValue(
           text: newMarkdown,
-          selection: widget.controller.selection,
+          selection: TextSelection.collapsed(offset: sourceOffset.clamp(0, newMarkdown.length)),
         );
         widget.onChanged?.call(newMarkdown);
       }

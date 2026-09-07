@@ -326,6 +326,7 @@ class SemanticEditorController extends ChangeNotifier {
 
   /// Updates selection from a visual block TextField.
   void updateSelectionFromBlock(String blockId, TextSelection blockSelection) {
+    if (!blockSelection.isValid) return;
     final pos = DocumentPosition(blockId: blockId, offset: blockSelection.baseOffset);
     final extent = DocumentPosition(blockId: blockId, offset: blockSelection.extentOffset);
     final docSel = DocumentSelection(base: pos, extent: extent);
@@ -407,7 +408,8 @@ class SemanticEditorController extends ChangeNotifier {
       }
 
       final newMarkdown = _markdown.replaceRange(contentStart, contentEnd, textToInsert);
-      final newSourceOffset = contentStart + newSelection.baseOffset;
+      final offset = newSelection.isValid ? newSelection.baseOffset : textToInsert.length;
+      final newSourceOffset = contentStart + offset;
       updateMarkdownAndRetainSelection(newMarkdown, newSourceOffset);
       return;
     }
@@ -501,7 +503,9 @@ class SemanticEditorController extends ChangeNotifier {
     _markdown = newMarkdown;
     _document = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
 
-    final targetOffset = newSelection.baseOffset.clamp(0, newText.length);
+    final targetOffset = newSelection.isValid
+        ? newSelection.baseOffset.clamp(0, newText.length)
+        : newText.length;
     _selection = DocumentSelection.collapsed(DocumentPosition(blockId: blockId, offset: targetOffset));
 
     notifyListeners();

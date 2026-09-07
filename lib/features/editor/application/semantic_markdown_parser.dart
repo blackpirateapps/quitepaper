@@ -350,9 +350,9 @@ class SemanticMarkdownParser {
   }
 
   static final RegExp _inlineRegex = RegExp(
-    r'`(?<codeText>[^`]+)`|'
-    r'\[\[(?<noteText>[^\]]+)\]\]|'
-    r'\[(?<linkLabel>[^\]]+)\]\((?<linkUrl>[^)]+)\)|'
+    r'`(?<codeText>[^`\n]+)`|'
+    r'\[\[(?<noteText>[^\]\n]+)\]\]|'
+    r'\[(?<linkLabel>[^\]\n]+)\]\((?<linkUrl>[^)\n]+)\)|'
     r'(?<tagText>#[\w\-_/]+)|'
     r'==(?<highlightText>.*?)==|'
     r'~~(?<strikeText>.*?)~~|'
