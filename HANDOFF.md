@@ -6231,5 +6231,26 @@ The root cause was a destructive rebuild loop:
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Full test suite: `flutter test` (**100% pass rate**).
 
+---
+
+## 110. Release Version Bump to 1.5.8 (Build 16)
+
+### 1. Overview & Motivation
+Quiet Paper application version has been bumped from `1.5.7+15` to `1.5.8+16` to package recent editor fixes (table cell cursor stability, empty list item paragraph exit, WYSIWYG `[[` link and `#` tag inline autocomplete backspace behavior, and selection retention improvements).
+
+### 2. Version Bump Checklist (`v1.5.8+16`)
+Synchronized across all 14 project locations in accordance with the Section 17 Version Bump Checklist:
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): `version: 1.5.8+16`
+- [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): `currentVersion: '1.5.8'`
+- [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): `appVersion: '1.5.8'`
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart): `this.appVersion = '1.5.8'`
+- [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): `'Version 1.5.8 • Offline-first • End-to-End Encrypted Sync'`
+- [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart): `'appVersion': '1.5.8'` (package manifest and encrypted envelope)
+- [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html) & [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): `v1.5.8` hero badge and footer meta
+- [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html) & [`backend/public/terms.html`](file:///home/dog/git/quitepaper/backend/public/terms.html): `v1.5.8` footer meta
+- [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html) & [`backend/public/privacy.html`](file:///home/dog/git/quitepaper/backend/public/privacy.html): `v1.5.8` footer meta
+- [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html) & [`backend/public/changelog.html`](file:///home/dog/git/quitepaper/backend/public/changelog.html): `v1.5.8` footer meta
+
+
 
 
