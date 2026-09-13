@@ -242,6 +242,13 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
   - `quiet-paper-<version>-universal.apk` (Universal FAT binary)
 - Automatically attaches all 4 APK binaries as release assets to the GitHub Release.
 
+### Play Store Android App Bundle (AAB) Workflow (`.github/workflows/build_aab.yml`)
+- **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional version name (`build_name`) and version code (`build_number`) overrides.
+- **Builds**:
+  - Production-signed Android App Bundle: `quiet-paper-v<version>+<build>.aab`
+  - ProGuard / R8 deobfuscation mapping: `mapping.txt` (for crash stack trace deobfuscation in Play Console)
+- **Output**: Uploads signed AAB artifact package (`quiet-paper-v<version>+<build>-aab`) ready for direct upload to Google Play Console tracks (Internal, Closed, Open, Production).
+
 ---
 
 ## 9. Security Guarantees & Verification Checklist
@@ -6250,6 +6257,34 @@ Synchronized across all 14 project locations in accordance with the Section 17 V
 - [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html) & [`backend/public/terms.html`](file:///home/dog/git/quitepaper/backend/public/terms.html): `v1.5.8` footer meta
 - [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html) & [`backend/public/privacy.html`](file:///home/dog/git/quitepaper/backend/public/privacy.html): `v1.5.8` footer meta
 - [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html) & [`backend/public/changelog.html`](file:///home/dog/git/quitepaper/backend/public/changelog.html): `v1.5.8` footer meta
+
+---
+
+## 111. Play Store Android App Bundle (AAB) Workflow with Manual Dispatch
+
+### 1. Overview & Motivation
+Google Play Store requires applications to be uploaded in the **Android App Bundle (.aab)** format rather than standard APKs to enable Google Play Dynamic Delivery and optimized split-APK generation per end-user device. To streamline Play Store releases without manual local environment setup, a dedicated GitHub Actions workflow (`.github/workflows/build_aab.yml`) was introduced.
+
+### 2. Workflow Specifications & Features
+- **Workflow File**: [`.github/workflows/build_aab.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_aab.yml)
+- **Trigger**: Manual trigger via GitHub Actions UI (`workflow_dispatch`), allowing developers and maintainers to trigger production bundle compilation on demand.
+- **Configurable Inputs**:
+  - `build_name` (optional): Override the version name (e.g. `1.5.8`). If left empty, dynamically extracts the version from `pubspec.yaml`.
+  - `build_number` (optional): Override the incremental version code / build number (e.g. `16`). If left empty, extracts the build number from `pubspec.yaml`.
+- **Quality Gates**:
+  - Automatically runs `flutter analyze` ensuring zero lint warnings or compilation issues.
+  - Automatically executes the full `flutter test` test suite before proceeding to compilation.
+- **Production Keystore Signing**:
+  - Decodes base64 upload keystore from GitHub Secrets (`KEYSTORE_BASE64`) into `android/app/upload-keystore.jks`.
+  - Signs the Android App Bundle using `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` passed securely via environment variables to Gradle.
+  - Gracefully falls back to debug signing if secrets are not populated (e.g. in test or fork environments).
+- **ProGuard / R8 Deobfuscation Mapping Preservation**:
+  - Automatically checks for and captures `build/app/outputs/mapping/release/mapping.txt`.
+  - Bundles `mapping.txt` into the release artifacts so crash reports and stack traces can be deobfuscated in Google Play Console.
+- **Artifact Packaging & Upload**:
+  - Uploads a standardized artifact named `quiet-paper-v<version>+<build>-aab` via `actions/upload-artifact@v4` with a 60-day retention window.
+  - Contains `quiet-paper-v<version>+<build>.aab` ready for immediate upload to Play Console (Internal testing, Closed testing, Open testing, or Production).
+
 
 
 
