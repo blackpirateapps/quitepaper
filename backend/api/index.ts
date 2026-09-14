@@ -10,10 +10,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
     const raw = Buffer.concat(buffers).toString('utf-8');
     if (raw) {
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        body = raw;
+      const contentType = (req.headers['content-type'] || '') as string;
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const params = new URLSearchParams(raw);
+        body = Object.fromEntries(params.entries());
+      } else {
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          body = raw;
+        }
       }
     }
   }
@@ -31,5 +37,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   for (const [key, value] of Object.entries(response.headers)) {
     res.setHeader(key, value);
   }
-  res.end(JSON.stringify(response.body));
+  if (typeof response.body === 'string') {
+    res.end(response.body);
+  } else {
+    res.end(JSON.stringify(response.body));
+  }
 }

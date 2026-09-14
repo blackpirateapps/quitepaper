@@ -6388,6 +6388,81 @@ The goal was to preserve 100% of the in-app automatic update experience for user
   - [`test/update/update_service_test.dart`](file:///home/dog/git/quitepaper/test/update/update_service_test.dart): Verifies `UpdateService` no-op and defensive guards in `play` flavor.
   - [`test/settings/settings_screen_test.dart`](file:///home/dog/git/quitepaper/test/settings/settings_screen_test.dart): Verifies Settings screen UI and tap behaviors for both `github` and `play` flavors.
 
+---
+
+## 114. Backend Server-Side Rendered (SSR) Administration Panel
+
+### 1. Motivation & Problem Statement
+Prior to this release, the Quiet Paper serverless backend on Vercel operated entirely as a headless API without an administrative dashboard. Operators had no visibility into live platform health, user registrations, sync volumes, database round-trip latency, storage consumption across Cloudinary media, or the status of asynchronous destruction and cleanup queues. Furthermore, triggering on-demand garbage collection or retrying failed external Cloudinary deletion jobs required running ad-hoc SQL queries or manual scripts against the Turso database.
+
+The goal was to introduce a simple, self-contained, secure administration panel:
+1. **Authenticated by Vercel Environment Variable**: Gated by an `ADMIN_PASSWORD` (or `ADMIN_SECRET`) environment variable without requiring external third-party OAuth providers or database user tables for admins.
+2. **Server-Side Rendered (SSR)**: Zero frontend build steps or heavy client-side JavaScript bundles, ensuring instant page loads and zero cold-start overhead on Vercel serverless.
+3. **Warm Editorial Aesthetic**: Designed with Quiet Paper's calm dark editorial visual language (`#161513` deep dark tone, `#211F1C` card surfaces, `#D05A3F` coral accents, and monospace ID badges).
+4. **Strict Zero-Knowledge Privacy Preservation**: Ensuring full visibility into system metrics while cryptographically preserving note privacy—the admin panel never possesses or decrypts plaintext note titles or bodies.
+
+### 2. Architectural Solution & Implementation
+
+```mermaid
+flowchart TD
+    Req["Request to /admin/* or /api/admin/*"] --> VercelRewrites["vercel.json rewrites -> /api"]
+    VercelRewrites --> Handler["backend/src/api/handler.ts"]
+    Handler --> AdminHandler["handleAdminRequest() in adminHandler.ts"]
+    AdminHandler --> AuthCheck{"ADMIN_PASSWORD set & Authenticated?"}
+    AuthCheck -- No ADMIN_PASSWORD --> Err503["503 Service Unavailable (Setup Guide)"]
+    AuthCheck -- Unauthenticated --> LoginView["Render Login Page (/admin/login)"]
+    LoginView -- POST Password --> VerifyPw["Timing-Safe HMAC Cookie Issuance"]
+    VerifyPw --> SetCookie["Set-Cookie: qp_admin_session"] --> RedirectDash["Redirect to /admin"]
+    AuthCheck -- Authenticated --> Router{"Admin Route Dispatch"}
+    Router --> DashView["Overview Dashboard (/admin)"]
+    Router --> UsersView["Users Explorer (/admin/users)"]
+    Router --> UserAuditView["User Audit & GC Control (/admin/users/:id)"]
+    Router --> StorageView["Storage & Destruction Jobs (/admin/storage)"]
+    Router --> ApiStats["JSON Health Stats (/api/admin/stats)"]
+```
+
+1. **Vercel Routing & Response Layer**:
+   - In [`backend/vercel.json`](file:///home/dog/git/quitepaper/backend/vercel.json), added rewrites directing `/admin` and `/admin/(.*)` to the `/api` serverless handler alongside existing `/api/(.*)` rules.
+   - In [`backend/api/index.ts`](file:///home/dog/git/quitepaper/backend/api/index.ts), enabled parsing of `application/x-www-form-urlencoded` request bodies (for standard HTML forms) and raw HTML response streaming when `Content-Type` is HTML.
+
+2. **Timing-Safe HMAC Authentication (`backend/src/admin/adminAuth.ts`)**:
+   - Compares the submitted password against `process.env.ADMIN_PASSWORD` using `crypto.timingSafeEqual` with SHA-256 pre-hashing to ensure fixed-length buffer comparisons and prevent timing attacks.
+   - Issues a tamper-proof HMAC-SHA256 signed `HttpOnly`, `SameSite=Lax`, `Secure` session cookie (`qp_admin_session`) valid for 24 hours (`Max-Age=86400`).
+   - Supports programmatic API access using `Authorization: Bearer <ADMIN_PASSWORD>` on `/api/admin/stats`.
+   - Returns HTTP 503 with configuration instructions if `ADMIN_PASSWORD` is not configured in environment variables.
+
+3. **Metrics & Data Layer (`backend/src/admin/adminService.ts`)**:
+   - `getAdminOverview(db)`: Measures Turso libSQL round-trip ping latency; aggregates total users, active vs archived vs trashed vs deleted note counts, encrypted ciphertext bytes, Cloudinary attachment and document page counts/bytes, 24h sync activity, active sync devices, and destruction job state counts.
+   - `getAdminUsers(db, options)`: Queries paginated user lists with search filtering by User ID or Firebase UID, enriched with note, device, and media counts.
+   - `getAdminUserDetail(db, userId)`: Surfaces user creation dates, encryption key parameters (key version, KDF algorithm, format version, recovery key configuration), active sync devices with client versions and last seen timestamps, recent sync revision history, and safe sync boundary calculations.
+   - `triggerUserGC(db, userId, dryRun)`: Leverages the existing `runGarbageCollection` engine to prune expired idempotency keys, purge orphaned media, and safely prune historical revisions beyond active device checkpoints.
+   - `retryDestructionJob(db, jobId)` & `deleteDestructionJob(db, jobId)`: Resets failed asynchronous Cloudinary/DB deletion jobs to `pending` with `attempt_count = 0` for automatic re-execution.
+
+4. **Server-Side Rendered Editorial Views (`backend/src/admin/adminViews.ts`)**:
+   - Shared responsive layout with sticky navigation, live Turso latency pill, dynamic action flash banners, and sign-out controls.
+   - **Login View (`renderLoginPage`)**: Minimal editorial card with password input and timing-safe session issuance.
+   - **Dashboard View (`renderDashboardPage`)**: Key metric cards, storage distribution table, zero-knowledge privacy notice, and quick action links.
+   - **Users List View (`renderUsersPage`)**: Search form, paginated responsive table with truncated ID tooltips, note and device counters, and direct links to user inspection.
+   - **User Audit View (`renderUserDetailPage`)**: Identity summary, cryptographic parameters breakdown, device audit table, recent revision log, and Garbage Collection execution control with Dry Run simulation toggle.
+   - **Storage & Destruction Jobs View (`renderStoragePage`)**: Cloudinary attachments and PDF document metrics, alongside a comprehensive destruction queue table with status badges and one-click "Retry" actions for failed jobs.
+
+### 3. Verification & Quality
+- **Backend Test Suite (`backend/tests/admin.test.ts`)**:
+  - 10 comprehensive tests covering:
+    - HTTP 503 response when `ADMIN_PASSWORD` is absent.
+    - Login form rendering when unauthenticated.
+    - 302 redirection from protected routes to `/admin/login`.
+    - HTTP 401 rejection for invalid password attempts.
+    - Successful authentication, HMAC cookie creation, and dashboard access.
+    - Rejection of tampered session cookie signatures.
+    - Bearer token authentication on `/api/admin/stats`.
+    - User list rendering, user inspection, zero-knowledge content absence, and GC dry-run triggers.
+    - Storage inspection and destruction job retry state reset in SQLite.
+    - Logout handling with session cookie expiration (`Max-Age=0`).
+- **All Backend Tests Passing**: `npm test` (**53 tests passing across 12 test files**).
+- **TypeScript Compilation**: `npm run build` (**0 errors, 0 warnings**).
+- **Flutter Quality**: `flutter analyze` (**0 errors, 0 warnings**), `flutter test` (**all tests passing**).
+
 
 
 

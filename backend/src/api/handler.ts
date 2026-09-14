@@ -24,6 +24,7 @@ import {
   confirmDocumentUpload,
   getDocumentMetadata,
 } from '../documents/documentService.js';
+import { handleAdminRequest } from '../admin/adminHandler.js';
 import { ApiError } from '../errors/apiError.js';
 
 export interface RequestLike {
@@ -58,6 +59,12 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         headers: { 'Content-Type': 'application/json' },
         body: { status: 'ok', service: 'quietpaper-sync' },
       };
+    }
+
+    // Admin panel routes (/admin, /admin/*, /api/admin/*)
+    if (pathname === '/admin' || pathname.startsWith('/admin/') || pathname.startsWith('/api/admin')) {
+      await ensureDbInitialized(db);
+      return await handleAdminRequest(req, db);
     }
 
     // Public client configuration for Firebase Auth
