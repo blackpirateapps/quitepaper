@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:quitepaper/core/flavor/app_flavor.dart';
 import 'package:quitepaper/core/update/update_models.dart';
 import 'package:quitepaper/core/update/update_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -202,6 +203,66 @@ void main() {
 
       expect(result.hasUpdate, isFalse);
       expect(result.latestRelease, isNotNull);
+    });
+  });
+
+  group('UpdateService Play Store Flavor Tests', () {
+    test('checkForUpdate returns hasUpdate false immediately without network call', () async {
+      var networkCalled = false;
+      final mockClient = MockClient((request) async {
+        networkCalled = true;
+        return http.Response('{}', 200);
+      });
+
+      final service = UpdateService(
+        sharedPreferences: prefs,
+        httpClient: mockClient,
+        currentVersion: '1.2.0',
+        flavor: AppDistributionFlavor.play,
+      );
+
+      final result = await service.checkForUpdate();
+      expect(result.hasUpdate, isFalse);
+      expect(result.latestRelease, isNull);
+      expect(networkCalled, isFalse);
+    });
+
+    test('downloadApk yields failed status in play flavor', () async {
+      final service = UpdateService(
+        sharedPreferences: prefs,
+        currentVersion: '1.2.0',
+        flavor: AppDistributionFlavor.play,
+      );
+
+      final testRelease = AppReleaseInfo(
+        version: '1.3.0',
+        tagName: 'v1.3.0',
+        title: 'Release',
+        releaseNotes: 'Notes',
+        publishedAt: DateTime.now(),
+        apkUrl: 'https://example.com/app.apk',
+        apkFileName: 'app.apk',
+        apkSizeBytes: 1000,
+        architecture: 'arm64-v8a',
+        htmlUrl: 'https://example.com',
+      );
+
+      final progressEvents = await service.downloadApk(testRelease).toList();
+      expect(progressEvents.length, 1);
+      expect(progressEvents.first.status, DownloadStatus.failed);
+      expect(progressEvents.first.errorMessage, contains('Google Play Store build'));
+    });
+
+    test('Installer methods return false without invoking platform channel in play flavor', () async {
+      final service = UpdateService(
+        sharedPreferences: prefs,
+        currentVersion: '1.2.0',
+        flavor: AppDistributionFlavor.play,
+      );
+
+      expect(await service.canRequestPackageInstalls(), isFalse);
+      expect(await service.openInstallPermissionSettings(), isFalse);
+      expect(await service.installApk('/path/to/app.apk'), isFalse);
     });
   });
 }

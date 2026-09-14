@@ -7,6 +7,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/backup/backup_provider.dart';
+import '../../../core/flavor/app_flavor.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
@@ -72,6 +73,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   }
 
   Future<void> _checkForUpdatesOnLaunch() async {
+    final flavor = ref.read(appFlavorProvider);
+    if (flavor.isPlayStore) return;
+
     try {
       final updateService = ref.read(updateServiceProvider);
       final result = await updateService.checkForUpdate();

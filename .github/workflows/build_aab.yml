@@ -86,7 +86,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          flutter build appbundle --release \
+          flutter build appbundle --flavor play --release \
             --build-name="${{ steps.version.outputs.version }}" \
             --build-number="${{ steps.version.outputs.build_number }}"
 
@@ -97,8 +97,8 @@ jobs:
           B="${{ steps.version.outputs.build_number }}"
 
           # Locate generated AAB bundle
-          if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
-            cp build/app/outputs/bundle/release/app-release.aab release-artifacts/quiet-paper-v${V}+${B}.aab
+          if [ -f build/app/outputs/bundle/playRelease/app-play-release.aab ]; then
+            cp build/app/outputs/bundle/playRelease/app-play-release.aab release-artifacts/quiet-paper-v${V}+${B}.aab
           else
             AAB_FILE=$(find build/app/outputs/bundle -name "*.aab" | head -n 1)
             if [ -n "$AAB_FILE" ]; then
@@ -110,8 +110,9 @@ jobs:
           fi
 
           # Preserve ProGuard / R8 mapping file if generated
-          if [ -f build/app/outputs/mapping/release/mapping.txt ]; then
-            cp build/app/outputs/mapping/release/mapping.txt release-artifacts/mapping.txt
+          MAPPING_FILE=$(find build/app/outputs/mapping -name "mapping.txt" | head -n 1)
+          if [ -n "$MAPPING_FILE" ]; then
+            cp "$MAPPING_FILE" release-artifacts/mapping.txt
             echo "Preserved ProGuard / R8 mapping.txt for Play Store crash deobfuscation."
           fi
 

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../flavor/app_flavor.dart';
 import 'update_models.dart';
 
 class UpdateService {
@@ -14,12 +15,14 @@ class UpdateService {
     http.Client? httpClient,
     this.currentVersion = '1.2.0',
     this.githubRepo = 'blackpirateapps/quitepaper',
+    this.flavor = AppDistributionFlavor.github,
   }) : _httpClient = httpClient ?? http.Client();
 
   final SharedPreferences sharedPreferences;
   final http.Client _httpClient;
   final String currentVersion;
   final String githubRepo;
+  final AppDistributionFlavor flavor;
 
   static const _channel = MethodChannel('com.blackpiratex.quietpaper/updater');
   static const _kSnoozedUntilKey = 'update_snoozed_until';
@@ -38,6 +41,7 @@ class UpdateService {
 
   /// Check if the app has permission to install unknown apps (Android 8.0+)
   Future<bool> canRequestPackageInstalls() async {
+    if (flavor.isPlayStore) return false;
     try {
       final canInstall =
           await _channel.invokeMethod<bool>('canRequestPackageInstalls');
@@ -49,6 +53,7 @@ class UpdateService {
 
   /// Open system settings to allow install from unknown sources for this app
   Future<bool> openInstallPermissionSettings() async {
+    if (flavor.isPlayStore) return false;
     try {
       final res =
           await _channel.invokeMethod<bool>('openInstallPermissionSettings');
@@ -60,6 +65,10 @@ class UpdateService {
 
   /// Launch the system installer for the downloaded APK
   Future<bool> installApk(String filePath) async {
+    if (flavor.isPlayStore) {
+      debugPrint('installApk ignored in Google Play Store flavor');
+      return false;
+    }
     try {
       final res = await _channel.invokeMethod<bool>('installApk', {
         'filePath': filePath,
@@ -133,6 +142,13 @@ class UpdateService {
   Future<UpdateCheckResult> checkForUpdate({
     List<String>? overrideAbis,
   }) async {
+    if (flavor.isPlayStore) {
+      return UpdateCheckResult(
+        hasUpdate: false,
+        currentVersion: currentVersion,
+      );
+    }
+
     try {
       final url = Uri.parse('https://api.github.com/repos/$githubRepo/releases/latest');
       final response = await _httpClient.get(
@@ -175,6 +191,15 @@ class UpdateService {
 
   /// Downloads the specified release APK with progress tracking
   Stream<DownloadProgress> downloadApk(AppReleaseInfo release) async* {
+    if (flavor.isPlayStore) {
+      yield const DownloadProgress(
+        status: DownloadStatus.failed,
+        errorMessage:
+            'Direct APK downloads are disabled in the Google Play Store build.',
+      );
+      return;
+    }
+
     if (release.apkUrl.isEmpty) {
       yield const DownloadProgress(
         status: DownloadStatus.failed,

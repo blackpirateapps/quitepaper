@@ -15,6 +15,7 @@ import '../../../core/backup/backup_provider.dart';
 import '../../../core/backup/presentation/auto_backup_password_dialog.dart';
 import '../../../core/backup/presentation/create_backup_dialog.dart';
 import '../../../core/backup/presentation/restore_backup_dialog.dart';
+import '../../../core/flavor/app_flavor.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import '../../../core/utils/link_launcher_helper.dart';
@@ -205,6 +206,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Future<void> _checkManualUpdate() async {
+    final flavor = ref.read(appFlavorProvider);
+    if (flavor.isPlayStore) {
+      LinkLauncherHelper.handleLinkTap(
+        context,
+        AppDistributionFlavor.playStoreUrl,
+      );
+      return;
+    }
+
     setState(() {
       _isCheckingForUpdates = true;
     });
@@ -379,6 +389,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
     final autoBackupConfig = ref.watch(autoBackupConfigProvider);
+    final flavor = ref.watch(appFlavorProvider);
 
     if (syncState.status == SyncStatus.syncing) {
       if (!_syncRotationController.isAnimating) {
@@ -1381,11 +1392,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     _SettingsRow(
                       icon: Icons.system_update_rounded,
                       title: 'Check for updates',
-                      trailing: _isCheckingForUpdates
-                          ? const CupertinoActivityIndicator(radius: 8)
-                          : null,
-                      onTap:
-                          _isCheckingForUpdates ? null : _checkManualUpdate,
+                      trailing: flavor.isPlayStore
+                          ? Icon(
+                              Icons.open_in_new_rounded,
+                              size: 14,
+                              color: colors.textTertiary,
+                            )
+                          : (_isCheckingForUpdates
+                              ? const CupertinoActivityIndicator(radius: 8)
+                              : null),
+                      onTap: flavor.isPlayStore
+                          ? () {
+                              LinkLauncherHelper.handleLinkTap(
+                                context,
+                                AppDistributionFlavor.playStoreUrl,
+                              );
+                            }
+                          : (_isCheckingForUpdates ? null : _checkManualUpdate),
                     ),
                   ],
                 ),

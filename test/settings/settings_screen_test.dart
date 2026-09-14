@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +23,9 @@ import 'package:quitepaper/features/settings/presentation/default_settings_scree
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
 import 'package:quitepaper/features/sync/presentation/change_account_password_dialog.dart';
 import 'package:quitepaper/features/sync/presentation/change_encryption_password_screen.dart';
+import 'package:quitepaper/core/flavor/app_flavor.dart';
+import 'package:quitepaper/core/update/update_provider.dart';
+import 'package:quitepaper/core/update/update_service.dart';
 import 'package:quitepaper/core/utils/link_launcher_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -117,9 +124,25 @@ void main() {
     db = AppDatabase.memory();
     mockAuth = MockAuthService();
     fakeEngine = FakeSyncEngine();
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('com.blackpiratex.quietpaper/updater'),
+      (call) async {
+        if (call.method == 'getDeviceAbis') {
+          return ['arm64-v8a', 'universal'];
+        }
+        return null;
+      },
+    );
   });
 
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('com.blackpiratex.quietpaper/updater'),
+      null,
+    );
     fakeEngine.dispose();
     await db.close();
   });
@@ -129,11 +152,21 @@ void main() {
     MockAuthService? auth,
     SyncEngine? engine,
     SyncState? syncState,
+    AppDistributionFlavor flavor = AppDistributionFlavor.github,
+    UpdateService? updateService,
   }) {
     final authService = auth ?? mockAuth;
     final syncEngine = engine ?? fakeEngine;
+    final updater = updateService ??
+        UpdateService(
+          sharedPreferences: prefs,
+          currentVersion: '1.2.0',
+          flavor: flavor,
+        );
     return ProviderScope(
       overrides: [
+        appFlavorProvider.overrideWithValue(flavor),
+        updateServiceProvider.overrideWithValue(updater),
         databaseProvider.overrideWithValue(db),
         sharedPreferencesProvider.overrideWithValue(prefs),
         authServiceProvider.overrideWithValue(authService),
@@ -594,6 +627,93 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'SettingsScreen in github flavor renders Check for updates and performs manual check',
+      (tester) async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'tag_name': 'v1.2.0',
+          'name': 'Quiet Paper v1.2.0',
+          'body': 'No update',
+          'assets': [],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(
+      createTestWidget(
+        flavor: AppDistributionFlavor.github,
+        updateService: UpdateService(
+          sharedPreferences: prefs,
+          httpClient: mockClient,
+          currentVersion: '1.2.0',
+          flavor: AppDistributionFlavor.github,
+        ),
+        child: const SettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Check for updates'),
+      300.0,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Check for updates'), findsOneWidget);
+    // In GitHub flavor, no open_in_new external link icon is shown
+    expect(find.byIcon(Icons.open_in_new_rounded), findsNothing);
+
+    // Tap Check for updates
+    await tester.tap(find.text('Check for updates'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Up to date snackbar appears
+    expect(find.textContaining('Quiet Paper is up to date'), findsOneWidget);
+  });
+
+  testWidgets(
+      'SettingsScreen in play flavor renders Check for updates with open_in_new icon and launches Play Store link',
+      (tester) async {
+    await tester.pumpWidget(
+      createTestWidget(
+        flavor: AppDistributionFlavor.play,
+        child: const SettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Check for updates'),
+      300.0,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Check for updates'), findsOneWidget);
+    // In Play flavor, open_in_new external icon is displayed
+    expect(find.byIcon(Icons.open_in_new_rounded), findsOneWidget);
+
+    // Tap Check for updates
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // Confirmation dialog appears with Play Store link
+    expect(find.byType(LinkConfirmationDialog), findsOneWidget);
+    expect(find.textContaining('play.google.com'), findsAtLeast(1));
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

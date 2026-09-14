@@ -31,6 +31,16 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "channel"
+    productFlavors {
+        create("github") {
+            dimension = "channel"
+        }
+        create("play") {
+            dimension = "channel"
+        }
+    }
+
     signingConfigs {
         create("release") {
             val envKeystoreFile = System.getenv("KEYSTORE_FILE")

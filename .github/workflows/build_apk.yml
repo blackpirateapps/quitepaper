@@ -60,17 +60,21 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: flutter build apk --split-per-abi --release
+        run: flutter build apk --flavor github --split-per-abi --release
 
       - name: Organize & Name Release APKs
         run: |
           mkdir -p release-artifacts
           V="${{ steps.version.outputs.version }}"
 
-          # Copy and rename architecture-specific APKs
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-artifacts/quiet-paper-${V}-arm64-v8a.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/quiet-paper-${V}-armeabi-v7a.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-artifacts/quiet-paper-${V}-x86_64.apk
+          # Locate and copy architecture-specific APKs
+          ARM64_APK=$(find build/app/outputs/flutter-apk -name "*arm64-v8a*.apk" | head -n 1)
+          ARMEABI_APK=$(find build/app/outputs/flutter-apk -name "*armeabi-v7a*.apk" | head -n 1)
+          X86_64_APK=$(find build/app/outputs/flutter-apk -name "*x86_64*.apk" | head -n 1)
+
+          cp "$ARM64_APK" release-artifacts/quiet-paper-${V}-arm64-v8a.apk
+          cp "$ARMEABI_APK" release-artifacts/quiet-paper-${V}-armeabi-v7a.apk
+          cp "$X86_64_APK" release-artifacts/quiet-paper-${V}-x86_64.apk
 
           echo "Generated APKs:"
           ls -la release-artifacts/

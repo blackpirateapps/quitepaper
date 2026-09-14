@@ -6330,6 +6330,65 @@ Users reported search instability and performance degradation on large databases
   - [`test/search/fts5_integrity_test.dart`](file:///home/dog/git/quitepaper/test/search/fts5_integrity_test.dart): Verifies empty FTS index detection, auto-repair triggers, lightweight candidate memory optimization, and 50KB content truncation bounds.
   - [`test/search/batched_rebuild_test.dart`](file:///home/dog/git/quitepaper/test/search/batched_rebuild_test.dart): Verifies batched rebuild with small chunk sizes (batchSize: 7) and monotonic progress callback snapshots across 25+ notes.
 
+---
+
+## 113. Google Play Store Compliance & Build Flavor Separation (`github` vs `play`)
+
+### 1. Motivation & Problem Statement
+Quiet Paper includes a native auto-update engine powered by GitHub Releases that queries latest release metadata, downloads architecture-specific APKs, and triggers the Android package installer. To install APKs directly on Android, the application previously declared `android.permission.REQUEST_INSTALL_PACKAGES` in `AndroidManifest.xml`.
+
+However, publishing this build directly to Google Play Store causes immediate policy rejection:
+1. **Google Play Request Install Packages Policy**: Google Play restricts `REQUEST_INSTALL_PACKAGES` strictly to apps whose primary core function is app installation or device management (such as alternative app stores or file managers). A notes application declaring this permission is automatically rejected.
+2. **Device and Network Abuse / Update Policy**: Google Play policies explicitly prohibit apps distributed via Google Play from downloading, modifying, or updating themselves using third-party channels (like GitHub Releases).
+
+The goal was to preserve 100% of the in-app automatic update experience for users who download from GitHub Releases, while producing a Google Play Store AAB build that is 100% compliant with Play Store policies.
+
+### 2. Architectural Solution & Implementation
+
+1. **Gradle Product Flavors (`github` vs `play`)**:
+   - In [`android/app/build.gradle.kts`](file:///home/dog/git/quitepaper/android/app/build.gradle.kts), defined `flavorDimensions += "channel"` with two flavors:
+     - `github`: For standalone/GitHub release APKs.
+     - `play`: For Google Play Store AAB bundles.
+   - Kept identical `applicationId = "com.blackpiratex.quietpaper"` across both flavors to ensure seamless identity and database compatibility.
+
+2. **Manifest Permission Isolation**:
+   - Removed `<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>` from [`android/app/src/main/AndroidManifest.xml`](file:///home/dog/git/quitepaper/android/app/src/main/AndroidManifest.xml).
+   - Created [`android/app/src/github/AndroidManifest.xml`](file:///home/dog/git/quitepaper/android/app/src/github/AndroidManifest.xml) containing only `REQUEST_INSTALL_PACKAGES`.
+   - Gradle manifest merger merges `REQUEST_INSTALL_PACKAGES` exclusively into the `github` flavor. In the `play` flavor, `REQUEST_INSTALL_PACKAGES` is completely absent from the merged manifest and generated AAB.
+
+3. **Dart Flavor Runtime Model & Provider (`AppDistributionFlavor`)**:
+   - Implemented [`lib/core/flavor/app_flavor.dart`](file:///home/dog/git/quitepaper/lib/core/flavor/app_flavor.dart):
+     - `AppDistributionFlavor` enum (`github`, `play`) with helper getters (`isPlayStore`, `isGitHub`).
+     - `AppDistributionFlavor.current` inspects Flutter's built-in `appFlavor` (`package:flutter/services.dart`), defaulting to `github` for test suites and local development without `--flavor`.
+     - `appFlavorProvider`: Riverpod provider enabling clean dependency injection and overrides in widget tests.
+
+4. **In-App Update Engine Guarding (`UpdateService`)**:
+   - In [`lib/core/update/update_service.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_service.dart), injected `flavor`.
+   - When running under `play` flavor:
+     - `checkForUpdate()` returns immediately with `hasUpdate: false` without performing network requests to the GitHub API.
+     - `downloadApk()` fails safely with an informative message.
+     - `canRequestPackageInstalls()`, `openInstallPermissionSettings()`, and `installApk()` return `false` without invoking platform channel methods.
+   - In [`notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart), `_checkForUpdatesOnLaunch()` returns immediately if `flavor.isPlayStore`, ensuring background checks and `UpdateDialog` never appear in the Play Store build.
+
+5. **Settings Screen Flavor-Aware UI**:
+   - In [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart):
+     - **GitHub Flavor (`github`)**: Displays "Check for updates" with manual check spinner and `UpdateDialog` / SnackBar feedback.
+     - **Play Store Flavor (`play`)**: Displays "Check for updates" with trailing external link icon (`Icons.open_in_new_rounded`). Tapping it invokes `LinkLauncherHelper.handleLinkTap` targeting the app's Google Play Store listing (`https://play.google.com/store/apps/details?id=com.blackpiratex.quietpaper`), delegating updates to the official Google Play app.
+
+6. **CI/CD Workflow Alignment**:
+   - [`.github/workflows/build_aab.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_aab.yml): Builds `flutter build appbundle --flavor play --release` and preserves `playRelease` AAB and ProGuard mapping.
+   - [`.github/workflows/release.yml`](file:///home/dog/git/quitepaper/.github/workflows/release.yml): Builds `flutter build apk --flavor github --split-per-abi --release` and universal APK with `--flavor github`.
+   - [`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml): Builds `flutter build apk --flavor github --split-per-abi --release`.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 errors, 0 warnings**).
+- **Test Suite**: `flutter test` (**all 1,419 tests passing**).
+- **Automated Tests Added/Updated**:
+  - [`test/flavor/app_flavor_test.dart`](file:///home/dog/git/quitepaper/test/flavor/app_flavor_test.dart): Verifies runtime flavor resolution, enum properties, and provider overrides.
+  - [`test/update/update_service_test.dart`](file:///home/dog/git/quitepaper/test/update/update_service_test.dart): Verifies `UpdateService` no-op and defensive guards in `play` flavor.
+  - [`test/settings/settings_screen_test.dart`](file:///home/dog/git/quitepaper/test/settings/settings_screen_test.dart): Verifies Settings screen UI and tap behaviors for both `github` and `play` flavors.
+
+
 
 
 
