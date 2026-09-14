@@ -12,6 +12,7 @@ import '../utils/debouncer.dart';
 import 'conflict/conflict_model.dart';
 import 'conflict/conflict_resolver.dart';
 import 'conflict/merge_result.dart';
+import '../device/device_info_service.dart';
 import 'sync_api_client.dart';
 import 'sync_models.dart';
 
@@ -25,6 +26,8 @@ class SyncEngine {
     this.attachmentSyncService,
     this.documentSyncService,
     ConflictResolver? conflictResolver,
+    this.deviceInfoService,
+    this.onDeviceRevoked,
   })  : conflictResolver = conflictResolver ?? ConflictResolver(database: database) {
     _init();
   }
@@ -37,6 +40,8 @@ class SyncEngine {
   final AttachmentSyncService? attachmentSyncService;
   final DocumentSyncService? documentSyncService;
   final ConflictResolver conflictResolver;
+  final DeviceInfoService? deviceInfoService;
+  final void Function(String message)? onDeviceRevoked;
 
   final Debouncer _syncDebouncer =
       Debouncer(duration: const Duration(milliseconds: 700));
@@ -106,6 +111,19 @@ class SyncEngine {
 
     try {
       final masterKey = keyManager.getMasterKey();
+      final deviceId = await database.getOrCreateDeviceId();
+
+      // Register or update current device metadata
+      if (deviceInfoService != null) {
+        try {
+          final regReq = await deviceInfoService!.getCurrentDeviceMetadata();
+          await apiClient.registerDevice(regReq);
+        } on DeviceRevokedException {
+          rethrow;
+        } catch (e) {
+          debugPrint('[SyncEngine] Device registration sync warning: $e');
+        }
+      }
 
       // 1. Ensure remote encryption keys are initialized
       final storedKey = await keyManager.getStoredWrappedKeyData();
@@ -198,6 +216,7 @@ class SyncEngine {
           final pushResponse = await apiClient.pushChanges(
             changes: batchPayloads,
             idempotencyKey: idempotencyKey,
+            deviceId: deviceId,
           );
 
           // Update local revisions for successfully applied notes
@@ -253,7 +272,10 @@ class SyncEngine {
         }
 
         try {
-          final tagPushRes = await apiClient.pushTags(tags: tagPayloads);
+          final tagPushRes = await apiClient.pushTags(
+            tags: tagPayloads,
+            deviceId: deviceId,
+          );
           for (final res in tagPushRes.results) {
             await database.markTagSynced(
               tagId: res.id,
@@ -274,14 +296,18 @@ class SyncEngine {
       while (hasMore) {
         PullSyncResponse pullResponse;
         try {
-          pullResponse =
-              await apiClient.pullChanges(cursor: currentCursor, limit: 50);
+          pullResponse = await apiClient.pullChanges(
+            cursor: currentCursor,
+            limit: 50,
+          );
         } on SyncCursorExpiredException catch (exp) {
           debugPrint('Sync cursor expired ($exp). Resetting cursor for full resync...');
           await resetSyncCursor();
           currentCursor = 0;
-          pullResponse =
-              await apiClient.pullChanges(cursor: 0, limit: 50);
+          pullResponse = await apiClient.pullChanges(
+            cursor: 0,
+            limit: 50,
+          );
         }
 
         for (final change in pullResponse.changes) {
@@ -661,7 +687,10 @@ class SyncEngine {
                 : versionPayloads.length;
             final batch = versionPayloads.sublist(i, end);
 
-            final vPushRes = await apiClient.pushVersions(versions: batch);
+            final vPushRes = await apiClient.pushVersions(
+              versions: batch,
+              deviceId: deviceId,
+            );
             for (final res in vPushRes.results) {
               await database.markNoteVersionSynced(
                 id: res.id,
@@ -809,16 +838,17 @@ class SyncEngine {
         attachmentErrors.addAll(docResult.errors);
       }
 
-      // 6. REFERENCE PROJECTIONS SYNC: Send active and trashed resource references to server
+      // 6. REFERENCE PROJECTION SYNC: Compute note -> attachment/document bindings
       try {
         final allNotes = await database.getAllNotesRaw();
         final references = <SyncReferenceItem>[];
+
         for (final n in allNotes) {
-          final content = n.content;
-          final assetMatches = RegExp(
-            r'qp://asset/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+          final content = '${n.title}\n${n.content}';
+          final imgMatches = RegExp(
+            r'qp://(?:attachment|asset)/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
           ).allMatches(content);
-          for (final m in assetMatches) {
+          for (final m in imgMatches) {
             final id = m.group(1);
             if (id != null) {
               references.add(SyncReferenceItem(
@@ -845,7 +875,10 @@ class SyncEngine {
         }
 
         if (references.isNotEmpty) {
-          await apiClient.syncReferences(references: references);
+          await apiClient.syncReferences(
+            references: references,
+            deviceId: deviceId,
+          );
         }
       } catch (refErr) {
         debugPrint('Reference projection sync error: $refErr');
@@ -878,6 +911,19 @@ class SyncEngine {
           errorMessage: null,
         ));
       }
+    } on DeviceRevokedException catch (revErr) {
+      debugPrint('[SyncEngine] Device has been revoked: $revErr');
+      final msg = revErr.message.isNotEmpty
+          ? revErr.message
+          : 'This device was signed out remotely. Your local notes are still here. Sign in again to resume sync.';
+      onDeviceRevoked?.call(msg);
+      try {
+        await authService.signOut();
+      } catch (_) {}
+      _updateState(_state.copyWith(
+        status: SyncStatus.localOnly,
+        errorMessage: msg,
+      ));
     } catch (e) {
       final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
       final isOffline = errStr.contains('SocketException') ||

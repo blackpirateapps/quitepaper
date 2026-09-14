@@ -250,28 +250,33 @@ void main() {
     // 3. Sync Now Row
     expect(find.text('Sync Now'), findsOneWidget);
 
-    // 4. Account Password Row
+    // 4. Devices & Sessions Row
+    expect(find.text('Devices & Sessions'), findsOneWidget);
+
+    // 5. Account Password Row
     expect(find.text('Account Password'), findsOneWidget);
     expect(find.text('Login & cloud account credentials'), findsOneWidget);
 
-    // 5. Encryption Password Row
+    // 6. Encryption Password Row
     expect(find.text('Encryption Password'), findsOneWidget);
     expect(find.text('Zero-knowledge note vault key'), findsOneWidget);
 
-    // 6. Sign Out Row
+    // 7. Sign Out Row
     expect(find.text('Sign Out'), findsOneWidget);
 
     // Verify vertical ordering: Top-to-bottom Y offsets
     final userProfileOffset = tester.getTopLeft(find.text('writer@quietpaper.app')).dy;
     final verifyEmailOffset = tester.getTopLeft(find.text('Verify Email Address')).dy;
     final syncNowOffset = tester.getTopLeft(find.text('Sync Now')).dy;
+    final devicesOffset = tester.getTopLeft(find.text('Devices & Sessions')).dy;
     final accountPassOffset = tester.getTopLeft(find.text('Account Password')).dy;
     final encPassOffset = tester.getTopLeft(find.text('Encryption Password')).dy;
     final signOutOffset = tester.getTopLeft(find.text('Sign Out')).dy;
 
     expect(userProfileOffset < verifyEmailOffset, isTrue);
     expect(verifyEmailOffset < syncNowOffset, isTrue);
-    expect(syncNowOffset < accountPassOffset, isTrue);
+    expect(syncNowOffset < devicesOffset, isTrue);
+    expect(devicesOffset < accountPassOffset, isTrue);
     expect(accountPassOffset < encPassOffset, isTrue);
     expect(encPassOffset < signOutOffset, isTrue);
   });
@@ -463,8 +468,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Tap Encryption Password row
-    await tester.ensureVisible(find.text('Encryption Password'));
+    // Scroll to bring Encryption Password row into view
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -250));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Encryption Password'));
     await tester.pumpAndSettle();
 
@@ -493,7 +499,11 @@ void main() {
     expect(find.text('writer@quietpaper.app'), findsOneWidget);
 
     // Ensure Sign Out row is visible
-    await tester.ensureVisible(find.text('Sign Out'));
+    await tester.scrollUntilVisible(
+      find.text('Sign Out'),
+      50.0,
+      scrollable: find.byType(Scrollable),
+    );
     await tester.pumpAndSettle();
 
     // Tap Sign Out row
@@ -501,9 +511,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Confirmation dialog appears
+    expect(find.text('Sign out of this device?'), findsOneWidget);
     expect(
       find.text(
-          'Sign out of writer@quietpaper.app? Local notes will remain on this device.'),
+          'Your local notes will stay on this device and remain available offline. Cloud synchronization will stop until you sign in again.'),
       findsOneWidget,
     );
     expect(find.text('Cancel'), findsOneWidget);

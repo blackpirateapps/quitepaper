@@ -6459,9 +6459,129 @@ flowchart TD
     - User list rendering, user inspection, zero-knowledge content absence, and GC dry-run triggers.
     - Storage inspection and destruction job retry state reset in SQLite.
     - Logout handling with session cookie expiration (`Max-Age=0`).
-- **All Backend Tests Passing**: `npm test` (**53 tests passing across 12 test files**).
+- **All Backend Tests Passing**: `npm test` (**64 tests passing across 13 test files**).
 - **TypeScript Compilation**: `npm run build` (**0 errors, 0 warnings**).
 - **Flutter Quality**: `flutter analyze` (**0 errors, 0 warnings**), `flutter test` (**all tests passing**).
+
+---
+
+## 115. Devices & Sessions Management, Client Identity, and Safe Sign Out Semantics
+
+Quiet Paper features a production-grade, end-to-end **Devices & Sessions Management** architecture designed to give users transparent visibility and control over all active and historical sign-ins across their phones, tablets, desktops, and browsers, while upholding strict zero-knowledge security, offline-first data retention, and clear distinction between session disconnection and local vault erasure.
+
+```mermaid
+flowchart TD
+    subgraph Client["Flutter Client"]
+        DIS["DeviceInfoService (Hardware/OS Detection)"] --> RegReq["DeviceRegistrationRequest"]
+        RegReq --> ApiClient["HttpSyncApiClient"]
+        Engine["SyncEngine (syncNow)"] --> ApiClient
+        UI["DevicesScreen / DeviceDetailSheet"] --> ApiClient
+        RevokeNotice["remoteRevocationNoticeProvider"]
+    end
+
+    subgraph Backend["Vercel Serverless + libSQL"]
+        Router["/api/v1/devices/* Router"]
+        DevService["DeviceService"]
+        SyncService["SyncService (recordDeviceCheckpoint)"]
+        GC["GarbageCollector (getSafeSyncBoundary)"]
+        DB[(sync_devices Table)]
+        Router --> DevService
+        DevService --> DB
+        SyncService --> DB
+        GC --> DB
+    end
+
+    ApiClient -- "POST /api/v1/devices/register" --> Router
+    ApiClient -- "GET /api/v1/devices" --> Router
+    ApiClient -- "PATCH /api/v1/devices/:id" --> Router
+    ApiClient -- "POST /api/v1/devices/:id/revoke" --> Router
+    ApiClient -- "POST /api/v1/devices/revoke-others" --> Router
+
+    SyncService -- "401 DEVICE_REVOKED" --> Engine
+    Engine -- "Halt Sync & Sign Out (Keep Local Vault & Keys)" --> RevokeNotice
+```
+
+### 1. Architectural Principles & Guarantees
+1. **Accurate Normal Sign Out Semantics**:
+   - Ordinary "Sign Out" removes only the Firebase Authentication cloud session token.
+   - It **strictly preserves** the local encrypted SQLite database, encrypted note records, attachments, documents, search indexes, and the in-memory Master Key / decryption key material.
+   - Users who sign out retain complete, uninterrupted offline access to all local notes.
+2. **Authoritative "Sign Out & Erase Local Data" Operation**:
+   - Isolated exclusively to an explicit, double-confirmed action.
+   - Irreversibly purges all SQLite tables (`notes`, `tags`, `attachments`, `documents`, `versions`, `OCR`, `sync_metadata`), destroys local encrypted files on disk, resets sync cursors, purges memory caches, and locks & clears the Master Key.
+   - Computes and displays exact unsynced mutation counts (`getUnsyncedChangesCount()`) before user confirmation to ensure transparency.
+3. **Remote Revocation Lifecycle (`DEVICE_REVOKED`)**:
+   - Revoking a device remotely sets `revoked_at = CURRENT_TIMESTAMP` on the backend.
+   - The revoked device is immediately excluded from the safe Garbage Collection boundary (`getSafeSyncBoundary`).
+   - Subsequent sync or push attempts from the revoked device receive HTTP 401 with `{ "error": { "code": "DEVICE_REVOKED" } }`.
+   - The client halts synchronization, disconnects auth session, surfaces an informative notification banner, and preserves local notes offline.
+   - Re-authenticating on a revoked device clears `revoked_at` and registers a fresh active session checkpoint.
+4. **Editorial Visual Design**:
+   - Follows the Quiet Paper iOS Grouped Table / Bear Notes aesthetic with semantic tokens (`AppColors`, `AppTypography`).
+   - Surfaces clean hardware model names, operating system releases, application versions, relative last-active timestamps, and "This device" badge indicators.
+
+### 2. Backend Implementation
+- **Database Schema Migration (`backend/migrations/010_devices_and_sessions.sql`)**:
+  - Extends `sync_devices` with:
+    - `device_id TEXT NOT NULL` (backfilled from primary key `id`)
+    - `platform TEXT` (e.g., `macOS`, `iOS`, `Android`, `Linux`, `Windows`, `Web`)
+    - `model TEXT` (e.g., `MacBookPro18,1`, `Pixel 9 Pro`)
+    - `os_version TEXT` (e.g., `macOS 15.0`, `Android 15`)
+    - `app_version TEXT` (e.g., `1.5.8`)
+    - `last_active_at TIMESTAMP`
+    - `revoked_at TIMESTAMP`
+  - Creates compound performance indices:
+    - `idx_sync_devices_user_device` ON `(user_id, device_id)`
+    - `idx_sync_devices_user_revoked` ON `(user_id, revoked_at)`
+    - `idx_sync_devices_user_active` ON `(user_id, last_active_at)`
+- **Device Management Service (`backend/src/devices/deviceService.ts`)**:
+  - `checkDeviceRevoked(userId, deviceId)`: Fast indexed lookup checking if a device has an active revocation timestamp.
+  - `registerOrUpdateDevice(userId, data)`: Idempotent upsert saving hardware metadata, resetting `revoked_at` to null upon fresh sign-in, and recording `last_active_at`.
+  - `getDevicesForUser(userId)`: Returns all non-revoked devices for the authenticated user, ordered with active devices first.
+  - `renameDevice(userId, deviceId, deviceName)`: Updates friendly custom device alias with length validation.
+  - `revokeDevice(userId, deviceId)`: Atomically sets `revoked_at = CURRENT_TIMESTAMP`.
+  - `revokeOtherDevices(userId, currentDeviceId)`: Bulk revokes all devices belonging to the user except the specified caller device.
+- **Garbage Collection Integration (`backend/src/gc/garbageCollector.ts`)**:
+  - Excludes revoked devices (`AND revoked_at IS NULL`) in `getSafeSyncBoundary` so that revoked devices never hold back pruning of stale sync logs.
+- **REST Endpoints (`backend/src/api/handler.ts`)**:
+  - `GET /api/v1/devices`: Fetch user device list.
+  - `POST /api/v1/devices/register`: Register or update device metadata.
+  - `POST /api/v1/devices/revoke-others`: Bulk sign out other devices.
+  - `POST /api/v1/devices/:deviceId/revoke`: Revoke specific remote session.
+  - `PATCH /api/v1/devices/:deviceId`: Rename custom device label.
+
+### 3. Flutter Client Implementation
+- **Hardware & OS Detection (`lib/core/device/device_info_service.dart`)**:
+  - Reads hardware identifiers and OS versions using `device_info_plus` across iOS, Android, macOS, Linux, Windows, and Web.
+  - Generates and persists a stable, permanent installation UUID in `sync_metadata` (`device_id`).
+- **Domain Models (`lib/features/devices/domain/device.dart`)**:
+  - `Device` entity with `displayTitle` fallback precedence (custom name -> model -> platform device -> fallback).
+  - Short masked device ID generator (e.g. `••••ID-1`).
+  - Relative activity status formatter via `DateFormatter.formatRelative`.
+- **API Client & Exception Protocol (`lib/core/sync/sync_api_client.dart`)**:
+  - Added `DeviceRevokedException` mapped from HTTP 401 `DEVICE_REVOKED`.
+  - Appends `X-Device-Id` header to authenticated requests for instant per-call revocation detection.
+- **Sync Engine Session Integration (`lib/core/sync/sync_engine.dart`)**:
+  - Calls `apiClient.registerDevice()` on sync initiation.
+  - Traps `DeviceRevokedException`: signs out Firebase credentials without touching local SQLite data, alerts user via `onDeviceRevoked`, and transitions to `SyncStatus.localOnly`.
+- **Vault Erase Service (`lib/core/vault/vault_erase_service.dart`)**:
+  - Centralized routine for data destruction. Clears 13 SQLite tables, wipes disk attachments and OCR assets, purges in-memory keys, and resets sync cursors.
+- **User Interface (`lib/features/devices/presentation/`)**:
+  - `DevicesScreen`: iOS Grouped Table aesthetic, current device badge, relative timestamps, pull-to-refresh, and "Sign Out All Other Devices" button.
+  - `DeviceDetailSheet`: Bottom modal showing full platform, OS, app version, and device ID; provides custom device renaming, individual remote device revocation, and current-device normal sign-out vs erase options.
+  - `SettingsScreen`: Updated account group with "Devices & Sessions" entry row and updated confirmation dialog emphasizing offline note preservation.
+
+### 4. Verification & Quality
+- **Backend Test Suite (`backend/tests/devices.test.ts`)**:
+  - 11 comprehensive Vitest tests verifying registration, idempotency, listing, multi-tenant isolation, renaming, revocation, bulk revocation, sync rejection, and re-login un-revocation.
+- **Flutter Test Suite (`test/devices/devices_test.dart`)**:
+  - 11 unit & widget tests verifying model parsing, API client calls, error handling, normal sign-out local data preservation, `VaultEraseService` table wipes, and UI interactions.
+- **All Quality Checks Passing**:
+  - `flutter analyze` (**0 errors, 0 warnings**).
+  - `flutter test` (**all 1,430 tests passing**).
+  - `npm test` (**all 64 tests passing across 13 test files**).
+  - `npm run build` (**clean TypeScript build**).
+
 
 
 

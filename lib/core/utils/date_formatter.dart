@@ -59,4 +59,23 @@ abstract final class DateFormatter {
   static String formatFullDate(DateTime dateTime) {
     return DateFormat('MMMM d, y • h:mm a').format(dateTime.toLocal());
   }
+
+  /// Formats relative time for devices / sessions (e.g. "Just now", "5m ago", "2h ago", "3d ago", "May 12").
+  static String formatRelative(DateTime dateTime, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    final diff = reference.difference(dateTime);
+    if (diff.isNegative || diff.inSeconds < 45) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays}d ago';
+    } else if (reference.year == dateTime.year) {
+      return DateFormat('MMM d').format(dateTime.toLocal());
+    } else {
+      return DateFormat('MMM d, y').format(dateTime.toLocal());
+    }
+  }
 }

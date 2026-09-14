@@ -1380,6 +1380,55 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Gets the persistent installation device ID, or creates and stores one if absent.
+  Future<String> getOrCreateDeviceId() async {
+    final existing = await getSyncMetadata('device_id');
+    if (existing != null && existing.trim().isNotEmpty) {
+      return existing.trim();
+    }
+    const uuid = Uuid();
+    final newDeviceId = uuid.v4();
+    await setSyncMetadata('device_id', newDeviceId);
+    return newDeviceId;
+  }
+
+  /// Returns the count of pending unsynced local mutations (dirty notes, dirty tags, pending deletions).
+  Future<int> getUnsyncedChangesCount() async {
+    final dirtyNotes = await getDirtyNotes();
+    final dirtyTags = await getDirtyTags();
+    final pendingQueue = await getPendingSyncQueue();
+    return dirtyNotes.length + dirtyTags.length + pendingQueue.length;
+  }
+
+  /// Explicitly and irreversibly erases all local vault data from SQLite.
+  /// Used exclusively by "Sign Out & Erase Local Data".
+  Future<void> eraseAllLocalVaultData() async {
+    await transaction(() async {
+      await delete(noteLinksTable).go();
+      await delete(syncConflictsTable).go();
+      await delete(documentOcrPagesTable).go();
+      await delete(documentsTable).go();
+      await delete(noteVersionsTable).go();
+      await delete(attachmentOcrPagesTable).go();
+      await delete(attachmentVariantsTable).go();
+      await delete(attachmentsTable).go();
+      await delete(syncQueueTable).go();
+      await delete(syncMetadataTable).go();
+      await delete(noteTagsTable).go();
+      await delete(tagsTable).go();
+      await delete(notesTable).go();
+      try {
+        await customStatement('DELETE FROM note_search_prefix;');
+      } catch (_) {}
+      try {
+        await customStatement('DELETE FROM note_search_content;');
+      } catch (_) {}
+      try {
+        await customStatement('DELETE FROM tag_search;');
+      } catch (_) {}
+    });
+  }
+
   /// Resets sync cursors in sync metadata to force clean initial pull or re-sync
   Future<void> resetSyncCursors() async {
     await (delete(syncMetadataTable)

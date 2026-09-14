@@ -4,7 +4,16 @@ import '../attachments/attachment_models.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../documents/document_models.dart';
+import '../../features/devices/domain/device.dart';
 import 'sync_models.dart';
+
+class DeviceRevokedException implements Exception {
+  final String message;
+  const DeviceRevokedException([this.message = 'This device has been signed out remotely.']);
+
+  @override
+  String toString() => message;
+}
 
 abstract class SyncApiClient {
   String get baseUrl => 'https://quitepaper.vercel.app';
@@ -151,6 +160,32 @@ abstract class SyncApiClient {
     required String resourceId,
   }) async {}
   Future<void> permanentDeleteNote(String noteId) async {}
+
+  Future<List<Device>> getDevices({String? deviceId}) async => [];
+  Future<Device> registerDevice(DeviceRegistrationRequest request) async {
+    return Device(
+      id: request.deviceId,
+      deviceId: request.deviceId,
+      deviceName: request.deviceName,
+      platform: request.platform,
+      model: request.model,
+      osVersion: request.osVersion,
+      appVersion: request.appVersion,
+      createdAt: DateTime.now(),
+      lastActiveAt: DateTime.now(),
+    );
+  }
+  Future<Device> renameDevice(String deviceId, String newName) async {
+    return Device(
+      id: deviceId,
+      deviceId: deviceId,
+      deviceName: newName,
+      createdAt: DateTime.now(),
+      lastActiveAt: DateTime.now(),
+    );
+  }
+  Future<void> revokeDevice(String deviceId) async {}
+  Future<int> revokeOtherDevices(String currentDeviceId) async => 0;
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -176,24 +211,36 @@ class HttpSyncApiClient implements SyncApiClient {
     _baseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
   }
 
-  Future<Map<String, String>> _authHeaders() async {
+  Future<Map<String, String>> _authHeaders({String? deviceId}) async {
     final token = await authService.getIdToken();
     if (token == null || token.isEmpty) {
       throw StateError('User is not authenticated.');
     }
-    return {
+    final headers = <String, String>{
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
+    if (deviceId != null) {
+      headers['X-Device-Id'] = deviceId;
+    }
+    return headers;
   }
 
   Future<http.Response> _sendWithAuthRetry(
-    Future<http.Response> Function(Map<String, String> headers) sendRequest,
-  ) async {
-    var headers = await _authHeaders();
+    Future<http.Response> Function(Map<String, String> headers) sendRequest, {
+    String? deviceId,
+  }) async {
+    var headers = await _authHeaders(deviceId: deviceId);
     var response = await sendRequest(headers);
 
     if (response.statusCode == 401) {
+      final json = _safeParseJson(response.body);
+      final errCode = json?['error']?['code'] ?? json?['code'];
+      if (errCode == 'DEVICE_REVOKED') {
+        final msg = json?['error']?['message'] ?? 'This device has been signed out remotely.';
+        throw DeviceRevokedException(msg.toString());
+      }
+
       // Intercept 401: Token might be expired or invalid on server.
       // Force-refresh token via Firebase SecureToken API and retry once.
       final freshToken = await authService.getIdToken(forceRefresh: true);
@@ -202,7 +249,19 @@ class HttpSyncApiClient implements SyncApiClient {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $freshToken',
         };
+        if (deviceId != null) {
+          headers['X-Device-Id'] = deviceId;
+        }
         response = await sendRequest(headers);
+      }
+    }
+
+    if (response.statusCode == 403 || response.statusCode == 401) {
+      final json = _safeParseJson(response.body);
+      final errCode = json?['error']?['code'] ?? json?['code'];
+      if (errCode == 'DEVICE_REVOKED') {
+        final msg = json?['error']?['message'] ?? 'This device has been signed out remotely.';
+        throw DeviceRevokedException(msg.toString());
       }
     }
 
@@ -868,5 +927,106 @@ class HttpSyncApiClient implements SyncApiClient {
     if (res.statusCode != 200) {
       throw Exception(_extractErrorMessage(res, 'Failed to permanently delete note'));
     }
+  }
+
+  @override
+  Future<List<Device>> getDevices({String? deviceId}) async {
+    final url = Uri.parse('$_baseUrl/api/v1/devices');
+    final res = await _sendWithAuthRetry(
+      (headers) => _client.get(url, headers: headers),
+      deviceId: deviceId,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch devices'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null || data['devices'] is! List) {
+      throw Exception('Failed to fetch devices: Invalid JSON response');
+    }
+
+    final list = data['devices'] as List;
+    return list.map((item) => Device.fromJson(item as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<Device> registerDevice(DeviceRegistrationRequest request) async {
+    final url = Uri.parse('$_baseUrl/api/v1/devices/register');
+    final res = await _sendWithAuthRetry(
+      (headers) => _client.post(
+        url,
+        headers: headers,
+        body: jsonEncode(request.toJson()),
+      ),
+      deviceId: request.deviceId,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to register device'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null || data['device'] == null) {
+      throw Exception('Failed to register device: Invalid JSON response');
+    }
+
+    return Device.fromJson(data['device'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Device> renameDevice(String deviceId, String newName) async {
+    final url = Uri.parse('$_baseUrl/api/v1/devices/${Uri.encodeComponent(deviceId)}');
+    final res = await _sendWithAuthRetry(
+      (headers) => _client.patch(
+        url,
+        headers: headers,
+        body: jsonEncode({'deviceName': newName}),
+      ),
+      deviceId: deviceId,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to rename device'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null || data['device'] == null) {
+      throw Exception('Failed to rename device: Invalid JSON response');
+    }
+
+    return Device.fromJson(data['device'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> revokeDevice(String deviceId) async {
+    final url = Uri.parse('$_baseUrl/api/v1/devices/${Uri.encodeComponent(deviceId)}/revoke');
+    final res = await _sendWithAuthRetry(
+      (headers) => _client.post(url, headers: headers),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to revoke device'));
+    }
+  }
+
+  @override
+  Future<int> revokeOtherDevices(String currentDeviceId) async {
+    final url = Uri.parse('$_baseUrl/api/v1/devices/revoke-others');
+    final res = await _sendWithAuthRetry(
+      (headers) => _client.post(
+        url,
+        headers: headers,
+        body: jsonEncode({'currentDeviceId': currentDeviceId}),
+      ),
+      deviceId: currentDeviceId,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to revoke other devices'));
+    }
+
+    final data = _safeParseJson(res.body);
+    return data?['revokedCount'] as int? ?? 0;
   }
 }

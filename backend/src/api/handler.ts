@@ -24,6 +24,14 @@ import {
   confirmDocumentUpload,
   getDocumentMetadata,
 } from '../documents/documentService.js';
+import {
+  getDevicesForUser,
+  registerOrUpdateDevice,
+  renameDevice,
+  revokeDevice,
+  revokeOtherDevices,
+  checkDeviceRevoked,
+} from '../devices/deviceService.js';
 import { handleAdminRequest } from '../admin/adminHandler.js';
 import { ApiError } from '../errors/apiError.js';
 
@@ -111,6 +119,12 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
     // Protected endpoints require Firebase Auth token
     const authContext = await requireFirebaseAuth(authHeader, db);
     const userId = authContext.user.id;
+
+    // Check if caller device is revoked (if deviceId header or body is present and not explicitly registering)
+    const callerDeviceId = (req.headers['x-device-id'] as string) || req.body?.deviceId;
+    if (callerDeviceId && pathname !== '/api/v1/devices/register') {
+      await checkDeviceRevoked(db, userId, callerDeviceId);
+    }
 
     // GET /api/v1/account
     if (pathname === '/api/v1/account' && method === 'GET') {
@@ -246,6 +260,60 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: { cursor },
+      };
+    }
+
+    // GET /api/v1/devices
+    if (pathname === '/api/v1/devices' && method === 'GET') {
+      const devices = await getDevicesForUser(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: { devices },
+      };
+    }
+
+    // POST /api/v1/devices/register
+    if (pathname === '/api/v1/devices/register' && method === 'POST') {
+      const device = await registerOrUpdateDevice(db, userId, req.body, true);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: { device },
+      };
+    }
+
+    // POST /api/v1/devices/revoke-others
+    if (pathname === '/api/v1/devices/revoke-others' && method === 'POST') {
+      const result = await revokeOtherDevices(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    }
+
+    // POST /api/v1/devices/:deviceId/revoke
+    const revokeDeviceMatch = pathname.match(/^\/api\/v1\/devices\/([^/]+)\/revoke$/);
+    if (revokeDeviceMatch && method === 'POST') {
+      const targetDeviceId = decodeURIComponent(revokeDeviceMatch[1]);
+      const result = await revokeDevice(db, userId, targetDeviceId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    }
+
+    // PATCH /api/v1/devices/:deviceId
+    const renameDeviceMatch = pathname.match(/^\/api\/v1\/devices\/([^/]+)$/);
+    if (renameDeviceMatch && method === 'PATCH') {
+      const targetDeviceId = decodeURIComponent(renameDeviceMatch[1]);
+      const device = await renameDevice(db, userId, targetDeviceId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: { device },
       };
     }
 

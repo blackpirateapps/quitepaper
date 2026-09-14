@@ -163,10 +163,17 @@ CREATE TABLE IF NOT EXISTS note_versions (
 CREATE TABLE IF NOT EXISTS sync_devices (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  device_id TEXT,
   device_name TEXT,
+  platform TEXT,
+  model TEXT,
+  os_version TEXT,
+  app_version TEXT,
   client_version TEXT,
   last_acknowledged_revision INTEGER NOT NULL DEFAULT 0,
+  last_active_at TEXT,
   last_seen_at TEXT NOT NULL,
+  revoked_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -214,6 +221,9 @@ CREATE INDEX IF NOT EXISTS idx_sync_changes_user_note_rev ON sync_changes (user_
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
 CREATE INDEX IF NOT EXISTS idx_sync_devices_user ON sync_devices (user_id, last_seen_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_sync_devices_user_revoked ON sync_devices (user_id, revoked_at);
+CREATE INDEX IF NOT EXISTS idx_sync_devices_user_active ON sync_devices (user_id, last_active_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_refs_unique ON attachment_references (user_id, resource_type, resource_id, note_id);
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_res ON attachment_references (user_id, resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_note ON attachment_references (user_id, note_id);
@@ -282,5 +292,46 @@ export async function runMigrations(db: Client): Promise<void> {
   } catch (_) {}
   try {
     await db.execute("ALTER TABLE attachments ADD COLUMN kind TEXT NOT NULL DEFAULT 'image';");
+  } catch (_) {}
+
+  // v10: Devices & Sessions schema extensions
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN device_id TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN platform TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN model TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN os_version TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN app_version TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN last_active_at TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE sync_devices ADD COLUMN revoked_at TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('UPDATE sync_devices SET device_id = id WHERE device_id IS NULL;');
+  } catch (_) {}
+  try {
+    await db.execute('UPDATE sync_devices SET app_version = client_version WHERE app_version IS NULL AND client_version IS NOT NULL;');
+  } catch (_) {}
+  try {
+    await db.execute('UPDATE sync_devices SET last_active_at = last_seen_at WHERE last_active_at IS NULL AND last_seen_at IS NOT NULL;');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_devices_user_revoked ON sync_devices (user_id, revoked_at);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_devices_user_active ON sync_devices (user_id, last_active_at);');
   } catch (_) {}
 }

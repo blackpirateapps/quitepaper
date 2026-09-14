@@ -4,6 +4,7 @@ import '../attachments/attachment_provider.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
+import '../device/device_info_service.dart';
 import '../documents/document_provider.dart';
 import 'conflict/conflict_model.dart';
 import 'conflict/conflict_repository.dart';
@@ -79,6 +80,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   final attachmentSync = ref.watch(attachmentSyncServiceProvider);
   final documentSync = ref.watch(documentSyncServiceProvider);
   final conflictResolver = ref.watch(conflictResolverProvider);
+  final deviceInfo = ref.watch(deviceInfoServiceProvider);
 
   final engine = SyncEngine(
     database: db,
@@ -89,11 +91,17 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     attachmentSyncService: attachmentSync,
     documentSyncService: documentSync,
     conflictResolver: conflictResolver,
+    deviceInfoService: deviceInfo,
+    onDeviceRevoked: (msg) {
+      ref.read(remoteRevocationNoticeProvider.notifier).state = msg;
+    },
   );
 
   ref.onDispose(engine.dispose);
   return engine;
 });
+
+final remoteRevocationNoticeProvider = StateProvider<String?>((ref) => null);
 
 final syncStateStreamProvider = StreamProvider<SyncState>((ref) {
   final engine = ref.watch(syncEngineProvider);

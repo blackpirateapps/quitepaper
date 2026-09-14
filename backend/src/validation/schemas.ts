@@ -194,6 +194,29 @@ export const pullTagsSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
 
+export const registerDeviceSchema = z.object({
+  deviceId: z.string().min(1).max(128),
+  deviceName: z.string().max(128).optional(),
+  platform: z.string().max(64).optional(),
+  model: z.string().max(128).optional(),
+  osVersion: z.string().max(64).optional(),
+  appVersion: z.string().max(64).optional(),
+});
+
+export const renameDeviceSchema = z.object({
+  deviceName: z.string()
+    .trim()
+    .min(1, 'Device name cannot be empty')
+    .max(64, 'Device name cannot exceed 64 characters')
+    .refine((val) => !/[\x00-\x1F\x7F]/.test(val), {
+      message: 'Device name cannot contain control characters',
+    }),
+});
+
+export const revokeOthersSchema = z.object({
+  currentDeviceId: z.string().min(1).max(128),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
@@ -210,3 +233,6 @@ export type PullVersionsInput = z.infer<typeof pullVersionsSchema>;
 export type TagSyncPayloadInput = z.infer<typeof tagSyncPayloadSchema>;
 export type PushTagsInput = z.infer<typeof pushTagsSchema>;
 export type PullTagsInput = z.infer<typeof pullTagsSchema>;
+export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
+export type RenameDeviceInput = z.infer<typeof renameDeviceSchema>;
+export type RevokeOthersInput = z.infer<typeof revokeOthersSchema>;

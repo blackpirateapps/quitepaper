@@ -19,6 +19,7 @@ import '../../../core/flavor/app_flavor.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
 import '../../../core/utils/link_launcher_helper.dart';
+import '../../devices/presentation/devices_screen.dart';
 import '../../import/application/markdown_import_scanner.dart';
 import '../../import/presentation/markdown_import_screen.dart';
 import '../../editor/domain/editor_editing_style.dart';
@@ -150,14 +151,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             borderRadius: BorderRadius.circular(16.0),
           ),
           title: Text(
-            'Sign Out',
+            'Sign out of this device?',
             style: AppTypography.headline.copyWith(
               color: colors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
           content: Text(
-            'Sign out of $email? Local notes will remain on this device.',
+            'Your local notes will stay on this device and remain available offline. Cloud synchronization will stop until you sign in again.',
             style: AppTypography.bodySmall.copyWith(
               color: colors.textSecondary,
               height: 1.4,
@@ -192,8 +193,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
     if (confirmed == true && context.mounted) {
       await ref.read(authServiceProvider).signOut();
-      await ref.read(keyManagerProvider).clearLocalKeys();
-      await ref.read(syncEngineProvider).resetSyncCursor();
     }
   }
 
@@ -689,7 +688,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         ),
                       ],
 
-                      // 4. Account Password Row (Firebase Auth)
+                      // 4. Devices & Sessions Row
+                      _buildDivider(colors),
+                      _SettingsRow(
+                        icon: Icons.devices_rounded,
+                        title: 'Devices & Sessions',
+                        subtitle: 'Manage signed-in devices and sessions',
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: colors.textTertiary,
+                        ),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DevicesScreen(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // 5. Account Password Row (Firebase Auth)
                       _buildDivider(colors),
                       _SettingsRow(
                         icon: Icons.key_outlined,

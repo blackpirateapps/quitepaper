@@ -16,6 +16,7 @@ export type ApiErrorCode =
   | 'CLOUD_STORAGE_DELETE_FAILED'
   | 'PAYLOAD_TOO_LARGE'
   | 'RATE_LIMITED'
+  | 'DEVICE_REVOKED'
   | 'INTERNAL_ERROR';
 
 export class ApiError extends Error {

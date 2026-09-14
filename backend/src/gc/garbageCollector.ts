@@ -51,11 +51,11 @@ export async function getSafeSyncBoundary(
 ): Promise<number> {
   const activeCutoffIso = new Date(Date.now() - staleDeviceDays * 24 * 60 * 60 * 1000).toISOString();
 
-  // Find all active devices for this user
+  // Find all active non-revoked devices for this user
   const activeDevicesRes = await db.execute({
     sql: `SELECT last_acknowledged_revision
           FROM sync_devices
-          WHERE user_id = ? AND last_seen_at >= ?`,
+          WHERE user_id = ? AND last_seen_at >= ? AND revoked_at IS NULL`,
     args: [userId, activeCutoffIso],
   });
 
