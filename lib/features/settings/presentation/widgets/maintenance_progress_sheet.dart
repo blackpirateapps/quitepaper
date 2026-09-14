@@ -86,6 +86,39 @@ class _MaintenanceProgressSheetState
             }
           },
         );
+      } else if (widget.taskType == MaintenanceTaskType.rebuildSearchIndex) {
+        setState(() {
+          _progress = _progress.copyWith(
+            phase: MaintenancePhase.rebuildingIndex,
+            statusMessage: 'Rebuilding search index...',
+          );
+        });
+
+        await service.rebuildSearchIndex(
+          onProgress: (completed, total) {
+            if (mounted) {
+              setState(() {
+                _progress = _progress.copyWith(
+                  phase: MaintenancePhase.rebuildingIndex,
+                  completedItems: completed,
+                  totalItems: total,
+                  statusMessage: total > 0
+                      ? 'Indexing note $completed of $total...'
+                      : 'Indexing notes...',
+                );
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _progress = _progress.copyWith(
+              phase: MaintenancePhase.completed,
+              statusMessage: 'Search index rebuilt successfully',
+            );
+          });
+        }
       }
     } catch (e) {
       if (mounted) {

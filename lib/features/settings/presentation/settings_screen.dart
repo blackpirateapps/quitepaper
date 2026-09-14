@@ -30,7 +30,6 @@ import '../../sync/presentation/sync_auth_screen.dart';
 import '../application/settings_provider.dart';
 import '../application/typography_provider.dart';
 import '../../../core/maintenance/maintenance_models.dart';
-import '../../../core/maintenance/maintenance_provider.dart';
 import 'default_settings_screen.dart';
 import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
@@ -363,32 +362,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
 
     if (confirmed != true) return;
+    if (!context.mounted) return;
 
-    try {
-      final maintenanceService = ref.read(attachmentMaintenanceServiceProvider);
-      await maintenanceService.rebuildSearchIndex();
-
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Search index rebuilt successfully'),
-          duration: Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to rebuild search index: $e'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: colors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    await MaintenanceProgressSheet.show(
+      context,
+      taskType: MaintenanceTaskType.rebuildSearchIndex,
+    );
   }
 
   @override

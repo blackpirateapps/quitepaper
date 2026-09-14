@@ -135,7 +135,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 if (results != null) {
                   return Column(
                     children: [
-                      if (isLoading)
+                      if (isLoading || results.searchPhase != SearchPhase.complete)
                         LinearProgressIndicator(
                           minHeight: 2.0,
                           backgroundColor: Colors.transparent,
@@ -150,7 +150,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       // Results list
                       Expanded(
                         child: results.isEmpty
-                            ? _buildEmptyResultsState(colors, query)
+                            ? _buildEmptyResultsState(
+                                colors,
+                                query,
+                                isSearching: results.searchPhase != SearchPhase.complete,
+                              )
                             : _buildResultsList(
                                 context: context,
                                 colors: colors,
@@ -586,7 +590,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildEmptyResultsState(AppColors colors, String query) {
+  Widget _buildEmptyResultsState(AppColors colors, String query, {bool isSearching = false}) {
+    if (isSearching) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator.adaptive(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(colors.accent),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Searching note content & documents…',
+                style: AppTypography.body.copyWith(
+                  color: colors.textTertiary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),

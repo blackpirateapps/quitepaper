@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/web_clipper/share_intent_handler.dart';
+import '../features/notes/application/notes_provider.dart';
 import '../features/notes/presentation/notes_screen.dart';
 import '../features/settings/application/settings_provider.dart';
 import '../features/settings/application/typography_provider.dart';
@@ -20,6 +21,23 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
   void initState() {
     super.initState();
     ShareIntentHandler.initialize(rootNavigatorKey);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSearchIndexIntegrity();
+    });
+  }
+
+  void _checkSearchIndexIntegrity() async {
+    try {
+      final db = ref.read(databaseProvider);
+      if (db.needsSearchIndexRebuild) {
+        db.clearSearchIndexRebuildFlag();
+        debugPrint('[QuietPaper FTS] Triggering background auto-repair for search index...');
+        await db.rebuildSearchIndex(batchSize: 500);
+        debugPrint('[QuietPaper FTS] Background search index auto-repair complete.');
+      }
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Background search index auto-repair error: $e');
+    }
   }
 
   @override

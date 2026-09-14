@@ -88,8 +88,11 @@ class FakeMaintenanceService extends AttachmentMaintenanceService {
   }
 
   @override
-  Future<void> rebuildSearchIndex() async {
+  Future<void> rebuildSearchIndex({
+    void Function(int completed, int total)? onProgress,
+  }) async {
     rebuildIndexCalled = true;
+    onProgress?.call(1, 1);
   }
 }
 

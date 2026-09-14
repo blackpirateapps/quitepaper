@@ -108,18 +108,32 @@ class DocumentSearchMatch extends SearchResultItem {
   String get id => document?.id ?? attachment?.id ?? '';
 }
 
+/// Progressive evaluation phase of global search
+enum SearchPhase {
+  /// Tier 1: Instant title and tag matches (~5ms)
+  titlesAndTags,
+
+  /// Tier 2: Body content matches evaluated via background isolate (~50-200ms)
+  bodyContent,
+
+  /// Tier 3: OCR text matches from PDF documents and image attachments included (~200-500ms)
+  complete,
+}
+
 /// Aggregated container holding all categorized search results
 class GlobalSearchResults {
   final String query;
   final List<NoteSearchMatch> noteMatches;
   final List<DocumentSearchMatch> documentMatches;
   final List<String> matchingTags;
+  final SearchPhase searchPhase;
 
   const GlobalSearchResults({
     required this.query,
     this.noteMatches = const [],
     this.documentMatches = const [],
     this.matchingTags = const [],
+    this.searchPhase = SearchPhase.complete,
   });
 
   bool get isEmpty =>

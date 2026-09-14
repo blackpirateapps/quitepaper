@@ -683,8 +683,12 @@ class AttachmentMaintenanceService {
   }
 
   /// Rebuilds SQLite FTS5 search indexes and clears in-memory OCR caches.
-  Future<void> rebuildSearchIndex() async {
-    await database.rebuildSearchIndex();
+  Future<void> rebuildSearchIndex({
+    void Function(int completed, int total)? onProgress,
+  }) async {
+    await database.rebuildSearchIndex(
+      onProgress: onProgress,
+    );
     ocrSearchService?.clearCache();
   }
 }

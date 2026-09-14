@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../search/search_index_projection.dart';
 import '../search/search_models.dart';
@@ -193,6 +194,7 @@ class AppDatabase extends _$AppDatabase {
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
           await _createFts5TablesAndTriggers();
+          await _verifySearchIndexIntegrity();
           await customStatement(
             'CREATE INDEX IF NOT EXISTS notes_lifecycle_idx ON notes (is_archived, is_trashed, is_pinned, updated_at);',
           );
@@ -328,6 +330,41 @@ class AppDatabase extends _$AppDatabase {
   // FTS5 SEARCH INDEX & RETRIEVAL OPERATIONS
   // ==========================================
 
+  bool _needsSearchIndexRebuild = false;
+
+  /// Whether the FTS5 search index was found empty or severely out of sync with notes on startup.
+  bool get needsSearchIndexRebuild => _needsSearchIndexRebuild;
+
+  /// Resets the background rebuild flag after an auto-repair pass has been triggered.
+  void clearSearchIndexRebuildFlag() => _needsSearchIndexRebuild = false;
+
+  /// Fast sanity check executed in beforeOpen.
+  /// If active notes exist but FTS index tables are empty (e.g. wiped during app update/reinstall)
+  /// or severely under-populated (<80% of active notes), marks the index for background repair.
+  Future<void> _verifySearchIndexIntegrity() async {
+    try {
+      final ftsRows = await customSelect(
+        'SELECT COUNT(*) as cnt FROM note_search_prefix;',
+      ).getSingleOrNull();
+      final noteRows = await customSelect(
+        'SELECT COUNT(*) as cnt FROM notes WHERE is_trashed = 0 AND deleted_at IS NULL;',
+      ).getSingleOrNull();
+
+      final ftsCount = ftsRows?.read<int>('cnt') ?? 0;
+      final noteCount = noteRows?.read<int>('cnt') ?? 0;
+
+      if (noteCount > 0 && (ftsCount == 0 || ftsCount < noteCount * 0.8)) {
+        debugPrint(
+          '[QuietPaper FTS] Index integrity check failed: ftsCount=$ftsCount vs noteCount=$noteCount. Scheduling background rebuild.',
+        );
+        _needsSearchIndexRebuild = true;
+      }
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Integrity check error: $e. Scheduling background rebuild.');
+      _needsSearchIndexRebuild = true;
+    }
+  }
+
   Future<void> _createFts5TablesAndTriggers() async {
     try {
       await customStatement('''
@@ -339,7 +376,9 @@ class AppDatabase extends _$AppDatabase {
             tokenize = 'unicode61 remove_diacritics 2'
         );
       ''');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error creating note_search_prefix: $e');
+    }
 
     try {
       await customStatement('''
@@ -351,7 +390,9 @@ class AppDatabase extends _$AppDatabase {
             tokenize = 'trigram'
         );
       ''');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error creating note_search_trigram: $e');
+    }
 
     try {
       await customStatement('''
@@ -361,40 +402,13 @@ class AppDatabase extends _$AppDatabase {
           DELETE FROM note_search_trigram WHERE note_id = old.id;
         END;
       ''');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error creating trg_notes_fts_delete: $e');
+    }
   }
 
   Future<void> _backfillSearchIndex() async {
-    try {
-      final activeNotes = await (select(notesTable)..where((n) => n.isTrashed.equals(false))).get();
-      if (activeNotes.isEmpty) return;
-
-      final noteIds = activeNotes.map((n) => n.id).toList();
-      final tagsMap = await getTagsForNoteIds(noteIds);
-
-      for (final note in activeNotes) {
-        final tags = (tagsMap[note.id] ?? []).map((t) => t.name).toList();
-        final projection = SearchIndexProjection.project(
-          noteId: note.id,
-          title: note.title,
-          content: note.content,
-          tags: tags,
-          isTrashed: note.isTrashed,
-          deletedAt: note.deletedAt,
-        );
-
-        if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
-          await customStatement(
-            'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-            [projection.noteId, projection.title, projection.bodyText, projection.tags],
-          );
-          await customStatement(
-            'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-            [projection.noteId, projection.title, projection.bodyText, projection.tags],
-          );
-        }
-      }
-    } catch (_) {}
+    await rebuildSearchIndex(batchSize: 500);
   }
 
   /// Updates or inserts a note into both FTS5 search indexes atomically.
@@ -437,7 +451,9 @@ class AppDatabase extends _$AppDatabase {
           [projection.noteId, projection.title, projection.bodyText, projection.tags],
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error indexing note $noteId: $e');
+    }
   }
 
   /// Removes a note from both FTS5 search indexes.
@@ -451,18 +467,98 @@ class AppDatabase extends _$AppDatabase {
         'DELETE FROM note_search_trigram WHERE note_id = ?;',
         [noteId],
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error removing note $noteId from search index: $e');
+    }
   }
 
-  /// Completely clears and repopulates both FTS search indexes in a single transaction.
-  Future<void> rebuildSearchIndex() async {
-    await transaction(() async {
-      try {
+  /// Completely clears and repopulates both FTS search indexes using batched transactions.
+  /// Yields execution to the event loop between batches to prevent UI freezes and ANRs on large databases.
+  Future<void> rebuildSearchIndex({
+    int batchSize = 500,
+    void Function(int completed, int total)? onProgress,
+  }) async {
+    try {
+      await transaction(() async {
         await customStatement('DELETE FROM note_search_prefix;');
         await customStatement('DELETE FROM note_search_trigram;');
-      } catch (_) {}
-      await _backfillSearchIndex();
-    });
+      });
+    } catch (e) {
+      debugPrint('[QuietPaper FTS] Error clearing FTS tables: $e');
+    }
+
+    final countResult = await customSelect(
+      'SELECT COUNT(*) as cnt FROM notes WHERE is_trashed = 0 AND deleted_at IS NULL;',
+    ).getSingleOrNull();
+    final totalNotes = countResult?.read<int>('cnt') ?? 0;
+
+    if (totalNotes == 0) {
+      _needsSearchIndexRebuild = false;
+      onProgress?.call(0, 0);
+      return;
+    }
+
+    int processed = 0;
+    int offset = 0;
+
+    while (offset < totalNotes) {
+      final batchNotes = await customSelect(
+        'SELECT id, title, content, is_trashed, deleted_at FROM notes '
+        'WHERE is_trashed = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ? OFFSET ?;',
+        variables: [Variable.withInt(batchSize), Variable.withInt(offset)],
+      ).get();
+
+      if (batchNotes.isEmpty) break;
+
+      final batchIds = batchNotes.map((n) => n.read<String>('id')).toList();
+      final tagsMap = await getTagsForNoteIds(batchIds);
+
+      try {
+        await transaction(() async {
+          for (final row in batchNotes) {
+            final noteId = row.read<String>('id');
+            final title = row.read<String>('title');
+            final content = row.read<String>('content');
+            final isTrashed = row.read<bool>('is_trashed');
+            final deletedAt = row.read<DateTime?>('deleted_at');
+            final tags = (tagsMap[noteId] ?? []).map((t) => t.name).toList();
+
+            final projection = SearchIndexProjection.project(
+              noteId: noteId,
+              title: title,
+              content: content,
+              tags: tags,
+              isTrashed: isTrashed,
+              deletedAt: deletedAt,
+            );
+
+            if (projection.title.isNotEmpty ||
+                projection.bodyText.isNotEmpty ||
+                projection.tags.isNotEmpty) {
+              await customStatement(
+                'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+                [projection.noteId, projection.title, projection.bodyText, projection.tags],
+              );
+              await customStatement(
+                'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
+                [projection.noteId, projection.title, projection.bodyText, projection.tags],
+              );
+            }
+          }
+        });
+      } catch (e) {
+        debugPrint('[QuietPaper FTS] Error inserting batch into FTS: $e');
+      }
+
+      processed += batchNotes.length;
+      offset += batchSize;
+      onProgress?.call(processed, totalNotes);
+
+      // Yield to event loop between batches — prevents ANR and allows UI/GC to run smoothly
+      await Future.delayed(const Duration(milliseconds: 5));
+    }
+
+    _needsSearchIndexRebuild = false;
   }
 
   /// Tier 1 candidate retrieval: queries prefix and trigram FTS5 indexes and merges candidate note IDs.
@@ -488,7 +584,9 @@ class AppDatabase extends _$AppDatabase {
           final id = row.read<String>('note_id');
           candidateIds.add(id);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[QuietPaper FTS] Error querying prefix FTS: $e');
+      }
     }
 
     // 2. Trigram query in note_search_trigram (for substring matches like 'part' in 'counterpart')
@@ -506,7 +604,9 @@ class AppDatabase extends _$AppDatabase {
           final id = row.read<String>('note_id');
           candidateIds.add(id);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[QuietPaper FTS] Error querying trigram FTS: $e');
+      }
     }
 
     // 3. Fallback for very short queries (1-2 chars) or if FTS returns zero results
@@ -514,7 +614,7 @@ class AppDatabase extends _$AppDatabase {
       try {
         final pattern = '%${query.cleanQuery}%';
         final rows = await customSelect(
-          'SELECT id FROM notes WHERE is_trashed = 0 AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) LIMIT ?;',
+          'SELECT id FROM notes WHERE is_trashed = 0 AND deleted_at IS NULL AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) LIMIT ?;',
           variables: [
             Variable.withString(pattern),
             Variable.withString(pattern),
@@ -524,14 +624,17 @@ class AppDatabase extends _$AppDatabase {
         for (final row in rows) {
           candidateIds.add(row.read<String>('id'));
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[QuietPaper FTS] Error querying LIKE fallback: $e');
+      }
     }
 
     return candidateIds.toList();
   }
 
-  /// Fetches minimal SearchCandidateDto records for candidate IDs to pass across isolate boundaries.
-  Future<List<SearchCandidateDto>> getSearchCandidatesByIds(List<String> noteIds) async {
+  /// Fetches lightweight SearchCandidateDto records (omitting heavy body content)
+  /// for instant Phase 1 title and tag matching without memory overhead.
+  Future<List<SearchCandidateDto>> getSearchCandidatesLightweight(List<String> noteIds) async {
     if (noteIds.isEmpty) return const [];
 
     final rows = await (select(notesTable)
@@ -548,14 +651,55 @@ class AppDatabase extends _$AppDatabase {
       return SearchCandidateDto(
         id: n.id,
         title: n.title,
-        content: n.content,
+        content: '', // Intentionally omitted for Phase 1 instant title/tag matching
         tags: tags,
         updatedAt: n.updatedAt,
         isPinned: n.isPinned,
         isArchived: n.isArchived,
-        isPasswordProtected: SearchIndexProjection.isPasswordProtected(n.content),
+        isPasswordProtected: false,
       );
     }).toList();
+  }
+
+  /// Fetches minimal SearchCandidateDto records for candidate IDs in memory-safe chunks of 50
+  /// and truncates extremely large notes to prevent heap exhaustion across isolate boundaries.
+  Future<List<SearchCandidateDto>> getSearchCandidatesByIds(List<String> noteIds) async {
+    if (noteIds.isEmpty) return const [];
+
+    final results = <SearchCandidateDto>[];
+    const batchSize = 50;
+
+    for (var i = 0; i < noteIds.length; i += batchSize) {
+      final batchIds = noteIds.sublist(i, (i + batchSize < noteIds.length) ? i + batchSize : noteIds.length);
+      final rows = await (select(notesTable)
+            ..where((n) => n.id.isIn(batchIds) & n.isTrashed.equals(false)))
+          .get();
+
+      if (rows.isEmpty) continue;
+
+      final actualIds = rows.map((n) => n.id).toList();
+      final tagsMap = await getTagsForNoteIds(actualIds);
+
+      for (final n in rows) {
+        final tags = (tagsMap[n.id] ?? []).map((t) => t.name).toList();
+        // Defensive cap: truncate excessively large notes to 50,000 characters to prevent isolate memory exhaustion
+        final content = n.content.length > 50000 ? n.content.substring(0, 50000) : n.content;
+        results.add(
+          SearchCandidateDto(
+            id: n.id,
+            title: n.title,
+            content: content,
+            tags: tags,
+            updatedAt: n.updatedAt,
+            isPinned: n.isPinned,
+            isArchived: n.isArchived,
+            isPasswordProtected: SearchIndexProjection.isPasswordProtected(n.content),
+          ),
+        );
+      }
+    }
+
+    return results;
   }
 
   // ==========================================
