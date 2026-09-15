@@ -6579,8 +6579,51 @@ flowchart TD
 - **All Quality Checks Passing**:
   - `flutter analyze` (**0 errors, 0 warnings**).
   - `flutter test` (**all 1,430 tests passing**).
-  - `npm test` (**all 64 tests passing across 13 test files**).
+  - `npm test` (**all 65 tests passing across 13 test files**).
   - `npm run build` (**clean TypeScript build**).
+
+---
+
+## 116. Devices & Sessions Schema Migration Ordering, Self-Healing Auto-Migration & Legacy Table Support
+
+### 1. Problem & Root Cause Analysis
+- **Symptom**: When navigating to "Devices & Sessions" in the application, the screen displayed:
+  `Unable to load devices`
+  `sqlite input error: no such column: device_id` (or `no such column: revoked_at`).
+- **Root Cause Mechanism**:
+  1. In `backend/src/db/migrate.ts`, the `INITIAL_SCHEMA_SQL` string contained index creation statements referencing newly introduced columns:
+     - `CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);`
+     - `CREATE INDEX IF NOT EXISTS idx_sync_devices_user_revoked ON sync_devices (user_id, revoked_at);`
+     - `CREATE INDEX IF NOT EXISTS idx_sync_devices_user_active ON sync_devices (user_id, last_active_at);`
+  2. On fresh, empty databases, `CREATE TABLE sync_devices` created the table with all columns, so creating the indices succeeded.
+  3. However, on existing databases (such as production Turso), `sync_devices` was created during migration 007 without `device_id`, `platform`, `model`, `os_version`, `app_version`, `last_active_at`, or `revoked_at`. Because SQLite's `CREATE TABLE IF NOT EXISTS` does not alter existing tables, `sync_devices` retained the legacy column set.
+  4. When `runMigrations` iterated through `INITIAL_SCHEMA_SQL`, the statement loop threw a fatal error upon hitting `idx_sync_devices_user_device` (`no such column: device_id`). This aborted `runMigrations` before it could reach the `ALTER TABLE sync_devices ADD COLUMN ...` statements at the bottom of the function.
+  5. Additionally, `backend/src/db/client.ts` set `schemaInitialized = true` in its catch block, preventing subsequent requests from retrying migrations.
+  6. As a result, endpoints querying `sync_devices` (such as `getDevicesForUser` or `checkDeviceRevoked`) failed with `sqlite input error: no such column`.
+
+### 2. Resolution & Defense-in-Depth Architecture
+1. **Migration Statement Reordering (`backend/src/db/migrate.ts`)**:
+   - Removed `idx_sync_devices_user_device`, `idx_sync_devices_user_revoked`, and `idx_sync_devices_user_active` from `INITIAL_SCHEMA_SQL`.
+   - Placed these index creations strictly after the `ALTER TABLE sync_devices ADD COLUMN ...` and backfill statements.
+   - Added fallback non-unique index creation (`CREATE INDEX IF NOT EXISTS`) if `CREATE UNIQUE INDEX` encounters historical duplicate records.
+2. **Resilient Statement Execution (`runMigrations`)**:
+   - Wrapped statement execution inside `runMigrations` in per-statement error handling, preventing a legacy syntax or index conflict from halting remaining schema creations or column additions.
+3. **Self-Healing Auto-Migration (`backend/src/devices/deviceService.ts` & `backend/src/sync/syncService.ts`)**:
+   - Introduced `withAutoMigration(db, fn)`: if any query to `sync_devices` encounters `no such column` or `no such table`, the service automatically triggers `runMigrations(db)` and retries the operation transparently.
+   - Wrapped `getDevicesForUser`, `registerOrUpdateDevice`, `checkDeviceRevoked`, `renameDevice`, `revokeDevice`, and `revokeOtherDevices` with `withAutoMigration`.
+   - Added auto-migration retry to `recordDeviceCheckpoint` in `syncService.ts`.
+4. **Retry on Initialization Failure (`backend/src/db/client.ts`)**:
+   - Removed `schemaInitialized = true` from the catch block of `ensureDbInitialized`, enabling subsequent requests to retry migrations if a transient error occurs during cold start.
+
+### 3. Verification & Quality
+- **Backend Tests (`backend/tests/devices.test.ts`)**:
+  - Added test 12: explicitly sets up a pre-v10 legacy `sync_devices` table without new columns, inserts legacy records, verifies `runMigrations` completes without error, and confirms `GET /api/v1/devices` successfully returns the migrated device.
+  - `npm test`: **All 65 tests passing across 13 test files**.
+  - `npm run build`: **Clean TypeScript compilation (`tsc`)**.
+- **Flutter Client Tests**:
+  - `flutter analyze`: **No issues found!** (0 errors, 0 warnings).
+  - `flutter test test/devices/devices_test.dart test/settings/settings_screen_test.dart`: **All 24 tests passed!**
+
 
 
 

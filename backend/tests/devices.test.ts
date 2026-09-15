@@ -430,4 +430,62 @@ describe('Devices & Sessions Backend Tests', () => {
     });
     expect(successRes.statusCode).toBe(200);
   });
+
+  it('12. Successfully migrates a legacy database with pre-v10 sync_devices schema without errors', async () => {
+    resetGlobalClient();
+    process.env.TURSO_DATABASE_URL = 'file::memory:';
+    const db = getDbClient();
+
+    // Create minimal pre-v10 schema with users and legacy sync_devices (from migration 007)
+    await db.execute(`
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        firebase_uid TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    await db.execute(`
+      CREATE TABLE sync_devices (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        device_name TEXT,
+        client_version TEXT,
+        last_acknowledged_revision INTEGER NOT NULL DEFAULT 0,
+        last_seen_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    await db.execute(`CREATE INDEX idx_sync_devices_user ON sync_devices (user_id, last_seen_at);`);
+
+    // Insert legacy user and legacy device
+    const now = new Date().toISOString();
+    await db.execute({
+      sql: `INSERT INTO users (id, firebase_uid, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+      args: ['user-legacy-1', 'user-legacy-1', now, now],
+    });
+    await db.execute({
+      sql: `INSERT INTO sync_devices (id, user_id, device_name, client_version, last_acknowledged_revision, last_seen_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+      args: ['legacy-dev-123', 'user-legacy-1', 'Old Device', '1.5.0', now, now, now],
+    });
+
+    // Run migration - MUST NOT throw 'no such column' error!
+    await expect(runMigrations(db)).resolves.not.toThrow();
+
+    // Query devices via API
+    const res = await handleApiRequest({
+      method: 'GET',
+      url: '/api/v1/devices',
+      headers: { authorization: 'Bearer mock:user-legacy-1' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.devices).toHaveLength(1);
+    expect(res.body.devices[0].deviceId).toBe('legacy-dev-123');
+    expect(res.body.devices[0].deviceName).toBe('Old Device');
+    expect(res.body.devices[0].appVersion).toBe('1.5.0');
+    expect(res.body.devices[0].revokedAt).toBeNull();
+  });
 });

@@ -111,85 +111,106 @@ export async function recordDeviceCheckpoint(
   if (!deviceId) return;
   const now = new Date().toISOString();
 
-  // If the device exists and is revoked, reject immediately with DEVICE_REVOKED
-  const existing = await db.execute({
-    sql: `SELECT id, revoked_at FROM sync_devices 
-          WHERE user_id = ? AND (device_id = ? OR id = ?) 
-          LIMIT 1`,
-    args: [userId, deviceId, deviceId],
-  });
-
-  if (existing.rows.length > 0 && existing.rows[0].revoked_at != null) {
-    throw new ApiError(
-      'DEVICE_REVOKED',
-      'This device has been signed out remotely',
-      403
-    );
-  }
-
-  if (existing.rows.length > 0) {
-    const targetId = existing.rows[0].id as string;
-    await db.execute({
-      sql: `UPDATE sync_devices SET
-              device_id = COALESCE(device_id, ?),
-              device_name = COALESCE(?, device_name),
-              client_version = COALESCE(?, client_version),
-              app_version = COALESCE(app_version, ?),
-              last_acknowledged_revision = CASE
-                WHEN ? > 0 THEN ?
-                ELSE last_acknowledged_revision
-              END,
-              last_seen_at = ?,
-              last_active_at = ?,
-              updated_at = ?
-            WHERE id = ? AND user_id = ?`,
-      args: [
-        deviceId,
-        deviceName || null,
-        clientVersion || null,
-        clientVersion || null,
-        acknowledgedRev || 0,
-        acknowledgedRev || 0,
-        now,
-        now,
-        now,
-        targetId,
-        userId,
-      ],
+  const runCheckpoint = async () => {
+    // If the device exists and is revoked, reject immediately with DEVICE_REVOKED
+    const existing = await db.execute({
+      sql: `SELECT id, revoked_at FROM sync_devices 
+            WHERE user_id = ? AND (device_id = ? OR id = ?) 
+            LIMIT 1`,
+      args: [userId, deviceId, deviceId],
     });
-  } else {
-    const recordId = `${userId}:${deviceId}`;
-    await db.execute({
-      sql: `INSERT INTO sync_devices (
-              id, user_id, device_id, device_name, client_version, app_version,
-              last_acknowledged_revision, last_seen_at, last_active_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              device_id = excluded.device_id,
-              device_name = COALESCE(excluded.device_name, sync_devices.device_name),
-              client_version = COALESCE(excluded.client_version, sync_devices.client_version),
-              app_version = COALESCE(excluded.app_version, sync_devices.app_version),
-              last_acknowledged_revision = CASE
-                WHEN excluded.last_acknowledged_revision > 0 THEN excluded.last_acknowledged_revision
-                ELSE sync_devices.last_acknowledged_revision
-              END,
-              last_seen_at = excluded.last_seen_at,
-              last_active_at = excluded.last_active_at,
-              updated_at = excluded.updated_at`,
-      args: [
-        recordId,
-        userId,
-        deviceId,
-        deviceName || null,
-        clientVersion || null,
-        clientVersion || null,
-        acknowledgedRev || 0,
-        now,
-        now,
-        now,
-        now,
-      ],
-    });
+
+    if (existing.rows.length > 0 && existing.rows[0].revoked_at != null) {
+      throw new ApiError(
+        'DEVICE_REVOKED',
+        'This device has been signed out remotely',
+        403
+      );
+    }
+
+    if (existing.rows.length > 0) {
+      const targetId = existing.rows[0].id as string;
+      await db.execute({
+        sql: `UPDATE sync_devices SET
+                device_id = COALESCE(device_id, ?),
+                device_name = COALESCE(?, device_name),
+                client_version = COALESCE(?, client_version),
+                app_version = COALESCE(app_version, ?),
+                last_acknowledged_revision = CASE
+                  WHEN ? > 0 THEN ?
+                  ELSE last_acknowledged_revision
+                END,
+                last_seen_at = ?,
+                last_active_at = ?,
+                updated_at = ?
+              WHERE id = ? AND user_id = ?`,
+        args: [
+          deviceId,
+          deviceName || null,
+          clientVersion || null,
+          clientVersion || null,
+          acknowledgedRev || 0,
+          acknowledgedRev || 0,
+          now,
+          now,
+          now,
+          targetId,
+          userId,
+        ],
+      });
+    } else {
+      const recordId = `${userId}:${deviceId}`;
+      await db.execute({
+        sql: `INSERT INTO sync_devices (
+                id, user_id, device_id, device_name, client_version, app_version,
+                last_acknowledged_revision, last_seen_at, last_active_at, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                device_id = excluded.device_id,
+                device_name = COALESCE(excluded.device_name, sync_devices.device_name),
+                client_version = COALESCE(excluded.client_version, sync_devices.client_version),
+                app_version = COALESCE(excluded.app_version, sync_devices.app_version),
+                last_acknowledged_revision = CASE
+                  WHEN excluded.last_acknowledged_revision > 0 THEN excluded.last_acknowledged_revision
+                  ELSE sync_devices.last_acknowledged_revision
+                END,
+                last_seen_at = excluded.last_seen_at,
+                last_active_at = excluded.last_active_at,
+                updated_at = excluded.updated_at`,
+        args: [
+          recordId,
+          userId,
+          deviceId,
+          deviceName || null,
+          clientVersion || null,
+          clientVersion || null,
+          acknowledgedRev || 0,
+          now,
+          now,
+          now,
+          now,
+        ],
+      });
+    }
+  };
+
+  try {
+    await runCheckpoint();
+  } catch (err: any) {
+    if (err instanceof ApiError) throw err;
+    const msg = err?.message || err?.toString() || '';
+    if (msg.includes('no such column') || msg.includes('no such table')) {
+      const { runMigrations } = await import('../db/migrate.js');
+      await runMigrations(db);
+      try {
+        await runCheckpoint();
+      } catch (retryErr: any) {
+        if (retryErr instanceof ApiError) throw retryErr;
+        console.warn('[recordDeviceCheckpoint] Checkpoint retry warning:', retryErr?.message || retryErr);
+      }
+      return;
+    }
+    console.warn('[recordDeviceCheckpoint] Checkpoint warning:', err?.message || err);
   }
 }
 

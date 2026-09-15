@@ -22,6 +22,21 @@ export interface DeviceResponse {
   revokedAt: string | null;
 }
 
+async function withAutoMigration<T>(db: Client, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    if (err instanceof ApiError) throw err;
+    const msg = err?.message || err?.toString() || '';
+    if (msg.includes('no such column') || msg.includes('no such table')) {
+      const { runMigrations } = await import('../db/migrate.js');
+      await runMigrations(db);
+      return await fn();
+    }
+    throw err;
+  }
+}
+
 /**
  * Checks if a device has been revoked for the given user.
  * Throws ApiError('DEVICE_REVOKED', ...) if revoked.
@@ -33,20 +48,22 @@ export async function checkDeviceRevoked(
 ): Promise<void> {
   if (!deviceId) return;
 
-  const result = await db.execute({
-    sql: `SELECT revoked_at FROM sync_devices 
-          WHERE user_id = ? AND (device_id = ? OR id = ?) 
-          LIMIT 1`,
-    args: [userId, deviceId, deviceId],
-  });
+  return withAutoMigration(db, async () => {
+    const result = await db.execute({
+      sql: `SELECT revoked_at FROM sync_devices 
+            WHERE user_id = ? AND (device_id = ? OR id = ?) 
+            LIMIT 1`,
+      args: [userId, deviceId, deviceId],
+    });
 
-  if (result.rows.length > 0 && result.rows[0].revoked_at != null) {
-    throw new ApiError(
-      'DEVICE_REVOKED',
-      'This device has been signed out remotely',
-      403
-    );
-  }
+    if (result.rows.length > 0 && result.rows[0].revoked_at != null) {
+      throw new ApiError(
+        'DEVICE_REVOKED',
+        'This device has been signed out remotely',
+        403
+      );
+    }
+  });
 }
 
 /**
@@ -72,8 +89,9 @@ export async function registerOrUpdateDevice(
     );
   }
 
-  const { deviceId, deviceName, platform, model, osVersion, appVersion } = parsed.data;
-  const now = new Date().toISOString();
+  return withAutoMigration(db, async () => {
+    const { deviceId, deviceName, platform, model, osVersion, appVersion } = parsed.data;
+    const now = new Date().toISOString();
 
   // Check if device already exists for this user
   const existing = await db.execute({
@@ -177,7 +195,8 @@ export async function registerOrUpdateDevice(
     args: [userId, deviceId, deviceId],
   });
 
-  return mapRowToDevice(updated.rows[0]);
+    return mapRowToDevice(updated.rows[0]);
+  });
 }
 
 /**
@@ -187,16 +206,18 @@ export async function getDevicesForUser(
   db: Client,
   userId: string
 ): Promise<DeviceResponse[]> {
-  const res = await db.execute({
-    sql: `SELECT id, device_id, device_name, platform, model, os_version, app_version, 
-                 client_version, created_at, last_active_at, last_seen_at, revoked_at 
-          FROM sync_devices 
-          WHERE user_id = ? AND revoked_at IS NULL 
-          ORDER BY COALESCE(last_active_at, last_seen_at) DESC`,
-    args: [userId],
-  });
+  return withAutoMigration(db, async () => {
+    const res = await db.execute({
+      sql: `SELECT id, device_id, device_name, platform, model, os_version, app_version, 
+                   client_version, created_at, last_active_at, last_seen_at, revoked_at 
+            FROM sync_devices 
+            WHERE user_id = ? AND (revoked_at IS NULL)
+            ORDER BY COALESCE(last_active_at, last_seen_at) DESC`,
+      args: [userId],
+    });
 
-  return res.rows.map(mapRowToDevice);
+    return res.rows.map(mapRowToDevice);
+  });
 }
 
 /**
@@ -221,39 +242,41 @@ export async function renameDevice(
   const { deviceName } = parsed.data;
   const now = new Date().toISOString();
 
-  // Check ownership and existence
-  const existing = await db.execute({
-    sql: `SELECT id, device_id, revoked_at FROM sync_devices 
-          WHERE user_id = ? AND (device_id = ? OR id = ?) 
-          LIMIT 1`,
-    args: [userId, deviceId, deviceId],
+  return withAutoMigration(db, async () => {
+    // Check ownership and existence
+    const existing = await db.execute({
+      sql: `SELECT id, device_id, revoked_at FROM sync_devices 
+            WHERE user_id = ? AND (device_id = ? OR id = ?) 
+            LIMIT 1`,
+      args: [userId, deviceId, deviceId],
+    });
+
+    if (existing.rows.length === 0) {
+      throw new ApiError('NOT_FOUND', 'Device not found', 404);
+    }
+
+    if (existing.rows[0].revoked_at != null) {
+      throw new ApiError('DEVICE_REVOKED', 'Cannot rename a revoked device', 403);
+    }
+
+    await db.execute({
+      sql: `UPDATE sync_devices 
+            SET device_name = ?, updated_at = ? 
+            WHERE user_id = ? AND (device_id = ? OR id = ?)`,
+      args: [deviceName, now, userId, deviceId, deviceId],
+    });
+
+    const updated = await db.execute({
+      sql: `SELECT id, device_id, device_name, platform, model, os_version, app_version, 
+                   client_version, created_at, last_active_at, last_seen_at, revoked_at 
+            FROM sync_devices 
+            WHERE user_id = ? AND (device_id = ? OR id = ?) 
+            LIMIT 1`,
+      args: [userId, deviceId, deviceId],
+    });
+
+    return mapRowToDevice(updated.rows[0]);
   });
-
-  if (existing.rows.length === 0) {
-    throw new ApiError('NOT_FOUND', 'Device not found', 404);
-  }
-
-  if (existing.rows[0].revoked_at != null) {
-    throw new ApiError('DEVICE_REVOKED', 'Cannot rename a revoked device', 403);
-  }
-
-  await db.execute({
-    sql: `UPDATE sync_devices 
-          SET device_name = ?, updated_at = ? 
-          WHERE user_id = ? AND (device_id = ? OR id = ?)`,
-    args: [deviceName, now, userId, deviceId, deviceId],
-  });
-
-  const updated = await db.execute({
-    sql: `SELECT id, device_id, device_name, platform, model, os_version, app_version, 
-                 client_version, created_at, last_active_at, last_seen_at, revoked_at 
-          FROM sync_devices 
-          WHERE user_id = ? AND (device_id = ? OR id = ?) 
-          LIMIT 1`,
-    args: [userId, deviceId, deviceId],
-  });
-
-  return mapRowToDevice(updated.rows[0]);
 }
 
 /**
@@ -265,32 +288,34 @@ export async function revokeDevice(
   userId: string,
   deviceId: string
 ): Promise<{ success: boolean; deviceId: string }> {
-  // Check ownership and existence
-  const existing = await db.execute({
-    sql: `SELECT id, device_id, revoked_at FROM sync_devices 
-          WHERE user_id = ? AND (device_id = ? OR id = ?) 
-          LIMIT 1`,
-    args: [userId, deviceId, deviceId],
-  });
+  return withAutoMigration(db, async () => {
+    // Check ownership and existence
+    const existing = await db.execute({
+      sql: `SELECT id, device_id, revoked_at FROM sync_devices 
+            WHERE user_id = ? AND (device_id = ? OR id = ?) 
+            LIMIT 1`,
+      args: [userId, deviceId, deviceId],
+    });
 
-  if (existing.rows.length === 0) {
-    throw new ApiError('NOT_FOUND', 'Device not found', 404);
-  }
+    if (existing.rows.length === 0) {
+      throw new ApiError('NOT_FOUND', 'Device not found', 404);
+    }
 
-  if (existing.rows[0].revoked_at != null) {
-    // Already revoked; idempotent
+    if (existing.rows[0].revoked_at != null) {
+      // Already revoked; idempotent
+      return { success: true, deviceId };
+    }
+
+    const now = new Date().toISOString();
+    await db.execute({
+      sql: `UPDATE sync_devices 
+            SET revoked_at = ?, updated_at = ? 
+            WHERE user_id = ? AND (device_id = ? OR id = ?)`,
+      args: [now, now, userId, deviceId, deviceId],
+    });
+
     return { success: true, deviceId };
-  }
-
-  const now = new Date().toISOString();
-  await db.execute({
-    sql: `UPDATE sync_devices 
-          SET revoked_at = ?, updated_at = ? 
-          WHERE user_id = ? AND (device_id = ? OR id = ?)`,
-    args: [now, now, userId, deviceId, deviceId],
   });
-
-  return { success: true, deviceId };
 }
 
 /**
@@ -315,20 +340,22 @@ export async function revokeOtherDevices(
   const { currentDeviceId } = parsed.data;
   const now = new Date().toISOString();
 
-  const result = await db.execute({
-    sql: `UPDATE sync_devices 
-          SET revoked_at = ?, updated_at = ? 
-          WHERE user_id = ? 
-            AND device_id != ? 
-            AND id != ? 
-            AND revoked_at IS NULL`,
-    args: [now, now, userId, currentDeviceId, currentDeviceId],
-  });
+  return withAutoMigration(db, async () => {
+    const result = await db.execute({
+      sql: `UPDATE sync_devices 
+            SET revoked_at = ?, updated_at = ? 
+            WHERE user_id = ? 
+              AND device_id != ? 
+              AND id != ? 
+              AND revoked_at IS NULL`,
+      args: [now, now, userId, currentDeviceId, currentDeviceId],
+    });
 
-  return {
-    success: true,
-    revokedCount: result.rowsAffected ?? 0,
-  };
+    return {
+      success: true,
+      revokedCount: result.rowsAffected ?? 0,
+    };
+  });
 }
 
 function mapRowToDevice(row: any): DeviceResponse {

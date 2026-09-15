@@ -221,9 +221,6 @@ CREATE INDEX IF NOT EXISTS idx_sync_changes_user_note_rev ON sync_changes (user_
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
 CREATE INDEX IF NOT EXISTS idx_sync_devices_user ON sync_devices (user_id, last_seen_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);
-CREATE INDEX IF NOT EXISTS idx_sync_devices_user_revoked ON sync_devices (user_id, revoked_at);
-CREATE INDEX IF NOT EXISTS idx_sync_devices_user_active ON sync_devices (user_id, last_active_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_refs_unique ON attachment_references (user_id, resource_type, resource_id, note_id);
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_res ON attachment_references (user_id, resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_attachment_refs_note ON attachment_references (user_id, note_id);
@@ -259,7 +256,14 @@ export async function runMigrations(db: Client): Promise<void> {
     .filter(s => s.length > 0);
 
   for (const stmt of statements) {
-    await db.execute(stmt);
+    try {
+      await db.execute(stmt);
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (!msg.includes('already exists') && !msg.includes('duplicate')) {
+        console.warn(`[runMigrations] Notice executing schema statement: ${stmt.slice(0, 60)}...`, msg);
+      }
+    }
   }
 
   // Ensure newly added columns exist on existing databases
@@ -327,7 +331,11 @@ export async function runMigrations(db: Client): Promise<void> {
   } catch (_) {}
   try {
     await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);');
-  } catch (_) {}
+  } catch (_) {
+    try {
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_devices_user_device ON sync_devices (user_id, device_id);');
+    } catch (_) {}
+  }
   try {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_devices_user_revoked ON sync_devices (user_id, revoked_at);');
   } catch (_) {}

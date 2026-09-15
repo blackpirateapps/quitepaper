@@ -33,8 +33,7 @@ export async function ensureDbInitialized(db: Client): Promise<void> {
     schemaInitialized = true;
   } catch (err) {
     console.error('Failed to run schema migrations automatically:', err);
-    // Don't crash if migrations already applied
-    schemaInitialized = true;
+    // Do not mark initialized on failure so that subsequent requests retry migration
   }
 }
 
