@@ -109,6 +109,20 @@ class MarkdownTable {
   /// Whether the table spans the given source [offset].
   bool containsOffset(int offset) => offset >= sourceStart && offset <= sourceEnd;
 
+  /// Returns a copy of this table with all character offsets shifted by [delta].
+  MarkdownTable shift(int delta) {
+    if (delta == 0) return this;
+    return MarkdownTable(
+      sourceStart: sourceStart + delta,
+      sourceEnd: sourceEnd + delta,
+      headerRow: headerRow.shift(delta),
+      delimiterRow: delimiterRow.shift(delta),
+      bodyRows: bodyRows.map((r) => r.shift(delta)).toList(),
+      alignments: alignments,
+      columnCount: columnCount,
+    );
+  }
+
   @override
   String toString() =>
       'MarkdownTable(cols: $columnCount, rows: $rowCount, [$sourceStart, $sourceEnd])';

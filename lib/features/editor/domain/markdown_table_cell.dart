@@ -41,6 +41,20 @@ class MarkdownTableCell {
   /// Whether the cell has no visible text content.
   bool get isEmpty => trimmedText.isEmpty;
 
+  /// Returns a copy of this cell with all character offsets shifted by [delta].
+  MarkdownTableCell shift(int delta) {
+    if (delta == 0) return this;
+    return MarkdownTableCell(
+      rowIndex: rowIndex,
+      columnIndex: columnIndex,
+      rawText: rawText,
+      sourceStart: sourceStart + delta,
+      sourceEnd: sourceEnd + delta,
+      contentStart: contentStart + delta,
+      contentEnd: contentEnd + delta,
+    );
+  }
+
   @override
   String toString() =>
       'MarkdownTableCell(r: $rowIndex, c: $columnIndex, "$trimmedText", [$contentStart, $contentEnd])';

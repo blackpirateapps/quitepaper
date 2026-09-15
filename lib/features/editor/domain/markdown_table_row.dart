@@ -38,6 +38,20 @@ class MarkdownTableRow {
   /// Total number of cells in this row.
   int get cellCount => cells.length;
 
+  /// Returns a copy of this row with all character offsets shifted by [delta].
+  MarkdownTableRow shift(int delta) {
+    if (delta == 0) return this;
+    return MarkdownTableRow(
+      rowIndex: rowIndex,
+      isHeader: isHeader,
+      isDelimiter: isDelimiter,
+      cells: cells.map((c) => c.shift(delta)).toList(),
+      sourceStart: sourceStart + delta,
+      sourceEnd: sourceEnd + delta,
+      rawLine: rawLine,
+    );
+  }
+
   @override
   String toString() =>
       'MarkdownTableRow(r: $rowIndex, cells: ${cells.length}, [$sourceStart, $sourceEnd])';

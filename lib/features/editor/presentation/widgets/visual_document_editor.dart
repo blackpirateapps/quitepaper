@@ -59,6 +59,14 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   final Map<String, FocusNode> _blockFocusNodes = {};
   final Map<String, GlobalKey> _blockKeys = {};
 
+  static const int _viewportBuffer = 40;
+  static const int _windowThreshold = _viewportBuffer * 2; // 80 blocks
+  int _viewportCenterIndex = 0;
+  int _lastBlockCount = 0;
+  String _lastActiveBlockId = '';
+  Type? _lastActiveBlockType;
+  bool _lastActiveBlockChecked = false;
+
   @override
   void initState() {
     super.initState();
@@ -114,7 +122,29 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   void _onControllerChanged() {
     _syncActiveTableWithDocument();
     _syncBlockControllers();
-    if (mounted) setState(() {});
+
+    final doc = widget.controller.document;
+    final blockCount = doc.blocks.length;
+    final targetBlockId = widget.controller.selection.base.blockId;
+    final activeBlock = doc.findBlockById(targetBlockId);
+    final activeType = activeBlock?.runtimeType;
+    final isChecked = activeBlock is ChecklistItemBlock ? activeBlock.checked : false;
+
+    // Targeted rebuild: skip full editor rebuild when actively typing inside the same block
+    final isTypingInsideSameBlock = blockCount == _lastBlockCount &&
+        _activeTable == null &&
+        targetBlockId == _lastActiveBlockId &&
+        activeType == _lastActiveBlockType &&
+        isChecked == _lastActiveBlockChecked;
+
+    _lastBlockCount = blockCount;
+    _lastActiveBlockId = targetBlockId;
+    _lastActiveBlockType = activeType;
+    _lastActiveBlockChecked = isChecked;
+
+    if (!isTypingInsideSameBlock && mounted) {
+      setState(() {});
+    }
   }
 
   void _syncActiveTableWithDocument() {
@@ -212,7 +242,27 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       }
     }
 
-    for (final block in doc.blocks) {
+    final targetBlockId = widget.controller.selection.base.blockId;
+    final targetIndex = doc.findBlockIndexById(targetBlockId);
+    if (targetIndex != -1) {
+      _viewportCenterIndex = targetIndex;
+    }
+
+    final windowBlocks = <SemanticBlock>[];
+    if (doc.blocks.length <= _windowThreshold) {
+      windowBlocks.addAll(doc.blocks);
+    } else {
+      final startIndex = (_viewportCenterIndex - _viewportBuffer).clamp(0, doc.blocks.length - 1);
+      final endIndex = (_viewportCenterIndex + _viewportBuffer + 1).clamp(0, doc.blocks.length);
+      windowBlocks.addAll(doc.blocks.sublist(startIndex, endIndex));
+
+      final activeBlock = doc.findBlockById(targetBlockId);
+      if (activeBlock != null && !windowBlocks.any((b) => b.id == targetBlockId)) {
+        windowBlocks.add(activeBlock);
+      }
+    }
+
+    for (final block in windowBlocks) {
       if (block is ListBlock) {
         for (final item in block.items) {
           registerBlock(item);
@@ -231,7 +281,6 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     }
 
     if (wasFocused && !isTableFocused) {
-      final targetBlockId = widget.controller.selection.base.blockId;
       final targetOffset = widget.controller.selection.base.offset;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -258,6 +307,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       final deadCtrls = <TextEditingController>[];
       final deadFns = <FocusNode>[];
       for (final deadId in deadIds) {
+        if (_blockFocusNodes[deadId]?.hasFocus == true) continue;
         final c = _blockControllers.remove(deadId);
         if (c != null) deadCtrls.add(c);
         final f = _blockFocusNodes.remove(deadId);
@@ -280,6 +330,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     if (node.hasFocus) {
       if (_activeTable != null) {
         _deactivateTable();
+      }
+      final doc = widget.controller.document;
+      final idx = doc.findBlockIndexById(blockId);
+      if (idx != -1 && (idx - _viewportCenterIndex).abs() > 10) {
+        _viewportCenterIndex = idx;
+        _syncBlockControllers();
       }
       final ctrl = _blockControllers[blockId];
       if (ctrl != null) {
@@ -364,42 +420,138 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
     final blockWidgets = <Widget>[];
 
-    for (var i = 0; i < doc.blocks.length; i++) {
-      final block = doc.blocks[i];
-      blockWidgets.add(_buildBlockWidget(context, colors, block, i));
+    if (doc.blocks.length <= _windowThreshold) {
+      for (var i = 0; i < doc.blocks.length; i++) {
+        final block = doc.blocks[i];
+        blockWidgets.add(_buildBlockWidget(context, colors, block, i));
+      }
+    } else {
+      final targetBlockId = widget.controller.selection.base.blockId;
+      final targetIndex = doc.findBlockIndexById(targetBlockId);
+      if (targetIndex != -1) {
+        _viewportCenterIndex = targetIndex;
+      }
+      final startIndex = (_viewportCenterIndex - _viewportBuffer).clamp(0, doc.blocks.length - 1);
+      final endIndex = (_viewportCenterIndex + _viewportBuffer + 1).clamp(0, doc.blocks.length);
+
+      final topCount = startIndex;
+      if (topCount > 0) {
+        final topHeight = topCount * 28.0;
+        blockWidgets.add(
+          GestureDetector(
+            key: const ValueKey('viewport_top_spacer'),
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              final target = (details.localPosition.dy / 28.0).floor().clamp(0, topCount - 1);
+              setState(() {
+                _viewportCenterIndex = target;
+                _syncBlockControllers();
+              });
+              _focusBlockAt(doc.blocks[target].id);
+            },
+            child: SizedBox(
+              height: topHeight,
+              width: double.infinity,
+            ),
+          ),
+        );
+      }
+
+      for (var i = startIndex; i < endIndex; i++) {
+        final block = doc.blocks[i];
+        blockWidgets.add(_buildBlockWidget(context, colors, block, i));
+      }
+
+      final bottomCount = doc.blocks.length - endIndex;
+      if (bottomCount > 0) {
+        final bottomHeight = bottomCount * 28.0;
+        blockWidgets.add(
+          GestureDetector(
+            key: const ValueKey('viewport_bottom_spacer'),
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              final target = (endIndex + (details.localPosition.dy / 28.0).floor()).clamp(endIndex, doc.blocks.length - 1);
+              setState(() {
+                _viewportCenterIndex = target;
+                _syncBlockControllers();
+              });
+              _focusBlockAt(doc.blocks[target].id);
+            },
+            child: SizedBox(
+              height: bottomHeight,
+              width: double.infinity,
+            ),
+          ),
+        );
+      }
     }
 
-    return Focus(
-      focusNode: widget.focusNode,
-      canRequestFocus: true,
-      onFocusChange: (hasFocus) {
-        if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
-          if (_activeTable != null) return;
-          final targetBlockId = widget.controller.selection.base.blockId;
-          final targetBlock = widget.controller.document.findBlockById(targetBlockId);
-          if (targetBlock != null && targetBlock.isEditable) {
-            _blockFocusNodes[targetBlockId]?.requestFocus();
-          } else {
-            final lastBlock = widget.controller.document.blocks.lastOrNull;
-            if (lastBlock is HorizontalRuleBlock) {
-              widget.controller.insertParagraphBelow(lastBlock.id);
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScrollNotification,
+      child: Focus(
+        focusNode: widget.focusNode,
+        canRequestFocus: true,
+        onFocusChange: (hasFocus) {
+          if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
+            if (_activeTable != null) return;
+            final targetBlockId = widget.controller.selection.base.blockId;
+            final targetBlock = widget.controller.document.findBlockById(targetBlockId);
+            if (targetBlock != null && targetBlock.isEditable) {
+              _blockFocusNodes[targetBlockId]?.requestFocus();
             } else {
-              final editable = widget.controller.document.blocks.reversed.where((b) => b.isEditable).firstOrNull;
-              if (editable != null) {
-                _blockFocusNodes[editable.id]?.requestFocus();
+              final lastBlock = widget.controller.document.blocks.lastOrNull;
+              if (lastBlock is HorizontalRuleBlock) {
+                widget.controller.insertParagraphBelow(lastBlock.id);
               } else {
-                _blockFocusNodes.values.firstOrNull?.requestFocus();
+                final editable = widget.controller.document.blocks.reversed.where((b) => b.isEditable).firstOrNull;
+                if (editable != null) {
+                  _blockFocusNodes[editable.id]?.requestFocus();
+                } else {
+                  _blockFocusNodes.values.firstOrNull?.requestFocus();
+                }
               }
             }
           }
-        }
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: blockWidgets,
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: blockWidgets,
+        ),
       ),
     );
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis == Axis.vertical) {
+      final doc = widget.controller.document;
+      if (doc.blocks.length > _windowThreshold) {
+        final maxScroll = notification.metrics.maxScrollExtent;
+        if (maxScroll > 0) {
+          final progress = (notification.metrics.pixels / maxScroll).clamp(0.0, 1.0);
+          final scrollCenter = (progress * (doc.blocks.length - 1)).round();
+          if ((scrollCenter - _viewportCenterIndex).abs() > 10) {
+            setState(() {
+              _viewportCenterIndex = scrollCenter;
+              _syncBlockControllers();
+            });
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  void _focusBlockAt(String blockId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final fn = _blockFocusNodes[blockId];
+      fn?.requestFocus();
+      final ctrl = _blockControllers[blockId];
+      if (ctrl != null) {
+        widget.onActiveTargetChanged?.call(ctrl, fn ?? FocusNode());
+      }
+    });
   }
 
   Widget _buildBlockWidget(
@@ -1244,6 +1396,10 @@ class _RichBlockEditingController extends TextEditingController {
   String? searchQuery;
 
   void updateBlock(SemanticBlock newBlock, MarkdownStyles? newStyles, String? newSearchQuery) {
+    final stylesChanged = styles != newStyles;
+    final searchChanged = searchQuery != newSearchQuery;
+    final blockChanged = _block != newBlock;
+
     _block = newBlock;
     styles = newStyles;
     searchQuery = newSearchQuery;
@@ -1253,7 +1409,7 @@ class _RichBlockEditingController extends TextEditingController {
         text: newBlock.plainText,
         selection: TextSelection.collapsed(offset: oldSelection.baseOffset.clamp(0, newBlock.plainText.length)),
       );
-    } else {
+    } else if (stylesChanged || searchChanged || blockChanged) {
       notifyListeners();
     }
   }

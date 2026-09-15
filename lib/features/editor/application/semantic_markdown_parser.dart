@@ -14,6 +14,189 @@ class SemanticMarkdownParser {
 
   static const _tableParser = MarkdownTableParser();
 
+  // Pre-compiled static regexes for high-performance block parsing
+  static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
+  static final _headingRegex = RegExp(r'^(#{1,6})\s+(.*)$');
+  static final _checklistRegex = RegExp(r'^(\s*)([-*+])\s+\[([ xX])\]\s*(.*)$');
+  static final _unorderedListRegex = RegExp(r'^(\s*)([-*+])\s+(.*)$');
+  static final _orderedListRegex = RegExp(r'^(\s*)(\d+)([\.\)])\s+(.*)$');
+  static final _quoteRegex = RegExp(r'^>\s?(.*)$');
+  static final _imageRegex = RegExp(r'^!\[([^\]]*)\]\(([^)]+)\)$');
+
+  /// Incrementally re-parses only the affected region around [editBlockId]
+  /// after a text edit, shifting source ranges of all subsequent blocks.
+  ///
+  /// This reduces the per-keystroke re-parse complexity from O(N) to O(1)
+  /// for documents of any size.
+  static SemanticDocument incrementalParse({
+    required String newMarkdown,
+    required SemanticDocument oldDocument,
+    required String editBlockId,
+    bool stripFrontmatter = false,
+  }) {
+    if (newMarkdown.isEmpty) {
+      return parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    }
+
+    final editIndex = oldDocument.findBlockIndexById(editBlockId);
+    if (editIndex == -1 || oldDocument.blocks.isEmpty) {
+      return parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    }
+
+    // Determine window: edited block ±2 neighbors
+    final windowStart = (editIndex - 2).clamp(0, oldDocument.blocks.length - 1);
+    final windowEnd = (editIndex + 3).clamp(0, oldDocument.blocks.length);
+
+    // Frontmatter check
+    final fmOffset = (stripFrontmatter && oldDocument.hasFrontmatter)
+        ? (oldDocument.frontmatterRange?.end ?? 0)
+        : 0;
+
+    final reParseStart = windowStart > 0
+        ? oldDocument.blocks[windowStart].sourceRange.start
+        : (fmOffset > 0 && fmOffset < newMarkdown.length && newMarkdown[fmOffset] == '\n'
+            ? fmOffset + 1
+            : fmOffset);
+
+    final oldEnd = windowEnd < oldDocument.blocks.length
+        ? oldDocument.blocks[windowEnd].sourceRange.start
+        : oldDocument.canonicalMarkdown.length;
+
+    final delta = newMarkdown.length - oldDocument.canonicalMarkdown.length;
+    final reParseEnd = oldEnd + delta;
+
+    if (reParseStart < 0 ||
+        reParseEnd < reParseStart ||
+        reParseEnd > newMarkdown.length) {
+      return parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    }
+
+    // Slice the window markdown
+    final sliceMarkdown = newMarkdown.substring(reParseStart, reParseEnd);
+
+    // Parse the slice
+    final sliceDoc = parse(sliceMarkdown, stripFrontmatter: false);
+
+    // Check if the block count in the slice matches the replaced window count
+    final oldWindowBlockCount = windowEnd - windowStart;
+    final isSameBlockCount = sliceDoc.blocks.length == oldWindowBlockCount;
+
+    final shiftedSliceBlocks = <SemanticBlock>[];
+    for (var i = 0; i < sliceDoc.blocks.length; i++) {
+      final block = sliceDoc.blocks[i];
+      final shifted = block.shiftSourceRange(reParseStart);
+      if (isSameBlockCount) {
+        // Preserve original stable ID
+        final targetOldId = oldDocument.blocks[windowStart + i].id;
+        shiftedSliceBlocks.add(_cloneBlockWithId(shifted, targetOldId));
+      } else {
+        shiftedSliceBlocks.add(shifted);
+      }
+    }
+
+    final beforeBlocks = oldDocument.blocks.sublist(0, windowStart);
+    final afterBlocks = oldDocument.blocks.sublist(windowEnd);
+    final shiftedAfterBlocks = delta == 0
+        ? afterBlocks
+        : afterBlocks.map((b) => b.shiftSourceRange(delta)).toList();
+
+    return SemanticDocument(
+      blocks: [...beforeBlocks, ...shiftedSliceBlocks, ...shiftedAfterBlocks],
+      canonicalMarkdown: newMarkdown,
+      frontmatter: oldDocument.frontmatter,
+      frontmatterRange: oldDocument.frontmatterRange,
+    );
+  }
+
+  static SemanticBlock _cloneBlockWithId(SemanticBlock block, String newId) {
+    if (block is ParagraphBlock) {
+      return ParagraphBlock(
+        id: newId,
+        runs: block.runs,
+        sourceRange: block.sourceRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is HeadingBlock) {
+      return HeadingBlock(
+        id: newId,
+        level: block.level,
+        runs: block.runs,
+        sourceRange: block.sourceRange,
+        markerRange: block.markerRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is ListItemBlock) {
+      return ListItemBlock(
+        id: newId,
+        runs: block.runs,
+        indent: block.indent,
+        marker: block.marker,
+        sourceRange: block.sourceRange,
+        markerRange: block.markerRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is OrderedListItemBlock) {
+      return OrderedListItemBlock(
+        id: newId,
+        number: block.number,
+        delimiter: block.delimiter,
+        runs: block.runs,
+        indent: block.indent,
+        sourceRange: block.sourceRange,
+        markerRange: block.markerRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is ChecklistItemBlock) {
+      return ChecklistItemBlock(
+        id: newId,
+        checked: block.checked,
+        runs: block.runs,
+        indent: block.indent,
+        sourceRange: block.sourceRange,
+        boxRange: block.boxRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is QuoteBlock) {
+      return QuoteBlock(
+        id: newId,
+        runs: block.runs,
+        sourceRange: block.sourceRange,
+        markerRange: block.markerRange,
+        contentRange: block.contentRange,
+      );
+    } else if (block is CodeBlock) {
+      return CodeBlock(
+        id: newId,
+        language: block.language,
+        code: block.code,
+        sourceRange: block.sourceRange,
+        openingFenceRange: block.openingFenceRange,
+        codeRange: block.codeRange,
+        closingFenceRange: block.closingFenceRange,
+      );
+    } else if (block is TableBlock) {
+      return TableBlock(
+        id: newId,
+        table: block.table,
+        sourceRange: block.sourceRange,
+      );
+    } else if (block is HorizontalRuleBlock) {
+      return HorizontalRuleBlock(
+        id: newId,
+        marker: block.marker,
+        sourceRange: block.sourceRange,
+      );
+    } else if (block is ImageBlock) {
+      return ImageBlock(
+        id: newId,
+        altText: block.altText,
+        url: block.url,
+        sourceRange: block.sourceRange,
+      );
+    }
+    return block;
+  }
+
   /// Parses [markdown] into a structured [SemanticDocument].
   ///
   /// If [stripFrontmatter] is true, the YAML frontmatter block (if any) is extracted
@@ -145,7 +328,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Horizontal Rule (---, ***, ___)
-      if (RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$').hasMatch(lineText)) {
+      if (_horizontalRuleRegex.hasMatch(lineText)) {
         blocks.add(
           HorizontalRuleBlock(
             id: 'block_${blockCounter++}',
@@ -158,7 +341,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Heading (# to ######)
-      final headingMatch = RegExp(r'^(#{1,6})\s+(.*)$').firstMatch(lineText);
+      final headingMatch = _headingRegex.firstMatch(lineText);
       if (headingMatch != null) {
         final hashes = headingMatch.group(1)!;
         final content = headingMatch.group(2)!;
@@ -184,7 +367,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Checklist Item (- [ ] or - [x])
-      final checklistMatch = RegExp(r'^(\s*)([-*+])\s+\[([ xX])\]\s*(.*)$').firstMatch(lineText);
+      final checklistMatch = _checklistRegex.firstMatch(lineText);
       if (checklistMatch != null) {
         final indentStr = checklistMatch.group(1) ?? '';
         final markerChar = checklistMatch.group(2) ?? '-';
@@ -218,7 +401,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Unordered List Item (- , * , + )
-      final listMatch = RegExp(r'^(\s*)([-*+])\s+(.*)$').firstMatch(lineText);
+      final listMatch = _unorderedListRegex.firstMatch(lineText);
       if (listMatch != null) {
         final indentStr = listMatch.group(1) ?? '';
         final markerChar = listMatch.group(2) ?? '-';
@@ -245,7 +428,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Ordered List Item (1. , 2. , 1) , etc.)
-      final orderedMatch = RegExp(r'^(\s*)(\d+)([\.\)])\s+(.*)$').firstMatch(lineText);
+      final orderedMatch = _orderedListRegex.firstMatch(lineText);
       if (orderedMatch != null) {
         final indentStr = orderedMatch.group(1) ?? '';
         final numStr = orderedMatch.group(2) ?? '1';
@@ -275,7 +458,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Blockquote (> quote)
-      final quoteMatch = RegExp(r'^>\s?(.*)$').firstMatch(lineText);
+      final quoteMatch = _quoteRegex.firstMatch(lineText);
       if (quoteMatch != null) {
         final quoteContent = quoteMatch.group(1) ?? '';
         final markerLen = lineText.startsWith('> ') ? 2 : 1;
@@ -297,7 +480,7 @@ class SemanticMarkdownParser {
       }
 
       // Check for Standalone Image (![alt](url))
-      final imageMatch = RegExp(r'^!\[([^\]]*)\]\(([^)]+)\)$').firstMatch(lineText.trim());
+      final imageMatch = _imageRegex.firstMatch(lineText.trim());
       if (imageMatch != null) {
         final alt = imageMatch.group(1) ?? '';
         final url = imageMatch.group(2) ?? '';

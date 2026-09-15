@@ -9,6 +9,9 @@ abstract class SemanticNode {
 
   /// The range in the canonical Markdown source corresponding to this node.
   SourceRange get sourceRange;
+
+  /// Returns a copy of this node with all character offsets shifted by [delta].
+  SemanticNode shiftSourceRange(int delta);
 }
 
 /// Abstract representation of inline content inside a block.
@@ -36,6 +39,9 @@ abstract class SemanticInline extends SemanticNode {
 
   /// Whether this run is inline code.
   bool get isCode => false;
+
+  @override
+  SemanticInline shiftSourceRange(int delta);
 }
 
 /// Plain, unstyled text run.
@@ -50,6 +56,12 @@ class PlainRun extends SemanticInline {
 
   @override
   SourceRange? get contentRange => sourceRange;
+
+  @override
+  PlainRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return PlainRun(text, sourceRange.shift(delta));
+  }
 
   @override
   String toString() => 'PlainRun("$text", $sourceRange)';
@@ -90,6 +102,20 @@ class StyledRun extends SemanticInline {
   final bool isHighlight;
 
   @override
+  StyledRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return StyledRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+      isBold: isBold,
+      isItalic: isItalic,
+      isStrike: isStrike,
+      isHighlight: isHighlight,
+    );
+  }
+
+  @override
   String toString() =>
       'StyledRun("$text", bold: $isBold, italic: $isItalic, strike: $isStrike, highlight: $isHighlight, src: $sourceRange)';
 }
@@ -106,6 +132,19 @@ class BoldRun extends StyledRun {
   }) : super(
           isBold: true,
         );
+
+  @override
+  BoldRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return BoldRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+      isItalic: isItalic,
+      isStrike: isStrike,
+      isHighlight: isHighlight,
+    );
+  }
 
   @override
   String toString() => 'BoldRun("$text", italic: $isItalic, strike: $isStrike, src: $sourceRange, content: $contentRange)';
@@ -125,6 +164,19 @@ class ItalicRun extends StyledRun {
         );
 
   @override
+  ItalicRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ItalicRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+      isBold: isBold,
+      isStrike: isStrike,
+      isHighlight: isHighlight,
+    );
+  }
+
+  @override
   String toString() => 'ItalicRun("$text", bold: $isBold, strike: $isStrike, src: $sourceRange, content: $contentRange)';
 }
 
@@ -142,6 +194,19 @@ class StrikeRun extends StyledRun {
         );
 
   @override
+  StrikeRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return StrikeRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+      isBold: isBold,
+      isItalic: isItalic,
+      isHighlight: isHighlight,
+    );
+  }
+
+  @override
   String toString() => 'StrikeRun("$text", bold: $isBold, italic: $isItalic, src: $sourceRange, content: $contentRange)';
 }
 
@@ -157,6 +222,19 @@ class HighlightRun extends StyledRun {
   }) : super(
           isHighlight: true,
         );
+
+  @override
+  HighlightRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return HighlightRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+      isBold: isBold,
+      isItalic: isItalic,
+      isStrike: isStrike,
+    );
+  }
 
   @override
   String toString() => 'HighlightRun("$text", bold: $isBold, italic: $isItalic, strike: $isStrike, src: $sourceRange, content: $contentRange)';
@@ -177,6 +255,16 @@ class InlineCodeRun extends SemanticInline {
 
   @override
   bool get isCode => true;
+
+  @override
+  InlineCodeRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return InlineCodeRun(
+      text,
+      sourceRange.shift(delta),
+      contentRange.shift(delta),
+    );
+  }
 
   @override
   String toString() => 'InlineCodeRun("$text", src: $sourceRange, content: $contentRange)';
@@ -207,6 +295,18 @@ class LinkRun extends SemanticInline {
   SourceRange? get contentRange => labelRange;
 
   @override
+  LinkRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return LinkRun(
+      text: text,
+      destination: destination,
+      sourceRange: sourceRange.shift(delta),
+      labelRange: labelRange.shift(delta),
+      urlRange: urlRange.shift(delta),
+    );
+  }
+
+  @override
   String toString() => 'LinkRun("$text" -> "$destination", src: $sourceRange)';
 }
 
@@ -232,6 +332,16 @@ class NoteLinkRun extends SemanticInline {
   SourceRange? get contentRange => titleRange;
 
   @override
+  NoteLinkRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return NoteLinkRun(
+      noteTitle: noteTitle,
+      sourceRange: sourceRange.shift(delta),
+      titleRange: titleRange.shift(delta),
+    );
+  }
+
+  @override
   String toString() => 'NoteLinkRun("[[$noteTitle]]", src: $sourceRange)';
 }
 
@@ -249,6 +359,12 @@ class TagRun extends SemanticInline {
 
   @override
   SourceRange? get contentRange => sourceRange;
+
+  @override
+  TagRun shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return TagRun(tag, sourceRange.shift(delta));
+  }
 
   @override
   String toString() => 'TagRun("#$tag", src: $sourceRange)';
@@ -271,6 +387,9 @@ abstract class SemanticBlock extends SemanticNode {
 
   /// Whether this block directly contains editable text runs.
   bool get isEditable => true;
+
+  @override
+  SemanticBlock shiftSourceRange(int delta);
 }
 
 /// Heading block (# Heading, ## Heading, etc.).
@@ -297,6 +416,19 @@ class HeadingBlock extends SemanticBlock {
 
   final SourceRange markerRange;
   final SourceRange contentRange;
+
+  @override
+  HeadingBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return HeadingBlock(
+      id: id,
+      level: level,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      sourceRange: sourceRange.shift(delta),
+      markerRange: markerRange.shift(delta),
+      contentRange: contentRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => runs.map((r) => r.text).join();
@@ -354,6 +486,17 @@ class ParagraphBlock extends SemanticBlock {
   final SourceRange? contentRange;
 
   @override
+  ParagraphBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ParagraphBlock(
+      id: id,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      sourceRange: sourceRange.shift(delta),
+      contentRange: contentRange?.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => runs.map((r) => r.text).join();
 
   @override
@@ -386,6 +529,20 @@ class ListItemBlock extends SemanticBlock {
   final SourceRange contentRange;
 
   @override
+  ListItemBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ListItemBlock(
+      id: id,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      indent: indent,
+      marker: marker,
+      sourceRange: sourceRange.shift(delta),
+      markerRange: markerRange.shift(delta),
+      contentRange: contentRange.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => runs.map((r) => r.text).join();
 
   @override
@@ -407,6 +564,16 @@ class ListBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  ListBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ListBlock(
+      id: id,
+      items: items.map((i) => i.shiftSourceRange(delta)).toList(),
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => items.map((i) => i.plainText).join('\n');
@@ -446,6 +613,21 @@ class OrderedListItemBlock extends SemanticBlock {
   final SourceRange contentRange;
 
   @override
+  OrderedListItemBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return OrderedListItemBlock(
+      id: id,
+      number: number,
+      delimiter: delimiter,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      indent: indent,
+      sourceRange: sourceRange.shift(delta),
+      markerRange: markerRange.shift(delta),
+      contentRange: contentRange.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => runs.map((r) => r.text).join();
 
   @override
@@ -469,6 +651,17 @@ class OrderedListBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  OrderedListBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return OrderedListBlock(
+      id: id,
+      items: items.map((i) => i.shiftSourceRange(delta)).toList(),
+      startNumber: startNumber,
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => items.map((i) => i.plainText).join('\n');
@@ -506,6 +699,20 @@ class ChecklistItemBlock extends SemanticBlock {
   final SourceRange contentRange;
 
   @override
+  ChecklistItemBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ChecklistItemBlock(
+      id: id,
+      checked: checked,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      indent: indent,
+      sourceRange: sourceRange.shift(delta),
+      boxRange: boxRange.shift(delta),
+      contentRange: contentRange.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => runs.map((r) => r.text).join();
 
   @override
@@ -527,6 +734,16 @@ class ChecklistBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  ChecklistBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ChecklistBlock(
+      id: id,
+      items: items.map((i) => i.shiftSourceRange(delta)).toList(),
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => items.map((i) => i.plainText).join('\n');
@@ -560,6 +777,18 @@ class QuoteBlock extends SemanticBlock {
   final SourceRange contentRange;
 
   @override
+  QuoteBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return QuoteBlock(
+      id: id,
+      runs: runs.map((r) => r.shiftSourceRange(delta)).toList(),
+      sourceRange: sourceRange.shift(delta),
+      markerRange: markerRange.shift(delta),
+      contentRange: contentRange.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => runs.map((r) => r.text).join();
 
   @override
@@ -581,6 +810,16 @@ class HorizontalRuleBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  HorizontalRuleBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return HorizontalRuleBlock(
+      id: id,
+      marker: marker,
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => '';
@@ -618,6 +857,20 @@ class CodeBlock extends SemanticBlock {
   final SourceRange? closingFenceRange;
 
   @override
+  CodeBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return CodeBlock(
+      id: id,
+      language: language,
+      code: code,
+      sourceRange: sourceRange.shift(delta),
+      openingFenceRange: openingFenceRange.shift(delta),
+      codeRange: codeRange.shift(delta),
+      closingFenceRange: closingFenceRange?.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => code;
 
   @override
@@ -639,6 +892,16 @@ class TableBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  TableBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return TableBlock(
+      id: id,
+      table: table.shift(delta),
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => '';
@@ -669,6 +932,17 @@ class ImageBlock extends SemanticBlock {
   final SourceRange sourceRange;
 
   @override
+  ImageBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return ImageBlock(
+      id: id,
+      altText: altText,
+      url: url,
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
+
+  @override
   String get plainText => altText;
 
   @override
@@ -693,6 +967,16 @@ class UnsupportedMarkdownBlock extends SemanticBlock {
 
   @override
   final SourceRange sourceRange;
+
+  @override
+  UnsupportedMarkdownBlock shiftSourceRange(int delta) {
+    if (delta == 0) return this;
+    return UnsupportedMarkdownBlock(
+      id: id,
+      rawSource: rawSource,
+      sourceRange: sourceRange.shift(delta),
+    );
+  }
 
   @override
   String get plainText => rawSource;

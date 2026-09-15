@@ -203,5 +203,45 @@ void main() {
       expect(doc.blocks.isNotEmpty, isTrue);
       expect(doc.canonicalMarkdown, equals(md));
     });
+
+    test('incrementalParse correctly updates an edited block and shifts downstream source ranges', () {
+      const originalMd = 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5';
+      final originalDoc = SemanticMarkdownParser.parse(originalMd);
+      expect(originalDoc.blocks.length, equals(5));
+
+      final targetBlockId = originalDoc.blocks[2].id; // Line 3
+      const editedMd = 'Line 1\nLine 2\nLine 3 with expanded text\nLine 4\nLine 5';
+
+      final incrementalDoc = SemanticMarkdownParser.incrementalParse(
+        newMarkdown: editedMd,
+        oldDocument: originalDoc,
+        editBlockId: targetBlockId,
+      );
+
+      final fullDoc = SemanticMarkdownParser.parse(editedMd);
+
+      expect(incrementalDoc.blocks.length, equals(fullDoc.blocks.length));
+      for (var i = 0; i < incrementalDoc.blocks.length; i++) {
+        expect(incrementalDoc.blocks[i].plainText, equals(fullDoc.blocks[i].plainText));
+        expect(incrementalDoc.blocks[i].sourceRange.start, equals(fullDoc.blocks[i].sourceRange.start));
+        expect(incrementalDoc.blocks[i].sourceRange.end, equals(fullDoc.blocks[i].sourceRange.end));
+      }
+
+      // Verify that the edited block retained its original stable ID
+      expect(incrementalDoc.blocks[2].id, equals(targetBlockId));
+    });
+
+    test('shiftSourceRange shifts all block and inline source ranges by delta', () {
+      const md = '# Heading with **bold**\nParagraph with `code` and [link](url)\n- [x] Done task';
+      final doc = SemanticMarkdownParser.parse(md);
+
+      const delta = 100;
+      final shiftedBlocks = doc.blocks.map((b) => b.shiftSourceRange(delta)).toList();
+
+      for (var i = 0; i < doc.blocks.length; i++) {
+        expect(shiftedBlocks[i].sourceRange.start, equals(doc.blocks[i].sourceRange.start + delta));
+        expect(shiftedBlocks[i].sourceRange.end, equals(doc.blocks[i].sourceRange.end + delta));
+      }
+    });
   });
 }

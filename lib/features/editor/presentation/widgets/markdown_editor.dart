@@ -83,8 +83,27 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     widget.controller.addListener(_onSourceControllerChanged);
   }
 
+  bool _hasShownLargeDocumentToast = false;
+
+  void _notifyLargeDocumentFallback(BuildContext context) {
+    if (_hasShownLargeDocumentToast) return;
+    _hasShownLargeDocumentToast = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Document too large for visual editing — using Markdown mode'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+  }
+
   void _initSemanticController() {
-    if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
+    final isTooLarge = SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text);
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg && !isTooLarge) {
       _semanticController?.dispose();
       _semanticController = SemanticEditorController(
         initialMarkdown: widget.controller.text,
@@ -106,6 +125,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   void didUpdateWidget(MarkdownEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.controller != widget.controller) {
+      _hasShownLargeDocumentToast = false;
+    }
 
     if (oldWidget.editingStyle != widget.editingStyle ||
         oldWidget.stripFrontmatter != widget.stripFrontmatter) {
@@ -339,20 +362,24 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.editingStyle == EditorEditingStyle.wysiwyg && _semanticController != null) {
-      return VisualDocumentEditor(
-        controller: _semanticController!,
-        focusNode: widget.focusNode,
-        readOnly: widget.readOnly,
-        hintText: widget.hintText,
-        searchQuery: widget.searchQuery,
-        onActiveTargetChanged: widget.onActiveTargetChanged,
-        onNoteLinkPrompt: widget.onNoteLinkPrompt,
-        onKeyEvent: widget.onKeyEvent,
-        onChanged: (newVal) {
-          widget.onChanged?.call(newVal);
-        },
-      );
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
+      if (SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text)) {
+        _notifyLargeDocumentFallback(context);
+      } else if (_semanticController != null) {
+        return VisualDocumentEditor(
+          controller: _semanticController!,
+          focusNode: widget.focusNode,
+          readOnly: widget.readOnly,
+          hintText: widget.hintText,
+          searchQuery: widget.searchQuery,
+          onActiveTargetChanged: widget.onActiveTargetChanged,
+          onNoteLinkPrompt: widget.onNoteLinkPrompt,
+          onKeyEvent: widget.onKeyEvent,
+          onChanged: (newVal) {
+            widget.onChanged?.call(newVal);
+          },
+        );
+      }
     }
 
     final colors = context.appColors;

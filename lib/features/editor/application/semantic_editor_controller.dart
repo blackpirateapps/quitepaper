@@ -69,6 +69,18 @@ class SemanticEditorController extends ChangeNotifier {
     _selection = _initialSelection();
   }
 
+  /// Maximum document length (in characters) for full WYSIWYG semantic parsing.
+  /// When text exceeds this threshold (~200k characters / ~35k words),
+  /// the editor automatically falls back to high-performance Markdown mode.
+  static const int maxWysiwygCharacters = 200000;
+
+  /// Whether the document exceeds the maximum character threshold for WYSIWYG mode.
+  bool get exceedsWysiwygThreshold => _markdown.length > maxWysiwygCharacters;
+
+  /// Static helper to check if a markdown string exceeds the WYSIWYG threshold.
+  static bool isDocumentTooLargeForWysiwyg(String text) =>
+      text.length > maxWysiwygCharacters;
+
   String _markdown = '';
   late SemanticDocument _document;
   late DocumentSelection _selection;
@@ -501,7 +513,12 @@ class SemanticEditorController extends ChangeNotifier {
 
     final newMarkdown = _markdown.replaceRange(blockStart, blockEnd, replacement);
     _markdown = newMarkdown;
-    _document = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    _document = SemanticMarkdownParser.incrementalParse(
+      newMarkdown: newMarkdown,
+      oldDocument: _document,
+      editBlockId: blockId,
+      stripFrontmatter: stripFrontmatter,
+    );
 
     final targetOffset = newSelection.isValid
         ? newSelection.baseOffset.clamp(0, newText.length)
