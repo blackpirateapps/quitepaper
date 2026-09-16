@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backfill:emails": "tsc && node dist/scripts/backfillEmails.js"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",

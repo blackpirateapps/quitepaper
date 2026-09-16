@@ -9,6 +9,11 @@ import {
   reconcileUserStorageUsage,
   StorageQuotaProfile,
 } from '../storage/quotaService.js';
+import {
+  backfillMissingUserEmails,
+  syncSingleUserEmail,
+  EmailSyncResult,
+} from '../auth/emailSyncService.js';
 
 export interface AdminOverview {
   dbPingMs: number;
@@ -656,3 +661,28 @@ export async function deleteDestructionJob(db: Client, jobId: string): Promise<b
   });
   return res.rowsAffected > 0;
 }
+
+/**
+ * Synchronizes missing or unpopulated user emails from Firebase Auth across the database.
+ */
+export async function syncMissingEmailsAdmin(
+  db: Client,
+  dryRun: boolean = false
+): Promise<EmailSyncResult> {
+  return backfillMissingUserEmails(db, {
+    dryRun,
+    force: false,
+    batchSize: 100,
+  });
+}
+
+/**
+ * Synchronizes email for a specific user from Firebase Auth.
+ */
+export async function syncSingleUserEmailAdmin(
+  db: Client,
+  userId: string
+): Promise<{ success: boolean; email: string | null; updated: boolean; message: string }> {
+  return syncSingleUserEmail(db, userId);
+}
+

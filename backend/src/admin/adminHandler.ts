@@ -18,6 +18,8 @@ import {
   deleteDestructionJob,
   changeUserPlanAdmin,
   reconcileUserStorageAdmin,
+  syncMissingEmailsAdmin,
+  syncSingleUserEmailAdmin,
 } from './adminService.js';
 import {
   renderLoginPage,
@@ -278,7 +280,85 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
     };
   }
 
-  // 14. Trigger User GC: POST /admin/users/:id/gc
+  // 14. Bulk Sync Missing Emails: POST /admin/users/sync-emails (HTML Form)
+  if (pathname === '/admin/users/sync-emails' && method === 'POST') {
+    try {
+      const syncResult = await syncMissingEmailsAdmin(db, false);
+      const flashMsg = `Synchronized ${syncResult.updated} user emails from Firebase Auth (${syncResult.totalChecked} checked, ${syncResult.skipped} skipped).`;
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users?flash=${encodeURIComponent(flashMsg)}` },
+        body: '',
+      };
+    } catch (err: any) {
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users?flash=${encodeURIComponent(`Email synchronization failed: ${err.message}`)}` },
+        body: '',
+      };
+    }
+  }
+
+  // 15. Bulk Sync Missing Emails: POST /api/admin/users/sync-emails (JSON API)
+  if (pathname === '/api/admin/users/sync-emails' && method === 'POST') {
+    try {
+      const dryRun = req.body?.dryRun === true;
+      const syncResult = await syncMissingEmailsAdmin(db, dryRun);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: syncResult,
+      };
+    } catch (err: any) {
+      return {
+        statusCode: err.statusCode || 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: { code: err.code || 'INTERNAL_ERROR', message: err.message } },
+      };
+    }
+  }
+
+  // 16. Single User Email Sync: POST /admin/users/:id/sync-email (HTML Form)
+  const singleUserSyncFormMatch = pathname.match(/^\/admin\/users\/([^/]+)\/sync-email$/);
+  if (singleUserSyncFormMatch && method === 'POST') {
+    const userId = singleUserSyncFormMatch[1];
+    try {
+      const result = await syncSingleUserEmailAdmin(db, userId);
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent(result.message)}` },
+        body: '',
+      };
+    } catch (err: any) {
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent(`Email sync failed: ${err.message}`)}` },
+        body: '',
+      };
+    }
+  }
+
+  // 17. Single User Email Sync: POST /api/admin/users/:id/sync-email (JSON API)
+  const singleUserSyncApiMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/sync-email$/);
+  if (singleUserSyncApiMatch && method === 'POST') {
+    const userId = singleUserSyncApiMatch[1];
+    try {
+      const result = await syncSingleUserEmailAdmin(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    } catch (err: any) {
+      return {
+        statusCode: err.statusCode || 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: { code: err.code || 'INTERNAL_ERROR', message: err.message } },
+      };
+    }
+  }
+
+  // 18. Trigger User GC: POST /admin/users/:id/gc
   const userGcMatch = pathname.match(/^\/admin\/users\/([^/]+)\/gc$/);
   if (userGcMatch && method === 'POST') {
     const userId = userGcMatch[1];

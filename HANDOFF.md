@@ -6785,6 +6785,44 @@ A unified, zero-knowledge storage quota and Premium entitlement system has been 
   - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
   - Test suite: `flutter test` (**all 1,438 tests passing**).
 
+---
+
+## 48. Firebase Auth Email Backfill & Synchronization Engine
+
+### 1. Problem & Context
+Migration 011 introduced the `email` column on the `users` table in Turso / libSQL. While active user logins automatically synchronize `email` from Firebase ID tokens in `requireFirebaseAuth`, existing users who had not logged in since the migration had `email` set to `NULL` or empty in the database. When administrators inspected `/admin/users`, these accounts displayed no email and were not searchable by email address.
+
+### 2. Implementation Details
+- **Core Email Sync Service (`backend/src/auth/emailSyncService.ts`)**:
+  - `backfillMissingUserEmails(db, options)`: Queries Turso for users with `email IS NULL OR email = ''` (or all users when `force: true`), chunks them into batches of up to 100 users, and resolves email addresses via `admin.auth().getUsers()` or `admin.auth().getUser()`.
+  - Supports `userRecord.email` as well as OAuth `providerData` email fallbacks.
+  - Updates `users.email` and `users.updated_at` in Turso.
+  - `syncSingleUserEmail(db, userId)`: Synchronizes a single user record on demand.
+  - Gracefully skips anonymous accounts or deleted Firebase Auth identities without crashing.
+- **Standalone Production CLI Script (`backend/src/scripts/backfillEmails.ts`)**:
+  - Added npm command: `npm run backfill:emails` (compiled and run via `tsc && node dist/scripts/backfillEmails.js`).
+  - Flags supported:
+    - `--dry-run`: Previews matches and potential updates without writing to Turso.
+    - `--force`: Refreshes all users regardless of whether their email is already populated.
+    - `--batch-size=<N>`: Configures chunk size for Firebase batch retrieval (defaults to 100).
+- **Admin Panel UI & API Actions**:
+  - **`/admin/users`**: Added `🔄 Sync Missing Emails` button that triggers `POST /admin/users/sync-emails` with statistics flash messages.
+  - **`/admin/users/:id`**: Added `🔄 Sync` button on the Email Address identity table row triggering `POST /admin/users/:id/sync-email`.
+  - **JSON APIs**: Added `POST /api/admin/users/sync-emails` and `POST /api/admin/users/:id/sync-email` for programmatic or cron automation.
+
+### 3. Verification & Quality
+- **Automated Tests (`backend/tests/email-sync.test.ts`)**:
+  - Dry-run mode verification (no Turso mutations).
+  - Live backfill population across multiple users.
+  - Force refresh mode (`force: true`).
+  - Single-user synchronization.
+  - Admin panel form and API route execution with Bearer/cookie authentication.
+  - Total backend tests: **15 test files, 93 tests passing, 0 failures**.
+- **Static Analysis & Flutter Test Suite**:
+  - `flutter analyze`: **0 warnings / 0 errors**.
+  - `flutter test`: **1,438 passed / 0 failed**.
+
+
 
 
 

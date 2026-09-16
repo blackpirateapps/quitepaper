@@ -642,14 +642,17 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
  */
 export function renderUsersPage(result: AdminUsersResult, search?: string, flash?: string): string {
   const content = `
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
       <div>
         <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">User Accounts</h1>
         <p style="color: var(--text-muted); font-size: 13px;">${result.total} total registered users</p>
       </div>
-      <div>
-        <form action="/admin/users" method="GET" style="display: flex; gap: 8px;">
-          <input type="text" name="q" value="${escapeHtml(search || '')}" placeholder="Search Email, UID, or ID..." style="width: 280px;">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <form action="/admin/users/sync-emails" method="POST" style="margin: 0;" onsubmit="return confirm('Sync missing user emails from Firebase Auth across all registered accounts?');">
+          <button type="submit" class="btn btn-secondary btn-sm" title="Populate missing user emails from Firebase Auth">🔄 Sync Missing Emails</button>
+        </form>
+        <form action="/admin/users" method="GET" style="display: flex; gap: 8px; margin: 0;">
+          <input type="text" name="q" value="${escapeHtml(search || '')}" placeholder="Search Email, UID, or ID..." style="width: 260px;">
           <button type="submit" class="btn btn-secondary btn-sm">Search</button>
           ${search ? `<a href="/admin/users" class="btn btn-secondary btn-sm" style="line-height:20px;">Clear</a>` : ''}
         </form>
@@ -800,7 +803,14 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
           <tbody>
             <tr>
               <td>Email Address</td>
-              <td><strong>${escapeHtml(detail.user.email || '—')}</strong></td>
+              <td>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <strong>${escapeHtml(detail.user.email || '—')}</strong>
+                  <form action="/admin/users/${encodeURIComponent(detail.user.id)}/sync-email" method="POST" style="margin: 0;">
+                    <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" title="Refresh email from Firebase Auth">🔄 Sync</button>
+                  </form>
+                </div>
+              </td>
             </tr>
             <tr>
               <td>Firebase UID</td>
