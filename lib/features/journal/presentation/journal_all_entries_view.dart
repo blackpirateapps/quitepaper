@@ -19,6 +19,7 @@ class JournalAllEntriesView extends ConsumerStatefulWidget {
   const JournalAllEntriesView({
     super.key,
     this.onNoteSelected,
+    this.selectedNoteId,
     this.isTablet = false,
     this.isSidebarVisible = true,
     this.onToggleSidebar,
@@ -27,6 +28,9 @@ class JournalAllEntriesView extends ConsumerStatefulWidget {
 
   /// Optional callback when an entry is selected on tablet split view
   final void Function(Note note)? onNoteSelected;
+
+  /// Currently selected note ID on tablet layout
+  final String? selectedNoteId;
 
   /// Whether running within tablet 3-pane layout
   final bool isTablet;
@@ -244,6 +248,7 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
                                               children: [
                                                 JournalTimelineTile(
                                                   note: note,
+                                                  isSelected: widget.selectedNoteId == note.id,
                                                   isHighlighted: highlightedId == note.id,
                                                   onHighlightComplete: () {
                                                     if (highlightedId == note.id) {

@@ -40,6 +40,7 @@ void main() {
 
   Widget buildTestWidget({
     void Function(Note note)? onNoteSelected,
+    String? selectedNoteId,
     bool isTablet = false,
     List<Override> overrides = const [],
   }) {
@@ -54,6 +55,7 @@ void main() {
         home: Scaffold(
           body: JournalAllEntriesView(
             onNoteSelected: onNoteSelected,
+            selectedNoteId: selectedNoteId,
             isTablet: isTablet,
           ),
         ),
@@ -383,6 +385,87 @@ void main() {
 
       // Restored entry appears again
       expect(find.text('Morning Reflections'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('JournalTimelineTile renders active selection highlight and semantics when selected', (tester) async {
+      final note1 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      final note2 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 2));
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          selectedNoteId: note2.id,
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final tiles = tester.widgetList<JournalTimelineTile>(find.byType(JournalTimelineTile)).toList();
+      expect(tiles.length, 2);
+
+      final selectedTile = tiles.firstWhere((t) => t.note.id == note2.id);
+      final unselectedTile = tiles.firstWhere((t) => t.note.id == note1.id);
+
+      expect(selectedTile.isSelected, isTrue);
+      expect(unselectedTile.isSelected, isFalse);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tablet split view in QuietPaperApp highlights selected journal entry in timeline when tapped', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0; // Tablet split-view layout >= 900dp
+
+      final note1 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await repository.saveNote(
+        note1.copyWith(
+          title: 'First Journal Entry',
+          content: '---\njournal: true\ndate: 2026-09-01\n---\nFirst body content.',
+        ),
+      );
+
+      final note2 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 2));
+      await repository.saveNote(
+        note2.copyWith(
+          title: 'Second Journal Entry',
+          content: '---\njournal: true\ndate: 2026-09-02\n---\nSecond body content.',
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildFullApp(
+          initialDestination: AppDestination.allJournalEntries,
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Initially no note is selected in tablet editor
+      var tiles = tester.widgetList<JournalTimelineTile>(find.byType(JournalTimelineTile)).toList();
+      expect(tiles.any((t) => t.isSelected), isFalse);
+
+      // Tap the second journal entry
+      await tester.tap(find.text('Second Journal Entry'));
+      await tester.pumpAndSettle();
+
+      // Second entry must now be selected and highlighted in the timeline
+      tiles = tester.widgetList<JournalTimelineTile>(find.byType(JournalTimelineTile)).toList();
+      final selectedTile = tiles.firstWhere((t) => t.note.id == note2.id);
+      expect(selectedTile.isSelected, isTrue);
+
+      // Switch selection to first entry
+      await tester.tap(find.text('First Journal Entry'));
+      await tester.pumpAndSettle();
+
+      // First entry is now selected, second is not
+      tiles = tester.widgetList<JournalTimelineTile>(find.byType(JournalTimelineTile)).toList();
+      expect(tiles.firstWhere((t) => t.note.id == note1.id).isSelected, isTrue);
+      expect(tiles.firstWhere((t) => t.note.id == note2.id).isSelected, isFalse);
 
       await finishTest(tester);
     });

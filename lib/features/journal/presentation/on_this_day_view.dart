@@ -15,8 +15,12 @@ import '../application/journal_providers.dart';
 class OnThisDayView extends ConsumerWidget {
   const OnThisDayView({
     super.key,
+    this.selectedNoteId,
     this.onNoteSelected,
   });
+
+  /// Currently selected note ID on tablet layout
+  final String? selectedNoteId;
 
   /// Optional callback when an entry is selected (used on tablet 3-pane layout)
   final void Function(Note note)? onNoteSelected;
@@ -163,6 +167,7 @@ class OnThisDayView extends ConsumerWidget {
                           children: [
                             _OnThisDayTile(
                               note: note,
+                              isSelected: selectedNoteId == note.id,
                               onTap: () => _handleNoteTap(context, note),
                             ),
                             if (index < entries.length - 1)
@@ -248,7 +253,7 @@ class OnThisDayView extends ConsumerWidget {
           ),
 
           // 5. Historical Content
-          _buildHistoricalContent(context, ref, colors, historicalState),
+          _buildHistoricalContent(context, ref, colors, historicalState, selectedNoteId),
         ],
       ),
     );
@@ -259,6 +264,7 @@ class OnThisDayView extends ConsumerWidget {
     WidgetRef ref,
     AppColors colors,
     HistoricalWeekState state,
+    String? selectedNoteId,
   ) {
     if (state.isLoading && state.yearGroups.isEmpty) {
       return const SliverToBoxAdapter(
@@ -450,6 +456,7 @@ class OnThisDayView extends ConsumerWidget {
                                 children: [
                                   _HistoricalNoteTile(
                                     note: note,
+                                    isSelected: selectedNoteId == note.id,
                                     onTap: () => _handleNoteTap(context, note),
                                   ),
                                   if (noteIndex < dayGroup.entries.length - 1)
@@ -482,141 +489,164 @@ class OnThisDayView extends ConsumerWidget {
   }
 }
 
-class _OnThisDayTile extends StatelessWidget {
+class _OnThisDayTile extends StatefulWidget {
   const _OnThisDayTile({
     required this.note,
     required this.onTap,
+    this.isSelected = false,
   });
 
   final Note note;
   final VoidCallback onTap;
+  final bool isSelected;
+
+  @override
+  State<_OnThisDayTile> createState() => _OnThisDayTileState();
+}
+
+class _OnThisDayTileState extends State<_OnThisDayTile> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final dateDisplay = note.journalDate != null
-        ? JournalDateHelper.formatDisplayDate(note.journalDate!)
-        : JournalDateHelper.formatDisplayDate(note.createdAt);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateDisplay = widget.note.journalDate != null
+        ? JournalDateHelper.formatDisplayDate(widget.note.journalDate!)
+        : JournalDateHelper.formatDisplayDate(widget.note.createdAt);
 
-    final relativeYear = note.journalDate != null
-        ? JournalDateHelper.formatRelativeYear(note.journalDate!)
-        : JournalDateHelper.formatRelativeYear(note.createdAt);
+    final relativeYear = widget.note.journalDate != null
+        ? JournalDateHelper.formatRelativeYear(widget.note.journalDate!)
+        : JournalDateHelper.formatRelativeYear(widget.note.createdAt);
 
-    final semanticLabel = '$dateDisplay, ${note.displayTitle}, $relativeYear';
+    final semanticLabel = '$dateDisplay, ${widget.note.displayTitle}, $relativeYear';
+
+    final backgroundColor = widget.isSelected
+        ? (isDark
+            ? colors.surfaceSubtle
+            : colors.selection.withValues(alpha: 0.5))
+        : (_isHovered
+            ? colors.surfaceSubtle.withValues(alpha: 0.45)
+            : Colors.transparent);
 
     return Semantics(
       label: semanticLabel,
+      selected: widget.isSelected,
       button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Year & Relative indicator
-                Row(
-                  children: [
-                    Text(
-                      dateDisplay,
-                      style: AppTypography.caption.copyWith(
-                        color: colors.accent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (relativeYear.isNotEmpty) ...[
-                      const SizedBox(width: 8.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                        decoration: BoxDecoration(
-                          color: colors.surfaceSubtle,
-                          borderRadius: BorderRadius.circular(4.0),
-                          border: Border.all(
-                            color: colors.divider.withValues(alpha: 0.8),
-                            width: 0.6,
-                          ),
-                        ),
-                        child: Text(
-                          relativeYear,
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 6.0),
-
-                // Note Title
-                Row(
-                  children: [
-                    if (note.isPasswordProtected) ...[
-                      Icon(
-                        PhosphorIconsRegular.lock,
-                        size: 15,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: 6.0),
-                    ],
-                    Expanded(
-                      child: Text(
-                        note.displayTitle,
-                        style: AppTypography.title.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Preview Snippet
-                if (note.previewSnippet.isNotEmpty) ...[
-                  const SizedBox(height: 6.0),
-                  Text(
-                    note.previewSnippet,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-
-                // Tags chips if any
-                if (note.tags.isNotEmpty) ...[
-                  const SizedBox(height: 8.0),
-                  Wrap(
-                    spacing: 6.0,
-                    runSpacing: 4.0,
-                    children: note.tags.take(4).map((tag) {
-                      return Text(
-                        '#$tag',
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Material(
+          color: backgroundColor,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Year & Relative indicator
+                  Row(
+                    children: [
+                      Text(
+                        dateDisplay,
                         style: AppTypography.caption.copyWith(
-                          color: colors.textTertiary,
-                          fontSize: 12,
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
-                      );
-                    }).toList(),
+                      ),
+                      if (relativeYear.isNotEmpty) ...[
+                        const SizedBox(width: 8.0),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(4.0),
+                            border: Border.all(
+                              color: colors.divider.withValues(alpha: 0.8),
+                              width: 0.6,
+                            ),
+                          ),
+                          child: Text(
+                            relativeYear,
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                  const SizedBox(height: 6.0),
+
+                  // Note Title
+                  Row(
+                    children: [
+                      if (widget.note.isPasswordProtected) ...[
+                        Icon(
+                          PhosphorIconsRegular.lock,
+                          size: 15,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(width: 6.0),
+                      ],
+                      Expanded(
+                        child: Text(
+                          widget.note.displayTitle,
+                          style: AppTypography.title.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Preview Snippet
+                  if (widget.note.previewSnippet.isNotEmpty) ...[
+                    const SizedBox(height: 6.0),
+                    Text(
+                      widget.note.previewSnippet,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+
+                  // Tags chips if any
+                  if (widget.note.tags.isNotEmpty) ...[
+                    const SizedBox(height: 8.0),
+                    Wrap(
+                      spacing: 6.0,
+                      runSpacing: 4.0,
+                      children: widget.note.tags.take(4).map((tag) {
+                        return Text(
+                          '#$tag',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -625,96 +655,119 @@ class _OnThisDayTile extends StatelessWidget {
   }
 }
 
-class _HistoricalNoteTile extends StatelessWidget {
+class _HistoricalNoteTile extends StatefulWidget {
   const _HistoricalNoteTile({
     required this.note,
     required this.onTap,
+    this.isSelected = false,
   });
 
   final Note note;
   final VoidCallback onTap;
+  final bool isSelected;
+
+  @override
+  State<_HistoricalNoteTile> createState() => _HistoricalNoteTileState();
+}
+
+class _HistoricalNoteTileState extends State<_HistoricalNoteTile> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final semanticLabel = '${note.displayTitle}, ${note.previewSnippet}';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final semanticLabel = '${widget.note.displayTitle}, ${widget.note.previewSnippet}';
+
+    final backgroundColor = widget.isSelected
+        ? (isDark
+            ? colors.surfaceSubtle
+            : colors.selection.withValues(alpha: 0.5))
+        : (_isHovered
+            ? colors.surfaceSubtle.withValues(alpha: 0.45)
+            : Colors.transparent);
 
     return Semantics(
       label: semanticLabel,
+      selected: widget.isSelected,
       button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Note Title with Lock Icon if protected
-                Row(
-                  children: [
-                    if (note.isPasswordProtected) ...[
-                      Icon(
-                        PhosphorIconsRegular.lock,
-                        size: 15,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: 6.0),
-                    ],
-                    Expanded(
-                      child: Text(
-                        note.displayTitle,
-                        style: AppTypography.title.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Material(
+          color: backgroundColor,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Note Title with Lock Icon if protected
+                  Row(
+                    children: [
+                      if (widget.note.isPasswordProtected) ...[
+                        Icon(
+                          PhosphorIconsRegular.lock,
+                          size: 15,
+                          color: colors.textSecondary,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 6.0),
+                      ],
+                      Expanded(
+                        child: Text(
+                          widget.note.displayTitle,
+                          style: AppTypography.title.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                    ],
+                  ),
+
+                  // Preview Snippet
+                  if (widget.note.previewSnippet.isNotEmpty) ...[
+                    const SizedBox(height: 4.0),
+                    Text(
+                      widget.note.previewSnippet,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
 
-                // Preview Snippet
-                if (note.previewSnippet.isNotEmpty) ...[
-                  const SizedBox(height: 4.0),
-                  Text(
-                    note.previewSnippet,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                      fontSize: 14,
-                      height: 1.4,
+                  // Tags chips if any
+                  if (widget.note.tags.isNotEmpty) ...[
+                    const SizedBox(height: 6.0),
+                    Wrap(
+                      spacing: 6.0,
+                      runSpacing: 4.0,
+                      children: widget.note.tags.take(4).map((tag) {
+                        return Text(
+                          '#$tag',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList(),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ],
-
-                // Tags chips if any
-                if (note.tags.isNotEmpty) ...[
-                  const SizedBox(height: 6.0),
-                  Wrap(
-                    spacing: 6.0,
-                    runSpacing: 4.0,
-                    children: note.tags.take(4).map((tag) {
-                      return Text(
-                        '#$tag',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textTertiary,
-                          fontSize: 12,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),

@@ -12,12 +12,14 @@ class JournalTimelineTile extends StatefulWidget {
     super.key,
     required this.note,
     required this.onTap,
+    this.isSelected = false,
     this.isHighlighted = false,
     this.onHighlightComplete,
   });
 
   final Note note;
   final VoidCallback onTap;
+  final bool isSelected;
   final bool isHighlighted;
   final VoidCallback? onHighlightComplete;
 
@@ -29,6 +31,7 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
     with SingleTickerProviderStateMixin {
   AnimationController? _highlightController;
   Animation<double>? _highlightAnimation;
+  bool _isHovered = false;
 
   @override
   void initState() {
@@ -98,13 +101,21 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
 
     final semanticLabel = '$fullDateDisplay, ${widget.note.displayTitle}';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AnimatedBuilder(
       animation: _highlightAnimation ?? const AlwaysStoppedAnimation(0.0),
       builder: (context, child) {
         final highlightFactor = _highlightAnimation?.value ?? 0.0;
         final highlightBg = highlightFactor > 0
             ? colors.accent.withValues(alpha: 0.18 * highlightFactor)
-            : Colors.transparent;
+            : (widget.isSelected
+                ? (isDark
+                    ? colors.surfaceSubtle
+                    : colors.selection.withValues(alpha: 0.5))
+                : (_isHovered
+                    ? colors.surfaceSubtle.withValues(alpha: 0.45)
+                    : Colors.transparent));
 
         return Material(
           color: highlightBg,
@@ -113,62 +124,66 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
       },
       child: Semantics(
         label: semanticLabel,
+        selected: widget.isSelected,
         button: true,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Day Column
-                SizedBox(
-                  width: 44,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        dayNumber,
-                        style: AppTypography.title.copyWith(
-                          color: (isToday || widget.isHighlighted)
-                              ? colors.accent
-                              : colors.textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          height: 1.1,
-                          letterSpacing: -0.5,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Day Column
+                  SizedBox(
+                    width: 44,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          dayNumber,
+                          style: AppTypography.title.copyWith(
+                            color: (isToday || widget.isHighlighted || widget.isSelected)
+                                ? colors.accent
+                                : colors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        weekdayShort,
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 2),
+                        Text(
+                          weekdayShort,
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.sm),
 
-                // Subtle vertical accent bar/indicator
-                Container(
-                  width: 2,
-                  height: 36,
-                  margin: const EdgeInsets.only(top: 2, right: AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: (isToday || widget.isHighlighted)
-                        ? colors.accent.withValues(alpha: 0.8)
-                        : colors.divider.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(1),
+                  // Subtle vertical accent bar/indicator
+                  Container(
+                    width: 2,
+                    height: 36,
+                    margin: const EdgeInsets.only(top: 2, right: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: (isToday || widget.isHighlighted || widget.isSelected)
+                          ? colors.accent.withValues(alpha: 0.8)
+                          : colors.divider.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
-                ),
 
                 // Right Content Column
                 Expanded(
@@ -242,6 +257,7 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

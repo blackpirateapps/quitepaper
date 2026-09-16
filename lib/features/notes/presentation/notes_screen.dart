@@ -892,6 +892,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   key: const ValueKey('tablet_all_journal_entries'),
                                   isTablet: true,
                                   isSidebarVisible: isNavSidebarVisible,
+                                  selectedNoteId: _selectedNoteIdForTablet,
                                   onToggleSidebar: () {
                                     ref
                                         .read(isNavSidebarVisibleProvider.notifier)
@@ -906,6 +907,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                           : destination == AppDestination.onThisDay
                               ? OnThisDayView(
                                   key: const ValueKey('tablet_on_this_day'),
+                                  selectedNoteId: _selectedNoteIdForTablet,
                                   onNoteSelected: (note) {
                                     setState(() {
                                       _selectedNoteIdForTablet = note.id;

@@ -6694,6 +6694,41 @@ flowchart TD
   - `flutter analyze`: **0 errors, 0 warnings** across the codebase.
   - `flutter test`: **all 1,436 tests passing**.
 
+---
+
+## 46. Journal All Entries & On This Day Active Entry Selection Highlighting
+
+### 1. Problem & Architectural Need
+In the Journal "All Entries" timeline archive and "On This Day" views, tapping or choosing a journal entry opened the entry into the editor (or tablet split-view 3rd pane), but the entry in the chronological list/timeline failed to display active selection highlighting. This caused visual disconnection on tablet 3-pane layouts compared to the standard notes list where the active note is clearly highlighted.
+
+### 2. Implementation Details
+- **`JournalTimelineTile` (`lib/features/journal/presentation/widgets/journal_timeline_tile.dart`)**:
+  - Added `isSelected: bool` parameter (defaults to `false`).
+  - Integrated `MouseRegion` with `_isHovered` tracking for responsive desktop/tablet pointer feedback.
+  - Updated `AnimatedBuilder` background color logic:
+    - Active jump animation factor (`highlightFactor > 0`): `colors.accent.withValues(alpha: 0.18 * highlightFactor)`
+    - Active selection (`isSelected`): `isDark ? colors.surfaceSubtle : colors.selection.withValues(alpha: 0.5)`
+    - Hover (`_isHovered`): `colors.surfaceSubtle.withValues(alpha: 0.45)`
+    - Idle: `Colors.transparent`
+  - Highlighted left day number and vertical timeline line indicator in `colors.accent` when `isSelected || isToday || isHighlighted`.
+  - Added accessibility metadata via `Semantics(selected: isSelected)`.
+- **`JournalAllEntriesView` (`lib/features/journal/presentation/journal_all_entries_view.dart`)**:
+  - Added `selectedNoteId: String?` property.
+  - Passed `isSelected: widget.selectedNoteId == note.id` to `JournalTimelineTile`.
+- **`OnThisDayView` (`lib/features/journal/presentation/on_this_day_view.dart`)**:
+  - Added `selectedNoteId: String?` property and propagated `isSelected: selectedNoteId == note.id` to both `_OnThisDayTile` and `_HistoricalNoteTile`.
+  - Updated tile widgets with hover state and Bear-inspired selection backgrounds.
+- **`NotesScreen` (`lib/features/notes/presentation/notes_screen.dart`)**:
+  - In `_buildTabletLayout`, passed `selectedNoteId: _selectedNoteIdForTablet` to both `JournalAllEntriesView` and `OnThisDayView`.
+
+### 3. Verification & Quality
+- Added unit and widget tests in `test/journal/journal_all_entries_widget_test.dart`:
+  - Verified `JournalTimelineTile` renders `isSelected` highlight and semantics.
+  - Verified tablet split-view in `QuietPaperApp` updates selection highlight in All Entries timeline when switching notes.
+- Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
+- Test suite: **1,438 passed / 0 failed** (`flutter test`).
+
+
 
 
 
