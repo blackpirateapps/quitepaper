@@ -16,6 +16,8 @@ import {
   getAdminStorageDetails,
   retryDestructionJob,
   deleteDestructionJob,
+  changeUserPlanAdmin,
+  reconcileUserStorageAdmin,
 } from './adminService.js';
 import {
   renderLoginPage,
@@ -25,6 +27,7 @@ import {
   renderStoragePage,
   formatBytes,
 } from './adminViews.js';
+import { adminChangePlanSchema } from '../validation/schemas.js';
 
 export async function handleAdminRequest(req: RequestLike, db: Client): Promise<ResponseLike> {
   const method = (req.method || 'GET').toUpperCase();
@@ -32,6 +35,20 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
   const urlObj = new URL(rawUrl, 'http://localhost');
   const pathname = urlObj.pathname;
   const flash = urlObj.searchParams.get('flash') || undefined;
+
+  // Parse urlencoded form string into object if applicable
+  if (typeof req.body === 'string' && req.body.length > 0) {
+    try {
+      const params = new URLSearchParams(req.body);
+      const parsedBody: Record<string, any> = {};
+      for (const [key, val] of params.entries()) {
+        parsedBody[key] = val;
+      }
+      req.body = parsedBody;
+    } catch {
+      // Keep as string if not parseable
+    }
+  }
 
   const adminPassword = getAdminPassword();
 
@@ -149,7 +166,7 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
   }
 
   // 9. User Detail: GET /admin/users/:id
-  const userDetailMatch = pathname.match(/^\/admin\/users\/([0-9a-fA-F-]{36})$/);
+  const userDetailMatch = pathname.match(/^\/admin\/users\/([^/]+)$/);
   if (userDetailMatch && method === 'GET') {
     const userId = userDetailMatch[1];
     const detail = await getAdminUserDetail(db, userId);
@@ -167,8 +184,102 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
     };
   }
 
-  // 10. Trigger User GC: POST /admin/users/:id/gc
-  const userGcMatch = pathname.match(/^\/admin\/users\/([0-9a-fA-F-]{36})\/gc$/);
+  // 10. Change User Plan: POST /admin/users/:id/plan (HTML Form)
+  const userPlanFormMatch = pathname.match(/^\/admin\/users\/([^/]+)\/plan$/);
+  if (userPlanFormMatch && method === 'POST') {
+    const userId = userPlanFormMatch[1];
+    const rawPlan = req.body?.plan;
+    const parsed = adminChangePlanSchema.safeParse({ plan: rawPlan, reason: req.body?.reason });
+
+    if (!parsed.success) {
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent('Invalid plan specified. Must be free or premium.')}` },
+        body: '',
+      };
+    }
+
+    try {
+      const result = await changeUserPlanAdmin(db, userId, parsed.data.plan, 'admin', parsed.data.reason);
+      const flashMsg = parsed.data.plan === 'premium'
+        ? 'User upgraded to Premium (10 GB cloud storage limit).'
+        : 'User downgraded to Free (1 GB cloud storage limit). Existing files retained.';
+
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent(flashMsg)}` },
+        body: '',
+      };
+    } catch (err: any) {
+      return {
+        statusCode: 302,
+        headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent(`Plan change failed: ${err.message}`)}` },
+        body: '',
+      };
+    }
+  }
+
+  // 11. Change User Plan: POST /api/admin/users/:id/plan (JSON API)
+  const userPlanApiMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/plan$/);
+  if (userPlanApiMatch && method === 'POST') {
+    const userId = userPlanApiMatch[1];
+    const parsed = adminChangePlanSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: { code: 'BAD_REQUEST', message: 'Invalid plan payload', details: parsed.error.errors } },
+      };
+    }
+
+    try {
+      const result = await changeUserPlanAdmin(db, userId, parsed.data.plan, 'admin_api', parsed.data.reason);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    } catch (err: any) {
+      return {
+        statusCode: err.statusCode || 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: { code: err.code || 'INTERNAL_ERROR', message: err.message } },
+      };
+    }
+  }
+
+  // 12. Reconcile Storage: POST /admin/users/:id/reconcile (HTML Form)
+  const reconcileFormMatch = pathname.match(/^\/admin\/users\/([^/]+)\/reconcile$/);
+  if (reconcileFormMatch && method === 'POST') {
+    const userId = reconcileFormMatch[1];
+    const recResult = await reconcileUserStorageAdmin(db, userId, false);
+    const flashMsg = recResult.discrepancyFixed
+      ? `Storage reconciled. Repaired from ${formatBytes(recResult.previousUsedBytes)} to ${formatBytes(recResult.newUsedBytes)}.`
+      : `Storage verified. Materialized counter (${formatBytes(recResult.newUsedBytes)}) matches database records.`;
+
+    return {
+      statusCode: 302,
+      headers: { Location: `/admin/users/${userId}?flash=${encodeURIComponent(flashMsg)}` },
+      body: '',
+    };
+  }
+
+  // 13. Reconcile Storage: POST /api/admin/users/:id/reconcile (JSON API)
+  const reconcileApiMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/reconcile$/);
+  if (reconcileApiMatch && method === 'POST') {
+    const userId = reconcileApiMatch[1];
+    const dryRun = req.body?.dryRun === true;
+    const recResult = await reconcileUserStorageAdmin(db, userId, dryRun);
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: recResult,
+    };
+  }
+
+  // 14. Trigger User GC: POST /admin/users/:id/gc
+  const userGcMatch = pathname.match(/^\/admin\/users\/([^/]+)\/gc$/);
   if (userGcMatch && method === 'POST') {
     const userId = userGcMatch[1];
     const dryRun = req.body?.dryRun === 'true' || req.body?.dryRun === true;
@@ -183,7 +294,7 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
     };
   }
 
-  // 11. Storage & Jobs: GET /admin/storage
+  // 15. Storage & Jobs: GET /admin/storage
   if (pathname === '/admin/storage' && method === 'GET') {
     const storageDetails = await getAdminStorageDetails(db);
     return {
@@ -193,7 +304,7 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
     };
   }
 
-  // 12. Retry Destruction Job: POST /admin/jobs/:id/retry
+  // 16. Retry Destruction Job: POST /admin/jobs/:id/retry
   const retryJobMatch = pathname.match(/^\/admin\/jobs\/([0-9a-fA-F-]{36})\/retry$/);
   if (retryJobMatch && method === 'POST') {
     const jobId = retryJobMatch[1];
@@ -205,7 +316,7 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
     };
   }
 
-  // 13. Delete Destruction Job: POST /admin/jobs/:id/delete
+  // 17. Delete Destruction Job: POST /admin/jobs/:id/delete
   const deleteJobMatch = pathname.match(/^\/admin\/jobs\/([0-9a-fA-F-]{36})\/delete$/);
   if (deleteJobMatch && method === 'POST') {
     const jobId = deleteJobMatch[1];

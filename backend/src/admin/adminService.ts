@@ -1,11 +1,28 @@
 import { Client } from '@libsql/client';
 import { profileUserStorage, StorageProfileReport } from '../gc/storageProfiler.js';
 import { runGarbageCollection, GcExecutionSummary } from '../gc/garbageCollector.js';
+import {
+  UserPlan,
+  PLAN_LIMITS,
+  getUserQuotaProfile,
+  changeUserPlan,
+  reconcileUserStorageUsage,
+  StorageQuotaProfile,
+} from '../storage/quotaService.js';
 
 export interface AdminOverview {
   dbPingMs: number;
   users: {
     total: number;
+    free: number;
+    premium: number;
+  };
+  storageQuota: {
+    totalCloudStorageUsed: number;
+    freeStorageUsed: number;
+    premiumStorageUsed: number;
+    usersNearQuota: number;
+    usersOverQuota: number;
   };
   notes: {
     total: number;
@@ -47,6 +64,11 @@ export interface AdminOverview {
 export interface AdminUserListItem {
   id: string;
   firebaseUid: string;
+  email: string | null;
+  plan: UserPlan;
+  storageUsedBytes: number;
+  storageLimitBytes: number;
+  isOverQuota: boolean;
   createdAt: string;
   updatedAt: string;
   notesCount: number;
@@ -63,13 +85,25 @@ export interface AdminUsersResult {
   totalPages: number;
 }
 
+export interface AdminAuditLogEntry {
+  id: string;
+  adminIdentifier: string | null;
+  action: string;
+  oldValue: string | null;
+  newValue: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
 export interface AdminUserDetail {
   user: {
     id: string;
     firebaseUid: string;
+    email: string | null;
     createdAt: string;
     updatedAt: string;
   };
+  quota: StorageQuotaProfile;
   encryptionKey: {
     configured: boolean;
     keyVersion?: number;
@@ -93,6 +127,7 @@ export interface AdminUserDetail {
     changeType: string;
     timestamp: string;
   }>;
+  auditLogs: AdminAuditLogEntry[];
   storageProfile: StorageProfileReport;
 }
 
@@ -101,6 +136,13 @@ export interface AdminStorageOverview {
   totalDocumentBytes: number;
   attachmentsCount: number;
   documentsCount: number;
+  totalUsers: number;
+  freeUsers: number;
+  premiumUsers: number;
+  aggregateFreeUsage: number;
+  aggregatePremiumUsage: number;
+  usersOverQuota: number;
+  usersNearQuota: number;
   destructionJobs: Array<{
     id: string;
     userId: string;
@@ -130,9 +172,35 @@ export async function getAdminOverview(db: Client): Promise<AdminOverview> {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // 1. Users
-  const userCountRes = await db.execute('SELECT COUNT(*) as count FROM users');
-  const totalUsers = Number(userCountRes.rows[0]?.count || 0);
+  // 1. Users & Storage Quota aggregate statistics
+  const userStatsRes = await db.execute(`
+    SELECT
+      COUNT(*) as total_users,
+      COUNT(CASE WHEN plan = 'free' OR plan IS NULL THEN 1 END) as free_users,
+      COUNT(CASE WHEN plan = 'premium' THEN 1 END) as premium_users,
+      COALESCE(SUM(storage_used_bytes), 0) as total_storage_used,
+      COALESCE(SUM(CASE WHEN plan = 'free' OR plan IS NULL THEN storage_used_bytes ELSE 0 END), 0) as free_storage_used,
+      COALESCE(SUM(CASE WHEN plan = 'premium' THEN storage_used_bytes ELSE 0 END), 0) as premium_storage_used,
+      COUNT(CASE
+        WHEN (plan = 'free' OR plan IS NULL) AND storage_used_bytes >= 800000000 AND storage_used_bytes <= 1000000000 THEN 1
+        WHEN plan = 'premium' AND storage_used_bytes >= 8000000000 AND storage_used_bytes <= 10000000000 THEN 1
+      END) as near_quota_count,
+      COUNT(CASE
+        WHEN (plan = 'free' OR plan IS NULL) AND storage_used_bytes > 1000000000 THEN 1
+        WHEN plan = 'premium' AND storage_used_bytes > 10000000000 THEN 1
+      END) as over_quota_count
+    FROM users
+  `);
+  const userStatsRow = userStatsRes.rows[0];
+
+  const totalUsers = Number(userStatsRow?.total_users || 0);
+  const freeUsers = Number(userStatsRow?.free_users || 0);
+  const premiumUsers = Number(userStatsRow?.premium_users || 0);
+  const totalCloudStorageUsed = Number(userStatsRow?.total_storage_used || 0);
+  const freeStorageUsed = Number(userStatsRow?.free_storage_used || 0);
+  const premiumStorageUsed = Number(userStatsRow?.premium_storage_used || 0);
+  const usersNearQuota = Number(userStatsRow?.near_quota_count || 0);
+  const usersOverQuota = Number(userStatsRow?.over_quota_count || 0);
 
   // 2. Notes
   const notesRes = await db.execute(`
@@ -227,6 +295,15 @@ export async function getAdminOverview(db: Client): Promise<AdminOverview> {
     dbPingMs,
     users: {
       total: totalUsers,
+      free: freeUsers,
+      premium: premiumUsers,
+    },
+    storageQuota: {
+      totalCloudStorageUsed,
+      freeStorageUsed,
+      premiumStorageUsed,
+      usersNearQuota,
+      usersOverQuota,
     },
     notes: {
       total: Number(notesRow?.total || 0),
@@ -267,7 +344,7 @@ export async function getAdminOverview(db: Client): Promise<AdminOverview> {
 }
 
 /**
- * Retrieves paginated list of users with counts.
+ * Retrieves paginated list of users with email, plan, storage counters, and counts.
  */
 export async function getAdminUsers(
   db: Client,
@@ -278,11 +355,14 @@ export async function getAdminUsers(
   const offset = (page - 1) * limit;
   const search = options.search?.trim();
 
-  let countSql = 'SELECT COUNT(*) as count FROM users';
+  let countSql = 'SELECT COUNT(*) as count FROM users u';
   let dataSql = `
     SELECT
       u.id,
       u.firebase_uid,
+      u.email,
+      u.plan,
+      u.storage_used_bytes,
       u.created_at,
       u.updated_at,
       (SELECT COUNT(*) FROM notes n WHERE n.user_id = u.id AND n.deleted_at IS NULL) as notes_count,
@@ -296,11 +376,11 @@ export async function getAdminUsers(
 
   if (search) {
     const searchPattern = `%${search}%`;
-    const whereClause = ' WHERE u.id LIKE ? OR u.firebase_uid LIKE ?';
+    const whereClause = ' WHERE (u.id LIKE ? OR u.firebase_uid LIKE ? OR LOWER(u.email) LIKE LOWER(?))';
     countSql += whereClause;
-    countArgs.push(searchPattern, searchPattern);
+    countArgs.push(searchPattern, searchPattern, searchPattern);
     dataSql += whereClause;
-    dataArgs.push(searchPattern, searchPattern);
+    dataArgs.push(searchPattern, searchPattern, searchPattern);
   }
 
   dataSql += ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?';
@@ -310,16 +390,28 @@ export async function getAdminUsers(
   const total = Number(countRes.rows[0]?.count || 0);
 
   const dataRes = await db.execute({ sql: dataSql, args: dataArgs });
-  const users: AdminUserListItem[] = dataRes.rows.map((row) => ({
-    id: String(row.id),
-    firebaseUid: String(row.firebase_uid),
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
-    notesCount: Number(row.notes_count || 0),
-    devicesCount: Number(row.devices_count || 0),
-    attachmentsCount: Number(row.attachments_count || 0),
-    documentsCount: Number(row.documents_count || 0),
-  }));
+  const users: AdminUserListItem[] = dataRes.rows.map((row) => {
+    const plan: UserPlan = ((row.plan as string) || 'free').toLowerCase() === 'premium' ? 'premium' : 'free';
+    const storageUsedBytes = Math.max(0, Number(row.storage_used_bytes || 0));
+    const storageLimitBytes = PLAN_LIMITS[plan];
+    const isOverQuota = storageUsedBytes > storageLimitBytes;
+
+    return {
+      id: String(row.id),
+      firebaseUid: String(row.firebase_uid),
+      email: row.email ? String(row.email) : null,
+      plan,
+      storageUsedBytes,
+      storageLimitBytes,
+      isOverQuota,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+      notesCount: Number(row.notes_count || 0),
+      devicesCount: Number(row.devices_count || 0),
+      attachmentsCount: Number(row.attachments_count || 0),
+      documentsCount: Number(row.documents_count || 0),
+    };
+  });
 
   return {
     users,
@@ -331,11 +423,11 @@ export async function getAdminUsers(
 }
 
 /**
- * Retrieves detailed user inspection information including devices, crypto parameters, and storage profile.
+ * Retrieves detailed user inspection information including plan, storage quota, devices, crypto parameters, and audit history.
  */
 export async function getAdminUserDetail(db: Client, userId: string): Promise<AdminUserDetail | null> {
   const userRes = await db.execute({
-    sql: 'SELECT id, firebase_uid, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    sql: 'SELECT id, firebase_uid, email, plan, storage_used_bytes, storage_reserved_bytes, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     args: [userId],
   });
 
@@ -344,6 +436,9 @@ export async function getAdminUserDetail(db: Client, userId: string): Promise<Ad
   }
 
   const uRow = userRes.rows[0];
+
+  // Storage Quota Profile
+  const quota = await getUserQuotaProfile(db, userId);
 
   // Key metadata
   const keyRes = await db.execute({
@@ -393,6 +488,26 @@ export async function getAdminUserDetail(db: Client, userId: string): Promise<Ad
     timestamp: String(row.timestamp),
   }));
 
+  // Audit Logs
+  let auditLogs: AdminAuditLogEntry[] = [];
+  try {
+    const auditRes = await db.execute({
+      sql: 'SELECT id, admin_identifier, action, old_value, new_value, details_json, created_at FROM admin_audit_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 20',
+      args: [userId],
+    });
+    auditLogs = auditRes.rows.map((row) => ({
+      id: String(row.id),
+      adminIdentifier: row.admin_identifier ? String(row.admin_identifier) : null,
+      action: String(row.action),
+      oldValue: row.old_value ? String(row.old_value) : null,
+      newValue: row.new_value ? String(row.new_value) : null,
+      details: row.details_json ? String(row.details_json) : null,
+      createdAt: String(row.created_at),
+    }));
+  } catch {
+    // table may be empty
+  }
+
   // Safe storage profile
   const storageProfile = await profileUserStorage(db, userId);
 
@@ -400,14 +515,41 @@ export async function getAdminUserDetail(db: Client, userId: string): Promise<Ad
     user: {
       id: String(uRow.id),
       firebaseUid: String(uRow.firebase_uid),
+      email: uRow.email ? String(uRow.email) : null,
       createdAt: String(uRow.created_at),
       updatedAt: String(uRow.updated_at),
     },
+    quota,
     encryptionKey,
     devices,
     recentChanges,
+    auditLogs,
     storageProfile,
   };
+}
+
+/**
+ * Administrative action to change a user's plan.
+ */
+export async function changeUserPlanAdmin(
+  db: Client,
+  userId: string,
+  newPlan: UserPlan,
+  adminIdentifier: string = 'admin',
+  reason?: string
+): Promise<{ user: { id: string; email: string | null; plan: UserPlan; previousPlan: UserPlan }; quota: StorageQuotaProfile }> {
+  return await changeUserPlan(db, userId, newPlan, { adminIdentifier, reason });
+}
+
+/**
+ * Administrative action to reconcile storage counters against authoritative metadata.
+ */
+export async function reconcileUserStorageAdmin(
+  db: Client,
+  userId: string,
+  dryRun: boolean = false
+) {
+  return await reconcileUserStorageUsage(db, userId, dryRun);
 }
 
 /**
@@ -431,6 +573,25 @@ export async function getAdminStorageDetails(db: Client): Promise<AdminStorageOv
   const docRes = await db.execute(
     'SELECT COUNT(*) as count, COALESCE(SUM(byte_size), 0) as bytes FROM documents WHERE is_deleted = 0'
   );
+
+  const userStatsRes = await db.execute(`
+    SELECT
+      COUNT(*) as total_users,
+      COUNT(CASE WHEN plan = 'free' OR plan IS NULL THEN 1 END) as free_users,
+      COUNT(CASE WHEN plan = 'premium' THEN 1 END) as premium_users,
+      COALESCE(SUM(CASE WHEN plan = 'free' OR plan IS NULL THEN storage_used_bytes ELSE 0 END), 0) as free_storage,
+      COALESCE(SUM(CASE WHEN plan = 'premium' THEN storage_used_bytes ELSE 0 END), 0) as premium_storage,
+      COUNT(CASE
+        WHEN (plan = 'free' OR plan IS NULL) AND storage_used_bytes > 1000000000 THEN 1
+        WHEN plan = 'premium' AND storage_used_bytes > 10000000000 THEN 1
+      END) as over_quota,
+      COUNT(CASE
+        WHEN (plan = 'free' OR plan IS NULL) AND storage_used_bytes >= 800000000 AND storage_used_bytes <= 1000000000 THEN 1
+        WHEN plan = 'premium' AND storage_used_bytes >= 8000000000 AND storage_used_bytes <= 10000000000 THEN 1
+      END) as near_quota
+    FROM users
+  `);
+  const userStats = userStatsRes.rows[0];
 
   let destructionJobs: any[] = [];
   try {
@@ -460,6 +621,13 @@ export async function getAdminStorageDetails(db: Client): Promise<AdminStorageOv
     totalDocumentBytes: Number(docRes.rows[0]?.bytes || 0),
     attachmentsCount: Number(attRes.rows[0]?.count || 0),
     documentsCount: Number(docRes.rows[0]?.count || 0),
+    totalUsers: Number(userStats?.total_users || 0),
+    freeUsers: Number(userStats?.free_users || 0),
+    premiumUsers: Number(userStats?.premium_users || 0),
+    aggregateFreeUsage: Number(userStats?.free_storage || 0),
+    aggregatePremiumUsage: Number(userStats?.premium_storage || 0),
+    usersOverQuota: Number(userStats?.over_quota || 0),
+    usersNearQuota: Number(userStats?.near_quota || 0),
     destructionJobs,
   };
 }

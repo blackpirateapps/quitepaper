@@ -1,5 +1,6 @@
 import { Client } from '@libsql/client';
 import { deleteCloudinaryResource } from '../attachments/cloudinaryService.js';
+import { releaseStorageForResource } from '../storage/quotaService.js';
 
 export interface DestructionJobResult {
   jobsProcessed: number;
@@ -68,6 +69,12 @@ export async function processDestructionJobs(
     if (deleteOk) {
       // 2. Remove DB records cleanly
       if (resourceType === 'attachment') {
+        const attRes = await db.execute({
+          sql: 'SELECT byte_size FROM attachments WHERE id = ? AND user_id = ?',
+          args: [resourceId, userId],
+        });
+        const byteSize = attRes.rows.length > 0 ? Number(attRes.rows[0].byte_size || 0) : 0;
+
         await db.execute({
           sql: 'DELETE FROM attachments WHERE id = ? AND user_id = ?',
           args: [resourceId, userId],
@@ -76,7 +83,16 @@ export async function processDestructionJobs(
           sql: 'DELETE FROM attachment_references WHERE resource_id = ? AND user_id = ?',
           args: [resourceId, userId],
         });
+        if (byteSize > 0) {
+          await releaseStorageForResource(db, userId, 'attachment', resourceId, byteSize);
+        }
       } else if (resourceType === 'document') {
+        const docRes = await db.execute({
+          sql: 'SELECT byte_size FROM documents WHERE id = ? AND user_id = ?',
+          args: [resourceId, userId],
+        });
+        const byteSize = docRes.rows.length > 0 ? Number(docRes.rows[0].byte_size || 0) : 0;
+
         await db.execute({
           sql: 'DELETE FROM document_ocr_pages WHERE document_id = ? AND user_id = ?',
           args: [resourceId, userId],
@@ -89,6 +105,9 @@ export async function processDestructionJobs(
           sql: 'DELETE FROM attachment_references WHERE resource_id = ? AND user_id = ?',
           args: [resourceId, userId],
         });
+        if (byteSize > 0) {
+          await releaseStorageForResource(db, userId, 'document', resourceId, byteSize);
+        }
       }
 
       await db.execute({

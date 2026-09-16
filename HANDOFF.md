@@ -6728,6 +6728,64 @@ In the Journal "All Entries" timeline archive and "On This Day" views, tapping o
 - Static analysis: **0 warnings / 0 errors** (`flutter analyze`).
 - Test suite: **1,438 passed / 0 failed** (`flutter test`).
 
+---
+
+## 47. Production Backend Storage Quota, Upload Reservations & Premium Entitlements
+
+### 1. Architectural Overview & Business Rules
+A unified, zero-knowledge storage quota and Premium entitlement system has been implemented across the backend control plane:
+- **Free Plan**: **1 GB** cloud storage allowance (`1,000,000,000` bytes).
+- **Premium Plan**: **10 GB** cloud storage allowance (`10,000,000,000` bytes).
+- **Per-File Maximum Upload Limit**: **10 MB** (`10,000,000` bytes) applied uniformly to **both Free and Premium** plans (Premium does not bypass the 10 MB per-file limit).
+- **Decimal Accounting Semantics**: Authoritative constants (`1 MB = 1,000,000 B`, `1 GB = 1,000,000,000 B`) centralized in `backend/src/storage/quotaService.ts`.
+- **Unified Quota Scope**: Covers all cloud-stored encrypted binaries (`attachments` and `documents`). Local/offline device storage remains unlimited.
+- **Zero-Knowledge Preservation**: Zero file proxying through Vercel and zero server-side decryption. The backend acts strictly as an authentication, authorization, quota, and metadata control plane.
+
+### 2. Core Engine & Database Architecture
+- **Materialized Storage Counters**:
+  - `users.storage_used_bytes`: Authoritative committed cloud bytes.
+  - `users.storage_reserved_bytes`: Active in-flight upload reservations.
+  - `users.plan`: `'free'` | `'premium'`.
+  - `users.email`: Synchronized from Firebase verified token.
+- **Atomic Upload Reservations (`storage_reservations`)**:
+  - Created during upload authorization (`POST /api/v1/attachments/upload-auth`, `POST /api/v1/documents/upload-auth`).
+  - 30-minute TTL with automatic background cleanup (`cleanupExpiredReservations`).
+  - Atomic concurrency guard via conditional SQL update: `UPDATE users SET storage_reserved_bytes = storage_reserved_bytes + ? WHERE id = ? AND (storage_used_bytes + storage_reserved_bytes + ?) <= ?`. Prevents parallel race conditions from exceeding quota.
+  - Finalized and converted to committed usage upon upload confirmation (`POST /api/v1/attachments/confirm`, `POST /api/v1/documents/confirm`) with full idempotency under network retries.
+- **Over-Quota Retention & Downgrade Semantics**:
+  - Downgrading a user from Premium to Free when they store $>1\text{ GB}$ **does not delete any files**.
+  - Account is flagged `isOverQuota: true`. New uploads are blocked with `STORAGE_QUOTA_EXCEEDED` (HTTP 400), while downloads and deletions continue operating normally. Upgrading to Premium or deleting files restores upload authorization.
+- **Reconciliation Engine**:
+  - `recalculateUserStorageUsage(db, userId)` computes true active bytes from `attachments` and `documents` records.
+  - `reconcileUserStorageUsage(db, userId, dryRun)` repairs materialized counter drift.
+
+### 3. Server-Rendered Admin Panel Enhancements
+- **Users Explorer (`/admin/users`)**:
+  - Displays user email, plan badge (`Free` / `★ Premium`), storage progress bar (`xxx MB / 1.00 GB`), note/device count, and registration date.
+  - Case-insensitive search supporting Email address, Firebase UID, and internal user ID.
+- **User Detail & Audit Page (`/admin/users/:id`)**:
+  - Visual storage consumption progress bar with warning states ($\ge 80\%$ amber, $>100\%$ red).
+  - One-click plan upgrade/downgrade form with explicit browser confirmation modals.
+  - "Reconcile Storage Counter" action to diagnose and repair counter discrepancies.
+  - Full administrative audit trail table (`admin_audit_logs`) tracking timestamp, admin identity, previous plan, and new plan.
+- **Dashboard & Storage Metrics (`/admin`, `/admin/storage`)**:
+  - Aggregate counters for Total Users, Free Users, Premium Users, Free Storage Used, Premium Storage Used, Users Near Quota ($\ge 80\%$), and Users Over Quota.
+
+### 4. Database Migration 011
+- **`migrations/011_storage_quota_and_premium_admin.sql` & `src/db/migrate.ts`**:
+  - Forward-only, safe schema extensions adding `plan`, `storage_used_bytes`, `storage_reserved_bytes`, and `email` columns to `users`.
+  - Creates `storage_reservations` and `admin_audit_logs` tables with optimal indexes.
+  - Automatically backfills `storage_used_bytes` for existing users from active attachment and document records.
+
+### 5. Verification & Quality
+- **Backend Test Suite (`backend/tests/quota.test.ts`, `backend/tests/admin.test.ts`)**:
+  - All 14 Vitest test files passing (86 tests total, 0 failures).
+  - Full TypeScript build check (`npm run build`) passing with 0 errors.
+- **Flutter Quality Checks**:
+  - Static analysis: `flutter analyze` (**0 errors, 0 warnings**).
+  - Test suite: `flutter test` (**all 1,438 tests passing**).
+
+
 
 
 

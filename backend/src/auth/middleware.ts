@@ -37,21 +37,29 @@ export async function requireFirebaseAuth(
 
   // Derive canonical internal user from database scoped exclusively by verified Firebase UID
   const existingUserResult = await db.execute({
-    sql: 'SELECT id, firebase_uid FROM users WHERE firebase_uid = ? LIMIT 1',
+    sql: 'SELECT id, firebase_uid, email FROM users WHERE firebase_uid = ? LIMIT 1',
     args: [firebaseUid],
   });
 
   let userId: string;
 
   if (existingUserResult.rows.length > 0) {
-    userId = existingUserResult.rows[0].id as string;
+    const row = existingUserResult.rows[0];
+    userId = row.id as string;
+    const currentEmail = (row.email as string) || null;
+    if (verified.email && verified.email !== currentEmail) {
+      await db.execute({
+        sql: 'UPDATE users SET email = ?, updated_at = ? WHERE id = ?',
+        args: [verified.email, new Date().toISOString(), userId],
+      });
+    }
   } else {
     // First time login: create canonical internal user record server-side
     userId = crypto.randomUUID();
     const now = new Date().toISOString();
     await db.execute({
-      sql: 'INSERT INTO users (id, firebase_uid, created_at, updated_at) VALUES (?, ?, ?, ?)',
-      args: [userId, firebaseUid, now, now],
+      sql: 'INSERT INTO users (id, firebase_uid, email, plan, storage_used_bytes, storage_reserved_bytes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      args: [userId, firebaseUid, verified.email || null, 'free', 0, 0, now, now],
     });
   }
 

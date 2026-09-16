@@ -126,12 +126,14 @@ export function parseCookies(cookieHeader: string | undefined): Record<string, s
  * Validates session from Cookie header or Bearer authorization header.
  */
 export function isAuthenticatedAdmin(
-  headers: Record<string, string | string[] | undefined>
+  headers?: Record<string, string | string[] | undefined>
 ): boolean {
+  const safeHeaders = headers || {};
+
   // 1. Check Bearer Authorization header (for API / curl usage)
-  const authHeader = Array.isArray(headers['authorization'])
-    ? headers['authorization'][0]
-    : headers['authorization'] || (headers['Authorization'] as string | undefined);
+  const authHeader = Array.isArray(safeHeaders['authorization'])
+    ? safeHeaders['authorization'][0]
+    : safeHeaders['authorization'] || (safeHeaders['Authorization'] as string | undefined);
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
@@ -141,9 +143,9 @@ export function isAuthenticatedAdmin(
   }
 
   // 2. Check Cookie header
-  const cookieHeader = Array.isArray(headers['cookie'])
-    ? headers['cookie'][0]
-    : headers['cookie'] || (headers['Cookie'] as string | undefined);
+  const cookieHeader = Array.isArray(safeHeaders['cookie'])
+    ? safeHeaders['cookie'][0]
+    : safeHeaders['cookie'] || (safeHeaders['Cookie'] as string | undefined);
 
   const cookies = parseCookies(cookieHeader);
   const sessionToken = cookies[ADMIN_COOKIE_NAME];

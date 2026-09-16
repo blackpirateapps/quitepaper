@@ -4,6 +4,10 @@ export const INITIAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   firebase_uid TEXT NOT NULL UNIQUE,
+  email TEXT,
+  plan TEXT NOT NULL DEFAULT 'free',
+  storage_used_bytes INTEGER NOT NULL DEFAULT 0,
+  storage_reserved_bytes INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -247,6 +251,38 @@ CREATE TABLE IF NOT EXISTS tags (
 
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags (user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user_rev ON tags (user_id, revision);
+
+CREATE TABLE IF NOT EXISTS storage_reservations (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  reserved_bytes INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  finalized_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id TEXT PRIMARY KEY,
+  admin_identifier TEXT,
+  user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  details_json TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_plan ON users (plan);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_storage_res_user ON storage_reservations (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_storage_res_resource ON storage_reservations (user_id, resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_storage_res_expires ON storage_reservations (status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_logs (user_id, created_at);
 `;
 
 export async function runMigrations(db: Client): Promise<void> {
@@ -260,7 +296,7 @@ export async function runMigrations(db: Client): Promise<void> {
       await db.execute(stmt);
     } catch (e: any) {
       const msg = e?.message || '';
-      if (!msg.includes('already exists') && !msg.includes('duplicate')) {
+      if (!msg.includes('already exists') && !msg.includes('duplicate') && !msg.includes('no such column')) {
         console.warn(`[runMigrations] Notice executing schema statement: ${stmt.slice(0, 60)}...`, msg);
       }
     }
@@ -341,5 +377,70 @@ export async function runMigrations(db: Client): Promise<void> {
   } catch (_) {}
   try {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_devices_user_active ON sync_devices (user_id, last_active_at);');
+  } catch (_) {}
+
+  // v11: Storage Quota, Reservations, Premium Plans & Admin Audit Logs schema extensions
+  try {
+    await db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free';");
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE users ADD COLUMN storage_used_bytes INTEGER NOT NULL DEFAULT 0;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE users ADD COLUMN storage_reserved_bytes INTEGER NOT NULL DEFAULT 0;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE users ADD COLUMN email TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS storage_reservations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_id TEXT NOT NULL,
+      reserved_bytes INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      finalized_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`);
+  } catch (_) {}
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id TEXT PRIMARY KEY,
+      admin_identifier TEXT,
+      user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      details_json TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`);
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_users_plan ON users (plan);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_storage_res_user ON storage_reservations (user_id, status);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_storage_res_resource ON storage_reservations (user_id, resource_type, resource_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_storage_res_expires ON storage_reservations (status, expires_at);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_logs (user_id, created_at);');
+  } catch (_) {}
+  try {
+    await db.execute(`UPDATE users SET storage_used_bytes = (
+      COALESCE((SELECT SUM(byte_size) FROM attachments WHERE attachments.user_id = users.id AND is_deleted = 0 AND (status IS NULL OR status != 'pending_deletion')), 0) +
+      COALESCE((SELECT SUM(byte_size) FROM documents WHERE documents.user_id = users.id AND is_deleted = 0 AND (status IS NULL OR status != 'pending_deletion')), 0)
+    ) WHERE storage_used_bytes = 0;`);
   } catch (_) {}
 }

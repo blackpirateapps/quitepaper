@@ -9,6 +9,7 @@ import {
 } from '../validation/schemas.js';
 import crypto from 'crypto';
 import { deleteCloudinaryResource } from '../attachments/cloudinaryService.js';
+import { releaseStorageForResource } from '../storage/quotaService.js';
 
 export interface PushResultItem {
   id: string;
@@ -784,12 +785,13 @@ export async function deleteStorageResource(
   let cloudPublicId: string | null = null;
   if (resourceType === 'attachment') {
     const attRes = await db.execute({
-      sql: 'SELECT cloud_public_id FROM attachments WHERE id = ? AND user_id = ?',
+      sql: 'SELECT cloud_public_id, byte_size FROM attachments WHERE id = ? AND user_id = ?',
       args: [resourceId, userId],
     });
     if (attRes.rows.length === 0) {
       throw new ApiError('NOT_FOUND', 'Attachment not found', 404);
     }
+    const byteSize = Number(attRes.rows[0].byte_size || 0);
     cloudPublicId = attRes.rows[0].cloud_public_id as string | null;
 
     if (cloudPublicId && cloudPublicId.trim().length > 0) {
@@ -799,14 +801,16 @@ export async function deleteStorageResource(
       sql: 'DELETE FROM attachments WHERE id = ? AND user_id = ?',
       args: [resourceId, userId],
     });
+    await releaseStorageForResource(db, userId, 'attachment', resourceId, byteSize);
   } else if (resourceType === 'document') {
     const docRes = await db.execute({
-      sql: 'SELECT cloud_public_id FROM documents WHERE id = ? AND user_id = ?',
+      sql: 'SELECT cloud_public_id, byte_size FROM documents WHERE id = ? AND user_id = ?',
       args: [resourceId, userId],
     });
     if (docRes.rows.length === 0) {
       throw new ApiError('NOT_FOUND', 'Document not found', 404);
     }
+    const byteSize = Number(docRes.rows[0].byte_size || 0);
     cloudPublicId = docRes.rows[0].cloud_public_id as string | null;
 
     if (cloudPublicId && cloudPublicId.trim().length > 0) {
@@ -820,6 +824,7 @@ export async function deleteStorageResource(
       sql: 'DELETE FROM documents WHERE id = ? AND user_id = ?',
       args: [resourceId, userId],
     });
+    await releaseStorageForResource(db, userId, 'document', resourceId, byteSize);
   }
 
   return { success: true };

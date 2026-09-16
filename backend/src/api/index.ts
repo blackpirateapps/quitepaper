@@ -31,5 +31,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   for (const [key, value] of Object.entries(response.headers)) {
     res.setHeader(key, value);
   }
-  res.end(JSON.stringify(response.body));
+  const output = typeof response.body === 'string' ? response.body : JSON.stringify(response.body);
+  res.end(output);
 }

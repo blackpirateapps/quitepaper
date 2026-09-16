@@ -1,4 +1,9 @@
-import { AdminOverview, AdminUsersResult, AdminUserDetail, AdminStorageOverview } from './adminService.js';
+import {
+  AdminOverview,
+  AdminUsersResult,
+  AdminUserDetail,
+  AdminStorageOverview,
+} from './adminService.js';
 
 export function escapeHtml(str: string | number | null | undefined): string {
   if (str === null || str === undefined) return '';
@@ -11,11 +16,12 @@ export function escapeHtml(str: string | number | null | undefined): string {
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const k = 1000; // Decimal standard matching 1 GB = 1,000,000,000 bytes
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
+  const val = bytes / Math.pow(k, i);
+  return `${val < 10 && i > 0 ? val.toFixed(2) : val.toFixed(1)} ${units[i]}`;
 }
 
 export function formatDate(isoStr: string | null | undefined): string {
@@ -269,8 +275,9 @@ export function renderLayout({
       padding: 2px 8px;
       border-radius: 4px;
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
       font-family: var(--font-mono);
+      text-transform: uppercase;
     }
     .badge-green { background: var(--green-subtle); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.2); }
     .badge-amber { background: var(--amber-subtle); color: #FBBF24; border: 1px solid rgba(217, 119, 6, 0.2); }
@@ -378,6 +385,21 @@ export function renderLayout({
       border-radius: 4px;
       border: 1px solid var(--border-subtle);
       color: var(--text-main);
+    }
+
+    .progress-bar-bg {
+      background: var(--card-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      height: 10px;
+      width: 100%;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.3s ease;
     }
 
     .pagination {
@@ -511,7 +533,12 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
       <div class="stat-card">
         <div class="stat-label">Total Users</div>
         <div class="stat-value">${overview.users.total}</div>
-        <div class="stat-meta"><a href="/admin/users">View all registered users →</a></div>
+        <div class="stat-meta">${overview.users.free} Free · <strong style="color: var(--accent);">${overview.users.premium} Premium</strong></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Cloud Storage</div>
+        <div class="stat-value">${formatBytes(overview.storageQuota.totalCloudStorageUsed)}</div>
+        <div class="stat-meta">${formatBytes(overview.storageQuota.freeStorageUsed)} Free · ${formatBytes(overview.storageQuota.premiumStorageUsed)} Premium</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Notes</div>
@@ -519,19 +546,25 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
         <div class="stat-meta">${overview.notes.total} total notes (${overview.notes.archived} archived, ${overview.notes.trashed} trash)</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Cloudinary Attachments</div>
-        <div class="stat-value">${overview.attachments.total}</div>
-        <div class="stat-meta">${formatBytes(overview.attachments.totalBytes)} stored</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Scanned Documents</div>
-        <div class="stat-value">${overview.documents.total}</div>
-        <div class="stat-meta">${overview.documents.totalPages} PDF pages (${formatBytes(overview.documents.totalBytes)})</div>
+        <div class="stat-label">Cloudinary Files</div>
+        <div class="stat-value">${overview.attachments.total + overview.documents.total}</div>
+        <div class="stat-meta">${overview.attachments.total} media attachments · ${overview.documents.total} PDFs</div>
       </div>
     </div>
 
-    <!-- Second Row -->
+    <!-- Second Row (Quota Health, Sync Activity & Jobs) -->
     <div class="grid-3" style="margin-bottom: 24px;">
+      <div class="stat-card">
+        <div class="stat-label">Quota Exceptions</div>
+        <div class="stat-value" style="color: ${overview.storageQuota.usersOverQuota > 0 ? 'var(--red)' : 'var(--text-main)'};">
+          ${overview.storageQuota.usersOverQuota}
+        </div>
+        <div class="stat-meta">
+          <span style="color: ${overview.storageQuota.usersOverQuota > 0 ? 'var(--red)' : 'inherit'}; font-weight: 600;">
+            ${overview.storageQuota.usersOverQuota} over quota
+          </span> · ${overview.storageQuota.usersNearQuota} near quota (&ge;80%)
+        </div>
+      </div>
       <div class="stat-card">
         <div class="stat-label">Sync Volume (24h)</div>
         <div class="stat-value">${overview.syncActivity.changesLast24Hours}</div>
@@ -542,25 +575,13 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
         <div class="stat-value">${overview.devices.total}</div>
         <div class="stat-meta">${overview.devices.activeLast30Days} active within 30 days</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Destruction Jobs</div>
-        <div class="stat-value" style="color: ${overview.destructionJobs.failed > 0 ? 'var(--red)' : 'var(--text-main)'}">
-          ${overview.destructionJobs.pending + overview.destructionJobs.failed}
-        </div>
-        <div class="stat-meta">
-          ${overview.destructionJobs.pending} pending,
-          <span style="color: ${overview.destructionJobs.failed > 0 ? 'var(--red)' : 'inherit'}; font-weight: ${overview.destructionJobs.failed > 0 ? '600' : 'normal'}">
-            ${overview.destructionJobs.failed} failed
-          </span>
-        </div>
-      </div>
     </div>
 
     <!-- Detailed Breakdowns -->
     <div class="grid-2">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Database Storage Breakdown</div>
+          <div class="card-title">Database Storage &amp; Infrastructure</div>
         </div>
         <table style="margin-top: -8px;">
           <tbody>
@@ -569,16 +590,12 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
               <td style="text-align: right; font-family: var(--font-mono);">${formatBytes(overview.notes.totalEncryptedBytes)}</td>
             </tr>
             <tr>
-              <td>Active Notes Count</td>
-              <td style="text-align: right; font-family: var(--font-mono);">${overview.notes.active}</td>
+              <td>Cloudinary Media Storage</td>
+              <td style="text-align: right; font-family: var(--font-mono);">${formatBytes(overview.attachments.totalBytes)}</td>
             </tr>
             <tr>
-              <td>Archived Notes Count</td>
-              <td style="text-align: right; font-family: var(--font-mono);">${overview.notes.archived}</td>
-            </tr>
-            <tr>
-              <td>Trashed / Tombstoned Notes</td>
-              <td style="text-align: right; font-family: var(--font-mono);">${overview.notes.trashed + overview.notes.deleted}</td>
+              <td>PDF Document Storage</td>
+              <td style="text-align: right; font-family: var(--font-mono);">${formatBytes(overview.documents.totalBytes)}</td>
             </tr>
             <tr>
               <td>Global Tags Count</td>
@@ -598,10 +615,10 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;">
           <a href="/admin/users" class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;">
-            👥 &nbsp;<strong>Browse & Inspect Users</strong> &nbsp;<span style="color: var(--text-dim); margin-left: auto;">${overview.users.total} accounts</span>
+            👥 &nbsp;<strong>Browse &amp; Inspect Users</strong> &nbsp;<span style="color: var(--text-dim); margin-left: auto;">${overview.users.total} accounts (${overview.users.premium} premium)</span>
           </a>
           <a href="/admin/storage" class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;">
-            🗑️ &nbsp;<strong>Inspect Cloudinary Storage & GC</strong> &nbsp;<span style="color: var(--text-dim); margin-left: auto;">${formatBytes(overview.attachments.totalBytes + overview.documents.totalBytes)}</span>
+            🗑️ &nbsp;<strong>Inspect Cloudinary Storage &amp; GC</strong> &nbsp;<span style="color: var(--text-dim); margin-left: auto;">${formatBytes(overview.storageQuota.totalCloudStorageUsed)}</span>
           </a>
           <a href="/api/v1/health" target="_blank" class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;">
             💓 &nbsp;<strong>API Healthcheck Endpoint</strong> &nbsp;<span style="color: var(--text-dim); margin-left: auto;">/api/v1/health ↗</span>
@@ -621,7 +638,7 @@ export function renderDashboardPage(overview: AdminOverview, flash?: string): st
 }
 
 /**
- * Render Users list page.
+ * Render Users list page with Email, Plan, Storage Used / Limit, Notes, and Devices.
  */
 export function renderUsersPage(result: AdminUsersResult, search?: string, flash?: string): string {
   const content = `
@@ -632,7 +649,7 @@ export function renderUsersPage(result: AdminUsersResult, search?: string, flash
       </div>
       <div>
         <form action="/admin/users" method="GET" style="display: flex; gap: 8px;">
-          <input type="text" name="q" value="${escapeHtml(search || '')}" placeholder="Search ID or Firebase UID..." style="width: 260px;">
+          <input type="text" name="q" value="${escapeHtml(search || '')}" placeholder="Search Email, UID, or ID..." style="width: 280px;">
           <button type="submit" class="btn btn-secondary btn-sm">Search</button>
           ${search ? `<a href="/admin/users" class="btn btn-secondary btn-sm" style="line-height:20px;">Clear</a>` : ''}
         </form>
@@ -643,11 +660,11 @@ export function renderUsersPage(result: AdminUsersResult, search?: string, flash
       <table>
         <thead>
           <tr>
-            <th>User ID</th>
-            <th>Firebase UID</th>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Storage Used / Quota</th>
             <th>Notes</th>
             <th>Devices</th>
-            <th>Attachments</th>
             <th>Registered</th>
             <th style="text-align: right;">Action</th>
           </tr>
@@ -657,21 +674,41 @@ export function renderUsersPage(result: AdminUsersResult, search?: string, flash
             result.users.length === 0
               ? `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">No users found matching your search.</td></tr>`
               : result.users
-                  .map(
-                    (u) => `
+                  .map((u) => {
+                    let planBadge = 'badge-gray';
+                    let planLabel = 'Free';
+                    if (u.plan === 'premium') {
+                      planBadge = 'badge-accent';
+                      planLabel = 'Premium';
+                    }
+                    if (u.isOverQuota) {
+                      planBadge = 'badge-red';
+                      planLabel = `${planLabel} (Over Quota)`;
+                    }
+
+                    return `
               <tr>
-                <td><span class="code-mono" title="${escapeHtml(u.id)}">${escapeHtml(u.id.length > 12 ? u.id.substring(0, 8) + '...' : u.id)}</span></td>
-                <td><span class="code-mono" title="${escapeHtml(u.firebaseUid)}">${escapeHtml(u.firebaseUid.length > 24 ? u.firebaseUid.substring(0, 20) + '...' : u.firebaseUid)}</span></td>
+                <td>
+                  <strong>${escapeHtml(u.email || '—')}</strong>
+                  <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">
+                    <span class="code-mono" title="${escapeHtml(u.id)}">${escapeHtml(u.id.substring(0, 8))}...</span>
+                  </div>
+                </td>
+                <td><span class="badge ${planBadge}">${planLabel}</span></td>
+                <td>
+                  <span style="font-family: var(--font-mono); font-size: 12.5px; ${u.isOverQuota ? 'color: var(--red); font-weight: bold;' : ''}">
+                    ${formatBytes(u.storageUsedBytes)} / ${formatBytes(u.storageLimitBytes)}
+                  </span>
+                </td>
                 <td><span class="badge badge-gray">${u.notesCount} notes</span></td>
                 <td><span class="badge badge-gray">${u.devicesCount} devices</span></td>
-                <td><span class="badge badge-gray">${u.attachmentsCount + u.documentsCount} files</span></td>
                 <td style="font-size: 12px; color: var(--text-muted);">${formatDate(u.createdAt)}</td>
                 <td style="text-align: right;">
                   <a href="/admin/users/${encodeURIComponent(u.id)}" class="btn btn-secondary btn-sm">Inspect →</a>
                 </td>
               </tr>
-            `
-                  )
+            `;
+                  })
                   .join('')
           }
         </tbody>
@@ -705,9 +742,14 @@ export function renderUsersPage(result: AdminUsersResult, search?: string, flash
 }
 
 /**
- * Render User Detail page.
+ * Render User Detail page with Storage Quota control, Plan management, and Audit history.
  */
 export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): string {
+  const percentUsed = Math.min(100, (detail.quota.usedBytes / detail.quota.limitBytes) * 100);
+  let progressColor = 'var(--green)';
+  if (percentUsed >= 80) progressColor = 'var(--amber)';
+  if (detail.quota.isOverQuota) progressColor = 'var(--red)';
+
   const content = `
     <div style="margin-bottom: 16px;">
       <a href="/admin/users" style="color: var(--text-muted); font-size: 13px;">← Back to Users list</a>
@@ -716,17 +758,37 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
       <div>
         <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">User Audit &amp; Control</h1>
-        <p style="color: var(--text-muted); font-size: 13px;">Internal ID: <span class="code-mono">${escapeHtml(detail.user.id)}</span></p>
+        <p style="color: var(--text-muted); font-size: 13px;">
+          ${escapeHtml(detail.user.email || 'No email')} · Internal ID: <span class="code-mono">${escapeHtml(detail.user.id)}</span>
+        </p>
+      </div>
+      <div>
+        ${
+          detail.quota.plan === 'premium'
+            ? '<span class="badge badge-accent" style="font-size: 13px; padding: 4px 10px;">★ Premium User</span>'
+            : '<span class="badge badge-gray" style="font-size: 13px; padding: 4px 10px;">Free User</span>'
+        }
       </div>
     </div>
 
-    <div class="zk-banner">
-      <div style="font-size: 20px;">🛡️</div>
-      <div>
-        <strong>End-to-End Encryption Guarantee</strong>
-        <p>Master keys are wrapped client-side. The backend stores only wrapped key blobs and cannot decrypt notes or metadata.</p>
+    <div class="card" style="border-left: 4px solid var(--accent); margin-bottom: 24px; background: var(--card-subtle);">
+      <div style="font-size: 13px; color: var(--text-main); line-height: 1.5;">
+        🔒 <strong>End-to-End Encryption Guarantee</strong>: User payloads, notes, attachments, and encryption keys are strictly zero-knowledge encrypted client-side. The server and administrative dashboard store and handle only ciphertext blobs, authentication records, and storage metadata.
       </div>
     </div>
+
+    ${
+      detail.quota.isOverQuota
+        ? `
+      <div class="card" style="border-color: var(--red); background: var(--red-subtle); margin-bottom: 24px;">
+        <h3 style="color: #F87171; font-size: 15px; margin-bottom: 4px;">Account is Over Storage Quota</h3>
+        <p style="color: var(--text-main); font-size: 13px; line-height: 1.5;">
+          This user currently consumes <strong>${formatBytes(detail.quota.usedBytes)}</strong> which exceeds their ${detail.quota.plan} allowance of <strong>${formatBytes(detail.quota.limitBytes)}</strong> by <strong>${formatBytes(detail.quota.overQuotaBytes)}</strong>.
+          Existing data is safely preserved. New uploads are blocked until usage is reduced or account is upgraded.
+        </p>
+      </div>`
+        : ''
+    }
 
     <div class="grid-2">
       <!-- Identity & Security -->
@@ -737,11 +799,15 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
         <table>
           <tbody>
             <tr>
+              <td>Email Address</td>
+              <td><strong>${escapeHtml(detail.user.email || '—')}</strong></td>
+            </tr>
+            <tr>
               <td>Firebase UID</td>
               <td style="font-family: var(--font-mono); font-size: 12px;">${escapeHtml(detail.user.firebaseUid)}</td>
             </tr>
             <tr>
-              <td>Created At</td>
+              <td>Account Created</td>
               <td>${formatDate(detail.user.createdAt)}</td>
             </tr>
             <tr>
@@ -775,26 +841,114 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
         </table>
       </div>
 
-      <!-- Garbage Collection Trigger -->
+      <!-- Plan Management & Storage Quota Control -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Storage Lifecycle &amp; Garbage Collection</div>
+          <div class="card-title">Plan &amp; Storage Quota Control</div>
+          <span class="badge ${detail.quota.plan === 'premium' ? 'badge-accent' : 'badge-gray'}">${escapeHtml(detail.quota.plan.toUpperCase())}</span>
         </div>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
-          Safe sync boundary: revision <strong>${detail.storageProfile.safeSyncBoundaryRevision}</strong>.
-          Prunes orphaned attachments, expired idempotency keys, and safe historical changes beyond active device checkpoints.
-        </p>
-        
-        <form action="/admin/users/${encodeURIComponent(detail.user.id)}/gc" method="POST" style="margin-top: 12px;">
-          <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
-            <input type="checkbox" id="dryRun" name="dryRun" value="true" checked>
-            <label for="dryRun" style="font-size: 13px; color: var(--text-main); cursor: pointer;">
-              Dry Run only (Simulate and preview reclaimable bytes without deleting)
-            </label>
+
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span style="color: var(--text-muted); font-weight: 600;">Cloud Storage Consumption</span>
+            <span style="font-family: var(--font-mono); font-weight: 600;">
+              ${formatBytes(detail.quota.usedBytes)} / ${formatBytes(detail.quota.limitBytes)} (${percentUsed.toFixed(1)}%)
+            </span>
           </div>
-          <button type="submit" class="btn btn-primary btn-sm">Trigger Garbage Collection</button>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${percentUsed}%; background: ${progressColor};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+            <span>Remaining: ${formatBytes(detail.quota.remainingBytes)}</span>
+            <span>Reserved in-flight: ${formatBytes(detail.quota.reservedBytes)}</span>
+          </div>
+        </div>
+
+        <div style="background: var(--card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 6px;">Manage Subscription Entitlement</div>
+          <p style="color: var(--text-muted); font-size: 12px; line-height: 1.4; margin-bottom: 12px;">
+            ${
+              detail.quota.plan === 'free'
+                ? 'Upgrade user to Premium to increase cloud storage allowance from 1 GB to 10 GB. 10 MB per-file limit remains unchanged.'
+                : 'Downgrade user to Free (1 GB limit). Existing stored files will not be deleted, but new uploads will be blocked if over 1 GB.'
+            }
+          </p>
+
+          <form action="/admin/users/${encodeURIComponent(detail.user.id)}/plan" method="POST" onsubmit="return confirm('${detail.quota.plan === 'free' ? 'Make this user Premium? Their cloud storage allowance will increase from 1 GB to 10 GB.' : 'Downgrade this user to Free? Their existing files will not be deleted, but uploads will be blocked if they exceed 1 GB.'}');">
+            <input type="hidden" name="plan" value="${detail.quota.plan === 'free' ? 'premium' : 'free'}">
+            ${
+              detail.quota.plan === 'free'
+                ? `<button type="submit" class="btn btn-primary btn-sm" style="width: 100%;">★ Make Premium (10 GB)</button>`
+                : `<button type="submit" class="btn btn-danger btn-sm" style="width: 100%;">Downgrade to Free (1 GB)</button>`
+            }
+          </form>
+        </div>
+
+        <form action="/admin/users/${encodeURIComponent(detail.user.id)}/reconcile" method="POST" style="display: flex; justify-content: flex-end;">
+          <button type="submit" class="btn btn-secondary btn-sm" title="Recompute storage from database records to repair counters">
+            🔄 Reconcile Storage Counter
+          </button>
         </form>
       </div>
+    </div>
+
+    <!-- Administrative Audit History -->
+    ${
+      detail.auditLogs.length > 0
+        ? `
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Administrative Audit Log (${detail.auditLogs.length})</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Action</th>
+              <th>Admin Identifier</th>
+              <th>Previous Value</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detail.auditLogs
+              .map(
+                (log) => `
+              <tr>
+                <td style="color: var(--text-muted); font-size: 12px;">${formatDate(log.createdAt)}</td>
+                <td><span class="badge badge-accent">${escapeHtml(log.action)}</span></td>
+                <td><span class="code-mono">${escapeHtml(log.adminIdentifier || 'admin')}</span></td>
+                <td><span class="code-mono">${escapeHtml(log.oldValue || '—')}</span></td>
+                <td><span class="code-mono" style="color: #FCD34D;">${escapeHtml(log.newValue || '—')}</span></td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>`
+        : ''
+    }
+
+    <!-- Storage Lifecycle & Garbage Collection Trigger -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Storage Lifecycle &amp; Garbage Collection</div>
+      </div>
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+        Safe sync boundary: revision <strong>${detail.storageProfile.safeSyncBoundaryRevision}</strong>.
+        Prunes orphaned attachments, expired idempotency keys, and safe historical changes beyond active device checkpoints.
+      </p>
+      
+      <form action="/admin/users/${encodeURIComponent(detail.user.id)}/gc" method="POST" style="margin-top: 12px;">
+        <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="dryRun" name="dryRun" value="true" checked>
+          <label for="dryRun" style="font-size: 13px; color: var(--text-main); cursor: pointer;">
+            Dry Run only (Simulate and preview reclaimable bytes without deleting)
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Trigger Garbage Collection</button>
+      </form>
     </div>
 
     <!-- Registered Devices -->
@@ -877,7 +1031,7 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
   `;
 
   return renderLayout({
-    title: `User ${detail.user.id.substring(0, 8)}`,
+    title: `User ${detail.user.email || detail.user.id.substring(0, 8)}`,
     activeTab: 'users',
     content,
     flash,
@@ -885,27 +1039,38 @@ export function renderUserDetailPage(detail: AdminUserDetail, flash?: string): s
 }
 
 /**
- * Render Storage & Destruction Jobs view.
+ * Render Storage & Destruction Jobs view with Quota & Tier Breakdown.
  */
 export function renderStoragePage(storage: AdminStorageOverview, flash?: string): string {
   const content = `
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
       <div>
         <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Cloud Storage &amp; Destruction Jobs</h1>
-        <p style="color: var(--text-muted); font-size: 13px;">Monitor Cloudinary media and asynchronous deletion queue</p>
+        <p style="color: var(--text-muted); font-size: 13px;">Monitor Cloudinary media, storage quotas, and asynchronous deletion queue</p>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom: 24px;">
+    <!-- Quota & Storage Breakdown Grid -->
+    <div class="grid-4" style="margin-bottom: 24px;">
       <div class="stat-card">
         <div class="stat-label">Cloudinary Attachments</div>
         <div class="stat-value">${storage.attachmentsCount}</div>
         <div class="stat-meta">${formatBytes(storage.totalAttachmentBytes)} total storage</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Scanned PDF Documents</div>
+        <div class="stat-label">PDF Documents</div>
         <div class="stat-value">${storage.documentsCount}</div>
         <div class="stat-meta">${formatBytes(storage.totalDocumentBytes)} total storage</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Free Tier Storage</div>
+        <div class="stat-value">${formatBytes(storage.aggregateFreeUsage)}</div>
+        <div class="stat-meta">${storage.freeUsers} users (1 GB limit each)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Premium Tier Storage</div>
+        <div class="stat-value">${formatBytes(storage.aggregatePremiumUsage)}</div>
+        <div class="stat-meta">${storage.premiumUsers} users (10 GB limit each)</div>
       </div>
     </div>
 

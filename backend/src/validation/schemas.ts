@@ -97,11 +97,13 @@ export const gcOptionsSchema = z.object({
   expiredDeviceDays: z.number().min(1).default(90),
 });
 
+import { MAX_FILE_SIZE_BYTES } from '../storage/quotaService.js';
+
 export const uploadAuthRequestSchema = z.object({
   attachmentId: z.string().uuid(),
   noteId: z.string().uuid().optional().nullable().or(z.literal('')),
   mimeType: z.string().max(100).default('image/png'),
-  byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
+  byteSize: z.number().int().min(0).default(0),
   sha256: z.string().max(128).default(''),
   variant: z.string().max(50).default('original'),
 });
@@ -126,7 +128,7 @@ export const uploadDocumentAuthRequestSchema = z.object({
   title: z.string().max(256).default('Scanned Document'),
   source: z.enum(['scanner', 'imported_pdf', 'web_snapshot']).default('scanner'),
   mimeType: z.string().max(100).default('application/pdf'),
-  byteSize: z.number().int().min(0).max(50 * 1024 * 1024).default(0),
+  byteSize: z.number().int().min(0).default(0),
   pageCount: z.number().int().min(1).max(500).default(1),
   sha256: z.string().max(128).default(''),
   ocrLanguage: z.string().max(10).default('en'),
@@ -217,6 +219,13 @@ export const revokeOthersSchema = z.object({
   currentDeviceId: z.string().min(1).max(128),
 });
 
+export const planSchema = z.enum(['free', 'premium']);
+
+export const adminChangePlanSchema = z.object({
+  plan: planSchema,
+  reason: z.string().max(256).optional(),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
@@ -236,3 +245,4 @@ export type PullTagsInput = z.infer<typeof pullTagsSchema>;
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 export type RenameDeviceInput = z.infer<typeof renameDeviceSchema>;
 export type RevokeOthersInput = z.infer<typeof revokeOthersSchema>;
+export type AdminChangePlanInput = z.infer<typeof adminChangePlanSchema>;

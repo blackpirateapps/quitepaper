@@ -313,4 +313,89 @@ describe('Admin Panel & Authentication Tests', () => {
     expect(logoutRes.headers['Location']).toBe('/admin/login');
     expect(logoutRes.headers['Set-Cookie']).toContain('Max-Age=0');
   });
+
+  it('Searches users by email, changes user plan to Premium, reconciles storage, and logs audit', async () => {
+    process.env.ADMIN_PASSWORD = 'super-secret-password-123';
+    const db = getDbClient();
+    const now = new Date().toISOString();
+    const targetUserId = 'u-admin-plan-test';
+
+    // Insert user with email
+    await db.execute({
+      sql: "INSERT INTO users (id, firebase_uid, email, plan, storage_used_bytes, created_at, updated_at) VALUES (?, 'fb-admin-plan', 'alice@quietpaper.test', 'free', 5000, ?, ?)",
+      args: [targetUserId, now, now],
+    });
+
+    const sessionRes = await handleApiRequest({
+      method: 'POST',
+      url: '/admin/login',
+      headers: { 'content-type': 'application/json' },
+      body: { password: 'super-secret-password-123' },
+    });
+    const cookies = parseCookies(sessionRes.headers['Set-Cookie']);
+    const authCookie = `${ADMIN_COOKIE_NAME}=${cookies[ADMIN_COOKIE_NAME]}`;
+
+    // 1. Search by email
+    const searchRes = await handleApiRequest({
+      method: 'GET',
+      url: '/admin/users?q=alice%40quietpaper.test',
+      headers: { cookie: authCookie },
+    });
+    expect(searchRes.statusCode).toBe(200);
+    expect(searchRes.body).toContain('alice@quietpaper.test');
+    expect(searchRes.body).toContain('Free');
+
+    // 2. Change plan to Premium
+    const changePlanRes = await handleApiRequest({
+      method: 'POST',
+      url: `/admin/users/${targetUserId}/plan`,
+      headers: {
+        cookie: authCookie,
+        'content-type': 'application/json',
+      },
+      body: { plan: 'premium' },
+    });
+    expect(changePlanRes.statusCode).toBe(302);
+    expect(changePlanRes.headers['Location']).toContain('/admin/users');
+
+    // Verify DB user plan updated
+    const userRow = (await db.execute({ sql: 'SELECT plan FROM users WHERE id = ?', args: [targetUserId] })).rows[0];
+    expect(userRow.plan).toBe('premium');
+
+    // Verify Audit log created
+    const auditLogs = (await db.execute({ sql: 'SELECT * FROM admin_audit_logs WHERE user_id = ?', args: [targetUserId] })).rows;
+    expect(auditLogs.length).toBeGreaterThan(0);
+    expect(auditLogs[0].action).toBe('PLAN_CHANGED');
+    expect(auditLogs[0].old_value).toBe('free');
+    expect(auditLogs[0].new_value).toBe('premium');
+
+    // 3. Reconcile storage counters
+    const reconcileRes = await handleApiRequest({
+      method: 'POST',
+      url: `/admin/users/${targetUserId}/reconcile`,
+      headers: { cookie: authCookie },
+    });
+    expect(reconcileRes.statusCode).toBe(302);
+
+    // 4. View User Detail Page and verify Premium status & Audit log displayed
+    const detailRes = await handleApiRequest({
+      method: 'GET',
+      url: `/admin/users/${targetUserId}`,
+      headers: { cookie: authCookie },
+    });
+    expect(detailRes.statusCode).toBe(200);
+    expect(detailRes.body).toContain('PREMIUM');
+    expect(detailRes.body).toContain('Administrative Audit Log');
+    expect(detailRes.body).toContain('PLAN_CHANGED');
+
+    // 5. Unauthenticated request to change plan is rejected
+    const unauthRes = await handleApiRequest({
+      method: 'POST',
+      url: `/admin/users/${targetUserId}/plan`,
+      body: { plan: 'free' },
+    });
+    expect(unauthRes.statusCode).toBe(302);
+    expect(unauthRes.headers['Location']).toContain('/admin/login');
+  });
 });
+

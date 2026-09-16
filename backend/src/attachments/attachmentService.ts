@@ -11,6 +11,7 @@ import {
   createSignedUploadAuth,
   SignedUploadParams,
 } from './cloudinaryService.js';
+import { reserveUploadStorage, commitUploadStorage } from '../storage/quotaService.js';
 
 export async function authorizeAttachmentUpload(
   db: Client,
@@ -27,7 +28,7 @@ export async function authorizeAttachmentUpload(
     );
   }
 
-  const { attachmentId, noteId, variant } = parseRes.data;
+  const { attachmentId, noteId, variant, byteSize = 0 } = parseRes.data;
 
   // If noteId is specified, verify note ownership
   if (noteId) {
@@ -43,6 +44,9 @@ export async function authorizeAttachmentUpload(
       }
     }
   }
+
+  // Atomically reserve upload capacity in user quota
+  await reserveUploadStorage(db, userId, 'attachment', attachmentId, byteSize);
 
   const config = getCloudinaryConfig();
   const publicId = variant === 'original'
@@ -80,6 +84,9 @@ export async function confirmAttachmentUpload(
     fileName,
     kind,
   } = parseRes.data;
+
+  // Finalize reservation and commit actual bytes into user's storage quota
+  await commitUploadStorage(db, userId, 'attachment', attachmentId, byteSize);
 
   const nowIso = new Date().toISOString();
 

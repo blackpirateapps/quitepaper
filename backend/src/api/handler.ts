@@ -33,6 +33,7 @@ import {
   checkDeviceRevoked,
 } from '../devices/deviceService.js';
 import { handleAdminRequest } from '../admin/adminHandler.js';
+import { getUserQuotaProfile } from '../storage/quotaService.js';
 import { ApiError } from '../errors/apiError.js';
 
 export interface RequestLike {
@@ -55,9 +56,10 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
 
   const db = getDbClient();
 
-  const authHeader = Array.isArray(req.headers['authorization'])
-    ? req.headers['authorization'][0]
-    : req.headers['authorization'] || req.headers['Authorization'] as string | undefined;
+  const headers = req.headers || {};
+  const authHeader = Array.isArray(headers['authorization'])
+    ? headers['authorization'][0]
+    : headers['authorization'] || headers['Authorization'] as string | undefined;
 
   try {
     // Health check
@@ -129,6 +131,7 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
     // GET /api/v1/account
     if (pathname === '/api/v1/account' && method === 'GET') {
       const cursor = await getLatestCursor(db, userId);
+      const quota = await getUserQuotaProfile(db, userId);
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -137,9 +140,21 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
             id: authContext.user.id,
             firebaseUid: authContext.user.firebaseUid,
             email: authContext.user.email,
+            plan: quota.plan,
           },
           syncCursor: cursor,
+          storage: quota,
         },
+      };
+    }
+
+    // GET /api/v1/account/storage
+    if ((pathname === '/api/v1/account/storage' || pathname === '/api/v1/storage') && method === 'GET') {
+      const quota = await getUserQuotaProfile(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: quota,
       };
     }
 
