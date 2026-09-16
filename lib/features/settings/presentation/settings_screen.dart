@@ -37,6 +37,8 @@ import 'storage_management_screen.dart';
 import 'typography_settings_screen.dart';
 import 'widgets/maintenance_progress_sheet.dart';
 import '../../../core/speech/presentation/speech_settings_view.dart';
+import '../../../core/storage/cloud_storage_provider.dart';
+import 'cloud_storage_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -389,6 +391,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final syncState = ref.watch(syncStateProvider);
     final autoBackupConfig = ref.watch(autoBackupConfigProvider);
     final flavor = ref.watch(appFlavorProvider);
+    final cloudStorageSubtitle = ref.watch(cloudStorageSubtitleProvider);
 
     if (syncState.status == SyncStatus.syncing) {
       if (!_syncRotationController.isAnimating) {
@@ -966,12 +969,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 _buildSectionHeader(context, 'Storage & Attachments'),
                 _SettingsGroup(
                   children: [
-                    _SettingsInfoTile(
-                      icon: Icons.cloud_done_rounded,
-                      iconColor: colors.accent,
-                      title: 'Zero-Knowledge Cloud Storage',
-                      description:
-                          'Encrypted assets, notes, and PDF documents are retained securely in cloud storage. Maintenance runs automatically across active devices.',
+                    _SettingsRow(
+                      icon: Icons.cloud_outlined,
+                      title: 'Cloud Storage',
+                      subtitle: cloudStorageSubtitle,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const CloudStorageScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _buildDivider(colors),
                     _SettingsRow(

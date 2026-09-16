@@ -6822,6 +6822,86 @@ Migration 011 introduced the `email` column on the `users` table in Turso / libS
   - `flutter analyze`: **0 warnings / 0 errors**.
   - `flutter test`: **1,438 passed / 0 failed**.
 
+---
+
+## 49. Flutter Cloud Storage, Free/Premium Plan Entitlements & Quota UX
+
+### 1. Overview & Architectural Principles
+Quiet Paper's backend storage quota and Premium entitlement system provides authoritative quota tracking and plan enforcement (Free: 1 GB, Premium: 10 GB, max upload file size: 10 MB for both plans). Section 49 details the complete client-side architecture and UX implementation for this backend functionality.
+
+Key principles enforced:
+- **Offline-First Non-Blocking Local Creation**: Cloud quota limits NEVER prevent users from creating/editing notes or attaching files locally. Files are encrypted with Master Key and persisted to local SQLite storage immediately. Cloud synchronization marks the item pending and pauses uploads without deleting or discarding local content. When storage is freed or the user upgrades to Premium, background sync automatically resumes.
+- **Server Authority & Decimal Accounting**: Quota capacity, usage, and plan rules strictly use decimal accounting units ($1\text{ KB} = 1,000\text{ B}$, $1\text{ MB} = 1,000,000\text{ B}$, $1\text{ GB} = 1,000,000,000\text{ B}$). Client-side preflight improves UX while the backend remains authoritative.
+- **Separation of Quota & Maintenance Concerns**: A dedicated **Cloud Storage** page was created for plan, quota, and storage overview without altering the existing **Storage & Cleanup** system (which handles local/cloud profiling, garbage collection, and orphaned asset destruction).
+
+### 2. Core Subsystems & Components
+
+#### A. Standard Decimal Unit Formatter (`lib/core/storage/storage_formatter.dart`)
+- Centralized byte size formatting with precision control (`formatBytes`, `formatBytesDetailed`).
+- Avoids trailing zeroes (e.g. `1 GB` instead of `1.0 GB`) and handles zero and negative numbers cleanly.
+
+#### B. Storage Domain Models (`lib/core/storage/cloud_storage_models.dart`)
+- `StoragePlan`: Enum (`free`, `premium`) with canonical limits ($1\text{ GB}$ and $10\text{ GB}$).
+- `CloudStorageConstants`: Constants for decimal units, maximum individual file size ($10\text{ MB}$), and near-quota threshold ($80\%$).
+- `StorageBreakdown`: Categorized storage metrics (Images, Documents & PDFs, Other files, Total).
+- `CloudStorageQuota`: Authoritative account quota model with computed properties (`remainingBytes`, `isOverQuota`, `overQuotaBytes`, `isNearQuota`, `isFull`, `isPremium`, `isFree`, `usageSummary`, `remainingSummary`, `visualProgress`).
+- `UploadPreflightResult` & `PreflightStatus`: Client-side preflight evaluation for immediate UI feedback.
+
+#### C. Typed Domain Exceptions (`lib/core/storage/cloud_storage_exceptions.dart`)
+- `StorageQuotaExceededException`: Captures plan limit, usage, remaining, and required bytes with structured error parsing and calm, user-friendly messages.
+- `FileTooLargeException`: Captures maximum allowed bytes ($10\text{ MB}$) and provided size with clear error explanations.
+
+#### D. API Client Integration (`lib/core/sync/sync_api_client.dart`)
+- Added `getCloudStorageQuota()` to `SyncApiClient` calling authenticated `GET /api/v1/account/storage`.
+- Integrated `_checkQuotaOrSizeError()` interceptor into upload authorization and confirmation endpoints to automatically parse `STORAGE_QUOTA_EXCEEDED` and `FILE_TOO_LARGE` HTTP 400 responses into typed exceptions.
+
+#### E. Centralized Riverpod State (`lib/core/storage/cloud_storage_provider.dart`)
+- `CloudStorageState`: Immutable state containing quota, loading status, error messages, last fetched timestamp, and offline status.
+- `CloudStorageNotifier`:
+  - Fetches quota on auth state changes, app launch, and pull-to-refresh.
+  - Automatically calculates local SQLite storage breakdown (`calculateLocalBreakdown()`) across attachments and scanned documents without introducing extra network calls.
+  - Performs preflight validation checks (`preflightCheck()`).
+  - Preserves cached state during offline conditions.
+- Providers exposed: `cloudStorageProvider`, `cloudStorageQuotaProvider`, `cloudStorageSubtitleProvider`.
+- Connected to `SyncEngine.onSyncCompleted` callback to auto-refresh quota upon sync pass completion.
+
+#### F. Attachment & Document Services Integration
+- `AttachmentService` (`lib/core/attachments/attachment_service.dart`) & `DocumentService` (`lib/core/documents/document_service.dart`):
+  - Updated max file size limit to canonical 10 MB (`CloudStorageConstants.maxUploadSizeBytes`).
+  - Throws `FileTooLargeException` when exceeding 10 MB.
+- `AttachmentSyncService` (`lib/core/attachments/attachment_sync_service.dart`) & `DocumentSyncService` (`lib/core/documents/document_sync_service.dart`):
+  - Catches `StorageQuotaExceededException` and `FileTooLargeException`, marking sync items pending/failed gracefully for retry without erasing local files.
+
+#### G. Cloud Storage Screen (`lib/features/settings/presentation/cloud_storage_screen.dart`)
+- Built using Quiet Paper's iOS Grouped Table / Bear Notes aesthetic with full theme-family adaptation.
+- Centered tablet responsive layout ($\text{maxWidth} = 680\text{dp}$).
+- Visual progress indicator clamped to $[0.0, 1.0]$ with dynamic color coding:
+  - Normal: `colors.accent`
+  - Near Quota ($\ge 80\%$): `colors.warning`
+  - Full / Over Quota: `colors.error`
+- Storage breakdown card displaying Images, Documents & PDFs, Other files, and Total.
+- Plan and limits display with AES-256-GCM zero-knowledge badge.
+- Free Plan upgrade prompt with informational dialog; active entitlement badge for Premium users.
+- Manage Storage navigation entries pointing to `StorageManagementScreen` (Overview, Attached Assets, Orphaned Assets).
+- Pull-to-refresh (`RefreshIndicator`) and offline cached profile banner.
+
+#### H. Settings Screen Integration (`lib/features/settings/presentation/settings_screen.dart`)
+- Added dedicated `Cloud Storage` row under `STORAGE & ATTACHMENTS` displaying live dynamic subtitle (e.g. `342 MB of 1 GB used` or `Offline • Storage profile cached`).
+- Preserved `Storage & Cleanup`, `Attached Assets`, and `Orphaned Assets` rows intact.
+
+### 3. Verification & Quality
+- **Unit & Widget Test Suites**:
+  - `test/storage/storage_formatter_test.dart`: Validates decimal accounting unit calculations.
+  - `test/storage/cloud_storage_models_test.dart`: Validates domain models, JSON serialization, preflight results, and exceptions.
+  - `test/storage/cloud_storage_provider_test.dart`: Validates Riverpod notifier, local SQLite breakdown calculation, offline caching, and preflight rules.
+  - `test/settings/cloud_storage_screen_test.dart`: Validates Free plan, Over-quota, Premium plan, dialogs, and responsive UI.
+  - `test/settings/settings_cloud_storage_row_test.dart`: Validates Settings screen row presentation and navigation.
+  - `test/attachments/generic_file_attachment_test.dart`: Updated to validate 10 MB limit and `FileTooLargeException`.
+- **Quality Checks**:
+  - `flutter analyze`: **0 warnings / 0 errors**.
+  - `flutter test`: **1,464 tests passing, 0 failures** across the entire project test suite.
+
+
 
 
 

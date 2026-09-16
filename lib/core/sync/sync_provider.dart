@@ -6,6 +6,7 @@ import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
 import '../device/device_info_service.dart';
 import '../documents/document_provider.dart';
+import '../storage/cloud_storage_provider.dart';
 import 'conflict/conflict_model.dart';
 import 'conflict/conflict_repository.dart';
 import 'conflict/conflict_resolver.dart';
@@ -94,6 +95,9 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     deviceInfoService: deviceInfo,
     onDeviceRevoked: (msg) {
       ref.read(remoteRevocationNoticeProvider.notifier).state = msg;
+    },
+    onSyncCompleted: () {
+      ref.read(cloudStorageProvider.notifier).fetchQuota();
     },
   );
 

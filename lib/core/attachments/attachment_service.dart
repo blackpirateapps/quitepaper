@@ -4,6 +4,8 @@ import 'package:uuid/uuid.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
 import '../ocr/ocr_models.dart';
+import '../storage/cloud_storage_exceptions.dart';
+import '../storage/cloud_storage_models.dart';
 import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
@@ -38,11 +40,11 @@ class AttachmentService implements AssetResolver {
 
   static const _uuid = Uuid();
 
-  /// Maximum permitted original image byte size (25 MB).
-  static const int maxFileSizeBytes = 25 * 1024 * 1024;
+  /// Canonical maximum upload limit for an individual image (10 MB).
+  static const int maxFileSizeBytes = CloudStorageConstants.maxUploadSizeBytes;
 
-  /// Maximum permitted generic attachment byte size (50 MB).
-  static const int maxGenericFileSizeBytes = 50 * 1024 * 1024;
+  /// Canonical maximum upload limit for a generic attachment (10 MB).
+  static const int maxGenericFileSizeBytes = CloudStorageConstants.maxUploadSizeBytes;
 
   /// Supported image MIME types.
   static const Set<String> supportedMimeTypes = {
@@ -88,8 +90,10 @@ class AttachmentService implements AssetResolver {
     String preferredAltText = 'Image',
   }) async {
     if (bytes.length > maxFileSizeBytes) {
-      throw ArgumentError(
-        'Image exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      throw FileTooLargeException(
+        message: 'Image exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        maxBytes: maxFileSizeBytes,
+        providedBytes: bytes.length,
       );
     }
 
@@ -187,8 +191,10 @@ class AttachmentService implements AssetResolver {
     String? noteId,
   }) async {
     if (bytes.length > maxGenericFileSizeBytes) {
-      throw ArgumentError(
-        'File exceeds maximum allowed size of ${maxGenericFileSizeBytes ~/ (1024 * 1024)} MB',
+      throw FileTooLargeException(
+        message: 'File exceeds maximum allowed size of 10 MB ($maxGenericFileSizeBytes bytes).',
+        maxBytes: maxGenericFileSizeBytes,
+        providedBytes: bytes.length,
       );
     }
 

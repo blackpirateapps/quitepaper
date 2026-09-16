@@ -7,6 +7,7 @@ import 'package:quitepaper/core/attachments/attachment_storage.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/storage/cloud_storage_exceptions.dart';
 
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -114,17 +115,17 @@ void main() {
       expect(resolution.data, equals(emptyBytes));
     });
 
-    test('rejects files exceeding 50 MB with clear error message', () async {
-      final oversizedBytes = Uint8List(51 * 1024 * 1024);
+    test('rejects files exceeding 10 MB with clear error message', () async {
+      final oversizedBytes = Uint8List(11 * 1000 * 1000);
       expect(
         () => attachmentService.importGenericFileFromBytes(
           oversizedBytes,
           fileName: 'large_dataset.bin',
         ),
-        throwsA(isA<ArgumentError>().having(
-          (e) => e.message,
-          'message',
-          contains('File exceeds maximum allowed size of 50 MB'),
+        throwsA(isA<FileTooLargeException>().having(
+          (e) => e.userFriendlyMessage,
+          'userFriendlyMessage',
+          contains('Quiet Paper supports files up to 10 MB'),
         )),
       );
     });

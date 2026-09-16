@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../auth/auth_service.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../storage/cloud_storage_exceptions.dart';
 import '../sync/sync_api_client.dart';
 import 'attachment_models.dart';
 import 'attachment_storage.dart';
@@ -177,7 +178,14 @@ class AttachmentSyncService {
 
           uploadedCount++;
         } catch (e) {
-          final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+          final String errStr;
+          if (e is StorageQuotaExceededException) {
+            errStr = e.userFriendlyMessage;
+          } else if (e is FileTooLargeException) {
+            errStr = e.userFriendlyMessage;
+          } else {
+            errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+          }
           debugPrint('Failed to upload attachment ${item.id} to Cloudinary: $errStr');
           await database.updateAttachmentUploadState(
             item.id,

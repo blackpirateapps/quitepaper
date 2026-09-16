@@ -4,6 +4,8 @@ import '../attachments/attachment_models.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../documents/document_models.dart';
+import '../storage/cloud_storage_exceptions.dart';
+import '../storage/cloud_storage_models.dart';
 import '../../features/devices/domain/device.dart';
 import 'sync_models.dart';
 
@@ -186,6 +188,14 @@ abstract class SyncApiClient {
   }
   Future<void> revokeDevice(String deviceId) async {}
   Future<int> revokeOtherDevices(String currentDeviceId) async => 0;
+  Future<CloudStorageQuota> getCloudStorageQuota() async {
+    return const CloudStorageQuota(
+      plan: StoragePlan.free,
+      usedBytes: 0,
+      reservedBytes: 0,
+      limitBytes: CloudStorageConstants.freePlanLimitBytes,
+    );
+  }
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -314,6 +324,34 @@ class HttpSyncApiClient implements SyncApiClient {
 
     final truncated = trimmed.length > 200 ? '${trimmed.substring(0, 200)}...' : trimmed;
     return '$defaultPrefix (${res.statusCode}): $truncated';
+  }
+
+  void _checkQuotaOrSizeError(http.Response res, String defaultPrefix) {
+    final parsed = _safeParseJson(res.body);
+    final errCode = parsed?['error']?['code'] as String? ?? parsed?['code'] as String?;
+    if (errCode == 'STORAGE_QUOTA_EXCEEDED') {
+      throw StorageQuotaExceededException.fromJson(parsed!, defaultMessage: _extractErrorMessage(res, defaultPrefix));
+    }
+    if (errCode == 'FILE_TOO_LARGE') {
+      throw FileTooLargeException.fromJson(parsed!, defaultMessage: _extractErrorMessage(res, defaultPrefix));
+    }
+    throw Exception(_extractErrorMessage(res, defaultPrefix));
+  }
+
+  @override
+  Future<CloudStorageQuota> getCloudStorageQuota() async {
+    final url = Uri.parse('$_baseUrl/api/v1/account/storage');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      _checkQuotaOrSizeError(res, 'Failed to fetch cloud storage quota');
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to fetch cloud storage quota: Invalid JSON response from server');
+    }
+    return CloudStorageQuota.fromJson(data, fetchedAt: DateTime.now());
   }
 
   @override
@@ -492,7 +530,7 @@ class HttpSyncApiClient implements SyncApiClient {
     ));
 
     if (res.statusCode != 200) {
-      throw Exception(_extractErrorMessage(res, 'Failed to obtain attachment upload auth'));
+      _checkQuotaOrSizeError(res, 'Failed to obtain attachment upload auth');
     }
 
     final data = _safeParseJson(res.body);
@@ -543,7 +581,7 @@ class HttpSyncApiClient implements SyncApiClient {
     ));
 
     if (res.statusCode != 200) {
-      throw Exception(_extractErrorMessage(res, 'Failed to confirm attachment upload'));
+      _checkQuotaOrSizeError(res, 'Failed to confirm attachment upload');
     }
 
     final data = _safeParseJson(res.body);
@@ -604,7 +642,7 @@ class HttpSyncApiClient implements SyncApiClient {
     ));
 
     if (res.statusCode != 200) {
-      throw Exception(_extractErrorMessage(res, 'Failed to obtain document upload auth'));
+      _checkQuotaOrSizeError(res, 'Failed to obtain document upload auth');
     }
 
     final data = _safeParseJson(res.body);
@@ -659,7 +697,7 @@ class HttpSyncApiClient implements SyncApiClient {
     ));
 
     if (res.statusCode != 200) {
-      throw Exception(_extractErrorMessage(res, 'Failed to confirm document upload with backend'));
+      _checkQuotaOrSizeError(res, 'Failed to confirm document upload with backend');
     }
 
     final data = _safeParseJson(res.body);

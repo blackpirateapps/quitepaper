@@ -28,6 +28,7 @@ class SyncEngine {
     ConflictResolver? conflictResolver,
     this.deviceInfoService,
     this.onDeviceRevoked,
+    this.onSyncCompleted,
   })  : conflictResolver = conflictResolver ?? ConflictResolver(database: database) {
     _init();
   }
@@ -42,6 +43,7 @@ class SyncEngine {
   final ConflictResolver conflictResolver;
   final DeviceInfoService? deviceInfoService;
   final void Function(String message)? onDeviceRevoked;
+  final void Function()? onSyncCompleted;
 
   final Debouncer _syncDebouncer =
       Debouncer(duration: const Duration(milliseconds: 700));
@@ -911,6 +913,7 @@ class SyncEngine {
           errorMessage: null,
         ));
       }
+      onSyncCompleted?.call();
     } on DeviceRevokedException catch (revErr) {
       debugPrint('[SyncEngine] Device has been revoked: $revErr');
       final msg = revErr.message.isNotEmpty

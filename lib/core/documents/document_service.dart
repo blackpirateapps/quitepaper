@@ -7,6 +7,8 @@ import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
 import '../ocr/document_processing_service.dart';
 import '../ocr/ocr_models.dart';
+import '../storage/cloud_storage_exceptions.dart';
+import '../storage/cloud_storage_models.dart';
 import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
@@ -39,8 +41,8 @@ class DocumentService implements DocumentResolver {
 
   static const _uuid = Uuid();
 
-  /// Maximum permitted PDF document byte size (50 MB).
-  static const int maxFileSizeBytes = 50 * 1024 * 1024;
+  /// Canonical maximum upload limit for an individual PDF document (10 MB).
+  static const int maxFileSizeBytes = CloudStorageConstants.maxUploadSizeBytes;
 
   /// Creates and stores a document from canonical plaintext PDF [pdfBytes].
   ///
@@ -57,8 +59,10 @@ class DocumentService implements DocumentResolver {
     String? thumbnailPath,
   }) async {
     if (pdfBytes.length > maxFileSizeBytes) {
-      throw ArgumentError(
-        'Document exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      throw FileTooLargeException(
+        message: 'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        maxBytes: maxFileSizeBytes,
+        providedBytes: pdfBytes.length,
       );
     }
 
@@ -144,8 +148,10 @@ class DocumentService implements DocumentResolver {
     String title = 'Web Snapshot',
   }) async {
     if (htmlBytes.length > maxFileSizeBytes) {
-      throw ArgumentError(
-        'Snapshot exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      throw FileTooLargeException(
+        message: 'Snapshot exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        maxBytes: maxFileSizeBytes,
+        providedBytes: htmlBytes.length,
       );
     }
 
@@ -222,8 +228,10 @@ class DocumentService implements DocumentResolver {
 
     final pdfBytes = await file.readAsBytes();
     if (pdfBytes.length > maxFileSizeBytes) {
-      throw ArgumentError(
-        'Document exceeds maximum allowed size of ${maxFileSizeBytes ~/ (1024 * 1024)} MB',
+      throw FileTooLargeException(
+        message: 'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        maxBytes: maxFileSizeBytes,
+        providedBytes: pdfBytes.length,
       );
     }
 
