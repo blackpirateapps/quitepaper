@@ -6901,6 +6901,90 @@ Key principles enforced:
   - `flutter analyze`: **0 warnings / 0 errors**.
   - `flutter test`: **1,464 tests passing, 0 failures** across the entire project test suite.
 
+---
+
+## 43. Linux Client & Desktop Optimization: Keyboard & Mouse Ergonomics
+
+### 1. Motivation & Context
+Quiet Paper was originally built and ergonomically optimized for Android and touch devices, featuring bottom-docked formatting bars positioned above virtual keyboards, mobile-style long-press gestures (such as long-pressing `H` to cycle or select heading levels), horizontal drag-scrolling for narrow viewports, and minimal desktop shortcut mappings.
+
+On desktop environments (particularly the Linux client), users expect:
+- A top-docked formatting toolbar resting beneath the note title/app bar.
+- Natural mouse wheel horizontal scrolling across toolbar actions.
+- Direct click popup dropdown menus rather than mobile touch-and-hold gestures.
+- Actionable tooltip shortcut indicators.
+- A Notion/Bear-style quick-insert slash command palette (`/`) at the caret.
+- A comprehensive keyboard shortcut matrix for headings, checklists, block elements, and preview modes.
+- An enriched desktop right-click context menu.
+
+### 2. Implementation Overview
+
+#### A. Platform & Ergonomic Layout Awareness (`lib/core/utils/platform_layout_helper.dart`)
+- `PlatformLayoutHelper.isDesktopPlatform`: Detects native desktop runtime (`Platform.isLinux || Platform.isMacOS || Platform.isWindows`).
+- `PlatformLayoutHelper.isLinuxPlatform`: Targeted Linux environment check.
+- `PlatformLayoutHelper.isDesktopEditor(BuildContext context)`: Returns true if running on desktop or if viewport width $\ge 900\text{dp}$ (e.g. tablet split view with physical keyboard).
+
+#### B. Top-Docked Desktop Toolbar & Mouse Scrollwheel Ergonomics (`lib/features/editor/presentation/widgets/formatting_toolbar.dart`)
+- **Top vs Bottom Docking**:
+  - Added `isTopDocked: bool` property. When `true`, renders directly beneath note header/title with a calm bottom divider line (`colors.divider`).
+  - Mobile retains bottom-docking directly atop the virtual keyboard with a top divider line.
+  - Editor screen bottom scroll padding adjusts dynamically: `isDesktop ? 120 : 280` to prevent unnecessary empty whitespace at document bottom.
+- **Horizontal Mouse Wheel Scrolling**:
+  - Wrapped toolbar `ListView` with a `Listener(onPointerSignal: ...)`.
+  - Captures `PointerScrollEvent` and translates vertical mouse scrollwheel delta to horizontal toolbar scrolling (`jumpTo(newOffset)`), clamped between `0.0` and `maxScrollExtent`.
+- **Mouse Cursors & Hover Feedback**:
+  - `_ToolbarButton` displays `SystemMouseCursors.click` when enabled.
+  - Subtle hover pill background highlight (`colors.accent.withValues(alpha: 0.08)`).
+- **Responsive Platform Tooltips**:
+  - Desktop displays shortcut keys (e.g. `Bold (Ctrl+B)`, `Heading (Ctrl+Alt+1–6)`, `Checklist (Ctrl+Shift+C)`).
+  - Mobile touch continues to show Markdown syntax hints (e.g. `Bold (**text**)`).
+
+#### C. Desktop Headings Dropdown Popup (`lib/features/editor/presentation/widgets/formatting_toolbar.dart`)
+- Replaces mobile touch-and-hold with a direct-click dropdown popup menu anchored to the `H` button.
+- Menu entries:
+  - `Paragraph (Normal)` (`Ctrl+Alt+0`)
+  - `Heading 1` (`Ctrl+Alt+1`)
+  - `Heading 2` (`Ctrl+Alt+2`)
+  - `Heading 3` (`Ctrl+Alt+3`)
+  - `Heading 4` (`Ctrl+Alt+4`)
+  - `Heading 5` (`Ctrl+Alt+5`)
+  - `Heading 6` (`Ctrl+Alt+6`)
+- Highlights active heading level with checkmark badge and dispatches level changes to active controller (`semanticController` or `MarkdownHelper`).
+
+#### D. Caret-Anchored Slash Command Palette (`/`) (`lib/features/editor/application/slash_command_trigger.dart`, `lib/features/editor/presentation/widgets/slash_command/`)
+- **Detection**: `SlashCommandTrigger.detect(TextEditingValue)` triggers when `/` is typed at line start or after indentation. Avoids triggering in middle of text or within URLs.
+- **Item Registry (`SlashCommandItem.all`)**:
+  - Supports Headings 1–3, To-do Checklist, Bullet List, Numbered List, Quote, Code Block, Table, Divider, Link, Note Link, Tag, Paragraph.
+  - Matching supports fuzzy keyword search (e.g., `todo`, `task`, `[]` for checklist; `heading`, `title` for H1).
+- **Menu Overlay (`SlashCommandMenu`, `SlashCommandOverlayController`)**:
+  - Floats dynamically directly below the caret with screen boundary clamping.
+  - Keyboard navigation: `ArrowDown` / `ArrowUp` selects items, `Enter` / `Tab` executes command, `Escape` dismisses.
+  - Empty state UI: Displays "No matching commands" gracefully when query has no matches.
+  - Atomic replacement: Replaces `/query` with block syntax and focuses cursor.
+
+#### E. Comprehensive Keyboard Shortcut Matrix (`lib/features/editor/presentation/editor_screen.dart`)
+Configured across `CallbackShortcuts` supporting both `control` and `meta` (Cmd on macOS, Ctrl on Linux/Windows):
+- **Headings**: `Ctrl+Alt+1` through `Ctrl+Alt+6` (apply heading), `Ctrl+Alt+0` (revert to normal paragraph).
+- **Lists & Tasks**: `Ctrl+Shift+C` (checklist), `Ctrl+Shift+8` / `Ctrl+Shift+U` (bullet list), `Ctrl+Shift+7` / `Ctrl+Shift+O` (numbered list).
+- **Block Formatting**: `Ctrl+Shift+.` / `Ctrl+Shift+Q` (quote), `Ctrl+Alt+C` / `Ctrl+Shift+K` (code block), `Ctrl+Alt+-` (divider), `Ctrl+Alt+T` (table).
+- **Inline Formatting**: `Ctrl+B` (bold), `Ctrl+I` (italic), `Ctrl+Shift+X` (strikethrough), `Ctrl+\`` (inline code).
+- **Links & Tags**: `Ctrl+K` (hyperlink), `Ctrl+Shift+L` (note link), `Ctrl+Shift+T` (tag insertion).
+- **View Toggles**: `Ctrl+E` / `Ctrl+Shift+P` (toggle markdown preview), `Escape` (dismiss overlay/search).
+
+#### F. Enriched Desktop Context Menu (`lib/features/editor/presentation/widgets/markdown_editor.dart`, `visual_document_editor.dart`)
+- Custom desktop right-click menu provides quick formatting:
+  - Standard clipboard actions (Cut, Copy, Paste, Select All).
+  - Selected text transforms: Bold, Italic, Strikethrough, Code, Link, Bullet List, Numbered List, Quote.
+  - Cursor block insertion: Insert Checklist, Insert Bullet List, Insert Numbered List, Insert Quote, Insert Code Block, Insert Divider.
+
+### 3. Verification & Quality
+- `test/editor/formatting_toolbar_test.dart`: Verified responsive tooltips and button highlights.
+- `test/editor/slash_command_test.dart`: 12 unit and widget tests covering trigger detection, filtering, menu rendering, and keyboard interaction.
+- `test/editor/desktop_toolbar_and_shortcuts_test.dart`: 9 tests covering top docking, dropdown menu, horizontal mouse wheel scroll event translation, and shortcut callback execution.
+- `flutter analyze`: **0 warnings / 0 errors**.
+- `flutter test`: **All tests passing** across entire project test suite.
+
+
 
 
 

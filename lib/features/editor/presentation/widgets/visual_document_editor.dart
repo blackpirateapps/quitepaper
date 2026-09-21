@@ -1331,6 +1331,38 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
               widget.onNoteLinkPrompt!();
             },
           ),
+        ContextMenuButtonItem(
+          label: 'Checklist',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleChecklist();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Bullet List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleList();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Numbered List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleOrderedList();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Quote',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleQuote();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
       ];
 
       return AdaptiveTextSelectionToolbar.buttonItems(
@@ -1342,10 +1374,56 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       );
     }
 
+    final insertButtons = [
+      if (!widget.readOnly) ...[
+        ContextMenuButtonItem(
+          label: 'Insert Checklist',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleChecklist();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Bullet List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleList();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Numbered List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleOrderedList();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Quote',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.toggleQuote();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Divider',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.controller.insertHorizontalRule();
+            widget.onChanged?.call(widget.controller.markdown);
+          },
+        ),
+      ],
+    ];
+
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: [
         ?headingButton,
+        ...insertButtons,
         ...buttonItems,
       ],
     );

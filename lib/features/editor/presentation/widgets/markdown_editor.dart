@@ -725,6 +725,32 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             _applyFormat(MarkdownFormatter.toggleChecklist);
           },
         ),
+        ContextMenuButtonItem(
+          label: 'Bullet List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleBulletList);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Numbered List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleOrderedList);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Quote',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            final updated = MarkdownHelper.toggleLinePrefix(value: widget.controller.value, prefix: '> ');
+            widget.controller.value = updated;
+            widget.onChanged?.call(updated.text);
+            if (!widget.focusNode.hasFocus) {
+              widget.focusNode.requestFocus();
+            }
+          },
+        ),
       ];
 
       return AdaptiveTextSelectionToolbar.buttonItems(
@@ -736,11 +762,74 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       );
     }
 
+    final insertButtons = [
+      if (!widget.readOnly) ...[
+        ContextMenuButtonItem(
+          label: 'Insert Checklist',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleChecklist);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Bullet List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleBulletList);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Numbered List',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _applyFormat(MarkdownFormatter.toggleOrderedList);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Quote',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            final updated = MarkdownHelper.toggleLinePrefix(value: widget.controller.value, prefix: '> ');
+            widget.controller.value = updated;
+            widget.onChanged?.call(updated.text);
+            if (!widget.focusNode.hasFocus) {
+              widget.focusNode.requestFocus();
+            }
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Code Block',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            final updated = MarkdownHelper.insertCodeBlock(widget.controller.value);
+            widget.controller.value = updated;
+            widget.onChanged?.call(updated.text);
+            if (!widget.focusNode.hasFocus) {
+              widget.focusNode.requestFocus();
+            }
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Insert Divider',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            final updated = MarkdownHelper.insertHorizontalRule(widget.controller.value);
+            widget.controller.value = updated;
+            widget.onChanged?.call(updated.text);
+            if (!widget.focusNode.hasFocus) {
+              widget.focusNode.requestFocus();
+            }
+          },
+        ),
+      ],
+    ];
+
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: [
         ?headingLevelButton,
         ?codeLangButton,
+        ...insertButtons,
         ...buttonItems,
       ],
     );

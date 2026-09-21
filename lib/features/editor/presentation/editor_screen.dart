@@ -61,6 +61,12 @@ import 'widgets/tag_inline_overlay.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_model.dart';
 import '../domain/document_position.dart';
+import '../../../core/markdown/markdown_helper.dart';
+import '../../../core/utils/platform_layout_helper.dart';
+import 'widgets/link_prompt_dialog.dart';
+import 'widgets/slash_command/slash_command_item.dart';
+import 'widgets/slash_command/slash_command_overlay_controller.dart';
+import '../application/slash_command_trigger.dart';
 
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
@@ -279,6 +285,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (_slashCommandOverlayController?.isOpen == true) {
+      final res = _slashCommandOverlayController!.handleKeyEvent(event);
+      if (res == KeyEventResult.handled) return res;
+    }
     if (_inlineAutocompleteController?.isOpen == true) {
       return _inlineAutocompleteController!.handleKeyEvent(event);
     }
@@ -463,6 +473,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   NoteLinkInlineOverlayController? _inlineAutocompleteController;
   TagInlineOverlayController? _tagAutocompleteController;
+  SlashCommandOverlayController? _slashCommandOverlayController;
 
   bool get _isWysiwyg {
     if (_semanticEditorController == null) return false;
@@ -479,6 +490,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final noteTrigger = NoteLinkAutocompleteTrigger.detect(targetController.value);
     if (noteTrigger != null) {
       _tagAutocompleteController?.hide();
+      _slashCommandOverlayController?.hide();
       _inlineAutocompleteController ??= NoteLinkInlineOverlayController(
         context: context,
         searchService: ref.read(noteLinkSearchServiceProvider),
@@ -505,6 +517,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final tagTrigger = TagAutocompleteTrigger.detect(targetController.value);
     if (tagTrigger != null) {
       _inlineAutocompleteController?.hide();
+      _slashCommandOverlayController?.hide();
       _tagAutocompleteController ??= TagInlineOverlayController(
         context: context,
         searchService: const TagSearchService(),
@@ -525,6 +538,298 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     } else {
       _tagAutocompleteController?.hide();
+    }
+
+    // 3. Check for Slash Command Trigger (`/query`)
+    final slashTrigger = SlashCommandTrigger.detect(targetController.value);
+    if (slashTrigger != null) {
+      _inlineAutocompleteController?.hide();
+      _tagAutocompleteController?.hide();
+      _slashCommandOverlayController ??= SlashCommandOverlayController(
+        context: context,
+        onSelectCommand: (cmd, replaceStart, replaceEnd) =>
+            _onExecuteSlashCommand(cmd, replaceStart, replaceEnd, targetController, targetFocusNode),
+      );
+
+      final caretRect = _getCaretRect(slashTrigger.triggerStart, targetFocusNode, targetController);
+      _slashCommandOverlayController!.showOrUpdate(
+        query: slashTrigger.query,
+        triggerStart: slashTrigger.triggerStart,
+        queryEnd: slashTrigger.queryEnd,
+        caretRect: caretRect,
+      );
+      return;
+    } else {
+      _slashCommandOverlayController?.hide();
+    }
+  }
+
+  void _onExecuteSlashCommand(
+    SlashCommandItem command,
+    int replaceStart,
+    int replaceEnd,
+    TextEditingController targetController,
+    FocusNode targetFocusNode,
+  ) {
+    final text = targetController.text;
+    final prefix = text.substring(0, replaceStart);
+    final suffix = text.substring(replaceEnd);
+    final clearedText = prefix + suffix;
+    targetController.value = TextEditingValue(
+      text: clearedText,
+      selection: TextSelection.collapsed(offset: replaceStart),
+    );
+    if (targetController != _contentController) {
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+    } else {
+      _undoRedoManager.pushAtomicEdit(targetController.value);
+    }
+
+    switch (command.type) {
+      case SlashCommandType.h1:
+        _setHeadingLevel(1);
+        break;
+      case SlashCommandType.h2:
+        _setHeadingLevel(2);
+        break;
+      case SlashCommandType.h3:
+        _setHeadingLevel(3);
+        break;
+      case SlashCommandType.h4:
+        _setHeadingLevel(4);
+        break;
+      case SlashCommandType.h5:
+        _setHeadingLevel(5);
+        break;
+      case SlashCommandType.h6:
+        _setHeadingLevel(6);
+        break;
+      case SlashCommandType.paragraph:
+        _setHeadingLevel(0);
+        break;
+      case SlashCommandType.todo:
+        _toggleChecklist();
+        break;
+      case SlashCommandType.bullet:
+        _toggleBulletList();
+        break;
+      case SlashCommandType.number:
+        _toggleOrderedList();
+        break;
+      case SlashCommandType.quote:
+        _toggleQuote();
+        break;
+      case SlashCommandType.code:
+        _insertCodeBlock();
+        break;
+      case SlashCommandType.table:
+        _handleInsertTable();
+        break;
+      case SlashCommandType.divider:
+        _insertDivider();
+        break;
+      case SlashCommandType.link:
+        _handleLinkPrompt();
+        break;
+      case SlashCommandType.noteLink:
+        _handleNoteLinkPrompt();
+        break;
+      case SlashCommandType.tag:
+        _triggerTagInsertion();
+        break;
+    }
+  }
+
+  void _setHeadingLevel(int level) {
+    if (_isWysiwyg) {
+      if (level == 0) {
+        _semanticEditorController?.convertHeadingToParagraph();
+      } else {
+        _semanticEditorController?.setHeadingLevel(level);
+      }
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingHelper((val) => MarkdownHelper.setHeadingLevelAt(value: val, level: level));
+    }
+  }
+
+  void _toggleChecklist() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleChecklist();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleChecklist);
+    }
+  }
+
+  void _toggleBulletList() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleList();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleBulletList);
+    }
+  }
+
+  void _toggleOrderedList() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleOrderedList();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleOrderedList);
+    }
+  }
+
+  void _toggleQuote() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleQuote();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingHelper((val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> '));
+    }
+  }
+
+  void _insertCodeBlock() {
+    _applyFormattingHelper(MarkdownHelper.insertCodeBlock);
+  }
+
+  void _insertDivider() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.insertHorizontalRule();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingHelper(MarkdownHelper.insertHorizontalRule);
+    }
+  }
+
+  void _toggleBold() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleBold();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleBold);
+    }
+  }
+
+  void _toggleItalic() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleItalic();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleItalic);
+    }
+  }
+
+  void _toggleStrikethrough() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleStrike();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleStrikethrough);
+    }
+  }
+
+  void _toggleInlineCode() {
+    if (_isWysiwyg) {
+      _semanticEditorController?.toggleInlineCode();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleInlineCode);
+    }
+  }
+
+  void _togglePreviewMode() {
+    final editorNotifier = ref.read(editorProviderFamily(_editorParams).notifier);
+    editorNotifier.togglePreviewMode();
+  }
+
+  void _triggerTagInsertion() {
+    final ctrl = _activeTargetController ?? _contentController;
+    final fn = _activeTargetFocusNode ?? _contentFocusNode;
+    final val = ctrl.value;
+    final text = val.text;
+    final sel = val.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final newText = text.replaceRange(start, start, '#');
+    final updated = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+    ctrl.value = updated;
+    if (ctrl != _contentController) {
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+    } else {
+      _undoRedoManager.pushAtomicEdit(updated);
+    }
+    if (!fn.hasFocus) {
+      fn.requestFocus();
+    }
+  }
+
+  void _applyFormattingFormat(TextEditingValue Function({required TextEditingValue value}) action) {
+    final ctrl = _activeTargetController ?? _contentController;
+    final fn = _activeTargetFocusNode ?? _contentFocusNode;
+    final updated = action(value: ctrl.value);
+    ctrl.value = updated;
+    _undoRedoManager.pushAtomicEdit(ctrl == _contentController ? updated : _contentController.value);
+    if (!fn.hasFocus) {
+      fn.requestFocus();
+    }
+  }
+
+  void _applyFormattingHelper(TextEditingValue Function(TextEditingValue) action) {
+    final ctrl = _activeTargetController ?? _contentController;
+    final fn = _activeTargetFocusNode ?? _contentFocusNode;
+    final updated = action(ctrl.value);
+    ctrl.value = updated;
+    _undoRedoManager.pushAtomicEdit(ctrl == _contentController ? updated : _contentController.value);
+    if (!fn.hasFocus) {
+      fn.requestFocus();
+    }
+  }
+
+  Future<void> _handleLinkPrompt() async {
+    final targetController = _activeTargetController ?? _contentController;
+    final targetFocusNode = _activeTargetFocusNode ?? _contentFocusNode;
+    final selection = targetController.selection;
+    final text = targetController.text;
+    var initialTitle = '';
+    if (selection.isValid && !selection.isCollapsed) {
+      final selStart = selection.start;
+      final selEnd = selection.end;
+      initialTitle = text.substring(selStart, selEnd);
+    }
+
+    final result = await LinkPromptDialog.show(
+      context,
+      initialTitle: initialTitle,
+    );
+
+    if (result != null) {
+      final updated = MarkdownFormatter.createLink(
+        value: targetController.value,
+        url: result.url,
+        title: result.title,
+      );
+      targetController.value = updated;
+      if (targetController != _contentController) {
+        _undoRedoManager.pushAtomicEdit(_contentController.value);
+      } else {
+        _undoRedoManager.pushAtomicEdit(updated);
+      }
+      if (!targetFocusNode.hasFocus) {
+        targetFocusNode.requestFocus();
+      }
     }
   }
 
@@ -1037,6 +1342,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _inlineAutocompleteController = null;
     _tagAutocompleteController?.dispose();
     _tagAutocompleteController = null;
+    _slashCommandOverlayController?.dispose();
+    _slashCommandOverlayController = null;
     super.dispose();
   }
 
@@ -1045,7 +1352,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Widget build(BuildContext context) {
     ref.watch(allTagsProvider);
     final editorState = ref.watch(editorProviderFamily(_editorParams));
-    final speechSession = ref.watch(speechSessionProvider);
     final editorNotifier =
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
@@ -1065,6 +1371,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final canPop = Navigator.of(context).canPop();
     final isTablet = MediaQuery.of(context).size.width >= 768;
+    final isDesktop = PlatformLayoutHelper.isDesktopEditor(context);
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
     final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
     final isTabletEditor = isTablet && widget.onClose != null;
@@ -1118,23 +1425,95 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true): _undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _undo,
-        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true):
-            _redo,
-        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true):
-            _redo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): _redo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): _redo,
         const SingleActivator(LogicalKeyboardKey.keyY, control: true): _redo,
         const SingleActivator(LogicalKeyboardKey.keyY, meta: true): _redo,
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
-            _openSearch(withReplace: false),
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
-            _openSearch(withReplace: false),
-        const SingleActivator(LogicalKeyboardKey.keyH, control: true): () =>
-            _openSearch(withReplace: true),
-        const SingleActivator(LogicalKeyboardKey.keyH, meta: true): () =>
-            _openSearch(withReplace: true),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _openSearch(withReplace: false),
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => _openSearch(withReplace: false),
+        const SingleActivator(LogicalKeyboardKey.keyH, control: true): () => _openSearch(withReplace: true),
+        const SingleActivator(LogicalKeyboardKey.keyH, meta: true): () => _openSearch(withReplace: true),
         const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_slashCommandOverlayController?.isOpen == true) {
+            _slashCommandOverlayController!.hide();
+            return;
+          }
+          if (_tagAutocompleteController?.isOpen == true) {
+            _tagAutocompleteController!.hide();
+            return;
+          }
+          if (_inlineAutocompleteController?.isOpen == true) {
+            _inlineAutocompleteController!.hide();
+            return;
+          }
           if (_isSearchVisible) _closeSearch();
         },
+
+        // Preview Mode Toggle (Ctrl+E / Ctrl+Shift+P)
+        const SingleActivator(LogicalKeyboardKey.keyE, control: true): _togglePreviewMode,
+        const SingleActivator(LogicalKeyboardKey.keyE, meta: true): _togglePreviewMode,
+        const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): _togglePreviewMode,
+        const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true): _togglePreviewMode,
+
+        // Headings (Ctrl+Alt+1..6, Ctrl+Alt+0)
+        const SingleActivator(LogicalKeyboardKey.digit1, control: true, alt: true): () => _setHeadingLevel(1),
+        const SingleActivator(LogicalKeyboardKey.digit1, meta: true, alt: true): () => _setHeadingLevel(1),
+        const SingleActivator(LogicalKeyboardKey.digit2, control: true, alt: true): () => _setHeadingLevel(2),
+        const SingleActivator(LogicalKeyboardKey.digit2, meta: true, alt: true): () => _setHeadingLevel(2),
+        const SingleActivator(LogicalKeyboardKey.digit3, control: true, alt: true): () => _setHeadingLevel(3),
+        const SingleActivator(LogicalKeyboardKey.digit3, meta: true, alt: true): () => _setHeadingLevel(3),
+        const SingleActivator(LogicalKeyboardKey.digit4, control: true, alt: true): () => _setHeadingLevel(4),
+        const SingleActivator(LogicalKeyboardKey.digit4, meta: true, alt: true): () => _setHeadingLevel(4),
+        const SingleActivator(LogicalKeyboardKey.digit5, control: true, alt: true): () => _setHeadingLevel(5),
+        const SingleActivator(LogicalKeyboardKey.digit5, meta: true, alt: true): () => _setHeadingLevel(5),
+        const SingleActivator(LogicalKeyboardKey.digit6, control: true, alt: true): () => _setHeadingLevel(6),
+        const SingleActivator(LogicalKeyboardKey.digit6, meta: true, alt: true): () => _setHeadingLevel(6),
+        const SingleActivator(LogicalKeyboardKey.digit0, control: true, alt: true): () => _setHeadingLevel(0),
+        const SingleActivator(LogicalKeyboardKey.digit0, meta: true, alt: true): () => _setHeadingLevel(0),
+
+        // Lists & Checklists
+        const SingleActivator(LogicalKeyboardKey.keyC, control: true, shift: true): _toggleChecklist,
+        const SingleActivator(LogicalKeyboardKey.keyC, meta: true, shift: true): _toggleChecklist,
+        const SingleActivator(LogicalKeyboardKey.digit8, control: true, shift: true): _toggleBulletList,
+        const SingleActivator(LogicalKeyboardKey.digit8, meta: true, shift: true): _toggleBulletList,
+        const SingleActivator(LogicalKeyboardKey.keyU, control: true, shift: true): _toggleBulletList,
+        const SingleActivator(LogicalKeyboardKey.keyU, meta: true, shift: true): _toggleBulletList,
+        const SingleActivator(LogicalKeyboardKey.digit7, control: true, shift: true): _toggleOrderedList,
+        const SingleActivator(LogicalKeyboardKey.digit7, meta: true, shift: true): _toggleOrderedList,
+        const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true): _toggleOrderedList,
+        const SingleActivator(LogicalKeyboardKey.keyO, meta: true, shift: true): _toggleOrderedList,
+
+        // Quotes, Dividers & Tables
+        const SingleActivator(LogicalKeyboardKey.period, control: true, shift: true): _toggleQuote,
+        const SingleActivator(LogicalKeyboardKey.period, meta: true, shift: true): _toggleQuote,
+        const SingleActivator(LogicalKeyboardKey.keyQ, control: true, shift: true): _toggleQuote,
+        const SingleActivator(LogicalKeyboardKey.keyQ, meta: true, shift: true): _toggleQuote,
+        const SingleActivator(LogicalKeyboardKey.minus, control: true, alt: true): _insertDivider,
+        const SingleActivator(LogicalKeyboardKey.minus, meta: true, alt: true): _insertDivider,
+        const SingleActivator(LogicalKeyboardKey.keyT, control: true, alt: true): _handleInsertTable,
+        const SingleActivator(LogicalKeyboardKey.keyT, meta: true, alt: true): _handleInsertTable,
+
+        // Code Block
+        const SingleActivator(LogicalKeyboardKey.keyC, control: true, alt: true): _insertCodeBlock,
+        const SingleActivator(LogicalKeyboardKey.keyC, meta: true, alt: true): _insertCodeBlock,
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true, shift: true): _insertCodeBlock,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true, shift: true): _insertCodeBlock,
+
+        // Text Styles & Links
+        const SingleActivator(LogicalKeyboardKey.keyB, control: true): _toggleBold,
+        const SingleActivator(LogicalKeyboardKey.keyB, meta: true): _toggleBold,
+        const SingleActivator(LogicalKeyboardKey.keyI, control: true): _toggleItalic,
+        const SingleActivator(LogicalKeyboardKey.keyI, meta: true): _toggleItalic,
+        const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): _toggleStrikethrough,
+        const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): _toggleStrikethrough,
+        const SingleActivator(LogicalKeyboardKey.backquote, control: true): _toggleInlineCode,
+        const SingleActivator(LogicalKeyboardKey.backquote, meta: true): _toggleInlineCode,
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): _handleLinkPrompt,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): _handleLinkPrompt,
+        const SingleActivator(LogicalKeyboardKey.keyL, control: true, shift: true): _handleNoteLinkPrompt,
+        const SingleActivator(LogicalKeyboardKey.keyL, meta: true, shift: true): _handleNoteLinkPrompt,
+        const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): _triggerTagInsertion,
+        const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): _triggerTagInsertion,
       },
       child: PopScope(
         canPop: true,
@@ -1275,6 +1654,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     ),
                   ),
                 ),
+                // Top-docked formatting toolbar or speech recording bar (desktop mode)
+                if (isDesktop)
+                  _buildToolbarOrSpeechBar(isTopDocked: true),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (notification) {
@@ -1478,7 +1860,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                         _contentFocusNode.requestFocus();
                                       }
                                     },
-                                    child: const SizedBox(height: 280),
+                                    child: SizedBox(height: isDesktop ? 120 : 280),
                                   ),
                                 ],
                               ),
@@ -1491,63 +1873,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                 ),
 
-              // Floating/Docked formatting toolbar or speech recording bar (only in active edit mode)
-              if (!editorState.isPreviewMode && !editorState.isReadOnly)
-                if (!speechSession.isIdle)
-                  SpeechRecordingBar(
-                    session: speechSession,
-                    onStop: _handleStopDictation,
-                    onCancel: _handleCancelDictation,
-                    onErrorDismiss: _handleDismissSpeechError,
-                  )
-                else
-                  FormattingToolbar(
-                    controller: _activeTargetController ?? _contentController,
-                    focusNode: _activeTargetFocusNode ?? _contentFocusNode,
-                    semanticController: isWysiwyg ? _semanticEditorController : null,
-                    canUndo: _undoRedoManager.canUndo,
-                    canRedo: _undoRedoManager.canRedo,
-                    canDictate: editorState.isUnlocked && !editorState.isReadOnly,
-                    isDictating: !speechSession.isIdle,
-                    onUndo: _undo,
-                    onRedo: _redo,
-                    onNoteLinkPressed: _handleNoteLinkPrompt,
-                    onDictatePressed: _handleStartDictation,
-                    onApplyAtomicEdit: (val) {
-                      if ((_activeTargetController ?? _contentController) != _contentController) {
-                        _undoRedoManager.pushAtomicEdit(_contentController.value);
-                      } else {
-                        _undoRedoManager.pushAtomicEdit(val);
-                      }
-                    },
-                    onTagPressed: () {
-                      final ctrl = _activeTargetController ?? _contentController;
-                      final fn = _activeTargetFocusNode ?? _contentFocusNode;
-                      final val = ctrl.value;
-                      final text = val.text;
-                      final sel = val.selection;
-                      final start = sel.isValid ? sel.start : text.length;
-                      final newText = text.replaceRange(start, start, '#');
-                      final updated = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection.collapsed(offset: start + 1),
-                      );
-                      ctrl.value = updated;
-                      if (ctrl != _contentController) {
-                        _undoRedoManager.pushAtomicEdit(_contentController.value);
-                      } else {
-                        _undoRedoManager.pushAtomicEdit(updated);
-                      }
-                      if (!fn.hasFocus) {
-                        fn.requestFocus();
-                      }
-                    },
-                    onTablePressed: _handleInsertTable,
-                    onImagePressed: _handleInsertImage,
-                    onScanPressed: _handleScanDocument,
-                    onPdfPressed: _handleAttachPdf,
-                    onFilePressed: _handleAttachFile,
-                  ),
+              // Bottom-docked formatting toolbar or speech recording bar (mobile mode)
+              if (!isDesktop)
+                _buildToolbarOrSpeechBar(isTopDocked: false),
             ],
           ),
         ),
@@ -1555,6 +1883,55 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ),
   );
 }
+
+  Widget _buildToolbarOrSpeechBar({required bool isTopDocked}) {
+    final editorState = ref.watch(editorProviderFamily(_editorParams));
+    final speechSession = ref.watch(speechSessionProvider);
+    final globalEditingStyle = ref.watch(editorEditingStyleProvider);
+    final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
+    final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
+
+    if (editorState.isPreviewMode || editorState.isReadOnly) {
+      return const SizedBox.shrink();
+    }
+
+    if (!speechSession.isIdle) {
+      return SpeechRecordingBar(
+        session: speechSession,
+        onStop: _handleStopDictation,
+        onCancel: _handleCancelDictation,
+        onErrorDismiss: _handleDismissSpeechError,
+      );
+    }
+
+    return FormattingToolbar(
+      controller: _activeTargetController ?? _contentController,
+      focusNode: _activeTargetFocusNode ?? _contentFocusNode,
+      semanticController: isWysiwyg ? _semanticEditorController : null,
+      canUndo: _undoRedoManager.canUndo,
+      canRedo: _undoRedoManager.canRedo,
+      canDictate: editorState.isUnlocked && !editorState.isReadOnly,
+      isDictating: !speechSession.isIdle,
+      isTopDocked: isTopDocked,
+      onUndo: _undo,
+      onRedo: _redo,
+      onNoteLinkPressed: _handleNoteLinkPrompt,
+      onDictatePressed: _handleStartDictation,
+      onApplyAtomicEdit: (val) {
+        if ((_activeTargetController ?? _contentController) != _contentController) {
+          _undoRedoManager.pushAtomicEdit(_contentController.value);
+        } else {
+          _undoRedoManager.pushAtomicEdit(val);
+        }
+      },
+      onTagPressed: _triggerTagInsertion,
+      onTablePressed: _handleInsertTable,
+      onImagePressed: _handleInsertImage,
+      onScanPressed: _handleScanDocument,
+      onPdfPressed: _handleAttachPdf,
+      onFilePressed: _handleAttachFile,
+    );
+  }
 
   void _onPreviewMarkdownChanged(String newMarkdown) {
     if (_contentController.text != newMarkdown) {
