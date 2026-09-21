@@ -10,6 +10,9 @@ BuildArch:      x86_64
 # Turn off debuginfo generation since Flutter binaries are stripped
 %global debug_package %{nil}
 
+# Disable automatic dependency generation to avoid unresolved dependencies on internal bundled libraries
+AutoReqProv:    no
+
 Requires:       gtk3 >= 3.24
 Requires:       glib2 >= 2.64
 Requires:       libsecret
@@ -28,8 +31,15 @@ mkdir -p %{buildroot}%{_datadir}/metainfo
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/512x512/apps
 
-# Copy bundle
-cp -a %{_sourcedir}/bundle/* %{buildroot}/opt/quitepaper/
+# Copy bundle (checks standard build path and sourcedir fallback)
+if [ -d "%{_sourcedir}/build/linux/x64/release/bundle" ]; then
+  cp -a %{_sourcedir}/build/linux/x64/release/bundle/* %{buildroot}/opt/quitepaper/
+elif [ -d "%{_sourcedir}/bundle" ]; then
+  cp -a %{_sourcedir}/bundle/* %{buildroot}/opt/quitepaper/
+else
+  echo "Error: bundle directory not found in %{_sourcedir}/build/linux/x64/release/bundle or %{_sourcedir}/bundle"
+  exit 1
+fi
 
 # Symlink executable
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
@@ -69,5 +79,5 @@ fi
 %{_datadir}/icons/hicolor/512x512/apps/com.blackpiratex.quietpaper.png
 
 %changelog
-* Sun Sep 21 2026 Black Pirate <dev@quitepaper.app> - 1.5.8-1
+* Mon Sep 21 2026 Black Pirate <dev@quitepaper.app> - 1.5.8-1
 - Linux native optimization release with XDG migration, WAL mode, and GTK single-instance support.

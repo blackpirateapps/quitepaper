@@ -60,5 +60,6 @@ else
 fi
 
 echo "==> Building AppImage..."
-ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
+export APPIMAGE_EXTRACT_AND_RUN=1
+ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run -n "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
 echo "==> AppImage created at ${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
