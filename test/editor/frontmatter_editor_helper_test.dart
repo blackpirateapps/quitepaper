@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/location/location_models.dart';
 import 'package:quitepaper/features/editor/application/frontmatter_editor_helper.dart';
 
 void main() {
@@ -138,6 +139,90 @@ This is the document body.
       const body = '# Heading\nBody';
       final full = FrontmatterEditorHelper.assemble(header, body);
       expect(full, equals('---\ntitle: Note\n---\n# Heading\nBody'));
+    });
+
+    test('parse handles nested YAML location map and journal frontmatter', () {
+      const journalDoc = '''---
+journal: true
+date: 2026-09-21
+location:
+  address: "1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA"
+  latitude: 37.422000
+  longitude: -122.084100
+tags: [diary, reflections]
+---
+
+Today was a productive day.
+''';
+      final doc = FrontmatterEditorHelper.parse(journalDoc);
+      expect(doc.hasFrontmatter, isTrue);
+      expect(doc.isJournal, isTrue);
+      expect(doc.journalDate, equals('2026-09-21'));
+      expect(doc.created, equals('2026-09-21'));
+      expect(doc.location, isNotNull);
+      expect(doc.location!.address, equals('1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA'));
+      expect(doc.location!.latitude, equals(37.422));
+      expect(doc.location!.longitude, equals(-122.0841));
+      expect(doc.tags, equals(['diary', 'reflections']));
+      expect(doc.hasMatchingSectionProperties, isTrue);
+    });
+
+    test('updateLocation inserts nested location map into frontmatter', () {
+      const initialDoc = '''---
+journal: true
+date: 2026-09-21
+---
+
+Entry body
+''';
+      const location = JournalLocation(
+        address: 'San Francisco, CA',
+        latitude: 37.7749,
+        longitude: -122.4194,
+      );
+
+      final updated = FrontmatterEditorHelper.updateLocation(
+        documentText: initialDoc,
+        location: location,
+      );
+
+      expect(updated, contains('location:'));
+      expect(updated, contains('  address: "San Francisco, CA"'));
+      expect(updated, contains('  latitude: 37.7749'));
+      expect(updated, contains('  longitude: -122.4194'));
+
+      final parsed = FrontmatterEditorHelper.parse(updated);
+      expect(parsed.location, isNotNull);
+      expect(parsed.location!.address, equals('San Francisco, CA'));
+      expect(parsed.location!.latitude, equals(37.7749));
+      expect(parsed.location!.longitude, equals(-122.4194));
+    });
+
+    test('removeLocation removes location block cleanly from frontmatter', () {
+      const docWithLoc = '''---
+journal: true
+date: 2026-09-21
+location:
+  address: "San Francisco, CA"
+  latitude: 37.7749
+  longitude: -122.4194
+tags: [travel]
+---
+
+Entry body
+''';
+      final removed = FrontmatterEditorHelper.removeLocation(
+        documentText: docWithLoc,
+      );
+
+      expect(removed, isNot(contains('location:')));
+      expect(removed, isNot(contains('San Francisco, CA')));
+      expect(removed, contains('journal: true'));
+      expect(removed, contains('tags: [travel]'));
+
+      final parsed = FrontmatterEditorHelper.parse(removed);
+      expect(parsed.location, isNull);
+      expect(parsed.tags, equals(['travel']));
     });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
+import '../../../core/location/location_models.dart';
 import '../../../core/utils/tag_parser.dart';
 
 class ParsedMarkdown {
@@ -12,6 +13,7 @@ class ParsedMarkdown {
     this.author,
     this.description,
     this.createdRaw,
+    this.location,
     this.isJournal = false,
     this.journalDate,
     required this.body,
@@ -27,19 +29,23 @@ class ParsedMarkdown {
   final String? author;
   final String? description;
   final String? createdRaw;
+  final JournalLocation? location;
   final bool isJournal;
   final String? journalDate;
   final String body; // Preserves full original raw content with frontmatter
   final String contentBody; // Content after frontmatter block
   final bool hasFrontmatter;
 
-  /// Returns true if there are displayable metadata fields (author, source, created, description).
+  /// Returns true if there are displayable metadata fields (author, source, created, description, location).
   bool get hasDisplayableMetadata {
+    if (location != null && location!.isNotEmpty) return true;
     final hasStandard = (source != null && source!.trim().isNotEmpty) ||
         (author != null && author!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty);
     if (hasStandard) return true;
-    if (isJournal) return false;
+    if (isJournal) {
+      return createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty);
+    }
     return createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty);
   }
 }
@@ -77,16 +83,46 @@ abstract final class MarkdownFrontmatterParser {
     final tags = <String>{};
     bool isJournal = false;
     String? journalDate;
+    JournalLocation? parsedLocation;
 
     final lines = frontmatterBlock.split(RegExp(r'\r?\n'));
     String? currentListKey;
     String? currentMultilineKey;
+    String? currentMapKey;
+    final currentMapEntries = <String, String>{};
+
+    void flushCurrentMap() {
+      if (currentMapKey == null) return;
+      if (_isLocationKey(currentMapKey!)) {
+        final addr = currentMapEntries['address'] ?? currentMapEntries['name'] ?? '';
+        final lat = double.tryParse(currentMapEntries['latitude'] ?? currentMapEntries['lat'] ?? '') ?? 0.0;
+        final lng = double.tryParse(currentMapEntries['longitude'] ?? currentMapEntries['lng'] ?? currentMapEntries['lon'] ?? '') ?? 0.0;
+        parsedLocation = JournalLocation(address: addr, latitude: lat, longitude: lng);
+      }
+      currentMapKey = null;
+      currentMapEntries.clear();
+    }
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       final trimmed = line.trim();
       if (trimmed.isEmpty || trimmed.startsWith('#')) {
         continue;
+      }
+
+      // Handle indented continuation lines for map keys (e.g. location)
+      if ((line.startsWith(' ') || line.startsWith('\t')) && currentMapKey != null) {
+        final colonIndex = trimmed.indexOf(':');
+        if (colonIndex != -1) {
+          final subKey = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
+          final subVal = _stripQuotes(trimmed.substring(colonIndex + 1).trim());
+          currentMapEntries[subKey] = subVal;
+          continue;
+        }
+      }
+
+      if (currentMapKey != null) {
+        flushCurrentMap();
       }
 
       // Handle multiline YAML lists (e.g. "  - item")
@@ -127,6 +163,10 @@ abstract final class MarkdownFrontmatterParser {
       currentListKey = null;
 
       if (val.isEmpty || val == '|' || val == '>') {
+        if (_isLocationKey(key)) {
+          currentMapKey = key;
+          continue;
+        }
         currentListKey = key;
         currentMultilineKey = key;
         continue;
@@ -161,6 +201,21 @@ abstract final class MarkdownFrontmatterParser {
           descriptionLines.add(cleanVal);
           currentMultilineKey = key;
         }
+      } else if (_isLocationKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          final parts = cleanVal.split(',');
+          if (parts.length == 2 &&
+              double.tryParse(parts[0].trim()) != null &&
+              double.tryParse(parts[1].trim()) != null) {
+            parsedLocation = JournalLocation(
+              address: '',
+              latitude: double.parse(parts[0].trim()),
+              longitude: double.parse(parts[1].trim()),
+            );
+          } else {
+            parsedLocation = JournalLocation(address: cleanVal, latitude: 0.0, longitude: 0.0);
+          }
+        }
       } else if (_isTagKey(key)) {
         final parsedTags = _parseTagsValue(val);
         tags.addAll(parsedTags);
@@ -190,6 +245,10 @@ abstract final class MarkdownFrontmatterParser {
       }
     }
 
+    if (currentMapKey != null) {
+      flushCurrentMap();
+    }
+
     if (authorList.isNotEmpty && (author == null || author.isEmpty)) {
       author = authorList.join(', ');
     }
@@ -214,12 +273,17 @@ abstract final class MarkdownFrontmatterParser {
       updatedAt: updatedAt,
       description: description,
       tags: tags.toList(),
+      location: parsedLocation,
       isJournal: isJournal && journalDate != null,
       journalDate: (isJournal && journalDate != null) ? journalDate : null,
       body: rawContent, // Preserve full content as-is (do not strip frontmatter)
       contentBody: contentBody,
       hasFrontmatter: true,
     );
+  }
+
+  static bool _isLocationKey(String key) {
+    return key == 'location' || key == 'geo' || key == 'coordinates';
   }
 
   static bool _isTitleKey(String key) {

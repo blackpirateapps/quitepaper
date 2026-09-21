@@ -333,6 +333,48 @@ source: https://untrusted-site.org/very/long/path/with/parameters?token=xyz
       expect(find.textContaining('Alpha line'), findsOneWidget);
       expect(find.textContaining('Gamma line'), findsOneWidget);
     });
+
+    testWidgets('renders frontmatter card with location and Open in Maps in preview for journal entry',
+        (tester) async {
+      const journalMarkdown = '''---
+journal: true
+date: 2026-09-21
+location:
+  address: "1600 Amphitheatre Pkwy, Mountain View, CA"
+  latitude: 37.422
+  longitude: -122.084
+tags: [diary]
+---
+# Today
+Reflecting on the day.
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: journalMarkdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Frontmatter card should be rendered for journal entry with location
+      expect(find.byType(QuietFrontmatterCard), findsOneWidget);
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.text('1600 Amphitheatre Pkwy, Mountain View, CA'), findsOneWidget);
+      expect(find.text('37.422000, -122.084000'), findsOneWidget);
+      expect(find.text('Open in Maps'), findsOneWidget);
+      expect(find.byIcon(Icons.map_outlined), findsOneWidget);
+
+      // Author, Source, Description must NOT be visible for diary entry without them
+      expect(find.text('Author'), findsNothing);
+      expect(find.text('Source'), findsNothing);
+      expect(find.text('Description'), findsNothing);
+
+      // Body is rendered
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Reflecting on the day.'), findsOneWidget);
+    });
   });
 }
 

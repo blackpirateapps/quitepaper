@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1823,33 +1824,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   ),
                                   const SizedBox(height: 20.0),
 
-                                  // Tags bar (displayed seamlessly if tags exist)
-                                  if (note.tags.isNotEmpty) ...[
-                                    TagEditorBar(
-                                      tags: note.tags,
-                                      onAddTag: editorNotifier.addTag,
-                                      onRemoveTag: _onRemoveTag,
-                                    ),
-                                    const SizedBox(height: 12.0),
-                                  ],
+                                   // Tags bar (displayed seamlessly if tags exist on notes without properties card)
+                                   if (note.tags.isNotEmpty && (!isWysiwyg || !frontmatterDoc.hasMatchingSectionProperties)) ...[
+                                     TagEditorBar(
+                                       tags: note.tags,
+                                       onAddTag: editorNotifier.addTag,
+                                       onRemoveTag: _onRemoveTag,
+                                     ),
+                                     const SizedBox(height: 12.0),
+                                   ],
 
                                    // Frontmatter Properties Section (in WYSIWYG mode when matching frontmatter exists)
                                    if (isWysiwyg && frontmatterDoc.hasMatchingSectionProperties) ...[
                                      FrontmatterPropertiesSection(
-                                      frontmatter: frontmatterDoc,
-                                      rawDocument: contentText,
-                                      readOnly: editorState.isReadOnly,
-                                      onDocumentChanged: (updated) {
-                                        _contentController.text = updated;
-                                        editorNotifier.updateContent(updated);
-                                        final newDoc = FrontmatterEditorHelper.parse(updated);
-                                        if (newDoc.title != null && newDoc.title != _titleController.text) {
-                                          _titleController.text = newDoc.title!;
-                                          editorNotifier.updateTitle(newDoc.title!);
-                                        }
-                                      },
-                                    ),
-                                  ],
+                                       frontmatter: frontmatterDoc,
+                                       rawDocument: contentText,
+                                       readOnly: editorState.isReadOnly,
+                                       isJournal: note.isJournal || frontmatterDoc.isJournal,
+                                       onDocumentChanged: (updated) {
+                                         _contentController.text = updated;
+                                         editorNotifier.updateContent(updated);
+                                         final newDoc = FrontmatterEditorHelper.parse(updated);
+                                         if (newDoc.title != null && newDoc.title != _titleController.text) {
+                                           _titleController.text = newDoc.title!;
+                                           editorNotifier.updateTitle(newDoc.title!);
+                                         }
+                                         if (!listEquals(newDoc.tags, note.tags)) {
+                                           editorNotifier.setTags(newDoc.tags);
+                                         }
+                                       },
+                                     ),
+                                   ],
 
                                   // Attached web snapshots / documents bar
                                   _buildAttachedResourcesBar(context, colors),

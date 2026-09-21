@@ -23,6 +23,7 @@ tags: [case, investigation]
     required ValueChanged<String> onDocumentChanged,
     bool readOnly = false,
     bool initialExpanded = true,
+    bool isJournal = false,
   }) {
     return MaterialApp(
       theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
@@ -34,6 +35,7 @@ tags: [case, investigation]
             onDocumentChanged: onDocumentChanged,
             readOnly: readOnly,
             initialExpanded: initialExpanded,
+            isJournal: isJournal,
           ),
         ),
       ),
@@ -156,6 +158,114 @@ title: Only A Title
 
       expect(find.byType(FrontmatterPropertiesSection), findsOneWidget);
       expect(find.text('PROPERTIES'), findsNothing);
+    });
+
+    testWidgets('journal mode filters out author, source, and description when empty', (tester) async {
+      const journalMarkdown = '''---
+journal: true
+date: 2026-09-21
+tags: [diary]
+---
+# Today
+''';
+      final doc = FrontmatterEditorHelper.parse(journalMarkdown);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalMarkdown,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+
+      expect(find.text('PROPERTIES'), findsOneWidget);
+      expect(find.text('Created'), findsOneWidget);
+      expect(find.text('2026-09-21'), findsOneWidget);
+      // Author, Source, Description should NOT be visible
+      expect(find.text('Author'), findsNothing);
+      expect(find.text('Source'), findsNothing);
+      expect(find.text('Description'), findsNothing);
+      // Location and Tags should be visible
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.text('Fetch Location'), findsOneWidget);
+      expect(find.text('Tags'), findsOneWidget);
+      expect(find.text('#diary'), findsOneWidget);
+      expect(find.text('Tag'), findsOneWidget); // + Tag button
+    });
+
+    testWidgets('journal mode shows author if explicitly provided', (tester) async {
+      const journalWithAuthor = '''---
+journal: true
+date: 2026-09-21
+author: Alice Walker
+tags: [diary]
+---
+# Today
+''';
+      final doc = FrontmatterEditorHelper.parse(journalWithAuthor);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalWithAuthor,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+
+      expect(find.text('Author'), findsOneWidget);
+      expect(find.text('Alice Walker'), findsOneWidget);
+      // Source and Description remain hidden
+      expect(find.text('Source'), findsNothing);
+      expect(find.text('Description'), findsNothing);
+    });
+
+    testWidgets('journal mode displays address and coordinates when location is present', (tester) async {
+      const journalWithLoc = '''---
+journal: true
+date: 2026-09-21
+location:
+  address: "1600 Amphitheatre Pkwy, Mountain View, CA"
+  latitude: 37.422
+  longitude: -122.084
+tags: [diary]
+---
+# Today
+''';
+      final doc = FrontmatterEditorHelper.parse(journalWithLoc);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalWithLoc,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+
+      expect(find.text('1600 Amphitheatre Pkwy, Mountain View, CA'), findsOneWidget);
+      expect(find.text('37.422000, -122.084000'), findsOneWidget);
+      expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    });
+
+    testWidgets('non-journal note displays empty Author, Source, Description fields', (tester) async {
+      const noteMarkdown = '''---
+title: Standard Note
+created: 2026-09-21
+tags: [work]
+---
+# Work Notes
+''';
+      final doc = FrontmatterEditorHelper.parse(noteMarkdown);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: noteMarkdown,
+        onDocumentChanged: (_) {},
+        isJournal: false,
+      ));
+
+      expect(find.text('Author'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+      expect(find.text('Description'), findsOneWidget);
+      // Location is not shown for non-journal notes without location
+      expect(find.text('Location'), findsNothing);
     });
   });
 }

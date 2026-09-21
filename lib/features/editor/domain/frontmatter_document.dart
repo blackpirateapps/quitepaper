@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/location/location_models.dart';
 
 /// Represents a single key-value property inside a YAML frontmatter block.
 @immutable
@@ -67,6 +68,9 @@ class FrontmatterDocument {
     this.source,
     this.description,
     this.tags = const [],
+    this.location,
+    this.isJournal = false,
+    this.journalDate,
     this.unknownProperties = const {},
     this.isMalformed = false,
     this.errorMessage,
@@ -103,6 +107,15 @@ class FrontmatterDocument {
   /// Recognized Tags list.
   final List<String> tags;
 
+  /// Recognized Location property value (address and coordinates).
+  final JournalLocation? location;
+
+  /// Whether this note has journal frontmatter (`journal: true`).
+  final bool isJournal;
+
+  /// Journal date string (YYYY-MM-DD) if this is a journal note.
+  final String? journalDate;
+
   /// Map of unrecognized or custom frontmatter properties preserved verbatim.
   final Map<String, String> unknownProperties;
 
@@ -124,19 +137,29 @@ class FrontmatterDocument {
         (created != null && created!.trim().isNotEmpty) ||
         (source != null && source!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty) ||
+        (location != null && location!.isNotEmpty) ||
         tags.isNotEmpty;
   }
 
   /// Returns true if there are matching frontmatter properties to display in the dedicated Properties card
-  /// (Author, Created, Source, Description, Tags, or malformed YAML notice).
+  /// (Author, Created, Source, Description, Location, Tags, or malformed YAML notice).
   /// Note: Title is displayed and edited directly in the main note's title field.
   bool get hasMatchingSectionProperties {
     if (!hasFrontmatter) return false;
     if (isMalformed) return true; // Show error notice
+    if (isJournal) {
+      return (created != null && created!.trim().isNotEmpty) ||
+          (location != null && location!.isNotEmpty) ||
+          tags.isNotEmpty ||
+          (author != null && author!.trim().isNotEmpty) ||
+          (source != null && source!.trim().isNotEmpty) ||
+          (description != null && description!.trim().isNotEmpty);
+    }
     return (author != null && author!.trim().isNotEmpty) ||
         (created != null && created!.trim().isNotEmpty) ||
         (source != null && source!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty) ||
+        (location != null && location!.isNotEmpty) ||
         tags.isNotEmpty;
   }
 

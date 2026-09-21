@@ -158,6 +158,33 @@ Only this body should be rendered.
       expect(parsed.hasDisplayableMetadata, isFalse);
       expect(parsed.contentBody.trim(), equals('# Clean Body\nOnly this body should be rendered.'));
     });
+
+    test('extracts journal metadata and nested location map', () {
+      const content = '''---
+journal: true
+date: 2026-09-21
+location:
+  address: "1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA"
+  latitude: 37.422000
+  longitude: -122.084100
+tags: [diary]
+---
+# Today
+Reflections for today.
+''';
+
+      final parsed = MarkdownFrontmatterParser.parse(content);
+
+      expect(parsed.isJournal, isTrue);
+      expect(parsed.createdRaw, equals('2026-09-21'));
+      expect(parsed.location, isNotNull);
+      expect(parsed.location!.address, equals('1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA'));
+      expect(parsed.location!.latitude, equals(37.422));
+      expect(parsed.location!.longitude, equals(-122.0841));
+      expect(parsed.tags, equals(['diary']));
+      expect(parsed.hasDisplayableMetadata, isTrue);
+      expect(parsed.contentBody.trim(), equals('# Today\nReflections for today.'));
+    });
   });
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/location/location_models.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../domain/frontmatter_document.dart';
 
@@ -34,6 +35,9 @@ abstract final class FrontmatterEditorHelper {
     String? parsedSource;
     String? parsedDescription;
     final parsedTags = <String>{};
+    JournalLocation? parsedLocation;
+    bool isJournal = false;
+    String? journalDate;
 
     // Calculate line offsets within the frontmatter block
     final openDelimiterEnd = content.indexOf('\n') + 1;
@@ -42,6 +46,37 @@ abstract final class FrontmatterEditorHelper {
 
     String? currentListKey;
     final currentListItems = <String>[];
+    String? currentMapKey;
+    final currentMapEntries = <String, String>{};
+    int? currentMapStartOffset;
+    int? currentMapEndOffset;
+
+    void flushCurrentMap() {
+      if (currentMapKey == null) return;
+      if (_isLocationKey(currentMapKey!)) {
+        final addr = currentMapEntries['address'] ?? currentMapEntries['name'] ?? '';
+        final lat = double.tryParse(currentMapEntries['latitude'] ?? currentMapEntries['lat'] ?? '') ?? 0.0;
+        final lng = double.tryParse(currentMapEntries['longitude'] ?? currentMapEntries['lng'] ?? currentMapEntries['lon'] ?? '') ?? 0.0;
+        parsedLocation = JournalLocation(address: addr, latitude: lat, longitude: lng);
+
+        final pStart = currentMapStartOffset ?? 0;
+        final pEnd = currentMapEndOffset ?? pStart;
+        properties.add(FrontmatterProperty(
+          key: 'location',
+          rawValue: 'location',
+          displayValue: parsedLocation!.displayString,
+          keyRange: TextRange(start: pStart, end: pStart + 8),
+          valueRange: TextRange(start: pStart + 9, end: pEnd),
+          lineRange: TextRange(start: pStart, end: pEnd),
+          isKnown: true,
+          isEditable: true,
+        ));
+      }
+      currentMapKey = null;
+      currentMapEntries.clear();
+      currentMapStartOffset = null;
+      currentMapEndOffset = null;
+    }
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
@@ -54,6 +89,23 @@ abstract final class FrontmatterEditorHelper {
       // Comment or empty line -> preserve as-is
       if (trimmed.isEmpty || trimmed.startsWith('#')) {
         continue;
+      }
+
+      // Indented line under a parent map key (e.g. "  address: Mountain View")
+      if ((line.startsWith(' ') || line.startsWith('\t')) && currentMapKey != null) {
+        final colonIndex = trimmed.indexOf(':');
+        if (colonIndex != -1) {
+          final subKey = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
+          final subVal = _stripQuotes(trimmed.substring(colonIndex + 1).trim());
+          currentMapEntries[subKey] = subVal;
+          currentMapEndOffset = lineEnd;
+          continue;
+        }
+      }
+
+      // Flush any pending map key if line is not indented
+      if (currentMapKey != null) {
+        flushCurrentMap();
       }
 
       // Multiline YAML list item (e.g. "  - item")
@@ -98,6 +150,12 @@ abstract final class FrontmatterEditorHelper {
       currentListItems.clear();
 
       if (rawVal.isEmpty || rawVal == '|' || rawVal == '>') {
+        if (_isLocationKey(key)) {
+          currentMapKey = key;
+          currentMapStartOffset = lineStart;
+          currentMapEndOffset = lineEnd;
+          continue;
+        }
         currentListKey = key;
         continue;
       }
@@ -118,6 +176,11 @@ abstract final class FrontmatterEditorHelper {
 
       if (_isTitleKey(key)) {
         if (cleanVal.isNotEmpty) parsedTitle = cleanVal;
+      } else if (key == 'journal') {
+        final lower = cleanVal.toLowerCase();
+        if (lower == 'true' || lower == 'yes' || lower == '1') {
+          isJournal = true;
+        }
       } else if (_isAuthorKey(key)) {
         if (cleanVal.isNotEmpty) {
           if (cleanVal.startsWith('[') && cleanVal.endsWith(']')) {
@@ -128,11 +191,29 @@ abstract final class FrontmatterEditorHelper {
           }
         }
       } else if (_isCreatedDateKey(key)) {
-        if (cleanVal.isNotEmpty) parsedCreated = cleanVal;
+        if (cleanVal.isNotEmpty) {
+          parsedCreated = cleanVal;
+          journalDate = cleanVal;
+        }
       } else if (_isSourceKey(key)) {
         if (cleanVal.isNotEmpty) parsedSource = cleanVal;
       } else if (_isDescriptionKey(key)) {
         if (cleanVal.isNotEmpty) parsedDescription = cleanVal;
+      } else if (_isLocationKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          final parts = cleanVal.split(',');
+          if (parts.length == 2 &&
+              double.tryParse(parts[0].trim()) != null &&
+              double.tryParse(parts[1].trim()) != null) {
+            parsedLocation = JournalLocation(
+              address: '',
+              latitude: double.parse(parts[0].trim()),
+              longitude: double.parse(parts[1].trim()),
+            );
+          } else {
+            parsedLocation = JournalLocation(address: cleanVal, latitude: 0.0, longitude: 0.0);
+          }
+        }
       } else if (_isTagKey(key)) {
         final tagsList = _parseListValue(rawVal);
         for (final t in tagsList) {
@@ -146,6 +227,10 @@ abstract final class FrontmatterEditorHelper {
       }
     }
 
+    if (currentMapKey != null) {
+      flushCurrentMap();
+    }
+
     return FrontmatterDocument(
       hasFrontmatter: true,
       rawFrontmatter: fullMatchText,
@@ -157,6 +242,9 @@ abstract final class FrontmatterEditorHelper {
       source: parsedSource,
       description: parsedDescription,
       tags: parsedTags.toList(),
+      location: parsedLocation,
+      isJournal: isJournal,
+      journalDate: journalDate,
       unknownProperties: unknownProperties,
       bodyStartOffset: bodyStartOffset,
     );
@@ -272,6 +360,107 @@ abstract final class FrontmatterEditorHelper {
     }
   }
 
+  /// Updates or inserts the nested YAML `location:` property inside frontmatter.
+  static String updateLocation({
+    required String documentText,
+    required JournalLocation location,
+  }) {
+    final formatted = [
+      'location:',
+      '  address: "${_escapeYamlString(location.address)}"',
+      '  latitude: ${location.latitude}',
+      '  longitude: ${location.longitude}',
+    ].join('\n');
+
+    final doc = parse(documentText);
+    if (!doc.hasFrontmatter) {
+      return '---\n$formatted\n---\n\n$documentText';
+    }
+
+    final match = _frontmatterRegex.firstMatch(documentText)!;
+    final blockText = match.group(1) ?? '';
+    final openDelimiterEnd = documentText.indexOf('\n') + 1;
+
+    final lines = blockText.split(RegExp(r'\r?\n'));
+    int? locLineStart;
+    int? locLineEnd;
+    var currentOffset = openDelimiterEnd;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineStart = currentOffset;
+      final lineEnd = lineStart + line.length;
+      currentOffset = lineEnd + 1;
+
+      final trimmed = line.trim();
+      if (locLineStart == null) {
+        if (trimmed.startsWith('location:') || trimmed == 'location') {
+          locLineStart = lineStart;
+          locLineEnd = lineEnd;
+        }
+      } else {
+        if (line.startsWith(' ') || line.startsWith('\t')) {
+          locLineEnd = lineEnd;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (locLineStart != null && locLineEnd != null) {
+      return documentText.replaceRange(locLineStart, locLineEnd, formatted);
+    }
+
+    final closingIndex = documentText.lastIndexOf('---', match.end - 1);
+    final insertOffset = closingIndex > 0 ? closingIndex : match.end;
+    return documentText.replaceRange(insertOffset, insertOffset, '$formatted\n');
+  }
+
+  /// Removes the `location:` property block from frontmatter.
+  static String removeLocation({
+    required String documentText,
+  }) {
+    final doc = parse(documentText);
+    if (!doc.hasFrontmatter) return documentText;
+
+    final match = _frontmatterRegex.firstMatch(documentText)!;
+    final blockText = match.group(1) ?? '';
+    final openDelimiterEnd = documentText.indexOf('\n') + 1;
+
+    final lines = blockText.split(RegExp(r'\r?\n'));
+    int? locLineStart;
+    int? locLineEnd;
+    var currentOffset = openDelimiterEnd;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineStart = currentOffset;
+      final lineEnd = lineStart + line.length;
+      final nextOffset = lineEnd + 1 <= documentText.length ? lineEnd + 1 : lineEnd;
+
+      final trimmed = line.trim();
+      if (locLineStart == null) {
+        if (trimmed.startsWith('location:') || trimmed == 'location') {
+          locLineStart = lineStart;
+          locLineEnd = nextOffset;
+        }
+      } else {
+        if (line.startsWith(' ') || line.startsWith('\t')) {
+          locLineEnd = nextOffset;
+        } else {
+          break;
+        }
+      }
+      currentOffset = nextOffset;
+    }
+
+    if (locLineStart != null && locLineEnd != null) {
+      return documentText.replaceRange(locLineStart, locLineEnd, '');
+    }
+
+    return documentText;
+  }
+
   /// Extracts the main Markdown body content by stripping the YAML frontmatter block.
   static String extractBody(String fullDocument) {
     if (fullDocument.isEmpty) return '';
@@ -298,7 +487,8 @@ abstract final class FrontmatterEditorHelper {
         _isCreatedDateKey(key) ||
         _isSourceKey(key) ||
         _isDescriptionKey(key) ||
-        _isTagKey(key);
+        _isTagKey(key) ||
+        _isLocationKey(key);
   }
 
   static bool _isTitleKey(String key) => key == 'title';
@@ -326,6 +516,13 @@ abstract final class FrontmatterEditorHelper {
 
   static bool _isTagKey(String key) =>
       key == 'tags' || key == 'tag' || key == 'categories' || key == 'category' || key == 'keywords';
+
+  static bool _isLocationKey(String key) =>
+      key == 'location' || key == 'geo' || key == 'coordinates';
+
+  static String _escapeYamlString(String s) {
+    return s.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  }
 
   static String _stripQuotes(String s) {
     var str = s.trim();

@@ -14,12 +14,14 @@ class TagEditorBar extends StatelessWidget {
     required this.onAddTag,
     required this.onRemoveTag,
     this.showAddButton = false,
+    this.padding,
   });
 
   final List<String> tags;
   final ValueChanged<String> onAddTag;
   final ValueChanged<String> onRemoveTag;
   final bool showAddButton;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +32,7 @@ class TagEditorBar extends StatelessWidget {
     final colors = context.appColors;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: padding ?? const EdgeInsets.only(bottom: AppSpacing.md),
       child: Wrap(
         spacing: 8.0,
         runSpacing: 6.0,

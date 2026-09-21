@@ -3,13 +3,15 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/location/location_models.dart';
+import '../../../../core/location/location_service.dart';
 import '../../../../core/utils/link_launcher_helper.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../domain/frontmatter_document.dart';
 import 'tag_editor_bar.dart';
 
 /// An understated, calm editorial Properties section rendered above the body in WYSIWYG mode.
-/// Exposes recognized YAML frontmatter metadata (Author, Created, Source, Description, Tags)
+/// Exposes recognized YAML frontmatter metadata (Author, Created, Source, Description, Location, Tags)
 /// as editable properties with direct synchronization back to canonical Markdown source.
 class FrontmatterPropertiesSection extends StatefulWidget {
   const FrontmatterPropertiesSection({
@@ -18,6 +20,7 @@ class FrontmatterPropertiesSection extends StatefulWidget {
     required this.rawDocument,
     required this.onDocumentChanged,
     required this.readOnly,
+    this.isJournal = false,
     this.initialExpanded = true,
   });
 
@@ -25,6 +28,7 @@ class FrontmatterPropertiesSection extends StatefulWidget {
   final String rawDocument;
   final ValueChanged<String> onDocumentChanged;
   final bool readOnly;
+  final bool isJournal;
   final bool initialExpanded;
 
   @override
@@ -33,6 +37,7 @@ class FrontmatterPropertiesSection extends StatefulWidget {
 
 class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSection> {
   late bool _isExpanded;
+  bool _isFetchingLocation = false;
 
   late final TextEditingController _authorController;
   late final TextEditingController _createdController;
@@ -112,6 +117,43 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
+  Future<void> _fetchLocation() async {
+    if (widget.readOnly || _isFetchingLocation) return;
+    setState(() => _isFetchingLocation = true);
+    try {
+      final locationService = LocationService();
+      final loc = await locationService.fetchCurrentLocation();
+      if (!mounted) return;
+      final updated = FrontmatterEditorHelper.updateLocation(
+        documentText: widget.rawDocument,
+        location: loc,
+      );
+      widget.onDocumentChanged(updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not fetch location: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingLocation = false);
+      }
+    }
+  }
+
+  void _removeLocation() {
+    if (widget.readOnly) return;
+    final updated = FrontmatterEditorHelper.removeLocation(
+      documentText: widget.rawDocument,
+    );
+    widget.onDocumentChanged(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -149,6 +191,20 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     if (!hasAnyDisplayable) {
       return const SizedBox.shrink();
     }
+
+    final isDiary = widget.isJournal || doc.isJournal;
+    final showAuthor = !isDiary
+        ? (doc.author != null || !widget.readOnly)
+        : (doc.author != null && doc.author!.trim().isNotEmpty);
+    final showSource = !isDiary
+        ? (doc.source != null || !widget.readOnly)
+        : (doc.source != null && doc.source!.trim().isNotEmpty);
+    final showDescription = !isDiary
+        ? (doc.description != null || !widget.readOnly)
+        : (doc.description != null && doc.description!.trim().isNotEmpty);
+    final showLocation = isDiary
+        ? (!widget.readOnly || doc.location != null)
+        : (doc.location != null);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -220,7 +276,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
               child: Column(
                 children: [
                   // Author property
-                  if (doc.author != null || !widget.readOnly)
+                  if (showAuthor)
                     _PropertyRow(
                       icon: Icons.person_outline_rounded,
                       label: 'Author',
@@ -249,8 +305,16 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                       ),
                     ),
 
+                  // Location property
+                  if (showLocation)
+                    _PropertyRow(
+                      icon: Icons.place_outlined,
+                      label: 'Location',
+                      child: _buildLocationField(colors, doc.location),
+                    ),
+
                   // Source property
-                  if (doc.source != null || !widget.readOnly)
+                  if (showSource)
                     _PropertyRow(
                       icon: Icons.link_rounded,
                       label: 'Source',
@@ -288,7 +352,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                     ),
 
                   // Description property
-                  if (doc.description != null || !widget.readOnly)
+                  if (showDescription)
                     _PropertyRow(
                       icon: Icons.notes_rounded,
                       label: 'Description',
@@ -312,6 +376,8 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                         padding: const EdgeInsets.symmetric(vertical: 4.0),
                         child: TagEditorBar(
                           tags: doc.tags,
+                          showAddButton: !widget.readOnly,
+                          padding: EdgeInsets.zero,
                           onAddTag: _onAddTag,
                           onRemoveTag: _onRemoveTag,
                         ),
@@ -326,10 +392,140 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     );
   }
 
+  Widget _buildLocationField(AppColors colors, JournalLocation? location) {
+    if (_isFetchingLocation) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Fetching current location...',
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (location != null && location.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    location.displayString,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (location.address.isNotEmpty && location.coordinatesString.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1.0),
+                      child: Text(
+                        location.coordinatesString,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.open_in_new_rounded, size: 14),
+              color: colors.accent,
+              tooltip: 'Open in Maps',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              onPressed: () {
+                LocationService().openInMaps(
+                  location.latitude,
+                  location.longitude,
+                  address: location.address,
+                );
+              },
+            ),
+            if (!widget.readOnly) ...[
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 14),
+                color: colors.textSecondary,
+                tooltip: 'Re-fetch location',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                onPressed: _fetchLocation,
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 14),
+                color: colors.textTertiary,
+                tooltip: 'Remove location',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                onPressed: _removeLocation,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (!widget.readOnly) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            onTap: _fetchLocation,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.my_location_rounded, size: 13, color: colors.accent),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Fetch Location',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   String _buildSummaryLabel(FrontmatterDocument doc) {
     final parts = <String>[];
     if (doc.author != null && doc.author!.isNotEmpty) parts.add(doc.author!);
     if (doc.created != null && doc.created!.isNotEmpty) parts.add(doc.created!);
+    if (doc.location != null && doc.location!.isNotEmpty) parts.add(doc.location!.displayString);
     if (doc.tags.isNotEmpty) parts.add('${doc.tags.length} tags');
     return parts.join(' · ');
   }

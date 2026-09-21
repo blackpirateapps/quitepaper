@@ -7264,3 +7264,74 @@ The previous formatting toolbar was a long, unorganized horizontal strip of 14+ 
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Automated tests: `flutter test` (**all tests passing, 0 failures**).
 
+---
+
+## 42. Journal Frontmatter Filtering, Location Geocoding & Preview Map Actions
+
+### 1. Overview & Motivation
+When creating or opening daily journal entries via the "Today" button in the Journal section, notes automatically include YAML frontmatter. However, previously:
+- The visual frontmatter editor card displayed empty irrelevant metadata fields (`author`, `source`, `description`), which cluttered personal diary entries.
+- Tags in the frontmatter properties section were read-only with no inline ability to add or remove tags.
+- Location metadata was not supported; users had no way to capture or view geographical coordinates and human-readable addresses where entries were penned.
+- In markdown preview mode, frontmatter cards were completely suppressed for journal entries, preventing users from seeing dates, location, or tags, with no mechanism to open locations in external map applications.
+
+### 2. Architectural & UX Enhancements
+
+#### Diary Property Filtering (`FrontmatterPropertiesSection`)
+- **Filtered Diary Mode**: When editing a journal entry (`isJournal: true` via note domain or frontmatter flag `journal: true`), `Author`, `Source`, and `Description` properties are hidden from the visual properties card unless they have non-empty explicit values in frontmatter.
+- **Preserved Non-Diary Notes**: Regular non-journal notes continue to display standard editable text fields for `Author`, `Source`, and `Description`.
+
+#### Editable Frontmatter Tags
+- **Interactive Tag Management**: `FrontmatterPropertiesSection` now enables interactive tag addition and deletion using `TagEditorBar(showAddButton: !widget.readOnly, onAddTag: ..., onRemoveTag: ...)`.
+- Even if a note has no tags, the `+ Tag` button is displayed in visual edit mode so users can seamlessly assign tags directly within the frontmatter properties card.
+- Synchronized tag edits automatically update both the YAML frontmatter block in markdown and the note entity's tag collection.
+
+#### Location Frontmatter & Geocoding (`JournalLocation` & `LocationService`)
+- **Nested YAML Format**: Locations are canonically serialized to nested YAML frontmatter:
+  ```yaml
+  location:
+    address: "1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA"
+    latitude: 37.422000
+    longitude: -122.084100
+  ```
+- **Location Model & Service**:
+  - `JournalLocation`: Implements parsing, canonical formatting, display string formatting, coordinates formatting (`lat, lng`), and copy methods.
+  - `LocationService`: Handles location permission requests via `geolocator: ^14.0.2`, acquires high-accuracy GPS coordinates, performs reverse geocoding via `geocoding: ^5.0.0` with OpenStreetMap Nominatim fallback (for Linux desktop and platforms without native geocoders), and launches `geo:` URI / Google Maps web fallback via `url_launcher`.
+- **Visual Mode Location Controls**:
+  - Displays a dedicated "Fetch Location" button with location pin icon when location is empty.
+  - Displays an inline spinner while acquiring GPS and reverse geocoding.
+  - Once captured, displays the human-readable address, formatted 6-decimal coordinates, a re-fetch refresh button, and a remove button.
+- **Permissions Configured**:
+  - Android: `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in `AndroidManifest.xml`.
+  - iOS: `NSLocationWhenInUseUsageDescription` in `Info.plist`.
+
+#### Markdown Preview Frontmatter & External Map Launcher (`QuietFrontmatterCard`)
+- **Frontmatter Rendered in Preview**: Journal entries now render `QuietFrontmatterCard` in markdown preview mode, displaying `Created` date, `Tags`, and `Location`.
+- **Open in Maps Action**: In preview mode, the "Fetch Location" button is replaced by an "Open in Maps" action with a map icon (`Icons.map_outlined`), which launches the coordinates and address in the system's preferred map application or web browser.
+
+### 3. File Inventory
+- **New Core Files**:
+  - `lib/core/location/location_models.dart`: Domain model `JournalLocation` with address, latitude, longitude, and formatters.
+  - `lib/core/location/location_service.dart`: Geolocator wrapper, reverse geocoding with OSM Nominatim fallback, and map URL launcher.
+- **Updated Files**:
+  - `pubspec.yaml`: Added dependencies `geolocator: ^14.0.2` and `geocoding: ^5.0.0`.
+  - `android/app/src/main/AndroidManifest.xml`: Added location permissions.
+  - `ios/Runner/Info.plist`: Added location usage description.
+  - `lib/features/editor/domain/frontmatter_document.dart`: Added `location`, `isJournal`, and `journalDate` properties.
+  - `lib/features/editor/application/frontmatter_editor_helper.dart`: Added nested `location:` map parsing, single-line location fallback, `updateLocation()`, and `removeLocation()`.
+  - `lib/features/import/application/markdown_frontmatter_parser.dart`: Updated `ParsedMarkdown` to parse `location` and display frontmatter card for journal notes.
+  - `lib/features/editor/presentation/widgets/tag_editor_bar.dart`: Added padding configuration and enabled `+ Tag` button rendering when `tags` list is empty.
+  - `lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`: Added `isJournal` parameter, filtered irrelevant properties for diary entries, added Location row with fetch/refresh/remove actions, and enabled interactive tag editing.
+  - `lib/core/markdown/markdown_preview.dart`: Added location row with "Open in Maps" action to `QuietFrontmatterCard` and respected diary filtering.
+  - `lib/features/editor/presentation/editor_screen.dart`: Connected `isJournal` and tag change synchronization to frontmatter properties section.
+- **New & Updated Tests**:
+  - `test/editor/frontmatter_editor_helper_test.dart`: Added unit tests for nested location map parsing, journal frontmatter detection, `updateLocation`, and `removeLocation`.
+  - `test/editor/frontmatter_properties_section_test.dart`: Added widget tests for diary property filtering, explicit author display in diary mode, location coordinates rendering, non-diary note field preservation, and tag editing.
+  - `test/import/markdown_frontmatter_parser_test.dart`: Added unit tests for journal metadata and nested location map extraction.
+  - `test/markdown/markdown_preview_test.dart`: Added widget tests for journal frontmatter card rendering with location and "Open in Maps" action in preview mode.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test` (**all 1501 tests passed, 0 failures**).
+
+

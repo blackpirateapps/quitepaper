@@ -12,6 +12,7 @@ import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
+import '../location/location_service.dart';
 import '../attachments/presentation/quiet_asset_image_view.dart';
 import '../attachments/presentation/viewer_image_item.dart';
 import '../documents/document_models.dart';
@@ -883,7 +884,104 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 2. Source
+    // 2. Created date
+    if (metadata.createdAt != null ||
+        (metadata.createdRaw != null && metadata.createdRaw!.trim().isNotEmpty)) {
+      String displayDate;
+      if (metadata.createdAt != null) {
+        displayDate = DateFormat('MMM d, yyyy').format(metadata.createdAt!);
+      } else {
+        displayDate = metadata.createdRaw!.trim();
+      }
+
+      rows.add(
+        _PropertyRow(
+          icon: Icons.calendar_today_outlined,
+          label: 'Created',
+          child: Text(
+            displayDate,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. Location with Open in Maps
+    if (metadata.location != null && metadata.location!.isNotEmpty) {
+      rows.add(
+        _PropertyRow(
+          icon: Icons.place_outlined,
+          label: 'Location',
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      metadata.location!.displayString,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (metadata.location!.address.isNotEmpty &&
+                        metadata.location!.coordinatesString.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1.0),
+                        child: Text(
+                          metadata.location!.coordinatesString,
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              InkWell(
+                borderRadius: AppRadii.borderSm,
+                onTap: () {
+                  LocationService().openInMaps(
+                    metadata.location!.latitude,
+                    metadata.location!.longitude,
+                    address: metadata.location!.address,
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 13.0,
+                        color: colors.accent,
+                      ),
+                      const SizedBox(width: 4.0),
+                      Text(
+                        'Open in Maps',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 4. Source
     if (metadata.source != null && metadata.source!.trim().isNotEmpty) {
       final source = metadata.source!.trim();
       final isUrl = source.startsWith('http://') ||
@@ -939,31 +1037,7 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 3. Created date
-    if (metadata.createdAt != null ||
-        (metadata.createdRaw != null && metadata.createdRaw!.trim().isNotEmpty)) {
-      String displayDate;
-      if (metadata.createdAt != null) {
-        displayDate = DateFormat('MMM d, yyyy').format(metadata.createdAt!);
-      } else {
-        displayDate = metadata.createdRaw!.trim();
-      }
-
-      rows.add(
-        _PropertyRow(
-          icon: Icons.calendar_today_outlined,
-          label: 'Created',
-          child: Text(
-            displayDate,
-            style: AppTypography.bodySmall.copyWith(
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-      );
-    }
-
-    // 4. Description
+    // 5. Description
     if (metadata.description != null && metadata.description!.trim().isNotEmpty) {
       rows.add(
         _PropertyRow(
