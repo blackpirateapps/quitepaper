@@ -11,9 +11,18 @@ import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
 import '../../application/semantic_editor_controller.dart';
+import 'formatting_hub_sheet.dart';
 import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
 
+/// Bear Notes-inspired formatting toolbar for Quiet Paper.
+///
+/// Features:
+/// - Segmented pill groups for History, Format Hub, Heading, Inline Styles, Lists, Inserts, and Dictation.
+/// - Prominent `Aa` button opening the comprehensive [FormattingHubSheet].
+/// - Dynamic heading badge indicating current heading level (H, H1..H6).
+/// - Consolidated Insert `+` dropdown menu on desktop and bottom sheet on mobile.
+/// - Adaptive layout for mobile, tablet, and desktop environments.
 class FormattingToolbar extends StatefulWidget {
   const FormattingToolbar({
     super.key,
@@ -81,6 +90,7 @@ class FormattingToolbar extends StatefulWidget {
 class _FormattingToolbarState extends State<FormattingToolbar> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _headingButtonKey = GlobalKey();
+  final GlobalKey _insertButtonKey = GlobalKey();
 
   @override
   void dispose() {
@@ -139,7 +149,6 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     final effectiveValue = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(effectiveValue);
     if (currentLang != null) {
-      // Cursor is already inside a code block: prompt for language change
       final selected = await LanguageSelectorSheet.show(
         context,
         currentLanguageId: currentLang,
@@ -161,33 +170,23 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     }
   }
 
-  Future<void> _handleCodeBlockLongPress(BuildContext context) async {
-    final effectiveValue = widget.controller.value;
-    final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(effectiveValue);
-    final selected = await LanguageSelectorSheet.show(
-      context,
-      currentLanguageId: currentLang,
-      title: currentLang != null ? 'Change Code Language' : 'Insert Code Block with Language',
-    );
-    if (selected != null) {
-      if (currentLang != null) {
-        final updated = MarkdownHelper.changeCodeBlockLanguage(
-          value: widget.controller.value,
-          newLanguage: selected.id,
-        );
-        widget.controller.value = updated;
-        widget.onApplyAtomicEdit?.call(updated);
+  int _getActiveHeadingLevel() {
+    if (widget.semanticController != null) {
+      return widget.semanticController!.activeHeadingLevel ?? 0;
+    }
+    return MarkdownHelper.getHeadingLevelAt(widget.controller.value) ?? 0;
+  }
+
+  void _setHeadingLevel(int level) {
+    if (widget.semanticController != null) {
+      if (level == 0) {
+        widget.semanticController!.convertHeadingToParagraph();
       } else {
-        final updated = MarkdownHelper.insertCodeBlock(
-          widget.controller.value,
-          language: selected.id,
-        );
-        widget.controller.value = updated;
-        widget.onApplyAtomicEdit?.call(updated);
+        widget.semanticController!.setHeadingLevel(level);
       }
-      if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
-        widget.focusNode!.requestFocus();
-      }
+      widget.focusNode?.requestFocus();
+    } else {
+      _applyHelperFormat((val) => MarkdownHelper.setHeadingLevelAt(value: val, level: level));
     }
   }
 
@@ -206,12 +205,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       isTop ? offset.dy + size.height + 4 : offset.dy,
     );
 
-    int currentLevel = 0;
-    if (widget.semanticController != null) {
-      currentLevel = widget.semanticController!.activeHeadingLevel ?? 0;
-    } else {
-      currentLevel = MarkdownHelper.getHeadingLevelAt(widget.controller.value) ?? 0;
-    }
+    final currentLevel = _getActiveHeadingLevel();
 
     final selected = await showMenu<int>(
       context: context,
@@ -236,16 +230,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     );
 
     if (selected != null) {
-      if (widget.semanticController != null) {
-        if (selected == 0) {
-          widget.semanticController!.convertHeadingToParagraph();
-        } else {
-          widget.semanticController!.setHeadingLevel(selected);
-        }
-        widget.focusNode?.requestFocus();
-      } else {
-        _applyHelperFormat((val) => MarkdownHelper.setHeadingLevelAt(value: val, level: selected));
-      }
+      _setHeadingLevel(selected);
     }
   }
 
@@ -333,6 +318,448 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _applyHelperFormat(MarkdownHelper.cycleHeading);
       },
     );
+  }
+
+  void _openFormatHub(BuildContext context) {
+    FormattingHubSheet.show(
+      context,
+      isBold: _isBoldActive(),
+      isItalic: _isItalicActive(),
+      isStrikethrough: _isStrikethroughActive(),
+      isCode: _isInlineCodeActive(),
+      headingLevel: _getActiveHeadingLevel(),
+      isChecklist: _isChecklistActive(),
+      isBullet: _isBulletListActive(),
+      isOrdered: _isOrderedListActive(),
+      isQuote: _isQuoteActive(),
+      hasTable: widget.onTablePressed != null,
+      hasNoteLink: widget.onNoteLinkPressed != null,
+      hasImage: widget.onImagePressed != null,
+      hasScan: widget.onScanPressed != null,
+      hasPdf: widget.onPdfPressed != null,
+      hasFile: widget.onFilePressed != null,
+      onSelectFormat: (option) => _handleFormatOption(context, option),
+    );
+  }
+
+  void _handleFormatOption(BuildContext context, FormattingOption option) {
+    switch (option) {
+      case FormattingOption.bold:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleBold();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleBold);
+        }
+        break;
+      case FormattingOption.italic:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleItalic();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleItalic);
+        }
+        break;
+      case FormattingOption.strikethrough:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleStrike();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleStrikethrough);
+        }
+        break;
+      case FormattingOption.inlineCode:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleInlineCode();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleInlineCode);
+        }
+        break;
+      case FormattingOption.paragraph:
+        _setHeadingLevel(0);
+        break;
+      case FormattingOption.heading1:
+        _setHeadingLevel(1);
+        break;
+      case FormattingOption.heading2:
+        _setHeadingLevel(2);
+        break;
+      case FormattingOption.heading3:
+        _setHeadingLevel(3);
+        break;
+      case FormattingOption.quote:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleQuote();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyHelperFormat((val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> '));
+        }
+        break;
+      case FormattingOption.codeBlock:
+        _handleCodeBlock(context);
+        break;
+      case FormattingOption.checklist:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleChecklist();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleChecklist);
+        }
+        break;
+      case FormattingOption.bulletList:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleList();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleBulletList);
+        }
+        break;
+      case FormattingOption.orderedList:
+        if (widget.semanticController != null) {
+          widget.semanticController!.toggleOrderedList();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleOrderedList);
+        }
+        break;
+      case FormattingOption.divider:
+        if (widget.semanticController != null) {
+          widget.semanticController!.insertHorizontalRule();
+          widget.onApplyAtomicEdit?.call(widget.controller.value);
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyHelperFormat(MarkdownHelper.insertHorizontalRule);
+        }
+        break;
+      case FormattingOption.table:
+        widget.onTablePressed?.call();
+        break;
+      case FormattingOption.link:
+        _handleLink(context);
+        break;
+      case FormattingOption.noteLink:
+        widget.onNoteLinkPressed?.call();
+        break;
+      case FormattingOption.tag:
+        widget.onTagPressed();
+        break;
+      case FormattingOption.image:
+        widget.onImagePressed?.call();
+        break;
+      case FormattingOption.scan:
+        widget.onScanPressed?.call();
+        break;
+      case FormattingOption.pdf:
+        widget.onPdfPressed?.call();
+        break;
+      case FormattingOption.file:
+        widget.onFilePressed?.call();
+        break;
+    }
+  }
+
+  Future<void> _showInsertMenu(BuildContext context) async {
+    final colors = context.appColors;
+    final isDesktop = widget.isTopDocked || PlatformLayoutHelper.isDesktopEditor(context);
+    final renderBox = _insertButtonKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox != null && isDesktop) {
+      final offset = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
+      final isTop = widget.isTopDocked;
+
+      final position = RelativeRect.fromLTRB(
+        offset.dx,
+        isTop ? offset.dy + size.height + 4 : offset.dy - 350,
+        offset.dx + size.width,
+        isTop ? offset.dy + size.height + 4 : offset.dy,
+      );
+
+      final selected = await showMenu<String>(
+        context: context,
+        position: position,
+        color: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: BorderSide(color: colors.divider),
+        ),
+        items: [
+          if (widget.onTablePressed != null)
+            _buildInsertMenuItem(
+              context,
+              value: 'table',
+              icon: PhosphorIconsRegular.table,
+              label: 'Table',
+              shortcut: 'Ctrl+Alt+T',
+            ),
+          _buildInsertMenuItem(
+            context,
+            value: 'link',
+            icon: PhosphorIconsRegular.link,
+            label: 'Web Link',
+            shortcut: 'Ctrl+K',
+          ),
+          if (widget.onNoteLinkPressed != null)
+            _buildInsertMenuItem(
+              context,
+              value: 'note_link',
+              icon: PhosphorIconsRegular.fileText,
+              label: 'Link Note',
+              shortcut: 'Ctrl+Shift+L',
+            ),
+          _buildInsertMenuItem(
+            context,
+            value: 'code_block',
+            icon: PhosphorIconsRegular.codeBlock,
+            label: 'Code Block',
+            shortcut: 'Ctrl+Alt+C',
+          ),
+          _buildInsertMenuItem(
+            context,
+            value: 'tag',
+            icon: PhosphorIconsRegular.tag,
+            label: 'Tag',
+            shortcut: 'Ctrl+Shift+T',
+          ),
+          _buildInsertMenuItem(
+            context,
+            value: 'divider',
+            icon: PhosphorIconsRegular.minus,
+            label: 'Divider Line',
+            shortcut: 'Ctrl+Alt+-',
+          ),
+          if (widget.onImagePressed != null ||
+              widget.onScanPressed != null ||
+              widget.onPdfPressed != null ||
+              widget.onFilePressed != null) ...[
+            const PopupMenuDivider(height: 1),
+            if (widget.onImagePressed != null)
+              _buildInsertMenuItem(
+                context,
+                value: 'image',
+                icon: PhosphorIconsRegular.image,
+                label: 'Attach Image',
+              ),
+            if (widget.onScanPressed != null)
+              _buildInsertMenuItem(
+                context,
+                value: 'scan',
+                icon: PhosphorIconsRegular.scan,
+                label: 'Scan Document',
+              ),
+            if (widget.onPdfPressed != null)
+              _buildInsertMenuItem(
+                context,
+                value: 'pdf',
+                icon: PhosphorIconsRegular.filePdf,
+                label: 'Attach PDF',
+              ),
+            if (widget.onFilePressed != null)
+              _buildInsertMenuItem(
+                context,
+                value: 'file',
+                icon: PhosphorIconsRegular.paperclip,
+                label: 'Attach File',
+              ),
+          ],
+        ],
+      );
+
+      if (selected != null) {
+        _handleInsertSelection(selected);
+      }
+    } else {
+      // Mobile bottom action sheet
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: colors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
+        ),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: colors.divider,
+                    borderRadius: const BorderRadius.all(Radius.circular(2)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Text(
+                      'Insert',
+                      style: AppTypography.headline.copyWith(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (widget.onTablePressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.table, color: colors.textPrimary),
+                        title: const Text('Table'),
+                        onTap: () => Navigator.of(ctx).pop('table'),
+                      ),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.link, color: colors.textPrimary),
+                      title: const Text('Web Link'),
+                      onTap: () => Navigator.of(ctx).pop('link'),
+                    ),
+                    if (widget.onNoteLinkPressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.fileText, color: colors.textPrimary),
+                        title: const Text('Link Note'),
+                        onTap: () => Navigator.of(ctx).pop('note_link'),
+                      ),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.codeBlock, color: colors.textPrimary),
+                      title: const Text('Code Block'),
+                      onTap: () => Navigator.of(ctx).pop('code_block'),
+                    ),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.tag, color: colors.textPrimary),
+                      title: const Text('Tag'),
+                      onTap: () => Navigator.of(ctx).pop('tag'),
+                    ),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.minus, color: colors.textPrimary),
+                      title: const Text('Divider Line'),
+                      onTap: () => Navigator.of(ctx).pop('divider'),
+                    ),
+                    if (widget.onImagePressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.image, color: colors.textPrimary),
+                        title: const Text('Attach Image'),
+                        onTap: () => Navigator.of(ctx).pop('image'),
+                      ),
+                    if (widget.onScanPressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.scan, color: colors.textPrimary),
+                        title: const Text('Scan Document'),
+                        onTap: () => Navigator.of(ctx).pop('scan'),
+                      ),
+                    if (widget.onPdfPressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.filePdf, color: colors.textPrimary),
+                        title: const Text('Attach PDF'),
+                        onTap: () => Navigator.of(ctx).pop('pdf'),
+                      ),
+                    if (widget.onFilePressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.paperclip, color: colors.textPrimary),
+                        title: const Text('Attach File'),
+                        onTap: () => Navigator.of(ctx).pop('file'),
+                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (selected != null) {
+        _handleInsertSelection(selected);
+      }
+    }
+  }
+
+  PopupMenuItem<String> _buildInsertMenuItem(
+    BuildContext context, {
+    required String value,
+    required IconData icon,
+    required String label,
+    String shortcut = '',
+  }) {
+    final colors = context.appColors;
+    return PopupMenuItem<String>(
+      value: value,
+      height: 38,
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: colors.textSecondary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+          ),
+          if (shortcut.isNotEmpty) ...[
+            const SizedBox(width: AppSpacing.md),
+            Text(
+              shortcut,
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _handleInsertSelection(String selected) {
+    switch (selected) {
+      case 'table':
+        widget.onTablePressed?.call();
+        break;
+      case 'link':
+        _handleLink(context);
+        break;
+      case 'note_link':
+        widget.onNoteLinkPressed?.call();
+        break;
+      case 'code_block':
+        _handleCodeBlock(context);
+        break;
+      case 'tag':
+        widget.onTagPressed();
+        break;
+      case 'divider':
+        if (widget.semanticController != null) {
+          widget.semanticController!.insertHorizontalRule();
+          widget.onApplyAtomicEdit?.call(widget.controller.value);
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyHelperFormat(MarkdownHelper.insertHorizontalRule);
+        }
+        break;
+      case 'image':
+        widget.onImagePressed?.call();
+        break;
+      case 'scan':
+        widget.onScanPressed?.call();
+        break;
+      case 'pdf':
+        widget.onPdfPressed?.call();
+        break;
+      case 'file':
+        widget.onFilePressed?.call();
+        break;
+    }
   }
 
   bool _isBoldActive() {
@@ -435,6 +862,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
           final isStrikethrough = _isStrikethroughActive();
           final isCode = _isInlineCodeActive();
           final isHeading = _isHeadingActive();
+          final headingLevel = _getActiveHeadingLevel();
           final isChecklist = _isChecklistActive();
           final isBullet = _isBulletListActive();
           final isOrdered = _isOrderedListActive();
@@ -454,223 +882,263 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
             child: ListView(
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               children: [
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.arrowUUpLeft,
-                  tooltip: isDesktop ? 'Undo (Ctrl+Z)' : 'Undo',
-                  isEnabled: widget.canUndo,
-                  onPressed: widget.onUndo ?? () {},
+                // 1. HISTORY GROUP (Undo, Redo)
+                _ToolbarPillGroup(
+                  children: [
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.arrowUUpLeft,
+                      tooltip: isDesktop ? 'Undo (Ctrl+Z)' : 'Undo',
+                      isEnabled: widget.canUndo,
+                      onPressed: widget.onUndo ?? () {},
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.arrowUUpRight,
+                      tooltip: isDesktop ? 'Redo (Ctrl+Y)' : 'Redo',
+                      isEnabled: widget.canRedo,
+                      onPressed: widget.onRedo ?? () {},
+                    ),
+                  ],
                 ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.arrowUUpRight,
-                  tooltip: isDesktop ? 'Redo (Ctrl+Y)' : 'Redo',
-                  isEnabled: widget.canRedo,
-                  onPressed: widget.onRedo ?? () {},
+
+                // 2. BEAR-STYLE FORMAT HUB TRIGGER (Aa)
+                _ToolbarPillGroup(
+                  backgroundColor: colors.accent.withValues(alpha: 0.08),
+                  children: [
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.textAa,
+                      tooltip: isDesktop
+                          ? 'All Formatting Options (Aa)'
+                          : 'Format & Structure Catalog',
+                      onPressed: () => _openFormatHub(context),
+                    ),
+                  ],
                 ),
-                const _ToolbarDivider(),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.textB,
-                  tooltip: isDesktop ? 'Bold (Ctrl+B)' : 'Bold (**text**)',
-                  isActive: isBold,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleBold();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleBold);
-                    }
-                  },
+
+                // 3. HEADING GROUP
+                _ToolbarPillGroup(
+                  children: [
+                    _ToolbarButton(
+                      key: _headingButtonKey,
+                      icon: PhosphorIconsRegular.textH,
+                      badgeText: headingLevel > 0 ? '$headingLevel' : null,
+                      tooltip: isDesktop
+                          ? 'Heading (Ctrl+Alt+1–6)'
+                          : 'Heading (cycle H1-H6, long-press for options)',
+                      isActive: isHeading,
+                      onPressed: () {
+                        if (isDesktop) {
+                          _showDesktopHeadingMenu(context);
+                        } else {
+                          if (widget.onCycleHeading != null) {
+                            widget.onCycleHeading!();
+                          } else if (widget.semanticController != null) {
+                            widget.semanticController!.cycleHeadingLevel();
+                            widget.focusNode?.requestFocus();
+                          } else {
+                            _applyHelperFormat(MarkdownHelper.cycleHeading);
+                          }
+                        }
+                      },
+                      onLongPress: widget.onCycleHeadingLongPress ??
+                          () => _handleHeadingLongPress(context),
+                    ),
+                  ],
                 ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.textItalic,
-                  tooltip: isDesktop ? 'Italic (Ctrl+I)' : 'Italic (*text*)',
-                  isActive: isItalic,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleItalic();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleItalic);
-                    }
-                  },
+
+                // 4. INLINE STYLES GROUP (B, I, S, </>)
+                _ToolbarPillGroup(
+                  children: [
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.textB,
+                      tooltip: isDesktop ? 'Bold (Ctrl+B)' : 'Bold (**text**)',
+                      isActive: isBold,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleBold();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleBold);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.textItalic,
+                      tooltip: isDesktop ? 'Italic (Ctrl+I)' : 'Italic (*text*)',
+                      isActive: isItalic,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleItalic();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleItalic);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.textStrikethrough,
+                      tooltip: isDesktop
+                          ? 'Strikethrough (Ctrl+Shift+X)'
+                          : 'Strikethrough (~~text~~)',
+                      isActive: isStrikethrough,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleStrike();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleStrikethrough);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.code,
+                      tooltip: isDesktop
+                          ? 'Inline Code (Ctrl+`)'
+                          : 'Inline Code (`text`)',
+                      isActive: isCode,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleInlineCode();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleInlineCode);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.textStrikethrough,
-                  tooltip: isDesktop ? 'Strikethrough (Ctrl+Shift+X)' : 'Strikethrough (~~text~~)',
-                  isActive: isStrikethrough,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleStrike();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleStrikethrough);
-                    }
-                  },
+
+                // 5. LISTS & STRUCTURE GROUP (Checklist, Bullets, Numbers, Quote)
+                _ToolbarPillGroup(
+                  children: [
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.checkSquare,
+                      tooltip: isDesktop ? 'Checklist (Ctrl+Shift+C)' : 'Checklist (- [ ])',
+                      isActive: isChecklist,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleChecklist();
+                          widget.focusNode?.requestFocus();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleChecklist);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.listBullets,
+                      tooltip: isDesktop ? 'Bullet List (Ctrl+Shift+8)' : 'Bullet List (-)',
+                      isActive: isBullet,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleList();
+                          widget.focusNode?.requestFocus();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleBulletList);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.listNumbers,
+                      tooltip: isDesktop ? 'Numbered List (Ctrl+Shift+7)' : 'Numbered List (1.)',
+                      isActive: isOrdered,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleOrderedList();
+                          widget.focusNode?.requestFocus();
+                        } else {
+                          _applyFormat(MarkdownFormatter.toggleOrderedList);
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.quotes,
+                      tooltip: isDesktop ? 'Quote (Ctrl+Shift+.)' : 'Quote (>)',
+                      isActive: isQuote,
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.toggleQuote();
+                          widget.focusNode?.requestFocus();
+                        } else {
+                          _applyHelperFormat(
+                              (val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> '));
+                        }
+                      },
+                    ),
+                    _ToolbarButton(
+                      icon: PhosphorIconsRegular.minus,
+                      tooltip: isDesktop ? 'Divider (Ctrl+Alt+-)' : 'Divider (---)',
+                      onPressed: () {
+                        if (widget.semanticController != null) {
+                          widget.semanticController!.insertHorizontalRule();
+                          widget.onApplyAtomicEdit?.call(widget.controller.value);
+                          widget.focusNode?.requestFocus();
+                        } else {
+                          _applyHelperFormat(MarkdownHelper.insertHorizontalRule);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.code,
-                  tooltip: isDesktop ? 'Inline Code (Ctrl+`)' : 'Inline Code (`text`)',
-                  isActive: isCode,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleInlineCode();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleInlineCode);
-                    }
-                  },
+
+                // 6. CONSOLIDATED INSERT DROPDOWN (+)
+                _ToolbarPillGroup(
+                  children: [
+                    _ToolbarButton(
+                      key: _insertButtonKey,
+                      icon: PhosphorIconsRegular.plus,
+                      tooltip: isDesktop ? 'Insert Options (Table, Link, Media)' : 'Insert...',
+                      onPressed: () => _showInsertMenu(context),
+                    ),
+                  ],
                 ),
-                const _ToolbarDivider(),
-                _ToolbarButton(
-                  key: _headingButtonKey,
-                  icon: PhosphorIconsRegular.textH,
-                  tooltip: isDesktop ? 'Heading (Ctrl+Alt+1–6)' : 'Heading (cycle H1-H6, long-press for options)',
-                  isActive: isHeading,
-                  onPressed: () {
-                    if (isDesktop) {
-                      _showDesktopHeadingMenu(context);
-                    } else {
-                      if (widget.onCycleHeading != null) {
-                        widget.onCycleHeading!();
-                      } else if (widget.semanticController != null) {
-                        widget.semanticController!.cycleHeadingLevel();
-                        widget.focusNode?.requestFocus();
-                      } else {
-                        _applyHelperFormat(MarkdownHelper.cycleHeading);
-                      }
-                    }
-                  },
-                  onLongPress: widget.onCycleHeadingLongPress ?? () => _handleHeadingLongPress(context),
-                ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.checkSquare,
-                  tooltip: isDesktop ? 'Checklist (Ctrl+Shift+C)' : 'Checklist (- [ ])',
-                  isActive: isChecklist,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleChecklist();
-                      widget.focusNode?.requestFocus();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleChecklist);
-                    }
-                  },
-                ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.listBullets,
-                  tooltip: isDesktop ? 'Bullet List (Ctrl+Shift+8)' : 'Bullet List (-)',
-                  isActive: isBullet,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleList();
-                      widget.focusNode?.requestFocus();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleBulletList);
-                    }
-                  },
-                ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.listNumbers,
-                  tooltip: isDesktop ? 'Numbered List (Ctrl+Shift+7)' : 'Numbered List (1.)',
-                  isActive: isOrdered,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleOrderedList();
-                      widget.focusNode?.requestFocus();
-                    } else {
-                      _applyFormat(MarkdownFormatter.toggleOrderedList);
-                    }
-                  },
-                ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.quotes,
-                  tooltip: isDesktop ? 'Quote (Ctrl+Shift+.)' : 'Quote (>)',
-                  isActive: isQuote,
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.toggleQuote();
-                      widget.focusNode?.requestFocus();
-                    } else {
-                      _applyHelperFormat((val) => MarkdownHelper.toggleLinePrefix(value: val, prefix: '> '));
-                    }
-                  },
-                ),
-                const _ToolbarDivider(),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.codeBlock,
-                  tooltip: isDesktop ? 'Code Block (Ctrl+Alt+C)' : 'Code Block (```)',
-                  onPressed: () => _handleCodeBlock(context),
-                  onLongPress: () => _handleCodeBlockLongPress(context),
-                ),
-                if (widget.onTablePressed != null)
-                  _ToolbarButton(
-                    icon: PhosphorIconsRegular.table,
-                    tooltip: isDesktop ? 'Insert Table (Ctrl+Alt+T)' : 'Insert Table',
-                    onPressed: widget.onTablePressed!,
-                  ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.link,
-                  tooltip: isDesktop ? 'Link (Ctrl+K)' : 'Link ([text](url))',
-                  onPressed: () => _handleLink(context),
-                ),
-                if (widget.onNoteLinkPressed != null)
-                  _ToolbarButton(
-                    icon: PhosphorIconsRegular.fileText,
-                    tooltip: isDesktop ? 'Link Note (Ctrl+Shift+L)' : 'Link Note ([[Note]])',
-                    onPressed: widget.onNoteLinkPressed!,
-                  ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.tag,
-                  tooltip: isDesktop ? 'Tag (Ctrl+Shift+T)' : 'Tag (#tag)',
-                  onPressed: widget.onTagPressed,
-                ),
-                _ToolbarButton(
-                  icon: PhosphorIconsRegular.minus,
-                  tooltip: isDesktop ? 'Divider (Ctrl+Alt+-)' : 'Divider (---)',
-                  onPressed: () {
-                    if (widget.semanticController != null) {
-                      widget.semanticController!.insertHorizontalRule();
-                      widget.onApplyAtomicEdit?.call(widget.controller.value);
-                      widget.focusNode?.requestFocus();
-                    } else {
-                      _applyHelperFormat(MarkdownHelper.insertHorizontalRule);
-                    }
-                  },
-                ),
+
+                // 7. ATTACHMENTS & MEDIA GROUP
                 if (widget.onImagePressed != null ||
                     widget.onScanPressed != null ||
                     widget.onPdfPressed != null ||
                     widget.onFilePressed != null) ...[
-                  const _ToolbarDivider(),
-                  if (widget.onImagePressed != null)
-                    _ToolbarButton(
-                      icon: PhosphorIconsRegular.image,
-                      tooltip: 'Attach Image',
-                      onPressed: widget.onImagePressed!,
-                    ),
-                  if (widget.onScanPressed != null)
-                    _ToolbarButton(
-                      icon: PhosphorIconsRegular.scan,
-                      tooltip: 'Scan Document',
-                      onPressed: widget.onScanPressed!,
-                    ),
-                  if (widget.onPdfPressed != null)
-                    _ToolbarButton(
-                      icon: PhosphorIconsRegular.filePdf,
-                      tooltip: 'Attach Document (PDF)',
-                      onPressed: widget.onPdfPressed!,
-                    ),
-                  if (widget.onFilePressed != null)
-                    _ToolbarButton(
-                      icon: PhosphorIconsRegular.paperclip,
-                      tooltip: 'Attach File',
-                      onPressed: widget.onFilePressed!,
-                    ),
+                  _ToolbarPillGroup(
+                    children: [
+                      if (widget.onImagePressed != null)
+                        _ToolbarButton(
+                          icon: PhosphorIconsRegular.image,
+                          tooltip: 'Attach Image',
+                          onPressed: widget.onImagePressed!,
+                        ),
+                      if (widget.onScanPressed != null)
+                        _ToolbarButton(
+                          icon: PhosphorIconsRegular.scan,
+                          tooltip: 'Scan Document',
+                          onPressed: widget.onScanPressed!,
+                        ),
+                      if (widget.onPdfPressed != null)
+                        _ToolbarButton(
+                          icon: PhosphorIconsRegular.filePdf,
+                          tooltip: 'Attach Document (PDF)',
+                          onPressed: widget.onPdfPressed!,
+                        ),
+                      if (widget.onFilePressed != null)
+                        _ToolbarButton(
+                          icon: PhosphorIconsRegular.paperclip,
+                          tooltip: 'Attach File',
+                          onPressed: widget.onFilePressed!,
+                        ),
+                    ],
+                  ),
                 ],
+
+                // 8. DICTATION BUTTON
                 if (widget.onDictatePressed != null) ...[
-                  const _ToolbarDivider(),
-                  _ToolbarButton(
-                    icon: PhosphorIconsRegular.microphone,
-                    tooltip: 'Dictate',
-                    isActive: widget.isDictating,
-                    isEnabled: widget.canDictate,
-                    onPressed: widget.onDictatePressed!,
+                  _ToolbarPillGroup(
+                    backgroundColor: widget.isDictating
+                        ? colors.accent.withValues(alpha: 0.18)
+                        : null,
+                    children: [
+                      _ToolbarButton(
+                        icon: PhosphorIconsRegular.microphone,
+                        tooltip: 'Dictate',
+                        isActive: widget.isDictating,
+                        isEnabled: widget.canDictate,
+                        onPressed: widget.onDictatePressed!,
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -682,17 +1150,32 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 }
 
-class _ToolbarDivider extends StatelessWidget {
-  const _ToolbarDivider();
+class _ToolbarPillGroup extends StatelessWidget {
+  const _ToolbarPillGroup({
+    required this.children,
+    this.backgroundColor,
+  });
+
+  final List<Widget> children;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final effectiveBg = backgroundColor ?? colors.divider.withValues(alpha: 0.14);
+
     return Container(
-      width: 1,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-      color: colors.divider,
+      height: 34,
+      margin: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: effectiveBg,
+        borderRadius: AppRadii.borderMd,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
     );
   }
 }
@@ -703,6 +1186,7 @@ class _ToolbarButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.badgeText,
     this.onLongPress,
     this.isActive = false,
     this.isEnabled = true,
@@ -711,6 +1195,7 @@ class _ToolbarButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final String? badgeText;
   final VoidCallback? onLongPress;
   final bool isActive;
   final bool isEnabled;
@@ -740,14 +1225,30 @@ class _ToolbarButton extends StatelessWidget {
           onTap: isEnabled ? onPressed : null,
           onLongPress: isEnabled ? onLongPress : null,
           child: SizedBox(
-            width: 36,
-            height: 36,
+            width: badgeText != null ? 38 : 32,
+            height: 30,
             child: Center(
-              child: Icon(
-                icon,
-                size: 19,
-                color: effectiveColor,
-              ),
+              child: badgeText != null
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 16, color: effectiveColor),
+                        const SizedBox(width: 1),
+                        Text(
+                          badgeText!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: effectiveColor,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Icon(
+                      icon,
+                      size: 17,
+                      color: effectiveColor,
+                    ),
             ),
           ),
         ),

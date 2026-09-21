@@ -7215,3 +7215,52 @@ Quiet Paper includes an on-device speech-to-text transcription engine powered by
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Automated tests: `flutter test` (**all tests passing**).
 
+---
+
+## 41. Bear Notes Formatting Toolbar Redesign & Formatting Hub
+
+### 1. Overview & Motivation
+The previous formatting toolbar was a long, unorganized horizontal strip of 14+ faint monochrome icons separated only by 1px dividers. It suffered from:
+- **Cockpit Syndrome & Disorganization**: Overwhelming to visual focus and lacking logical groupings.
+- **Low Discoverability**: New users had no way to explore available formatting capabilities or understand what cryptic icons did without tapping them blindly.
+- **Mobile Truncation**: On smartphones, high-value actions overflowed offscreen, forcing endless horizontal scrolling.
+
+### 2. Architectural & UX Enhancements
+
+#### Bear 2 Hybrid Segmented Toolbar (`FormattingToolbar`)
+- **Pill Grouping**: Formatted actions are organized into cohesive, rounded segmented pill clusters:
+  1. **History Group**: Undo (`↶`), Redo (`↷`).
+  2. **Format Hub Trigger (`Aa`)**: Prominent styling button with soft accent tint that opens the Bear-style formatting catalog.
+  3. **Heading Group**: Dynamic `H` button displaying real-time level badge (`1`..`6`) when cursor/selection is on a heading line; one-tap cycling on mobile, dropdown menu on desktop (`showMenu`), and action sheet on long press.
+  4. **Inline Styles Group**: Bold (`B`), Italic (`I`), Strikethrough (`S`), Inline Code (`</>`).
+  5. **Lists & Structure Group**: To-do Checklist (`- [ ]`), Bullet List (`•`), Numbered List (`1.`), Blockquote (`”`), Divider (`---`).
+  6. **Consolidated Insert Dropdown (`+`)**: Clean popup menu on desktop and bottom sheet on mobile consolidating Table, Web Link, Internal Note Link (`[[...]]`), Code Block, Tag, Divider, and Media Attachments.
+  7. **Media & Attachments Group**: Direct image, scan, PDF, and file buttons when callbacks are provided.
+  8. **Dictation Group**: Voice typing trigger with active recording tint.
+
+#### Bear-Style Format Hub Sheet (`FormattingHubSheet`)
+- A comprehensive, categorized modal sheet (mobile) / popover dialog (desktop & tablets) organizing all options into 4 clear editorial sections:
+  1. **Text Styles**: Bold, Italic, Strikethrough, Inline Code.
+  2. **Structure & Headings**: Paragraph (Normal text), Heading 1 (Title), Heading 2 (Section), Heading 3 (Subsection), Blockquote, Code Block.
+  3. **Lists & Organization**: To-do Checklist, Bullet List, Numbered List, Divider Line.
+  4. **Inserts & Media**: Table, Web Link, Internal Note Link (`[[...]]`), Code Block, Tag, Image, Document Scan, PDF, File Attachment.
+- **Card Tiles**:
+  - Each item displays a rounded leading icon, human-readable title, markdown syntax preview (e.g. `- [ ]`, `###`), and desktop keyboard shortcut hint (e.g. `Ctrl+B`, `Ctrl+Shift+C`).
+  - **Live Active Indicators**: Shows an active accent background, border, and indicator dot whenever the cursor/selection is currently inside that format.
+  - Tapping any card applies the format immediately and refocuses the editor.
+
+### 3. File Inventory
+- **New Widget**:
+  - `lib/features/editor/presentation/widgets/formatting_hub_sheet.dart`: Bear-style comprehensive formatting and structure catalog bottom sheet/popover.
+- **Updated Widget**:
+  - `lib/features/editor/presentation/widgets/formatting_toolbar.dart`: Segmented pill clusters, `Aa` Format Hub trigger, dynamic heading badge, consolidated `+` insert menu, responsive layout.
+- **Tests**:
+  - `test/editor/formatting_toolbar_test.dart`: Added widget tests for `Aa` Format Hub sheet opening, categorized section verification, format application from sheet, dynamic heading badges, and consolidated Insert `+` menu.
+  - `test/editor/desktop_toolbar_and_shortcuts_test.dart`: Maintained 100% compatibility for top-docked desktop toolbar, heading dropdown, and keyboard shortcuts.
+  - `test/editor/wysiwyg_divider_test.dart`: Verified divider insertion and block navigation.
+  - `test/scanner/scanner_ui_test.dart`: Verified scanner and image attachment button placement and callbacks.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Automated tests: `flutter test` (**all tests passing, 0 failures**).
+
