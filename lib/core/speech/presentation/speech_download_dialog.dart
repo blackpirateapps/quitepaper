@@ -8,7 +8,7 @@ import '../../../core/widgets/quiet_button.dart';
 import '../application/speech_provider.dart';
 import '../domain/speech_model.dart';
 
-class SpeechDownloadDialog extends ConsumerWidget {
+class SpeechDownloadDialog extends ConsumerStatefulWidget {
   const SpeechDownloadDialog({
     super.key,
     this.modelDescriptor,
@@ -29,17 +29,38 @@ class SpeechDownloadDialog extends ConsumerWidget {
     );
   }
 
+  @override
+  ConsumerState<SpeechDownloadDialog> createState() => _SpeechDownloadDialogState();
+}
+
+class _SpeechDownloadDialogState extends ConsumerState<SpeechDownloadDialog> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final SpeechModelDescriptor descriptor =
+          widget.modelDescriptor ?? ref.read(speechModelDescriptorProvider);
+      final manager = ref.read(speechModelManagerFamily(descriptor));
+      final status = await manager.checkStatus();
+      if (status.isInstalled && mounted) {
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop(true);
+        }
+      }
+    });
+  }
+
   String _formatMb(int bytes) {
     final mb = bytes / (1024 * 1024);
     return '${mb.toStringAsFixed(1)} MB';
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.appColors;
     final SpeechModelDescriptor descriptor =
-        modelDescriptor ?? ref.watch(speechModelDescriptorProvider);
-    final manager = modelDescriptor != null
+        widget.modelDescriptor ?? ref.watch(speechModelDescriptorProvider);
+    final manager = widget.modelDescriptor != null
         ? ref.watch(speechModelManagerFamily(descriptor))
         : ref.watch(speechModelManagerProvider);
     final status = manager.status;

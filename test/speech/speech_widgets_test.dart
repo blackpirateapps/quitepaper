@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,6 +44,9 @@ class StubRecorder extends AudioRecorderService {
   Future<bool> hasPermission() async => true;
   @override
   Future<bool> requestPermission() async => true;
+  @override
+  Future<Stream<Uint8List>> startStreaming({void Function()? onMaxDurationReached}) async =>
+      const Stream<Uint8List>.empty();
   @override
   Future<File> startRecording({void Function()? onMaxDurationReached}) async =>
       File('/tmp/test.wav');

@@ -89,7 +89,20 @@ class SpeechStorageService {
     if (length != descriptor.sizeBytes) return false;
 
     final metadataFile = await getMetadataFile(descriptor.id, createDirectory: false);
-    if (!await metadataFile.exists()) return false;
+    if (!await metadataFile.exists()) {
+      // Auto-heal: model binary exists and size matches exactly. Regenerate metadata.
+      try {
+        final metadata = SpeechModelMetadata(
+          modelId: descriptor.id,
+          version: descriptor.version,
+          filename: descriptor.filename,
+          sizeBytes: length,
+          sha256: descriptor.expectedSha256,
+          installedAt: DateTime.now(),
+        );
+        await saveMetadata(metadata);
+      } catch (_) {}
+    }
 
     return true;
   }

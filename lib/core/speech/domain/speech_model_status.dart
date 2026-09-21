@@ -1,6 +1,7 @@
 /// Lifecycle states of the speech model on device.
 enum SpeechModelInstallationStatus {
   notInstalled,
+  checking,
   downloading,
   verifying,
   installed,
@@ -26,6 +27,7 @@ class SpeechModelStatus {
   final String? modelPath;
 
   bool get isInstalled => status == SpeechModelInstallationStatus.installed;
+  bool get isChecking => status == SpeechModelInstallationStatus.checking;
   bool get isDownloading => status == SpeechModelInstallationStatus.downloading;
   bool get isVerifying => status == SpeechModelInstallationStatus.verifying;
   bool get hasError => status == SpeechModelInstallationStatus.error;

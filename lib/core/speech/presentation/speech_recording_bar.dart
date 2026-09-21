@@ -240,11 +240,20 @@ class _SpeechRecordingBarState extends State<SpeechRecordingBar>
                     width: 0.8,
                   ),
                 ),
-                child: Text(
-                  'Tap to stop recording',
-                  style: AppTypography.caption.copyWith(
-                    color: colors.accent,
-                    fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                  child: Text(
+                    session.partialTranscript != null && session.partialTranscript!.isNotEmpty
+                        ? session.partialTranscript!
+                        : 'Tap to stop recording',
+                    style: AppTypography.caption.copyWith(
+                      color: session.partialTranscript != null && session.partialTranscript!.isNotEmpty
+                          ? colors.textPrimary
+                          : colors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),

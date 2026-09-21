@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:whisper_ggml/whisper_ggml.dart';
 import '../domain/speech_recognition_engine.dart';
 import '../domain/speech_session_state.dart';
 import '../infrastructure/audio_recorder_service.dart';
 import '../infrastructure/speech_storage_service.dart';
+import '../infrastructure/whisper_recognition_engine.dart';
 import 'speech_model_manager.dart';
 
 class SpeechRecognitionService extends ChangeNotifier {
@@ -27,6 +29,9 @@ class SpeechRecognitionService extends ChangeNotifier {
   final SpeechStorageService storageService;
 
   StreamSubscription<Duration>? _durationSubscription;
+  WhisperLiveSession? _activeLiveSession;
+  StreamSubscription<Uint8List>? _pcmFeedSubscription;
+  StreamSubscription<String>? _livePartialsSubscription;
 
   SpeechSession _session = SpeechSession.initial;
   SpeechSession get session => _session;
@@ -94,14 +99,63 @@ class SpeechRecognitionService extends ChangeNotifier {
         }
       }
 
-      // 4. Start recording
-      await recorderService.startRecording(
-        onMaxDurationReached: () {
-          if (_session.isRecording) {
-            onMaxDurationReached?.call();
+      // 4. Start recording with real-time streaming pipeline (if native whisper library is available)
+      if (status.modelPath != null && WhisperRecognitionEngine.isNativeLibraryAvailable) {
+        try {
+          final pcmStream = await recorderService.startStreaming(
+            onMaxDurationReached: () {
+              if (_session.isRecording) {
+                onMaxDurationReached?.call();
+              }
+            },
+          ).timeout(const Duration(seconds: 10));
+
+          final effectiveLang = modelManager.descriptor.languageCode;
+          _activeLiveSession = await startWhisperLiveSession(
+            modelPath: status.modelPath!,
+            lang: effectiveLang,
+            keepModelLoaded: true,
+            threads: WhisperRecognitionEngine.optimalThreadCount,
+          );
+
+          _livePartialsSubscription = _activeLiveSession!.partials.listen((partial) {
+            if (_session.isRecording) {
+              _session = _session.copyWith(partialTranscript: partial);
+              notifyListeners();
+            }
+          });
+
+          _pcmFeedSubscription = pcmStream.listen(
+            _activeLiveSession!.feed,
+            onError: (e) {
+              debugPrint('SpeechRecognitionService: PCM stream feed error: $e');
+            },
+          );
+        } catch (streamError) {
+          debugPrint(
+            'SpeechRecognitionService: streaming setup fallback ($streamError)',
+          );
+          await _cleanupActiveLiveSession();
+          if (!recorderService.isRecording) {
+            await recorderService.startRecording(
+              onMaxDurationReached: () {
+                if (_session.isRecording) {
+                  onMaxDurationReached?.call();
+                }
+              },
+            ).timeout(const Duration(seconds: 10));
           }
-        },
-      ).timeout(const Duration(seconds: 10));
+        }
+      } else {
+        // Standard audio recording (native library unavailable or non-live fallback)
+        await recorderService.startRecording(
+          onMaxDurationReached: () {
+            if (_session.isRecording) {
+              onMaxDurationReached?.call();
+            }
+          },
+        ).timeout(const Duration(seconds: 10));
+      }
 
       _session = const SpeechSession(
         state: SpeechSessionState.recording,
@@ -110,6 +164,7 @@ class SpeechRecognitionService extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
+      await _cleanupActiveLiveSession();
       _session = SpeechSession(
         state: SpeechSessionState.error,
         errorMessage: e.toString(),
@@ -133,19 +188,38 @@ class SpeechRecognitionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final audioFile = await recorderService.stopRecording();
-      if (audioFile == null || !await audioFile.exists()) {
-        _session = const SpeechSession(state: SpeechSessionState.idle);
-        notifyListeners();
-        return null;
+      String? transcript;
+
+      // 1. If live streaming session was active, stop and retrieve live transcript
+      if (_activeLiveSession != null) {
+        try {
+          await _pcmFeedSubscription?.cancel();
+          _pcmFeedSubscription = null;
+          await _livePartialsSubscription?.cancel();
+          _livePartialsSubscription = null;
+
+          transcript = await _activeLiveSession!.stop();
+        } catch (e) {
+          debugPrint('SpeechRecognitionService: live session stop error ($e)');
+        } finally {
+          _activeLiveSession = null;
+        }
       }
 
-      final effectiveLang = lang ?? modelManager.descriptor.languageCode;
-      final transcript = await recognitionEngine.transcribe(
-        audioPath: audioFile.path,
-        lang: effectiveLang,
-        onProgress: onProgress,
-      );
+      // 2. Stop audio recorder
+      final audioFile = await recorderService.stopRecording();
+
+      // 3. Fallback to batch direct FFI engine if live transcript was empty
+      if (transcript == null || transcript.trim().isEmpty) {
+        if (audioFile != null && await audioFile.exists()) {
+          final effectiveLang = lang ?? modelManager.descriptor.languageCode;
+          transcript = await recognitionEngine.transcribe(
+            audioPath: audioFile.path,
+            lang: effectiveLang,
+            onProgress: onProgress,
+          );
+        }
+      }
 
       // Clean up audio file immediately
       await recorderService.deleteCurrentRecording();
@@ -153,8 +227,9 @@ class SpeechRecognitionService extends ChangeNotifier {
       _session = const SpeechSession(state: SpeechSessionState.idle);
       notifyListeners();
 
-      return transcript.trim();
+      return transcript?.trim();
     } catch (e) {
+      await _cleanupActiveLiveSession();
       await recorderService.deleteCurrentRecording();
       _session = const SpeechSession(
         state: SpeechSessionState.error,
@@ -167,6 +242,7 @@ class SpeechRecognitionService extends ChangeNotifier {
 
   /// Cancels active recording and discards the audio file without transcribing.
   Future<void> cancelListening() async {
+    await _cleanupActiveLiveSession();
     await recorderService.cancelRecording();
     _session = const SpeechSession(state: SpeechSessionState.idle);
     notifyListeners();
@@ -182,12 +258,27 @@ class SpeechRecognitionService extends ChangeNotifier {
 
   /// Release native model memory and clean temporary audio.
   Future<void> releaseEngine() async {
+    await _cleanupActiveLiveSession();
     await recognitionEngine.dispose();
+  }
+
+  Future<void> _cleanupActiveLiveSession() async {
+    await _pcmFeedSubscription?.cancel();
+    _pcmFeedSubscription = null;
+    await _livePartialsSubscription?.cancel();
+    _livePartialsSubscription = null;
+    if (_activeLiveSession != null) {
+      try {
+        await _activeLiveSession!.stop();
+      } catch (_) {}
+      _activeLiveSession = null;
+    }
   }
 
   @override
   void dispose() {
     _durationSubscription?.cancel();
+    _cleanupActiveLiveSession();
     recorderService.dispose();
     recognitionEngine.dispose();
     storageService.cleanOrphanedAudioFiles();

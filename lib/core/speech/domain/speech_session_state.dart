@@ -16,11 +16,13 @@ class SpeechSession {
     this.state = SpeechSessionState.idle,
     this.recordingDuration = Duration.zero,
     this.errorMessage,
+    this.partialTranscript,
   });
 
   final SpeechSessionState state;
   final Duration recordingDuration;
   final String? errorMessage;
+  final String? partialTranscript;
 
   bool get isIdle => state == SpeechSessionState.idle;
   bool get isRecording => state == SpeechSessionState.recording;
@@ -33,11 +35,13 @@ class SpeechSession {
     SpeechSessionState? state,
     Duration? recordingDuration,
     String? errorMessage,
+    String? partialTranscript,
   }) {
     return SpeechSession(
       state: state ?? this.state,
       recordingDuration: recordingDuration ?? this.recordingDuration,
       errorMessage: errorMessage ?? this.errorMessage,
+      partialTranscript: partialTranscript ?? this.partialTranscript,
     );
   }
 

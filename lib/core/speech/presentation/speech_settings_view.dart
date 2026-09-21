@@ -9,7 +9,7 @@ import '../application/speech_provider.dart';
 import '../domain/speech_model.dart';
 import 'speech_download_dialog.dart';
 
-class SpeechSettingsView extends ConsumerWidget {
+class SpeechSettingsView extends ConsumerStatefulWidget {
   const SpeechSettingsView({super.key});
 
   static Future<void> show(BuildContext context) {
@@ -18,6 +18,21 @@ class SpeechSettingsView extends ConsumerWidget {
         builder: (context) => const SpeechSettingsView(),
       ),
     );
+  }
+
+  @override
+  ConsumerState<SpeechSettingsView> createState() => _SpeechSettingsViewState();
+}
+
+class _SpeechSettingsViewState extends ConsumerState<SpeechSettingsView> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final model in SpeechModels.all) {
+        ref.read(speechModelManagerFamily(model)).checkStatus();
+      }
+    });
   }
 
   String _formatMb(int bytes) {
@@ -168,13 +183,17 @@ class SpeechSettingsView extends ConsumerWidget {
                             ? 'Installed • ${_formatMb(descriptor.sizeBytes)}'
                             : status.isDownloading
                                 ? 'Downloading • ${(status.progress * 100).toInt()}%'
-                                : 'Not downloaded • ${_formatMb(descriptor.sizeBytes)}',
+                                : status.isChecking
+                                    ? 'Checking on device…'
+                                    : 'Not downloaded • ${_formatMb(descriptor.sizeBytes)}',
                         style: AppTypography.caption.copyWith(
                           color: status.isInstalled
                               ? colors.accent
                               : status.isDownloading
                                   ? colors.accent
-                                  : colors.textTertiary,
+                                  : status.isChecking
+                                      ? colors.textSecondary
+                                      : colors.textTertiary,
                           fontWeight: status.isInstalled || status.isDownloading
                               ? FontWeight.w600
                               : FontWeight.normal,
@@ -183,7 +202,18 @@ class SpeechSettingsView extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (status.isInstalled)
+                if (status.isChecking)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                    child: Text(
+                      'Checking…',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                else if (status.isInstalled)
                   TextButton(
                     onPressed: () => _confirmDelete(context, ref, descriptor),
                     child: Text(
@@ -234,7 +264,7 @@ class SpeechSettingsView extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.appColors;
     final selectedModel = ref.watch(selectedSpeechModelProvider);
 

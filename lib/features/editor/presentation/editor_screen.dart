@@ -208,6 +208,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
       });
     }
+
+    // Warm up speech model in background for instantaneous dictation
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        final speechManager = ref.read(speechModelManagerProvider);
+        final status = await speechManager.checkStatus();
+        if (status.isInstalled && status.modelPath != null) {
+          final engine = ref.read(speechRecognitionEngineProvider);
+          await engine.initialize(modelPath: status.modelPath!);
+        }
+      } catch (_) {}
+    });
   }
 
 
@@ -1321,7 +1334,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   @override
+  void didHaveMemoryPressure() {
+    super.didHaveMemoryPressure();
+    try {
+      ref.read(speechRecognitionServiceProvider).releaseEngine();
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
+    try {
+      ref.read(speechRecognitionServiceProvider).releaseEngine();
+    } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
     _searchQueryController.removeListener(_onSearchQueryChanged);
     _searchQueryController.dispose();

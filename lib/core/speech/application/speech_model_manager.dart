@@ -10,7 +10,12 @@ class SpeechModelManager extends ChangeNotifier {
     SpeechModelDescriptor? descriptor,
     required this.storageService,
     required this.downloader,
-  }) : descriptor = descriptor ?? const FutoEnglishSpeechModel();
+    bool autoCheck = true,
+  }) : descriptor = descriptor ?? const FutoEnglishSpeechModel() {
+    if (autoCheck) {
+      unawaited(checkStatus());
+    }
+  }
 
   final SpeechModelDescriptor descriptor;
   final SpeechStorageService storageService;
@@ -19,12 +24,32 @@ class SpeechModelManager extends ChangeNotifier {
   SpeechModelStatus _status = SpeechModelStatus.initial;
   SpeechModelStatus get status => _status;
 
-  bool _isChecking = false;
+  bool _isDisposed = false;
+  Completer<SpeechModelStatus>? _checkCompleter;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
 
   /// Check current model installation and verification state.
   Future<SpeechModelStatus> checkStatus() async {
-    if (_isChecking) return _status;
-    _isChecking = true;
+    if (_isDisposed) return _status;
+    if (_checkCompleter != null) {
+      return _checkCompleter!.future;
+    }
+
+    final completer = Completer<SpeechModelStatus>();
+    _checkCompleter = completer;
+
+    if (_status.status != SpeechModelInstallationStatus.installed &&
+        _status.status != SpeechModelInstallationStatus.downloading) {
+      _status = _status.copyWith(status: SpeechModelInstallationStatus.checking);
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    }
 
     try {
       final isInstalled = await storageService.isModelInstalled(descriptor);
@@ -48,8 +73,11 @@ class SpeechModelManager extends ChangeNotifier {
         errorMessage: e.toString(),
       );
     } finally {
-      _isChecking = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+      completer.complete(_status);
+      _checkCompleter = null;
     }
     return _status;
   }

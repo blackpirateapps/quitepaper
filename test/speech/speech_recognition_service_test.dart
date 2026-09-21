@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/speech/application/speech_model_manager.dart';
 import 'package:quitepaper/core/speech/application/speech_recognition_service.dart';
@@ -55,6 +56,16 @@ class FakeAudioRecorderService extends AudioRecorderService {
 
   @override
   Future<bool> requestPermission() async => permissionGranted;
+
+  @override
+  Future<Stream<Uint8List>> startStreaming({void Function()? onMaxDurationReached}) async {
+    isRec = true;
+    final tempDir = await storageService.getAudioTempDirectory();
+    final file = File('${tempDir.path}/test_speech.wav');
+    await file.writeAsString('RIFF dummy wav data');
+    generatedAudioFile = file;
+    return const Stream<Uint8List>.empty();
+  }
 
   @override
   Future<File> startRecording({void Function()? onMaxDurationReached}) async {
