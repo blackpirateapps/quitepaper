@@ -1,7 +1,12 @@
+import 'dart:io';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import '../../../core/cli/cli_args_provider.dart';
+import '../../import/application/markdown_frontmatter_parser.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -58,9 +63,75 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkInitialCliArgs();
       _checkForUpdatesOnLaunch();
       _performAutoBackupOnLaunch();
     });
+  }
+
+  void _checkInitialCliArgs() async {
+    final args = ref.read(initialLaunchArgsProvider);
+    if (args.isEmpty) return;
+
+    final isTablet = MediaQuery.of(context).size.width >= 900.0;
+
+    if (CliArgsHelper.hasFlag(args, 'new-note')) {
+      if (isTablet) {
+        _createAndOpenNoteTablet();
+      } else if (mounted) {
+        _createAndOpenNote(context);
+      }
+      return;
+    }
+
+    final mdPath = CliArgsHelper.findMarkdownFile(args);
+    if (mdPath != null) {
+      final file = File(mdPath);
+      if (await file.exists()) {
+        await _importDroppedMarkdownFile(file, isTablet);
+      }
+    }
+  }
+
+  Future<void> _importDroppedMarkdownFile(File file, bool isTabletLayout) async {
+    try {
+      final content = await file.readAsString();
+      final filename = p.basenameWithoutExtension(file.path);
+      final parsed = MarkdownFrontmatterParser.parse(content);
+      final derivedTitle = (parsed.title != null && parsed.title!.isNotEmpty)
+          ? parsed.title!
+          : filename;
+      const uuid = Uuid();
+      final now = DateTime.now();
+      final note = Note(
+        id: uuid.v4(),
+        title: derivedTitle,
+        content: content,
+        tags: parsed.tags,
+        createdAt: parsed.createdAt ?? now,
+        updatedAt: parsed.updatedAt ?? now,
+      );
+      await ref.read(notesRepositoryProvider).saveNote(note);
+      ref.read(notesCollectionProvider.notifier).refresh();
+
+      if (isTabletLayout) {
+        setState(() {
+          _selectedNoteIdForTablet = note.id;
+          _shouldAutoFocusTablet = false;
+        });
+      } else if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EditorScreen(
+              note: note,
+              initialPreviewMode: true,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[QuietPaper] Error importing dropped markdown file: $e');
+    }
   }
 
   Future<void> _performAutoBackupOnLaunch() async {
@@ -207,11 +278,23 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     });
 
-    if (isTabletLayout) {
-      return _buildTabletLayout(context, colors);
-    }
+    final child = isTabletLayout
+        ? _buildTabletLayout(context, colors)
+        : _buildPhoneLayout(context, colors);
 
-    return _buildPhoneLayout(context, colors);
+    return DropTarget(
+      onDragDone: (detail) async {
+        for (final file in detail.files) {
+          final path = file.path;
+          final lower = path.toLowerCase();
+          if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.txt')) {
+            await _importDroppedMarkdownFile(File(path), isTabletLayout);
+            break;
+          }
+        }
+      },
+      child: child,
+    );
   }
 
   Widget _buildPhoneLayout(BuildContext context, AppColors colors) {
@@ -226,6 +309,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final title = _getDestinationTitle(destination);
 
     final phoneKeyboardBindings = {
+      // Create New Note (Ctrl+N / Cmd+N)
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true): () => _createAndOpenNote(context),
+      const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () => _createAndOpenNote(context),
+
+      // Search Notes (Ctrl+F / Cmd+F)
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => _openSearchScreen(context),
+
       const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
         ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
         ref.read(selectedTagFilterProvider.notifier).state = null;
@@ -806,7 +897,54 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final isNoteListVisible = ref.watch(isNoteListVisibleProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
-    return Scaffold(
+    final tabletKeyboardBindings = {
+      // Create New Note (Ctrl+N / Cmd+N)
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true): _createAndOpenNoteTablet,
+      const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _createAndOpenNoteTablet,
+
+      // Search Notes (Ctrl+F / Cmd+F)
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => _openSearchScreen(context),
+
+      // Toggle Sidebar (Ctrl+Shift+S / Cmd+Shift+S)
+      const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true): () {
+        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(isNavSidebarVisibleProvider);
+      },
+      const SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true): () {
+        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(isNavSidebarVisibleProvider);
+      },
+
+      // Tag Browser (Ctrl+Shift+T / Cmd+Shift+T)
+      const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
+        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+        ref.read(selectedTagFilterProvider.notifier).state = null;
+        ref.read(selectedTagIdProvider.notifier).state = null;
+      },
+      const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
+        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+        ref.read(selectedTagFilterProvider.notifier).state = null;
+        ref.read(selectedTagIdProvider.notifier).state = null;
+      },
+
+      // Settings (Ctrl+, / Cmd+,)
+      const SingleActivator(LogicalKeyboardKey.comma, control: true): () {
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+      },
+      const SingleActivator(LogicalKeyboardKey.comma, meta: true): () {
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+      },
+
+      // Delete selected note (Delete)
+      const SingleActivator(LogicalKeyboardKey.delete): () {
+        if (_selectedNoteIdForTablet != null && activeNote != null) {
+          _trashNoteWithUndo(activeNote);
+        }
+      },
+    };
+
+    return CallbackShortcuts(
+      bindings: tabletKeyboardBindings,
+      child: Scaffold(
       backgroundColor: colors.background,
       body: SafeArea(
         child: Row(
@@ -1273,7 +1411,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   int _calculateTotalItemCount(List<NoteGroup> groups) {
@@ -1438,6 +1577,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             },
             onDelete: () {
               _trashNoteWithUndo(note);
+            },
+            onDuplicate: () {
+              _duplicateNote(note);
             },
           ),
         );
@@ -1668,6 +1810,35 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _duplicateNote(Note note) async {
+    final now = DateTime.now();
+    final newId = const Uuid().v4();
+    final duplicatedTitle = note.title.isEmpty ? '' : '${note.title} (Copy)';
+    final newNote = Note(
+      id: newId,
+      title: duplicatedTitle,
+      content: note.content,
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      tags: List<String>.from(note.tags),
+    );
+    await ref.read(notesRepositoryProvider).saveNote(newNote);
+    ref.read(notesCollectionProvider.notifier).refresh();
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Note duplicated'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmEmptyTrash(BuildContext context) async {

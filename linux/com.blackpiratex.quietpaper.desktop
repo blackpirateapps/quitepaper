@@ -1,0 +1,17 @@
+[Desktop Entry]
+Name=Quiet Paper
+Comment=Privacy-first, local-first encrypted notes and markdown journal
+GenericName=Note Taking and Markdown Editor
+Exec=quitepaper %U
+Icon=com.blackpiratex.quietpaper
+Terminal=false
+Type=Application
+Categories=Office;Utility;TextEditor;
+MimeType=text/markdown;text/plain;x-scheme-handler/qp;
+Keywords=notes;markdown;journal;privacy;encryption;diary;
+StartupWMClass=com.blackpiratex.quietpaper
+Actions=NewNote;
+
+[Desktop Action NewNote]
+Name=New Note
+Exec=quitepaper --new-note

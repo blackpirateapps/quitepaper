@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import '../storage/app_storage_path_resolver.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../attachments/attachment_storage.dart';
 import '../sync/sync_provider.dart';
@@ -53,7 +53,7 @@ class VaultEraseService {
 
     // 4. Delete local encrypted attachment and document files on disk
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
+      final appDocDir = await AppStoragePathResolver.getDataDirectory();
 
       final attachmentsDir = Directory(p.join(appDocDir.path, 'attachments'));
       if (await attachmentsDir.exists()) {

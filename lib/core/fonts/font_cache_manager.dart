@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import '../storage/app_storage_path_resolver.dart';
 
 
 /// Represents a specific variant of a hosted font (e.g. Regular, Italic, Bold).
@@ -238,7 +238,7 @@ class FontCacheManager {
     } else {
 
       try {
-        final docDir = await getApplicationDocumentsDirectory();
+        final docDir = await AppStoragePathResolver.getDataDirectory();
         _resolvedFontsDir = Directory(p.join(docDir.path, 'fonts'));
       } catch (_) {
         _resolvedFontsDir = Directory('.quietpaper_fonts');

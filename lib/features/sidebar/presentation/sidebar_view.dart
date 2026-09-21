@@ -5,6 +5,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/platform_layout_helper.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
@@ -322,6 +323,7 @@ class SidebarView extends ConsumerWidget {
                                 },
                                 onLongPress: () => _showSmartViewOptions(context, ref, sv),
                                 onSecondaryTap: () => _showSmartViewOptions(context, ref, sv),
+                                onSecondaryTapUp: (details) => _showSmartViewOptions(context, ref, sv, details.globalPosition),
                               );
                             }),
                           ],
@@ -416,6 +418,9 @@ class SidebarView extends ConsumerWidget {
                                 },
                                 onSecondaryTap: () {
                                   _showTagOptions(context, ref, t);
+                                },
+                                onSecondaryTapUp: (details) {
+                                  _showTagOptions(context, ref, t, details.globalPosition);
                                 },
                               );
                             }),
@@ -546,76 +551,117 @@ class SidebarView extends ConsumerWidget {
   Future<void> _showSmartViewOptions(
     BuildContext context,
     WidgetRef ref,
-    SavedFilter sv,
-  ) async {
+    SavedFilter sv, [
+    Offset? globalPosition,
+  ]) async {
     final colors = context.appColors;
 
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Material(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-          clipBehavior: Clip.antiAlias,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle bar
-                  Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.divider,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        sv.name,
-                        style: AppTypography.title.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Divider(color: colors.divider, height: 1),
-                  ListTile(
-                    leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textPrimary),
-                    title: Text(
-                      'Rename',
-                      style: AppTypography.body.copyWith(color: colors.textPrimary),
-                    ),
-                    onTap: () => Navigator.of(ctx).pop('rename'),
-                  ),
-                  ListTile(
-                    leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
-                    title: Text(
-                      'Delete',
-                      style: AppTypography.body.copyWith(color: colors.error),
-                    ),
-                    onTap: () => Navigator.of(ctx).pop('delete'),
-                  ),
-                ],
-              ),
+    String? action;
+    if (PlatformLayoutHelper.isDesktopPlatform && globalPosition != null) {
+      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+      final position = RelativeRect.fromRect(
+        Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
+        overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+      );
+      action = await showMenu<String>(
+        context: context,
+        position: position,
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: BorderSide(color: colors.divider, width: 0.8),
+        ),
+        items: [
+          PopupMenuItem<String>(
+            value: 'rename',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textPrimary),
+                const SizedBox(width: 10),
+                Text('Rename', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
             ),
           ),
-        );
-      },
-    );
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
+                const SizedBox(width: 10),
+                Text('Delete', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      action = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          return Material(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle bar
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          sv.name,
+                          style: AppTypography.title.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Divider(color: colors.divider, height: 1),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textPrimary),
+                      title: Text(
+                        'Rename',
+                        style: AppTypography.body.copyWith(color: colors.textPrimary),
+                      ),
+                      onTap: () => Navigator.of(ctx).pop('rename'),
+                    ),
+                    ListTile(
+                      leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
+                      title: Text(
+                        'Delete',
+                        style: AppTypography.body.copyWith(color: colors.error),
+                      ),
+                      onTap: () => Navigator.of(ctx).pop('delete'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
 
     if (action == 'rename' && context.mounted) {
       await _renameSmartViewDialog(context, ref, sv);
@@ -741,7 +787,12 @@ class SidebarView extends ConsumerWidget {
     }
   }
 
-  void _showTagOptions(BuildContext context, WidgetRef ref, TagWithCount t) {
+  void _showTagOptions(
+    BuildContext context,
+    WidgetRef ref,
+    TagWithCount t, [
+    Offset? globalPosition,
+  ]) async {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = TagColors.fromId(t.color);
@@ -757,6 +808,136 @@ class SidebarView extends ConsumerWidget {
       updatedAt: t.tag.updatedAt ?? DateTime.now(),
       noteCount: t.noteCount,
     );
+
+    if (PlatformLayoutHelper.isDesktopPlatform && globalPosition != null) {
+      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+      final position = RelativeRect.fromRect(
+        Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
+        overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+      );
+
+      final selected = await showMenu<String>(
+        context: context,
+        position: position,
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: BorderSide(color: colors.divider, width: 0.8),
+        ),
+        items: [
+          PopupMenuItem<String>(
+            value: 'open',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.arrowSquareOut, size: 18, color: colors.accent),
+                const SizedBox(width: 10),
+                Text('Open', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'pin',
+            child: Row(
+              children: [
+                Icon(
+                  t.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                  size: 18,
+                  color: t.isPinned ? colors.accent : colors.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Text(t.isPinned ? 'Unpin tag' : 'Pin to top', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'rename',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textSecondary),
+                const SizedBox(width: 10),
+                Text('Rename...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'icon',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.smiley, size: 18, color: colors.textSecondary),
+                const SizedBox(width: 10),
+                Text(t.icon != null ? 'Change icon...' : 'Add icon...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'color',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.palette, size: 18, color: colors.textSecondary),
+                const SizedBox(width: 10),
+                Text(t.color != null ? 'Change color...' : 'Add color...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
+                const SizedBox(width: 10),
+                Text('Delete tag', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+              ],
+            ),
+          ),
+        ],
+      );
+
+      if (!context.mounted) return;
+
+      if (selected == 'open') {
+        ref.read(currentDestinationProvider.notifier).state = AppDestination.tag;
+        ref.read(selectedTagFilterProvider.notifier).state = t.name;
+        ref.read(selectedTagIdProvider.notifier).state = t.id;
+        ref.read(notesQueryProvider.notifier).setTag(t.name);
+        onItemSelected?.call();
+      } else if (selected == 'pin') {
+        ref.read(tagServiceProvider).pinTag(t.id, !t.isPinned);
+      } else if (selected == 'rename') {
+        final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+        final existingNames = allTags.map((x) => x.name).toList();
+        final newName = await TagRenameDialog.show(context, tag: tag, existingTags: existingNames);
+        if (newName != null && newName != tag.name && context.mounted) {
+          await ref.read(tagServiceProvider).renameTag(tag.id, newName);
+          if (ref.read(selectedTagFilterProvider) == tag.name) {
+            ref.read(selectedTagFilterProvider.notifier).state = newName;
+            ref.read(notesQueryProvider.notifier).setTag(newName);
+          }
+        }
+      } else if (selected == 'icon') {
+        final newIcon = await TagIconPickerSheet.show(context, currentIconId: t.icon, tagName: t.name);
+        if (context.mounted) {
+          await ref.read(tagServiceProvider).setTagIcon(t.id, newIcon);
+        }
+      } else if (selected == 'color') {
+        final newColor = await TagColorPickerSheet.show(context, currentColorId: t.color);
+        if (context.mounted) {
+          await ref.read(tagServiceProvider).setTagColor(t.id, newColor);
+        }
+      } else if (selected == 'delete') {
+        final confirmed = await TagDeleteDialog.show(context, tag: tag);
+        if (confirmed == true && context.mounted) {
+          await ref.read(tagServiceProvider).deleteTag(t.id);
+          if (ref.read(selectedTagFilterProvider) == t.name) {
+            ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+            ref.read(selectedTagFilterProvider.notifier).state = null;
+            ref.read(selectedTagIdProvider.notifier).state = null;
+            ref.read(notesQueryProvider.notifier).setTag(null);
+          }
+        }
+      }
+      return;
+    }
 
     showModalBottomSheet(
       context: context,

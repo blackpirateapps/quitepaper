@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.blackpiratex.quietpaper</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Quiet Paper</name>
+  <summary>Privacy-first, local-first encrypted notes and markdown journal</summary>
+  <description>
+    <p>
+      Quiet Paper is an elegant, distraction-free markdown note-taking app and daily journal
+      engineered with local-first, zero-knowledge encryption.
+    </p>
+    <ul>
+      <li>End-to-end local SQLite database with WAL mode and native concurrency</li>
+      <li>Per-note and vault-level zero-knowledge AES-GCM encryption</li>
+      <li>Distraction-free Markdown editor with WYSIWYG and raw preview modes</li>
+      <li>Interactive backlinks, wiki links, tags, and document attachments</li>
+      <li>Full XDG Desktop integration, responsive 3-pane layout, and keyboard shortcuts</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.blackpiratex.quietpaper.desktop</launchable>
+  <url type="homepage">https://github.com/blackpirateapps/quitepaper</url>
+  <url type="bugtracker">https://github.com/blackpirateapps/quitepaper/issues</url>
+  <developer_name>Black Pirate</developer_name>
+  <provides>
+    <binary>quitepaper</binary>
+    <mediatype>text/markdown</mediatype>
+    <mediatype>text/plain</mediatype>
+  </provides>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.1.0" date="2026-09-21">
+      <description>
+        <p>Linux native optimization release featuring XDG Base Directory migration, WAL concurrency, single-instance GTK integration, desktop drag-and-drop, and native packages.</p>
+      </description>
+    </release>
+  </releases>
+</component>

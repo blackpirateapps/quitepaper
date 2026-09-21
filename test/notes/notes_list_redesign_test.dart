@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -519,6 +520,58 @@ The security vulnerability was discovered during an automated penetration test.
       expect(find.text('Pinned'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
       expect(find.byType(Divider), findsOneWidget);
+    });
+  });
+
+  group('NoteListTile Desktop Context Menu Tests', () {
+    testWidgets('secondary tap shows context menu with duplicate option and invokes callback', (tester) async {
+      final themeData = AppTheme.light(family: ThemeFamily.classicPaper);
+      final note = Note(
+        id: 'note-desktop-1',
+        title: 'Desktop Note',
+        content: 'Testing right click menu',
+        createdAt: testNow,
+        updatedAt: testNow,
+      );
+
+      bool duplicateCalled = false;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: themeData,
+            home: Scaffold(
+              body: NoteListTile(
+                note: note,
+                onTap: () {},
+                onDuplicate: () {
+                  duplicateCalled = true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Right-click / secondary tap on NoteListTile
+      final tileFinder = find.text('Desktop Note');
+      expect(tileFinder, findsOneWidget);
+
+      await tester.tap(tileFinder, buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+
+      // Menu items should be visible
+      expect(find.text('Pin note'), findsOneWidget);
+      expect(find.text('Duplicate note'), findsOneWidget);
+      expect(find.text('Archive note'), findsOneWidget);
+      expect(find.text('Move to Trash'), findsOneWidget);
+
+      // Tap duplicate
+      await tester.tap(find.text('Duplicate note'));
+      await tester.pumpAndSettle();
+
+      expect(duplicateCalled, isTrue);
     });
   });
 }

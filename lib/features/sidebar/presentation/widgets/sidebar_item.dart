@@ -14,6 +14,7 @@ class SidebarItem extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     this.onSecondaryTap,
+    this.onSecondaryTapUp,
     this.isDestructive = false,
     this.customIconColor,
     this.trailing,
@@ -26,6 +27,7 @@ class SidebarItem extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onSecondaryTap;
+  final GestureTapUpCallback? onSecondaryTapUp;
   final bool isDestructive;
   final Color? customIconColor;
   final Widget? trailing;
@@ -78,6 +80,7 @@ class SidebarItem extends StatelessWidget {
             onTap: onTap,
             onLongPress: onLongPress,
             onSecondaryTap: onSecondaryTap,
+            onSecondaryTapUp: onSecondaryTapUp,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             splashColor: colors.accent.withValues(alpha: 0.1),
             highlightColor: colors.selection.withValues(alpha: 0.3),

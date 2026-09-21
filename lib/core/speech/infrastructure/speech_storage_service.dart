@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../storage/app_storage_path_resolver.dart';
 import '../domain/speech_model.dart';
 
 class SpeechStorageService {
@@ -27,7 +28,7 @@ class SpeechStorageService {
       }
       return dir;
     }
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await AppStoragePathResolver.getDataDirectory();
     final dir = Directory(p.join(appDir.path, _speechModelSubdir));
     if (create && !await dir.exists()) {
       await dir.create(recursive: true);

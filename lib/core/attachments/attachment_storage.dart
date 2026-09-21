@@ -2,7 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+import '../storage/app_storage_path_resolver.dart';
 
 /// Manages local storage of encrypted attachment payloads in app-private directories
 /// and provides an ephemeral, in-memory plaintext cache for UI rendering.
@@ -31,7 +31,7 @@ class AttachmentLocalStorage {
       return _cachedAttachmentsDir!;
     }
 
-    final appDocDir = await getApplicationDocumentsDirectory();
+    final appDocDir = await AppStoragePathResolver.getDataDirectory();
     final dir = Directory('${appDocDir.path}/attachments');
     if (!await dir.exists()) {
       await dir.create(recursive: true);

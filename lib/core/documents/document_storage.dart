@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../storage/app_storage_path_resolver.dart';
 
 /// Handles local disk persistence of encrypted document payloads (.qpd)
 /// and ephemeral in-memory decrypted byte caching.
@@ -24,7 +25,7 @@ class DocumentLocalStorage {
       }
       return customDocumentsDirectory!;
     }
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await AppStoragePathResolver.getDataDirectory();
     final docDir = Directory(p.join(appDir.path, 'documents'));
     if (!await docDir.exists()) {
       await docDir.create(recursive: true);

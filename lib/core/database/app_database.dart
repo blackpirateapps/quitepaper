@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../search/search_index_projection.dart';
 import '../search/search_models.dart';
 import '../search/search_tokenizer.dart';
+import '../utils/platform_layout_helper.dart';
 import '../utils/tag_parser.dart';
 import 'connection/connection.dart' as conn;
 import 'tables/attachment_ocr_pages_table.dart';
@@ -192,7 +193,18 @@ class AppDatabase extends _$AppDatabase {
           }
         },
         beforeOpen: (details) async {
-          await customStatement('PRAGMA foreign_keys = ON');
+          await customStatement('PRAGMA foreign_keys = ON;');
+          try {
+            await customStatement('PRAGMA journal_mode = WAL;');
+            await customStatement('PRAGMA synchronous = NORMAL;');
+            await customStatement('PRAGMA busy_timeout = 5000;');
+            await customStatement('PRAGMA cache_size = -16000;');
+            if (PlatformLayoutHelper.isDesktopPlatform) {
+              await customStatement('PRAGMA mmap_size = 268435456;');
+            }
+          } catch (e) {
+            debugPrint('[AppDatabase] PRAGMA tuning warning: $e');
+          }
           await _createFts5TablesAndTriggers();
           await _verifySearchIndexIntegrity();
           await customStatement(

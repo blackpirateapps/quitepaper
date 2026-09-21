@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1523,7 +1524,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             editorNotifier.handleExitCleanup();
           }
         },
-        child: Scaffold(
+        child: DropTarget(
+          onDragDone: (detail) => _handleDroppedFiles(detail.files),
+          child: Scaffold(
           backgroundColor: colors.background,
           appBar: AppBar(
             backgroundColor: colors.background,
@@ -1881,6 +1884,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
       ),
     ),
+  ),
   );
 }
 
@@ -2407,6 +2411,97 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         );
       }
     }
+  }
+
+  Future<void> _handleDroppedFiles(List<DropItem> items) async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly || !editorState.isUnlocked) return;
+
+    for (final item in items) {
+      final path = item.path;
+      final file = File(path);
+      if (!await file.exists()) continue;
+
+      final ext = p.extension(path).toLowerCase();
+      final name = p.basename(path);
+      final nameWithoutExt = p.basenameWithoutExtension(path);
+
+      if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
+        try {
+          final attachmentService = ref.read(attachmentServiceProvider);
+          final importResult = await attachmentService.importImageFromFile(
+            file,
+            noteId: widget.note.id,
+            preferredAltText: name,
+          );
+          _insertSnippetAtCursor('\n${importResult.markdownSnippet}\n');
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to import image: $e')),
+            );
+          }
+        }
+      } else if (ext == '.pdf') {
+        try {
+          final docService = ref.read(documentServiceProvider);
+          final res = await docService.importPdfFile(
+            file: file,
+            noteId: widget.note.id,
+            title: nameWithoutExt,
+          );
+          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to import PDF: $e')),
+            );
+          }
+        }
+      } else {
+        try {
+          final bytes = await file.readAsBytes();
+          final attachmentService = ref.read(attachmentServiceProvider);
+          final res = await attachmentService.importGenericFileFromBytes(
+            bytes,
+            fileName: name,
+            noteId: widget.note.id,
+          );
+          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to import file: $e')),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  void _insertSnippetAtCursor(String snippet) {
+    final val = _contentController.value;
+    final text = val.text;
+    final sel = val.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+
+    final newText = text.replaceRange(start, end, snippet);
+    final newCursor = start + snippet.length;
+
+    final updated = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+
+    _contentController.value = updated;
+    _undoRedoManager.pushAtomicEdit(updated);
+
+    if (!_contentFocusNode.hasFocus) {
+      _contentFocusNode.requestFocus();
+    }
+
+    _onContentChanged();
   }
 
   void _insertExtractedOcrText(String extractedText) {

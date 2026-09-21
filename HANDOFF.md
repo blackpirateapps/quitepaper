@@ -6984,6 +6984,129 @@ Configured across `CallbackShortcuts` supporting both `control` and `meta` (Cmd 
 - `flutter analyze`: **0 warnings / 0 errors**.
 - `flutter test`: **All tests passing** across entire project test suite.
 
+---
+
+## 44. Linux Client Native Optimizations & Modern Desktop Packaging (2026-09-21)
+
+### 1. Architectural Overview & Problem Context
+While Quiet Paper supported Linux compilation via the Flutter Linux engine, desktop-specific operating system conventions, filesystem layouts, and hardware expectations had critical gaps that impacted user experience, file management, and concurrency:
+1. **Documents Folder Pollution**: By default, `path_provider` on Linux resolves `getApplicationDocumentsDirectory()` to `~/Documents`. The SQLite database, attachment binaries, and cache files were created directly under user document folders instead of conforming to the XDG Base Directory specification.
+2. **SQLite Lock Contention**: Running SQLite with the default `DELETE` rollback journal mode caused blocking pauses and intermittent lock contention when background sync workers and UI queries executed concurrently.
+3. **Multi-Instance Duplicate Processes**: Launching `quitepaper` when an existing instance was running spawned an isolated duplicate process with competing database connections.
+4. **Window Geometry Loss**: Window coordinates and maximized state were not persisted across app restarts, resetting the window to default dimensions.
+5. **CSD HeaderBar Title Disconnect**: In GTK3 client-side decorations (CSD), `gtk_header_bar_set_title` did not dynamically update when `window.title` changed from Flutter.
+6. **Desktop Packaging Gaps**: The application lacked standardized Freedesktop AppStream metadata, `.desktop` entry, RPM spec, and AppImage packaging.
+
+### 2. Comprehensive Solutions & Implementation Pillars
+
+#### Pillar 1: XDG Base Directory Migration & Zero-Loss Data Bridge (`lib/core/storage/app_storage_path_resolver.dart`)
+- **Conformant Storage Hierarchy**:
+  - **Data Directory (`$XDG_DATA_HOME` / `~/.local/share/quitepaper`)**: Stores SQLite database (`quiet_paper.sqlite`, `-wal`, `-shm`), encrypted attachments (`attachments/`), PDF documents (`documents/`), speech audio (`voice_notes/`), and custom fonts (`fonts/`).
+  - **Config Directory (`$XDG_CONFIG_HOME` / `~/.config/quitepaper`)**: Stores desktop preferences and window state (`window_state.json`).
+  - **Cache Directory (`$XDG_CACHE_HOME` / `~/.cache/quitepaper`)**: Stores temporary preview files, OCR scratch files, and transient assets.
+- **Zero-Loss Auto-Migration (`migrateDirectories`)**:
+  - Automatically checks for legacy data in `~/Documents/quiet_paper.sqlite` upon initial startup.
+  - Safely moves the SQLite database, WAL files, and all payload subdirectories into `~/.local/share/quitepaper/`.
+  - Atomic rename with graceful fallback to copy-and-delete across partition boundaries.
+- **Integrated Storage Services**:
+  - `lib/core/database/connection/connection.dart`: Uses `AppStoragePathResolver.getDataDirectory()`.
+  - `lib/core/attachments/attachment_storage.dart`: Routes base directory to `AppStoragePathResolver`.
+  - `lib/core/documents/document_storage.dart`: Routes documents to `AppStoragePathResolver`.
+  - `lib/core/speech/infrastructure/speech_storage_service.dart`: Routes voice notes to `AppStoragePathResolver`.
+  - `lib/core/fonts/font_cache_manager.dart`: Routes downloaded fonts to `AppStoragePathResolver`.
+  - `lib/core/vault/vault_erase_service.dart`: Authoritatively purges data across `AppStoragePathResolver` paths.
+
+#### Pillar 2: SQLite WAL Mode & Concurrency PRAGMAs (`lib/core/database/app_database.dart`)
+- Configured in Drift `beforeOpen` executor setup:
+  - `PRAGMA foreign_keys = ON;`: Enforces relational constraints across all tables.
+  - `PRAGMA journal_mode = WAL;`: Enables Write-Ahead Logging for true concurrent readers and writers without read/write blocking.
+  - `PRAGMA synchronous = NORMAL;`: Reduces disk sync latency during WAL writes while preserving ACID durability across application crashes.
+  - `PRAGMA busy_timeout = 5000;`: Waits up to 5 seconds before raising `SQLITE_BUSY` when lock contention occurs.
+  - `PRAGMA cache_size = -16000;`: Allocates 16MB in-memory page cache for lightning-fast queries and keyset pagination.
+  - `PRAGMA mmap_size = 268435456;`: Enables 256MB memory-mapped I/O for direct kernel page mapping on Linux.
+
+#### Pillar 3: GTK Single-Instance Activation Protocol & CLI Arguments (`linux/runner/my_application.cc`, `lib/core/cli/cli_args_provider.dart`)
+- **Single-Instance Enforcement**:
+  - Replaced `G_APPLICATION_NON_UNIQUE` with `G_APPLICATION_DEFAULT_FLAGS` in `linux/runner/my_application.cc`.
+  - Subsequent application launches communicate with the primary running instance over D-Bus.
+  - The primary instance's `my_application_activate` brings the existing window to the front using `gtk_window_present(window)`.
+- **Command-Line Protocol**:
+  - `main(List<String> args)` in `lib/main.dart` captures startup CLI arguments and populates `initialLaunchArgsProvider`.
+  - `--new-note` or `-n`: Instantly creates a new note and presents it in the editor.
+  - Dropped or passed Markdown file paths (`.md`, `.markdown`, `.txt`): Automatically imported and opened.
+
+#### Pillar 4: Window Geometry Persistence & HeaderBar Title Dynamic Binding (`linux/runner/my_application.cc`)
+- **Window State Persistence**:
+  - Automatically loads and saves `width`, `height`, and `is_maximized` from `~/.config/quitepaper/window_state.json`.
+  - Configures default window size to `1200x800` (min `800x600`).
+  - Restores maximized state using `gtk_window_maximize()` upon launch.
+- **Dynamic Title Synchronization**:
+  - Binds the GTK HeaderBar title to the GTK window title via GObject bidirectional property binding:
+    ```c
+    g_object_bind_property(window, "title", header_bar, "title", G_BINDING_DEFAULT);
+    ```
+  - Any window title change set by Flutter's `SystemChrome.setApplicationSwitcherDescription` or `Title` widget dynamically reflects in the native GTK HeaderBar.
+
+#### Pillar 5: Three-Pane Desktop Ergonomics, Drag-and-Drop & Context Menus
+- **Drag-and-Drop Auto-Import (`desktop_drop`)**:
+  - Dropping `.md`, `.markdown`, or `.txt` files onto the Notes Screen automatically parses frontmatter, creates the note in SQLite, and immediately displays it in the editor.
+  - Dropping images (`.png`, `.jpg`, `.webp`, `.gif`) or documents (`.pdf`) into an open note in `EditorScreen` automatically encrypts the payload, stores it in the private data directory, inserts the markdown reference snippet at the cursor, and updates the undo/redo stack.
+- **Desktop Right-Click Context Menus (`NoteListTile`, `SidebarView`)**:
+  - Secondary tap (`onSecondaryTapUp` / right-click) on note list tiles displays a desktop popup menu: Pin/Unpin, Duplicate note, Archive/Unarchive, Copy note link (`qp://note/<id>`), Export note, and Move to Trash / Delete permanently.
+  - Secondary tap on Sidebar smart views and tags displays desktop menus: Open, Pin/Unpin, Rename, Change icon, Change color, and Delete tag.
+- **Keyboard Shortcuts**:
+  - `Ctrl+N` / `Cmd+N`: Create new note across both phone and tablet layouts.
+  - `Ctrl+F` / `Cmd+F`: Open global search.
+
+#### Pillar 6: Native Linux Packaging & Distribution (`linux/packaging/`, `.github/workflows/build_linux.yml`)
+- **Freedesktop Standard Files**:
+  - `linux/com.blackpiratex.quietpaper.desktop`: Desktop entry supporting file association (`text/markdown`, `text/plain`, `x-scheme-handler/qp`), categories, and `New Note` desktop action.
+  - `linux/com.blackpiratex.quietpaper.metainfo.xml`: AppStream metadata with OARS 1.1 content rating, screenshots, feature list, and release notes.
+- **Packaging Scripts**:
+  - `linux/packaging/quietpaper.spec`: RPM spec packaging the release bundle into `/opt/quitepaper/`, creating `/usr/bin/quitepaper` symlink, desktop entry, metainfo, and hicolor icons (256x256 and 512x512).
+  - `linux/packaging/build_appimage.sh`: Automated script building `Quiet_Paper-x86_64.AppImage` using standard AppDir structure and `AppRun`.
+- **CI Automation**:
+  - Updated `.github/workflows/build_linux.yml` to package and upload:
+    1. Standalone `.tar.gz` bundle (bundled with `.desktop`, `metainfo.xml`, and hicolor icons)
+    2. Native `.rpm` package (built via `rpmbuild`)
+    3. Self-contained `.AppImage` (built via `appimagetool`)
+    4. Raw release bundle directory
+
+### 3. File Inventory
+- **Storage & Infrastructure**:
+  - `lib/core/storage/app_storage_path_resolver.dart`: Centralized XDG resolver with auto-migration.
+  - `lib/core/database/connection/connection.dart`: Database folder resolution using `AppStoragePathResolver`.
+  - `lib/core/database/app_database.dart`: SQLite WAL and concurrency PRAGMA configuration.
+  - `lib/core/attachments/attachment_storage.dart`: XDG-compliant attachment directory.
+  - `lib/core/documents/document_storage.dart`: XDG-compliant documents directory.
+  - `lib/core/speech/infrastructure/speech_storage_service.dart`: XDG-compliant voice notes directory.
+  - `lib/core/fonts/font_cache_manager.dart`: XDG-compliant fonts directory.
+  - `lib/core/vault/vault_erase_service.dart`: Comprehensive vault erasure across XDG directories.
+- **CLI & Lifecycle**:
+  - `lib/core/cli/cli_args_provider.dart`: Command-line arguments provider and helper.
+  - `lib/main.dart`: CLI args capture and provider overrides.
+  - `linux/runner/my_application.cc`: GTK single-instance, window geometry persistence, header bar title binding.
+- **Presentation & Ergonomics**:
+  - `lib/features/notes/presentation/notes_screen.dart`: Drag-and-drop markdown import, CLI auto-handling, keyboard shortcuts (`Ctrl+N`, `Ctrl+F`), note duplication.
+  - `lib/features/notes/presentation/widgets/note_list_tile.dart`: Desktop right-click context menu (duplicate, pin, archive, copy link, export, trash).
+  - `lib/features/editor/presentation/editor_screen.dart`: Drag-and-drop image and document auto-encryption and snippet insertion.
+  - `lib/features/sidebar/presentation/sidebar_view.dart`: Desktop right-click context menu for tags and smart views.
+  - `lib/features/sidebar/presentation/widgets/sidebar_item.dart`: Secondary click detection.
+- **Packaging & CI**:
+  - `linux/com.blackpiratex.quietpaper.desktop`: Freedesktop .desktop entry.
+  - `linux/com.blackpiratex.quietpaper.metainfo.xml`: AppStream metainfo XML.
+  - `linux/packaging/quietpaper.spec`: RPM spec file.
+  - `linux/packaging/build_appimage.sh`: AppImage creation script.
+  - `.github/workflows/build_linux.yml`: Multi-format Linux CI build pipeline.
+- **Tests**:
+  - `test/storage/app_storage_path_resolver_test.dart`: Unit tests for path resolution, migration, and CLI arguments.
+  - `test/notes/notes_list_redesign_test.dart`: Widget tests for desktop right-click context menu and duplicate callback.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Automated tests: `flutter test` (**all 665+ tests passing**).
+
+
 
 
 

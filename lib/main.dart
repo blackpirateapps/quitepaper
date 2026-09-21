@@ -4,13 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'core/attachments/attachment_temp_storage.dart';
 import 'core/auth/auth_service.dart';
+import 'core/cli/cli_args_provider.dart';
 import 'core/crypto/crypto_service.dart';
 import 'core/crypto/key_manager.dart';
 import 'core/fonts/font_cache_manager.dart';
 import 'core/sync/sync_provider.dart';
 import 'features/settings/application/settings_provider.dart';
 
-void main() async {
+void main([List<String> args = const []]) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final authService = FirebaseAuthService();
@@ -37,6 +38,7 @@ void main() async {
         authServiceProvider.overrideWithValue(authService),
         cryptoServiceProvider.overrideWithValue(cryptoService),
         keyManagerProvider.overrideWithValue(keyManager),
+        initialLaunchArgsProvider.overrideWithValue(args),
       ],
       child: const QuietPaperApp(),
     ),

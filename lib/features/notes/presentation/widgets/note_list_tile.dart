@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/search/search_models.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
 import '../../../export/presentation/export_note_sheet.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
@@ -31,6 +33,7 @@ class NoteListTile extends StatefulWidget {
     this.onRestore,
     this.onDeletePermanently,
     this.onDelete,
+    this.onDuplicate,
     this.onTagTap,
     this.isSelected = false,
     this.isMultiSelecting = false,
@@ -51,6 +54,7 @@ class NoteListTile extends StatefulWidget {
   final VoidCallback? onRestore;
   final VoidCallback? onDeletePermanently;
   final VoidCallback? onDelete;
+  final VoidCallback? onDuplicate;
   final ValueChanged<String>? onTagTap;
   final bool isSelected;
   final bool isMultiSelecting;
@@ -114,9 +118,22 @@ class _NoteListTileState extends State<NoteListTile> {
             onTap: widget.isMultiSelecting
                 ? widget.onItemMultiSelectToggle
                 : widget.onTap,
+            onSecondaryTapUp: widget.isMultiSelecting
+                ? null
+                : (details) => _showDesktopContextMenu(context, details.globalPosition),
             onLongPress: widget.isMultiSelecting
                 ? widget.onItemMultiSelectToggle
-                : () => _showContextMenu(context),
+                : () {
+                    if (PlatformLayoutHelper.isDesktopPlatform) {
+                      final renderBox = context.findRenderObject() as RenderBox?;
+                      final pos = renderBox != null
+                          ? renderBox.localToGlobal(Offset(renderBox.size.width / 2, renderBox.size.height / 2))
+                          : const Offset(100, 100);
+                      _showDesktopContextMenu(context, pos);
+                    } else {
+                      _showContextMenu(context);
+                    }
+                  },
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
@@ -449,6 +466,190 @@ class _NoteListTileState extends State<NoteListTile> {
       maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
     );
+  }
+
+  void _showDesktopContextMenu(BuildContext context, Offset globalPosition) async {
+    final colors = context.appColors;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
+      overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+    );
+
+    if (widget.note.isTrashed) {
+      final selected = await showMenu<String>(
+        context: context,
+        position: position,
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: BorderSide(color: colors.divider, width: 0.8),
+        ),
+        items: [
+          PopupMenuItem<String>(
+            value: 'restore',
+            child: Row(
+              children: [
+                Icon(Icons.restore_rounded, size: 18, color: colors.textPrimary),
+                const SizedBox(width: 10),
+                Text('Restore note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'export',
+            child: Row(
+              children: [
+                Icon(Icons.ios_share_rounded, size: 18, color: colors.textSecondary),
+                const SizedBox(width: 10),
+                Text('Export note...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_forever_rounded, size: 18, color: colors.error),
+                const SizedBox(width: 10),
+                Text('Delete permanently', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+              ],
+            ),
+          ),
+        ],
+      );
+
+      if (!context.mounted) return;
+
+      if (selected == 'restore') {
+        widget.onRestore?.call();
+      } else if (selected == 'export') {
+        ExportNoteSheet.show(context, note: widget.note);
+      } else if (selected == 'delete') {
+        final confirmed = await PermanentDeleteDialog.show(context, count: 1);
+        if (confirmed == true) {
+          widget.onDeletePermanently?.call();
+        }
+      }
+      return;
+    }
+
+    final isPinned = widget.note.isPinned;
+    final isArchived = widget.note.isArchived;
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: position,
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadii.borderMd,
+        side: BorderSide(color: colors.divider, width: 0.8),
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'pin',
+          child: Row(
+            children: [
+              Icon(
+                isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                size: 18,
+                color: isPinned ? colors.accent : colors.textPrimary,
+              ),
+              const SizedBox(width: 10),
+              Text(isPinned ? 'Unpin note' : 'Pin note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'archive',
+          child: Row(
+            children: [
+              Icon(
+                isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                size: 18,
+                color: colors.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Text(isArchived ? 'Unarchive note' : 'Archive note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+            ],
+          ),
+        ),
+        if (widget.onDuplicate != null)
+          PopupMenuItem<String>(
+            value: 'duplicate',
+            child: Row(
+              children: [
+                Icon(Icons.copy_rounded, size: 18, color: colors.textSecondary),
+                const SizedBox(width: 10),
+                Text('Duplicate note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              ],
+            ),
+          ),
+        PopupMenuItem<String>(
+          value: 'copy_link',
+          child: Row(
+            children: [
+              Icon(Icons.link_rounded, size: 18, color: colors.textSecondary),
+              const SizedBox(width: 10),
+              Text('Copy note link', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'export',
+          child: Row(
+            children: [
+              Icon(Icons.ios_share_rounded, size: 18, color: colors.textSecondary),
+              const SizedBox(width: 10),
+              Text('Export note...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'trash',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded, size: 18, color: colors.error),
+              const SizedBox(width: 10),
+              Text('Move to Trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (!context.mounted) return;
+
+    if (selected == 'pin') {
+      widget.onTogglePin?.call();
+    } else if (selected == 'archive') {
+      if (isArchived) {
+        widget.onUnarchive?.call();
+      } else {
+        widget.onArchive?.call();
+      }
+    } else if (selected == 'duplicate') {
+      widget.onDuplicate?.call();
+    } else if (selected == 'copy_link') {
+      final link = '[${widget.note.displayTitle}](qp://note/${widget.note.id})';
+      await Clipboard.setData(ClipboardData(text: link));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Note link copied to clipboard'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else if (selected == 'export') {
+      ExportNoteSheet.show(context, note: widget.note);
+    } else if (selected == 'trash') {
+      widget.onTrash?.call();
+    }
   }
 
   void _showContextMenu(BuildContext context) {

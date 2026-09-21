@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-linux:
-    name: Test and Build Linux Release Bundle
+    name: Test and Build Linux Release Artifacts
     runs-on: ubuntu-latest
 
     steps:
@@ -15,7 +15,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libsecret-1-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libsecret-1-dev rpm curl file
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -38,15 +38,54 @@ jobs:
       - name: Build Linux Release Bundle
         run: flutter build linux --release
 
-      - name: Create release tarball
+      - name: Package Linux Release Tarball
         run: |
-          tar -czvf quiet-paper-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+          mkdir -p dist/tarball/quitepaper
+          cp -a build/linux/x64/release/bundle/* dist/tarball/quitepaper/
+          mkdir -p dist/tarball/quitepaper/share/applications
+          mkdir -p dist/tarball/quitepaper/share/metainfo
+          mkdir -p dist/tarball/quitepaper/share/icons/hicolor/256x256/apps
+          mkdir -p dist/tarball/quitepaper/share/icons/hicolor/512x512/apps
+          cp linux/com.blackpiratex.quietpaper.desktop dist/tarball/quitepaper/share/applications/
+          cp linux/com.blackpiratex.quietpaper.metainfo.xml dist/tarball/quitepaper/share/metainfo/
+          cp linux/assets/icon.png dist/tarball/quitepaper/share/icons/hicolor/256x256/apps/com.blackpiratex.quietpaper.png
+          cp assets/icons/app_icon.png dist/tarball/quitepaper/share/icons/hicolor/512x512/apps/com.blackpiratex.quietpaper.png
+          tar -czvf quiet-paper-linux-x64.tar.gz -C dist/tarball quitepaper
+
+      - name: Build RPM Package
+        run: |
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          rpmbuild -bb linux/packaging/quietpaper.spec \
+            --define "_topdir $PWD/rpmbuild" \
+            --define "_sourcedir $PWD"
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
+
+      - name: Build AppImage Package
+        run: |
+          ./linux/packaging/build_appimage.sh
+          cp build/linux/dist/Quiet_Paper-x86_64.AppImage .
 
       - name: Upload Linux Release Tarball Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: quiet-paper-linux-x64
+          name: quiet-paper-linux-tarball
           path: quiet-paper-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Linux RPM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiet-paper-linux-rpm
+          path: "*.rpm"
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Linux AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiet-paper-linux-appimage
+          path: Quiet_Paper-x86_64.AppImage
           if-no-files-found: error
           retention-days: 30
 
