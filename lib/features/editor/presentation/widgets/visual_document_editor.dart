@@ -572,8 +572,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       final fn = _blockFocusNodes[blockId];
       fn?.requestFocus();
       final ctrl = _blockControllers[blockId];
-      if (ctrl != null) {
-        widget.onActiveTargetChanged?.call(ctrl, fn ?? FocusNode());
+      if (ctrl != null && fn != null) {
+        // P3-6: only notify when a real FocusNode exists. The previous
+        // `fn ?? FocusNode()` fallback allocated a throwaway FocusNode that was
+        // never disposed, leaking one node per focus attempt with no controller
+        // pairing.
+        widget.onActiveTargetChanged?.call(ctrl, fn);
       }
     });
   }

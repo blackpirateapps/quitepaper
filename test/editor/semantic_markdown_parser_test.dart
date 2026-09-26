@@ -244,4 +244,99 @@ void main() {
       }
     });
   });
+
+  group('SemanticMarkdownParser P2 fidelity', () {
+    // P2-1: extra whitespace after a block marker must not mis-map content
+    // ranges. The content range must cover exactly the visible text and the
+    // caret round-trip through the first content char must be exact.
+    void expectMarkerRoundTrip(String md, String expectedContent) {
+      final doc = SemanticMarkdownParser.parse(md);
+      final block = doc.blocks.first;
+      expect(block.plainText, equals(expectedContent), reason: 'plainText for "$md"');
+
+      // The first visible character maps back to the byte immediately after the
+      // marker+whitespace, and that source offset maps forward to visible 0.
+      final pos = doc.findPositionAtSourceOffset(md.indexOf(expectedContent));
+      expect(pos, isNotNull, reason: 'position for "$md"');
+      expect(pos!.offset, equals(0), reason: 'first char offset for "$md"');
+      final back = doc.sourceOffsetAtPosition(pos);
+      expect(back, equals(md.indexOf(expectedContent)), reason: 'round-trip for "$md"');
+    }
+
+    test('P2-1 heading with multiple spaces after # maps content correctly', () {
+      expectMarkerRoundTrip('#   Heading', 'Heading');
+      final doc = SemanticMarkdownParser.parse('#   Heading');
+      final h = doc.blocks.first as HeadingBlock;
+      expect(h.contentRange.slice('#   Heading'), equals('Heading'));
+      expect(h.markerRange.length, equals(4)); // '#' + 3 spaces
+    });
+
+    test('P2-1 unordered / ordered / checklist / quote with extra spaces', () {
+      expectMarkerRoundTrip('-   item', 'item');
+      expectMarkerRoundTrip('1.   item', 'item');
+      expectMarkerRoundTrip('- [ ]   task', 'task');
+      expectMarkerRoundTrip('>    quote', '   quote');
+
+      final checkDoc = SemanticMarkdownParser.parse('- [ ]   task');
+      final c = checkDoc.blocks.first as ChecklistItemBlock;
+      expect(c.contentRange.slice('- [ ]   task'), equals('task'));
+      expect(c.checked, isFalse);
+    });
+
+    test('P2-3 flanking rejects intra-word underscores and spaced emphasis', () {
+      final snake = SemanticMarkdownParser.parse('snake_case_var');
+      expect(snake.blocks.first.plainText, equals('snake_case_var'));
+      expect(snake.blocks.first.plainText.contains('_'), isTrue);
+      final p = snake.blocks.first as ParagraphBlock;
+      expect(p.runs.every((r) => r is PlainRun), isTrue,
+          reason: 'no emphasis runs for snake_case');
+
+      final spaced = SemanticMarkdownParser.parse('a * b * c');
+      expect(spaced.blocks.first.plainText, equals('a * b * c'));
+
+      // Genuine emphasis must still parse.
+      final real = SemanticMarkdownParser.parse('*real*');
+      expect(real.blocks.first.plainText, equals('real'));
+      expect((real.blocks.first as ParagraphBlock).runs.any((r) => r.isItalic), isTrue);
+    });
+
+    test('P2-3/P2-9 empty inline emphasis does not produce a degenerate run', () {
+      // Inline `****` / `____` (surrounded by text so they are not block-level
+      // horizontal rules) must stay literal rather than emitting an empty run.
+      final stars = SemanticMarkdownParser.parse('a****b');
+      expect(stars.blocks.first.plainText, equals('a****b'));
+      final unders = SemanticMarkdownParser.parse('a____b');
+      expect(unders.blocks.first.plainText, equals('a____b'));
+
+      // A whole line of 4+ asterisks is still a horizontal rule (block level).
+      final hr = SemanticMarkdownParser.parse('****');
+      expect(hr.blocks.first, isA<HorizontalRuleBlock>());
+    });
+
+    test('P2-4 inline image is not parsed as a link and leaves no stray !', () {
+      final doc = SemanticMarkdownParser.parse('see ![a](x.png) here');
+      final p = doc.blocks.first as ParagraphBlock;
+      expect(p.runs.any((r) => r is LinkRun), isFalse);
+      expect(p.plainText, equals('see ![a](x.png) here'));
+    });
+
+    test('P2-5 space-separated thematic breaks parse as horizontal rules', () {
+      for (final hr in const ['* * *', '- - -', '_ _ _']) {
+        final doc = SemanticMarkdownParser.parse(hr);
+        expect(doc.blocks.length, equals(1), reason: 'blocks for "$hr"');
+        expect(doc.blocks.first, isA<HorizontalRuleBlock>(), reason: '"$hr" is HR');
+      }
+      // Two markers is still a list, not a rule.
+      final list = SemanticMarkdownParser.parse('- x');
+      expect(list.blocks.first, isA<ListItemBlock>());
+    });
+
+    test('P2-7 link URL keeps balanced parentheses', () {
+      final doc = SemanticMarkdownParser.parse('[wiki](https://e.org/a_(b))');
+      final p = doc.blocks.first as ParagraphBlock;
+      final link = p.runs.whereType<LinkRun>().single;
+      expect(link.destination, equals('https://e.org/a_(b)'));
+      expect(link.text, equals('wiki'));
+    });
+  });
 }

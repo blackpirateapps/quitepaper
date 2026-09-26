@@ -109,5 +109,43 @@ void main() {
       final trigger = TagAutocompleteTrigger.detect(value);
       expect(trigger, isNull);
     });
+
+    test('P3-3 returns null inside an in-progress ATX heading marker (##S)', () {
+      const value = TextEditingValue(
+        text: '##S',
+        selection: TextSelection.collapsed(offset: 3),
+      );
+      final trigger = TagAutocompleteTrigger.detect(value);
+      expect(trigger, isNull);
+    });
+
+    test('P3-3 returns null for a deeper in-progress heading marker (###Head)', () {
+      const value = TextEditingValue(
+        text: '###Head',
+        selection: TextSelection.collapsed(offset: 7),
+      );
+      final trigger = TagAutocompleteTrigger.detect(value);
+      expect(trigger, isNull);
+    });
+
+    test('P3-3 still detects a genuine single-hash tag at line start (#flutter)', () {
+      const value = TextEditingValue(
+        text: '#flutter',
+        selection: TextSelection.collapsed(offset: 8),
+      );
+      final trigger = TagAutocompleteTrigger.detect(value);
+      expect(trigger, isNotNull);
+      expect(trigger!.query, 'flutter');
+    });
+
+    test('P3-3 still detects a tag when hashes are mid-line, not a heading', () {
+      const value = TextEditingValue(
+        text: 'see ##S',
+        selection: TextSelection.collapsed(offset: 7),
+      );
+      final trigger = TagAutocompleteTrigger.detect(value);
+      expect(trigger, isNotNull);
+      expect(trigger!.query, 'S');
+    });
   });
 }

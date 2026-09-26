@@ -16,6 +16,10 @@ class SemanticMarkdownParser {
 
   // Pre-compiled static regexes for high-performance block parsing
   static final _horizontalRuleRegex = RegExp(r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$');
+  // Space-separated thematic breaks: `* * *`, `- - -`, `_ _ _` (P2-5).
+  // Requires the same marker char repeated 3+ times separated only by spaces/tabs.
+  static final _spacedHorizontalRuleRegex =
+      RegExp(r'^[ \t]*([-*_])(?:[ \t]+\1){2,}[ \t]*$');
   static final _headingRegex = RegExp(r'^(#{1,6})\s+(.*)$');
   static final _checklistRegex = RegExp(r'^(\s*)([-*+])\s+\[([ xX])\]\s*(.*)$');
   static final _unorderedListRegex = RegExp(r'^(\s*)([-*+])\s+(.*)$');
@@ -332,8 +336,9 @@ class SemanticMarkdownParser {
         continue;
       }
 
-      // Check for Horizontal Rule (---, ***, ___)
-      if (_horizontalRuleRegex.hasMatch(lineText)) {
+      // Check for Horizontal Rule (---, ***, ___, or spaced * * * / - - - / _ _ _)
+      if (_horizontalRuleRegex.hasMatch(lineText) ||
+          _spacedHorizontalRuleRegex.hasMatch(lineText)) {
         blocks.add(
           HorizontalRuleBlock(
             id: 'block_${blockCounter++}',
@@ -351,7 +356,11 @@ class SemanticMarkdownParser {
         final hashes = headingMatch.group(1)!;
         final content = headingMatch.group(2)!;
         final level = hashes.length;
-        final markerLen = hashes.length + 1; // hashes + space
+        // Derive the marker length from the actual match, not a constant, so
+        // multiple spaces after the hashes (`#   Title`) map carets correctly.
+        // The content group `(.*)$` is anchored to the end of the line, so its
+        // length subtracted from the line length yields the exact marker span.
+        final markerLen = lineText.length - content.length;
         final markerRange = SourceRange(currentOffset, currentOffset + markerLen);
         final contentRange = SourceRange(currentOffset + markerLen, currentOffset + lineText.length);
 
@@ -375,16 +384,16 @@ class SemanticMarkdownParser {
       final checklistMatch = _checklistRegex.firstMatch(lineText);
       if (checklistMatch != null) {
         final indentStr = checklistMatch.group(1) ?? '';
-        final markerChar = checklistMatch.group(2) ?? '-';
         final stateChar = checklistMatch.group(3) ?? ' ';
         final itemContent = checklistMatch.group(4) ?? '';
         final isChecked = stateChar == 'x' || stateChar == 'X';
 
-        final boxPrefixLen = indentStr.length + markerChar.length + 1 + 3; // indent + marker + ' [' + state + ']'
-        var contentStartOffset = currentOffset + boxPrefixLen;
-        if (contentStartOffset < currentOffset + lineText.length && markdown[contentStartOffset] == ' ') {
-          contentStartOffset++;
-        }
+        // Derive the content start from the actual match rather than assuming a
+        // single space around the marker (`- [ ]   task` has extra whitespace).
+        // The content group `(.*)$` runs to end of line, so subtracting its
+        // length yields the exact prefix span (indent + marker + box + spaces).
+        final contentStartOffset =
+            currentOffset + lineText.length - itemContent.length;
 
         final boxRange = SourceRange(currentOffset + indentStr.length, contentStartOffset);
         final contentRange = SourceRange(contentStartOffset, currentOffset + lineText.length);
@@ -412,7 +421,9 @@ class SemanticMarkdownParser {
         final markerChar = listMatch.group(2) ?? '-';
         final itemContent = listMatch.group(3) ?? '';
 
-        final markerLen = indentStr.length + markerChar.length + 1;
+        // Derive marker length from the actual match so extra spaces after the
+        // bullet (`-   item`) don't mis-map carets in the content (P2-1).
+        final markerLen = lineText.length - itemContent.length;
         final markerRange = SourceRange(currentOffset, currentOffset + markerLen);
         final contentRange = SourceRange(currentOffset + markerLen, currentOffset + lineText.length);
         final runs = _parseInlineRuns(itemContent, contentRange);
@@ -441,7 +452,9 @@ class SemanticMarkdownParser {
         final itemContent = orderedMatch.group(4) ?? '';
         final number = int.tryParse(numStr) ?? 1;
 
-        final markerLen = indentStr.length + numStr.length + delimiter.length + 1;
+        // Derive marker length from the actual match so extra spaces after the
+        // number (`1.   item`) don't mis-map carets in the content (P2-1).
+        final markerLen = lineText.length - itemContent.length;
         final markerRange = SourceRange(currentOffset, currentOffset + markerLen);
         final contentRange = SourceRange(currentOffset + markerLen, currentOffset + lineText.length);
         final runs = _parseInlineRuns(itemContent, contentRange);
@@ -466,7 +479,9 @@ class SemanticMarkdownParser {
       final quoteMatch = _quoteRegex.firstMatch(lineText);
       if (quoteMatch != null) {
         final quoteContent = quoteMatch.group(1) ?? '';
-        final markerLen = lineText.startsWith('> ') ? 2 : 1;
+        // Derive marker length from the actual match (`>` + optional space) so
+        // the content range starts at the real quote text (P2-1).
+        final markerLen = lineText.length - quoteContent.length;
         final markerRange = SourceRange(currentOffset, currentOffset + markerLen);
         final contentRange = SourceRange(currentOffset + markerLen, currentOffset + lineText.length);
         final runs = _parseInlineRuns(quoteContent, contentRange);
@@ -540,7 +555,8 @@ class SemanticMarkdownParser {
   static final RegExp _inlineRegex = RegExp(
     r'`(?<codeText>[^`\n]+)`|'
     r'\[\[(?<noteText>[^\]\n]+)\]\]|'
-    r'\[(?<linkLabel>[^\]\n]+)\]\((?<linkUrl>[^)\n]+)\)|'
+    r'!\[(?<imgAlt>[^\]\n]*)\]\((?<imgUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
+    r'\[(?<linkLabel>[^\]\n]+)\]\((?<linkUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
     r'(?<tagText>#[\w\-_/]+)|'
     r'==(?<highlightText>.*?)==|'
     r'~~(?<strikeText>.*?)~~|'
@@ -568,6 +584,45 @@ class SemanticMarkdownParser {
     return coalesced.isEmpty ? [PlainRun('', baseRange)] : coalesced;
   }
 
+  static final RegExp _alnum = RegExp(r'[A-Za-z0-9]');
+
+  /// Returns the emphasis delimiter (`***`/`___`, `**`/`__`, or `*`/`_`) for an
+  /// inline [match] if it is an emphasis candidate, otherwise null. Used by the
+  /// pragmatic flanking check (P2-3).
+  static String? _emphasisDelimiter(RegExpMatch match) {
+    if (match.namedGroup('biText') != null) return match.namedGroup('biDelim');
+    if (match.namedGroup('bText') != null) return match.namedGroup('bDelim');
+    if (match.namedGroup('iText') != null) return match.namedGroup('iDelim');
+    return null;
+  }
+
+  /// Pragmatic CommonMark-style flanking validation for an emphasis [match]
+  /// within [content] delimited by [delim] (P2-3):
+  /// - the inner text must be non-empty (rejects `****`, `____`);
+  /// - the opener must not be immediately followed by whitespace and the closer
+  ///   must not be immediately preceded by whitespace (rejects spaced
+  ///   arithmetic like `a * b * c`);
+  /// - underscore emphasis is additionally disallowed intra-word (rejects
+  ///   `snake_case_var`); `*` remains permissive intra-word (e.g. `a*b*c`).
+  static bool _isValidEmphasis(String content, RegExpMatch match, String delim) {
+    final delimLen = delim.length;
+    final innerStart = match.start + delimLen;
+    final innerEnd = match.end - delimLen;
+    if (innerEnd <= innerStart) return false; // empty emphasis
+    final firstChar = content[innerStart];
+    final lastChar = content[innerEnd - 1];
+    if (_isWhitespace(firstChar) || _isWhitespace(lastChar)) return false;
+    if (delim.contains('_')) {
+      final before = match.start > 0 ? content[match.start - 1] : '';
+      final after = match.end < content.length ? content[match.end] : '';
+      if (_alnum.hasMatch(before) || _alnum.hasMatch(after)) return false;
+    }
+    return true;
+  }
+
+  static bool _isWhitespace(String ch) =>
+      ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+
   static List<SemanticInline> _parseInlineRunsInternal(
     String content,
     SourceRange baseRange, {
@@ -583,6 +638,17 @@ class SemanticMarkdownParser {
     var lastIndex = 0;
 
     for (final match in _inlineRegex.allMatches(content)) {
+      // P2-3: reject emphasis candidates that fail pragmatic flanking rules
+      // (e.g. `snake_case_var`, spaced arithmetic `2 * 3 = 6 ... 4 * 5`, or
+      // empty `****`). A rejected match is skipped without advancing lastIndex,
+      // so its delimiters are re-absorbed as literal plain text by the next
+      // slice (or the trailing-plain base case), and never re-matched infinitely.
+      final emphasisDelim = _emphasisDelimiter(match);
+      if (emphasisDelim != null &&
+          !_isValidEmphasis(content, match, emphasisDelim)) {
+        continue;
+      }
+
       if (match.start > lastIndex) {
         final plainSlice = content.substring(lastIndex, match.start);
         final sliceRange = SourceRange(
@@ -613,6 +679,14 @@ class SemanticMarkdownParser {
         final noteTitle = match.namedGroup('noteText')!;
         final titleRange = SourceRange(matchStart + 2, matchEnd - 2);
         runs.add(NoteLinkRun(noteTitle: noteTitle, sourceRange: matchRange, titleRange: titleRange));
+      } else if (match.namedGroup('imgAlt') != null && match.namedGroup('imgUrl') != null) {
+        // P2-4: inline `![alt](url)` previously fell through to the link branch,
+        // leaving a stray `!` before a link run. Emit it as a single literal
+        // plain run spanning the whole image so text length equals source length
+        // (1:1 caret mapping) and nothing is lost. Rich inline-image rendering
+        // remains a future enhancement.
+        final literal = match.group(0)!;
+        runs.add(PlainRun(literal, matchRange));
       } else if (match.namedGroup('linkLabel') != null && match.namedGroup('linkUrl') != null) {
         final label = match.namedGroup('linkLabel')!;
         final destination = match.namedGroup('linkUrl')!;

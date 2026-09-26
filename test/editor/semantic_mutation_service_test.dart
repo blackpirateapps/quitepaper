@@ -276,6 +276,22 @@ void main() {
       expect(resExit.position.offset, equals(0));
     });
 
+    test('P3-5 checklist Enter preserves the original bullet character', () {
+      // A `*`-bulleted checklist item must continue with `*`, not a hardcoded `-`.
+      const initial = '* [ ] Task one';
+      final doc = SemanticMarkdownParser.parse(initial);
+      final posEnd = DocumentPosition(blockId: doc.blocks.first.id, offset: 8);
+      final resEnter = SemanticMutationService.splitBlock(initial, posEnd);
+      expect(resEnter.markdown, equals('* [ ] Task one\n* [ ] '));
+
+      // A `+`-bulleted checklist item continues with `+`.
+      const plusInitial = '+ [ ] Task';
+      final plusDoc = SemanticMarkdownParser.parse(plusInitial);
+      final plusPos = DocumentPosition(blockId: plusDoc.blocks.first.id, offset: 4);
+      final plusEnter = SemanticMutationService.splitBlock(plusInitial, plusPos);
+      expect(plusEnter.markdown, equals('+ [ ] Task\n+ [ ] '));
+    });
+
     test('list item mutations (toggle bullet, Enter continuation, exit on empty)', () {
       const initial = 'First item';
       final doc = SemanticMarkdownParser.parse(initial);

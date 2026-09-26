@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import 'code_block_scanner.dart';
+
 /// Represents a detected slash command trigger (`/query`) within an active text buffer.
 class SlashCommandTrigger {
   const SlashCommandTrigger({
@@ -26,6 +28,10 @@ class SlashCommandTrigger {
     final text = value.text;
     final cursor = selection.baseOffset;
     if (cursor <= 0 || cursor > text.length) return null;
+
+    // P3-1: suppress slash commands inside a fenced code block, matching the
+    // tag and note-link triggers.
+    if (isInsideFencedCodeBlock(text, cursor)) return null;
 
     // Determine the current line start
     final lineStart = text.lastIndexOf('\n', cursor - 1) + 1;

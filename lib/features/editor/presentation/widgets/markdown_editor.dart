@@ -353,6 +353,38 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     }
 
     // In Markdown mode, check if tapped on `- [ ]` or `- [x]`
+    final newText = _computeChecklistToggle(text, cursor);
+    if (newText != null) {
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: sel,
+      );
+      widget.onChanged?.call(newText);
+    }
+  }
+
+  /// P3-2: Handles a checklist tap inside a table-segmented text field. The
+  /// segment owns its own [MarkdownEditingController] with segment-local
+  /// offsets, so the toggle must be computed and written against [ctrl] (not
+  /// the master controller). The segment's own listener propagates the edit
+  /// back to the master document.
+  void _handleSegmentTap(TextEditingController ctrl) {
+    if (widget.readOnly) return;
+    final sel = ctrl.selection;
+    if (!sel.isValid) return;
+    final cursor = sel.start;
+    if (cursor < 0 || cursor > ctrl.text.length) return;
+    final newText = _computeChecklistToggle(ctrl.text, cursor);
+    if (newText != null) {
+      ctrl.value = TextEditingValue(text: newText, selection: sel);
+    }
+  }
+
+  /// Returns the full text with the checklist checkbox on the line containing
+  /// [cursor] toggled, or `null` if the caret is not on a `- [ ]` / `- [x]`
+  /// marker. Pure so both the master field and per-segment fields can reuse it.
+  String? _computeChecklistToggle(String text, int cursor) {
+    if (cursor < 0 || cursor > text.length) return null;
     var lineStart = 0;
     if (cursor > 0) {
       lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
@@ -362,20 +394,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
     final line = text.substring(lineStart, lineEnd);
     final match = RegExp(r'^(\s*[-*+]\s*\[)([ xX])(\])').firstMatch(line);
-    if (match != null) {
-      final markerEnd = lineStart + match.end;
-      if (cursor <= markerEnd + 1) {
-        final state = match.group(2);
-        final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
-        final stateOffset = lineStart + (match.group(1)?.length ?? 3);
-        final newText = text.replaceRange(stateOffset, stateOffset + 1, newState);
-        widget.controller.value = TextEditingValue(
-          text: newText,
-          selection: sel,
-        );
-        widget.onChanged?.call(newText);
-      }
-    }
+    if (match == null) return null;
+
+    final markerEnd = lineStart + match.end;
+    if (cursor > markerEnd + 1) return null;
+    final state = match.group(2);
+    final newState = (state == 'x' || state == 'X') ? ' ' : 'x';
+    final stateOffset = lineStart + (match.group(1)?.length ?? 3);
+    return text.replaceRange(stateOffset, stateOffset + 1, newState);
   }
 
   @override
@@ -515,7 +541,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             searchQuery: widget.searchQuery,
             editingStyle: widget.editingStyle,
             onActiveTarget: _handleSegmentActiveTarget,
-            onTap: _handleTap,
+            onTap: _handleSegmentTap,
             onChanged: (newSegText) {
               final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
               widget.controller.value = TextEditingValue(
@@ -574,7 +600,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           searchQuery: widget.searchQuery,
           editingStyle: widget.editingStyle,
           onActiveTarget: _handleSegmentActiveTarget,
-          onTap: _handleTap,
+          onTap: _handleSegmentTap,
           onChanged: (newSegText) {
             final newFullText = text.replaceRange(segmentStart, segmentEnd, newSegText);
             widget.controller.value = TextEditingValue(
@@ -876,7 +902,7 @@ class _TextSegmentField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final String? searchQuery;
   final EditorEditingStyle editingStyle;
-  final VoidCallback? onTap;
+  final void Function(TextEditingController controller)? onTap;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTarget;
 
   @override
@@ -960,7 +986,7 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       maxLines: null,
       onTap: () {
         widget.onActiveTarget?.call(_sourceController, _focusNode);
-        widget.onTap?.call();
+        widget.onTap?.call(_sourceController);
       },
       decoration: InputDecoration(
         hintText: widget.hintText,

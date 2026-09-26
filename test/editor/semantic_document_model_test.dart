@@ -109,5 +109,33 @@ void main() {
             reason: 'visible offset $visible should round-trip');
       }
     });
+
+    test('P2-8 collapsed caret inside **bold** yields a zero-length range', () {
+      const md = 'a **bold** b';
+      final doc = SemanticMarkdownParser.parse(md);
+      final block = doc.blocks.first;
+      // Visible text is "a bold b"; place a collapsed caret inside "bold".
+      final caret = DocumentPosition(blockId: block.id, offset: 4); // inside 'bold'
+      final sel = DocumentSelection.collapsed(caret);
+      final range = doc.sourceRangeAtSelection(sel);
+      expect(range.length, equals(0), reason: 'collapsed caret must be zero-width');
+    });
+
+    test('P2-9 caret at end of a paragraph round-trips within the block', () {
+      const md = 'first line\nsecond line';
+      final doc = SemanticMarkdownParser.parse(md);
+      final firstBlock = doc.blocks.first as ParagraphBlock;
+      final endPos = DocumentPosition(
+        blockId: firstBlock.id,
+        offset: firstBlock.plainText.length,
+      );
+      final sourceOffset = doc.sourceOffsetAtPosition(endPos);
+      // Must land on the end of the content, not past the trailing newline.
+      expect(sourceOffset, equals('first line'.length));
+      final mapped = doc.findPositionAtSourceOffset(sourceOffset);
+      expect(mapped, isNotNull);
+      expect(mapped!.blockId, equals(firstBlock.id));
+      expect(mapped.offset, equals(firstBlock.plainText.length));
+    });
   });
 }

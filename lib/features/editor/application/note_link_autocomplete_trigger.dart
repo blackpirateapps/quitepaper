@@ -1,5 +1,6 @@
-import 'dart:math';
 import 'package:flutter/services.dart';
+
+import 'code_block_scanner.dart';
 
 /// Represents an active `[[query` note-link autocomplete trigger within editable text.
 class NoteLinkAutocompleteTrigger {
@@ -25,45 +26,6 @@ class NoteLinkAutocompleteTrigger {
   /// Length of the entire trigger span (`[[` + query).
   int get fullLength => queryEnd - triggerStart;
 
-  /// Fast backward search to determine if [offset] is inside a fenced code block (``` or ~~~).
-  static bool _isInsideCodeBlock(String text, int offset) {
-    if (offset <= 0 || text.isEmpty) return false;
-    if (!text.contains('```') && !text.contains('~~~')) return false;
-
-    var fenceCount = 0;
-    var pos = offset - 1;
-    while (pos >= 0) {
-      final idxBacktick = text.lastIndexOf('```', pos);
-      final idxTilde = text.lastIndexOf('~~~', pos);
-      final nextIdx = max(idxBacktick, idxTilde);
-      if (nextIdx == -1) break;
-
-      var lineStart = 0;
-      if (nextIdx > 0) {
-        final prevNewline = text.lastIndexOf('\n', nextIdx - 1);
-        if (prevNewline != -1) {
-          lineStart = prevNewline + 1;
-        }
-      }
-      var isValidFence = true;
-      for (var i = lineStart; i < nextIdx; i++) {
-        if (text[i] != ' ' && text[i] != '\t') {
-          isValidFence = false;
-          break;
-        }
-      }
-
-      if (isValidFence) {
-        fenceCount++;
-      }
-
-      if (lineStart == 0) break;
-      pos = lineStart - 1;
-    }
-
-    return fenceCount % 2 != 0;
-  }
-
   /// Evaluates [value] and returns an active [NoteLinkAutocompleteTrigger] if the caret
   /// is positioned after an unclosed `[[` trigger on the current line.
   static NoteLinkAutocompleteTrigger? detect(TextEditingValue value) {
@@ -78,7 +40,7 @@ class NoteLinkAutocompleteTrigger {
     }
 
     // Check if inside a code block
-    if (_isInsideCodeBlock(text, cursor)) {
+    if (isInsideFencedCodeBlock(text, cursor)) {
       return null;
     }
 

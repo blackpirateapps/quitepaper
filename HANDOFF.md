@@ -7369,3 +7369,67 @@ A focused audit of the Editor V4 "Semantic Document Architecture" (the WYSIWYG "
 - Static analysis: `flutter analyze` (**No issues found**).
 - Automated tests: full `test/editor` suite passes, including the 6 new regression tests.
 
+## 119. WYSIWYG Semantic Editor P2 Parser-Fidelity Fixes
+
+### 1. Overview & Motivation
+A follow-up pass on the semantic Markdown parser (the ephemeral AST built from the canonical Markdown source) addressed a set of parser-fidelity defects (P2) that either mis-mapped caret positions or mis-rendered inline/block syntax. Canonical Markdown remains the sole source of truth; the AST is never persisted.
+
+### 2. Bugs Fixed
+- **P2-1 Marker length off-by-N with extra whitespace**: Heading/unordered/ordered/checklist/quote markers computed a fixed marker length (e.g. `hashes.length + 1`, `'> '` ? 2 : 1), so extra spaces after the marker (`#   Heading`, `-   item`, `1.   item`, `- [ ]   task`) shifted every content offset and broke the caret round-trip. Marker length is now derived as `lineText.length - content.length`, exactly covering the marker plus its trailing whitespace.
+- **P2-3 Emphasis flanking**: Added pragmatic CommonMark-style flanking rules (`_isValidEmphasis`) so intra-word underscores (`snake_case_var`) and space-separated delimiters (`a * b * c`) stay literal, while genuine `*real*` emphasis still parses. Empty inline emphasis (`a****b`, `a____b`) no longer emits a degenerate empty run.
+- **P2-4 Inline images**: `![alt](url)` is now emitted as a literal `PlainRun` instead of being mis-parsed as a link, leaving no stray `!`.
+- **P2-5 Spaced thematic breaks**: `* * *`, `- - -`, `_ _ _` now parse as `HorizontalRuleBlock` via a dedicated `_spacedHorizontalRuleRegex`; a single marker (`- x`) remains a list item.
+- **P2-7 Balanced parens in link/image URLs**: The inline regex now permits one level of balanced parentheses in link and image destinations (`[wiki](https://e.org/a_(b))`).
+- **P2-8 Collapsed-caret zero-width range**: `sourceRangeAtSelection` short-circuits collapsed selections, resolving both ends with the same affinity so a caret inside `**bold**` no longer inflates into a 2-char range.
+- **P2-9 Caret at end of paragraph**: The paragraph fallback end now uses `contentRange.end` (not `sourceRange.end`), so a caret at end-of-paragraph maps to the content end rather than past the trailing newline.
+
+### 3. Scope Notes (Deliberately Deferred)
+- **P2-2 Backslash escapes**: Deferred. An escaped char has 1 visible but 2 source characters, breaking the 1:1 text↔source assumption in `_findPositionInRuns`/`_sourceOffsetInRuns` and `mergeAdjacentRuns` (`PlainRun` cannot carry an independent `contentRange`). To be revisited with the run-model / stable-block-ID (§4) work.
+- **P2-6 Setext headings**: Out of scope per product decision.
+- **P2-7 nested `]` in link labels**: Deferred; only the balanced-parens-in-URL half was implemented.
+
+### 4. File Inventory
+- **Updated Files**:
+  - `lib/features/editor/application/semantic_markdown_parser.dart`: P2-1 marker lengths; `_spacedHorizontalRuleRegex` (P2-5); inline regex img/balanced-paren alternatives (P2-4/P2-7); `_isValidEmphasis`/`_emphasisDelimiter` flanking (P2-3).
+  - `lib/features/editor/domain/semantic_document.dart`: P2-8 collapsed-caret short-circuit; P2-9 paragraph `contentRange.end` fallback.
+- **New Tests**:
+  - `test/editor/semantic_markdown_parser_test.dart`: group "SemanticMarkdownParser P2 fidelity" (marker round-trips, flanking, empty emphasis, inline image, spaced HR, balanced parens).
+  - `test/editor/semantic_document_model_test.dart`: P2-8 collapsed-caret zero-length and P2-9 end-of-paragraph round-trip.
+
+### 5. Verification & Quality
+- Static analysis: `flutter analyze` (**No issues found**).
+- Automated tests: full `test/editor` suite passes.
+
+## 120. WYSIWYG Editor P3 Autocomplete & UX Polish
+
+### 1. Overview & Motivation
+The P3 batch resolves autocomplete-trigger and interaction defects surrounding code blocks, headings, checklists, and a FocusNode leak, plus consolidates three copies of the fenced-code-block detector into one correct implementation.
+
+### 2. Bugs Fixed
+- **P3-4 Shared code-block scanner**: The note-link and tag triggers each carried a duplicated `_isInsideCodeBlock` that walked backward with `lastIndexOf('```')`, which could miscount overlapping/adjacent fences. Replaced all copies with one shared `isInsideFencedCodeBlock` (`code_block_scanner.dart`) that counts *fence lines* strictly before the caret's own line — parity = inside. Inline `` `code` `` on the caret line is never counted.
+- **P3-1 Slash command inside code block**: `SlashCommandTrigger.detect` now suppresses the slash menu inside a fenced code block, matching the other triggers.
+- **P3-3 Tag overlay inside in-progress heading**: An in-progress ATX heading marker of two or more hashes with no space yet (e.g. `##S`) no longer flashes the tag autocomplete. A single leading `#` (`#flutter`) is still treated as a genuine tag.
+- **P3-5 Checklist Enter preserves bullet**: `SemanticMutationService.splitBlock` derives the continuation bullet from the item's original bullet char (`markdown[boxRange.start]`) instead of hardcoding `-`, so `*`/`+` checklists continue with the same marker.
+- **P3-2 Checklist tap-toggle in table-segmented mode**: In segmented (table) Markdown mode each text segment owns its own controller with segment-local offsets, but the tap handler toggled against the master controller, hitting the wrong offset. Extracted a pure `_computeChecklistToggle(text, cursor)`; the master field and each `_TextSegmentField` now toggle on their own controller (`_handleSegmentTap`), and the segment's listener propagates the edit to the master document.
+- **P3-6 FocusNode leak (safe part)**: `_focusBlockAt` used `fn ?? FocusNode()`, allocating an undisposed throwaway node whenever no real focus node existed. Now guarded with `if (ctrl != null && fn != null)`. Other P3-6 items (viewport 28px estimate, duplicated focus-restore, full-repaint short-circuit) are performance-sensitive and deferred for a dedicated pass.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/features/editor/application/code_block_scanner.dart`: shared `isInsideFencedCodeBlock`.
+- **Updated Files**:
+  - `lib/features/editor/application/slash_command_trigger.dart`: P3-1 guard via shared scanner.
+  - `lib/features/editor/application/tag_autocomplete_trigger.dart`: P3-4 shared scanner; P3-3 heading-marker suppression.
+  - `lib/features/editor/application/note_link_autocomplete_trigger.dart`: P3-4 shared scanner (removed duplicate).
+  - `lib/features/editor/application/semantic_mutation_service.dart`: P3-5 bullet preservation.
+  - `lib/features/editor/presentation/widgets/markdown_editor.dart`: P3-2 per-controller checklist toggle (`_computeChecklistToggle`, `_handleSegmentTap`; `_TextSegmentField.onTap` now passes its controller).
+  - `lib/features/editor/presentation/widgets/visual_document_editor.dart`: P3-6 FocusNode leak guard.
+- **New & Updated Tests**:
+  - `test/editor/code_block_scanner_test.dart`: shared scanner incl. multi-fence parity.
+  - `test/editor/slash_command_test.dart`: P3-1 in/after code block.
+  - `test/editor/tag_autocomplete_trigger_test.dart`: P3-3 heading-marker suppression vs genuine tags.
+  - `test/editor/semantic_mutation_service_test.dart`: P3-5 `*`/`+` bullet preservation.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**No issues found**).
+- Automated tests: full `test/editor` suite passes.
+

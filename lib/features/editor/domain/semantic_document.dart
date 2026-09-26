@@ -215,7 +215,7 @@ class SemanticDocument {
     if (block == null) return canonicalMarkdown.length;
 
     if (block is ParagraphBlock) {
-      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.sourceRange.end);
+      return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange?.end ?? block.sourceRange.end);
     } else if (block is HeadingBlock) {
       return _sourceOffsetInRuns(block.runs, position.offset, affinity: affinity, fallbackEnd: block.contentRange.end);
     } else if (block is ListItemBlock) {
@@ -263,6 +263,14 @@ class SemanticDocument {
 
   /// Maps a logical [DocumentSelection] to a canonical Markdown [SourceRange].
   SourceRange sourceRangeAtSelection(DocumentSelection selection) {
+    // P2-8: for a collapsed caret, resolving the two ends with different
+    // affinities (downstream/upstream) can straddle a hidden delimiter (e.g.
+    // `**`), inflating a zero-width caret into a 2-char range. Resolve both
+    // ends with the same affinity so a collapsed selection stays zero-length.
+    if (selection.isCollapsed) {
+      final offset = sourceOffsetAtPosition(selection.start, affinity: TextAffinity.downstream);
+      return SourceRange(offset, offset);
+    }
     final startOffset = sourceOffsetAtPosition(selection.start, affinity: TextAffinity.downstream);
     final endOffset = sourceOffsetAtPosition(selection.end, affinity: TextAffinity.upstream);
     final minOffset = startOffset < endOffset ? startOffset : endOffset;

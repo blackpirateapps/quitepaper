@@ -172,7 +172,13 @@ class SemanticMutationService {
       // Non-empty checklist item -> insert new uncompleted checklist item on new line
       final sourceOffset = doc.sourceOffsetAtPosition(position);
       final indent = ' ' * block.indent;
-      final insertion = '\n$indent- [ ] ';
+      // P3-5: preserve the item's original bullet character (`-`, `*`, or `+`)
+      // rather than hardcoding `-`. boxRange.start points at the bullet char.
+      final bulletStart = block.boxRange.start;
+      final bullet = (bulletStart >= 0 && bulletStart < markdown.length)
+          ? markdown[bulletStart]
+          : '-';
+      final insertion = '\n$indent$bullet [ ] ';
       final newMarkdown = markdown.replaceRange(sourceOffset, sourceOffset, insertion);
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
       final newPos = newDoc.findPositionAtSourceOffset(sourceOffset + insertion.length) ??

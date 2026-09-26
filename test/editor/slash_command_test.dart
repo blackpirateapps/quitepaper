@@ -83,6 +83,27 @@ void main() {
       final trigger = SlashCommandTrigger.detect(value);
       expect(trigger, isNull);
     });
+
+    test('P3-1 ignores slash inside a fenced code block', () {
+      const text = '```dart\n/todo';
+      final value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      final trigger = SlashCommandTrigger.detect(value);
+      expect(trigger, isNull);
+    });
+
+    test('P3-1 detects slash again after the code block is closed', () {
+      const text = '```dart\nx\n```\n/todo';
+      final value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      final trigger = SlashCommandTrigger.detect(value);
+      expect(trigger, isNotNull);
+      expect(trigger!.query, 'todo');
+    });
   });
 
   group('SlashCommandItem Match Tests', () {

@@ -1,5 +1,6 @@
-import 'dart:math';
 import 'package:flutter/services.dart';
+
+import 'code_block_scanner.dart';
 
 /// Represents an active `#query` tag autocomplete trigger within editable text.
 class TagAutocompleteTrigger {
@@ -25,45 +26,6 @@ class TagAutocompleteTrigger {
   /// Length of the entire trigger span (`#` + query).
   int get fullLength => queryEnd - triggerStart;
 
-  /// Fast backward search to determine if [offset] is inside a fenced code block (``` or ~~~).
-  static bool _isInsideCodeBlock(String text, int offset) {
-    if (offset <= 0 || text.isEmpty) return false;
-    if (!text.contains('```') && !text.contains('~~~')) return false;
-
-    var fenceCount = 0;
-    var pos = offset - 1;
-    while (pos >= 0) {
-      final idxBacktick = text.lastIndexOf('```', pos);
-      final idxTilde = text.lastIndexOf('~~~', pos);
-      final nextIdx = max(idxBacktick, idxTilde);
-      if (nextIdx == -1) break;
-
-      var lineStart = 0;
-      if (nextIdx > 0) {
-        final prevNewline = text.lastIndexOf('\n', nextIdx - 1);
-        if (prevNewline != -1) {
-          lineStart = prevNewline + 1;
-        }
-      }
-      var isValidFence = true;
-      for (var i = lineStart; i < nextIdx; i++) {
-        if (text[i] != ' ' && text[i] != '\t') {
-          isValidFence = false;
-          break;
-        }
-      }
-
-      if (isValidFence) {
-        fenceCount++;
-      }
-
-      if (lineStart == 0) break;
-      pos = lineStart - 1;
-    }
-
-    return fenceCount % 2 != 0;
-  }
-
   /// Characters that terminate a hashtag query or indicate that it is not a hashtag.
   static final RegExp _tagTerminatorRegex = RegExp(r'''[\s.,!?()\[\]{}"`'><:;]''');
 
@@ -85,7 +47,7 @@ class TagAutocompleteTrigger {
     }
 
     // Check if inside a code block
-    if (_isInsideCodeBlock(text, cursor)) {
+    if (isInsideFencedCodeBlock(text, cursor)) {
       return null;
     }
 
@@ -93,6 +55,16 @@ class TagAutocompleteTrigger {
     var lineStart = 0;
     if (cursor > 0) {
       lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+    }
+
+    // P3-3: an in-progress ATX heading marker (`##`..`######` before its space)
+    // at line start is heading syntax, not a tag. A single leading `#` is left
+    // alone because `#foo` with no space is a genuine tag; but two or more
+    // leading hashes with no space yet (e.g. `##S`) can only be a heading being
+    // typed, so suppress the overlay to stop the tag autocomplete flashing.
+    final lineUpToCursorForHeading = text.substring(lineStart, cursor);
+    if (RegExp(r'^#{2,6}[^\s#]*$').hasMatch(lineUpToCursorForHeading)) {
+      return null;
     }
 
     final lineUpToCursor = text.substring(lineStart, cursor);
