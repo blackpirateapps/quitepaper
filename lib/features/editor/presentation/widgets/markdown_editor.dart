@@ -112,6 +112,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         onMarkdownChanged: _onSemanticMarkdownChanged,
       );
       _semanticController!.searchQuery = widget.searchQuery;
+      // Carry the source-mode caret into the semantic document so switching to
+      // WYSIWYG keeps the cursor where the user was editing.
+      final sourceOffset = widget.controller.selection.baseOffset;
+      if (sourceOffset > 0) {
+        _semanticController!.setSelectionFromSourceOffset(sourceOffset);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onSemanticControllerChanged?.call(_semanticController);
       });
@@ -190,7 +196,19 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
     if (_semanticController != null &&
         _semanticController!.markdown != widget.controller.text) {
-      _semanticController!.markdown = widget.controller.text;
+      // Map the source caret into the semantic document so external source
+      // edits (find/replace, title sync, dictation) don't reset the WYSIWYG
+      // caret to the top of the document.
+      final sourceOffset = widget.controller.selection.baseOffset;
+      _isSyncing = true;
+      try {
+        _semanticController!.updateMarkdownAndRetainSelection(
+          widget.controller.text,
+          sourceOffset >= 0 ? sourceOffset : widget.controller.text.length,
+        );
+      } finally {
+        _isSyncing = false;
+      }
     }
 
     _syncActiveTableWithDocument();

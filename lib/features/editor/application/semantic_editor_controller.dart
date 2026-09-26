@@ -148,8 +148,7 @@ class SemanticEditorController extends ChangeNotifier {
     onMarkdownChanged?.call(_markdown);
   }
 
-  void updateMarkdownAndRetainSelection(String newMarkdown, int sourceOffset) {
-    _markdown = newMarkdown;
+  void updateMarkdownAndRetainSelection(String newMarkdown, int sourceOffset) {    _markdown = newMarkdown;
     _document = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
     final newPos = _document.findPositionAtSourceOffset(sourceOffset);
     if (newPos != null) {
@@ -161,7 +160,40 @@ class SemanticEditorController extends ChangeNotifier {
     onMarkdownChanged?.call(_markdown);
   }
 
-  void splitBlock(String blockId, int offset) {
+  /// Places a collapsed caret at the semantic position matching a canonical
+  /// Markdown [sourceOffset]. Used when entering WYSIWYG from source mode so the
+  /// caret lands where the user was editing rather than resetting to the top.
+  void setSelectionFromSourceOffset(int sourceOffset) {
+    final pos = _document.findPositionAtSourceOffset(sourceOffset);
+    if (pos != null) {
+      selection = DocumentSelection.collapsed(pos);
+    }
+  }
+
+  void splitBlock(String blockId, int offset, {int? selectionEndOffset}) {
+    // When Enter is pressed over a non-collapsed selection, delete the selected
+    // range first, then split at the (now collapsed) start. Without this the
+    // selected text survives and gets pushed into the new block.
+    if (selectionEndOffset != null && selectionEndOffset != offset) {
+      final start = offset < selectionEndOffset ? offset : selectionEndOffset;
+      final end = offset < selectionEndOffset ? selectionEndOffset : offset;
+      final deleted = SemanticMutationService.deleteSelection(
+        _markdown,
+        DocumentSelection(
+          base: DocumentPosition(blockId: blockId, offset: start),
+          extent: DocumentPosition(blockId: blockId, offset: end),
+        ),
+        stripFrontmatter: stripFrontmatter,
+      );
+      applyMutation(
+        SemanticMutationService.splitBlock(
+          deleted.markdown,
+          deleted.position,
+          stripFrontmatter: stripFrontmatter,
+        ),
+      );
+      return;
+    }
     final position = DocumentPosition(blockId: blockId, offset: offset);
     applyMutation(SemanticMutationService.splitBlock(_markdown, position, stripFrontmatter: stripFrontmatter));
   }

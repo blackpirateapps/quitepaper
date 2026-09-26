@@ -488,5 +488,66 @@ void main() {
       expect(resBackText.markdown, equals('Hello world\nNext line'));
       expect(resBackText.document.blocks.any((b) => b is HorizontalRuleBlock), isFalse);
     });
+
+    group('block-marker toggles preserve inline formatting', () {
+      test('toggleList keeps bold/italic delimiters instead of flattening', () {
+        const initial = 'This is **bold** and *italic*';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final pos = DocumentPosition(blockId: doc.blocks.first.id, offset: 0);
+
+        final res = SemanticMutationService.toggleList(initial, pos);
+        expect(res.markdown, equals('- This is **bold** and *italic*'));
+      });
+
+      test('setHeadingLevel keeps inline delimiters when promoting a paragraph',
+          () {
+        const initial = 'Title with `code`';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final pos = DocumentPosition(blockId: doc.blocks.first.id, offset: 0);
+
+        final res = SemanticMutationService.setHeadingLevel(initial, pos, 2);
+        expect(res.markdown, equals('## Title with `code`'));
+      });
+
+      test('toggleQuote keeps inline delimiters', () {
+        const initial = 'Quote **me**';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final pos = DocumentPosition(blockId: doc.blocks.first.id, offset: 0);
+
+        final res = SemanticMutationService.toggleQuote(initial, pos);
+        expect(res.markdown, equals('> Quote **me**'));
+      });
+
+      test('toggleChecklist round-trips without losing formatting', () {
+        const initial = 'Task **one**';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final pos = DocumentPosition(blockId: doc.blocks.first.id, offset: 0);
+
+        final res = SemanticMutationService.toggleChecklist(initial, pos);
+        expect(res.markdown, equals('- [ ] Task **one**'));
+
+        // Toggling back off restores the plain paragraph with formatting intact.
+        final off = SemanticMutationService.toggleChecklist(
+          res.markdown,
+          DocumentPosition(blockId: res.document.blocks.first.id, offset: 0),
+        );
+        expect(off.markdown, equals('Task **one**'));
+      });
+
+      test('caret after list conversion lands in visible content, not delimiters',
+          () {
+        const initial = 'This is **bold**';
+        final doc = SemanticMarkdownParser.parse(initial);
+        // Visible caret before the word "bold" (visible text: "This is bold").
+        final pos = DocumentPosition(blockId: doc.blocks.first.id, offset: 8);
+
+        final res = SemanticMutationService.toggleList(initial, pos);
+        expect(res.markdown, equals('- This is **bold**'));
+        // Caret should map to the same visible position within the new block.
+        final visible = res.document.blocks.first.plainText;
+        expect(res.position.offset, lessThanOrEqualTo(visible.length));
+        expect(res.position.offset, equals(8));
+      });
+    });
   });
 }

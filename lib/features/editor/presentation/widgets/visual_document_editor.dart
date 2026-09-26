@@ -67,6 +67,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   Type? _lastActiveBlockType;
   bool _lastActiveBlockChecked = false;
 
+  /// True while we push document state into a block controller (updating its
+  /// block or writing its selection). Programmatic controller notifications
+  /// must not bounce back into [SemanticEditorController.updateSelectionFromBlock],
+  /// which would feed an endless selection sync loop.
+  bool _isProgrammaticSelectionUpdate = false;
+
   @override
   void initState() {
     super.initState();
@@ -198,19 +204,28 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           searchQuery: widget.searchQuery,
         );
         ctrl.addListener(() {
-          final fn = _blockFocusNodes[block.id];
+          // Ignore programmatic updates (block re-sync, selection restore) so
+          // only genuine user-driven selection changes propagate back.
+          if (_isProgrammaticSelectionUpdate) return;
+          // Read the controller's live block, not the captured `block`: after a
+          // parse the captured instance is stale and its `plainText` no longer
+          // matches, which silently suppressed caret sync after any edit.
+          final currentBlock = ctrl.block;
+          final fn = _blockFocusNodes[currentBlock.id];
           if (fn != null &&
               fn.hasFocus &&
-              ctrl.text == block.plainText &&
-              widget.controller.selection.base.blockId == block.id) {
-            widget.controller.updateSelectionFromBlock(block.id, ctrl.selection);
+              ctrl.text == currentBlock.plainText &&
+              widget.controller.selection.base.blockId == currentBlock.id) {
+            widget.controller.updateSelectionFromBlock(currentBlock.id, ctrl.selection);
           }
         });
         _blockControllers[block.id] = ctrl;
       } else {
         final ctrl = _blockControllers[block.id]!;
         if (ctrl is _RichBlockEditingController) {
+          _isProgrammaticSelectionUpdate = true;
           ctrl.updateBlock(block, widget.controller.styles, widget.searchQuery);
+          _isProgrammaticSelectionUpdate = false;
         } else if (ctrl.text != block.plainText) {
           ctrl.text = block.plainText;
         }
@@ -281,7 +296,12 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     }
 
     if (wasFocused && !isTableFocused) {
-      final targetOffset = widget.controller.selection.base.offset;
+      // Preserve the full selection (not just the caret) so range selections
+      // in the active block survive a resync instead of being collapsed.
+      final sel = widget.controller.selection;
+      final baseOffset = sel.base.offset;
+      final extentOffset =
+          sel.extent.blockId == targetBlockId ? sel.extent.offset : baseOffset;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (_activeTable != null) return;
@@ -291,9 +311,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         }
         final targetCtrl = _blockControllers[targetBlockId];
         if (targetCtrl != null) {
-          targetCtrl.selection = TextSelection.collapsed(
-            offset: targetOffset.clamp(0, targetCtrl.text.length),
+          final len = targetCtrl.text.length;
+          _isProgrammaticSelectionUpdate = true;
+          targetCtrl.selection = TextSelection(
+            baseOffset: baseOffset.clamp(0, len),
+            extentOffset: extentOffset.clamp(0, len),
           );
+          _isProgrammaticSelectionUpdate = false;
         }
         if (targetCtrl != null && targetFn != null) {
           widget.onActiveTargetChanged?.call(targetCtrl, targetFn);
@@ -1083,14 +1107,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
                 contentPadding: EdgeInsets.zero,
               ),
               onChanged: (newCode) {
-                // Update code in markdown
-                final newMarkdown = widget.controller.markdown.replaceRange(
-                  block.codeRange.start,
-                  block.codeRange.end,
-                  newCode,
-                );
-                widget.controller.markdown = newMarkdown;
-                widget.onChanged?.call(newMarkdown);
+                // Route through the controller so the CURRENT code range is
+                // resolved from the live document. Using the captured
+                // `block.codeRange` here corrupts content, because the targeted
+                // rebuild in `_onControllerChanged` intentionally skips
+                // rebuilding this widget while typing in the same block, so the
+                // captured range never refreshes past the first keystroke.
+                _handleBlockTextChanged(block.id, newCode, ctrl.selection);
               },
             ),
           ),
@@ -1229,8 +1252,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         textCapitalization: TextCapitalization.sentences,
         inputFormatters: [
           SemanticBlockInputFormatter(
-            onEnter: (offset) {
-              widget.controller.splitBlock(blockId, offset);
+            onEnter: (offset, selectionEnd) {
+              widget.controller.splitBlock(blockId, offset,
+                  selectionEndOffset: selectionEnd);
             },
           ),
         ],
@@ -1435,14 +1459,15 @@ class SemanticBlockInputFormatter extends TextInputFormatter {
     required this.onEnter,
   });
 
-  final void Function(int offset) onEnter;
+  final void Function(int offset, int selectionEnd) onEnter;
 
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final selectionSpan = oldValue.selection.isValid && !oldValue.selection.isCollapsed
+    final hadSelection = oldValue.selection.isValid && !oldValue.selection.isCollapsed;
+    final selectionSpan = hadSelection
         ? (oldValue.selection.end - oldValue.selection.start)
         : 0;
     final isSingleCharInsertion = newValue.text.length == oldValue.text.length - selectionSpan + 1;
@@ -1452,7 +1477,10 @@ class SemanticBlockInputFormatter extends TextInputFormatter {
       if (insertedOffset >= 0 &&
           insertedOffset < newValue.text.length &&
           newValue.text[insertedOffset] == '\n') {
-        onEnter(insertedOffset);
+        // Pass the pre-edit selection end so a split over a range selection
+        // deletes the selected text before splitting.
+        final selectionEnd = hadSelection ? oldValue.selection.end : insertedOffset;
+        onEnter(insertedOffset, selectionEnd);
         return oldValue;
       }
     }
@@ -1472,6 +1500,11 @@ class _RichBlockEditingController extends TextEditingController {
   SemanticBlock _block;
   MarkdownStyles? styles;
   String? searchQuery;
+
+  /// The current block backing this controller. Always reflects the latest
+  /// [updateBlock] call — callers must read this rather than capturing a block
+  /// instance, which goes stale after the next parse.
+  SemanticBlock get block => _block;
 
   void updateBlock(SemanticBlock newBlock, MarkdownStyles? newStyles, String? newSearchQuery) {
     final stylesChanged = styles != newStyles;

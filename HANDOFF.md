@@ -7335,3 +7335,37 @@ When creating or opening daily journal entries via the "Today" button in the Jou
 - Automated tests: `flutter test` (**all 1501 tests passed, 0 failures**).
 
 
+## 118. WYSIWYG Semantic Editor P0/P1 Correctness Fixes: Caret Mapping, Selection Sync & Inline-Formatting Preservation
+
+### 1. Overview & Motivation
+A focused audit of the Editor V4 "Semantic Document Architecture" (the WYSIWYG "Visual Document Editor") surfaced a set of data-integrity and caret/selection correctness defects. The canonical Markdown string is the sole source of truth, and every visual interaction round-trips through the bidirectional `sourceOffset ↔ DocumentPosition` mapping — so bugs in that mapping either corrupted the document or made the caret jump. This section documents the P0 (data-corruption) and P1 (caret/selection/formatting) fixes.
+
+### 2. Bugs Fixed
+
+#### P0 — Data Corruption
+- **Inline formatting stripped on block-marker toggles**: Converting a block to/from a heading, list, ordered list, checklist, or quote used `block.plainText` (delimiter-free visible text) as the replacement content, silently discarding inline `**bold**`, `*italic*`, and `` `code` `` delimiters. Block toggles now splice the **raw** Markdown content span (`_rawBlockContent`) rather than the rendered plain text, preserving all inline formatting.
+
+#### P1 — Caret & Selection Correctness
+- **Broad outer source-range caret jump** (`_findPositionInRuns`, `semantic_document.dart`): Formatted runs that wrap other runs (bold around inline code, or the two halves of a bold span split by a code span) are all emitted with the SAME broad outer `sourceRange`. A naive `sourceRange.contains` check resolved interior offsets to the first such run, jumping the caret. Rewrote the mapping to a two-pass strategy: first match by the precise content span (`contentRange` + visible text length), then fall back to the broad source range for offsets landing on a hidden delimiter.
+- **Caret offset mixing on block toggles**: Toggle handlers mixed visible-text offsets with source offsets when computing the post-toggle caret. Added `_caretSourceAfterPrefix` / `_caretSourceAfterMarkerRemoval` helpers that translate consistently through source offsets and re-resolve via `findPositionAtSourceOffset`.
+- **Selection lost across mode switches**: Switching between WYSIWYG and Markdown source modes did not carry the caret. `markdown_editor.dart` now maps the source caret on init (`setSelectionFromSourceOffset`) and on source-controller changes (`updateMarkdownAndRetainSelection`).
+- **Enter with an active selection**: Pressing Enter with a non-collapsed selection now deletes the selected range first, then splits at the deletion point (`splitBlock(..., selectionEndOffset:)`), matching standard editor behavior.
+
+#### Regression — Selection-Sync Infinite Rebuild Loop
+- The new per-block selection propagation (`updateSelectionFromBlock` on every controller notification) fed back into the post-frame programmatic selection write, producing an infinite rebuild loop (`pumpAndSettle timed out` in two widget tests). Fixed with an `_isProgrammaticSelectionUpdate` reentrancy guard in `visual_document_editor.dart`: the listener early-returns while the flag is set, and the flag wraps both `ctrl.updateBlock(...)` and the post-frame `targetCtrl.selection = ...` write, so only genuine user-driven selection changes propagate.
+
+### 3. File Inventory
+- **Updated Files**:
+  - `lib/features/editor/domain/semantic_document.dart`: Two-pass `_findPositionInRuns` (precise content span, then broad source-range fallback).
+  - `lib/features/editor/application/semantic_mutation_service.dart`: Added `_blockContentRange`, `_rawBlockContent`, `_caretSourceAfterPrefix`, `_caretSourceAfterMarkerRemoval`; rewired `setHeadingLevel`, `toggleList`, `toggleOrderedList`, `toggleChecklist`, `toggleQuote` to preserve inline formatting and compute the caret through source offsets.
+  - `lib/features/editor/application/semantic_editor_controller.dart`: `splitBlock` accepts `selectionEndOffset` (delete-then-split); added `setSelectionFromSourceOffset`.
+  - `lib/features/editor/presentation/widgets/visual_document_editor.dart`: `_isProgrammaticSelectionUpdate` reentrancy guard; Enter-with-selection wiring via `SemanticBlockInputFormatter.onEnter`; post-frame selection sync.
+  - `lib/features/editor/presentation/widgets/markdown_editor.dart`: Caret carry-over across WYSIWYG ↔ source mode switches.
+- **New & Updated Tests**:
+  - `test/editor/semantic_mutation_service_test.dart`: New group "block-marker toggles preserve inline formatting" (5 tests) covering `toggleList`, `setHeadingLevel`, `toggleQuote`, `toggleChecklist` round-trip, and post-conversion caret position.
+  - `test/editor/semantic_document_model_test.dart`: New test asserting the caret round-trips (`findPositionAtSourceOffset(sourceOffsetAtPosition(pos)) == pos`) across every visible offset of a run sharing a broad outer source range.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**No issues found**).
+- Automated tests: full `test/editor` suite passes, including the 6 new regression tests.
+

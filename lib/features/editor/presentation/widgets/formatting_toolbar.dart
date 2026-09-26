@@ -117,6 +117,24 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleLink(BuildContext context) async {
+    // WYSIWYG mode: route through the semantic controller. Operating on
+    // `widget.controller` here would inject literal `[title](url)` into a single
+    // block's plain-text controller, which is never committed to the document
+    // and is discarded on the next block sync.
+    if (widget.semanticController != null) {
+      final sc = widget.semanticController!;
+      var initialTitle = '';
+      final sel = sc.selection;
+      if (sel.isValid && !sel.isCollapsed) {
+        initialTitle = sc.document.sourceRangeAtSelection(sel).slice(sc.markdown);
+      }
+      final result = await LinkPromptDialog.show(context, initialTitle: initialTitle);
+      if (result != null) {
+        sc.toggleLink(url: result.url, title: result.title);
+      }
+      return;
+    }
+
     final selection = widget.controller.selection;
     final text = widget.controller.text;
     var initialTitle = '';
@@ -146,6 +164,26 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleCodeBlock(BuildContext context) async {
+    // WYSIWYG mode: route through the semantic controller for the same reason
+    // as _handleLink — the raw block controller edit would never be committed.
+    if (widget.semanticController != null) {
+      final sc = widget.semanticController!;
+      final currentLang = sc.activeCodeBlockLanguage;
+      if (sc.isCodeBlockActive) {
+        final selected = await LanguageSelectorSheet.show(
+          context,
+          currentLanguageId: currentLang,
+          title: 'Change Code Language',
+        );
+        if (selected != null) {
+          sc.changeCodeBlockLanguage(sc.selection.base.blockId, selected.id);
+        }
+      } else {
+        sc.insertCodeBlock();
+      }
+      return;
+    }
+
     final effectiveValue = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(effectiveValue);
     if (currentLang != null) {

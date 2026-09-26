@@ -461,6 +461,21 @@ class SemanticMutationService {
       }
 
       final prevBlockEnd = prevBlock.sourceRange.end;
+
+      // Atomic preceding blocks (fenced code, tables, images) cannot absorb the
+      // current line's text onto their last line without corrupting their own
+      // syntax. For example, joining a paragraph onto a code block's closing
+      // ``` fence turns `​```para` into a fence line, silently hiding "para".
+      // Only allow deleting a trailing empty line; otherwise leave the document
+      // unchanged rather than corrupt the atomic block.
+      if (prevBlock is CodeBlock ||
+          prevBlock is TableBlock ||
+          prevBlock is ImageBlock) {
+        if (block.plainText.trim().isNotEmpty) {
+          return MutationResult(markdown: markdown, document: doc, position: position);
+        }
+      }
+
       // Delete the newline delimiter separating the two blocks
       final newlineOffset = prevBlockEnd > 0 && markdown[prevBlockEnd - 1] == '\n'
           ? prevBlockEnd - 1
@@ -996,6 +1011,70 @@ class SemanticMutationService {
     );
   }
 
+  /// The content range (text after any leading marker, delimiters intact) for
+  /// the block types that carry one. `contentRange` is declared on the concrete
+  /// subclasses rather than the [SemanticBlock] base, so resolve it per type.
+  static SourceRange? _blockContentRange(SemanticBlock block) {
+    if (block is HeadingBlock) return block.contentRange;
+    if (block is ListItemBlock) return block.contentRange;
+    if (block is OrderedListItemBlock) return block.contentRange;
+    if (block is ChecklistItemBlock) return block.contentRange;
+    if (block is QuoteBlock) return block.contentRange;
+    if (block is ParagraphBlock) return block.contentRange;
+    return null;
+  }
+
+  /// Raw source content of [block] with inline delimiters preserved but the
+  /// block marker and trailing newline excluded. Using this instead of
+  /// `block.plainText` when re-emitting a block prevents inline formatting
+  /// (`**bold**`, `*italic*`, `` `code` ``, links) from being silently stripped
+  /// during heading/list/quote/checklist conversions.
+  static String _rawBlockContent(String markdown, SemanticBlock block) {
+    final contentRange = _blockContentRange(block);
+    final start = contentRange?.start ?? block.sourceRange.start;
+    var end = contentRange?.end ?? block.sourceRange.end;
+    if (end > start && end <= markdown.length && markdown[end - 1] == '\n') {
+      end--;
+    }
+    if (start < 0 || start > end || end > markdown.length) return block.plainText;
+    return markdown.substring(start, end);
+  }
+
+  /// Source offset for the caret after a block gains a leading [prefix]
+  /// (heading/list/quote/checklist marker). Maps the pre-mutation caret through
+  /// source space so inline delimiters in the content do not skew the result.
+  /// For delimiter-free content this yields the same result as naive
+  /// `sourceRange.start + prefixLength + visualOffset` arithmetic.
+  static int _caretSourceAfterPrefix(
+    SemanticDocument doc,
+    SemanticBlock block,
+    DocumentPosition position,
+    String rawContent,
+    int prefixLength,
+  ) {
+    final contentStart = _blockContentRange(block)?.start ?? block.sourceRange.start;
+    final oldCaretSource = doc.sourceOffsetAtPosition(position);
+    final within = (oldCaretSource - contentStart).clamp(0, rawContent.length).toInt();
+    return block.sourceRange.start + prefixLength + within;
+  }
+
+  /// Source offset for the caret after the leading marker
+  /// `[block.sourceRange.start, removedEnd)` is removed from a block.
+  static int _caretSourceAfterMarkerRemoval(
+    SemanticDocument doc,
+    SemanticBlock block,
+    DocumentPosition position,
+    int removedEnd,
+    int newLength,
+  ) {
+    final removedStart = block.sourceRange.start;
+    final removed = removedEnd - removedStart;
+    final oldCaretSource = doc.sourceOffsetAtPosition(position);
+    final shifted =
+        oldCaretSource >= removedEnd ? oldCaretSource - removed : removedStart;
+    return shifted.clamp(0, newLength).toInt();
+  }
+
   /// Sets heading level (1 to 6) or converts heading to paragraph (0).
   static MutationResult setHeadingLevel(
     String markdown,
@@ -1009,7 +1088,9 @@ class SemanticMutationService {
       return MutationResult(markdown: markdown, document: doc, position: position);
     }
 
-    final blockText = block.plainText;
+    // Use the raw source slice (delimiters intact) so inline formatting like
+    // **bold** / *italic* survives the conversion instead of being flattened.
+    final blockText = _rawBlockContent(markdown, block);
     final prefix = targetLevel > 0 ? '${'#' * targetLevel} ' : '';
     final newBlockMarkdown = '$prefix$blockText';
 
@@ -1019,7 +1100,8 @@ class SemanticMutationService {
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-    final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ??
+    final targetSource = _caretSourceAfterPrefix(doc, block, position, blockText, prefix.length);
+    final newPos = newDoc.findPositionAtSourceOffset(targetSource) ??
         DocumentPosition(blockId: position.blockId, offset: position.offset);
 
     return MutationResult(
@@ -1062,13 +1144,15 @@ class SemanticMutationService {
       // Remove checklist formatting -> convert to normal paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.boxRange.end, '');
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-      final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
+      final targetSource = _caretSourceAfterMarkerRemoval(
+          doc, block, position, block.boxRange.end, newMarkdown.length);
+      final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
 
     // Convert block to checklist item
     final prefix = '- [ ] ';
-    final blockText = block.plainText;
+    final blockText = _rawBlockContent(markdown, block);
     final newBlockMarkdown = '$prefix$blockText';
 
     final lineEnd = block.sourceRange.end;
@@ -1077,7 +1161,8 @@ class SemanticMutationService {
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-    final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
+    final targetSource = _caretSourceAfterPrefix(doc, block, position, blockText, prefix.length);
+    final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
   }
@@ -1132,13 +1217,15 @@ class SemanticMutationService {
       // Remove list marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-      final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
+      final targetSource = _caretSourceAfterMarkerRemoval(
+          doc, block, position, block.markerRange.end, newMarkdown.length);
+      final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
 
     // Convert to bullet list item
     final prefix = '- ';
-    final blockText = block.plainText;
+    final blockText = _rawBlockContent(markdown, block);
     final newBlockMarkdown = '$prefix$blockText';
 
     final lineEnd = block.sourceRange.end;
@@ -1147,7 +1234,8 @@ class SemanticMutationService {
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-    final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
+    final targetSource = _caretSourceAfterPrefix(doc, block, position, blockText, prefix.length);
+    final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
   }
@@ -1166,13 +1254,15 @@ class SemanticMutationService {
       // Remove ordered list marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-      final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
+      final targetSource = _caretSourceAfterMarkerRemoval(
+          doc, block, position, block.markerRange.end, newMarkdown.length);
+      final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
 
     // Convert to ordered list item
     final prefix = '1. ';
-    final blockText = block.plainText;
+    final blockText = _rawBlockContent(markdown, block);
     final newBlockMarkdown = '$prefix$blockText';
 
     final lineEnd = block.sourceRange.end;
@@ -1181,7 +1271,8 @@ class SemanticMutationService {
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-    final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
+    final targetSource = _caretSourceAfterPrefix(doc, block, position, blockText, prefix.length);
+    final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
   }
@@ -1200,13 +1291,15 @@ class SemanticMutationService {
       // Remove quote marker -> convert to paragraph
       final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.markerRange.end, '');
       final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-      final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + position.offset) ?? position;
+      final targetSource = _caretSourceAfterMarkerRemoval(
+          doc, block, position, block.markerRange.end, newMarkdown.length);
+      final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
       return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
     }
 
     // Convert to blockquote
     final prefix = '> ';
-    final blockText = block.plainText;
+    final blockText = _rawBlockContent(markdown, block);
     final newBlockMarkdown = '$prefix$blockText';
 
     final lineEnd = block.sourceRange.end;
@@ -1215,7 +1308,8 @@ class SemanticMutationService {
 
     final newMarkdown = markdown.replaceRange(block.sourceRange.start, block.sourceRange.end, replacement);
     final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
-    final newPos = newDoc.findPositionAtSourceOffset(block.sourceRange.start + prefix.length + position.offset) ?? position;
+    final targetSource = _caretSourceAfterPrefix(doc, block, position, blockText, prefix.length);
+    final newPos = newDoc.findPositionAtSourceOffset(targetSource) ?? position;
 
     return MutationResult(markdown: newMarkdown, document: newDoc, position: newPos);
   }

@@ -90,7 +90,12 @@ class SemanticMarkdownParser {
         final targetOldId = oldDocument.blocks[windowStart + i].id;
         shiftedSliceBlocks.add(_cloneBlockWithId(shifted, targetOldId));
       } else {
-        shiftedSliceBlocks.add(shifted);
+        // Block count changed within the window: the slice was parsed with
+        // fresh `block_0, block_1, ...` IDs that collide with the retained
+        // before/after blocks (also `block_N`). Re-id the slice blocks with a
+        // collision-free scheme so findBlockById targets the correct block.
+        shiftedSliceBlocks
+            .add(_cloneBlockWithId(shifted, 'block_inc_${reParseStart}_$i'));
       }
     }
 

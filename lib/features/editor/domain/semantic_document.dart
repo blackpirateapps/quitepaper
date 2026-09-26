@@ -169,7 +169,29 @@ class SemanticDocument {
     String blockId,
     int sourceOffset,
   ) {
+    // First pass: match by the precise content span (`contentRange` + visible
+    // text length). Formatted runs that wrap other runs (e.g. bold around
+    // inline code, or the two halves of a bold span split by a code span) are
+    // all emitted with the SAME broad outer `sourceRange`, so a naive
+    // `sourceRange.contains` check resolves interior offsets to the first such
+    // run instead of the run the offset actually falls in.
     var currentVisibleOffset = 0;
+    for (final run in runs) {
+      final innerStart = run.contentRange?.start ?? run.sourceRange.start;
+      final innerEnd = innerStart + run.text.length;
+      if (sourceOffset >= innerStart && sourceOffset <= innerEnd) {
+        final runOffset = (sourceOffset - innerStart).clamp(0, run.text.length);
+        return DocumentPosition(
+          blockId: blockId,
+          offset: currentVisibleOffset + runOffset,
+        );
+      }
+      currentVisibleOffset += run.text.length;
+    }
+
+    // Second pass: fall back to the broad source range so offsets landing on a
+    // hidden delimiter between runs still map to a sensible position.
+    currentVisibleOffset = 0;
     for (final run in runs) {
       if (run.sourceRange.contains(sourceOffset)) {
         final runInnerStart = run.contentRange?.start ?? run.sourceRange.start;

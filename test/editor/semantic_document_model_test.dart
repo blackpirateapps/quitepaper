@@ -88,5 +88,26 @@ void main() {
       final sourceRange = doc.sourceRangeAtSelection(sel);
       expect(sourceRange.slice(md), equals('bold'));
     });
+
+    test('caret round-trips through runs that share a broad outer source range',
+        () {
+      // A bold span wrapping inline code emits multiple runs that all carry the
+      // same outer sourceRange. Mapping visible->source->visible must be an
+      // identity for every caret position, otherwise the WYSIWYG caret jumps.
+      const md = 'go **big `x` now** ok';
+      final doc = SemanticMarkdownParser.parse(md);
+      final block = doc.blocks.first;
+      final visibleLength = block.plainText.length;
+
+      for (var visible = 0; visible <= visibleLength; visible++) {
+        final pos = DocumentPosition(blockId: block.id, offset: visible);
+        final sourceOffset = doc.sourceOffsetAtPosition(pos);
+        final mapped = doc.findPositionAtSourceOffset(sourceOffset);
+        expect(mapped, isNotNull);
+        expect(mapped!.blockId, equals(block.id));
+        expect(mapped.offset, equals(visible),
+            reason: 'visible offset $visible should round-trip');
+      }
+    });
   });
 }
