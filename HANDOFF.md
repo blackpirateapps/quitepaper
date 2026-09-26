@@ -7433,3 +7433,46 @@ The P3 batch resolves autocomplete-trigger and interaction defects surrounding c
 - Static analysis: `flutter analyze` (**No issues found**).
 - Automated tests: full `test/editor` suite passes.
 
+---
+
+## 121. Public Note Sharing — Server-Rendered Share Links (Backend)
+
+### 1. Overview & Motivation
+Quiet Paper is zero-knowledge end-to-end encrypted, so notes could not be shown to anyone who is not signed in with the owner's key. This feature adds an **opt-in "Share as URL"** capability: the client decrypts a note and its attachments locally, uploads them in **plaintext** to the backend (content → Turso) and Cloudinary (attachment files), and the backend serves a public server-rendered page at `https://quietpaper.blackpiratex.com/note/<slug>`. Because this deliberately drops E2E protection, the client must first surface an explicit unencrypted-upload warning (Flutter side, tracked separately). This section documents the **backend** half, which is complete and tested.
+
+### 2. Design Decisions
+- **Dedicated random slug** (`generateShareSlug`, ~12-char base62 via `crypto.randomBytes` with rejection sampling) decoupled from the note UUID — supports re-sharing after deletion, keeps unlisted shares unguessable, and never leaks the internal note id.
+- **Visibility tiers** `public` / `unlisted` / `password`. `public` and `unlisted` store plaintext markdown and render immediately (reachable only by slug). `password` is **encrypted at rest**: content is encrypted with a scrypt-derived key (`N=16384, r=8, p=1`) + AES-256-GCM; only `ciphertext/salt/iv/tag` are stored (`content_markdown` is null). On view the visitor submits the password, the server derives the key and decrypts in memory; a wrong password is a GCM auth failure → "Incorrect password".
+- **Attachments gate text only (v1)**: attachment files are always uploaded as public plaintext to a **separate** Cloudinary folder (`CLOUDINARY_PUBLIC_FOLDER`, default `quietpaper_public`); password tier gates only the page text, images remain reachable by their unguessable Cloudinary URL. Stated in the client warning.
+- **30-day TTL**: `expires_at = created_at + 30d`. The read-time gate in `getPublicShare` is **authoritative** (lazily marks a past-expiry share `expired` and returns 410 regardless of GC timing); the garbage collector performs cleanup and public-copy destruction.
+
+### 3. File Inventory
+- **New Files**:
+  - `backend/src/share/shareCrypto.ts`: `generateShareSlug`, `encryptShareContent`/`decryptShareContent` (scrypt + AES-256-GCM; `decrypt` returns `null` on wrong password / malformed blob).
+  - `backend/src/share/shareRenderer.ts`: security-hardened Markdown→HTML (`escapeHtml`, `isSafeUrl` — only http(s)/protocol-relative; escapes first then formats; drops `javascript:` links; `rel="noopener nofollow ugc"`).
+  - `backend/src/share/shareViews.ts`: warm editorial dark-theme page templates — `renderSharePage`, `renderPasswordPage`, `renderNotFoundPage` (404/410).
+  - `backend/src/share/shareService.ts`: `createShare`, `authorizeShareUpload` (413 `FILE_TOO_LARGE` on oversize; no quota reservation), `listShares`, `updateShare`, `deleteShare`, `enqueueShareAttachmentDestruction`, `getPublicShare` (discriminated union: `ok`/`password_required`/`wrong_password`/`not_found`/`expired`).
+  - `backend/migrations/012_note_shares_schema.sql`: `note_shares` + `note_share_attachments` tables & indexes.
+  - `backend/tests/shares.test.ts`: 13 vitest cases (slug/crypto units, public/unlisted render, password right/wrong, expiry 410, unknown-slug 404, list+update, delete→destruction job, signed upload auth, oversize 413, GC expiry stage, XSS escaping).
+- **Updated Files**:
+  - `backend/src/db/migrate.ts`: `note_shares`/`note_share_attachments` in `INITIAL_SCHEMA_SQL` + idempotent self-healing table creation.
+  - `backend/src/validation/schemas.ts`: `createShareSchema`, `updateShareSchema`, `shareUploadAuthSchema`, `shareAttachmentSchema` (+ inferred types). Upload `byteSize` has no zod upper bound so the service returns a semantic **413** rather than a generic 400.
+  - `backend/src/attachments/cloudinaryService.ts`: `shareResourceTypeForKind`, `createPublicShareUploadAuth` (signs into the public folder), and a `skipFolderPrefix` param on `deleteCloudinaryResource` so fully-qualified public-folder ids are not re-prefixed with the E2E folder.
+  - `backend/src/gc/garbageCollector.ts`: new **ShareExpiryCollector** stage (select active shares past `expires_at`, enqueue attachment destruction, set status `expired`); `sharesExpired` added to `GcExecutionSummary` and dry-run reporting.
+  - `backend/src/gc/destructionJobProcessor.ts`: handles `share_attachment_*` job resource types (correct Cloudinary resource type, `skipFolderPrefix=true`, deletes the `note_share_attachments` row on success, no quota release).
+  - `backend/src/api/handler.ts`: **public** `GET`/`POST /note/:slug` (registered before Firebase auth; `text/html` with `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) and **authenticated** `POST /api/v1/shares`, `POST /api/v1/shares/upload-auth`, `GET /api/v1/shares`, `PATCH|DELETE /api/v1/shares/:id`.
+  - `backend/vercel.json`: rewrite `/note/(.*) → /api`.
+  - `backend/.env.example`: `CLOUDINARY_PUBLIC_FOLDER`, `PUBLIC_SHARE_BASE_URL`.
+
+### 4. Operational Notes
+- **Manual ops**: alias `quietpaper.blackpiratex.com` to the Vercel project and set `PUBLIC_SHARE_BASE_URL` + `CLOUDINARY_PUBLIC_FOLDER`. The backend returns the full share URL so the client never hardcodes the domain.
+- **Security**: public routes are unauthenticated by design (like `/config`, `/fonts`) and only expose data the owner explicitly published; password-tier content is encrypted at rest; images are not gated in v1. Consider rate-limiting `POST /note/*` password submits as a follow-up.
+
+### 5. Pending (Flutter, tracked separately)
+Share API client + models, local `shareId`/`shareUrl` note columns (drift migration), the `lib/features/share/` module (warning dialog, share sheet, manage screen), and the editor/settings entry points.
+
+### 6. Verification & Quality
+- Backend: `cd backend && npm run build` (clean `tsc`) and `npx vitest run tests/shares.test.ts` (**13/13 passing**).
+- Repo baseline: `flutter analyze` (**No issues found**) and `flutter test` (**all passing**) with no Flutter changes yet.
+
+

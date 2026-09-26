@@ -97,8 +97,6 @@ export const gcOptionsSchema = z.object({
   expiredDeviceDays: z.number().min(1).default(90),
 });
 
-import { MAX_FILE_SIZE_BYTES } from '../storage/quotaService.js';
-
 export const uploadAuthRequestSchema = z.object({
   attachmentId: z.string().uuid(),
   noteId: z.string().uuid().optional().nullable().or(z.literal('')),
@@ -226,6 +224,62 @@ export const adminChangePlanSchema = z.object({
   reason: z.string().max(256).optional(),
 });
 
+// ---------------------------------------------------------------------------
+// Public note sharing (server-rendered share links)
+// ---------------------------------------------------------------------------
+export const shareVisibilitySchema = z.enum(['public', 'unlisted', 'password']);
+
+export const shareUploadAuthSchema = z.object({
+  uploadId: z.string().min(1).max(128),
+  kind: z.enum(['image', 'document', 'file']).default('image'),
+  mimeType: z.string().max(100).default('image/png'),
+  // No upper bound here: authorizeShareUpload enforces the per-file limit and
+  // returns a 413 FILE_TOO_LARGE, rather than a generic 400 validation error.
+  byteSize: z.number().int().min(0).default(0),
+});
+
+export const shareAttachmentSchema = z.object({
+  cloudPublicId: z.string().min(1).max(256),
+  cloudUrl: z.string().url().max(2048),
+  resourceType: z.enum(['image', 'raw', 'video']).default('image'),
+  byteSize: z.number().int().min(0).default(0),
+});
+
+export const createShareSchema = z.object({
+  noteId: z.string().uuid(),
+  title: z.string().max(512).default(''),
+  contentMarkdown: z.string().max(2 * 1024 * 1024).default(''),
+  visibility: shareVisibilitySchema.default('public'),
+  password: z.string().min(1).max(256).optional(),
+  attachments: z.array(shareAttachmentSchema).max(200).default([]),
+}).superRefine((data, ctx) => {
+  if (data.visibility === 'password' && (!data.password || data.password.length < 1)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A password is required for password-protected shares',
+      path: ['password'],
+    });
+  }
+});
+
+export const updateShareSchema = z.object({
+  visibility: shareVisibilitySchema.optional(),
+  // Provide a non-empty string to set/replace the password, or null to clear it.
+  password: z.string().min(1).max(256).nullable().optional(),
+}).superRefine((data, ctx) => {
+  if (data.visibility === 'password' && (data.password === undefined || data.password === null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A password is required when switching to password visibility',
+      path: ['password'],
+    });
+  }
+});
+
+export const submitSharePasswordSchema = z.object({
+  password: z.string().min(1).max(256),
+});
+
 export type WrappedKeyInput = z.infer<typeof wrappedKeySchema>;
 export type NoteChangeInput = z.infer<typeof noteChangeSchema>;
 export type PushSyncInput = z.infer<typeof pushSyncSchema>;
@@ -246,3 +300,9 @@ export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 export type RenameDeviceInput = z.infer<typeof renameDeviceSchema>;
 export type RevokeOthersInput = z.infer<typeof revokeOthersSchema>;
 export type AdminChangePlanInput = z.infer<typeof adminChangePlanSchema>;
+export type ShareVisibility = z.infer<typeof shareVisibilitySchema>;
+export type ShareUploadAuthInput = z.infer<typeof shareUploadAuthSchema>;
+export type ShareAttachmentInput = z.infer<typeof shareAttachmentSchema>;
+export type CreateShareInput = z.infer<typeof createShareSchema>;
+export type UpdateShareInput = z.infer<typeof updateShareSchema>;
+export type SubmitSharePasswordInput = z.infer<typeof submitSharePasswordSchema>;

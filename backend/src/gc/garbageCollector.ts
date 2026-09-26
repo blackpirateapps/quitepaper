@@ -2,6 +2,7 @@ import { Client } from '@libsql/client';
 import crypto from 'crypto';
 import { profileUserStorage, StorageProfileReport } from './storageProfiler.js';
 import { processDestructionJobs, DestructionJobResult } from './destructionJobProcessor.js';
+import { enqueueShareAttachmentDestruction } from '../share/shareService.js';
 
 export interface GcRunOptions {
   dryRun?: boolean;
@@ -38,6 +39,7 @@ export interface GcExecutionSummary {
 
   tombstonesCleaned: number;
   estimatedBytesReclaimed: number;
+  sharesExpired: number;
   profile: StorageProfileReport;
 }
 
@@ -93,6 +95,13 @@ export async function runGarbageCollection(
   const safeBoundaryRevision = await getSafeSyncBoundary(db, userId, staleDeviceDays);
   const initialProfile = await profileUserStorage(db, userId, safeBoundaryRevision, orphanGracePeriodDays);
 
+  // Count shares that are past their 30-day expiry (for both dry-run reporting and real cleanup).
+  const eligibleSharesRes = await db.execute({
+    sql: `SELECT COUNT(*) as cnt FROM note_shares WHERE user_id = ? AND status = 'active' AND expires_at < ?`,
+    args: [userId, new Date().toISOString()],
+  });
+  const eligibleSharesCount = Number(eligibleSharesRes.rows[0]?.cnt || 0);
+
   if (dryRun) {
     const finishedAt = new Date();
     return {
@@ -116,6 +125,7 @@ export async function runGarbageCollection(
       destructionJobsFailed: 0,
       tombstonesCleaned: initialProfile.tables.notes.eligibleRowCount,
       estimatedBytesReclaimed: initialProfile.totalReclaimableBytes,
+      sharesExpired: eligibleSharesCount,
       profile: initialProfile,
     };
   }
@@ -131,6 +141,7 @@ export async function runGarbageCollection(
   let orphanedDocumentsIdentified = 0;
   let destructionJobsCreated = 0;
   let tombstonesCleaned = 0;
+  let sharesExpired = 0;
 
   // =========================================================================
   // 1. RevisionCollector: Prune sync_changes older than safe sync boundary
@@ -368,12 +379,34 @@ export async function runGarbageCollection(
   }
 
   // =========================================================================
-  // 6. DestructionJobProcessor: Execute pending Cloudinary & DB deletions
+  // 6. ShareExpiryCollector: Retire public shares past their 30-day TTL and queue
+  //    destruction of their public Cloudinary copies. The read-time gate in
+  //    getPublicShare is authoritative for viewers; this stage handles cleanup.
+  // =========================================================================
+  const expiredSharesRes = await db.execute({
+    sql: `SELECT id FROM note_shares
+          WHERE user_id = ? AND status = 'active' AND expires_at < ?
+          LIMIT ?`,
+    args: [userId, nowIso, batchSize],
+  });
+
+  for (const row of expiredSharesRes.rows) {
+    const shareId = row.id as string;
+    destructionJobsCreated += await enqueueShareAttachmentDestruction(db, userId, shareId);
+    await db.execute({
+      sql: `UPDATE note_shares SET status = 'expired', updated_at = ? WHERE id = ? AND user_id = ?`,
+      args: [nowIso, shareId, userId],
+    });
+    sharesExpired++;
+  }
+
+  // =========================================================================
+  // 7. DestructionJobProcessor: Execute pending Cloudinary & DB deletions
   // =========================================================================
   const jobResult: DestructionJobResult = await processDestructionJobs(db, userId, 20);
 
   // =========================================================================
-  // 7. TombstoneCollector: Clean up permanently deleted notes past safe boundary
+  // 8. TombstoneCollector: Clean up permanently deleted notes past safe boundary
   // =========================================================================
   if (safeBoundaryRevision > 0) {
     const candidateTombstonesRes = await db.execute({
@@ -418,6 +451,7 @@ export async function runGarbageCollection(
     destructionJobsFailed: jobResult.jobsFailed,
     tombstonesCleaned,
     estimatedBytesReclaimed: Math.max(0, initialProfile.totalEstimatedBytes - finalProfile.totalEstimatedBytes),
+    sharesExpired,
     profile: finalProfile,
   };
 }

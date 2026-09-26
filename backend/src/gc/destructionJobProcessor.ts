@@ -56,9 +56,18 @@ export async function processDestructionJobs(
     let errorMessage: string | undefined;
     let isRetryable = false;
 
+    // Share attachments live in the public Cloudinary folder and are stored with
+    // their fully-qualified public id; delete with the matching resource type.
+    const isShareAttachment = resourceType.startsWith('share_attachment');
+    const shareCloudResourceType: 'raw' | 'image' | 'video' = resourceType === 'share_attachment_image'
+      ? 'image'
+      : 'raw';
+
     // 1. Delete from Cloudinary if public ID exists
     if (cloudinaryPublicId && cloudinaryPublicId.trim().length > 0) {
-      const cloudRes = await deleteCloudinaryResource(cloudinaryPublicId.trim());
+      const cloudRes = isShareAttachment
+        ? await deleteCloudinaryResource(cloudinaryPublicId.trim(), undefined, shareCloudResourceType, true)
+        : await deleteCloudinaryResource(cloudinaryPublicId.trim());
       if (!cloudRes.success && cloudRes.result === 'error') {
         deleteOk = false;
         errorMessage = cloudRes.error || 'Failed to destroy Cloudinary resource';
@@ -68,7 +77,13 @@ export async function processDestructionJobs(
 
     if (deleteOk) {
       // 2. Remove DB records cleanly
-      if (resourceType === 'attachment') {
+      if (isShareAttachment) {
+        // Public share copies carry no quota reservation; just drop the tracking row.
+        await db.execute({
+          sql: 'DELETE FROM note_share_attachments WHERE id = ? AND user_id = ?',
+          args: [resourceId, userId],
+        });
+      } else if (resourceType === 'attachment') {
         const attRes = await db.execute({
           sql: 'SELECT byte_size FROM attachments WHERE id = ? AND user_id = ?',
           args: [resourceId, userId],

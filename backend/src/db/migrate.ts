@@ -283,6 +283,44 @@ CREATE INDEX IF NOT EXISTS idx_storage_res_user ON storage_reservations (user_id
 CREATE INDEX IF NOT EXISTS idx_storage_res_resource ON storage_reservations (user_id, resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_storage_res_expires ON storage_reservations (status, expires_at);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_logs (user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS note_shares (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  note_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  content_markdown TEXT,
+  content_ciphertext TEXT,
+  content_salt TEXT,
+  content_iv TEXT,
+  content_tag TEXT,
+  visibility TEXT NOT NULL DEFAULT 'public',
+  view_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS note_share_attachments (
+  id TEXT PRIMARY KEY,
+  share_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  cloud_public_id TEXT NOT NULL,
+  cloud_url TEXT NOT NULL,
+  resource_type TEXT NOT NULL DEFAULT 'image',
+  byte_size INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (share_id) REFERENCES note_shares(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_note_shares_user ON note_shares (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_note_shares_note ON note_shares (user_id, note_id);
+CREATE INDEX IF NOT EXISTS idx_note_shares_expiry ON note_shares (status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_note_share_attachments_share ON note_share_attachments (share_id);
+CREATE INDEX IF NOT EXISTS idx_note_share_attachments_user ON note_share_attachments (user_id);
 `;
 
 export async function runMigrations(db: Client): Promise<void> {
@@ -442,5 +480,56 @@ export async function runMigrations(db: Client): Promise<void> {
       COALESCE((SELECT SUM(byte_size) FROM attachments WHERE attachments.user_id = users.id AND is_deleted = 0 AND (status IS NULL OR status != 'pending_deletion')), 0) +
       COALESCE((SELECT SUM(byte_size) FROM documents WHERE documents.user_id = users.id AND is_deleted = 0 AND (status IS NULL OR status != 'pending_deletion')), 0)
     ) WHERE storage_used_bytes = 0;`);
+  } catch (_) {}
+
+  // v12: Public note sharing (server-rendered share links)
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS note_shares (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      note_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      content_markdown TEXT,
+      content_ciphertext TEXT,
+      content_salt TEXT,
+      content_iv TEXT,
+      content_tag TEXT,
+      visibility TEXT NOT NULL DEFAULT 'public',
+      view_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`);
+  } catch (_) {}
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS note_share_attachments (
+      id TEXT PRIMARY KEY,
+      share_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      cloud_public_id TEXT NOT NULL,
+      cloud_url TEXT NOT NULL,
+      resource_type TEXT NOT NULL DEFAULT 'image',
+      byte_size INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (share_id) REFERENCES note_shares(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`);
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_note_shares_user ON note_shares (user_id, status);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_note_shares_note ON note_shares (user_id, note_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_note_shares_expiry ON note_shares (status, expires_at);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_note_share_attachments_share ON note_share_attachments (share_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_note_share_attachments_user ON note_share_attachments (user_id);');
   } catch (_) {}
 }

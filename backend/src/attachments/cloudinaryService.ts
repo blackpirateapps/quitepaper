@@ -81,6 +81,53 @@ export function createSignedUploadAuth(
   };
 }
 
+/**
+ * Resolves the Cloudinary "resource type" segment used for a public share upload/delivery,
+ * based on the app-level attachment kind. Images are delivered as `image` (viewable/transformable),
+ * everything else as `raw` (arbitrary bytes).
+ */
+export function shareResourceTypeForKind(kind: string | undefined): 'image' | 'raw' {
+  return kind === 'image' ? 'image' : 'raw';
+}
+
+/**
+ * Generates signed upload authorization for a PUBLIC (unencrypted) share attachment.
+ * These plaintext copies live in a separate public folder from the E2E-encrypted attachments
+ * and are delivered directly to anonymous viewers of a shared note page.
+ */
+export function createPublicShareUploadAuth(
+  publicId: string,
+  kind: string | undefined,
+  config?: CloudinaryConfig,
+  timestamp: number = Math.floor(Date.now() / 1000)
+): SignedUploadParams & { resourceType: 'image' | 'raw' } {
+  const resolvedConfig = config ?? getCloudinaryConfig();
+  const publicFolder = (process.env.CLOUDINARY_PUBLIC_FOLDER || 'quietpaper_public')
+    .replace(/^\/+|\/+$/g, '')
+    .trim();
+  const resourceType = shareResourceTypeForKind(kind);
+
+  const paramsToSign: Record<string, string | number | undefined> = {
+    ...(publicFolder ? { folder: publicFolder } : {}),
+    public_id: publicId,
+    timestamp,
+  };
+
+  const signature = generateCloudinarySignature(paramsToSign, resolvedConfig.apiSecret);
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${resolvedConfig.cloudName}/${resourceType}/upload`;
+
+  return {
+    uploadUrl,
+    cloudName: resolvedConfig.cloudName,
+    apiKey: resolvedConfig.apiKey,
+    signature,
+    timestamp,
+    publicId,
+    resourceType,
+    ...(publicFolder ? { folder: publicFolder } : {}),
+  };
+}
+
 export interface CloudinaryDeleteResult {
   success: boolean;
   result: 'ok' | 'not found' | 'error';
@@ -95,7 +142,8 @@ export interface CloudinaryDeleteResult {
 export async function deleteCloudinaryResource(
   publicId: string,
   config?: CloudinaryConfig,
-  resourceType: 'raw' | 'image' | 'video' = 'raw'
+  resourceType: 'raw' | 'image' | 'video' = 'raw',
+  skipFolderPrefix: boolean = false
 ): Promise<CloudinaryDeleteResult> {
   let resolvedConfig: CloudinaryConfig;
   try {
@@ -108,9 +156,13 @@ export async function deleteCloudinaryResource(
   }
 
   const cleanFolder = resolvedConfig.folder ? resolvedConfig.folder.replace(/^\/+|\/+$/g, '').trim() : '';
-  const fullPublicId = cleanFolder && !publicId.startsWith(cleanFolder + '/')
-    ? `${cleanFolder}/${publicId}`
-    : publicId;
+  // Share attachments live in the public folder and are stored fully-qualified, so
+  // skip the E2E-folder prefixing that ordinary attachment/document deletions need.
+  const fullPublicId = skipFolderPrefix || (cleanFolder && publicId.startsWith(cleanFolder + '/'))
+    ? publicId
+    : cleanFolder
+      ? `${cleanFolder}/${publicId}`
+      : publicId;
 
   const timestamp = Math.floor(Date.now() / 1000);
   const paramsToSign: Record<string, string | number | undefined> = {

@@ -34,6 +34,16 @@ import {
 } from '../devices/deviceService.js';
 import { handleAdminRequest } from '../admin/adminHandler.js';
 import { getUserQuotaProfile } from '../storage/quotaService.js';
+import {
+  createShare,
+  authorizeShareUpload,
+  listShares,
+  updateShare,
+  deleteShare,
+  getPublicShare,
+} from '../share/shareService.js';
+import { renderSharePage, renderPasswordPage, renderNotFoundPage } from '../share/shareViews.js';
+import { renderMarkdown } from '../share/shareRenderer.js';
 import { ApiError } from '../errors/apiError.js';
 
 export interface RequestLike {
@@ -117,6 +127,64 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
 
     // Auto-run schema migrations on database if not already initialized
     await ensureDbInitialized(db);
+
+    // =====================================================================
+    // Public note share pages (server-rendered HTML, no auth required).
+    // Registered before Firebase auth so anonymous visitors can view shares.
+    // =====================================================================
+    const shareViewMatch = pathname.match(/^\/note\/([A-Za-z0-9]{1,128})$/);
+    if (shareViewMatch && (method === 'GET' || method === 'POST')) {
+      const slug = shareViewMatch[1];
+
+      // Password submissions arrive as a urlencoded form POST or a JSON body.
+      let submittedPassword: string | undefined;
+      if (method === 'POST') {
+        if (typeof req.body === 'string' && req.body.length > 0) {
+          try {
+            submittedPassword = new URLSearchParams(req.body).get('password') || undefined;
+          } catch {
+            submittedPassword = undefined;
+          }
+        } else if (req.body && typeof req.body === 'object') {
+          submittedPassword = req.body.password;
+        }
+      }
+
+      const htmlHeaders = {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer',
+      };
+
+      const result = await getPublicShare(db, slug, submittedPassword);
+
+      switch (result.state) {
+        case 'ok':
+          return {
+            statusCode: 200,
+            headers: htmlHeaders,
+            body: renderSharePage({
+              title: result.title,
+              contentHtml: renderMarkdown(result.contentMarkdown),
+              createdAt: result.createdAt,
+              expiresAt: result.expiresAt,
+            }),
+          };
+        case 'password_required':
+          return { statusCode: 200, headers: htmlHeaders, body: renderPasswordPage(slug) };
+        case 'wrong_password':
+          return {
+            statusCode: 401,
+            headers: htmlHeaders,
+            body: renderPasswordPage(slug, 'Incorrect password. Please try again.'),
+          };
+        case 'expired':
+          return { statusCode: 410, headers: htmlHeaders, body: renderNotFoundPage(true) };
+        case 'not_found':
+        default:
+          return { statusCode: 404, headers: htmlHeaders, body: renderNotFoundPage(false) };
+      }
+    }
 
     // Protected endpoints require Firebase Auth token
     const authContext = await requireFirebaseAuth(authHeader, db);
@@ -483,6 +551,59 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
           body: meta,
         };
       }
+    }
+
+    // POST /api/v1/shares (create a public share for a note)
+    if (pathname === '/api/v1/shares' && method === 'POST') {
+      const share = await createShare(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: share,
+      };
+    }
+
+    // POST /api/v1/shares/upload-auth (signed public Cloudinary upload for a share attachment)
+    if (pathname === '/api/v1/shares/upload-auth' && method === 'POST') {
+      const uploadAuth = await authorizeShareUpload(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: uploadAuth,
+      };
+    }
+
+    // GET /api/v1/shares (list the user's active shares)
+    if (pathname === '/api/v1/shares' && method === 'GET') {
+      const shares = await listShares(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: { shares },
+      };
+    }
+
+    // PATCH /api/v1/shares/:id (update visibility / password)
+    const shareUpdateMatch = pathname.match(/^\/api\/v1\/shares\/([A-Za-z0-9]{1,128})$/);
+    if (shareUpdateMatch && method === 'PATCH') {
+      const shareId = shareUpdateMatch[1];
+      const result = await updateShare(db, userId, shareId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
+    }
+
+    // DELETE /api/v1/shares/:id (unshare a note)
+    if (shareUpdateMatch && method === 'DELETE') {
+      const shareId = shareUpdateMatch[1];
+      const result = await deleteShare(db, userId, shareId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: result,
+      };
     }
 
     throw new ApiError('NOT_FOUND', `Endpoint not found: ${method} ${pathname}`, 404);
