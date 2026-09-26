@@ -7,6 +7,7 @@ import '../documents/document_models.dart';
 import '../storage/cloud_storage_exceptions.dart';
 import '../storage/cloud_storage_models.dart';
 import '../../features/devices/domain/device.dart';
+import 'share_models.dart';
 import 'sync_models.dart';
 
 class DeviceRevokedException implements Exception {
@@ -196,6 +197,51 @@ abstract class SyncApiClient {
       limitBytes: CloudStorageConstants.freePlanLimitBytes,
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Public note sharing
+  // ---------------------------------------------------------------------------
+
+  /// Creates a public share for a note. Content/attachments must already be
+  /// prepared (decrypted markdown + public Cloudinary uploads) by the caller.
+  Future<CreatedShare> createShare({
+    required String noteId,
+    required String title,
+    required String contentMarkdown,
+    String visibility = 'public',
+    String? password,
+    List<ShareAttachmentRef> attachments = const [],
+  }) async {
+    throw UnimplementedError();
+  }
+
+  /// Obtains signed authorization for a PUBLIC (plaintext) Cloudinary upload
+  /// used by share attachments.
+  Future<CloudinaryUploadAuth> getShareUploadAuth({
+    required String uploadId,
+    String kind = 'image',
+    String mimeType = 'image/png',
+    int byteSize = 0,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  /// Lists the current user's active shares for the management UI.
+  Future<List<ShareListItem>> listShares() async => const [];
+
+  /// Updates a share's visibility and/or password. Pass [clearPassword] to
+  /// remove an existing password (sends `password: null`).
+  Future<ShareUpdateResult> updateShare(
+    String shareId, {
+    String? visibility,
+    String? password,
+    bool clearPassword = false,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  /// Deletes (unshares) a share.
+  Future<void> deleteShare(String shareId) async {}
 }
 
 class HttpSyncApiClient implements SyncApiClient {
@@ -1066,5 +1112,139 @@ class HttpSyncApiClient implements SyncApiClient {
 
     final data = _safeParseJson(res.body);
     return data?['revokedCount'] as int? ?? 0;
+  }
+
+  @override
+  Future<CreatedShare> createShare({
+    required String noteId,
+    required String title,
+    required String contentMarkdown,
+    String visibility = 'public',
+    String? password,
+    List<ShareAttachmentRef> attachments = const [],
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/shares');
+    final body = <String, dynamic>{
+      'noteId': noteId,
+      'title': title,
+      'contentMarkdown': contentMarkdown,
+      'visibility': visibility,
+      'attachments': attachments.map((a) => a.toJson()).toList(),
+    };
+    if (password != null && password.isNotEmpty) {
+      body['password'] = password;
+    }
+
+    final encoded = jsonEncode(body);
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+          url,
+          headers: headers,
+          body: encoded,
+        ));
+
+    if (res.statusCode != 200) {
+      _checkQuotaOrSizeError(res, 'Failed to create share');
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to create share: Invalid JSON response');
+    }
+    return CreatedShare.fromJson(data);
+  }
+
+  @override
+  Future<CloudinaryUploadAuth> getShareUploadAuth({
+    required String uploadId,
+    String kind = 'image',
+    String mimeType = 'image/png',
+    int byteSize = 0,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/shares/upload-auth');
+    final body = jsonEncode({
+      'uploadId': uploadId,
+      'kind': kind,
+      'mimeType': mimeType,
+      'byteSize': byteSize,
+    });
+
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+          url,
+          headers: headers,
+          body: body,
+        ));
+
+    if (res.statusCode != 200) {
+      _checkQuotaOrSizeError(res, 'Failed to obtain share upload auth');
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to obtain share upload auth: Invalid JSON response');
+    }
+    return CloudinaryUploadAuth.fromJson(data);
+  }
+
+  @override
+  Future<List<ShareListItem>> listShares() async {
+    final url = Uri.parse('$_baseUrl/api/v1/shares');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to list shares'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null || data['shares'] is! List) {
+      throw Exception('Failed to list shares: Invalid JSON response');
+    }
+    return (data['shares'] as List)
+        .map((item) => ShareListItem.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<ShareUpdateResult> updateShare(
+    String shareId, {
+    String? visibility,
+    String? password,
+    bool clearPassword = false,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/v1/shares/${Uri.encodeComponent(shareId)}');
+    final body = <String, dynamic>{};
+    if (visibility != null) {
+      body['visibility'] = visibility;
+    }
+    if (clearPassword) {
+      body['password'] = null;
+    } else if (password != null && password.isNotEmpty) {
+      body['password'] = password;
+    }
+
+    final res = await _sendWithAuthRetry((headers) => _client.patch(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to update share'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to update share: Invalid JSON response');
+    }
+    return ShareUpdateResult.fromJson(data);
+  }
+
+  @override
+  Future<void> deleteShare(String shareId) async {
+    final url = Uri.parse('$_baseUrl/api/v1/shares/${Uri.encodeComponent(shareId)}');
+    final res = await _sendWithAuthRetry((headers) => _client.delete(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to delete share'));
+    }
   }
 }

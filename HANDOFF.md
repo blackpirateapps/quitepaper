@@ -7475,4 +7475,34 @@ Share API client + models, local `shareId`/`shareUrl` note columns (drift migrat
 - Backend: `cd backend && npm run build` (clean `tsc`) and `npx vitest run tests/shares.test.ts` (**13/13 passing**).
 - Repo baseline: `flutter analyze` (**No issues found**) and `flutter test` (**all passing**) with no Flutter changes yet.
 
+## 122. Public Note Sharing — Flutter Client (Share as URL)
+
+### 1. Overview
+The Flutter half of the sharing feature (§121 is the backend). A note can be published to a public server-rendered URL from the editor overflow menu. The client decrypts the note body (unlocking a password-protected note first) and each referenced `qp://asset/<uuid>` attachment locally, uploads the attachment plaintext to the public Cloudinary folder, rewrites the embeds to public https URLs, strips internal YAML frontmatter, and `POST`s the resulting markdown to `/api/v1/shares`. The returned `shareId`/`shareUrl` are remembered locally so the editor can offer copy/open/manage. Shares are managed (visibility, password, delete) from **Settings → Shared links**.
+
+### 2. File Inventory
+- **New Files**:
+  - `lib/core/sync/share_models.dart`: DTOs mirroring the backend JSON — `CreatedShare`, `ShareListItem`, `ShareAttachmentRef` (sent for GC), `ShareUpdateResult`. Visibility carried as a raw wire string.
+  - `lib/features/share/domain/note_share.dart`: `ShareVisibility` enum (`public`/`unlisted`/`password`, with `wireValue`/`label`/`fromWire`) and the immutable `NoteShare` model (`isActive`, `daysRemaining`, `fromListItem`).
+  - `lib/features/share/application/share_service.dart`: `ShareService` (`createShare`, `listShares`, `updateShare`, `deleteShare`), `ShareException`, `ShareProgressPhase`. `createShare` strips frontmatter via `FrontmatterEditorHelper`, scans image+link regexes for `qp://asset` refs, decrypts/uploads each once (dedup by asset id) through `getShareUploadAuth` + `CloudinaryClient.uploadEncryptedBytes`, rewrites embeds, then persists the URL via `NotesRepository.setNoteShareInfo`.
+  - `lib/features/share/application/share_providers.dart`: `shareServiceProvider` and `sharesListProvider` (`FutureProvider.autoDispose`, `ref.invalidate` after mutations).
+  - `lib/features/share/presentation/share_warning_dialog.dart`: `static show()→Future<bool>` heads-up warning that content + attachments upload **unencrypted**; password gates only page text, images stay public by URL; 30-day expiry.
+  - `lib/features/share/presentation/share_note_sheet.dart`: modal sheet with visibility selector + optional password field, per-phase progress/error banners, and a shared-state view (copy / share / open / manage).
+  - `lib/features/share/presentation/manage_shares_screen.dart`: settings sub-screen listing active shares with view count / expiry, change-visibility bottom sheet, set-password dialog, and delete confirmation.
+  - `test/share/share_service_test.dart`: 6 unit tests (plaintext passthrough + local persistence, frontmatter stripping, `qp://asset` rewrite, single-upload dedup of repeated assets, password forwarding, password-tier-without-password rejection).
+- **Updated Files**:
+  - `lib/core/sync/sync_api_client.dart`: `createShare`, `getShareUploadAuth`, `listShares`, `updateShare`, `deleteShare` on both the abstract `SyncApiClient` and `HttpSyncApiClient` (Firebase Bearer via `_sendWithAuthRetry`).
+  - `lib/core/database/tables/notes_table.dart` + `app_database.dart` (+ regenerated `app_database.g.dart`): nullable `shareId`/`shareUrl` columns; **drift schema version 14 → 15** with a `from < 15` migration adding both columns via `_addColumnSafely`. Share fields are local-only bookkeeping written **exclusively** through `setNoteShareInfo(...)`, kept out of `saveNote`/sync so ordinary saves and sync pulls never null-wipe them.
+  - `lib/features/notes/domain/note_model.dart`: `shareId`/`shareUrl` fields, `isShared` getter, `copyWith` (`clearShare`), equality/hashCode.
+  - `lib/features/notes/data/notes_repository.dart`: `setNoteShareInfo`, `shareId`/`shareUrl` mapping in `_mapToDomain`.
+  - `lib/features/editor/presentation/editor_screen.dart`: "Share as URL" overflow item (non-trashed) → `ShareWarningDialog` then `ShareNoteSheet` (skips the warning when the note is already shared).
+  - `lib/features/settings/presentation/settings_screen.dart`: "Shared links" row → `ManageSharesScreen`.
+  - `test/journal/journal_database_test.dart`: schema-version assertion updated to 15.
+
+### 3. Attachment Gating & Frontmatter
+Only `qp://asset` references (images + generic files) are decrypted/uploaded/rewritten; `qp://note` and `qp://document` links are left untouched (rendered as plain text server-side in v1). Leading YAML frontmatter is stripped from the published body so internal properties are never exposed.
+
+### 4. Verification & Quality
+- `flutter analyze` → **No issues found**. `flutter test` → **all passing** (1537+ tests incl. the new share suite).
+
 

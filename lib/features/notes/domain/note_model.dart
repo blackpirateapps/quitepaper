@@ -15,6 +15,8 @@ class Note {
     this.deletedAt,
     this.tags = const [],
     this.journalDate,
+    this.shareId,
+    this.shareUrl,
   });
 
   final String id;
@@ -28,6 +30,15 @@ class Note {
   final DateTime? deletedAt;
   final List<String> tags;
   final String? journalDate;
+
+  /// Public share slug (null when the note is not shared as a URL).
+  final String? shareId;
+
+  /// Full public share URL returned by the backend (null when not shared).
+  final String? shareUrl;
+
+  /// Whether the note currently has an active public share URL.
+  bool get isShared => shareId != null && shareId!.isNotEmpty;
 
   /// Whether the note is classified as a journal entry
   bool get isJournal => journalDate != null && journalDate!.isNotEmpty;
@@ -85,6 +96,9 @@ class Note {
     List<String>? tags,
     String? journalDate,
     bool clearJournalDate = false,
+    String? shareId,
+    String? shareUrl,
+    bool clearShare = false,
   }) {
     return Note(
       id: id ?? this.id,
@@ -98,6 +112,8 @@ class Note {
       deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
       journalDate: clearJournalDate ? null : (journalDate ?? this.journalDate),
+      shareId: clearShare ? null : (shareId ?? this.shareId),
+      shareUrl: clearShare ? null : (shareUrl ?? this.shareUrl),
     );
   }
 
@@ -116,6 +132,8 @@ class Note {
           isTrashed == other.isTrashed &&
           deletedAt == other.deletedAt &&
           journalDate == other.journalDate &&
+          shareId == other.shareId &&
+          shareUrl == other.shareUrl &&
           listEquals(tags, other.tags);
 
   @override
@@ -130,5 +148,7 @@ class Note {
       isTrashed.hashCode ^
       deletedAt.hashCode ^
       journalDate.hashCode ^
+      shareId.hashCode ^
+      shareUrl.hashCode ^
       tags.hashCode;
 }

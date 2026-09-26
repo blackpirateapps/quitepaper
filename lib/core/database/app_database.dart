@@ -81,7 +81,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
 
   @override
@@ -190,6 +190,10 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 14) {
             await _addColumnSafely(m, notesTable, notesTable.journalDate);
+          }
+          if (from < 15) {
+            await _addColumnSafely(m, notesTable, notesTable.shareId);
+            await _addColumnSafely(m, notesTable, notesTable.shareUrl);
           }
         },
         beforeOpen: (details) async {
@@ -1131,6 +1135,17 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+
+  /// Set or clear the local share bookkeeping (share slug + public URL) for a note.
+  /// These columns are local-only (not synced); pass null to clear on unshare.
+  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl}) async {
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        shareId: Value(shareId),
+        shareUrl: Value(shareUrl),
+      ),
+    );
+  }
 
   /// Toggle or set pin status
   Future<void> setPinned(String noteId, bool isPinned) async {

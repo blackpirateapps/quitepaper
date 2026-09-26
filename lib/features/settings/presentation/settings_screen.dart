@@ -39,6 +39,7 @@ import 'widgets/maintenance_progress_sheet.dart';
 import '../../../core/speech/presentation/speech_settings_view.dart';
 import '../../../core/storage/cloud_storage_provider.dart';
 import 'cloud_storage_screen.dart';
+import '../../share/presentation/manage_shares_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -987,6 +988,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => const CloudStorageScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.link_rounded,
+                      title: 'Shared links',
+                      subtitle: 'Manage or delete notes you shared as public URLs',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ManageSharesScreen(),
                           ),
                         );
                       },

@@ -23,6 +23,7 @@ abstract class NotesRepository {
   Future<Note?> getNoteById(String id);
   Stream<Note?> watchNoteById(String id);
   Future<void> saveNote(Note note);
+  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl});
   Future<void> setPinned(String id, bool isPinned);
   Future<void> archiveNote(String id);
   Future<void> unarchiveNote(String id);
@@ -111,6 +112,8 @@ class DriftNotesRepository implements NotesRepository {
       deletedAt: entity.note.deletedAt,
       tags: entity.tagNames,
       journalDate: entity.note.journalDate,
+      shareId: entity.note.shareId,
+      shareUrl: entity.note.shareUrl,
     );
   }
 
@@ -241,6 +244,14 @@ class DriftNotesRepository implements NotesRepository {
 
     // Sync any renamed document titles referenced inside the note's markdown body
     await _syncDocumentTitlesFromMarkdown(note.id, note.content);
+  }
+
+  @override
+  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl}) async {
+    // Share fields are local-only bookkeeping (not synced), managed exclusively
+    // by the share feature. Keep them out of saveNote so ordinary saves and sync
+    // pulls never clobber them; set/clear them explicitly here instead.
+    await _db.setNoteShareInfo(noteId, shareId: shareId, shareUrl: shareUrl);
   }
 
   Future<void> _syncDocumentTitlesFromMarkdown(String noteId, String content) async {

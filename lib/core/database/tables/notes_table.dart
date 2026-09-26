@@ -18,6 +18,8 @@ class NotesTable extends Table {
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
   TextColumn get journalDate => text().nullable()();
+  TextColumn get shareId => text().nullable()();
+  TextColumn get shareUrl => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

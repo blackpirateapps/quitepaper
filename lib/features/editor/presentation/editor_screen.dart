@@ -73,6 +73,8 @@ import '../application/slash_command_trigger.dart';
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../export/presentation/export_note_sheet.dart';
+import '../../share/presentation/share_note_sheet.dart';
+import '../../share/presentation/share_warning_dialog.dart';
 import '../../../core/speech/application/speech_provider.dart';
 import '../../../core/speech/application/speech_text_insertion_helper.dart';
 import '../../../core/speech/presentation/speech_download_dialog.dart';
@@ -2771,6 +2773,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         content: _contentController.text,
                       );
                       ExportNoteSheet.show(context, note: currentNoteSnapshot);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.link_rounded,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Share as URL',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      final currentNoteSnapshot = note.copyWith(
+                        title: _titleController.text,
+                        content: _contentController.text,
+                      );
+                      if (currentNoteSnapshot.isShared) {
+                        ShareNoteSheet.show(context, note: currentNoteSnapshot);
+                        return;
+                      }
+                      final accepted = await ShareWarningDialog.show(context);
+                      if (!accepted || !context.mounted) return;
+                      ShareNoteSheet.show(context, note: currentNoteSnapshot);
                     },
                   ),
                   ListTile(
