@@ -7678,3 +7678,18 @@ Prism registers languages onto a browser `Prism` global and Shiki's API is async
 - `npx vitest run` → **112/112 passing** (all 16 suites, incl. the 19-case `shares.test.ts`: public/unlisted render, password right/wrong, expiry 410, 404, XSS escaping, fenced-code language class + escaping).
 - Rendered sample pages out-of-band and verified: TOC + heading ids + anchors present, highlighter token spans emitted, `<b>` in a code string stays escaped (`&lt;b&gt;`), OG/canonical/metadata present, balanced top-level tags.
 - Flutter `analyze`/`test` not applicable (backend-only, no Dart changed) and the Flutter toolchain is not installed here.
+
+## 129. Public Share Reader — Branded OG Card Image
+
+The redesigned share page's `og:image`/`twitter:image` meta point to `${SITE}/images/share-card.png`, which previously did not exist (link unfurls showed a broken image). Created a branded 1200×630 static card.
+
+### What was added
+- `backend/public/images/share-card.png` (authoritative served dir; fonts + existing `/images/**` live under `backend/public`) and mirrored to `public/images/share-card.png` to match the existing `phone/`/`tablet/` mirroring.
+- Design matches the reader's warm editorial brand: paper gradient background (`#FAF9F5→#F2F0E9`), accent top rule (`#C2532F`) echoing the reading-progress bar, dark rounded app-icon tile with a Lora "Q" mark, "Quiet Paper" wordmark in Lora Bold with a short accent underline, "Private, offline-first notes." tagline in Inter, `quietpaper.blackpiratex.com` in accent, and a faint "document lines" motif on the right.
+
+### How it was generated (tooling not committed)
+- No rasterizer was present in the environment (no ImageMagick / rsvg / headless Chrome / sharp / PIL). Authored the card as SVG and rasterized with `@resvg/resvg-js` installed in a throwaway `/tmp` dir, loading the repo's self-hosted **Lora** + **Inter** `.ttf` files (`backend/public/fonts/**`) so the wordmark uses the real brand fonts. Only the resulting PNG is committed — no new backend dependency was added (build stays plain `tsc`).
+- Verified output: `PNG image data, 1200 x 630, 8-bit/color RGBA`, ~35 KB.
+
+### Verification & Quality
+- No source/logic changed, so `tsc`/`vitest` results from §128 stand (112/112). Flutter `analyze`/`test` not applicable (no Dart changed; toolchain not installed here).
