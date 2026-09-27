@@ -7560,3 +7560,31 @@ The two remaining deferred P2 items from §119 are now shipped. Both were held b
 ### 5. Verification & Quality
 - Static analysis: `flutter analyze` → **No issues found**.
 - Automated tests: full `test/editor` suite passes (**All tests passed!**, 429 tests) including the new P2-2 / P2-7b cases.
+
+---
+
+## 125. WYSIWYG Editor — Deferred P3-6b Performance & Lifecycle Nits
+
+### 1. Overview & Motivation
+The three perf/lifecycle items held back from the P3-6 batch (§120) are now shipped. All live in `visual_document_editor.dart`. None was a correctness bug; each was deferred for regression risk, so the changes are deliberately conservative and self-contained (no §4 stable-block-ID refactor).
+
+### 2. Bugs Fixed
+- **Hardcoded 28px viewport-spacer estimate.** In windowed mode (>80 blocks) the off-window blocks are represented by top/bottom spacers whose height, and whose tap-to-jump math, were both a fixed `28.0` px/block. That drifts badly for multi-line paragraphs and large headings, so the scrollbar thumb and tap targets misaligned on real documents. Replaced with a measured, self-correcting `_estimatedBlockHeight` averaged from the on-screen block fields; spacer height and tap math now read the same value so they stay consistent.
+- **Duplicated competing focus-restore logic.** Two code paths both restored block focus when the parent gained focus: a manual `widget.focusNode.addListener(_handleParentFocusChange)` and the wrapping `Focus.onFocusChange` callback — both fired on the *same* node and could compete. Consolidated into one method, `_restoreBlockFocusFromParent()`, driven only from `onFocusChange`; the manual listener and its init/dispose plumbing were removed.
+- **Full-reparse repainted every visible block.** `_RichBlockEditingController.updateBlock` decided "changed" via `_block != newBlock`, which is *identity* inequality (SemanticBlock has no value equality). Because a full reparse mints a fresh instance for every block, a single-block edit repainted the entire viewport. Now a render-equality check (`_rendersSameAs`) compares only what `buildTextSpan` actually paints — block type, visible text, checklist-completion state, and each inline run's type/text/style flags — so a block whose rendered content is unchanged (e.g. one whose source range merely shifted) does not repaint. Source ranges are intentionally ignored (they matter for caret mapping, not painting).
+
+### 3. Implementation Notes
+- `_estimatedBlockHeight` (default `_defaultBlockHeight = 28.0`) is recomputed by `_updateBlockHeightEstimate()`, scheduled via `addPostFrameCallback` from the windowed branch of `build`. It averages `RenderBox.size.height` over the live `_blockKeys` contexts and only calls `setState` when the delta exceeds 1px. Convergence is guaranteed: on-screen block heights don't depend on the off-screen spacer heights, so the estimate settles in one or two frames and cannot loop.
+- `buildTextSpan` and `_rendersSameAs` now share a single static `_extractRuns(block)` helper (replacing the inline type-switch that previously built the run list), so the render-equality comparison and the actual render read the exact same run set.
+- The focus consolidation keeps the richer fallback (target block → last-block HR → reverse-search for an editable block → first field) that previously lived only in `onFocusChange`; the simpler manual-listener fallback was strictly a subset, so nothing was lost.
+
+### 4. File Inventory
+- **Updated Files**:
+  - `lib/features/editor/presentation/widgets/visual_document_editor.dart`: `_estimatedBlockHeight` + `_updateBlockHeightEstimate` (measured spacer math); `_restoreBlockFocusFromParent` consolidation (removed `_handleParentFocusChange` and its listener registration); `_RichBlockEditingController._rendersSameAs` / `_extractRuns` render-equality short-circuit in `updateBlock`.
+- **New Tests**:
+  - `test/editor/visual_document_editor_widget_test.dart`: new "VisualDocumentEditor P3-6b performance & lifecycle" group — parent-focus restoration via the single consolidated path; windowed spacer uses a measured height and converges without a rebuild loop (a loop would time out `pumpAndSettle`).
+
+### 5. Verification & Quality
+- Static analysis: `flutter analyze` → **No issues found**.
+- Automated tests: full `test/editor` suite passes (**All tests passed!**, 431 tests), including the two new P3-6b cases and the pre-existing focus/windowing coverage as a regression net.
+- Note: the remaining deferred item is the §4 stable-block-ID refactor (large, cross-cutting) — still not started.

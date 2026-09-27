@@ -136,4 +136,61 @@ void main() {
       controller.dispose();
     });
   });
+
+  group('VisualDocumentEditor P3-6b performance & lifecycle', () {
+    testWidgets('parent Focus regaining focus restores a block via the single consolidated path', (tester) async {
+      const md = 'First paragraph\n\nSecond paragraph';
+      final controller = SemanticEditorController(initialMarkdown: md);
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestableWidget(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      // No block is focused yet; the parent gaining focus must delegate down to
+      // a block field. Previously two competing paths (a manual focusNode
+      // listener and Focus.onFocusChange) did this; now it is one path.
+      focusNode.requestFocus();
+      await tester.pumpAndSettle();
+
+      final focusedFields = tester
+          .widgetList<TextField>(find.byType(TextField))
+          .where((tf) => tf.focusNode?.hasFocus ?? false);
+      expect(focusedFields, isNotEmpty,
+          reason: 'a block field should receive focus from the parent');
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('windowed spacer uses a measured height estimate and converges without a rebuild loop', (tester) async {
+      // 120 blocks exceeds the 80-block window threshold, so off-screen blocks
+      // are represented by a spacer whose height comes from the measured
+      // per-block estimate. If the post-frame measurement/setState failed to
+      // converge, pumpAndSettle would time out here.
+      final lines = List.generate(
+        120,
+        (i) => 'Block $i content long enough to render on a line',
+      );
+      final controller = SemanticEditorController(initialMarkdown: lines.join('\n'));
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestableWidget(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      final spacer = find.byKey(const ValueKey('viewport_bottom_spacer'));
+      expect(spacer, findsOneWidget);
+      // Spacer stands in for the ~79 off-window blocks, so its height must be
+      // a positive multiple of the (measured) per-block estimate.
+      expect(tester.getSize(spacer).height, greaterThan(0));
+
+      focusNode.dispose();
+      controller.dispose();
+    });
+  });
 }

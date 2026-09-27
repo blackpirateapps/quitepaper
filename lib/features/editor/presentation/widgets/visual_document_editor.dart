@@ -61,6 +61,18 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
   static const int _viewportBuffer = 40;
   static const int _windowThreshold = _viewportBuffer * 2; // 80 blocks
+
+  /// Fallback per-block height used for windowed-mode spacer/scroll math before
+  /// any real block has been measured.
+  static const double _defaultBlockHeight = 28.0;
+
+  /// Running estimate of a block's rendered height, derived from the blocks
+  /// currently on screen (see [_updateBlockHeightEstimate]). Replaces the old
+  /// hardcoded 28px assumption, which drifted badly for multi-line paragraphs
+  /// and large headings. Both the spacer heights and the tap-to-jump math read
+  /// this single value so they stay consistent with each other.
+  double _estimatedBlockHeight = _defaultBlockHeight;
+
   int _viewportCenterIndex = 0;
   int _lastBlockCount = 0;
   String _lastActiveBlockId = '';
@@ -77,7 +89,6 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
-    widget.focusNode.addListener(_handleParentFocusChange);
     _syncBlockControllers();
   }
 
@@ -89,15 +100,10 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       widget.controller.addListener(_onControllerChanged);
       _syncBlockControllers();
     }
-    if (oldWidget.focusNode != widget.focusNode) {
-      oldWidget.focusNode.removeListener(_handleParentFocusChange);
-      widget.focusNode.addListener(_handleParentFocusChange);
-    }
   }
 
   @override
   void dispose() {
-    widget.focusNode.removeListener(_handleParentFocusChange);
     widget.controller.removeListener(_onControllerChanged);
     for (final ctrl in _blockControllers.values) {
       ctrl.dispose();
@@ -113,14 +119,34 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     super.dispose();
   }
 
-  void _handleParentFocusChange() {
+  /// Single focus-restore path used when the parent [Focus] regains focus with
+  /// no block currently focused. Previously this logic was duplicated between a
+  /// manual `widget.focusNode` listener and the `Focus.onFocusChange` callback —
+  /// both fired on the same node and could compete. Consolidated here and driven
+  /// only from `onFocusChange`.
+  void _restoreBlockFocusFromParent() {
     if (!mounted) return;
     if (_activeTable != null) return;
-    if (widget.focusNode.hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
-      final targetBlockId = widget.controller.selection.base.blockId;
-      final targetFn = _blockFocusNodes[targetBlockId] ?? _blockFocusNodes.values.firstOrNull;
-      if (targetFn != null && !targetFn.hasFocus) {
-        targetFn.requestFocus();
+    if (_blockFocusNodes.values.any((fn) => fn.hasFocus)) return;
+
+    final targetBlockId = widget.controller.selection.base.blockId;
+    final targetBlock = widget.controller.document.findBlockById(targetBlockId);
+    if (targetBlock != null && targetBlock.isEditable) {
+      _blockFocusNodes[targetBlockId]?.requestFocus();
+      return;
+    }
+
+    final lastBlock = widget.controller.document.blocks.lastOrNull;
+    if (lastBlock is HorizontalRuleBlock) {
+      widget.controller.insertParagraphBelow(lastBlock.id);
+    } else {
+      final editable = widget.controller.document.blocks.reversed
+          .where((b) => b.isEditable)
+          .firstOrNull;
+      if (editable != null) {
+        _blockFocusNodes[editable.id]?.requestFocus();
+      } else {
+        _blockFocusNodes.values.firstOrNull?.requestFocus();
       }
     }
   }
@@ -458,15 +484,20 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       final startIndex = (_viewportCenterIndex - _viewportBuffer).clamp(0, doc.blocks.length - 1);
       final endIndex = (_viewportCenterIndex + _viewportBuffer + 1).clamp(0, doc.blocks.length);
 
+      // Re-measure the on-screen blocks after this frame so the spacer math
+      // tracks real content height instead of a fixed 28px guess.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateBlockHeightEstimate());
+      final blockHeight = _estimatedBlockHeight;
+
       final topCount = startIndex;
       if (topCount > 0) {
-        final topHeight = topCount * 28.0;
+        final topHeight = topCount * blockHeight;
         blockWidgets.add(
           GestureDetector(
             key: const ValueKey('viewport_top_spacer'),
             behavior: HitTestBehavior.opaque,
             onTapDown: (details) {
-              final target = (details.localPosition.dy / 28.0).floor().clamp(0, topCount - 1);
+              final target = (details.localPosition.dy / blockHeight).floor().clamp(0, topCount - 1);
               setState(() {
                 _viewportCenterIndex = target;
                 _syncBlockControllers();
@@ -488,13 +519,13 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
 
       final bottomCount = doc.blocks.length - endIndex;
       if (bottomCount > 0) {
-        final bottomHeight = bottomCount * 28.0;
+        final bottomHeight = bottomCount * blockHeight;
         blockWidgets.add(
           GestureDetector(
             key: const ValueKey('viewport_bottom_spacer'),
             behavior: HitTestBehavior.opaque,
             onTapDown: (details) {
-              final target = (endIndex + (details.localPosition.dy / 28.0).floor()).clamp(endIndex, doc.blocks.length - 1);
+              final target = (endIndex + (details.localPosition.dy / blockHeight).floor()).clamp(endIndex, doc.blocks.length - 1);
               setState(() {
                 _viewportCenterIndex = target;
                 _syncBlockControllers();
@@ -516,25 +547,8 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         focusNode: widget.focusNode,
         canRequestFocus: true,
         onFocusChange: (hasFocus) {
-          if (hasFocus && !_blockFocusNodes.values.any((fn) => fn.hasFocus)) {
-            if (_activeTable != null) return;
-            final targetBlockId = widget.controller.selection.base.blockId;
-            final targetBlock = widget.controller.document.findBlockById(targetBlockId);
-            if (targetBlock != null && targetBlock.isEditable) {
-              _blockFocusNodes[targetBlockId]?.requestFocus();
-            } else {
-              final lastBlock = widget.controller.document.blocks.lastOrNull;
-              if (lastBlock is HorizontalRuleBlock) {
-                widget.controller.insertParagraphBelow(lastBlock.id);
-              } else {
-                final editable = widget.controller.document.blocks.reversed.where((b) => b.isEditable).firstOrNull;
-                if (editable != null) {
-                  _blockFocusNodes[editable.id]?.requestFocus();
-                } else {
-                  _blockFocusNodes.values.firstOrNull?.requestFocus();
-                }
-              }
-            }
+          if (hasFocus) {
+            _restoreBlockFocusFromParent();
           }
         },
         child: Column(
@@ -580,6 +594,36 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         widget.onActiveTargetChanged?.call(ctrl, fn);
       }
     });
+  }
+
+  /// Averages the measured height of the block text fields currently on screen
+  /// (keyed by [_blockKeys]) and, if it has drifted meaningfully from the
+  /// running estimate, updates [_estimatedBlockHeight]. Only relevant in
+  /// windowed mode, where off-screen blocks are represented by spacers whose
+  /// height depends on this estimate. The >1px threshold keeps the post-frame
+  /// callback from thrashing: the measured heights of on-screen blocks don't
+  /// depend on the (off-screen) spacer heights, so the estimate converges.
+  void _updateBlockHeightEstimate() {
+    if (!mounted) return;
+    if (widget.controller.document.blocks.length <= _windowThreshold) return;
+
+    var total = 0.0;
+    var count = 0;
+    for (final key in _blockKeys.values) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is RenderBox && renderObject.hasSize) {
+        total += renderObject.size.height;
+        count++;
+      }
+    }
+    if (count == 0) return;
+
+    final average = total / count;
+    if (average > 0 && (average - _estimatedBlockHeight).abs() > 1.0) {
+      setState(() {
+        _estimatedBlockHeight = average;
+      });
+    }
   }
 
   Widget _buildBlockWidget(
@@ -1513,7 +1557,12 @@ class _RichBlockEditingController extends TextEditingController {
   void updateBlock(SemanticBlock newBlock, MarkdownStyles? newStyles, String? newSearchQuery) {
     final stylesChanged = styles != newStyles;
     final searchChanged = searchQuery != newSearchQuery;
-    final blockChanged = _block != newBlock;
+    // A full reparse hands us a fresh SemanticBlock instance for every block,
+    // so an identity/`!=` comparison reported *every* block as changed and
+    // repainted the whole window on a single-block edit. Compare what actually
+    // affects this controller's rendered TextSpan instead, so an unchanged
+    // block (e.g. one whose source range merely shifted) does not repaint.
+    final blockChanged = !_rendersSameAs(_block, newBlock);
 
     _block = newBlock;
     styles = newStyles;
@@ -1529,6 +1578,52 @@ class _RichBlockEditingController extends TextEditingController {
     }
   }
 
+  /// Whether [a] and [b] would produce an identical rendered [TextSpan] from
+  /// [buildTextSpan]. Only the fields that influence rendering are compared:
+  /// block type, visible text, checklist completion (which drives the
+  /// strikethrough styling), and each inline run's type, text, and style flags.
+  /// Source ranges are deliberately ignored — they matter for caret mapping,
+  /// not for painting.
+  static bool _rendersSameAs(SemanticBlock a, SemanticBlock b) {
+    if (identical(a, b)) return true;
+    if (a.runtimeType != b.runtimeType) return false;
+    if (a.plainText != b.plainText) return false;
+    if (a is ChecklistItemBlock &&
+        b is ChecklistItemBlock &&
+        a.checked != b.checked) {
+      return false;
+    }
+
+    final aRuns = _extractRuns(a);
+    final bRuns = _extractRuns(b);
+    if (aRuns.length != bRuns.length) return false;
+    for (var i = 0; i < aRuns.length; i++) {
+      final ra = aRuns[i];
+      final rb = bRuns[i];
+      if (ra.runtimeType != rb.runtimeType) return false;
+      if (ra.text != rb.text) return false;
+      if (ra.isBold != rb.isBold ||
+          ra.isItalic != rb.isItalic ||
+          ra.isStrike != rb.isStrike ||
+          ra.isHighlight != rb.isHighlight) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// The inline runs a block contributes to its rendered text (empty for block
+  /// types that don't paint inline runs through this controller).
+  static List<SemanticInline> _extractRuns(SemanticBlock block) {
+    if (block is ParagraphBlock) return block.runs;
+    if (block is HeadingBlock) return block.runs;
+    if (block is ListItemBlock) return block.runs;
+    if (block is OrderedListItemBlock) return block.runs;
+    if (block is ChecklistItemBlock) return block.runs;
+    if (block is QuoteBlock) return block.runs;
+    return const [];
+  }
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -1542,20 +1637,7 @@ class _RichBlockEditingController extends TextEditingController {
     final colors = context.appColors;
     final spans = <InlineSpan>[];
 
-    List<SemanticInline> runs = [];
-    if (_block is ParagraphBlock) {
-      runs = (_block as ParagraphBlock).runs;
-    } else if (_block is HeadingBlock) {
-      runs = (_block as HeadingBlock).runs;
-    } else if (_block is ListItemBlock) {
-      runs = (_block as ListItemBlock).runs;
-    } else if (_block is OrderedListItemBlock) {
-      runs = (_block as OrderedListItemBlock).runs;
-    } else if (_block is ChecklistItemBlock) {
-      runs = (_block as ChecklistItemBlock).runs;
-    } else if (_block is QuoteBlock) {
-      runs = (_block as QuoteBlock).runs;
-    }
+    final runs = _extractRuns(_block);
 
     if (runs.isEmpty) {
       return TextSpan(text: text, style: style);

@@ -4,7 +4,7 @@
 > **Status (updated 2026-09-27):**
 > - **P0 / P1** — implemented, verified, committed (`HANDOFF.md` §118, commit `a96dc59`).
 > - **P2 (parser fidelity)** — **DONE.** P2-1, P2-3, P2-4, P2-5, P2-7 (balanced parens), P2-8, P2-9 shipped (`HANDOFF.md` §119, commit `bc9b3fa`). **P2-2 (backslash escapes) and P2-7b (nested `]` in label) now shipped** (`HANDOFF.md` §124). **Out of scope:** P2-6 (setext, product decision).
-> - **P3 (autocomplete & UX)** — the actionable items are **DONE** (`HANDOFF.md` §120, commit `bc9b3fa`). P3-1, P3-2, P3-3, P3-4, P3-5, and the safe part of P3-6 shipped. **Deferred:** the three perf-sensitive P3-6 items.
+> - **P3 (autocomplete & UX)** — **DONE**. P3-1..P3-5 and the P3-6 leak shipped (`HANDOFF.md` §120, commit `bc9b3fa`); the three perf-sensitive P3-6 items (P3-6b) shipped in `HANDOFF.md` §125.
 > - **§4 (stable block IDs)** — still **DEFERRED** (not started).
 >
 > This document is now a **ledger of what remains** plus the original per-item specs (kept for the deferred items and as reference). Read §0.1 first for the short list of open work.
@@ -45,7 +45,7 @@ Everything with a concrete user-visible bug has shipped, **including P2-2 and P2
 | ~~**P2-2**~~ | ~~Backslash escapes (`\*not italic\*`)~~ | ✅ **SHIPPED (§124).** Resolved by giving `PlainRun` an independent `contentRange` (escape run = 2 source / 1 visible char) plus an `_isEscapeCompressed` merge guard — no §4 refactor needed. | — |
 | ~~**P2-7b**~~ | ~~Nested `]` inside a link *label*~~ | ✅ **SHIPPED (§124).** Resolved with a one-level balanced-bracket group `(?:[^\[\]\n]|\[[^\[\]\n]*\])+`, symmetric with the P2-7 balanced-parens URL fix (not the arbitrary-depth scanner — one level covers realistic notes). | — |
 | **P2-6** | Setext headings (`Title\n===`) | **Out of scope** by product decision — the corpus uses ATX (`#`). | Reopen only if the user explicitly asks. Beware interaction with P2-5 spaced-HR (`---` under text). |
-| **P3-6b** | Perf/lifecycle nits (the 3 non-leak items) | Perf-sensitive, no correctness bug, higher regression risk. Only the FocusNode leak was safe to ship now. | See the P3-6 subsection — the repaint short-circuit should be **co-designed with §4** (stable IDs make it trivial). Measure on realistic large docs first. |
+| **P3-6b** | Perf/lifecycle nits (the 3 non-leak items) | ✅ **DONE** (`HANDOFF.md` §125) — shipped as a conservative standalone fix: measured spacer height, single consolidated focus-restore path, and a render-equality repaint short-circuit. The §4 stable-ID refactor remains optional/deferred. |
 | **§4** | Stable block identity (diff-based IDs) | Large cross-cutting refactor; the tactical P0/P1/P2/P3 fixes already neutralized the symptoms. | Own branch, editor suite as regression net **plus** new diff-stability tests. See §4. |
 
 ### Known unrelated failure (do not chase from editor work)
@@ -59,7 +59,7 @@ Everything with a concrete user-visible bug has shipped, **including P2-2 and P2
 2. ~~**P3 autocomplete & UX polish**~~ **DONE** (commit `bc9b3fa`, `HANDOFF.md` §120).
 3. **Optional strategic refactor** — stable block identity (§4). **Still open.** Only after the deferred run-model work; it retires an entire class of latent bugs but is a larger change. Evaluate cost/benefit first.
 
-The remaining coding work is the deferred set in §0.1. The P2/P3 specs below are retained: struck-through for shipped items (kept for context and regression understanding), live for the deferred ones (P2-2, P2-7b, P2-6, P3-6b).
+The remaining coding work is the deferred set in §0.1. The P2/P3 specs below are retained: struck-through for shipped items (kept for context and regression understanding), live for the deferred ones (P2-6, and the optional §4 stable-ID refactor).
 
 Do **not** interleave the deferred run-model / P2-2 work and the stable-ID refactor blindly — they touch overlapping code; but note they are **complementary** (P2-2 needs the same independent-`contentRange` run model that §4 benefits from), so a combined design pass is reasonable.
 
@@ -192,13 +192,13 @@ These are more independent than P2 and can be committed separately. Test files: 
 **Fix:** reuse the current item's `block.marker` (the `ListItemBlock`/`ChecklistItemBlock` carries the actual marker char) when synthesizing the continuation line, instead of a hardcoded `'-'`. For checklists, continue with an unchecked `[ ]` and the original bullet char.
 **Test:** `* one`⏎ continues with `* `; `+ one`⏎ continues with `+ `; checklist continues with the original bullet + `[ ]`.
 
-### P3-6 · Performance & lifecycle nits (batch) — 🟡 PARTIAL (leak ✅ DONE; perf items ⏭️ DEFERRED)
+### P3-6 · Performance & lifecycle nits (batch) — ✅ DONE (leak in `bc9b3fa`; the three perf/lifecycle items in P3-6b, `HANDOFF.md` §125)
 - **✅ DONE — Undisposed throwaway `FocusNode`** (`visual_document_editor.dart`, `_focusBlockAt`): the `fn ?? FocusNode()` fallback allocated an undisposed node. Now guarded with `if (ctrl != null && fn != null)` so no throwaway node is created. (Shipped in commit `bc9b3fa`.)
 
-The remaining three are **⏭️ DEFERRED** (perf-sensitive, no correctness bug, higher regression risk) — specs kept live:
-- **Hardcoded viewport spacer estimate** — `~:445, :473`: block height is estimated at a fixed 28px/block for spacer/scroll math, which drifts for multi-line blocks and large headings. Measure actual block extents (e.g. via `RenderBox`/`LayoutBuilder`) or track per-block heights.
-- **Duplicated competing focus-restore logic** — `~:110-120` vs `~:494-514`: two code paths restore focus and can fight each other. Consolidate into one path guarded by the existing `_isProgrammaticSelectionUpdate` flag (added during the P1 selection-loop fix — reuse it, don't add a second flag).
-- **Full-reparse repaints all visible blocks** — `_RichBlockEditingController.updateBlock` treats every reparsed block as changed (identity inequality), so a single-block edit repaints the whole viewport. Add a value-equality / content-hash short-circuit so only genuinely changed blocks rebuild. **Coordinate with §4** — stable block IDs make this dramatically cleaner, so consider doing them together.
+The remaining three (**P3-6b**) are now **✅ DONE** (`HANDOFF.md` §125) — shipped as a conservative, standalone fix without the §4 stable-ID refactor:
+- **✅ DONE — Hardcoded viewport spacer estimate** — block height is now a measured, self-correcting `_estimatedBlockHeight` averaged from on-screen block `RenderBox` heights via a post-frame `_updateBlockHeightEstimate()` (>1px threshold guard prevents setState thrash). Spacer height and tap-to-jump math read the same value.
+- **✅ DONE — Duplicated competing focus-restore logic** — consolidated onto a single `_restoreBlockFocusFromParent()` driven only from `Focus.onFocusChange`; the manual `widget.focusNode.addListener` path (and its init/dispose plumbing) was removed. Re-entrancy is avoided by an early-out when a block field already has focus, so no extra flag was needed.
+- **✅ DONE — Full-reparse repaints all visible blocks** — `_RichBlockEditingController.updateBlock` now short-circuits via `_rendersSameAs`, a render-equality check over exactly what `buildTextSpan` paints (block type, visible text, checklist-completion, each run's type/text/style flags; source ranges ignored). A single-block edit no longer repaints the whole viewport.
 
 ---
 
@@ -247,7 +247,7 @@ Legend: ✅ done · 🟡 partial · ⏭️ deferred · ❌ out of scope.
 | `application/tag_autocomplete_trigger.dart` | P3-3 ✅, P3-4 ✅ |
 | `application/note_link_autocomplete_trigger.dart` | P3-4 ✅ |
 | `presentation/widgets/markdown_editor.dart` | P3-2 ✅ |
-| `presentation/widgets/visual_document_editor.dart` | P3-6 leak ✅ · P3-6 perf items ⏭️ |
+| `presentation/widgets/visual_document_editor.dart` | P3-6 leak ✅ · P3-6b perf items ✅ |
 | `domain/semantic_document.dart` | P2-8 ✅, P2-9 ✅ (consumes P2-1) |
 | `domain/source_range.dart` | P2-9 boundary semantics (unchanged) |
 | `domain/semantic_nodes.dart` | P2-2 ✅ (independent `PlainRun.contentRange`) |
