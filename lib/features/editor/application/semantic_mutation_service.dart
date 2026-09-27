@@ -501,9 +501,20 @@ class SemanticMutationService {
 
   /// Merges adjacent runs that share identical styling and are not atomic tokens,
   /// and coalesces styled runs across intervening pure-whitespace runs.
+  /// True when a plain run's visible [text] is shorter than its source span
+  /// because of a hidden character (a backslash escape emitted by the parser,
+  /// P2-2). Such runs carry an independent `contentRange` narrower than their
+  /// `sourceRange`, so merging them with a neighbour would break the per-run
+  /// 1:1 visible↔source assumption in [mergeAdjacentRuns] callers. This only
+  /// matches escape-compressed plain runs — styled runs (whose `sourceRange`
+  /// legitimately includes delimiters) are never flagged.
+  static bool _isEscapeCompressed(SemanticInline run) =>
+      run is PlainRun &&
+      run.contentRange != null &&
+      run.contentRange!.length != run.sourceRange.length;
+
   static List<SemanticInline> mergeAdjacentRuns(List<SemanticInline> runs) {
     if (runs.length <= 1) return runs;
-
     final pass1 = _mergeDirectAdjacentRuns(runs);
 
     final result = <SemanticInline>[];
@@ -565,6 +576,8 @@ class SemanticMutationService {
           (prev is! LinkRun && run is! LinkRun) &&
           (prev is! NoteLinkRun && run is! NoteLinkRun) &&
           (prev is! TagRun && run is! TagRun) &&
+          !_isEscapeCompressed(prev) &&
+          !_isEscapeCompressed(run) &&
           prev.isBold == run.isBold &&
           prev.isItalic == run.isItalic &&
           prev.isStrike == run.isStrike &&

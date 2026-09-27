@@ -46,7 +46,8 @@ abstract class SemanticInline extends SemanticNode {
 
 /// Plain, unstyled text run.
 class PlainRun extends SemanticInline {
-  const PlainRun(this.text, this.sourceRange);
+  const PlainRun(this.text, this.sourceRange, [SourceRange? contentRange])
+      : _contentRange = contentRange;
 
   @override
   final String text;
@@ -54,13 +55,19 @@ class PlainRun extends SemanticInline {
   @override
   final SourceRange sourceRange;
 
+  /// Optional independent content span. Null for an ordinary plain run (where
+  /// content == source), but a run produced by a backslash escape (P2-2) carries
+  /// a shorter span here: the visible character excludes the hidden leading `\`,
+  /// so `text.length` can be smaller than `sourceRange.length`.
+  final SourceRange? _contentRange;
+
   @override
-  SourceRange? get contentRange => sourceRange;
+  SourceRange? get contentRange => _contentRange ?? sourceRange;
 
   @override
   PlainRun shiftSourceRange(int delta) {
     if (delta == 0) return this;
-    return PlainRun(text, sourceRange.shift(delta));
+    return PlainRun(text, sourceRange.shift(delta), _contentRange?.shift(delta));
   }
 
   @override

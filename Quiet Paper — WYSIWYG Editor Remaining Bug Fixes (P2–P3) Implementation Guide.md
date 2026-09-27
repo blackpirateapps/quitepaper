@@ -1,9 +1,9 @@
 # Quiet Paper — WYSIWYG Editor Remaining Bug Fixes (P2–P3) Implementation Guide
 
 > **Audience:** future coding agents working on the "Editor V4 / Semantic Document Architecture" (the WYSIWYG *Visual Document Editor*).
-> **Status (updated 2026-09-26):**
+> **Status (updated 2026-09-27):**
 > - **P0 / P1** — implemented, verified, committed (`HANDOFF.md` §118, commit `a96dc59`).
-> - **P2 (parser fidelity)** — the actionable items are **DONE** (`HANDOFF.md` §119, commit `bc9b3fa`). P2-1, P2-3, P2-4, P2-5, P2-7 (balanced parens), P2-8, P2-9 shipped. **Deferred:** P2-2 (backslash escapes), P2-6 (setext — out of scope), P2-7 (nested `]` in label).
+> - **P2 (parser fidelity)** — **DONE.** P2-1, P2-3, P2-4, P2-5, P2-7 (balanced parens), P2-8, P2-9 shipped (`HANDOFF.md` §119, commit `bc9b3fa`). **P2-2 (backslash escapes) and P2-7b (nested `]` in label) now shipped** (`HANDOFF.md` §124). **Out of scope:** P2-6 (setext, product decision).
 > - **P3 (autocomplete & UX)** — the actionable items are **DONE** (`HANDOFF.md` §120, commit `bc9b3fa`). P3-1, P3-2, P3-3, P3-4, P3-5, and the safe part of P3-6 shipped. **Deferred:** the three perf-sensitive P3-6 items.
 > - **§4 (stable block IDs)** — still **DEFERRED** (not started).
 >
@@ -38,12 +38,12 @@ Anchors below were re-verified against the current tree, but treat them as *appr
 
 ## 0.1 What remains (open work) — start here
 
-Everything with a concrete user-visible bug has shipped. The remaining work is deliberately deferred and each item needs a **product/architecture decision before coding**, not just implementation. Ordered by leverage:
+Everything with a concrete user-visible bug has shipped, **including P2-2 and P2-7b** (`HANDOFF.md` §124). The remaining work is deliberately deferred and each item needs a **product/architecture decision before coding**, not just implementation. Ordered by leverage:
 
 | # | Item | Why deferred | Prerequisite before starting |
 |---|------|--------------|------------------------------|
-| **P2-2** | Backslash escapes (`\*not italic\*`) | An escaped char is **1 visible / 2 source** chars, which breaks the 1:1 text↔source assumption baked into `_findPositionInRuns`, `_sourceOffsetInRuns`, and `mergeAdjacentRuns`. `PlainRun` currently hardcodes `contentRange == sourceRange` and cannot carry an independent content span. | Extend the run model so `PlainRun` (and merge logic) support an independent `contentRange`; then escapes fall out. Best done **with** the run-model half of §4. |
-| **P2-7b** | Nested `]` inside a link *label* | Only the balanced-parens-in-**URL** half shipped. Nested brackets in the label need a hand-written label scanner tracking `[`/`]` depth, not a regex. | Decide it's worth it (rare in real notes). If yes, add a small scanner invoked when the inline regex sees `[`. |
+| ~~**P2-2**~~ | ~~Backslash escapes (`\*not italic\*`)~~ | ✅ **SHIPPED (§124).** Resolved by giving `PlainRun` an independent `contentRange` (escape run = 2 source / 1 visible char) plus an `_isEscapeCompressed` merge guard — no §4 refactor needed. | — |
+| ~~**P2-7b**~~ | ~~Nested `]` inside a link *label*~~ | ✅ **SHIPPED (§124).** Resolved with a one-level balanced-bracket group `(?:[^\[\]\n]|\[[^\[\]\n]*\])+`, symmetric with the P2-7 balanced-parens URL fix (not the arbitrary-depth scanner — one level covers realistic notes). | — |
 | **P2-6** | Setext headings (`Title\n===`) | **Out of scope** by product decision — the corpus uses ATX (`#`). | Reopen only if the user explicitly asks. Beware interaction with P2-5 spaced-HR (`---` under text). |
 | **P3-6b** | Perf/lifecycle nits (the 3 non-leak items) | Perf-sensitive, no correctness bug, higher regression risk. Only the FocusNode leak was safe to ship now. | See the P3-6 subsection — the repaint short-circuit should be **co-designed with §4** (stable IDs make it trivial). Measure on realistic large docs first. |
 | **§4** | Stable block identity (diff-based IDs) | Large cross-cutting refactor; the tactical P0/P1/P2/P3 fixes already neutralized the symptoms. | Own branch, editor suite as regression net **plus** new diff-stability tests. See §4. |
@@ -87,8 +87,8 @@ So `#   Title` (3 spaces), `-   item`, `- [ ]   task` produce a `markerRange`/`c
 **Fix:** derive the marker length from the **actual match**, not a constant. Use the match's group boundaries — e.g. for the heading, the content starts at `match.start(2)` (the start of group 2 = the text), so `markerLen = match.start(2) - lineStart`. Apply the same pattern to list / checklist / ordered / quote: compute `contentRange.start` from the captured content group's actual index rather than `indent + marker + 1`.
 **Test:** parse `#   Heading` and assert `contentRange` covers exactly `Heading`; assert `findPositionAtSourceOffset` / `sourceOffsetAtPosition` round-trip for a caret inside the text. Repeat for `-   item`, `1.   item`, `- [ ]   task`, `>    quote`.
 
-### P2-2 · No backslash-escape handling — ⏭️ DEFERRED (needs run-model change; see §0.1)
-> **Blocker:** an escaped char is 1 visible / 2 source chars. `PlainRun.contentRange` is hardcoded to `sourceRange`, and `mergeAdjacentRuns` assumes 1:1 text↔source within plain runs. Implementing escapes correctly requires giving `PlainRun` an independent `contentRange` (and teaching the merge logic about it) — the same run-model change §4 wants. Do them together. The spec below is the intended approach once that lands.
+### P2-2 · No backslash-escape handling — ✅ DONE (§124)
+> **Shipped:** `PlainRun` now carries an independent optional `contentRange` (escape run = `\x` 2-char `sourceRange` / 1-char visible `contentRange` + `text`), a leading `escaped` alternative in `_inlineRegex` captures escapes before any other rule, `_makeInlineRun` emits the correctly-styled run, and `_isEscapeCompressed` keeps escape runs out of the adjacent-run merge so per-run linearity holds. No §4 refactor was required. Tests: "P2-2 backslash escapes render metacharacters literally", "P2-2 escaped inline caret round-trips through every visible offset", "P2-2 caret round-trips through escapes mixed with real emphasis". The original spec below is retained for context.
 **Where:** `_inlineRegex` `~:540-549`.
 **Root cause:** the inline regex has no notion of `\` escapes, so `\*not italic\*` still renders italic and the literal backslashes leak/misalign.
 **Fix:** honor backslash escapes for the Markdown metacharacters this parser recognizes: `* _ # [ ] ( ) ` ~ = ! \`. Two viable approaches:
@@ -130,9 +130,9 @@ and emit an `ImageRun` (or the project's inline-image node; check `semantic_node
 **Recommendation:** most note apps and the existing corpus use ATX (`#`). Default to **out of scope** unless the user confirms setext is needed; document the decision either way.
 **Test (if implemented):** `Title\n---\n` → one H2 block; ensure `---` alone (no preceding text) still parses as HR.
 
-### P2-7 · Links break on `)` in URL or nested `]` in label — 🟡 PARTIAL (URL parens ✅ DONE; nested `]` in label ⏭️ DEFERRED)
-**✅ Shipped:** `_inlineRegex` link **and** image URL groups now allow one level of balanced parens: `(?:[^()\n]|\([^()\n]*\))+`. Test: "P2-7 link URL keeps balanced parentheses".
-**⏭️ Still open (P2-7b):** nested `]` inside the *label* still breaks (`[^\]\n]+`). Needs a hand-written label scanner tracking `[`/`]` depth — pure regex can't balance. Low priority (rare in real notes). Spec below.
+### P2-7 · Links break on `)` in URL or nested `]` in label — ✅ DONE (URL parens §119; nested `]` in label / P2-7b §124)
+**✅ Shipped (§119):** `_inlineRegex` link **and** image URL groups now allow one level of balanced parens: `(?:[^()\n]|\([^()\n]*\))+`. Test: "P2-7 link URL keeps balanced parentheses".
+**✅ Shipped (§124, P2-7b):** the link **label** (and image alt) group is now `(?:[^\[\]\n]|\[[^\[\]\n]*\])+`, allowing one level of balanced brackets — `[see [1] here](https://e.org)` → text `see [1] here`. Chose the one-level regex over an arbitrary-depth hand scanner (symmetric with the URL-parens fix; covers realistic notes, drops only the rare unbalanced `[a[b](url)`). Test: "P2-7b link label keeps one level of balanced brackets".
 **Where:** link alternative `:543` — `[^)\n]+` for the URL and `[^\]\n]+` for the label.
 **Root cause:** the first `)` closes the URL, so `[x](https://en.wikipedia.org/wiki/Foo_(bar))` truncates; nested `]` in the label similarly breaks.
 **Fix:** balance-aware matching. Pure regex struggles with balanced parens; a targeted approach: after the label, scan the URL manually tracking `(`/`)` depth until the matching close paren (CommonMark allows balanced parens in bare URLs; `<...>` angle-bracket URLs allow anything). Implement as a small hand-written scanner invoked when the regex sees `](`, rather than trying to encode balance in `_inlineRegex`.
@@ -240,9 +240,9 @@ Legend: ✅ done · 🟡 partial · ⏭️ deferred · ❌ out of scope.
 
 | File | Bugs (status) |
 |------|------|
-| `application/semantic_markdown_parser.dart` | P2-1 ✅, P2-3 ✅, P2-4 ✅, P2-5 ✅, P2-7 URL ✅ / label ⏭️, P2-9 ✅ · P2-2 ⏭️ · P2-6 ❌ |
+| `application/semantic_markdown_parser.dart` | P2-1 ✅, P2-2 ✅, P2-3 ✅, P2-4 ✅, P2-5 ✅, P2-7 URL ✅ / label ✅ (P2-7b), P2-9 ✅ · P2-6 ❌ |
 | `application/code_block_scanner.dart` *(new)* | P3-4 ✅ (shared `isInsideFencedCodeBlock`) |
-| `application/semantic_mutation_service.dart` | P3-5 ✅ |
+| `application/semantic_mutation_service.dart` | P3-5 ✅ · P2-2 ✅ (`_isEscapeCompressed` merge guard) |
 | `application/slash_command_trigger.dart` | P3-1 ✅, P3-4 ✅ |
 | `application/tag_autocomplete_trigger.dart` | P3-3 ✅, P3-4 ✅ |
 | `application/note_link_autocomplete_trigger.dart` | P3-4 ✅ |
@@ -250,6 +250,6 @@ Legend: ✅ done · 🟡 partial · ⏭️ deferred · ❌ out of scope.
 | `presentation/widgets/visual_document_editor.dart` | P3-6 leak ✅ · P3-6 perf items ⏭️ |
 | `domain/semantic_document.dart` | P2-8 ✅, P2-9 ✅ (consumes P2-1) |
 | `domain/source_range.dart` | P2-9 boundary semantics (unchanged) |
-| `domain/semantic_nodes.dart` | Run-model change needed for P2-2 ⏭️ (independent `PlainRun.contentRange`) |
+| `domain/semantic_nodes.dart` | P2-2 ✅ (independent `PlainRun.contentRange`) |
 | Cross-cutting | §4 stable block IDs ⏭️ |
 

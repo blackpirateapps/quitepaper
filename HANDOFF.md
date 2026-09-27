@@ -7384,9 +7384,9 @@ A follow-up pass on the semantic Markdown parser (the ephemeral AST built from t
 - **P2-9 Caret at end of paragraph**: The paragraph fallback end now uses `contentRange.end` (not `sourceRange.end`), so a caret at end-of-paragraph maps to the content end rather than past the trailing newline.
 
 ### 3. Scope Notes (Deliberately Deferred)
-- **P2-2 Backslash escapes**: Deferred. An escaped char has 1 visible but 2 source characters, breaking the 1:1 text↔source assumption in `_findPositionInRuns`/`_sourceOffsetInRuns` and `mergeAdjacentRuns` (`PlainRun` cannot carry an independent `contentRange`). To be revisited with the run-model / stable-block-ID (§4) work.
+- **P2-2 Backslash escapes**: ✅ **Shipped in §124.** (Was deferred here because an escaped char has 1 visible but 2 source characters, breaking the 1:1 text↔source assumption; resolved by giving `PlainRun` an independent `contentRange` plus a merge guard — no full §4 refactor required.)
 - **P2-6 Setext headings**: Out of scope per product decision.
-- **P2-7 nested `]` in link labels**: Deferred; only the balanced-parens-in-URL half was implemented.
+- **P2-7 nested `]` in link labels (P2-7b)**: ✅ **Shipped in §124** (one level of balanced brackets, symmetric with the P2-7 balanced-parens URL fix).
 
 ### 4. File Inventory
 - **Updated Files**:
@@ -7527,3 +7527,36 @@ Public share pages were showing note content with Markdown syntax **visible as p
 - `cd backend && npm run build` → clean `tsc`.
 - `cd backend && npx vitest run` → **112/112 passing**, including 6 new `shares.test.ts` cases (headings/emphasis/inline code, GFM tables, task + nested lists, autolink/mailto, `snake_case` non-italic, fenced code language class + escaping) alongside the existing 13.
 - Flutter app is unchanged (backend-only change); no Dart files touched.
+
+---
+
+## 124. WYSIWYG Editor — Deferred P2 Parser Fidelity (P2-2 Backslash Escapes & P2-7b Nested Link-Label Brackets)
+
+### 1. Overview & Motivation
+The two remaining deferred P2 items from §119 are now shipped. Both were held back not for product reasons but because the earlier run model could not represent them without regressing the bidirectional caret mapping. This section closes both **without** the larger §4 stable-block-ID / run-model refactor.
+
+- **P2-2 (backslash escapes)** was deferred because an escaped metacharacter (`\*`) occupies **2 source characters but 1 visible character**, breaking the per-run assumption that visible offset `i` maps to `contentRange.start + i` and that `text.length` visible chars map 1:1 onto source. That assumption underpins `findPositionAtSourceOffset` / `sourceOffsetAtPosition` and the run-merge pass.
+- **P2-7b (nested `]` in link labels)** was deferred because only the balanced-parens-in-URL half of P2-7 had shipped.
+
+### 2. Bugs Fixed
+- **P2-2 Backslash escapes render metacharacters literally.** `\*`, `\_`, `\#`, `\[`, `\]`, `\(`, `\)`, `` \` ``, `\~`, `\=`, `\!`, and `\\` now render as the bare character with **no** emphasis/tag/link side effects. `\*not italic\*` → visible `*not italic*` with zero emphasis runs; `a \#nothashtag b` → `a #nothashtag b` with no `TagRun`; `C:\\temp` → `C:\temp`. Genuine unescaped emphasis (`*real*`) still parses.
+- **P2-7b Link labels keep one level of balanced brackets.** `[see [1] here](https://e.org)` now yields a single `LinkRun` with text `see [1] here` and destination `https://e.org`, symmetric with the already-shipped one-level balanced-parens URL handling (P2-7).
+
+### 3. Implementation Notes
+- **Independent `PlainRun.contentRange`** (`semantic_nodes.dart`): `PlainRun` gained an optional third constructor arg `contentRange`; `get contentRange` falls back to `sourceRange` when absent, and `shiftSourceRange` shifts both. This lets an escape run carry `sourceRange = \x` (2 chars) while `contentRange` / `text` cover only the 1 visible char, so the per-run linear mapping stays exact.
+- **Escape alternative first in `_inlineRegex`** (`semantic_markdown_parser.dart`): a leading `\\(?<escaped>[\\*_#\[\]()`~=!])` alternative captures escapes before any emphasis/link/tag rule can consume the metacharacter. The dispatch chain in `_parseInlineRunsInternal` handles `escaped` at the top via a new static `_makeInlineRun(...)` helper that emits the correctly-styled run (Plain/Bold/Italic/Strike/Highlight) with `sourceRange` = the 2-char `\x` span and `contentRange` = the 1-char visible span.
+- **Merge guard** (`semantic_mutation_service.dart`): `_isEscapeCompressed(run)` (a `PlainRun` whose `contentRange.length != sourceRange.length`) is now excluded from `_mergeDirectAdjacentRuns`, so escape runs stay isolated and never get folded into a neighbor — preserving per-run linearity across the whole paragraph.
+- **P2-7b regex**: the link-label group was broadened to `(?:[^\[\]\n]|\[[^\[\]\n]*\])+` (and image alt symmetrically), permitting exactly one nested level of balanced brackets. Tradeoff: the rare unbalanced `[a[b](url)` case is no longer treated as a link, in exchange for the common balanced `[a [b] c](url)` case — the same one-level pragmatic choice made for parens in P2-7.
+
+### 4. File Inventory
+- **Updated Files**:
+  - `lib/features/editor/domain/semantic_nodes.dart`: `PlainRun` optional independent `contentRange` (+ `shiftSourceRange`).
+  - `lib/features/editor/application/semantic_markdown_parser.dart`: leading `escaped` alternative in `_inlineRegex`; broadened link-label/image-alt groups (P2-7b); `escaped` dispatch branch and `_makeInlineRun` helper.
+  - `lib/features/editor/application/semantic_mutation_service.dart`: `_isEscapeCompressed` guard in the adjacent-run merge.
+- **New Tests**:
+  - `test/editor/semantic_markdown_parser_test.dart`: "P2-7b link label keeps one level of balanced brackets"; "P2-2 backslash escapes render metacharacters literally (no emphasis)"; "P2-2 escaped inline caret round-trips through every visible offset".
+  - `test/editor/semantic_document_model_test.dart`: "P2-2 caret round-trips through escapes mixed with real emphasis".
+
+### 5. Verification & Quality
+- Static analysis: `flutter analyze` → **No issues found**.
+- Automated tests: full `test/editor` suite passes (**All tests passed!**, 429 tests) including the new P2-2 / P2-7b cases.

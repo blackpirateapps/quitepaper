@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/features/editor/application/semantic_markdown_parser.dart';
+import 'package:quitepaper/features/editor/domain/document_position.dart';
 import 'package:quitepaper/features/editor/domain/semantic_nodes.dart';
 
 void main() {
@@ -337,6 +338,56 @@ void main() {
       final link = p.runs.whereType<LinkRun>().single;
       expect(link.destination, equals('https://e.org/a_(b)'));
       expect(link.text, equals('wiki'));
+    });
+
+    test('P2-7b link label keeps one level of balanced brackets', () {
+      final doc = SemanticMarkdownParser.parse('[see [1] here](https://e.org)');
+      final p = doc.blocks.first as ParagraphBlock;
+      final link = p.runs.whereType<LinkRun>().single;
+      expect(link.text, equals('see [1] here'));
+      expect(link.destination, equals('https://e.org'));
+      expect(p.plainText, equals('see [1] here'));
+    });
+
+    test('P2-2 backslash escapes render metacharacters literally (no emphasis)',
+        () {
+      final italic = SemanticMarkdownParser.parse(r'\*not italic\*');
+      final ip = italic.blocks.first as ParagraphBlock;
+      expect(ip.plainText, equals('*not italic*'));
+      expect(ip.runs.any((r) => r.isItalic || r.isBold), isFalse,
+          reason: 'escaped asterisks must not emphasize');
+
+      // Escaped hash inline must not become a tag.
+      final hash = SemanticMarkdownParser.parse(r'a \#nothashtag b');
+      final hp = hash.blocks.first as ParagraphBlock;
+      expect(hp.plainText, equals('a #nothashtag b'));
+      expect(hp.runs.any((r) => r is TagRun), isFalse);
+
+      // Escaped backslash collapses to a single literal backslash.
+      final backslash = SemanticMarkdownParser.parse(r'path C:\\temp');
+      expect(backslash.blocks.first.plainText, equals(r'path C:\temp'));
+
+      // A genuine emphasis span still parses when unescaped.
+      final real = SemanticMarkdownParser.parse('*real*');
+      expect((real.blocks.first as ParagraphBlock).runs.any((r) => r.isItalic),
+          isTrue);
+    });
+
+    test('P2-2 escaped inline caret round-trips through every visible offset',
+        () {
+      const md = r'x \* y \_ z';
+      final doc = SemanticMarkdownParser.parse(md);
+      final block = doc.blocks.first;
+      expect(block.plainText, equals('x * y _ z'));
+      final visibleLength = block.plainText.length;
+      for (var visible = 0; visible <= visibleLength; visible++) {
+        final pos = DocumentPosition(blockId: block.id, offset: visible);
+        final sourceOffset = doc.sourceOffsetAtPosition(pos);
+        final mapped = doc.findPositionAtSourceOffset(sourceOffset);
+        expect(mapped, isNotNull);
+        expect(mapped!.offset, equals(visible),
+            reason: 'escaped-run visible offset $visible must round-trip');
+      }
     });
   });
 }

@@ -553,10 +553,11 @@ class SemanticMarkdownParser {
   }
 
   static final RegExp _inlineRegex = RegExp(
+    r'\\(?<escaped>[\\*_#\[\]()`~=!])|'
     r'`(?<codeText>[^`\n]+)`|'
     r'\[\[(?<noteText>[^\]\n]+)\]\]|'
-    r'!\[(?<imgAlt>[^\]\n]*)\]\((?<imgUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
-    r'\[(?<linkLabel>[^\]\n]+)\]\((?<linkUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
+    r'!\[(?<imgAlt>(?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\((?<imgUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
+    r'\[(?<linkLabel>(?:[^\[\]\n]|\[[^\[\]\n]*\])+)\]\((?<linkUrl>(?:[^()\n]|\([^()\n]*\))+)\)|'
     r'(?<tagText>#[\w\-_/]+)|'
     r'==(?<highlightText>.*?)==|'
     r'~~(?<strikeText>.*?)~~|'
@@ -623,6 +624,38 @@ class SemanticMarkdownParser {
   static bool _isWhitespace(String ch) =>
       ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
 
+  /// Builds an inline run of [text] spanning [sourceRange] (with visible content
+  /// at [contentRange]) carrying the given inline style flags. Used for the
+  /// backslash-escape case (P2-2) so an escaped char inside emphasis keeps its
+  /// styling.
+  static SemanticInline _makeInlineRun(
+    String text,
+    SourceRange sourceRange,
+    SourceRange contentRange, {
+    required bool isBold,
+    required bool isItalic,
+    required bool isStrike,
+    required bool isHighlight,
+  }) {
+    if (!isBold && !isItalic && !isStrike && !isHighlight) {
+      return PlainRun(text, sourceRange, contentRange);
+    }
+    if (isBold) {
+      return BoldRun(text, sourceRange, contentRange,
+          isItalic: isItalic, isStrike: isStrike, isHighlight: isHighlight);
+    }
+    if (isItalic) {
+      return ItalicRun(text, sourceRange, contentRange,
+          isBold: isBold, isStrike: isStrike, isHighlight: isHighlight);
+    }
+    if (isStrike) {
+      return StrikeRun(text, sourceRange, contentRange,
+          isBold: isBold, isItalic: isItalic, isHighlight: isHighlight);
+    }
+    return HighlightRun(text, sourceRange, contentRange,
+        isBold: isBold, isItalic: isItalic, isStrike: isStrike);
+  }
+
   static List<SemanticInline> _parseInlineRunsInternal(
     String content,
     SourceRange baseRange, {
@@ -671,7 +704,25 @@ class SemanticMarkdownParser {
       final matchRange = SourceRange(matchStart, matchEnd);
       final effectiveOuterRange = outerSourceRange ?? matchRange;
 
-      if (match.namedGroup('codeText') != null) {
+      if (match.namedGroup('escaped') != null) {
+        // P2-2: a backslash escape (`\*`, `\_`, `\#`, `` \` ``, `\\`, …) renders
+        // the following Markdown metacharacter literally. The visible run is the
+        // single unescaped character, but its source span is 2 chars (`\` + the
+        // char), so it carries an independent `contentRange` covering only the
+        // visible char. `mergeAdjacentRuns` refuses to fold such source-compressed
+        // runs into neighbours, preserving the 1:1 visible↔source mapping.
+        final ch = match.namedGroup('escaped')!;
+        final visibleRange = SourceRange(matchStart + 1, matchEnd);
+        runs.add(_makeInlineRun(
+          ch,
+          matchRange,
+          visibleRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+        ));
+      } else if (match.namedGroup('codeText') != null) {
         final code = match.namedGroup('codeText')!;
         final contentRange = SourceRange(matchStart + 1, matchEnd - 1);
         runs.add(InlineCodeRun(code, matchRange, contentRange));

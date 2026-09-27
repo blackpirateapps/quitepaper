@@ -137,5 +137,26 @@ void main() {
       expect(mapped!.blockId, equals(firstBlock.id));
       expect(mapped.offset, equals(firstBlock.plainText.length));
     });
+
+    test('P2-2 caret round-trips through escapes mixed with real emphasis', () {
+      // The escaped `\*` (source-compressed) sits next to a genuine bold span,
+      // exercising both the independent PlainRun.contentRange and the merge
+      // guard that keeps escape runs isolated.
+      const md = r'a \* b **bold** c';
+      final doc = SemanticMarkdownParser.parse(md);
+      final block = doc.blocks.first;
+      expect(block.plainText, equals('a * b bold c'));
+
+      final visibleLength = block.plainText.length;
+      for (var visible = 0; visible <= visibleLength; visible++) {
+        final pos = DocumentPosition(blockId: block.id, offset: visible);
+        final sourceOffset = doc.sourceOffsetAtPosition(pos);
+        final mapped = doc.findPositionAtSourceOffset(sourceOffset);
+        expect(mapped, isNotNull);
+        expect(mapped!.blockId, equals(block.id));
+        expect(mapped.offset, equals(visible),
+            reason: 'visible offset $visible should round-trip');
+      }
+    });
   });
 }
