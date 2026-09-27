@@ -7653,3 +7653,28 @@ Wire the approved design into `backend/src/share/shareViews.ts` + `shareRenderer
 
 ### 5. Verification & Quality
 - HTML/Markdown-only change; no Dart sources touched. `flutter analyze` / `flutter test` were not run because the Flutter toolchain is not installed in this environment and their results are unaffected by a standalone mockup file. Mockup structure validated (balanced tags, no leftover template placeholders).
+
+---
+
+## 128. Public Share Reader — Redesign Implemented (Backend)
+
+### 1. Summary
+Implemented the approved mockup (§127) in the live server-rendered share pages. `/note/<slug>` now serves a warm editorial "document reader" with light + dark themes, an auto table of contents, server-side syntax highlighting, and richer social/OG metadata — all still server-rendered with only a small progressive-enhancement script.
+
+### 2. Changed Files
+- `backend/src/share/shareViews.ts` — full rewrite of the page templates. New warm-paper light + warm-ink dark token sets (default follows `prefers-color-scheme`; a persisted manual toggle sets `data-theme`, applied pre-paint by an inline head script to avoid a flash). Self-hosted `@font-face` for **Lora** (serif body), **Inter** (sans UI/headings), and **iA Writer Quattro** (code) from `/fonts/**`. Adds a sticky top bar with brand + theme toggle, a TOC rail with scroll-spy, reading-progress bar, image lightbox, read-time/word-count/"available until" metadata, hover-to-copy heading anchors, copy-text / copy-link pills, a subtle end-of-note CTA, an honest "not E2E encrypted" note, OG/Twitter meta + `<link rel="canonical">`, and redesigned password + not-found/expired cards.
+- `backend/src/share/shareRenderer.ts` — added `highlightCode(code, lang)`: a dependency-free, XSS-safe server-side highlighter emitting `tok-key`/`tok-str`/`tok-com`/`tok-num`/`tok-fn` spans for common languages; the fenced-code branch now calls it. Every emitted slice is `escapeHtml`-ed, so the renderer's escape-everything guarantee is preserved.
+- `backend/src/api/handler.ts` — passes `slug` to `renderSharePage` (for canonical / OG URL).
+
+### 3. Highlighter Decision (deviation from "Add Shiki/Prism")
+Prism registers languages onto a browser `Prism` global and Shiki's API is async; the backend builds with plain `tsc` (no bundler) and runs as an ESM serverless function, and making the renderer async would ripple through the synchronous, test-covered pipeline. A compact in-house tokenizer delivers the same visual result the mockup shows with zero runtime dependency and zero client JS. Swappable later if a bundler step is added.
+
+### 4. New Page Data / Behavior
+- TOC + heading ids/anchors are built by `buildReadingArticle()` as a post-process over the already-sanitized body HTML, so `renderMarkdown` output (and its tests) are unchanged; the page falls back to a single column when a note has fewer than two headings.
+- Word count / read time (≈200 wpm) and the OG description are derived from the stripped body text.
+
+### 5. Verification & Quality
+- `npx tsc --noEmit` → clean.
+- `npx vitest run` → **112/112 passing** (all 16 suites, incl. the 19-case `shares.test.ts`: public/unlisted render, password right/wrong, expiry 410, 404, XSS escaping, fenced-code language class + escaping).
+- Rendered sample pages out-of-band and verified: TOC + heading ids + anchors present, highlighter token spans emitted, `<b>` in a code string stays escaped (`&lt;b&gt;`), OG/canonical/metadata present, balanced top-level tags.
+- Flutter `analyze`/`test` not applicable (backend-only, no Dart changed) and the Flutter toolchain is not installed here.

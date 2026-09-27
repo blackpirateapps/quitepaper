@@ -38,6 +38,105 @@ function isSafeLinkUrl(url: string): boolean {
   return false;
 }
 
+/**
+ * Server-side syntax highlighting — dependency-free and XSS-safe.
+ *
+ * Rationale: the backend builds with plain `tsc` (no bundler) and runs as an
+ * ESM serverless function. Prism's language components register onto a browser
+ * `Prism` global and Shiki's API is async (which would force the whole
+ * synchronous, well-tested render pipeline — and its tests — to become async).
+ * A compact tokenizer avoids both hazards while producing the same token classes
+ * the share page styles (`tok-key`/`tok-str`/`tok-com`/`tok-num`/`tok-fn`).
+ *
+ * Every emitted slice is passed through escapeHtml, so no raw source can ever
+ * reach the page as markup — the escaping guarantee of the renderer is preserved.
+ */
+const HL_KEYWORDS = new Set([
+  'const', 'let', 'var', 'function', 'fn', 'func', 'def', 'return', 'if', 'else',
+  'elif', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'default',
+  'class', 'struct', 'enum', 'interface', 'impl', 'trait', 'extends', 'implements',
+  'new', 'delete', 'import', 'export', 'from', 'as', 'use', 'package', 'module',
+  'namespace', 'async', 'await', 'yield', 'try', 'catch', 'finally', 'throw',
+  'throws', 'typeof', 'instanceof', 'in', 'of', 'is', 'void', 'this', 'self',
+  'super', 'static', 'final', 'public', 'private', 'protected', 'abstract',
+  'override', 'match', 'when', 'then', 'end', 'null', 'nil', 'None', 'true',
+  'false', 'undefined', 'and', 'or', 'not', 'string', 'number', 'boolean', 'bool',
+  'int', 'double', 'float', 'char', 'byte', 'long', 'short', 'let', 'mut', 'pub',
+]);
+
+const HL_KNOWN_LANG = /^(js|javascript|jsx|ts|typescript|tsx|dart|json|java|kotlin|kt|c|cc|cpp|cxx|h|hpp|cs|go|rust|rs|py|python|php|rb|ruby|swift|scala|sh|bash|shell|zsh|yaml|yml|toml)$/i;
+const HL_HASH_COMMENT_LANG = /^(sh|bash|shell|zsh|py|python|rb|ruby|yaml|yml|toml)$/i;
+
+/**
+ * Highlights a fenced code block. Unknown/blank languages fall back to a plain
+ * escaped block. The wrapper `<pre><code class="language-x">` is added by the
+ * caller; this returns only the escaped (optionally span-wrapped) inner HTML.
+ */
+export function highlightCode(code: string, lang: string): string {
+  if (!lang || !HL_KNOWN_LANG.test(lang)) return escapeHtml(code);
+  const hashComments = HL_HASH_COMMENT_LANG.test(lang);
+  const n = code.length;
+  let out = '';
+  let i = 0;
+  const push = (cls: string, txt: string): void => {
+    out += cls ? `<span class="${cls}">${escapeHtml(txt)}</span>` : escapeHtml(txt);
+  };
+  while (i < n) {
+    const c = code[i];
+    // Line comments: // everywhere, # only in hash-comment languages.
+    if ((c === '/' && code[i + 1] === '/') || (c === '#' && hashComments)) {
+      let j = i;
+      while (j < n && code[j] !== '\n') j++;
+      push('tok-com', code.slice(i, j));
+      i = j;
+      continue;
+    }
+    // Block comments: /* ... */
+    if (c === '/' && code[i + 1] === '*') {
+      let j = i + 2;
+      while (j < n && !(code[j] === '*' && code[j + 1] === '/')) j++;
+      j = Math.min(n, j + 2);
+      push('tok-com', code.slice(i, j));
+      i = j;
+      continue;
+    }
+    // Strings: '...', "...", `...` with backslash escapes.
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < n) {
+        if (code[j] === '\\') { j += 2; continue; }
+        if (code[j] === c) { j++; break; }
+        j++;
+      }
+      push('tok-str', code.slice(i, j));
+      i = j;
+      continue;
+    }
+    // Numbers (incl. hex/float suffixes).
+    if (c >= '0' && c <= '9') {
+      let j = i;
+      while (j < n && /[0-9a-fA-FxXbBoO._]/.test(code[j])) j++;
+      push('tok-num', code.slice(i, j));
+      i = j;
+      continue;
+    }
+    // Identifiers → keyword / function-call / plain.
+    if (/[A-Za-z_$]/.test(c)) {
+      let j = i;
+      while (j < n && /[A-Za-z0-9_$]/.test(code[j])) j++;
+      const word = code.slice(i, j);
+      if (HL_KEYWORDS.has(word)) push('tok-key', word);
+      else if (code[j] === '(') push('tok-fn', word);
+      else push('', word);
+      i = j;
+      continue;
+    }
+    push('', c);
+    i++;
+  }
+  return out;
+}
+
 const PLACEHOLDER = /\u0000F(\d+)\u0000/g;
 
 /**
@@ -223,7 +322,7 @@ export function renderMarkdown(markdown: string): string {
         i++;
       }
       const cls = lang ? ` class="language-${lang}"` : '';
-      html.push(`<pre><code${cls}>${buffer.map(escapeHtml).join('\n')}</code></pre>`);
+      html.push(`<pre><code${cls}>${highlightCode(buffer.join('\n'), lang)}</code></pre>`);
       continue;
     }
 

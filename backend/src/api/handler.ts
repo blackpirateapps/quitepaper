@@ -168,6 +168,7 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
               contentHtml: renderMarkdown(result.contentMarkdown),
               createdAt: result.createdAt,
               expiresAt: result.expiresAt,
+              slug,
             }),
           };
         case 'password_required':
