@@ -7626,3 +7626,30 @@ Three composable, independent pieces (Phase 2 alone fixes the Enter bug; Phase 1
 - Static analysis: `flutter analyze` → **No issues found** (whole project).
 - Automated tests: full `test/editor` suite passes (**All tests passed!**, 446 tests), including the 14 new Phase 1/Phase 2 cases.
 - Full suite: `flutter test` (project-wide) — all editor and non-editor suites pass. One speech test (`test/speech/speech_recognition_service_test.dart` → "multilingual model automatically passes lang: auto to engine") intermittently reports "did not complete" under full-suite load, but **passes reliably in isolation**; it is a native-library (`libwhisper_ggml.so`) timing flake unrelated to these editor changes.
+
+---
+
+## 127. Public Share Reader — Redesign Mockup (Design Artifact)
+
+### 1. Summary
+Static, self-contained HTML mockup for a full redesign of the public note-sharing page (served at `/note/<slug>` by `backend/src/share/shareViews.ts`). This is a **visual reference only** — it is not wired into the backend renderer — created to iterate on look-and-feel before touching the security-hardened `shareViews.ts` / `shareRenderer.ts`.
+
+### 2. New File
+- `mockups/share-reader.html`: previews all three page states (note reader, password prompt, not-found/expired) via a demo-only top-bar switcher.
+
+### 3. Design Decisions (agreed with maintainer)
+- **Direction**: its own focused "document reader" look (not a clone of the marketing landing page).
+- **Theme**: warm paper light + warm ink dark, defaulting to `prefers-color-scheme` with a manual toggle persisted to `localStorage`.
+- **Rendering**: stays server-rendered with only minimal inline JS.
+- **Typography**: self-hosted pairing — Lora (serif body) + Inter (sans headings/UI), iA Writer Quattro for code (mockup loads Lora/Inter via Google Fonts CDN; production self-hosts from `backend/public/fonts/`).
+- **Code**: server-side syntax highlighting (Shiki/Prism at render time); mockup hand-colors a sample to show the target.
+- **Reading extras**: auto table-of-contents rail with scroll-spy, top reading-progress bar, image lightbox, read-time + word-count + "available until <expiry>" metadata, hover-to-copy heading anchors.
+- **Sharing/conversion**: static OG/Twitter card + social meta; subtle CTA (one end-of-note panel + quiet footer).
+- **Trust**: explicit "About this page" note clarifying shared pages are not end-to-end encrypted.
+- **Scope**: all three pages redesigned; one fixed reader experience for every share (no per-note author controls).
+
+### 4. Next Step
+Wire the approved design into `backend/src/share/shareViews.ts` + `shareRenderer.ts` (add the highlighter dependency and self-hosted fonts), then run backend `vitest`.
+
+### 5. Verification & Quality
+- HTML/Markdown-only change; no Dart sources touched. `flutter analyze` / `flutter test` were not run because the Flutter toolchain is not installed in this environment and their results are unaffected by a standalone mockup file. Mockup structure validated (balanced tags, no leftover template placeholders).
