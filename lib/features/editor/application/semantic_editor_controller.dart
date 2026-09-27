@@ -85,6 +85,10 @@ class SemanticEditorController extends ChangeNotifier {
   late SemanticDocument _document;
   late DocumentSelection _selection;
   ActiveTypingFormats? _activeTypingFormats;
+  // Phase 2b — when Enter continues a running format onto a new line, the carried
+  // [_activeTypingFormats] must survive the block rebuild that follows. This
+  // one-shot flag makes the very next selection update skip its usual reset.
+  bool _retainActiveFormatsOnce = false;
   final bool stripFrontmatter;
   final ValueChanged<String>? onMarkdownChanged;
 
@@ -109,7 +113,11 @@ class SemanticEditorController extends ChangeNotifier {
       final oldPos = _selection.base;
       _selection = newSelection;
       if (oldPos.blockId != newSelection.base.blockId || oldPos.offset != newSelection.base.offset) {
-        _activeTypingFormats = null;
+        if (_retainActiveFormatsOnce) {
+          _retainActiveFormatsOnce = false;
+        } else {
+          _activeTypingFormats = null;
+        }
       }
       notifyListeners();
     }
@@ -171,6 +179,11 @@ class SemanticEditorController extends ChangeNotifier {
   }
 
   void splitBlock(String blockId, int offset, {int? selectionEndOffset}) {
+    // Phase 2b — capture the format "running" at the caret so an empty
+    // continuation line keeps typing styled (close+reopen alone only styles a
+    // non-empty line 2).
+    final carry = _activeTypingFormats ?? _runningFormatsAt(blockId, offset);
+
     // When Enter is pressed over a non-collapsed selection, delete the selected
     // range first, then split at the (now collapsed) start. Without this the
     // selected text survives and gets pushed into the new block.
@@ -192,10 +205,53 @@ class SemanticEditorController extends ChangeNotifier {
           stripFrontmatter: stripFrontmatter,
         ),
       );
+      _applyCarry(carry);
       return;
     }
     final position = DocumentPosition(blockId: blockId, offset: offset);
     applyMutation(SemanticMutationService.splitBlock(_markdown, position, stripFrontmatter: stripFrontmatter));
+    _applyCarry(carry);
+  }
+
+  /// Re-applies a format carried across an Enter split so the continuation line
+  /// keeps typing in that style. A one-shot flag protects it from the selection
+  /// reset triggered by the ensuing block rebuild.
+  void _applyCarry(ActiveTypingFormats carry) {
+    if (carry.isBold || carry.isItalic || carry.isStrike || carry.isHighlight) {
+      _activeTypingFormats = carry;
+      _retainActiveFormatsOnce = true;
+      notifyListeners();
+    }
+  }
+
+  /// Returns the emphasis formats of the span the caret is *within* at
+  /// [blockId]/[offset] — i.e. before a closing delimiter, or inside an open
+  /// span. Returns no formats when the caret sits after a closed span (so a
+  /// plain Enter does not spuriously carry formatting).
+  ActiveTypingFormats _runningFormatsAt(String blockId, int offset) {
+    final block = _document.findBlockById(blockId);
+    if (block == null) return const ActiveTypingFormats();
+    final runs = _getRunsForBlock(block);
+    if (runs.isEmpty) return const ActiveTypingFormats();
+    final srcOff = _document.sourceOffsetAtPosition(
+      DocumentPosition(blockId: blockId, offset: offset),
+    );
+    for (final r in runs) {
+      final cr = r.contentRange;
+      final styled = r.isBold || r.isItalic || r.isStrike || r.isHighlight;
+      if (!styled || cr == null) continue;
+      final openEnded = r.sourceRange.end == cr.end;
+      final within = srcOff >= cr.start && (srcOff < cr.end || (openEnded && srcOff <= cr.end));
+      if (within) {
+        return ActiveTypingFormats(
+          isBold: r.isBold,
+          isItalic: r.isItalic,
+          isStrike: r.isStrike,
+          isHighlight: r.isHighlight,
+        );
+      }
+    }
+    return const ActiveTypingFormats();
   }
 
   void mergeWithPreviousBlock(String blockId) {
@@ -379,7 +435,11 @@ class SemanticEditorController extends ChangeNotifier {
       final oldPos = _selection.base;
       _selection = docSel;
       if (oldPos.blockId != pos.blockId || oldPos.offset != pos.offset) {
-        _activeTypingFormats = null;
+        if (_retainActiveFormatsOnce) {
+          _retainActiveFormatsOnce = false;
+        } else {
+          _activeTypingFormats = null;
+        }
       }
       notifyListeners();
     }
@@ -479,6 +539,27 @@ class SemanticEditorController extends ChangeNotifier {
     final editStart = prefixLen;
     final editEnd = oldPlainText.length - suffixLen;
     final insertedText = newText.substring(prefixLen, newText.length - suffixLen);
+
+    // Phase 1 typing: if the caret is inside an *open* (unclosed) emphasis span
+    // and the user has not explicitly toggled a toolbar format, edit the source
+    // literally so the span stays open. Run reconstruction would re-serialize
+    // through `serializeRuns`, which always closes spans (`**bo**`), making it
+    // impossible to grow an open span or to type the closing delimiter.
+    if (_activeTypingFormats == null && _isEditInOpenSpan(runs, editStart)) {
+      final srcStart = _document.sourceOffsetAtPosition(
+        DocumentPosition(blockId: blockId, offset: editStart),
+        affinity: TextAffinity.downstream,
+      );
+      final srcEnd = _document.sourceOffsetAtPosition(
+        DocumentPosition(blockId: blockId, offset: editEnd),
+        affinity: TextAffinity.upstream,
+      );
+      final lo = srcStart < srcEnd ? srcStart : srcEnd;
+      final hi = srcStart < srcEnd ? srcEnd : srcStart;
+      final newMarkdown = _markdown.replaceRange(lo, hi, insertedText);
+      updateMarkdownAndRetainSelection(newMarkdown, lo + insertedText.length);
+      return;
+    }
 
     // Split runs around editStart and editEnd
     var split = SemanticMutationService.splitRunsAt(runs, editStart);
@@ -609,6 +690,25 @@ class SemanticEditorController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Toolbar State Inspection Queries
   // ---------------------------------------------------------------------------
+
+  /// Whether an edit at visual [editStart] falls inside the block's trailing
+  /// *open* (unclosed) emphasis/code span — a styled/code run that extends to
+  /// the end of the block with no closing delimiter
+  /// (`sourceRange.end == contentRange.end`).
+  static bool _isEditInOpenSpan(List<SemanticInline> runs, int editStart) {
+    if (runs.isEmpty) return false;
+    final last = runs.last;
+    final cr = last.contentRange;
+    final styled = last.isBold || last.isItalic || last.isStrike || last.isHighlight || last.isCode;
+    if (!styled || cr == null) return false;
+    if (last.sourceRange.end != cr.end) return false; // has a closing delimiter
+    var total = 0;
+    for (final r in runs) {
+      total += r.text.length;
+    }
+    final startOfLast = total - last.text.length;
+    return editStart >= startOfLast && editStart <= total;
+  }
 
   ActiveTypingFormats get _currentFormatsAtCursor {
     final block = activeBlock;

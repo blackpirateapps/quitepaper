@@ -7588,3 +7588,41 @@ The three perf/lifecycle items held back from the P3-6 batch (§120) are now shi
 - Static analysis: `flutter analyze` → **No issues found**.
 - Automated tests: full `test/editor` suite passes (**All tests passed!**, 431 tests), including the two new P3-6b cases and the pre-existing focus/windowing coverage as a regression net.
 - Note: the remaining deferred item is the §4 stable-block-ID refactor (large, cross-cutting) — still not started.
+
+## 126. WYSIWYG Editor — Typora-Style Live Inline Formatting (Open Spans & Enter Continuation)
+
+### 1. Overview & Motivation
+In the visual (WYSIWYG) editor, inline emphasis previously rendered only once the delimiters were **closed** (`**bold**`). This shipped Typora-style *live* formatting: an unclosed opener now styles its text immediately with the opener hidden, and pressing Enter while a span is "running" continues the formatting on the next line instead of stranding raw delimiters. The design plan is in `docs/wysiwyg-live-formatting-plan.md`.
+
+Reported bug (verbatim): *"when pressing enter when the bold is running it shows the markdown syntax of `**` and the text do not appear bold visually."*
+
+The chosen approach (user-selected) is **full Typora-style open spans**: typing `**hello` (no closing `**`) immediately shows bold `hello` with no visible `**`; Enter keeps it bold; the span stays open until the closing `**` is typed.
+
+### 2. Behavior Delivered
+- **Live open spans.** Typing an opener + text renders styled immediately with the opener hidden, before any closing delimiter: `**`/`__` bold, `*`/`_` italic, `~~` strike, `==` highlight, `` ` `` inline code, `***`/`___` bold+italic.
+- **Enter continues a running span.** With the caret strictly inside a *closed* span (`**bo|ld**`), Enter splits into two closed spans (`**bo**` / `**ld**`), each of which the existing parser renders with hidden delimiters. With an *open* span, Enter keeps a bare `\n` and Phase 1 renders the continuation line styled. Either way the next line stays visually formatted — no raw `**` leaks.
+- **Empty-line carry-over.** After Enter continues a span, an empty continuation line still types styled (the active format is carried one transition).
+- **Literals stay literal.** `2 * 3 = 6`, a dangling trailing `**`, `snake_case`, and delimiter runs like `a****b` are not mis-opened (CommonMark-style flanking validity).
+
+### 3. Implementation Notes
+Three composable, independent pieces (Phase 2 alone fixes the Enter bug; Phase 1 adds live rendering):
+
+- **Phase 1 — parser open-span rendering** (`semantic_markdown_parser.dart`). In `_parseInlineRunsInternal`, the `lastIndex == 0` base case (no *closed* delimiter matched) now first tries `_tryParseOpenEmphasis(...)`. That helper scans char-by-char for the first **valid unclosed opener** (longest-first: `***`/`___` → bold+italic; `**`/`__` → bold; `~~`, `==` → strike/highlight; `` ` `` → code; `*`/`_` → italic). Validity: opener must be followed by a non-whitespace char; reject a dangling opener with no content, an opener that is part of a longer contiguous delimiter run (`content[i-1]==ch` or `content[i+dl]==ch`), and intra-word `_`/`__`/`___` (alnum before the opener). On a hit it emits the recursively-parsed plain prefix `content[0..i]`, then a styled run whose `sourceRange` includes the opener (`[start+i, end]`) but whose `contentRange` excludes it (`[start+i+dl, end]`) — so the opener is hidden and caret mapping (which keys off `contentRange`) stays correct. Non-code runs recurse for nesting; code emits a single `InlineCodeRun`. **Open-span signature:** `sourceRange.end == contentRange.end` (no closing delimiter); a closed span has `sourceRange.end > contentRange.end`. No new field was needed.
+- **Phase 2 — Enter close+reopen** (`semantic_mutation_service.dart`). `splitBlock` now calls `_splitInsideEmphasis(...)` early; it fires only when `sourceOffsetAtPosition(position)` lands **strictly inside** a styled/code run's source range (`start < srcOff < end`), which is true only for a *closed* span whose closing delimiter is after the caret. It splits the block's runs at the visible caret, serializes `line1` via `serializeBlockMarkdown` (keeping the block's own prefix) and `line2` as `line2Prefix + serializeRuns(rightRuns)`. `line2Prefix`: paragraph/heading → `''` (a heading split continues as a paragraph); quote → `> `; list → `{indent}{marker} `; checklist → `{indent}- [ ] `; ordered → `{indent}{n+1}{delim} ` with `_renumberSubsequentOrdered` bumping later siblings. Both halves are closed spans the existing parser already renders. Open spans fall through to the existing bare-`\n` path (Phase 1 renders them).
+- **Phase 2b + typing path** (`semantic_editor_controller.dart`). `splitBlock` captures the running/active formats before the mutation and re-applies them via `_applyCarry` (setting `_activeTypingFormats` + a one-shot `_retainActiveFormatsOnce` that makes the `selection` setter and `updateSelectionFromBlock` skip their usual `_activeTypingFormats = null` reset for one transition), so an empty continuation line types styled. `_runningFormatsAt` reads the emphasis of the run the caret sits within (open-ended runs include the visible end), so a plain Enter does not spuriously carry. In `handleVisualBlockTextChange`, when `_activeTypingFormats == null` **and** the caret sits in a Phase-1 open-ended run (`_isEditInOpenSpan`), the keystroke bypasses run reconstruction and does a **source-level literal edit** (`markdown.replaceRange(lo, hi, insertedText)`), so `**bold` stays open through content typing instead of `serializeRuns` auto-closing it. Every other case keeps the run-reconstruction path (which normalizes fragmented markdown and drives the toolbar tests), so existing behavior is untouched.
+
+### 4. File Inventory
+- **Updated Files**:
+  - `lib/features/editor/application/semantic_markdown_parser.dart`: `_tryParseOpenEmphasis` helper + open-span branch in the `lastIndex == 0` base case.
+  - `lib/features/editor/application/semantic_mutation_service.dart`: `_splitInsideEmphasis`, `_blockRuns`, `_renumberSubsequentOrdered`; early call from `splitBlock`.
+  - `lib/features/editor/application/semantic_editor_controller.dart`: `_retainActiveFormatsOnce` field + guarded reset in the `selection` setter and `updateSelectionFromBlock`; rewritten `splitBlock` with `_applyCarry`/`_runningFormatsAt`; open-span literal-insert path + `_isEditInOpenSpan` in `handleVisualBlockTextChange`.
+- **New Files**:
+  - `docs/wysiwyg-live-formatting-plan.md`: the design plan (Problem, root causes, Phase 1/2/2b, typing path, tests).
+- **New Tests**:
+  - `test/editor/semantic_markdown_parser_test.dart`: "Phase 1 — live open (unclosed) emphasis spans" group (unclosed `**`/`*`/`~~`/`==`/`` ` ``/`***`; plain prefix stays plain; spaced arithmetic not opened; dangling opener stays literal; underscore intra-word rejected; open-span visible-offset round-trip).
+  - `test/editor/semantic_mutation_service_test.dart`: "Phase 2 — Enter continues a running emphasis span" group (mid-span split closes + reopens; italic split; end-of-span no reopen; heading split → line1 heading / line2 paragraph).
+
+### 5. Verification & Quality
+- Static analysis: `flutter analyze` → **No issues found** (whole project).
+- Automated tests: full `test/editor` suite passes (**All tests passed!**, 446 tests), including the 14 new Phase 1/Phase 2 cases.
+- Full suite: `flutter test` (project-wide) — all editor and non-editor suites pass. One speech test (`test/speech/speech_recognition_service_test.dart` → "multilingual model automatically passes lang: auto to engine") intermittently reports "did not complete" under full-suite load, but **passes reliably in isolation**; it is a native-library (`libwhisper_ggml.so`) timing flake unrelated to these editor changes.

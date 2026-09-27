@@ -565,5 +565,65 @@ void main() {
         expect(res.position.offset, equals(8));
       });
     });
+
+    group('Phase 2 — Enter continues a running emphasis span', () {
+      test('Enter inside a bold span closes line 1 and reopens on line 2', () {
+        const initial = 'one **two three** four';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final block = doc.blocks.first as ParagraphBlock;
+        // Visible text: 'one two three four'. Caret after 'two ' (visible 8),
+        // which is strictly inside the bold span.
+        final pos = DocumentPosition(blockId: block.id, offset: 8);
+        final res = SemanticMutationService.splitBlock(initial, pos);
+
+        expect(res.markdown, equals('one **two** \n**three** four'));
+        expect(res.document.blocks.length, equals(2));
+        final l1 = res.document.blocks[0] as ParagraphBlock;
+        final l2 = res.document.blocks[1] as ParagraphBlock;
+        // No stranded delimiters: both lines render styled with hidden markers.
+        expect(l1.plainText, equals('one two '));
+        expect(l2.plainText, equals('three four'));
+        expect(l1.runs.any((r) => r.isBold && r.text.trim() == 'two'), isTrue);
+        expect(l2.runs.any((r) => r.isBold && r.text.trim() == 'three'), isTrue);
+        // Caret lands at the start of line 2's content.
+        expect(res.position.blockId, equals(l2.id));
+        expect(res.position.offset, equals(0));
+      });
+
+      test('Enter inside an italic span reopens italic on line 2', () {
+        const initial = '*hello world*';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final block = doc.blocks.first as ParagraphBlock;
+        final pos = DocumentPosition(blockId: block.id, offset: 5); // inside
+        final res = SemanticMutationService.splitBlock(initial, pos);
+
+        expect(res.markdown, equals('*hello*\n *world*'));
+        final l2 = res.document.blocks[1] as ParagraphBlock;
+        expect(l2.runs.any((r) => r.isItalic), isTrue);
+      });
+
+      test('Enter after a closed bold span does NOT reopen (plain newline)', () {
+        const initial = '**bold** tail';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final block = doc.blocks.first as ParagraphBlock;
+        // Caret at very end, after the closed span: bare newline path.
+        final pos = DocumentPosition(blockId: block.id, offset: block.plainText.length);
+        final res = SemanticMutationService.splitBlock(initial, pos);
+
+        expect(res.markdown, equals('**bold** tail\n\n'));
+      });
+
+      test('Enter inside a bold heading keeps line 1 a heading, line 2 a paragraph', () {
+        const initial = '# **big title**';
+        final doc = SemanticMarkdownParser.parse(initial);
+        final block = doc.blocks.first as HeadingBlock;
+        final pos = DocumentPosition(blockId: block.id, offset: 4); // inside 'big |title'
+        final res = SemanticMutationService.splitBlock(initial, pos);
+
+        expect(res.markdown, equals('# **big** \n**title**'));
+        expect(res.document.blocks[0], isA<HeadingBlock>());
+        expect(res.document.blocks[1], isA<ParagraphBlock>());
+      });
+    });
   });
 }

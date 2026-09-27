@@ -389,5 +389,90 @@ void main() {
             reason: 'escaped-run visible offset $visible must round-trip');
       }
     });
+
+    group('Phase 1 — live open (unclosed) emphasis spans', () {
+      ParagraphBlock parseParagraph(String md) =>
+          SemanticMarkdownParser.parse(md).blocks.first as ParagraphBlock;
+
+      test('unclosed ** renders bold live with the opener hidden', () {
+        final p = parseParagraph('**bold');
+        expect(p.plainText, equals('bold'));
+        expect(p.runs.length, equals(1));
+        expect(p.runs.single, isA<BoldRun>());
+        expect(p.runs.single.text, equals('bold'));
+      });
+
+      test('unclosed * renders italic live', () {
+        final p = parseParagraph('*it');
+        expect(p.plainText, equals('it'));
+        expect(p.runs.single.isItalic, isTrue);
+      });
+
+      test('unclosed ~~ renders strike live', () {
+        final p = parseParagraph('~~gone');
+        expect(p.plainText, equals('gone'));
+        expect(p.runs.single.isStrike, isTrue);
+      });
+
+      test('unclosed == renders highlight live', () {
+        final p = parseParagraph('==hot');
+        expect(p.plainText, equals('hot'));
+        expect(p.runs.single.isHighlight, isTrue);
+      });
+
+      test('unclosed backtick renders inline code live', () {
+        final p = parseParagraph('`snippet');
+        expect(p.plainText, equals('snippet'));
+        expect(p.runs.single, isA<InlineCodeRun>());
+      });
+
+      test('unclosed *** renders bold+italic live', () {
+        final p = parseParagraph('***wow');
+        expect(p.plainText, equals('wow'));
+        expect(p.runs.single.isBold, isTrue);
+        expect(p.runs.single.isItalic, isTrue);
+      });
+
+      test('plain prefix before an open opener stays plain', () {
+        final p = parseParagraph('hello **world');
+        expect(p.plainText, equals('hello world'));
+        expect(p.runs.first.isBold, isFalse);
+        expect(p.runs.last.isBold, isTrue);
+        expect(p.runs.last.text, equals('world'));
+      });
+
+      test('spaced arithmetic is not treated as an open opener', () {
+        final p = parseParagraph('2 * 3 = 6');
+        expect(p.plainText, equals('2 * 3 = 6'));
+        expect(p.runs.every((r) => !r.isItalic && !r.isBold), isTrue);
+      });
+
+      test('a dangling opener with no content stays literal', () {
+        final p = parseParagraph('trailing **');
+        expect(p.plainText, equals('trailing **'));
+        expect(p.runs.every((r) => !r.isBold), isTrue);
+      });
+
+      test('underscore open opener is rejected intra-word', () {
+        final p = parseParagraph('snake_case');
+        expect(p.plainText, equals('snake_case'));
+        expect(p.runs.every((r) => !r.isItalic), isTrue);
+      });
+
+      test('open-span visible offsets round-trip to source and back', () {
+        const md = '**bold';
+        final doc = SemanticMarkdownParser.parse(md);
+        final block = doc.blocks.first;
+        expect(block.plainText, equals('bold'));
+        for (var visible = 0; visible <= block.plainText.length; visible++) {
+          final pos = DocumentPosition(blockId: block.id, offset: visible);
+          final sourceOffset = doc.sourceOffsetAtPosition(pos);
+          final mapped = doc.findPositionAtSourceOffset(sourceOffset);
+          expect(mapped, isNotNull);
+          expect(mapped!.offset, equals(visible),
+              reason: 'open-span visible offset $visible must round-trip');
+        }
+      });
+    });
   });
 }

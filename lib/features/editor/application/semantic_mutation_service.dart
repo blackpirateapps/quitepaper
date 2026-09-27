@@ -148,6 +148,19 @@ class SemanticMutationService {
       return insertText(markdown, position, '\n', stripFrontmatter: stripFrontmatter);
     }
 
+    // Phase 2 — Enter continuation: when the caret sits *strictly inside* a
+    // closed styled/code span, a bare `\n` would strand the delimiters across
+    // the newline (`**bold\ntext**`). Instead close the span on line 1 and
+    // reopen it on line 2 so both lines render styled.
+    final continued = _splitInsideEmphasis(
+      doc,
+      markdown,
+      block,
+      position,
+      stripFrontmatter: stripFrontmatter,
+    );
+    if (continued != null) return continued;
+
     if (block is ChecklistItemBlock) {
       if (block.plainText.trim().isEmpty) {
         // Empty checklist item -> exit checklist to normal paragraph
@@ -605,6 +618,145 @@ class SemanticMutationService {
       return [const PlainRun('', SourceRange(0, 0))];
     }
     return merged;
+  }
+
+  /// Returns the inline runs of an editable text [block], or an empty list for
+  /// non-text blocks.
+  static List<SemanticInline> _blockRuns(SemanticBlock block) {
+    if (block is ParagraphBlock) return block.runs;
+    if (block is HeadingBlock) return block.runs;
+    if (block is ListItemBlock) return block.runs;
+    if (block is OrderedListItemBlock) return block.runs;
+    if (block is ChecklistItemBlock) return block.runs;
+    if (block is QuoteBlock) return block.runs;
+    return const [];
+  }
+
+  /// Phase 2 — Enter continuation. If [position] lands strictly inside a closed
+  /// styled/code span of [block], returns a mutation that closes the span on
+  /// line 1 and reopens it on line 2 (both lines styled). Returns null when the
+  /// caret is not inside such a span, so the caller falls back to a bare `\n`.
+  static MutationResult? _splitInsideEmphasis(
+    SemanticDocument doc,
+    String markdown,
+    SemanticBlock block,
+    DocumentPosition position, {
+    bool stripFrontmatter = false,
+  }) {
+    final runs = _blockRuns(block);
+    if (runs.isEmpty) return null;
+
+    final srcOff = doc.sourceOffsetAtPosition(position);
+    var inside = false;
+    for (final r in runs) {
+      final styled = r.isBold || r.isItalic || r.isStrike || r.isHighlight || r.isCode;
+      if (!styled || r.contentRange == null) continue;
+      // Strictly inside a *closed* span: the closing delimiter sits after the
+      // caret (open spans have `sourceRange.end == contentRange.end`, so a caret
+      // at their visible end maps to `end`, which is not `< end`).
+      if (srcOff > r.sourceRange.start && srcOff < r.sourceRange.end) {
+        inside = true;
+        break;
+      }
+    }
+    if (!inside) return null;
+
+    final visualOffset = position.offset;
+    final split = splitRunsAt(runs, visualOffset);
+    final leftRuns = <SemanticInline>[];
+    final rightRuns = <SemanticInline>[];
+    var cur = 0;
+    for (final r in split) {
+      if (cur < visualOffset) {
+        leftRuns.add(r);
+      } else {
+        rightRuns.add(r);
+      }
+      cur += r.text.length;
+    }
+
+    final line1 = serializeBlockMarkdown(block, leftRuns);
+    final line2Content = serializeRuns(rightRuns);
+
+    String line2Prefix;
+    var updatedMarkdown = markdown;
+    if (block is QuoteBlock) {
+      line2Prefix = '> ';
+    } else if (block is ListItemBlock) {
+      line2Prefix = '${' ' * block.indent}${block.marker} ';
+    } else if (block is ChecklistItemBlock) {
+      line2Prefix = '${' ' * block.indent}- [ ] ';
+    } else if (block is OrderedListItemBlock) {
+      final nextNumber = block.number + 1;
+      line2Prefix = '${' ' * block.indent}$nextNumber${block.delimiter} ';
+      updatedMarkdown = _renumberSubsequentOrdered(doc, markdown, block, nextNumber);
+    } else if (block is ParagraphBlock || block is HeadingBlock) {
+      // Enter inside a heading (or paragraph) continues as a paragraph.
+      line2Prefix = '';
+    } else {
+      return null;
+    }
+
+    final blockStart = block.sourceRange.start;
+    final blockEnd = block.sourceRange.end;
+    final replacement = '$line1\n$line2Prefix$line2Content';
+    final newMarkdown = updatedMarkdown.replaceRange(blockStart, blockEnd, replacement);
+    final caretSource = blockStart + line1.length + 1 + line2Prefix.length;
+    final newDoc = SemanticMarkdownParser.parse(newMarkdown, stripFrontmatter: stripFrontmatter);
+    final newPos = newDoc.findPositionAtSourceOffset(caretSource) ??
+        DocumentPosition(blockId: position.blockId, offset: 0);
+    return MutationResult(
+      markdown: newMarkdown,
+      document: newDoc,
+      position: newPos,
+      selection: DocumentSelection.collapsed(newPos),
+    );
+  }
+
+  /// Renumbers ordered-list siblings after [block] as if a new item numbered
+  /// [nextNumber] were inserted directly below it. Returns the updated markdown;
+  /// offsets before [block] are untouched so `block.sourceRange` stays valid.
+  static String _renumberSubsequentOrdered(
+    SemanticDocument doc,
+    String markdown,
+    OrderedListItemBlock block,
+    int nextNumber,
+  ) {
+    final blockIndex = doc.findBlockIndexById(block.id);
+    if (blockIndex == -1) return markdown;
+    final subsequentItems = <OrderedListItemBlock>[];
+    for (var i = blockIndex + 1; i < doc.blocks.length; i++) {
+      final b = doc.blocks[i];
+      if (b is OrderedListItemBlock) {
+        if (b.indent == block.indent) {
+          subsequentItems.add(b);
+        } else if (b.indent > block.indent) {
+          continue;
+        } else {
+          break;
+        }
+      } else {
+        final bIndent = (b is ListItemBlock)
+            ? b.indent
+            : (b is ChecklistItemBlock)
+                ? b.indent
+                : 0;
+        if (bIndent > block.indent) {
+          continue;
+        } else {
+          break;
+        }
+      }
+    }
+    var updated = markdown;
+    for (var idx = subsequentItems.length - 1; idx >= 0; idx--) {
+      final item = subsequentItems[idx];
+      final newNum = nextNumber + 1 + idx;
+      final numStart = item.sourceRange.start + item.indent;
+      final numEnd = numStart + '${item.number}'.length;
+      updated = updated.replaceRange(numStart, numEnd, '$newNum');
+    }
+    return updated;
   }
 
   /// Splits [runs] at visual [splitOffset] within the block's visual text.

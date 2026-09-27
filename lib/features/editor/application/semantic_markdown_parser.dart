@@ -828,6 +828,23 @@ class SemanticMarkdownParser {
 
     if (lastIndex < content.length) {
       if (lastIndex == 0) {
+        // Phase 1 (live open spans): before falling back to a single literal
+        // run, look for an *unclosed* opener (`**bold`, `*it`, `~~s`, `==h`,
+        // `` `code ``) and render it styled with the opener hidden, so emphasis
+        // appears live as it is typed — before the closing delimiter exists.
+        final open = _tryParseOpenEmphasis(
+          content,
+          baseRange,
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: outerSourceRange,
+        );
+        if (open != null) {
+          runs.addAll(open);
+          return runs;
+        }
         // Base case: no delimiters matched in this content chunk
         final resolvedOuter = outerSourceRange ?? baseRange;
         if (!isBold && !isItalic && !isStrike && !isHighlight) {
@@ -888,5 +905,116 @@ class SemanticMarkdownParser {
     }
 
     return runs;
+  }
+
+  /// Phase 1 — live open-span rendering. Scans [content] (which the caller has
+  /// determined contains no *closed* inline construct) for the first valid
+  /// *unclosed* emphasis opener and, if found, returns the runs: a recursively
+  /// parsed plain prefix followed by a styled run that spans to the end of
+  /// [content] with the opener hidden (its `sourceRange` includes the opener,
+  /// its `contentRange` excludes it). Returns null when no valid opener exists,
+  /// so the caller keeps its single literal-run fallback.
+  ///
+  /// Openers are matched longest-first at each position: `***`/`___`
+  /// (bold+italic), `**`/`__` (bold), `~~` (strike), `==` (highlight),
+  /// `` ` `` (code), `*`/`_` (italic). Validity mirrors [_isValidEmphasis]: the
+  /// opener must be immediately followed by a non-whitespace char, and
+  /// underscore openers are rejected intra-word (alphanumeric char before).
+  static List<SemanticInline>? _tryParseOpenEmphasis(
+    String content,
+    SourceRange baseRange, {
+    required bool isBold,
+    required bool isItalic,
+    required bool isStrike,
+    required bool isHighlight,
+    SourceRange? outerSourceRange,
+  }) {
+    for (var i = 0; i < content.length; i++) {
+      final ch = content[i];
+      if (ch != '*' && ch != '_' && ch != '~' && ch != '=' && ch != '`') {
+        continue;
+      }
+
+      // Determine the longest valid opener starting at i.
+      int dl;
+      var addBold = false;
+      var addItalic = false;
+      var addStrike = false;
+      var addHighlight = false;
+      var isCode = false;
+
+      final three = i + 3 <= content.length ? content.substring(i, i + 3) : '';
+      final two = i + 2 <= content.length ? content.substring(i, i + 2) : '';
+      if (three == '***' || three == '___') {
+        dl = 3;
+        addBold = true;
+        addItalic = true;
+      } else if (two == '**' || two == '__') {
+        dl = 2;
+        addBold = true;
+      } else if (two == '~~') {
+        dl = 2;
+        addStrike = true;
+      } else if (two == '==') {
+        dl = 2;
+        addHighlight = true;
+      } else if (ch == '`') {
+        dl = 1;
+        isCode = true;
+      } else if (ch == '*' || ch == '_') {
+        dl = 1;
+        addItalic = true;
+      } else {
+        continue;
+      }
+
+      // Opener must have at least one content char after it, and that char
+      // must be non-whitespace (rejects `** ` / a dangling opener).
+      if (i + dl >= content.length) continue;
+      if (_isWhitespace(content[i + dl])) continue;
+      // Reject when the opener is part of a longer contiguous delimiter run
+      // (e.g. `a****b`): a run longer than the chosen opener never opens.
+      if (i > 0 && content[i - 1] == ch) continue;
+      if (content[i + dl] == ch) continue;
+      // Underscore emphasis is disallowed intra-word.
+      final usesUnderscore = content.substring(i, i + dl).contains('_');
+      if (usesUnderscore && i > 0 && _alnum.hasMatch(content[i - 1])) continue;
+
+      final runs = <SemanticInline>[];
+      if (i > 0) {
+        runs.addAll(_parseInlineRunsInternal(
+          content.substring(0, i),
+          SourceRange(baseRange.start, baseRange.start + i),
+          isBold: isBold,
+          isItalic: isItalic,
+          isStrike: isStrike,
+          isHighlight: isHighlight,
+          outerSourceRange: outerSourceRange,
+        ));
+      }
+
+      final styledSourceRange =
+          SourceRange(baseRange.start + i, baseRange.start + content.length);
+      final innerRange =
+          SourceRange(baseRange.start + i + dl, baseRange.start + content.length);
+      final inner = content.substring(i + dl);
+
+      if (isCode) {
+        // Inline code carries no nested formatting.
+        runs.add(InlineCodeRun(inner, styledSourceRange, innerRange));
+      } else {
+        runs.addAll(_parseInlineRunsInternal(
+          inner,
+          innerRange,
+          isBold: isBold || addBold,
+          isItalic: isItalic || addItalic,
+          isStrike: isStrike || addStrike,
+          isHighlight: isHighlight || addHighlight,
+          outerSourceRange: styledSourceRange,
+        ));
+      }
+      return runs;
+    }
+    return null;
   }
 }
