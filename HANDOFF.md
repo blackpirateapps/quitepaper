@@ -7506,3 +7506,24 @@ Only `qp://asset` references (images + generic files) are decrypted/uploaded/rew
 - `flutter analyze` → **No issues found**. `flutter test` → **all passing** (1537+ tests incl. the new share suite).
 
 
+
+---
+
+## 123. Public Note Sharing — Markdown Rendering Fidelity & Copy Button (Backend)
+
+### Summary
+Public share pages were showing note content with Markdown syntax **visible as plain text** for anything beyond the basics. The original `shareRenderer` only understood ATX headings, single-level `-`/`*`/`1.` lists, blockquotes, fenced code, bold/italic, links and images — so the rich Markdown Quiet Paper actually produces (tables, task lists, nested lists, strikethrough, highlight) fell through to raw paragraphs. This section rewrites the renderer to cover that surface and adds a **Copy** button to the rendered page. Same security model as before: escape ALL HTML up front, then apply a fixed set of Markdown transforms to the already-escaped string — no user input reaches the DOM unescaped.
+
+### Renderer changes (`backend/src/share/shareRenderer.ts`)
+- **New block constructs**: GFM pipe tables (`renderTable`, with `:` alignment → `text-align`), task lists (`- [ ]` / `- [x]` → disabled `<input type="checkbox">` inside a `.task-item` label), indentation-based **nested** ordered/unordered lists (`renderList` with an indent stack that opens child lists *inside* the parent `<li>`), multi-line blockquotes merged into one `<blockquote>`, and fenced code blocks that carry a sanitized `class="language-<lang>"`.
+- **New inline constructs**: strikethrough `~~…~~` → `<del>`, highlight `==…==` → `<mark>`, `__bold__`, underscore italic `_…_` guarded by word boundaries so `snake_case` survives, and bare-URL autolinks (`https?://…`, trailing sentence punctuation left outside the link).
+- **Inline safety refactor**: code spans, links **and** images are now swapped for `\u0000F<n>\u0000` placeholders before the emphasis/autolink passes and restored at the end, so their contents are never double-processed. `isSafeUrl` (images) stays http(s)/protocol-relative only; new `isSafeLinkUrl` additionally allows `mailto:` for link hrefs. `javascript:`/`data:` still render as inert text.
+
+### Page changes (`backend/src/share/shareViews.ts`)
+- **Copy button**: `renderSharePage` now emits a `.note-head` flex row (title + a `#copy-btn`) and an inline `COPY_SCRIPT`. Clicking copies the article's visible text via `navigator.clipboard.writeText`, with a hidden-`textarea` + `execCommand('copy')` fallback for older browsers, and flashes a "Copied" confirmation for 2s.
+- **New styles** for `<table>`/`<th>`/`<td>`, `<del>`, `<mark>`, `.task-item`, `.note-head` and `.copy-btn`, consistent with the existing warm editorial dark theme.
+
+### Verification & Quality
+- `cd backend && npm run build` → clean `tsc`.
+- `cd backend && npx vitest run` → **112/112 passing**, including 6 new `shares.test.ts` cases (headings/emphasis/inline code, GFM tables, task + nested lists, autolink/mailto, `snake_case` non-italic, fenced code language class + escaping) alongside the existing 13.
+- Flutter app is unchanged (backend-only change); no Dart files touched.

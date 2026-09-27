@@ -275,4 +275,47 @@ describe('Public Note Sharing', () => {
     // javascript: URLs are not emitted as links
     expect(html).not.toContain('href="javascript:');
   });
+
+  it('renders headings, emphasis and inline code', () => {
+    const html = renderMarkdown('# Title\n\n**b** _i_ ~~s~~ ==h== `c`');
+    expect(html).toContain('<h1>Title</h1>');
+    expect(html).toContain('<strong>b</strong>');
+    expect(html).toContain('<em>i</em>');
+    expect(html).toContain('<del>s</del>');
+    expect(html).toContain('<mark>h</mark>');
+    expect(html).toContain('<code>c</code>');
+  });
+
+  it('renders GFM pipe tables', () => {
+    const html = renderMarkdown('| Name | Age |\n|:-----|----:|\n| Bo | 30 |');
+    expect(html).toContain('<table>');
+    expect(html).toContain('<th style="text-align:left">Name</th>');
+    expect(html).toContain('<td style="text-align:right">30</td>');
+  });
+
+  it('renders task lists and nested lists', () => {
+    const html = renderMarkdown('- [ ] todo\n- [x] done\n- parent\n  - child');
+    expect(html).toContain('type="checkbox" disabled>');
+    expect(html).toContain('type="checkbox" disabled checked>');
+    // nested <ul> lives inside the parent <li>
+    expect(html).toContain('parent<ul><li>');
+  });
+
+  it('autolinks bare URLs and mailto links but not javascript', () => {
+    const html = renderMarkdown('see https://example.com now and [m](mailto:a@b.com)');
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('href="mailto:a@b.com"');
+  });
+
+  it('does not italicize snake_case identifiers', () => {
+    const html = renderMarkdown('my_var_name stays intact');
+    expect(html).toContain('my_var_name');
+    expect(html).not.toContain('<em>');
+  });
+
+  it('renders fenced code with a language class and escapes its contents', () => {
+    const html = renderMarkdown('```js\nconst x = "<b>";\n```');
+    expect(html).toContain('<pre><code class="language-js">');
+    expect(html).toContain('&lt;b&gt;');
+  });
 });

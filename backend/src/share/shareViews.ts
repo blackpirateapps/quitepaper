@@ -70,6 +70,28 @@ const BASE_STYLES = `
     padding: 1px 5px; border-radius: 4px;
   }
   article hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+  article table {
+    width: 100%; border-collapse: collapse; margin: 0 0 1.1em; font-family: var(--font-sans); font-size: 15px;
+  }
+  article th, article td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card-bg); font-weight: 600; }
+  article del { color: var(--text-dim); }
+  article mark { background: rgba(217,119,6,0.28); color: var(--text-main); padding: 0 2px; border-radius: 3px; }
+  article .task-item { display: flex; align-items: flex-start; gap: 8px; }
+  article .task-item input { margin-top: 0.45em; }
+  .note-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px;
+  }
+  .note-head .note-title { margin-bottom: 0; }
+  .copy-btn {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    font-family: var(--font-sans); cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    margin-top: 6px;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--accent); color: var(--accent); }
   .meta { color: var(--text-dim); font-size: 13px; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
   .footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; text-align: center; line-height: 1.6; }
   .footer a { color: var(--text-muted); }
@@ -127,6 +149,52 @@ function shareFooter(): string {
   </div>`;
 }
 
+/**
+ * Copies the rendered note text to the clipboard. Reads the visible article text
+ * (no markup) and falls back to a hidden textarea + execCommand on browsers
+ * without the async clipboard API.
+ */
+const COPY_SCRIPT = `
+  <script>
+    (function () {
+      var btn = document.getElementById('copy-btn');
+      var label = document.getElementById('copy-label');
+      var article = document.getElementById('note-body');
+      if (!btn || !article || !label) return;
+      var resetTimer;
+      function flash(text) {
+        label.textContent = text;
+        btn.classList.add('copied');
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(function () {
+          label.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      }
+      function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); flash('Copied'); }
+        catch (e) { flash('Copy failed'); }
+        document.body.removeChild(ta);
+      }
+      btn.addEventListener('click', function () {
+        var text = (article.innerText || article.textContent || '').trim();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { flash('Copied'); },
+            function () { fallbackCopy(text); });
+        } else {
+          fallbackCopy(text);
+        }
+      });
+    })();
+  </script>`;
+
 export interface RenderNoteOptions {
   title: string;
   contentHtml: string;
@@ -154,11 +222,17 @@ export function renderSharePage(opts: RenderNoteOptions): string {
   const body = `
   <div class="wrap">
     ${BRAND_HEADER}
-    <h1 class="note-title">${escapeHtml(title)}</h1>
+    <div class="note-head">
+      <h1 class="note-title">${escapeHtml(title)}</h1>
+      <button type="button" class="copy-btn" id="copy-btn" aria-label="Copy note text">
+        <span id="copy-label">Copy</span>
+      </button>
+    </div>
     ${published ? `<div class="meta">Published ${escapeHtml(published)}</div>` : ''}
-    <article>${opts.contentHtml}</article>
+    <article id="note-body">${opts.contentHtml}</article>
     ${shareFooter()}
-  </div>`;
+  </div>
+  ${COPY_SCRIPT}`;
   return layout(title, body);
 }
 
