@@ -209,6 +209,36 @@ void main() {
 
       expect(unwrapped, equals(masterKey));
     });
+
+    test('Large raw payloads round-trip via background-isolate offloading', () async {
+      // Exceeds the 256 KB isolate-offload threshold in DefaultCryptoService,
+      // exercising the compute()-based encrypt/decrypt path.
+      final masterKey = await crypto.generateMasterKey();
+      final secretKey = SecretKey(masterKey);
+      final nonce = crypto.generateRandomBytes(24);
+      final aad = utf8.encode('quietpaper:test:large');
+
+      final plaintext = Uint8List(512 * 1024);
+      for (var i = 0; i < plaintext.length; i++) {
+        plaintext[i] = i % 256;
+      }
+
+      final ciphertext = await crypto.encryptRawBytes(
+        plaintextBytes: plaintext,
+        secretKey: secretKey,
+        nonce: nonce,
+        associatedData: aad,
+      );
+
+      final decrypted = await crypto.decryptRawBytes(
+        combinedCiphertext: ciphertext,
+        secretKey: secretKey,
+        nonce: nonce,
+        associatedData: aad,
+      );
+
+      expect(decrypted, equals(plaintext));
+    });
   });
 
   group('KeyManager & Password Rotation Tests', () {

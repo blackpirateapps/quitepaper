@@ -7693,3 +7693,43 @@ The redesigned share page's `og:image`/`twitter:image` meta point to `${SITE}/im
 
 ### Verification & Quality
 - No source/logic changed, so `tsc`/`vitest` results from §128 stand (112/112). Flutter `analyze`/`test` not applicable (no Dart changed; toolchain not installed here).
+
+---
+
+## 130. Non-Blocking Attachment Import (UI Freeze Fix) & Release Version Bump
+
+### 1. Overview & Motivation
+Inserting an image into a note froze the entire app for several seconds with no visual feedback before the image finally appeared. The root cause was that attachment encryption ran synchronously on the UI isolate:
+- `_handleInsertImage` → `AttachmentService.importImageFromFile/Bytes` → `AttachmentCrypto.encryptAttachment` → `CryptoService.encryptRawBytes` → `Xchacha20.poly1305Aead().encrypt`.
+- The `cryptography` package's XChaCha20-Poly1305 is a pure-Dart cipher that executes entirely on the calling isolate, so encrypting a multi-megabyte image blocked the main thread and jammed all rendering (no spinner could even paint).
+
+Additionally, every build cut since the `1.5.8+16` release (2026-09-10) — including the many feature commits that followed (journal location frontmatter, Bear formatting toolbar, storage quota, public sharing, WYSIWYG fixes) — shipped with the **same** `version: 1.5.8+16`. Because Android derives `versionCode` from the build suffix (`versionCode = flutter.versionCode` in `android/app/build.gradle.kts`), the unchanged `versionCode 16` caused mobile "updates" to be silently rejected as same-version installs, so users never received the newer features (e.g. the journal location fixes appeared missing).
+
+### 2. Architectural & UX Enhancements
+
+#### Background-Isolate Encryption Offloading (`DefaultCryptoService`)
+- `encryptRawBytes` and `decryptRawBytes` now route payloads **≥ 256 KB** through `compute()` to top-level isolate entry points (`_encryptRawBytesInIsolate` / `_decryptRawBytesInIsolate`), keeping the UI thread responsive during large image/document attachment crypto.
+- Smaller payloads (note bodies, tags) remain inline to avoid isolate spawn overhead.
+- Offloading is guarded by a new `_isDefaultCipher` flag (true only when no custom `Cipher` was injected), so a test-injected cipher is never silently replaced by the isolate's freshly-constructed default `Xchacha20.poly1305Aead()`.
+- This benefits all large-attachment paths that share `encryptRawBytes`: images, PDFs, documents, generic files, backups, and OCR payloads.
+
+#### Blocking Progress Overlay (`_AttachmentProgressOverlay` + `_withImportOverlay`)
+- Added a reusable `_withImportOverlay<T>({title, message, task})` helper on the editor state that inserts a non-dismissible `OverlayEntry` (spinner + "Adding image / Encrypting & saving…"), yields one frame so the spinner paints, runs the async import, and always tears the overlay down in a `finally` (even on error).
+- The overlay absorbs pointer events via a `ModalBarrier`, so the editor cannot be mutated mid-import.
+- Wired into `_handleInsertImage` and all three drag-and-drop branches in `_handleDroppedFiles` (image / PDF / generic file) with appropriate labels.
+- With encryption moved off the main isolate, the overlay now renders and animates smoothly instead of the app appearing frozen.
+
+#### Release Version Bump
+- Bumped `pubspec.yaml` version `1.5.8+16` → `1.5.9+17`. The incremented build suffix raises Android's `versionCode` to `17`, allowing mobile devices and the in-app update checker to recognize and install the new build carrying the accumulated features.
+
+### 3. File Inventory
+- **Updated Files**:
+  - `lib/core/crypto/crypto_service.dart`: Added `_isDefaultCipher` flag, `_isolateOffloadThresholdBytes` (256 KB), isolate offloading in `encryptRawBytes`/`decryptRawBytes`, and top-level `_encryptRawBytesInIsolate`/`_decryptRawBytesInIsolate` with `_RawEncryptParams`/`_RawDecryptParams` sendable payloads.
+  - `lib/features/editor/presentation/editor_screen.dart`: Added `_withImportOverlay` helper and `_AttachmentProgressOverlay` widget; wrapped image insert (`_handleInsertImage`) and dropped-file imports (`_handleDroppedFiles`) in the progress overlay.
+  - `pubspec.yaml`: Version bump `1.5.8+16` → `1.5.9+17`.
+- **New & Updated Tests**:
+  - `test/crypto/crypto_test.dart`: Added a 512 KB payload round-trip test exercising the `compute()`-based isolate encrypt/decrypt path.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test` (crypto, attachment, import, and editor suites pass; new large-payload isolate round-trip test passes).

@@ -355,9 +355,22 @@ abstract class CryptoService {
 class DefaultCryptoService implements CryptoService {
   DefaultCryptoService({
     Cipher? cipher,
-  }) : _cipher = cipher ?? Xchacha20.poly1305Aead();
+  })  : _cipher = cipher ?? Xchacha20.poly1305Aead(),
+        _isDefaultCipher = cipher == null;
 
   final Cipher _cipher;
+
+  /// Whether the default [Xchacha20.poly1305Aead] cipher is in use. Only then
+  /// is it safe to reconstruct an equivalent cipher inside a background
+  /// isolate for large-payload offloading.
+  final bool _isDefaultCipher;
+
+  /// Payloads at or above this size are encrypted/decrypted on a background
+  /// isolate to keep the UI thread responsive (e.g. large image attachments).
+  /// Smaller payloads (note content, tags) stay inline to avoid isolate
+  /// spawn overhead.
+  static const int _isolateOffloadThresholdBytes = 256 * 1024;
+
   final Random _secureRandom = Random.secure();
 
   @override
@@ -638,6 +651,22 @@ class DefaultCryptoService implements CryptoService {
     required List<int> nonce,
     List<int>? associatedData,
   }) async {
+    // Offload large payloads (image/document attachments) to a background
+    // isolate so the UI thread does not freeze during XChaCha20 encryption.
+    if (_isDefaultCipher &&
+        plaintextBytes.length >= _isolateOffloadThresholdBytes) {
+      final keyBytes = await secretKey.extractBytes();
+      return compute(
+        _encryptRawBytesInIsolate,
+        _RawEncryptParams(
+          plaintext: Uint8List.fromList(plaintextBytes),
+          keyBytes: Uint8List.fromList(keyBytes),
+          nonce: Uint8List.fromList(nonce),
+          aad: Uint8List.fromList(associatedData ?? const <int>[]),
+        ),
+      );
+    }
+
     final secretBox = await _cipher.encrypt(
       plaintextBytes,
       secretKey: secretKey,
@@ -661,6 +690,22 @@ class DefaultCryptoService implements CryptoService {
         combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
     final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
 
+    // Offload large payloads to a background isolate (see [encryptRawBytes]).
+    if (_isDefaultCipher &&
+        combinedCiphertext.length >= _isolateOffloadThresholdBytes) {
+      final keyBytes = await secretKey.extractBytes();
+      return compute(
+        _decryptRawBytesInIsolate,
+        _RawDecryptParams(
+          cipherBytes: Uint8List.fromList(cipherBytes),
+          macBytes: Uint8List.fromList(macBytes),
+          keyBytes: Uint8List.fromList(keyBytes),
+          nonce: Uint8List.fromList(nonce),
+          aad: Uint8List.fromList(associatedData ?? const <int>[]),
+        ),
+      );
+    }
+
     final secretBox = SecretBox(
       cipherBytes,
       nonce: nonce,
@@ -675,4 +720,70 @@ class DefaultCryptoService implements CryptoService {
 
     return Uint8List.fromList(decrypted);
   }
+}
+
+/// Parameters for [_encryptRawBytesInIsolate]. All fields are [Uint8List] so
+/// the record is cheaply sendable across the isolate boundary.
+@immutable
+class _RawEncryptParams {
+  const _RawEncryptParams({
+    required this.plaintext,
+    required this.keyBytes,
+    required this.nonce,
+    required this.aad,
+  });
+
+  final Uint8List plaintext;
+  final Uint8List keyBytes;
+  final Uint8List nonce;
+  final Uint8List aad;
+}
+
+/// Parameters for [_decryptRawBytesInIsolate].
+@immutable
+class _RawDecryptParams {
+  const _RawDecryptParams({
+    required this.cipherBytes,
+    required this.macBytes,
+    required this.keyBytes,
+    required this.nonce,
+    required this.aad,
+  });
+
+  final Uint8List cipherBytes;
+  final Uint8List macBytes;
+  final Uint8List keyBytes;
+  final Uint8List nonce;
+  final Uint8List aad;
+}
+
+/// Top-level entry point run on a background isolate via [compute]. Builds a
+/// fresh default XChaCha20-Poly1305 cipher (matching [DefaultCryptoService]'s
+/// default) and returns the ciphertext with appended MAC.
+Future<Uint8List> _encryptRawBytesInIsolate(_RawEncryptParams params) async {
+  final cipher = Xchacha20.poly1305Aead();
+  final secretBox = await cipher.encrypt(
+    params.plaintext,
+    secretKey: SecretKey(params.keyBytes),
+    nonce: params.nonce,
+    aad: params.aad,
+  );
+  return Uint8List.fromList(secretBox.concatenation(nonce: false));
+}
+
+/// Top-level entry point run on a background isolate via [compute]. Verifies
+/// the Poly1305 MAC and returns the decrypted plaintext.
+Future<Uint8List> _decryptRawBytesInIsolate(_RawDecryptParams params) async {
+  final cipher = Xchacha20.poly1305Aead();
+  final secretBox = SecretBox(
+    params.cipherBytes,
+    nonce: params.nonce,
+    mac: Mac(params.macBytes),
+  );
+  final decrypted = await cipher.decrypt(
+    secretBox,
+    secretKey: SecretKey(params.keyBytes),
+    aad: params.aad,
+  );
+  return Uint8List.fromList(decrypted);
 }

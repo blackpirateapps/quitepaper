@@ -2391,22 +2391,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         final pickedFile = result.files.first;
         final attachmentService = ref.read(attachmentServiceProvider);
 
-        ({AttachmentEntity attachment, String markdownSnippet}) importResult;
+        ({AttachmentEntity attachment, String markdownSnippet})? importResult;
 
-        if (pickedFile.path != null) {
-          importResult = await attachmentService.importImageFromFile(
-            File(pickedFile.path!),
-            noteId: widget.note.id,
-            preferredAltText: pickedFile.name,
-          );
-        } else if (pickedFile.bytes != null) {
-          importResult = await attachmentService.importImageFromBytes(
-            pickedFile.bytes!,
-            mimeType: 'image/png',
-            noteId: widget.note.id,
-            preferredAltText: pickedFile.name,
-          );
-        } else {
+        importResult = await _withImportOverlay(
+          title: 'Adding image',
+          message: 'Encrypting & saving…',
+          task: () async {
+            if (pickedFile.path != null) {
+              return attachmentService.importImageFromFile(
+                File(pickedFile.path!),
+                noteId: widget.note.id,
+                preferredAltText: pickedFile.name,
+              );
+            } else if (pickedFile.bytes != null) {
+              return attachmentService.importImageFromBytes(
+                pickedFile.bytes!,
+                mimeType: 'image/png',
+                noteId: widget.note.id,
+                preferredAltText: pickedFile.name,
+              );
+            }
+            return null;
+          },
+        );
+
+        if (importResult == null) {
           return;
         }
 
@@ -2444,6 +2453,36 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  /// Runs a potentially slow attachment import (encryption + persistence)
+  /// while showing a blocking, non-dismissible progress overlay so the UI
+  /// never appears frozen. The overlay is always torn down, even on error.
+  Future<T> _withImportOverlay<T>({
+    required String title,
+    required String message,
+    required Future<T> Function() task,
+  }) async {
+    if (!mounted) return task();
+
+    final overlayState = Overlay.of(context, rootOverlay: true);
+    final entry = OverlayEntry(
+      builder: (_) => _AttachmentProgressOverlay(
+        title: title,
+        message: message,
+      ),
+    );
+    overlayState.insert(entry);
+
+    // Let the overlay paint one frame before kicking off heavy work so the
+    // spinner is visible immediately.
+    await Future<void>.delayed(Duration.zero);
+
+    try {
+      return await task();
+    } finally {
+      entry.remove();
+    }
+  }
+
   Future<void> _handleDroppedFiles(List<DropItem> items) async {
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isReadOnly || !editorState.isUnlocked) return;
@@ -2460,10 +2499,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
         try {
           final attachmentService = ref.read(attachmentServiceProvider);
-          final importResult = await attachmentService.importImageFromFile(
-            file,
-            noteId: widget.note.id,
-            preferredAltText: name,
+          final importResult = await _withImportOverlay(
+            title: 'Adding image',
+            message: 'Encrypting & saving…',
+            task: () => attachmentService.importImageFromFile(
+              file,
+              noteId: widget.note.id,
+              preferredAltText: name,
+            ),
           );
           _insertSnippetAtCursor('\n${importResult.markdownSnippet}\n');
         } catch (e) {
@@ -2476,10 +2519,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       } else if (ext == '.pdf') {
         try {
           final docService = ref.read(documentServiceProvider);
-          final res = await docService.importPdfFile(
-            file: file,
-            noteId: widget.note.id,
-            title: nameWithoutExt,
+          final res = await _withImportOverlay(
+            title: 'Adding PDF',
+            message: 'Encrypting & saving…',
+            task: () => docService.importPdfFile(
+              file: file,
+              noteId: widget.note.id,
+              title: nameWithoutExt,
+            ),
           );
           _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
         } catch (e) {
@@ -2493,10 +2540,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         try {
           final bytes = await file.readAsBytes();
           final attachmentService = ref.read(attachmentServiceProvider);
-          final res = await attachmentService.importGenericFileFromBytes(
-            bytes,
-            fileName: name,
-            noteId: widget.note.id,
+          final res = await _withImportOverlay(
+            title: 'Adding file',
+            message: 'Encrypting & saving…',
+            task: () => attachmentService.importGenericFileFromBytes(
+              bytes,
+              fileName: name,
+              noteId: widget.note.id,
+            ),
           );
           _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
         } catch (e) {
@@ -3485,6 +3536,93 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
         );
       },
+    );
+  }
+}
+
+/// Blocking, non-dismissible progress overlay shown while an attachment is
+/// encrypted and persisted. Absorbs pointer events so the editor cannot be
+/// mutated mid-import.
+class _AttachmentProgressOverlay extends StatelessWidget {
+  const _AttachmentProgressOverlay({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Positioned.fill(
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            const ModalBarrier(dismissible: false, color: Color(0x59000000)),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xl,
+                  vertical: AppSpacing.lg,
+                ),
+                constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+                decoration: BoxDecoration(
+                  color: colors.elevated,
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  border: Border.all(color: colors.borderSubtle),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            message,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
