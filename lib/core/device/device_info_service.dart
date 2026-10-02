@@ -5,10 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/devices/domain/device.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../database/app_database.dart';
+import '../version/app_version_provider.dart';
 
 final deviceInfoServiceProvider = Provider<DeviceInfoService>((ref) {
   final db = ref.watch(databaseProvider);
-  return DeviceInfoService(database: db);
+  final versionInfo = ref.watch(appVersionInfoProvider);
+  return DeviceInfoService(
+    database: db,
+    appVersion: versionInfo.version,
+  );
 });
 
 final currentDeviceIdProvider = FutureProvider<String>((ref) async {

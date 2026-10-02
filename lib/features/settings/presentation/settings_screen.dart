@@ -40,6 +40,7 @@ import '../../../core/speech/presentation/speech_settings_view.dart';
 import '../../../core/storage/cloud_storage_provider.dart';
 import 'cloud_storage_screen.dart';
 import '../../share/presentation/manage_shares_screen.dart';
+import '../../../core/version/app_version_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -393,6 +394,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final autoBackupConfig = ref.watch(autoBackupConfigProvider);
     final flavor = ref.watch(appFlavorProvider);
     final cloudStorageSubtitle = ref.watch(cloudStorageSubtitleProvider);
+    final appVersionInfo = ref.watch(appVersionInfoProvider);
 
     if (syncState.status == SyncStatus.syncing) {
       if (!_syncRotationController.isAnimating) {
@@ -1414,7 +1416,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       iconColor: colors.accent,
                       title: 'Quiet Paper',
                       description:
-                          'A quiet place to think.\nVersion 1.6.0 • Offline-first • End-to-End Encrypted Sync',
+                          'A quiet place to think.\n${appVersionInfo.displayVersion} • Offline-first • End-to-End Encrypted Sync',
 
                     ),
                     _buildDivider(colors),

@@ -36,13 +36,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract App Version from pubspec.yaml
         id: version
         run: |
           RAW_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           VERSION_NAME=$(echo "$RAW_VERSION" | cut -d'+' -f1)
-          BUILD_NUMBER=$(echo "$RAW_VERSION" | cut -d'+' -f2)
+          BUILD_NUMBER=$(git rev-list --count HEAD)
           
           echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
@@ -106,7 +108,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: flutter build apk --flavor github --split-per-abi --release
+        run: |
+          flutter build apk --flavor github --split-per-abi --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
 
       - name: Build Universal APK
         env:
@@ -114,7 +119,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: flutter build apk --flavor github --release
+        run: |
+          flutter build apk --flavor github --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
 
       - name: Organize & Name Release APKs
         run: |

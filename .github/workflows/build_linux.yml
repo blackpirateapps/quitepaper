@@ -11,6 +11,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract App Version and Build Number
+        id: version
+        run: |
+          RAW_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          VERSION_NAME=$(echo "$RAW_VERSION" | cut -d'+' -f1)
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Install Linux build dependencies
         run: |
@@ -36,7 +47,10 @@ jobs:
         run: flutter test
 
       - name: Build Linux Release Bundle
-        run: flutter build linux --release
+        run: |
+          flutter build linux --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
 
       - name: Package Linux Release Tarball
         run: |

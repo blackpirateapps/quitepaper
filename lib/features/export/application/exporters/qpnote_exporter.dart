@@ -9,10 +9,11 @@ import '../export_security_guard.dart';
 
 /// Exporter for compiling notes into versioned full-fidelity Quiet Paper Note Packages (.qpnote).
 class QpNotePackageExporter {
-  QpNotePackageExporter({CryptoService? cryptoService})
+  QpNotePackageExporter({CryptoService? cryptoService, this._appVersion = '1.6.0'})
       : _cryptoService = cryptoService ?? DefaultCryptoService();
 
   final CryptoService _cryptoService;
+  final String _appVersion;
 
   static const String formatIdentifier = 'quietpaper:note:v1';
   static const String encryptedFormatIdentifier = 'quietpaper:encrypted-note-package:v1';
@@ -177,7 +178,7 @@ class QpNotePackageExporter {
     final manifestMap = {
       'format': formatIdentifier,
       'version': schemaVersion,
-      'appVersion': '1.6.0',
+      'appVersion': _appVersion,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'noteId': request.packageOptions.preserveIds ? snapshot.noteId : '',
       'title': snapshot.title,
@@ -235,7 +236,7 @@ class QpNotePackageExporter {
       final encryptedEnvelope = {
         'format': encryptedFormatIdentifier,
         'version': schemaVersion,
-        'appVersion': '1.6.0',
+        'appVersion': _appVersion,
 
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'kdfSalt': base64Encode(saltBytes),

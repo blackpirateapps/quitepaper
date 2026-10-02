@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'core/attachments/attachment_temp_storage.dart';
@@ -9,6 +10,7 @@ import 'core/crypto/crypto_service.dart';
 import 'core/crypto/key_manager.dart';
 import 'core/fonts/font_cache_manager.dart';
 import 'core/sync/sync_provider.dart';
+import 'core/version/app_version_provider.dart';
 import 'features/settings/application/settings_provider.dart';
 
 void main([List<String> args = const []]) async {
@@ -18,13 +20,25 @@ void main([List<String> args = const []]) async {
   final cryptoService = DefaultCryptoService();
   final keyManager = SecureKeyManager(cryptoService: cryptoService);
 
+  PackageInfo packageInfo;
+  try {
+    packageInfo = await PackageInfo.fromPlatform();
+  } catch (_) {
+    packageInfo = PackageInfo(
+      appName: 'Quite Paper',
+      packageName: 'com.blackpirate.quitepaper',
+      version: '1.6.0',
+      buildNumber: '0',
+      buildSignature: '',
+    );
+  }
+
   final results = await Future.wait([
     SharedPreferences.getInstance(),
     authService.initialize(),
     keyManager.initialize(),
     FontCacheManager.instance.initialize(),
   ]);
-
 
   // Clean any stale decrypted attachment temporary files in background
   AttachmentTempStorage().cleanStaleTempFiles().catchError((_) => 0);
@@ -38,6 +52,7 @@ void main([List<String> args = const []]) async {
         authServiceProvider.overrideWithValue(authService),
         cryptoServiceProvider.overrideWithValue(cryptoService),
         keyManagerProvider.overrideWithValue(keyManager),
+        packageInfoProvider.overrideWithValue(packageInfo),
         initialLaunchArgsProvider.overrideWithValue(args),
       ],
       child: const QuietPaperApp(),

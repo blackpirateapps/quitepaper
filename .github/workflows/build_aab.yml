@@ -20,13 +20,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract App Version and Build Number
         id: version
         run: |
           RAW_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           DEFAULT_VERSION_NAME=$(echo "$RAW_VERSION" | cut -d'+' -f1)
-          DEFAULT_BUILD_NUMBER=$(echo "$RAW_VERSION" | cut -d'+' -f2)
+          DEFAULT_BUILD_NUMBER=$(git rev-list --count HEAD)
 
           VERSION_NAME="${{ inputs.build_name }}"
           if [ -z "$VERSION_NAME" ]; then

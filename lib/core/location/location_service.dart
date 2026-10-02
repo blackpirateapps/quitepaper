@@ -5,18 +5,22 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import '../version/app_version_provider.dart';
 import 'location_models.dart';
 
 final locationServiceProvider = Provider<LocationService>((ref) {
-  return LocationService();
+  final versionInfo = ref.watch(appVersionInfoProvider);
+  return LocationService(appVersion: versionInfo.version);
 });
 
 /// Service for acquiring device location, reverse geocoding to human-readable addresses,
 /// and opening location in external map applications.
 class LocationService {
-  LocationService({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
+  LocationService({http.Client? httpClient, this._appVersion = '1.6.0'})
+      : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
+  final String _appVersion;
 
   /// Fetches the current location coordinates and human-readable address.
   /// Throws descriptive exceptions on permission denial or service disabled so the UI
@@ -96,7 +100,7 @@ class LocationService {
       final response = await _httpClient.get(
         url,
         headers: {
-          'User-Agent': 'QuitePaper/1.6.0 (https://github.com/blackpirateapps/quitepaper)',
+          'User-Agent': 'QuitePaper/$_appVersion (https://github.com/blackpirateapps/quitepaper)',
           'Accept': 'application/json',
         },
       ).timeout(const Duration(seconds: 6));

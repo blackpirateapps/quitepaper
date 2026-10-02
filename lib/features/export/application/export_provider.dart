@@ -7,7 +7,9 @@ import '../../../core/sync/sync_provider.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../settings/application/settings_provider.dart';
 import '../domain/export_models.dart';
+import '../../../core/version/app_version_provider.dart';
 import 'export_service.dart';
+import 'exporters/qpnote_exporter.dart';
 
 /// Provider for the centralized [ExportService] singleton.
 final exportServiceProvider = Provider<ExportService>((ref) {
@@ -16,6 +18,7 @@ final exportServiceProvider = Provider<ExportService>((ref) {
   final attachmentService = ref.watch(attachmentServiceProvider);
   final documentService = ref.watch(documentServiceProvider);
   final docProcessingService = ref.watch(documentProcessingServiceProvider);
+  final versionInfo = ref.watch(appVersionInfoProvider);
 
   return ExportService(
     database: db,
@@ -23,6 +26,7 @@ final exportServiceProvider = Provider<ExportService>((ref) {
     attachmentService: attachmentService,
     documentService: documentService,
     docProcessingService: docProcessingService,
+    qpNoteExporter: QpNotePackageExporter(appVersion: versionInfo.version),
   );
 });
 

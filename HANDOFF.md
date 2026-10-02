@@ -7808,4 +7808,56 @@ Bumped the official application version from `1.5.9+17` to `1.6.0+18`. In additi
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Automated tests: `flutter test` across settings, update dialogs, backups, device management, and exports (**125/125 passing**).
 
+---
+
+## 133. Automated CI Build Numbers (Git Commit Count) & Dynamic Runtime Version Resolution
+
+### 1. Overview & Motivation
+Prior to this enhancement, application version codes and build numbers were manually maintained in `pubspec.yaml` and hardcoded across various in-app components. Every commit pushed to GitHub Actions resulted in APKs and AABs compiled with the exact same `versionCode`, leading to Android Package Manager and Google Play update rejections ("App not installed: An existing package by the same name with a conflicting signature or version code is already installed") unless manually bumped.
+
+### 2. Architectural & Workflow Enhancements
+
+#### Automated Build Numbers in CI Workflows
+- In all GitHub Actions build workflows ([`.github/workflows/build_apk.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_apk.yml), [`.github/workflows/build_aab.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_aab.yml), [`.github/workflows/release.yml`](file:///home/dog/git/quitepaper/.github/workflows/release.yml), and [`.github/workflows/build_linux.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_linux.yml)):
+  - Configured `actions/checkout@v4` with `fetch-depth: 0` to fetch full git commit history.
+  - Dynamically resolved the build number using `BUILD_NUMBER=$(git rev-list --count HEAD)`.
+  - Injected `--build-name="$VERSION_NAME"` and `--build-number="$BUILD_NUMBER"` into `flutter build apk`, `flutter build appbundle`, and `flutter build linux`.
+  - Because `git rev-list --count HEAD` strictly increments on each commit (e.g. 263 -> 264 -> 265), Android's `versionCode` monotonically increases without manual intervention.
+  - APK artifacts are named with the build number (e.g. `quiet-paper-1.6.0-b264-arm64-v8a.apk`) for immediate traceability.
+
+#### Dynamic Runtime Version Resolution (`package_info_plus`)
+- Added `package_info_plus: ^9.0.1` as a direct dependency in [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml).
+- Implemented [`AppVersionInfo`](file:///home/dog/git/quitepaper/lib/core/version/app_version_provider.dart) model and Riverpod providers:
+  - `packageInfoProvider`: Defaults to safe fallback values (`version: '1.6.0'`, `buildNumber: '0'`) for unit and widget tests, avoiding the need for boilerplate overrides in tests.
+  - `appVersionInfoProvider`: Exposes parsed `version`, `buildNumber`, `displayVersion` (`"Version 1.6.0 (264)"`), and `fullVersion` (`"1.6.0+264"`).
+- In [`lib/main.dart`](file:///home/dog/git/quitepaper/lib/main.dart): Resolved `PackageInfo.fromPlatform()` at app startup and overrode `packageInfoProvider` in the root `ProviderScope`.
+- Migrated all in-app services to read dynamically:
+  - **[`SettingsScreen`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart)**: About section renders `${appVersionInfo.displayVersion}` (`Version 1.6.0 (264)`).
+  - **[`UpdateService`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart)**: Injects `versionInfo.version` for comparing with GitHub release tags.
+  - **[`BackupService`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart)**: Injects `versionInfo.fullVersion` into backup archive manifests.
+  - **[`DeviceInfoService`](file:///home/dog/git/quitepaper/lib/core/device/device_info_service.dart)**: Injects dynamic `versionInfo.version` for device registration.
+  - **[`LocationService`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart)**: Dynamically formats `User-Agent: QuitePaper/${version}` header.
+  - **[`QpNotePackageExporter`](file:///home/dog/git/quitepaper/lib/features/export/application/export_provider.dart)**: Uses dynamic version for package manifests and encrypted envelopes.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/version/app_version_provider.dart`: `AppVersionInfo` domain class, `packageInfoProvider`, and `appVersionInfoProvider`.
+  - `test/version/app_version_test.dart`: Unit tests for `AppVersionInfo`, formatting helpers, and Riverpod provider overrides.
+- **Updated Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Promoted `package_info_plus` to direct dependency.
+  - `lib/main.dart`: Platform package info resolution and provider override.
+  - `lib/features/settings/presentation/settings_screen.dart`: Dynamic version display in About section.
+  - `lib/core/update/update_provider.dart`: Dynamic `currentVersion` injection.
+  - `lib/core/backup/backup_provider.dart`: Dynamic `appVersion` injection into `BackupService`.
+  - `lib/core/device/device_info_service.dart`: Dynamic `appVersion` injection into `DeviceInfoService`.
+  - `lib/core/location/location_service.dart`: Dynamic User-Agent header version formatting.
+  - `lib/features/export/application/export_provider.dart` & `exporters/qpnote_exporter.dart`: Dynamic version in `.qpnote` exports.
+  - `.github/workflows/build_apk.yml`, `.github/workflows/build_aab.yml`, `.github/workflows/release.yml`, `.github/workflows/build_linux.yml`: Added `fetch-depth: 0`, `BUILD_NUMBER=$(git rev-list --count HEAD)`, and `--build-name`/`--build-number` parameters.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test` across versioning, settings, update checks, backups, devices, and exports (**130/130 passing**).
+- Workflow validation: YAML syntax verified with Python YAML parser (**4/4 valid**).
+
+
 

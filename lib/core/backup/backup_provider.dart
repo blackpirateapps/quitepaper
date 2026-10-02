@@ -4,6 +4,7 @@ import '../../features/settings/application/settings_provider.dart';
 import '../attachments/attachment_provider.dart';
 import '../documents/document_provider.dart';
 import '../sync/sync_provider.dart';
+import '../version/app_version_provider.dart';
 import 'backup_models.dart';
 import 'backup_service.dart';
 
@@ -13,6 +14,7 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   final storage = ref.watch(attachmentLocalStorageProvider);
   final documentStorage = ref.watch(documentLocalStorageProvider);
+  final versionInfo = ref.watch(appVersionInfoProvider);
 
   return BackupService(
     database: db,
@@ -20,8 +22,7 @@ final backupServiceProvider = Provider<BackupService>((ref) {
     sharedPreferences: prefs,
     storage: storage,
     documentStorage: documentStorage,
-    appVersion: '1.6.0',
-
+    appVersion: versionInfo.fullVersion,
   );
 });
 
