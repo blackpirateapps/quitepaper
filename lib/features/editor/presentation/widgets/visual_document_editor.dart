@@ -78,6 +78,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
   String _lastActiveBlockId = '';
   Type? _lastActiveBlockType;
   bool _lastActiveBlockChecked = false;
+  bool _lastWasSingleBlock = true;
 
   /// True while we push document state into a block controller (updating its
   /// block or writing its selection). Programmatic controller notifications
@@ -163,7 +164,10 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     final isChecked = activeBlock is ChecklistItemBlock ? activeBlock.checked : false;
 
     // Targeted rebuild: skip full editor rebuild when actively typing inside the same block
-    final isTypingInsideSameBlock = blockCount == _lastBlockCount &&
+    final isSingleBlock = widget.controller.selection.isSingleBlock;
+    final isTypingInsideSameBlock = isSingleBlock &&
+        _lastWasSingleBlock &&
+        blockCount == _lastBlockCount &&
         _activeTable == null &&
         targetBlockId == _lastActiveBlockId &&
         activeType == _lastActiveBlockType &&
@@ -173,6 +177,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
     _lastActiveBlockId = targetBlockId;
     _lastActiveBlockType = activeType;
     _lastActiveBlockChecked = isChecked;
+    _lastWasSingleBlock = isSingleBlock;
 
     if (!isTypingInsideSameBlock && mounted) {
       setState(() {});
@@ -240,8 +245,7 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
           final fn = _blockFocusNodes[currentBlock.id];
           if (fn != null &&
               fn.hasFocus &&
-              ctrl.text == currentBlock.plainText &&
-              widget.controller.selection.base.blockId == currentBlock.id) {
+              ctrl.text == currentBlock.plainText) {
             widget.controller.updateSelectionFromBlock(currentBlock.id, ctrl.selection);
           }
         });
@@ -325,30 +329,84 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       // Preserve the full selection (not just the caret) so range selections
       // in the active block survive a resync instead of being collapsed.
       final sel = widget.controller.selection;
-      final baseOffset = sel.base.offset;
-      final extentOffset =
-          sel.extent.blockId == targetBlockId ? sel.extent.offset : baseOffset;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_activeTable != null) return;
-        final targetFn = _blockFocusNodes[targetBlockId];
-        if (targetFn != null && !targetFn.hasFocus) {
-          targetFn.requestFocus();
-        }
+      if (sel.isSingleBlock) {
+        final baseOffset = sel.base.offset;
+        final extentOffset =
+            sel.extent.blockId == targetBlockId ? sel.extent.offset : baseOffset;
         final targetCtrl = _blockControllers[targetBlockId];
         if (targetCtrl != null) {
           final len = targetCtrl.text.length;
-          _isProgrammaticSelectionUpdate = true;
-          targetCtrl.selection = TextSelection(
-            baseOffset: baseOffset.clamp(0, len),
-            extentOffset: extentOffset.clamp(0, len),
-          );
-          _isProgrammaticSelectionUpdate = false;
+          final clampedBase = baseOffset.clamp(0, len);
+          final clampedExtent = extentOffset.clamp(0, len);
+          if (targetCtrl.selection.baseOffset != clampedBase ||
+              targetCtrl.selection.extentOffset != clampedExtent) {
+            _isProgrammaticSelectionUpdate = true;
+            targetCtrl.selection = TextSelection(
+              baseOffset: clampedBase,
+              extentOffset: clampedExtent,
+            );
+            _isProgrammaticSelectionUpdate = false;
+          }
         }
-        if (targetCtrl != null && targetFn != null) {
-          widget.onActiveTargetChanged?.call(targetCtrl, targetFn);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_activeTable != null) return;
+          final targetFn = _blockFocusNodes[targetBlockId];
+          if (targetFn != null && !targetFn.hasFocus) {
+            targetFn.requestFocus();
+          }
+          final targetCtrl = _blockControllers[targetBlockId];
+          if (targetCtrl != null && targetFn != null) {
+            widget.onActiveTargetChanged?.call(targetCtrl, targetFn);
+          }
+        });
+      } else {
+        // Multi-block selection: project slices across affected block controllers
+        final startPos = sel.start;
+        final endPos = sel.end;
+        final startIndex = doc.findBlockIndexById(startPos.blockId);
+        final endIndex = doc.findBlockIndexById(endPos.blockId);
+        if (startIndex != -1 && endIndex != -1) {
+          final lo = startIndex < endIndex ? startIndex : endIndex;
+          final hi = startIndex < endIndex ? endIndex : startIndex;
+          final isForward = startIndex <= endIndex;
+          for (var i = lo; i <= hi; i++) {
+            final b = doc.blocks[i];
+            final c = _blockControllers[b.id];
+            if (c == null) continue;
+            final len = c.text.length;
+            final int bStart;
+            final int bEnd;
+            if (lo == hi) {
+              bStart = (isForward ? startPos.offset : endPos.offset).clamp(0, len);
+              bEnd = (isForward ? endPos.offset : startPos.offset).clamp(0, len);
+            } else if (i == lo) {
+              bStart = (isForward ? startPos.offset : endPos.offset).clamp(0, len);
+              bEnd = len;
+            } else if (i == hi) {
+              bStart = 0;
+              bEnd = (isForward ? endPos.offset : startPos.offset).clamp(0, len);
+            } else {
+              bStart = 0;
+              bEnd = len;
+            }
+            if (c.selection.baseOffset != bStart || c.selection.extentOffset != bEnd) {
+              _isProgrammaticSelectionUpdate = true;
+              c.selection = TextSelection(baseOffset: bStart, extentOffset: bEnd);
+              _isProgrammaticSelectionUpdate = false;
+            }
+          }
         }
-      });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_activeTable != null) return;
+          final targetFn = _blockFocusNodes[targetBlockId];
+          final targetCtrl = _blockControllers[targetBlockId];
+          if (targetCtrl != null && targetFn != null) {
+            widget.onActiveTargetChanged?.call(targetCtrl, targetFn);
+          }
+        });
+      }
     }
 
     // Clean up unmounted block controllers safely after frame
@@ -390,9 +448,18 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
       final ctrl = _blockControllers[blockId];
       if (ctrl != null) {
         widget.onActiveTargetChanged?.call(ctrl, node);
-        widget.controller.selection = DocumentSelection.collapsed(
-          DocumentPosition(blockId: blockId, offset: ctrl.selection.baseOffset.clamp(0, ctrl.text.length)),
-        );
+        if (ctrl.selection.isValid) {
+          widget.controller.selection = DocumentSelection(
+            base: DocumentPosition(
+              blockId: blockId,
+              offset: ctrl.selection.baseOffset.clamp(0, ctrl.text.length),
+            ),
+            extent: DocumentPosition(
+              blockId: blockId,
+              offset: ctrl.selection.extentOffset.clamp(0, ctrl.text.length),
+            ),
+          );
+        }
       }
     }
   }
@@ -1154,6 +1221,9 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
               ),
+              onTap: () {
+                widget.onActiveTargetChanged?.call(ctrl, fn);
+              },
               onChanged: (newCode) {
                 // Route through the controller so the CURRENT code range is
                 // resolved from the live document. Using the captured
@@ -1285,6 +1355,14 @@ class _VisualDocumentEditorState extends State<VisualDocumentEditor> {
         },
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => _promptLink(context, blockId),
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () => _promptLink(context, blockId),
+        const SingleActivator(LogicalKeyboardKey.keyA, control: true): () {
+          controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
+        },
+        const SingleActivator(LogicalKeyboardKey.keyA, meta: true): () {
+          controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+          widget.controller.updateSelectionFromBlock(blockId, controller.selection);
+        },
       },
       child: TextField(
         key: _blockKeys.putIfAbsent(blockId, () => GlobalKey(debugLabel: 'block_field_$blockId')),
@@ -1571,7 +1649,10 @@ class _RichBlockEditingController extends TextEditingController {
       final oldSelection = selection;
       value = TextEditingValue(
         text: newBlock.plainText,
-        selection: TextSelection.collapsed(offset: oldSelection.baseOffset.clamp(0, newBlock.plainText.length)),
+        selection: TextSelection(
+          baseOffset: oldSelection.baseOffset.clamp(0, newBlock.plainText.length),
+          extentOffset: oldSelection.extentOffset.clamp(0, newBlock.plainText.length),
+        ),
       );
     } else if (stylesChanged || searchChanged || blockChanged) {
       notifyListeners();

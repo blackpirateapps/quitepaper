@@ -7857,7 +7857,57 @@ Prior to this enhancement, application version codes and build numbers were manu
 ### 4. Verification & Quality
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Automated tests: `flutter test` across versioning, settings, update checks, backups, devices, and exports (**130/130 passing**).
-- Workflow validation: YAML syntax verified with Python YAML parser (**4/4 valid**).
+---
 
+## 134. WYSIWYG Editor Text Selection Stability & Focus Synchronization Fixes
 
+### 1. Overview & Problem Statement
+In WYSIWYG edit mode ([`VisualDocumentEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/visual_document_editor.dart)), text selection exhibited severe instability across several common interaction patterns:
+1. **Unfocused block word selection**: Double-clicking or double-tapping a word in an unfocused block caused the selection to instantly collapse or snap to offset 0 instead of selecting the word.
+2. **Active drag selection stomping**: Dragging to select text in a block was frequently interrupted or reverted to stale offsets by post-frame synchronization callbacks scheduled during gesture processing.
+3. **Toolbar format desynchronization**: Selecting text in an unfocused block and clicking toolbar buttons (Bold, Italic, Strikethrough) failed or applied formatting to the previously active block instead of the freshly selected text.
+4. **Select all (`Ctrl+A`/`Cmd+A`)**: Block-level select all was missing or uncoordinated with `SemanticEditorController`.
+5. **Multi-block selection projection**: Selections spanning across multiple blocks did not project slice ranges onto the individual block controllers, and rebuild optimization falsely treated multi-block transitions as intra-block typing.
 
+### 2. Root Cause Analysis & Technical Solutions
+
+#### A. Unfocused Block Selection Collapse & Stale Block ID Check
+- **Cause**: In `_RichBlockEditingController.addListener`, the check `widget.controller.selection.base.blockId == currentBlock.id` compared against a stale block ID when focus was changing blocks, discarding incoming selection updates. Furthermore, in `_handleBlockFocus`, uninitialized or `-1` selections during focus acquisition forced `DocumentSelection.collapsed(...)` at offset 0, wiping out the selection range created by tap/double-tap gestures.
+- **Fix**:
+  - Removed the stale block ID comparison in the controller listener; the listener now reads the live `ctrl.block.id` and verifies focus before propagating to `widget.controller.updateSelectionFromBlock`.
+  - In `_handleBlockFocus`, added `if (ctrl.selection.isValid)` and preserved both `baseOffset` and `extentOffset` clamped to text length instead of forcing a collapsed offset.
+  - In `_RichBlockEditingController.updateBlock`, preserved existing `baseOffset` and `extentOffset` rather than forcing `selection: TextSelection.collapsed(...)`.
+
+#### B. Gesture Drag Stomping & Synchronous Selection Sync
+- **Cause**: `_syncBlockControllers` unconditionally wrote `targetCtrl.selection = ...` inside `WidgetsBinding.instance.addPostFrameCallback`, overwriting intermediate drag selections in progress.
+- **Fix**:
+  - Added an equality check: `targetCtrl.selection.baseOffset != clampedBase || targetCtrl.selection.extentOffset != clampedExtent`. If the controller's selection already matches, no write occurs.
+  - Shifted selection updating to run synchronously inside `_syncBlockControllers`, reserving the post-frame callback strictly for focus tree attachment and `onActiveTargetChanged` notifications.
+
+#### C. Formatting Toolbar Target Synchronization
+- **Cause**: Switching focus via selecting or tapping an unfocused block did not always notify `onActiveTargetChanged` before toolbar buttons were tapped.
+- **Fix**:
+  - Code block `TextField` and paragraph/heading text fields explicitly invoke `widget.onActiveTargetChanged?.call(controller, focusNode)` on tap and focus transition.
+  - Formatting actions (e.g. `toggleBold()`) reliably operate on the active target and its synchronized `DocumentSelection`.
+
+#### D. Block-Level Keyboard Shortcuts (`Ctrl+A` / `Cmd+A`)
+- **Fix**:
+  - Added `CallbackShortcuts` bindings in `_buildBlockTextField` for `LogicalKeyboardKey.keyA` with `control: true` and `meta: true`.
+  - When pressed, the controller selects `TextSelection(baseOffset: 0, extentOffset: controller.text.length)` and synchronizes with `widget.controller.updateSelectionFromBlock`.
+
+#### E. Multi-Block Selection Projection & Targeted Rebuild
+- **Cause**: Multi-block selections (`!sel.isSingleBlock`) did not slice ranges across the document blocks, and `_onControllerChanged` falsely assumed any change within the same active block was `isTypingInsideSameBlock`, suppressing `setState()` and stranding post-frame callbacks.
+- **Fix**:
+  - Multi-block selections in `_syncBlockControllers` compute start/end blocks, project the appropriate range slices across all blocks in the selection span synchronously, and update controllers.
+  - Tracked `_lastWasSingleBlock` in `_VisualDocumentEditorState` and updated `isTypingInsideSameBlock` in `_onControllerChanged` to require `isSingleBlock && _lastWasSingleBlock`, ensuring full editor rebuilds occur whenever entering or exiting multi-block selections.
+
+### 3. File Inventory
+- **Modified**:
+  - [`lib/features/editor/presentation/widgets/visual_document_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/visual_document_editor.dart): Selection synchronization, focus handling, `Ctrl+A`/`Cmd+A` shortcuts, and multi-block projection.
+- **New**:
+  - [`test/editor/visual_document_editor_selection_bugs_test.dart`](file:///home/dog/git/quitepaper/test/editor/visual_document_editor_selection_bugs_test.dart): Automated widget tests covering word selection preservation, drag stability, toolbar bold application across blocks, `Ctrl+A` block selection, and multi-block range projection.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test test/editor/` (**455/455 passing**).
+- Full repository test suite: `flutter test` (**1574/1574 passing**).
