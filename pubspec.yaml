@@ -70,6 +70,7 @@ dependencies:
   whisper_ggml: ^2.6.0
   record: ^7.1.1
   desktop_drop: ^0.8.4
+  pasteboard: ^0.5.0
   geolocator: ^14.0.2
   geocoding: ^5.0.0
 

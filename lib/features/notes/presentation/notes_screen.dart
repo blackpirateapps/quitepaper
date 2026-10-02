@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
@@ -5,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/cli/cli_args_provider.dart';
+import '../../../core/documents/document_provider.dart';
 import '../../import/application/markdown_frontmatter_parser.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
@@ -90,6 +93,162 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       if (await file.exists()) {
         await _importDroppedMarkdownFile(file, isTablet);
       }
+    }
+  }
+
+  Future<void> _handleDroppedFileToNewNote(DropDoneDetails detail, {required bool isTabletLayout}) async {
+    final resolvedPaths = <String>{};
+
+    for (final file in detail.files) {
+      if (file.path.isNotEmpty) {
+        resolvedPaths.add(file.path);
+      }
+    }
+
+    final rawText = detail.rawText;
+    if (rawText != null && rawText.trim().isNotEmpty) {
+      final lines = const LineSplitter().convert(rawText);
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+        if (trimmed.startsWith('file://')) {
+          try {
+            final uri = Uri.parse(trimmed);
+            resolvedPaths.add(uri.toFilePath());
+          } catch (_) {}
+        } else if (trimmed.startsWith('/')) {
+          resolvedPaths.add(trimmed);
+        }
+      }
+    }
+
+    for (final path in resolvedPaths) {
+      final file = File(path);
+      if (!await file.exists()) continue;
+      await _importDroppedFile(file, isTabletLayout);
+      break; // Import the first valid dropped file
+    }
+  }
+
+  Future<void> _importDroppedFile(File file, bool isTabletLayout) async {
+    final path = file.path;
+    final ext = p.extension(path).toLowerCase();
+    final filename = p.basenameWithoutExtension(path);
+    const uuid = Uuid();
+    final now = DateTime.now();
+
+    if (ext == '.md' || ext == '.markdown' || ext == '.txt') {
+      await _importDroppedMarkdownFile(file, isTabletLayout);
+      return;
+    }
+
+    try {
+      if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
+        final attachmentService = ref.read(attachmentServiceProvider);
+        final noteId = uuid.v4();
+        final importRes = await attachmentService.importImageFromFile(
+          file,
+          noteId: noteId,
+          preferredAltText: filename,
+        );
+        final note = Note(
+          id: noteId,
+          title: filename,
+          content: '${importRes.markdownSnippet}\n',
+          tags: const [],
+          createdAt: now,
+          updatedAt: now,
+        );
+        await ref.read(notesRepositoryProvider).saveNote(note);
+        ref.read(notesCollectionProvider.notifier).refresh();
+
+        if (isTabletLayout) {
+          setState(() {
+            _selectedNoteIdForTablet = note.id;
+            _shouldAutoFocusTablet = false;
+          });
+        } else if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EditorScreen(
+                note: note,
+                initialPreviewMode: false,
+              ),
+            ),
+          );
+        }
+      } else if (ext == '.pdf') {
+        final docService = ref.read(documentServiceProvider);
+        final noteId = uuid.v4();
+        final res = await docService.importPdfFile(
+          file: file,
+          noteId: noteId,
+          title: filename,
+        );
+        final note = Note(
+          id: noteId,
+          title: filename,
+          content: '${res.markdownSnippet}\n',
+          tags: const [],
+          createdAt: now,
+          updatedAt: now,
+        );
+        await ref.read(notesRepositoryProvider).saveNote(note);
+        ref.read(notesCollectionProvider.notifier).refresh();
+
+        if (isTabletLayout) {
+          setState(() {
+            _selectedNoteIdForTablet = note.id;
+            _shouldAutoFocusTablet = false;
+          });
+        } else if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EditorScreen(
+                note: note,
+                initialPreviewMode: false,
+              ),
+            ),
+          );
+        }
+      } else {
+        final bytes = await file.readAsBytes();
+        final attachmentService = ref.read(attachmentServiceProvider);
+        final noteId = uuid.v4();
+        final res = await attachmentService.importGenericFileFromBytes(
+          bytes,
+          fileName: p.basename(path),
+          noteId: noteId,
+        );
+        final note = Note(
+          id: noteId,
+          title: filename,
+          content: '${res.markdownSnippet}\n',
+          tags: const [],
+          createdAt: now,
+          updatedAt: now,
+        );
+        await ref.read(notesRepositoryProvider).saveNote(note);
+        ref.read(notesCollectionProvider.notifier).refresh();
+
+        if (isTabletLayout) {
+          setState(() {
+            _selectedNoteIdForTablet = note.id;
+            _shouldAutoFocusTablet = false;
+          });
+        } else if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EditorScreen(
+                note: note,
+                initialPreviewMode: false,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[QuietPaper] Error importing dropped file: $e');
     }
   }
 
@@ -278,23 +437,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     });
 
-    final child = isTabletLayout
+    return isTabletLayout
         ? _buildTabletLayout(context, colors)
-        : _buildPhoneLayout(context, colors);
-
-    return DropTarget(
-      onDragDone: (detail) async {
-        for (final file in detail.files) {
-          final path = file.path;
-          final lower = path.toLowerCase();
-          if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.txt')) {
-            await _importDroppedMarkdownFile(File(path), isTabletLayout);
-            break;
-          }
-        }
-      },
-      child: child,
-    );
+        : DropTarget(
+            onDragDone: (detail) =>
+                _handleDroppedFileToNewNote(detail, isTabletLayout: false),
+            child: _buildPhoneLayout(context, colors),
+          );
   }
 
   Widget _buildPhoneLayout(BuildContext context, AppColors colors) {
@@ -949,8 +1098,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       body: SafeArea(
         child: Row(
           children: [
-            // 1. Left Navigation Sidebar (280dp, collapsible)
-            AnimatedContainer(
+            // 1 & 2: Navigation Sidebar & Notes List Drop Target
+            DropTarget(
+              onDragDone: (detail) =>
+                  _handleDroppedFileToNewNote(detail, isTabletLayout: true),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Left Navigation Sidebar (280dp, collapsible)
+                  AnimatedContainer(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeInOutCubic,
               width: isNavSidebarVisible ? 280.0 : 0.0,
@@ -1334,6 +1490,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 ),
               ),
             ),
+                ],
+              ),
+            ),
 
             // 3. Right Detail Editor Pane
             Expanded(
@@ -1360,50 +1519,56 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       ),
                     )
 
-                  : Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              PhosphorIconsRegular.notePencil,
-                              size: 48,
-                              color: colors.textTertiary.withValues(alpha: 0.35),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              'No note selected',
-                              style: AppTypography.title.copyWith(
-                                color: colors.textSecondary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
+                  : DropTarget(
+                      onDragDone: (detail) => _handleDroppedFileToNewNote(
+                        detail,
+                        isTabletLayout: true,
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                PhosphorIconsRegular.notePencil,
+                                size: 48,
+                                color: colors.textTertiary.withValues(alpha: 0.35),
                               ),
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              'Select a note to view or create a new one.',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: colors.textTertiary,
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                'No note selected',
+                                style: AppTypography.title.copyWith(
+                                  color: colors.textSecondary,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            if (!isNoteListVisible || !isNavSidebarVisible) ...[
-                              const SizedBox(height: AppSpacing.lg),
-                              QuietButton(
-                                label: 'Show note list',
-                                icon: PhosphorIconsRegular.sidebarSimple,
-                                variant: QuietButtonVariant.secondary,
-                                onPressed: () {
-                                  ref
-                                      .read(isNoteListVisibleProvider.notifier)
-                                      .state = true;
-                                  ref
-                                      .read(isNavSidebarVisibleProvider.notifier)
-                                      .state = true;
-                                },
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                'Select a note to view or create a new one.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textTertiary,
+                                ),
                               ),
+                              if (!isNoteListVisible || !isNavSidebarVisible) ...[
+                                const SizedBox(height: AppSpacing.lg),
+                                QuietButton(
+                                  label: 'Show note list',
+                                  icon: PhosphorIconsRegular.sidebarSimple,
+                                  variant: QuietButtonVariant.secondary,
+                                  onPressed: () {
+                                    ref
+                                        .read(isNoteListVisibleProvider.notifier)
+                                        .state = true;
+                                    ref
+                                        .read(isNavSidebarVisibleProvider.notifier)
+                                        .state = true;
+                                  },
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -1752,7 +1917,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
-            repository.restoreFromTrash(note.id);
+            // Undo restores the note to its pre-trash state, including its
+            // original modification date, so trashing + undo is a no-op.
+            repository.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt);
             ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),

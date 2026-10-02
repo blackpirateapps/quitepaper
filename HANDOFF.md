@@ -7733,3 +7733,58 @@ Additionally, every build cut since the `1.5.8+16` release (2026-09-10) — incl
 ### 4. Verification & Quality
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Automated tests: `flutter test` (crypto, attachment, import, and editor suites pass; new large-payload isolate round-trip test passes).
+
+---
+
+## 131. Linux Desktop File Copy-Paste & Robust Drag-and-Drop for Notes
+
+### 1. Overview & Motivation
+On the Linux client (as well as macOS and Windows), users could not paste files or screenshot images into notes, nor could they drag-and-drop files from desktop file managers (such as GNOME Files/Nautilus, KDE Dolphin, or Thunar) into active notes.
+- **Copy-Paste Limitation**: Flutter's native `Clipboard.getData(Clipboard.kTextPlain)` is strictly limited to text. When copying images from screenshot utilities or copying files in file managers, standard clipboard access discarded the file list and image bytes entirely.
+- **Drag-and-Drop Gaps**: In Linux GTK environments, drops often transmit payload data as RFC 2483 `text/uri-list` or raw path strings while `details.files` is empty. Furthermore, there was no visual feedback when dragging over the editor, and in tablet split-view mode, dropping a file collided across the outer note list and the active editor pane.
+
+### 2. Architectural & UX Enhancements
+
+#### Native Linux Clipboard Integration via `pasteboard: ^0.5.0`
+- Integrated `pasteboard: ^0.5.0`, providing direct GTK clipboard access on Linux without requiring a Rust compiler or external toolchains.
+- In [`MarkdownEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+  - Added `final VoidCallback? onPaste;` callback property.
+  - Intercepted `Ctrl+V` (Linux/Windows) and `Cmd+V` (macOS) in `CallbackShortcuts`.
+  - Mapped `ContextMenuButtonType.paste` in `_buildContextMenu` to invoke `widget.onPaste`.
+- In [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Added `_handlePaste()`:
+    1. Checks `Pasteboard.files()` for native file paths copied from file managers.
+    2. Checks `Pasteboard.image` for raw copied PNG/JPEG bitmap bytes (e.g. from browser "Copy Image" or screenshot utilities).
+    3. Analyzes clipboard text for RFC 2483 `file://` URIs and absolute file paths (`/home/...`) to resolve dragged/copied files.
+    4. Automatically encrypts attachments using background isolates via `_withImportOverlay`, generates markdown links (`![image](attachment:...)` or `[document](document:...)`), and inserts them at the caret position.
+    5. Seamlessly falls back to standard plain text pasting when no files or images are detected.
+
+#### Interactive Drag-and-Drop (`desktop_drop`) & Visual Target Overlay
+- In [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Wrapped root in `DropTarget` with `_isDraggingOver` hover tracking (`onDragEntered`, `onDragExited`, `onDragDone`).
+  - Added `_buildDropZoneOverlay(colors)` displaying a semi-transparent theme-aware overlay with accent border, upload icon, and clear instructions ("Drop files to attach to note").
+  - Implemented `_handleDroppedFiles`:
+    - Handles both `details.files` (XFile list) and rawText fallback (`text/uri-list`, percent-encoded URIs, absolute paths).
+    - For Markdown/text files (`.md`, `.markdown`, `.txt`), automatically appends the text contents into the note.
+    - For images, PDFs, and generic files, offloads encryption, registers attachments/documents in the database, and inserts markdown embeds.
+    - Automatically exits preview mode (if active) so the user sees the newly inserted content immediately.
+
+#### Scoped Drop Targets on Tablet Split-View (`NotesScreen`)
+- In [`NotesScreen`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart):
+  - Separated drop zones in `_buildTabletLayout`: scoped `DropTarget` to wrap Panes 1 & 2 (navigation sidebar + note list) separately from Pane 3 (`EditorScreen`). This prevents drag events inside an active note from triggering the notes list.
+  - Dropping files onto Panes 1 & 2 (or onto the empty detail pane when no note is open) automatically creates a new note titled after the file, encrypts the attachment, and opens the new note in the editor.
+
+### 3. File Inventory
+- **Updated Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Added `pasteboard: ^0.5.0`.
+  - `lib/features/editor/presentation/widgets/markdown_editor.dart`: Added `onPaste` callback, `Ctrl+V` shortcut binding, and context menu paste routing.
+  - `lib/features/editor/presentation/editor_screen.dart`: Added `_isDraggingOver`, `_buildDropZoneOverlay`, `_handlePaste`, `_handleDroppedFiles` with rawText fallback, and cursor insertion helpers.
+  - `lib/features/notes/presentation/notes_screen.dart`: Scoped tablet drop targets and implemented dropped-file note creation.
+- **New & Updated Tests**:
+  - `test/editor/markdown_keyboard_shortcuts_test.dart`: Added `Ctrl+V` shortcut verification for `onPaste` callback invocation.
+  - `test/editor/desktop_file_drop_and_paste_test.dart`: Added widget tests for root `DropTarget`, visual drag hover overlay presentation/dismissal, and RFC 2483 URI list path parsing.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test` (**all 1563+ tests passing**).
+

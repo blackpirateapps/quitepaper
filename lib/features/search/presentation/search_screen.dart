@@ -365,7 +365,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             persist: false,
             action: SnackBarAction(
               label: 'Undo',
-              onPressed: () => repo.restoreFromTrash(note.id),
+              onPressed: () =>
+                  repo.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt),
             ),
             duration: const Duration(seconds: 4),
           ),
@@ -383,7 +384,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             persist: false,
             action: SnackBarAction(
               label: 'Undo',
-              onPressed: () => repo.restoreFromTrash(note.id),
+              onPressed: () =>
+                  repo.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt),
             ),
             duration: const Duration(seconds: 4),
           ),

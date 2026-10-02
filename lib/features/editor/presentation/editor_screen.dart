@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -133,6 +135,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   SemanticEditorController? _semanticEditorController;
+  bool _isDraggingOver = false;
 
   @override
   void initState() {
@@ -311,6 +314,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     if (_tagAutocompleteController?.isOpen == true) {
       return _tagAutocompleteController!.handleKeyEvent(event);
+    }
+    if (event is KeyDownEvent &&
+        (HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed) &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyV) {
+      _handlePaste();
+      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
@@ -1542,6 +1554,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyL, meta: true, shift: true): _handleNoteLinkPrompt,
         const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): _triggerTagInsertion,
         const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): _triggerTagInsertion,
+        const SingleActivator(LogicalKeyboardKey.keyV, control: true): _handlePaste,
+        const SingleActivator(LogicalKeyboardKey.keyV, meta: true): _handlePaste,
       },
       child: PopScope(
         canPop: true,
@@ -1552,8 +1566,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           }
         },
         child: DropTarget(
-          onDragDone: (detail) => _handleDroppedFiles(detail.files),
-          child: Scaffold(
+          onDragEntered: (_) {
+            if (!_isDraggingOver) {
+              setState(() => _isDraggingOver = true);
+            }
+          },
+          onDragExited: (_) {
+            if (_isDraggingOver) {
+              setState(() => _isDraggingOver = false);
+            }
+          },
+          onDragDone: (detail) {
+            if (_isDraggingOver) {
+              setState(() => _isDraggingOver = false);
+            }
+            _handleDroppedFiles(detail);
+          },
+          child: Stack(
+            children: [
+              Scaffold(
           backgroundColor: colors.background,
           appBar: AppBar(
             backgroundColor: colors.background,
@@ -1883,6 +1914,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       _semanticEditorController = ctrl;
                                     },
                                     onKeyEvent: _handleEditorKeyEvent,
+                                    onPaste: _handlePaste,
                                   ),
 
                                   // Generous bottom scroll area for comfortable typing above keyboard
@@ -1914,9 +1946,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
         ),
       ),
-    ),
+      if (_isDraggingOver) _buildDropZoneOverlay(colors),
+    ],
   ),
-  );
+),
+),
+);
 }
 
   Widget _buildToolbarOrSpeechBar({required bool isTopDocked}) {
@@ -2483,12 +2518,244 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
-  Future<void> _handleDroppedFiles(List<DropItem> items) async {
+  Widget _buildDropZoneOverlay(AppColors colors) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          color: colors.background.withValues(alpha: 0.88),
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.accent,
+                width: 2.5,
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: colors.accent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.file_upload_outlined,
+                      size: 40,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Drop files to attach to note',
+                    style: AppTypography.title.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Images, PDFs, and documents will be encrypted and embedded',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handlePaste() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isReadOnly || !editorState.isUnlocked) return;
 
-    for (final item in items) {
-      final path = item.path;
+    List<String> files = [];
+    try {
+      files = await Pasteboard.files();
+    } catch (_) {}
+
+    Uint8List? imageBytes;
+    if (files.isEmpty) {
+      try {
+        imageBytes = await Pasteboard.image;
+      } catch (_) {}
+    }
+
+    String? plainText;
+    if (files.isEmpty && imageBytes == null) {
+      final clip = await Clipboard.getData(Clipboard.kTextPlain);
+      plainText = clip?.text;
+      if (plainText != null && plainText.trim().isNotEmpty) {
+        final lines = const LineSplitter().convert(plainText);
+        final potentialPaths = <String>[];
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.isEmpty) continue;
+          if (trimmed.startsWith('file://')) {
+            try {
+              potentialPaths.add(Uri.parse(trimmed).toFilePath());
+            } catch (_) {}
+          } else if (trimmed.startsWith('/') && File(trimmed).existsSync()) {
+            potentialPaths.add(trimmed);
+          }
+        }
+        if (potentialPaths.isNotEmpty &&
+            potentialPaths.every((p) => File(p).existsSync())) {
+          files = potentialPaths;
+        }
+      }
+    }
+
+    // 1. Process files from clipboard
+    if (files.isNotEmpty) {
+      for (final path in files) {
+        final file = File(path);
+        if (!await file.exists()) continue;
+
+        final ext = p.extension(path).toLowerCase();
+        final name = p.basename(path);
+        final nameWithoutExt = p.basenameWithoutExtension(path);
+
+        if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
+          try {
+            final attachmentService = ref.read(attachmentServiceProvider);
+            final res = await _withImportOverlay(
+              title: 'Pasting image',
+              message: 'Encrypting & saving…',
+              task: () => attachmentService.importImageFromFile(
+                file,
+                noteId: widget.note.id,
+                preferredAltText: name,
+              ),
+            );
+            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to paste image: $e')),
+              );
+            }
+          }
+        } else if (ext == '.pdf') {
+          try {
+            final docService = ref.read(documentServiceProvider);
+            final res = await _withImportOverlay(
+              title: 'Pasting PDF',
+              message: 'Encrypting & saving…',
+              task: () => docService.importPdfFile(
+                file: file,
+                noteId: widget.note.id,
+                title: nameWithoutExt,
+              ),
+            );
+            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to paste PDF: $e')),
+              );
+            }
+          }
+        } else {
+          try {
+            final bytes = await file.readAsBytes();
+            final attachmentService = ref.read(attachmentServiceProvider);
+            final res = await _withImportOverlay(
+              title: 'Pasting file',
+              message: 'Encrypting & saving…',
+              task: () => attachmentService.importGenericFileFromBytes(
+                bytes,
+                fileName: name,
+                noteId: widget.note.id,
+              ),
+            );
+            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to paste file: $e')),
+              );
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    // 2. Process raw image bytes from clipboard
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      try {
+        final attachmentService = ref.read(attachmentServiceProvider);
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final res = await _withImportOverlay(
+          title: 'Pasting image',
+          message: 'Encrypting & saving…',
+          task: () => attachmentService.importImageFromBytes(
+            imageBytes!,
+            mimeType: 'image/png',
+            fileName: 'pasted_image_$timestamp.png',
+            noteId: widget.note.id,
+            preferredAltText: 'Pasted Image',
+          ),
+        );
+        _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to paste image: $e')),
+          );
+        }
+      }
+      return;
+    }
+
+    // 3. Fallback: regular text paste
+    if (plainText != null && plainText.isNotEmpty) {
+      _insertSnippetAtCursor(plainText);
+    }
+  }
+
+  Future<void> _handleDroppedFiles(DropDoneDetails details) async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly || !editorState.isUnlocked) return;
+
+    final resolvedPaths = <String>{};
+
+    for (final item in details.files) {
+      if (item.path.isNotEmpty) {
+        resolvedPaths.add(item.path);
+      }
+    }
+
+    final rawText = details.rawText;
+    if (rawText != null && rawText.trim().isNotEmpty) {
+      final lines = const LineSplitter().convert(rawText);
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+        if (trimmed.startsWith('file://')) {
+          try {
+            final uri = Uri.parse(trimmed);
+            resolvedPaths.add(uri.toFilePath());
+          } catch (_) {}
+        } else if (trimmed.startsWith('/')) {
+          resolvedPaths.add(trimmed);
+        }
+      }
+    }
+
+    if (resolvedPaths.isEmpty) return;
+
+    for (final path in resolvedPaths) {
       final file = File(path);
       if (!await file.exists()) continue;
 
@@ -2536,6 +2803,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             );
           }
         }
+      } else if (['.md', '.markdown', '.txt'].contains(ext)) {
+        try {
+          final content = await file.readAsString();
+          _insertSnippetAtCursor('\n$content\n');
+        } catch (_) {
+          final bytes = await file.readAsBytes();
+          final attachmentService = ref.read(attachmentServiceProvider);
+          final res = await _withImportOverlay(
+            title: 'Adding file',
+            message: 'Encrypting & saving…',
+            task: () => attachmentService.importGenericFileFromBytes(
+              bytes,
+              fileName: name,
+              noteId: widget.note.id,
+            ),
+          );
+          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+        }
       } else {
         try {
           final bytes = await file.readAsBytes();
@@ -2562,28 +2847,66 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _insertSnippetAtCursor(String snippet) {
-    final val = _contentController.value;
-    final text = val.text;
-    final sel = val.selection;
-    final start = sel.isValid ? sel.start : text.length;
-    final end = sel.isValid ? sel.end : text.length;
-
-    final newText = text.replaceRange(start, end, snippet);
-    final newCursor = start + snippet.length;
-
-    final updated = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursor),
-    );
-
-    _contentController.value = updated;
-    _undoRedoManager.pushAtomicEdit(updated);
-
-    if (!_contentFocusNode.hasFocus) {
-      _contentFocusNode.requestFocus();
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isPreviewMode) {
+      ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
     }
 
-    _onContentChanged();
+    if (_isWysiwyg && _semanticEditorController != null) {
+      var block = _semanticEditorController!.activeBlock;
+      if (block == null) {
+        for (final b in _semanticEditorController!.document.blocks) {
+          if (b.isEditable) {
+            block = b;
+            break;
+          }
+        }
+      }
+      final md = _semanticEditorController!.markdown;
+      int insertOffset = md.length;
+      if (block != null) {
+        final sel = _semanticEditorController!.selection;
+        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
+        insertOffset = range.end.clamp(0, md.length);
+      }
+      final newMarkdown = md.replaceRange(insertOffset, insertOffset, snippet);
+      _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, insertOffset + snippet.length);
+      _contentController.value = TextEditingValue(
+        text: newMarkdown,
+        selection: TextSelection.collapsed(offset: insertOffset + snippet.length),
+      );
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+    } else {
+      final targetCtrl = _activeTargetController ?? _contentController;
+      final val = targetCtrl.value;
+      final text = val.text;
+      final sel = val.selection;
+      final start = sel.isValid ? sel.start : text.length;
+      final end = sel.isValid ? sel.end : text.length;
+
+      final newText = text.replaceRange(start, end, snippet);
+      final newCursor = start + snippet.length;
+
+      final updated = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+
+      targetCtrl.value = updated;
+      _undoRedoManager.pushAtomicEdit(updated);
+
+      final targetNode = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!targetNode.hasFocus) {
+        targetNode.requestFocus();
+      }
+
+      _onContentChanged();
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _insertExtractedOcrText(String extractedText) {

@@ -62,4 +62,33 @@ void main() {
 
     expect(controller.text, equals('Hello *world*'));
   });
+
+  testWidgets('Ctrl+V shortcut triggers onPaste callback', (tester) async {
+    final controller = MarkdownEditingController(text: 'Hello');
+    final focusNode = FocusNode();
+    var pasteInvoked = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MarkdownEditor(
+          controller: controller,
+          focusNode: focusNode,
+          onPaste: () {
+            pasteInvoked = true;
+          },
+        ),
+      ),
+    ));
+
+    focusNode.requestFocus();
+    await tester.pump();
+
+    // Send Ctrl+V
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(pasteInvoked, isTrue);
+  });
 }

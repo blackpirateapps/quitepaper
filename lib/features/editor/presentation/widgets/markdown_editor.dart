@@ -43,6 +43,7 @@ class MarkdownEditor extends StatefulWidget {
     this.onNoteLinkPrompt,
     this.onSemanticControllerChanged,
     this.onKeyEvent,
+    this.onPaste,
   });
 
   final MarkdownEditingController controller;
@@ -59,6 +60,7 @@ class MarkdownEditor extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final VoidCallback? onNoteLinkPrompt;
   final FocusOnKeyEventCallback? onKeyEvent;
+  final VoidCallback? onPaste;
 
   /// Called when the [SemanticEditorController] is created or disposed.
   /// Allows the parent to wire semantic operations (e.g., heading cycling) to the toolbar.
@@ -462,6 +464,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             _promptLink(context),
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () =>
             _promptLink(context),
+        if (widget.onPaste != null) ...{
+          const SingleActivator(LogicalKeyboardKey.keyV, control: true): widget.onPaste!,
+          const SingleActivator(LogicalKeyboardKey.keyV, meta: true): widget.onPaste!,
+        },
       },
       child: CodeBlockOverlay(
         controller: widget.controller,
@@ -642,7 +648,20 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
-    final buttonItems = editableTextState.contextMenuButtonItems;
+    final rawButtonItems = editableTextState.contextMenuButtonItems;
+    final buttonItems = rawButtonItems.map((item) {
+      if (item.type == ContextMenuButtonType.paste && widget.onPaste != null) {
+        return ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          label: item.label,
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.onPaste!();
+          },
+        );
+      }
+      return item;
+    }).toList();
     final isSelectionActive = !editableTextState.textEditingValue.selection.isCollapsed;
     final val = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(val);

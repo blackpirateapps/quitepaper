@@ -1200,7 +1200,11 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Restore note from Trash: trashed = false, archived = false, deletedAt = null
-  Future<void> restoreFromTrash(String noteId) async {
+  ///
+  /// When [restoreUpdatedAt] is provided (e.g. undoing a trash action), the
+  /// note's modification date is reset to that value so the round-trip leaves
+  /// the modification date untouched. Otherwise it defaults to now.
+  Future<void> restoreFromTrash(String noteId, {DateTime? restoreUpdatedAt}) async {
     await transaction(() async {
       await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
         NotesTableCompanion(
@@ -1208,7 +1212,7 @@ class AppDatabase extends _$AppDatabase {
           isArchived: const Value(false),
           deletedAt: const Value(null),
           isDirty: const Value(true),
-          updatedAt: Value(DateTime.now()),
+          updatedAt: Value(restoreUpdatedAt ?? DateTime.now()),
         ),
       );
       await indexNoteForSearch(noteId);

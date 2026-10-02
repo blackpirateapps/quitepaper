@@ -28,7 +28,7 @@ abstract class NotesRepository {
   Future<void> archiveNote(String id);
   Future<void> unarchiveNote(String id);
   Future<void> trashNote(String id);
-  Future<void> restoreFromTrash(String id);
+  Future<void> restoreFromTrash(String id, {DateTime? restoreUpdatedAt});
   Future<void> deletePermanently(String id);
   Future<void> emptyTrash();
   Future<void> archiveNotes(List<String> ids);
@@ -294,8 +294,8 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<void> restoreFromTrash(String id) async {
-    await _db.restoreFromTrash(id);
+  Future<void> restoreFromTrash(String id, {DateTime? restoreUpdatedAt}) async {
+    await _db.restoreFromTrash(id, restoreUpdatedAt: restoreUpdatedAt);
   }
 
   @override
