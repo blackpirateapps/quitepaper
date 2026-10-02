@@ -20,7 +20,7 @@ class DeviceInfoService {
   DeviceInfoService({
     required this.database,
     DeviceInfoPlugin? deviceInfoPlugin,
-    this.appVersion = '1.5.8',
+    this.appVersion = '1.6.0',
   }) : _deviceInfo = deviceInfoPlugin ?? DeviceInfoPlugin();
 
   final AppDatabase database;

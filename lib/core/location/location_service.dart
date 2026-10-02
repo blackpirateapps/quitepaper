@@ -96,7 +96,7 @@ class LocationService {
       final response = await _httpClient.get(
         url,
         headers: {
-          'User-Agent': 'QuitePaper/1.5.8 (https://github.com/blackpirateapps/quitepaper)',
+          'User-Agent': 'QuitePaper/1.6.0 (https://github.com/blackpirateapps/quitepaper)',
           'Accept': 'application/json',
         },
       ).timeout(const Duration(seconds: 6));

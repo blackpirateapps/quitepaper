@@ -9,7 +9,7 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
   final flavor = ref.watch(appFlavorProvider);
   return UpdateService(
     sharedPreferences: prefs,
-    currentVersion: '1.5.8',
+    currentVersion: '1.6.0',
     flavor: flavor,
     githubRepo: 'blackpirateapps/quitepaper',
   );

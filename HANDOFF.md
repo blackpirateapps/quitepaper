@@ -7788,3 +7788,24 @@ On the Linux client (as well as macOS and Windows), users could not paste files 
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Automated tests: `flutter test` (**all 1563+ tests passing**).
 
+---
+
+## 132. App Version Bump to 1.6.0 (Build 18)
+
+### 1. Overview & Motivation
+Bumped the official application version from `1.5.9+17` to `1.6.0+18`. In addition to updating `pubspec.yaml`, synchronized all hardcoded application version strings that were previously lingering at `1.5.8` across the update checker, backup metadata, device information, settings display, export envelopes, and HTTP client user agents.
+
+### 2. File Updates
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): Updated version from `1.5.9+17` to `1.6.0+18`.
+- [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Updated version label in the About section from `Version 1.5.8` to `Version 1.6.0`.
+- [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart): Updated `currentVersion` from `'1.5.8'` to `'1.6.0'` so GitHub release update checking accurately compares against new tags.
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart) & [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart): Updated backup archive metadata version to `'1.6.0'`.
+- [`lib/core/device/device_info_service.dart`](file:///home/dog/git/quitepaper/lib/core/device/device_info_service.dart): Updated default `appVersion` parameter for device registration to `'1.6.0'`.
+- [`lib/core/location/location_service.dart`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart): Updated HTTP `User-Agent` header to `QuitePaper/1.6.0`.
+- [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart): Updated manifest and encrypted envelope `appVersion` metadata to `'1.6.0'`.
+
+### 3. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests: `flutter test` across settings, update dialogs, backups, device management, and exports (**125/125 passing**).
+
+
