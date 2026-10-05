@@ -2,10 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../tags/domain/phosphor_icons.dart';
+import '../domain/default_settings.dart';
 import '../application/default_settings_provider.dart';
 
 /// Screen allowing the user to configure default behaviors and gestures.
@@ -107,9 +109,293 @@ class DefaultSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                _buildSectionHeader('IMAGE ATTACHMENTS', colors),
+                _buildGroupCard(
+                  colors: colors,
+                  children: [
+                    _buildSelectionRow(
+                      context: context,
+                      colors: colors,
+                      icon: PhosphorIconsRegular.fileImage,
+                      title: 'Image Compression',
+                      subtitle: settings.imageCompressionAction.label,
+                      onTap: () => _showActionSelectionSheet(
+                        context,
+                        ref,
+                        settings.imageCompressionAction,
+                      ),
+                    ),
+                    _buildDivider(colors),
+                    _buildSelectionRow(
+                      context: context,
+                      colors: colors,
+                      icon: PhosphorIconsRegular.sliders,
+                      title: 'Compression Quality',
+                      subtitle: settings.imageCompressionPreset.description,
+                      onTap: () => _showPresetSelectionSheet(
+                        context,
+                        ref,
+                        settings.imageCompressionPreset,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Text(
+                    'Images smaller than 500 KB are preserved without compression. Compressed images reduce device storage and end-to-end sync transfer time.',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 12.0,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showActionSelectionSheet(
+    BuildContext context,
+    WidgetRef ref,
+    ImageCompressionAction currentAction,
+  ) {
+    final colors = context.appColors;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: colors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Default Compression',
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              for (final action in ImageCompressionAction.values) ...[
+                ListTile(
+                  leading: Icon(
+                    action == currentAction
+                        ? PhosphorIconsFill.checkCircle
+                        : PhosphorIconsRegular.circle,
+                    color: action == currentAction ? colors.accent : colors.textTertiary,
+                    size: 20,
+                  ),
+                  title: Text(
+                    action.label,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: action == currentAction ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    _getActionSubtitle(action),
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    ref.read(defaultSettingsProvider.notifier).setImageCompressionAction(action);
+                  },
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static String _getActionSubtitle(ImageCompressionAction action) {
+    switch (action) {
+      case ImageCompressionAction.ask:
+        return 'Prompt whenever attaching an image larger than 500 KB';
+      case ImageCompressionAction.alwaysCompress:
+        return 'Automatically compress images larger than 500 KB';
+      case ImageCompressionAction.keepOriginal:
+        return 'Always insert full-size images without compressing';
+    }
+  }
+
+  void _showPresetSelectionSheet(
+    BuildContext context,
+    WidgetRef ref,
+    ImageCompressionPreset currentPreset,
+  ) {
+    final colors = context.appColors;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: colors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Compression Quality',
+                      style: AppTypography.title.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              for (final preset in ImageCompressionPreset.values) ...[
+                ListTile(
+                  leading: Icon(
+                    preset == currentPreset
+                        ? PhosphorIconsFill.checkCircle
+                        : PhosphorIconsRegular.circle,
+                    color: preset == currentPreset ? colors.accent : colors.textTertiary,
+                    size: 20,
+                  ),
+                  title: Text(
+                    preset.label,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: preset == currentPreset ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    preset.description,
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    ref.read(defaultSettingsProvider.notifier).setImageCompressionPreset(preset);
+                  },
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectionRow({
+    required BuildContext context,
+    required AppColors colors,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16.0,
+          vertical: 12.0,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2.0),
+                  Text(
+                    subtitle,
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 12.0,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Icon(
+              CupertinoIcons.chevron_forward,
+              size: 14,
+              color: colors.textTertiary,
+            ),
+          ],
         ),
       ),
     );

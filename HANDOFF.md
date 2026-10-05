@@ -7911,3 +7911,86 @@ In WYSIWYG edit mode ([`VisualDocumentEditor`](file:///home/dog/git/quitepaper/l
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Automated tests: `flutter test test/editor/` (**455/455 passing**).
 - Full repository test suite: `flutter test` (**1574/1574 passing**).
+---
+
+## 135. Image Compression on Upload with Quick Dialog, Remember Choice & Settings
+
+### 1. Overview & Motivation
+Previously, adding images to a note—whether through the attachment file picker, clipboard paste (raw image bytes or copied files), or desktop drag-and-drop—stored images in their raw, full uncompressed size. High-resolution photos from modern smartphones and cameras (often 5–20 MB each) rapidly bloated local database storage and significantly slowed down client-side encrypted cloud synchronization.
+
+To solve this, a production-grade, non-blocking image compression system was implemented:
+1. **Intelligent Thresholding**: Only images larger than 500 KB trigger compression processing or prompts; smaller images ($\le$ 500 KB) bypass dialogs and are imported as-is.
+2. **Editorial Prompt with Remember My Choice**: When inserting an image $> 500$ KB under default settings, a clean dialog displays image metadata (filename, byte size, resolution) and lets the user choose between **Compress & Optimize** (recommended) or **Keep Original**, with a **Remember my choice** checkbox.
+3. **Isolate-Based Background Processing**: Heavy image decoding, EXIF orientation correction (`img.bakeOrientation`), aspect-ratio downscaling, and JPEG/PNG encoding run on background worker isolates via `compute()`, guaranteeing the UI thread remains 100% fluid.
+4. **Configurable Default Settings**: Users can manage default compression behavior (*Ask every time*, *Always compress*, *Keep original*) and compression quality presets (*Balanced*, *High Quality*, *Compact*) in `Settings → Default Settings`.
+
+### 2. Architecture & Implementation Details
+
+#### A. Domain Models & Settings Persistence
+- **[`lib/features/settings/domain/default_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/default_settings.dart)**:
+  - `ImageCompressionAction`: Enum representing action on image import:
+    - `ask` (`'ask'`, default): Displays `ImageCompressionDialog` for images $> 500$ KB.
+    - `alwaysCompress` (`'always_compress'`): Compresses automatically according to selected preset without prompting.
+    - `keepOriginal` (`'keep_original'`): Preserves full raw resolution without prompting.
+  - `ImageCompressionPreset`: Enum representing compression quality:
+    - `balanced` (default): Max dimension 1920px, JPEG quality 80%.
+    - `highQuality`: Max dimension 2560px, JPEG quality 85%.
+    - `compact`: Max dimension 1280px, JPEG quality 70%.
+  - Added fields, `copyWith`, equality, and hash code to `DefaultSettings`.
+- **[`lib/features/settings/application/default_settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/default_settings_provider.dart)**:
+  - Added persistence keys `setting_image_compression_action` and `setting_image_compression_preset`.
+  - Added `setImageCompressionAction` and `setImageCompressionPreset` methods persisting changes to `SharedPreferences`.
+
+#### B. Image Processing Service
+- **[`lib/core/image_processing/image_compression_service.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/image_compression_service.dart)**:
+  - `ImageCompressionService`: Defines contract for `isEligibleForCompression(int byteSize)`, `probeDimensions(Uint8List rawBytes)`, and `compressImage(...)`.
+  - `DefaultImageCompressionService`: Pure-Dart implementation using `package:image`:
+    - `probeDimensions`: Probes image dimensions in an isolate without altering bytes.
+    - `compressImage`:
+      - Runs decoding, EXIF orientation baking (`bakeOrientation`), downscaling, and encoding in a background isolate via `compute()`.
+      - **Alpha Transparency Preservation**: Detects PNG images with alpha channel (`image.hasAlpha`) and re-encodes to optimized PNG (level 6) to avoid black backgrounds. Non-alpha images encode to optimized JPEG.
+      - **Size Invariant Safeguard**: If compressed output is greater than or equal to original size, the original bytes are retained (`wasCompressed: false`).
+      - In case of malformed or corrupted bytes, gracefully falls back to original bytes without throwing or crashing.
+  - Exposed via Riverpod `imageCompressionServiceProvider`.
+
+#### C. Editorial Image Compression Dialog
+- **[`lib/features/editor/presentation/widgets/image_compression_dialog.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/image_compression_dialog.dart)**:
+  - `ImageCompressionDialog`: AlertDialog styled with Warm Editorial tokens (`context.appColors`).
+  - Metadata card displaying filename, formatted byte size (`KB`/`MB`), and pixel dimensions.
+  - Selectable cards for **Compress & Optimize** (with "Recommended" pill badge and space-savings estimate) and **Keep Original**.
+  - **Remember my choice** checkbox: when confirmed, automatically persists choice to `DefaultSettingsNotifier`.
+
+#### D. Editor Screen Integration
+- **[`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)**:
+  - Added helper `_prepareImageForImport(...)` which resolves MIME type, checks size threshold, queries `defaultSettingsProvider`, prompts the dialog if needed, persists "remember choice", and executes compression.
+  - Unified across all image entry points:
+    1. `_handleInsertImage()`: File picker image selection.
+    2. `_handlePaste()`: Clipboard image files and raw clipboard image bytes.
+    3. `_handleDroppedFiles()`: Desktop drag-and-drop file transfers.
+
+#### E. Settings Screen UI
+- **[`lib/features/settings/presentation/default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart)**:
+  - Added new `IMAGE ATTACHMENTS` section to the iOS Grouped Table.
+  - Added rows for:
+    - **Default Compression**: Shows current action (*Ask every time*, *Always compress*, *Keep original*) with chevron; opens bottom modal selection sheet.
+    - **Compression Quality**: Shows current preset (*Balanced*, *High Quality*, *Compact*) with chevron; opens bottom modal selection sheet.
+
+### 3. File Inventory
+- **Modified**:
+  - [`lib/features/settings/domain/default_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/default_settings.dart): Compression action & preset enums and domain fields.
+  - [`lib/features/settings/application/default_settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/default_settings_provider.dart): SharedPreferences persistence.
+  - [`lib/features/settings/presentation/default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart): UI rows and modal picker sheets.
+  - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart): Integration across file picker, pasteboard, and drag-and-drop.
+  - [`test/settings/default_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/default_settings_test.dart): Unit and widget tests for new domain fields and settings screen rows.
+- **New**:
+  - [`lib/core/image_processing/image_compression_service.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/image_compression_service.dart): Isolate-based compression service.
+  - [`lib/features/editor/presentation/widgets/image_compression_dialog.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/image_compression_dialog.dart): Compression dialog widget.
+  - [`test/image_processing/image_compression_service_test.dart`](file:///home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart): Unit tests for compression service.
+  - [`test/editor/image_compression_dialog_test.dart`](file:///home/dog/git/quitepaper/test/editor/image_compression_dialog_test.dart): Widget tests for compression dialog.
+  - [`test/editor/editor_image_upload_compression_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart): Integration tests for editor image drop, dialog trigger, remember choice, and settings bypass.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Automated tests:
+  - Feature test suite: `flutter test test/settings/default_settings_test.dart test/image_processing/image_compression_service_test.dart test/editor/image_compression_dialog_test.dart test/editor/editor_image_upload_compression_test.dart` (**32/32 passing**).
+  - Full repository test suite: `flutter test` (**1596/1596 passing**).

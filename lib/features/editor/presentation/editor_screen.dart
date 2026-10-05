@@ -44,9 +44,12 @@ import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
 import '../../scanner/presentation/document_scanner_screen.dart';
+import '../../../core/image_processing/image_compression_service.dart';
+import '../../settings/domain/default_settings.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../settings/application/settings_provider.dart';
 import '../../settings/application/typography_provider.dart';
+import 'widgets/image_compression_dialog.dart';
 import '../domain/editor_editing_style.dart';
 import '../domain/frontmatter_document.dart';
 import '../application/frontmatter_editor_helper.dart';
@@ -2412,6 +2415,106 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  static String _inferMimeTypeFromFileName(String fileName) {
+    final ext = p.extension(fileName).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      case '.svg':
+        return 'image/svg+xml';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<({Uint8List bytes, String fileName, String mimeType})?> _prepareImageForImport({
+    required Uint8List rawBytes,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    final resolvedMimeType = mimeType ?? _inferMimeTypeFromFileName(fileName);
+    final settings = ref.read(defaultSettingsProvider);
+    final compressionService = ref.read(imageCompressionServiceProvider);
+
+    // If image is <= 500 KB, no prompt or compression is needed
+    if (!compressionService.isEligibleForCompression(rawBytes.length)) {
+      return (bytes: rawBytes, fileName: fileName, mimeType: resolvedMimeType);
+    }
+
+    final action = settings.imageCompressionAction;
+    final preset = settings.imageCompressionPreset;
+
+    switch (action) {
+      case ImageCompressionAction.alwaysCompress:
+        final compressed = await compressionService.compressImage(
+          rawBytes: rawBytes,
+          fileName: fileName,
+          preset: preset,
+          force: true,
+        );
+        return (
+          bytes: compressed.bytes,
+          fileName: compressed.fileName,
+          mimeType: compressed.mimeType,
+        );
+
+      case ImageCompressionAction.keepOriginal:
+        return (bytes: rawBytes, fileName: fileName, mimeType: resolvedMimeType);
+
+      case ImageCompressionAction.ask:
+        if (!mounted) return null;
+        final dims = await compressionService.probeDimensions(rawBytes);
+        if (!mounted) return null;
+
+        final decision = await ImageCompressionDialog.show(
+          context,
+          fileName: fileName,
+          byteSize: rawBytes.length,
+          width: dims.width,
+          height: dims.height,
+          preset: preset,
+        );
+
+        if (decision == null) {
+          // User cancelled
+          return null;
+        }
+
+        // If user checked "Remember my choice", persist it to DefaultSettingsNotifier
+        if (decision.rememberChoice) {
+          final newAction = decision.choice == ImageCompressionDialogChoice.compress
+              ? ImageCompressionAction.alwaysCompress
+              : ImageCompressionAction.keepOriginal;
+          await ref
+              .read(defaultSettingsProvider.notifier)
+              .setImageCompressionAction(newAction);
+        }
+
+        if (decision.choice == ImageCompressionDialogChoice.compress) {
+          final compressed = await compressionService.compressImage(
+            rawBytes: rawBytes,
+            fileName: fileName,
+            preset: preset,
+            force: true,
+          );
+          return (
+            bytes: compressed.bytes,
+            fileName: compressed.fileName,
+            mimeType: compressed.mimeType,
+          );
+        } else {
+          return (bytes: rawBytes, fileName: fileName, mimeType: resolvedMimeType);
+        }
+    }
+  }
+
   Future<void> _handleInsertImage() async {
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isReadOnly) return;
@@ -2424,35 +2527,38 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
       if (result != null && result.files.isNotEmpty) {
         final pickedFile = result.files.first;
+        Uint8List? rawBytes;
+
+        if (pickedFile.bytes != null) {
+          rawBytes = pickedFile.bytes;
+        } else if (pickedFile.path != null) {
+          final file = File(pickedFile.path!);
+          if (await file.exists()) {
+            rawBytes = await file.readAsBytes();
+          }
+        }
+
+        if (rawBytes == null || rawBytes.isEmpty) return;
+
+        final prepared = await _prepareImageForImport(
+          rawBytes: rawBytes,
+          fileName: pickedFile.name,
+        );
+        if (prepared == null) return;
+
         final attachmentService = ref.read(attachmentServiceProvider);
 
-        ({AttachmentEntity attachment, String markdownSnippet})? importResult;
-
-        importResult = await _withImportOverlay(
+        final importResult = await _withImportOverlay(
           title: 'Adding image',
           message: 'Encrypting & saving…',
-          task: () async {
-            if (pickedFile.path != null) {
-              return attachmentService.importImageFromFile(
-                File(pickedFile.path!),
-                noteId: widget.note.id,
-                preferredAltText: pickedFile.name,
-              );
-            } else if (pickedFile.bytes != null) {
-              return attachmentService.importImageFromBytes(
-                pickedFile.bytes!,
-                mimeType: 'image/png',
-                noteId: widget.note.id,
-                preferredAltText: pickedFile.name,
-              );
-            }
-            return null;
-          },
+          task: () => attachmentService.importImageFromBytes(
+            prepared.bytes,
+            mimeType: prepared.mimeType,
+            fileName: prepared.fileName,
+            noteId: widget.note.id,
+            preferredAltText: prepared.fileName,
+          ),
         );
-
-        if (importResult == null) {
-          return;
-        }
 
         final val = _contentController.value;
         final text = val.text;
@@ -2627,12 +2733,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
         if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
           try {
+            final rawBytes = await file.readAsBytes();
+            final prepared = await _prepareImageForImport(
+              rawBytes: rawBytes,
+              fileName: name,
+            );
+            if (prepared == null) continue;
+
             final attachmentService = ref.read(attachmentServiceProvider);
             final res = await _withImportOverlay(
               title: 'Pasting image',
               message: 'Encrypting & saving…',
-              task: () => attachmentService.importImageFromFile(
-                file,
+              task: () => attachmentService.importImageFromBytes(
+                prepared.bytes,
+                mimeType: prepared.mimeType,
+                fileName: prepared.fileName,
                 noteId: widget.note.id,
                 preferredAltText: name,
               ),
@@ -2694,15 +2809,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     // 2. Process raw image bytes from clipboard
     if (imageBytes != null && imageBytes.isNotEmpty) {
       try {
-        final attachmentService = ref.read(attachmentServiceProvider);
         final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final defaultName = 'pasted_image_$timestamp.png';
+        final prepared = await _prepareImageForImport(
+          rawBytes: imageBytes,
+          fileName: defaultName,
+          mimeType: 'image/png',
+        );
+        if (prepared == null) return;
+
+        final attachmentService = ref.read(attachmentServiceProvider);
         final res = await _withImportOverlay(
           title: 'Pasting image',
           message: 'Encrypting & saving…',
           task: () => attachmentService.importImageFromBytes(
-            imageBytes!,
-            mimeType: 'image/png',
-            fileName: 'pasted_image_$timestamp.png',
+            prepared.bytes,
+            mimeType: prepared.mimeType,
+            fileName: prepared.fileName,
             noteId: widget.note.id,
             preferredAltText: 'Pasted Image',
           ),
@@ -2765,12 +2888,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
       if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
         try {
+          final rawBytes = await file.readAsBytes();
+          final prepared = await _prepareImageForImport(
+            rawBytes: rawBytes,
+            fileName: name,
+          );
+          if (prepared == null) continue;
+
           final attachmentService = ref.read(attachmentServiceProvider);
           final importResult = await _withImportOverlay(
             title: 'Adding image',
             message: 'Encrypting & saving…',
-            task: () => attachmentService.importImageFromFile(
-              file,
+            task: () => attachmentService.importImageFromBytes(
+              prepared.bytes,
+              mimeType: prepared.mimeType,
+              fileName: prepared.fileName,
               noteId: widget.note.id,
               preferredAltText: name,
             ),

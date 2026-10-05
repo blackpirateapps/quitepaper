@@ -13,6 +13,10 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       'setting_swipe_down_to_search_notes';
   static const String interactiveChecklistsInPreviewKey =
       'setting_interactive_checklists_in_preview';
+  static const String imageCompressionActionKey =
+      'setting_image_compression_action';
+  static const String imageCompressionPresetKey =
+      'setting_image_compression_preset';
 
   static DefaultSettings _loadSettings(SharedPreferences? prefs) {
     if (prefs == null) {
@@ -22,11 +26,15 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
     final swipeNotes = prefs.getBool(swipeDownToSearchNotesKey) ?? true;
     final interactiveChecklists =
         prefs.getBool(interactiveChecklistsInPreviewKey) ?? true;
+    final actionString = prefs.getString(imageCompressionActionKey);
+    final presetString = prefs.getString(imageCompressionPresetKey);
 
     return DefaultSettings(
       swipeToSearchEditor: swipeEditor,
       swipeDownToSearchNotes: swipeNotes,
       interactiveChecklistsInPreview: interactiveChecklists,
+      imageCompressionAction: ImageCompressionAction.fromIdentifier(actionString),
+      imageCompressionPreset: ImageCompressionPreset.fromIdentifier(presetString),
     );
   }
 
@@ -43,6 +51,16 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   Future<void> setInteractiveChecklistsInPreview(bool value) async {
     state = state.copyWith(interactiveChecklistsInPreview: value);
     await _prefs?.setBool(interactiveChecklistsInPreviewKey, value);
+  }
+
+  Future<void> setImageCompressionAction(ImageCompressionAction action) async {
+    state = state.copyWith(imageCompressionAction: action);
+    await _prefs?.setString(imageCompressionActionKey, action.identifier);
+  }
+
+  Future<void> setImageCompressionPreset(ImageCompressionPreset preset) async {
+    state = state.copyWith(imageCompressionPreset: preset);
+    await _prefs?.setString(imageCompressionPresetKey, preset.identifier);
   }
 }
 
