@@ -7994,3 +7994,131 @@ To solve this, a production-grade, non-blocking image compression system was imp
 - Automated tests:
   - Feature test suite: `flutter test test/settings/default_settings_test.dart test/image_processing/image_compression_service_test.dart test/editor/image_compression_dialog_test.dart test/editor/editor_image_upload_compression_test.dart` (**32/32 passing**).
   - Full repository test suite: `flutter test` (**1596/1596 passing**).
+
+
+---
+
+## 136. Production-Grade RichDocument Visual Editor Architecture
+
+### 1. Problem & Architectural Motivation
+Previously, Visual/WYSIWYG editing in Quiet Paper relied on a hybrid approach where every block in the document was rendered as an independent `TextField` widget with separate `TextEditingController` and `FocusNode` instances, mapping selections through source-range offsets in the underlying Markdown string. This architecture had inherent limitations:
+- **Focus & Caret Churn**: Tapping between blocks or pressing Up/Down arrow keys jumped focus between independent `TextField`s, causing caret stuttering, IME reset, and keyboard flicker on mobile.
+- **Selection Fragmentation**: Text selection could not span smoothly across block boundaries (e.g. from a heading into a paragraph or across list items).
+- **String-Rewriting Overhead**: Every keystroke performed regex parsing and string replacements against the canonical Markdown string, creating race conditions during fast typing.
+
+To resolve this, a production-grade, authoritative rich-text document architecture was implemented following the specifications in `new-visual-architechture.txt`.
+
+### 2. Core Invariants & Design Principles
+1. **RichDocument is Authoritative in Visual Mode**: In Visual mode, the in-memory `RichDocument` is the single source of truth. Mutations (inline styling, block conversion, checklist toggling, Enter/Backspace) operate directly on structured domain models without touching Markdown strings.
+2. **Markdown as Interchange & Storage Format**: Markdown is used strictly at boundaries:
+   - When opening or switching to Visual mode (`RichDocumentParser.parse()`).
+   - When autosaving to local storage (`RichDocumentController.toMarkdown()` debounced at 700ms).
+   - When switching to Markdown mode or exiting the editor (`_flushRichMarkdown()`).
+3. **Continuous Paper Writing Surface**: Contiguous text blocks (paragraphs, headings, lists, quotes) are rendered within a unified, continuous `RichTextEditor` surface. The user experiences a seamless document with native-feeling selection, arrow navigation, copy/paste, and IME composition.
+4. **Zero Compromise on Existing Features**: Full fidelity was preserved for YAML frontmatter preservation, image attachments, table editing, syntax-highlighted code blocks, note links, tags, autosave, undo/redo, and end-to-end encrypted synchronization.
+
+### 3. Architecture & Implementation Details
+
+#### A. Domain Layer (`lib/features/editor/domain/`)
+- **[`text_attributes.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/text_attributes.dart)**:
+  - Immutable record of styling attributes: `bold`, `italic`, `strike`, `highlight`, `inlineCode`, `link`, `noteLink`, `tag`.
+  - Methods `merge()`, `diff()`, `copyWith()`, and empty singleton `TextAttributes.none`.
+- **[`rich_inline.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_inline.dart)**:
+  - `RichInlineSpan`: Represents an atomic text run with associated `TextAttributes`.
+  - `List<RichInlineSpan>.normalized()`: Combines adjacent spans with identical attributes and strips empty spans.
+  - Span slicing and range replacement utilities.
+- **[`rich_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart)**:
+  - Structural block hierarchy inheriting from abstract immutable `RichBlock`:
+    - `ParagraphBlock`: Regular text paragraphs.
+    - `HeadingBlock`: Headings from level 1 to 6.
+    - `ChecklistItemBlock`: Checklists with boolean `isChecked` status and toggle support.
+    - `BulletedListItemBlock`: Bulleted list items with indentation support.
+    - `OrderedListItemBlock`: Numbered list items with sequential ordering and indentation.
+    - `QuoteBlock`: Blockquotes.
+    - `CodeBlock`: Monospace fenced code blocks with language tag.
+    - `HorizontalRuleBlock`: Divider blocks.
+    - `ImageBlock`: Standalone images with `url` and `alt` text.
+    - `TableBlock`: Interactive tables embedding `MarkdownTable`.
+- **[`document_selection.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/document_selection.dart)**:
+  - `RichDocumentPosition`: Discrete cursor position (`blockIndex`, `blockId`, `offset`).
+  - `RichDocumentSelection`: Document-wide selection range (`base`, `extent`, `start`, `end`, `isCollapsed`).
+- **[`rich_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart)**:
+  - Authoritative document model holding `List<RichBlock> blocks`.
+  - Global offset and document position bidirectional mapping.
+  - Block lookups and immutable replacement helpers.
+- **[`editor_editing_style.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/editor_editing_style.dart)**:
+  - Updated user-facing display label for WYSIWYG mode to `'Visual'`.
+
+#### B. Application Layer (`lib/features/editor/application/`)
+- **[`rich_document_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_parser.dart)**:
+  - Pure-Dart compiler converting canonical Markdown source into a structured `RichDocument`.
+  - Handles fenced code blocks, tables, horizontal rules, standalone images, headings (H1–H6), checklists, bullet/ordered lists, blockquotes, and paragraphs.
+  - Inline syntax parser extracting bold (`**`, `__`), italic (`*`, `_`), strikethrough (`~~`), highlights (`==`), inline code (`` ` ``), Markdown links, note links (`[[...]]`), and tags (`#...`).
+- **[`rich_document_serializer.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_serializer.dart)**:
+  - Deterministic serializer emitting canonical Markdown from `RichDocument`.
+  - Ensures 100% round-trip fidelity with proper blank line spacing between structural blocks.
+- **[`rich_document_mutations.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_mutations.dart)**:
+  - Pure functional document transforms:
+    - Inline formatting toggles across selection ranges.
+    - Block style conversions (paragraph $\leftrightarrow$ heading $\leftrightarrow$ checklist $\leftrightarrow$ quote).
+    - Smart Enter: continues list/checklist items, exits on empty item, splits headings to paragraphs.
+    - Smart Backspace: un-indents lists, converts non-paragraphs to paragraphs at offset 0, and merges adjacent blocks.
+    - Block insertions (code blocks, dividers, images, tables).
+- **[`rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart)**:
+  - Primary coordinator for Visual mode editing sessions.
+  - In-memory undo/redo history stack (`_EditorSnapshot`).
+  - Selection tracking and active typing attributes for collapsed carets.
+  - Surgical YAML frontmatter preservation: strips frontmatter for visual editing canvas while maintaining the exact frontmatter prefix on serialize.
+
+#### C. Presentation Layer (`lib/features/editor/presentation/widgets/`)
+- **[`rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart)**:
+  - Continuous editing surface using custom `_RichTextEditingController`.
+  - Composes `TextSpan` styling for headings, quotes, bold, italic, code, highlights, links, and tags.
+  - Embeds interactive checkbox icons (`WidgetSpan`) for checklist items with hit-testing and tap-toggle.
+  - Intercepts Enter, Backspace, Tab, and keyboard shortcuts (`Cmd/Ctrl+B`, `Cmd/Ctrl+I`, `Cmd/Ctrl+K`).
+- **[`rich_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_editor_surface.dart)**:
+  - Composes contiguous text blocks into `RichTextEditor` segments while interleaving specialized non-text blocks (`RichCodeBlock`, `RichTableEditor`, `RichImageBlock`, `_DividerBlock`).
+- **[`rich_code_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_code_block.dart)**:
+  - Code block widget with language badge, code copy button, and `LanguageSelectorSheet` modal picker.
+- **[`rich_table_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_table_editor.dart)**:
+  - Table surface embedding `MarkdownTableView` with interactive row/column insertion and deletion.
+- **[`rich_image_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_image_block.dart)**:
+  - Semantic image preview displaying image surface, alt title, url reference, and remove button.
+- **[`formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart)**:
+  - Updated to accept `RichDocumentController? richController` and route heading cycles, bold, italic, lists, quotes, tables, and images directly to the rich controller.
+- **[`markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart)** & **[`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)**:
+  - Integrated `RichDocumentController` lifecycle alongside existing Markdown controllers.
+  - Automated fallback to Markdown mode when notes exceed the large-document threshold.
+  - Robust deactivation guards protecting Riverpod providers during widget unmounts.
+
+### 4. File Inventory
+- **New Domain & Application Files**:
+  - [`lib/features/editor/domain/text_attributes.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/text_attributes.dart)
+  - [`lib/features/editor/domain/rich_inline.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_inline.dart)
+  - [`lib/features/editor/domain/rich_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart)
+  - [`lib/features/editor/domain/document_selection.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/document_selection.dart)
+  - [`lib/features/editor/domain/rich_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart)
+  - [`lib/features/editor/application/rich_document_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_parser.dart)
+  - [`lib/features/editor/application/rich_document_serializer.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_serializer.dart)
+  - [`lib/features/editor/application/rich_document_mutations.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_mutations.dart)
+  - [`lib/features/editor/application/rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart)
+  - [`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart)
+  - [`lib/features/editor/presentation/widgets/rich_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_editor_surface.dart)
+  - [`lib/features/editor/presentation/widgets/rich_code_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_code_block.dart)
+  - [`lib/features/editor/presentation/widgets/rich_table_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_table_editor.dart)
+  - [`lib/features/editor/presentation/widgets/rich_image_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_image_block.dart)
+  - [`test/editor/rich_document_parser_serializer_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_parser_serializer_test.dart)
+  - [`test/editor/rich_document_controller_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_controller_test.dart)
+- **Modified Files**:
+  - [`lib/features/editor/domain/editor_editing_style.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/editor_editing_style.dart)
+  - [`lib/features/editor/presentation/widgets/formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart)
+  - [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart)
+  - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)
+  - [`test/editor/dual_mode_editor_screen_test.dart`](file:///home/dog/git/quitepaper/test/editor/dual_mode_editor_screen_test.dart)
+  - [`test/editor/editing_style_settings_test.dart`](file:///home/dog/git/quitepaper/test/editor/editing_style_settings_test.dart)
+  - [`test/editor/golden_document_integration_test.dart`](file:///home/dog/git/quitepaper/test/editor/golden_document_integration_test.dart)
+  - [`test/widget_test.dart`](file:///home/dog/git/quitepaper/test/widget_test.dart)
+
+### 5. Verification & Quality
+- Static analysis: `flutter analyze` completed with **0 issues found!** (zero errors, zero warnings).
+- Automated tests: `flutter test` completed with **1620/1620 tests passing!** (100% pass rate).

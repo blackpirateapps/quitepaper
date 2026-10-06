@@ -7,6 +7,7 @@ import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
@@ -71,8 +72,9 @@ void main() {
 
       // Main MarkdownEditor is rendered in WYSIWYG mode without raw YAML
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Heading'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Body text here.'), findsOneWidget);
+      expect(find.byType(RichTextEditor), findsOneWidget);
+      expect(find.textContaining('Heading'), findsWidgets);
+      expect(find.textContaining('Body text here.'), findsWidgets);
 
       await finishTest(tester);
     });

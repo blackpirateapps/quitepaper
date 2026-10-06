@@ -1,0 +1,1776 @@
+You are working on the Flutter application **Quiet Paper**, an offline-first, privacy-focused notes application inspired by Bear Notes.
+
+The repository already contains a mature Markdown editing system, a semantic WYSIWYG editor, E2EE sync, local SQLite persistence, Markdown import/export, backups, frontmatter support, tags, note links, tables, images, code blocks, checklists, read-only mode, note password protection, autosave, search, and responsive phone/tablet layouts.
+
+Your task is to **replace the existing visual/WYSIWYG editing implementation with a new production-grade rich-text editor architecture**.
+
+This is not a styling refresh.
+
+This is an editor architecture replacement.
+
+The goal is to make the Visual editor feel like a native, calm, continuous writing surface similar in interaction quality to Bear Notes while retaining Quiet Paper’s existing Markdown interoperability, local persistence, encrypted sync, backups, imports, exports, and note features.
+
+The most important architectural rule is:
+
+> **Markdown must NOT be the live editing representation of Visual mode.**
+
+Visual mode must directly edit a rich document model.
+
+Markdown mode must directly edit Markdown.
+
+Markdown becomes an interchange/serialization format at mode boundaries and persistence/sync/export boundaries.
+
+Do not recreate the existing “visual editor over Markdown source” architecture under different names.
+
+---
+
+# 1. Existing product constraints that must remain intact
+
+Quiet Paper currently has these product principles:
+
+* Content-first writing experience.
+* Warm editorial aesthetic.
+* Borderless document-style title and writing canvas.
+* Fast offline-first local persistence using Drift/SQLite.
+* Client-side encryption using Argon2id and XChaCha20-Poly1305.
+* Zero plaintext note content sent to the backend.
+* Markdown interoperability.
+* Invisible autosave.
+* Responsive phone/tablet layouts.
+* Native-feeling keyboard, selection, focus, copy, paste, undo and redo behavior.
+* Existing note-level security, read-only mode, search, tags, note links, tables, images, code blocks, frontmatter, import/export and backup functionality.
+
+The existing handoff explicitly describes the product as a calm Bear-inspired writing experience and calls for a restrained app bar, 30sp title, spacious body typography, automatic focus, autosave, and a distraction-free editing loop. Preserve those goals.
+
+Do not weaken security, sync, backups, or Markdown compatibility to simplify the editor.
+
+---
+
+# 2. The architectural change
+
+The current system conceptually works like this:
+
+```text
+Markdown
+   ↓
+semantic parser
+   ↓
+semantic blocks/runs
+   ↓
+visual editor
+   ↓
+map selection back to Markdown
+   ↓
+mutate Markdown
+   ↓
+reparse
+```
+
+Do NOT continue this design.
+
+Replace it with:
+
+```text
+                       Note Editor Session
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+          Visual Editing             Markdown Editing
+                 │                         │
+                 ▼                         ▼
+          RichDocument                Markdown string
+                 │                         │
+                 └────────────┬────────────┘
+                              │
+                    Explicit conversion
+                              │
+                    Markdown serializer
+                    Markdown parser
+```
+
+There must be a clear distinction between:
+
+1. **RichDocument** — the live editing representation in Visual mode.
+2. **Markdown text** — the live editing representation in Markdown mode.
+3. **Persisted note format** — initially continue using the existing Markdown-backed SQLite schema so there is no unnecessary database migration.
+4. **Cloud sync/export/backup format** — continue using Markdown as the interchange representation.
+
+Do not persist a second rich-text database representation yet.
+
+The first production goal is to validate whether the new rich-text editor feels excellent.
+
+---
+
+# 3. Source-of-truth rules
+
+Implement these rules exactly.
+
+## Visual mode
+
+When Visual mode is active:
+
+```text
+RichDocument = authoritative editing state
+Markdown = serialized interchange state
+```
+
+Typing, deleting, selecting, bolding, italicizing, creating headings, creating lists, checking checkboxes, inserting links, etc. must modify the RichDocument directly.
+
+Do NOT modify Markdown on every keystroke.
+
+Do NOT parse Markdown on every keystroke.
+
+Do NOT map visual selection offsets through Markdown source ranges.
+
+Do NOT expose hidden Markdown delimiter offsets to the editing controller.
+
+Do NOT use source Markdown as the cursor coordinate system.
+
+## Markdown mode
+
+When Markdown mode is active:
+
+```text
+Markdown string = authoritative editing state
+```
+
+The user gets a normal Markdown text editor.
+
+Typing:
+
+```markdown
+# Hello
+
+This is **important**.
+```
+
+must behave like a normal text editor.
+
+No rich-text mutation layer should participate in ordinary Markdown typing.
+
+## Switching Visual → Markdown
+
+On switch:
+
+```text
+RichDocument
+    ↓
+MarkdownSerializer
+    ↓
+Markdown text
+    ↓
+Markdown editing controller
+```
+
+Perform the serialization once during the mode transition.
+
+Carry the user's source-equivalent caret/selection into Markdown mode when practical and safe.
+
+## Switching Markdown → Visual
+
+On switch:
+
+```text
+Markdown text
+    ↓
+RichDocumentParser
+    ↓
+RichDocument
+    ↓
+Visual editor
+```
+
+Parse once.
+
+Carry the source caret/selection into the corresponding rich-text position where possible.
+
+Do not attempt to continuously synchronize both representations while typing.
+
+---
+
+# 4. RichDocument architecture
+
+Create a new editor domain model specifically for rich-text editing.
+
+Do not simply reuse the existing `SemanticDocument` as the editing model.
+
+The existing semantic architecture was designed around Markdown source ranges, hidden Markdown delimiters, source-to-visual mapping and semantic mutations. That is precisely the coupling this project is trying to remove.
+
+Create a new clean model.
+
+Recommended structure:
+
+```text
+RichDocument
+ ├── blocks[]
+ │
+ ├── metadata/session information where appropriate
+ │
+ └── document-level helpers
+```
+
+Blocks should represent editing concepts rather than Markdown syntax.
+
+At minimum support:
+
+```text
+Paragraph
+Heading
+BulletedListItem
+OrderedListItem
+ChecklistItem
+Quote
+CodeBlock
+HorizontalRule
+Image
+Table
+```
+
+Inline content should be represented as text plus formatting attributes/runs.
+
+At minimum support:
+
+```text
+bold
+italic
+strikethrough
+highlight
+inlineCode
+link
+noteLink
+tag
+```
+
+The RichDocument must not contain Markdown delimiter characters merely to make serialization easier.
+
+For example, bold text should conceptually be:
+
+```text
+"hello"
+bold = true
+```
+
+not:
+
+```text
+"**hello**"
+```
+
+A heading should contain:
+
+```text
+type = heading
+level = 1
+text = "Hello"
+```
+
+not:
+
+```text
+"# Hello"
+```
+
+A checklist should contain:
+
+```text
+type = checklist
+checked = false
+text = "Buy milk"
+```
+
+not:
+
+```text
+"- [ ] Buy milk"
+```
+
+The model is allowed to have internal IDs for blocks/runs for stable rendering and editing, but those IDs must be editor-local and must not become persisted document syntax.
+
+---
+
+# 5. Editing model requirements
+
+The editor must behave like a single continuous document.
+
+The user must NOT feel that they are editing separate Flutter widgets called:
+
+```text
+HeadingBlock
+ParagraphBlock
+ChecklistBlock
+QuoteBlock
+...
+```
+
+Those are implementation concepts only.
+
+The interaction model must be:
+
+> “I am editing one note.”
+
+Prefer one coherent text-selection model over independent block selections whenever technically possible.
+
+Avoid architecture where every block has its own independent:
+
+* TextEditingController
+* FocusNode
+* TextField
+* selection state
+* keyboard connection
+* undo history
+
+unless there is a compelling technical reason for a specific non-text surface such as a table cell.
+
+The current editor has had repeated bugs around block focus, block IDs, selection projection, focus retention and programmatic selection synchronization. Do not carry that complexity into the new implementation.
+
+---
+
+# 6. Cursor and selection are P0 functionality
+
+Treat these as more important than formatting features.
+
+The following must work correctly:
+
+* Single tap placement.
+* Double tap word selection.
+* Drag selection.
+* Shift-based selection on physical keyboards.
+* Select All.
+* Copy.
+* Cut.
+* Paste.
+* Delete.
+* Backspace.
+* Forward delete.
+* Selection spanning formatted/unformatted text.
+* Selection spanning multiple paragraphs.
+* Selection spanning different block types where supported.
+* Selection before/after links.
+* Selection inside code.
+* Selection inside tables.
+* Selection around checklist text.
+* Selection after inserting an image.
+* Selection around a divider.
+* Selection after formatting operations.
+* Selection after undo.
+* Selection after redo.
+* Selection after mode switching.
+* Selection after external note updates.
+* Selection after autosave.
+* Selection after app lifecycle events.
+
+Critical rule:
+
+> Never replace a valid user selection with a programmatically inferred selection merely because the document was rebuilt.
+
+Never schedule post-frame selection restoration that can stomp an active drag gesture.
+
+Never synchronize selection in a way that creates rebuild loops.
+
+Never move the caret to offset 0 as a focus fallback unless the actual requested position is 0.
+
+---
+
+# 7. Keyboard/IME behavior is P0
+
+The software keyboard must behave continuously and naturally.
+
+These interactions must never unexpectedly dismiss the keyboard:
+
+* Typing text.
+* Pressing Enter.
+* Changing paragraph to heading.
+* Changing heading level.
+* Applying bold.
+* Applying italic.
+* Applying strike.
+* Applying checklist.
+* Applying list formatting.
+* Applying quote.
+* Inserting a link.
+* Inserting a note link.
+* Inserting a tag.
+* Checking a checkbox.
+* Switching between adjacent blocks.
+* Typing at the beginning or end of a block.
+* Undo.
+* Redo.
+* Opening or dismissing contextual formatting UI.
+
+Do not rebuild the editing surface in a way that causes Flutter to dispose and recreate the active text editing state unnecessarily.
+
+Do not rely on focus-node tricks to compensate for an unstable editor hierarchy.
+
+---
+
+# 8. Rich-text mutations
+
+Formatting operations must operate directly on the rich document.
+
+Examples:
+
+Bold:
+
+```text
+selection
+  ↓
+apply attribute bold=true
+```
+
+Italic:
+
+```text
+selection
+  ↓
+apply attribute italic=true
+```
+
+Heading:
+
+```text
+current block
+  ↓
+set block type = heading
+set heading level = requested level
+```
+
+Checklist:
+
+```text
+current block
+  ↓
+set type = checklist
+set checked = false
+```
+
+Do not insert Markdown delimiter characters into the RichDocument.
+
+Formatting must be composable.
+
+The following must all work:
+
+```text
+bold + italic
+bold + strike
+italic + strike
+bold + italic + strike
+highlight + bold
+inline code inside bold where semantically valid
+link + bold
+```
+
+Avoid separate mutually-exclusive run classes if doing so makes combinations fragile.
+
+A clean attribute-set model is preferred over a proliferation of special-case subclasses.
+
+---
+
+# 9. Typing continuity
+
+Typing must feel completely natural.
+
+Example:
+
+User types:
+
+```text
+hello
+```
+
+then selects it and presses Bold.
+
+After formatting, the user should simply continue typing.
+
+If the cursor remains at the end of the bold range, continuing to type should produce predictable formatting behavior.
+
+Formatting should behave similarly to a conventional rich-text editor:
+
+* Applying Bold to a selection formats the selection.
+* Applying Bold with a collapsed caret establishes an insertion formatting state.
+* Turning Bold off ends that formatting state.
+* Typing spaces must not cause formatting state corruption.
+* Enter must have sensible style inheritance rules.
+* New paragraphs should inherit only the formatting/block attributes that are appropriate.
+* Empty formatting spans must not accumulate indefinitely.
+
+Build a deterministic model for typing attributes instead of manipulating synthetic Markdown delimiters.
+
+---
+
+# 10. Enter behavior
+
+Enter is one of the most important interactions.
+
+Implement predictable behavior for:
+
+* Paragraph → Paragraph.
+* Heading → Paragraph where appropriate.
+* Heading → same/lower semantic style according to normal editor conventions.
+* Checklist → new checklist item.
+* Completed checklist → new unchecked checklist item.
+* Empty checklist → exit checklist.
+* Bullet list → continuation item.
+* Empty bullet → exit list.
+* Ordered list → next number.
+* Empty ordered item → exit list.
+* Quote → continuation quote.
+* Empty quote → exit quote.
+* Code block → newline inside code.
+* Divider → create editable paragraph below.
+* Enter with active selection → replace the selection and continue from the resulting caret.
+* Multiline paste → insert content without being mistaken for repeated Enter presses.
+
+Do not hard-code these behaviors through Markdown string rewriting.
+
+They are RichDocument mutations.
+
+---
+
+# 11. Backspace behavior
+
+Backspace must feel like a native editor.
+
+At the start of a block:
+
+* Merge with previous compatible text block where appropriate.
+* Convert an empty heading to paragraph where appropriate.
+* Remove empty list/checklist/quote structure when appropriate.
+* Handle divider deletion naturally.
+* Do not accidentally delete unrelated metadata/frontmatter.
+* Preserve inline formatting when merging.
+* Preserve undo semantics.
+
+Do not use raw source offsets as the primary editing mechanism.
+
+---
+
+# 12. Undo/redo
+
+Implement a coherent editor-level undo/redo system.
+
+A single user-visible action should normally correspond to one undo step.
+
+Examples:
+
+* Bold selection → one undo step.
+* Create checklist → one undo step.
+* Insert link → one undo step.
+* Insert image → one undo step.
+* Type a continuous burst of characters → natural text-editor undo behavior.
+* Insert table → one coherent undo action where practical.
+* Check a checkbox → one undo step.
+* Mode switching itself should not generate meaningless user-visible undo history.
+
+Do not generate enormous undo histories because of internal conversion or rebuild operations.
+
+Undo must work independently of Markdown serialization.
+
+---
+
+# 13. Markdown serializer
+
+Create a dedicated production-grade serializer:
+
+```text
+RichDocument → Markdown
+```
+
+It must handle all supported document structures.
+
+Important:
+
+The serializer is responsible for Markdown correctness.
+
+The RichDocument is responsible for editing correctness.
+
+Do not leak serializer concerns back into the editor controller.
+
+Support the existing Markdown capabilities that Quiet Paper already supports, including:
+
+* Headings.
+* Paragraphs.
+* Bold.
+* Italic.
+* Bold + italic combinations.
+* Strike.
+* Highlight.
+* Inline code.
+* Code blocks and language identifiers.
+* Unordered lists.
+* Ordered lists.
+* Checklists.
+* Nested lists where currently supported.
+* Quotes.
+* Horizontal rules.
+* Links.
+* Note links.
+* Tags.
+* Images.
+* Tables.
+* Frontmatter-preserving document assembly.
+
+Use deterministic serialization.
+
+Equivalent RichDocument states should serialize consistently rather than producing wildly different Markdown depending on editing history.
+
+Do not serialize internal editor IDs.
+
+Do not serialize temporary UI state.
+
+---
+
+# 14. Markdown parser
+
+Create a dedicated parser:
+
+```text
+Markdown → RichDocument
+```
+
+This parser is for entering Visual mode and for loading Markdown into the visual model.
+
+It should be independent from the RichDocument editing logic.
+
+Do not make the RichDocument dependent on source ranges.
+
+Do not make the editor selection system dependent on Markdown offsets.
+
+The parser must preserve semantic content accurately.
+
+When Markdown contains:
+
+```markdown
+**hello**
+```
+
+the parser should produce a rich run with bold formatting.
+
+When it contains:
+
+```markdown
+# Hello
+```
+
+the parser should produce a Heading(level: 1).
+
+When it contains:
+
+```markdown
+- [ ] Buy milk
+```
+
+the parser should produce a ChecklistItem(checked: false).
+
+Do not introduce hidden syntax characters into the RichDocument merely because the input contained them.
+
+---
+
+# 15. Markdown round-trip guarantees
+
+Create extensive round-trip tests.
+
+At minimum:
+
+```text
+Markdown
+ → RichDocument
+ → Markdown
+```
+
+must preserve semantics for all supported syntax.
+
+Also test:
+
+```text
+Markdown
+ → RichDocument
+ → user mutation
+ → Markdown
+```
+
+The serializer may normalize equivalent Markdown formatting, but it must not lose content or meaning.
+
+Preserve:
+
+* Text content.
+* Paragraph boundaries.
+* Heading hierarchy.
+* Formatting.
+* Links.
+* Note links.
+* Tags.
+* Checklist state.
+* List structure.
+* Code language.
+* Code contents.
+* Image references.
+* Table structure.
+* Frontmatter.
+* Unknown frontmatter properties.
+* Frontmatter comments and formatting where existing surgical-preservation behavior requires it.
+
+Do not destructively rewrite frontmatter simply because the user switched editor modes.
+
+---
+
+# 16. Frontmatter
+
+Keep the existing robust frontmatter system.
+
+Frontmatter is metadata, not ordinary rich-text body content.
+
+In Visual mode:
+
+* Do not expose raw YAML to the writing canvas.
+* Do not put YAML delimiters into RichDocument.
+* Preserve unknown keys.
+* Preserve comments.
+* Preserve unrecognized attributes.
+* Preserve original frontmatter formatting where the existing helper guarantees it.
+* Continue supporting title synchronization.
+* Continue supporting Author, Created, Source, Description, Tags and existing recognized metadata.
+* Keep the current property editing UI or refine it to fit the new editor aesthetic.
+
+When the user edits frontmatter in the dedicated metadata UI, update the canonical Markdown safely using the existing surgical frontmatter infrastructure.
+
+When Markdown mode is selected, the full Markdown including frontmatter remains directly editable.
+
+A malformed frontmatter block must never be silently destroyed.
+
+---
+
+# 17. Title handling
+
+Maintain Quiet Paper’s current title behavior.
+
+The title should remain a distinct document title field in the editor UI.
+
+Visual body editing must not force the user to interact with Markdown heading syntax to manipulate the title.
+
+Keep the existing smart auto-title behavior where applicable.
+
+For notes with frontmatter `title`, preserve synchronization with the existing frontmatter title logic.
+
+---
+
+# 18. Checklists
+
+Checklists must be true editor behavior.
+
+Visual mode should render:
+
+```text
+☐ Buy milk
+☑ Send email
+```
+
+The checkbox should be visually integrated into the document.
+
+Tap the checkbox:
+
+```text
+unchecked → checked
+checked → unchecked
+```
+
+without moving the text caret unexpectedly.
+
+Completed checklist text should use the existing Quiet Paper visual treatment for completed tasks.
+
+The underlying RichDocument stores:
+
+```text
+checked = true/false
+```
+
+not:
+
+```text
+[x]
+```
+
+Markdown serialization is responsible for converting the state to the correct Markdown syntax.
+
+Preserve the existing Phosphor icon language used by Quiet Paper.
+
+---
+
+# 19. Lists
+
+Lists should be structural RichDocument properties.
+
+The visual editor should not depend on literal:
+
+```text
+-
+*
++
+1.
+```
+
+characters to represent list state.
+
+Render list markers visually.
+
+Support:
+
+* unordered lists
+* ordered lists
+* nested lists
+* checklist items
+* continuation
+* indentation
+* appropriate Enter behavior
+* appropriate Backspace behavior
+* selection across list items
+* formatting inside list item text
+
+Markdown serialization handles the correct Markdown marker syntax.
+
+---
+
+# 20. Quotes
+
+Represent quote structure semantically.
+
+Do not store:
+
+```text
+> hello
+```
+
+as the live editing text.
+
+Store:
+
+```text
+Quote
+  text = "hello"
+```
+
+and serialize to Markdown only at the appropriate boundary.
+
+The visual presentation should be subtle and editorial rather than card-like.
+
+---
+
+# 21. Code blocks
+
+Code blocks need to feel distinct without becoming intrusive.
+
+Requirements:
+
+* Preserve code exactly.
+* Maintain language identifier.
+* Support editing code as text.
+* Do not accidentally apply rich-text inline formatting inside code.
+* Preserve code newlines.
+* Preserve indentation.
+* Support copy.
+* Preserve existing syntax-highlighting integration where it is already part of the product.
+* Support language selection using the existing Quiet Paper mechanism.
+* Keep keyboard navigation predictable.
+* Ensure the code editor does not steal focus unexpectedly.
+
+The current product already supports code block language selection and syntax highlighting; preserve that capability.
+
+---
+
+# 22. Tables
+
+Tables are the one area where a specialized editing surface may remain justified.
+
+Do not force a bad generic rich-text implementation onto tables.
+
+Preserve the existing table capabilities:
+
+* Edit cell text.
+* Move between cells.
+* Tab navigation.
+* Shift+Tab.
+* Enter behavior.
+* Add row.
+* Delete row.
+* Add column.
+* Delete column.
+* Alignment.
+* Delete table.
+* Copy/paste where supported.
+* Undo/redo.
+* Markdown serialization.
+
+The existing codebase already has a specialized `MarkdownTableView`, `MarkdownTableEditor`, `MarkdownTableController`, contextual table toolbar and table actions. Preserve useful interaction behavior while changing the document ownership model so table state belongs to RichDocument in Visual mode.
+
+---
+
+# 23. Images
+
+Images must be represented semantically.
+
+The visual document can contain:
+
+```text
+ImageNode
+```
+
+with metadata such as:
+
+* source/reference
+* alt text
+* dimensions
+* relevant existing attachment metadata
+
+Do not represent the image as Markdown syntax inside the live RichDocument.
+
+Preserve existing image insertion, compression, clipboard, drag-and-drop and serialization behavior.
+
+Use the existing image compression policy and settings.
+
+The current product already performs background image compression for large uploads; do not regress this behavior.
+
+---
+
+# 24. Links, note links and tags
+
+Links must be semantic in Visual mode.
+
+A link run should know:
+
+```text
+display text
+target
+```
+
+not require the user-visible text to contain:
+
+```text
+[text](url)
+```
+
+Note links should remain semantic.
+
+Tags should remain semantic where practical.
+
+Preserve:
+
+* note-link autocomplete
+* tag autocomplete
+* keyboard navigation
+* Escape
+* insertion at current caret
+* selection replacement
+* links around formatted text
+* existing trust/security behavior for external URLs
+
+The current product already contains note-link and tag autocomplete and domain-trust behavior. Preserve these integrations.
+
+---
+
+# 25. Read-only mode
+
+Read-only mode must continue to work.
+
+When read-only:
+
+* No mutation.
+* No formatting toolbar.
+* No accidental keyboard editing.
+* No insertion.
+* No checkbox mutation if the note is globally read-only.
+* Existing visual treatment and lock indicators remain.
+
+Preserve the current note-level read-only semantics.
+
+---
+
+# 26. Password-protected notes
+
+Do not change note security architecture.
+
+A protected note must still unlock before editing.
+
+The new editor must operate only after the existing decrypted note content has been made available locally.
+
+No rich-text data should bypass the existing security pipeline.
+
+No plaintext rich document should be transmitted to the backend.
+
+No encryption keys should be exposed to the editor package.
+
+The editor is a UI/domain layer only.
+
+---
+
+# 27. Autosave and persistence
+
+The database should initially remain Markdown-backed.
+
+When Visual mode is active:
+
+```text
+RichDocument
+   ↓
+debounced serializer
+   ↓
+Markdown
+   ↓
+existing note persistence
+```
+
+Do NOT serialize on every keystroke if it is unnecessary.
+
+Use a sensible debounce and preserve the existing Quiet Paper autosave behavior.
+
+Also flush on:
+
+* focus change where appropriate
+* app lifecycle changes
+* editor disposal
+* note navigation
+* mode switch
+
+Do not lose edits if the user immediately backgrounds the app.
+
+Do not save an intermediate malformed Markdown state merely because a visual edit is in progress.
+
+The RichDocument must remain the active editing state until serialization succeeds.
+
+If serialization fails:
+
+* do not silently discard the RichDocument
+* do not overwrite the previous valid Markdown
+* surface a recoverable error
+* keep the editor usable
+* log diagnostic information in development/debug builds
+
+---
+
+# 28. Performance
+
+Performance is P0.
+
+The current visual editor previously required incremental parsing, block virtualization, targeted rebuilds and large-document safeguards because full-document parsing and many live block widgets became expensive.
+
+The new architecture should eliminate the need for Markdown reparsing during normal Visual typing.
+
+Requirements:
+
+* Typing in a paragraph should not parse the whole Markdown document.
+* Inline formatting should not parse the whole Markdown document.
+* Applying Bold should not reconstruct Markdown.
+* Selection changes should not trigger whole-document serialization.
+* Caret movement should not trigger a whole-document rebuild.
+* Autosave serialization should be debounced.
+* Large documents must remain responsive.
+* Avoid rebuilding unaffected document regions.
+* Do not instantiate unnecessary text-editing state for every block if the architecture allows a more efficient unified surface.
+* Avoid O(N) listener fan-out per keystroke.
+
+Create performance tests for:
+
+* 1,000 paragraphs.
+* 5,000 paragraphs.
+* Large code blocks.
+* Long checklist documents.
+* Mixed-format long notes.
+
+The target is that ordinary typing remains responsive and does not exhibit visible stutter caused by document conversion.
+
+---
+
+# 29. Visual design
+
+The new editor must feel like **Bear / Quiet Paper**, not like:
+
+* Notion
+* Obsidian
+* Google Docs
+* a CMS
+* a Markdown IDE
+* a Flutter demo editor
+
+The visual hierarchy should be:
+
+```text
+restrained app bar
+        ↓
+editorial title
+        ↓
+quiet metadata
+        ↓
+continuous paper
+        ↓
+minimal formatting UI
+```
+
+Use the existing Quiet Paper warm editorial visual system.
+
+Do not add:
+
+* persistent block borders
+* cards around paragraphs
+* heavy Material containers
+* excessive shadows
+* visible Markdown delimiters
+* always-visible structural labels
+* visible H1/H2/H3 badges beside ordinary content
+* a giant permanent formatting toolbar
+* UI chrome around every block
+
+The content should dominate.
+
+The user should feel:
+
+> “I am writing on a piece of paper.”
+
+not:
+
+> “I am manipulating a document tree.”
+
+---
+
+# 30. Formatting toolbar
+
+The formatting toolbar must be contextual.
+
+Normal writing state:
+
+```text
+minimal / hidden
+```
+
+Text selected:
+
+```text
+Bold
+Italic
+Strike
+Highlight
+Link
+```
+
+Context-specific actions can appear where appropriate.
+
+Advanced actions should remain behind the existing overflow/menu systems.
+
+Do not permanently expose every editing capability.
+
+Toolbar interactions must never steal editor focus.
+
+Preserve:
+
+* Bold
+* Italic
+* Strike
+* Highlight
+* Inline code
+* Link
+* Checklist
+* Bullet list
+* Ordered list
+* Quote
+* Heading
+* Divider
+* Table
+* Image
+* existing Insert actions
+
+But the UI should only show what is contextually useful.
+
+---
+
+# 31. Keyboard shortcuts
+
+Preserve and test:
+
+```text
+Ctrl/Cmd + B
+Ctrl/Cmd + I
+Ctrl/Cmd + Shift + X
+Ctrl/Cmd + `
+Ctrl/Cmd + K
+Ctrl/Cmd + A
+Ctrl/Cmd + C
+Ctrl/Cmd + V
+Ctrl/Cmd + X
+Ctrl/Cmd + Z
+Ctrl/Cmd + Shift + Z
+```
+
+Also preserve normal:
+
+* Arrow navigation
+* Home
+* End
+* Page navigation
+* Shift selection
+* Option/Alt word navigation where supported by Flutter/platform
+* Tab where appropriate for tables/lists
+* Escape for contextual UI
+
+Do not intercept standard editing shortcuts unnecessarily.
+
+---
+
+# 32. Markdown mode must remain a real Markdown editor
+
+Do not turn Markdown mode into another rich-text editor.
+
+Markdown mode should continue to be a straightforward Markdown text-editing experience with:
+
+* source text
+* normal selection
+* normal copy/paste
+* existing Markdown smart editing
+* existing syntax-aware formatting helpers where useful
+* existing table editing support
+* autocomplete
+* keyboard shortcuts
+
+The user must be free to edit the actual Markdown.
+
+---
+
+# 33. Mode switching UX
+
+The user should be able to switch modes from the existing editor controls.
+
+Use simple terminology:
+
+```text
+Visual
+Markdown
+```
+
+Do not expose internal terminology like:
+
+```text
+Semantic Editor
+Projection Layer
+WYSIWYG Beta
+Source Visual Mapping
+```
+
+in normal user-facing UI.
+
+When switching modes:
+
+* show no unnecessary loading UI for normal-sized notes
+* preserve content
+* preserve selection where possible
+* preserve scroll position where possible
+* do not produce duplicate undo entries
+* do not lose keyboard focus
+* do not close the keyboard unnecessarily on mobile
+* do not corrupt frontmatter
+* do not modify the note if conversion is semantically identical
+
+---
+
+# 34. Failure handling
+
+Conversion must be defensive.
+
+Visual parsing errors:
+
+* Do not destroy the Markdown.
+* Do not silently produce an empty document.
+* Fall back safely to Markdown mode when necessary.
+* Explain the fallback clearly and calmly.
+
+Serialization errors:
+
+* Keep RichDocument alive.
+* Do not overwrite last-known-good Markdown.
+* Log actionable diagnostics.
+* Allow the user to switch to Markdown mode and recover.
+
+Unsupported Markdown:
+
+* Preserve it.
+* Never silently delete it.
+* Where visual editing cannot safely represent it, render it as an explicitly unsupported/raw region or use an intentional Markdown fallback.
+
+Never “best effort” destructively rewrite content.
+
+Data preservation outranks visual prettiness.
+
+---
+
+# 35. Backward compatibility
+
+Existing notes must open correctly.
+
+Do not introduce a database migration unless it is genuinely required.
+
+Existing Markdown notes should:
+
+```text
+load Markdown
+→ parse RichDocument
+→ edit visually
+→ serialize Markdown
+→ save
+```
+
+Existing notes opened in Markdown mode should remain directly editable Markdown.
+
+Existing sync behavior must remain unchanged at the payload level unless a separate migration is explicitly required.
+
+Do not change:
+
+* encryption formats
+* sync API contracts
+* backend note ciphertext schema
+* backup format
+* export contract
+* note IDs
+* revisions
+* deletion semantics
+
+---
+
+# 36. Replace the old visual editor
+
+The old visual editor should eventually be removed, not left as a second competing architecture.
+
+Current relevant areas include:
+
+```text
+lib/features/editor/application/semantic_markdown_parser.dart
+lib/features/editor/application/semantic_mutation_service.dart
+lib/features/editor/application/semantic_editor_controller.dart
+lib/features/editor/domain/semantic_document.dart
+lib/features/editor/domain/semantic_nodes.dart
+lib/features/editor/domain/source_range.dart
+lib/features/editor/domain/document_position.dart
+lib/features/editor/presentation/widgets/visual_document_editor.dart
+```
+
+There may also be older WYSIWYG implementation artifacts from previous generations.
+
+Do not delete everything immediately.
+
+First:
+
+1. Build the new RichDocument architecture.
+2. Wire it behind Visual mode.
+3. Add comprehensive tests.
+4. Exercise real editing journeys.
+5. Verify Markdown round-tripping.
+6. Verify autosave.
+7. Verify sync/export/backups.
+8. Verify phone/tablet behavior.
+9. Verify read-only/protected notes.
+10. Only then remove obsolete visual-editor code.
+
+After migration, remove dead code rather than maintaining two permanent implementations.
+
+Do not leave duplicate controllers, duplicate selection systems or duplicate mutation paths “just in case”.
+
+---
+
+# 37. Code organization
+
+Create a clean editor architecture.
+
+Use a structure along these lines:
+
+```text
+lib/features/editor/
+  domain/
+    rich_document.dart
+    rich_block.dart
+    rich_inline.dart
+    text_attributes.dart
+    document_selection.dart
+    editor_editing_style.dart
+
+  application/
+    rich_document_parser.dart
+    rich_document_serializer.dart
+    rich_document_controller.dart
+    rich_document_mutations.dart
+    rich_document_selection.dart
+
+  presentation/
+    widgets/
+      rich_text_editor.dart
+      rich_editor_surface.dart
+      rich_editor_toolbar.dart
+      rich_table_editor.dart
+      rich_code_block.dart
+      rich_image_block.dart
+      ...
+```
+
+Use sensible naming based on the existing repository conventions.
+
+Do not create giant God classes.
+
+Keep:
+
+* domain model
+* mutation logic
+* serialization
+* parsing
+* controller state
+* widgets
+
+separated.
+
+The serializer must not know about Flutter widgets.
+
+The domain model must not depend on `BuildContext`.
+
+The parser must not depend on UI state.
+
+The editor controller must not contain Markdown regex logic.
+
+---
+
+# 38. Tests are mandatory
+
+Do not consider the work complete because `flutter analyze` passes.
+
+Create comprehensive tests.
+
+## Domain tests
+
+Test:
+
+* block creation
+* inline attributes
+* equality
+* copyWith
+* selection
+* document mutations
+* nested structures
+* formatting combinations
+
+## Parser tests
+
+Test Markdown → RichDocument for:
+
+* headings
+* paragraphs
+* formatting
+* combinations
+* lists
+* nested lists
+* checklists
+* quotes
+* code
+* tables
+* images
+* links
+* note links
+* tags
+* horizontal rules
+* frontmatter
+
+## Serializer tests
+
+Test RichDocument → Markdown.
+
+## Round-trip tests
+
+Test:
+
+```text
+Markdown → RichDocument → Markdown
+```
+
+for every supported construct.
+
+## Editing tests
+
+Test:
+
+* typing
+* deletion
+* Enter
+* Backspace
+* selection
+* formatting
+* list operations
+* checklist toggles
+* links
+* tables
+* images
+* code blocks
+* undo
+* redo
+
+## Selection tests
+
+Explicitly test:
+
+* double-tap selection
+* drag selection
+* multi-block selection
+* formatting selection
+* select all
+* selection after mode switching
+* selection after insertion
+* selection after undo/redo
+
+## Focus tests
+
+Explicitly verify:
+
+* keyboard remains open
+* typing after formatting
+* typing after heading conversion
+* typing after checklist conversion
+* typing after pressing Enter
+* tapping different document locations
+
+## Persistence tests
+
+Verify:
+
+```text
+Visual edit
+→ autosave
+→ reload note
+→ identical semantic content
+```
+
+## Lifecycle tests
+
+Verify:
+
+```text
+Visual edit
+→ background app
+→ reopen
+→ content intact
+```
+
+## Integration tests
+
+Exercise the real `EditorScreen`, not only isolated controllers.
+
+---
+
+# 39. Acceptance criteria
+
+Do not mark this task complete until every item below is true.
+
+### Architecture
+
+* Visual mode edits RichDocument directly.
+* Markdown mode edits Markdown directly.
+* Markdown is not the live editing source of Visual mode.
+* Visual typing does not rewrite Markdown.
+* Visual typing does not parse Markdown.
+* Selection does not depend on Markdown offsets.
+* RichDocument does not contain Markdown delimiter characters for formatting.
+
+### UX
+
+* Editor feels like one continuous document.
+* No visible Markdown syntax in Visual mode.
+* No block-editor card feeling.
+* No unnecessary block labels or badges.
+* Toolbar is contextual.
+* Keyboard does not disappear during normal editing.
+* Cursor does not jump unexpectedly.
+* Selection does not collapse unexpectedly.
+* Formatting is immediate.
+* Enter feels natural.
+* Backspace feels natural.
+* Undo/redo feels native.
+
+### Data integrity
+
+* Existing notes load.
+* Existing frontmatter survives.
+* Existing unsupported/unknown frontmatter survives.
+* Markdown round-tripping preserves semantics.
+* No note content is silently dropped.
+* No sync/security regression exists.
+
+### Performance
+
+* Normal typing remains smooth.
+* Large notes do not trigger whole-document Markdown parsing per keystroke.
+* Large notes do not trigger whole-document serialization per keystroke.
+* Unaffected editor content does not rebuild unnecessarily.
+
+### Existing functionality
+
+* Checklists work.
+* Lists work.
+* Quotes work.
+* Headings work.
+* Bold/italic/strike/highlight work.
+* Links work.
+* Note links work.
+* Tags work.
+* Code blocks work.
+* Tables work.
+* Images work.
+* Read-only mode works.
+* Password-protected notes work.
+* Autosave works.
+* Search integration works.
+* Mode switching works.
+* Backup/export/sync still work.
+
+### Quality gates
+
+Run:
+
+```bash
+flutter analyze
+flutter test
+```
+
+Both must pass with zero errors.
+
+Also run the editor-specific test suite independently.
+
+Do not suppress failures merely because they were caused by the old editor.
+
+Fix regressions caused by the architectural replacement.
+
+---
+
+# 40. Critical engineering instruction
+
+Do not approach this task as:
+
+> “Refactor the existing VisualDocumentEditor.”
+
+Approach it as:
+
+> **“Design and implement a new rich-text editor that happens to serialize to Markdown.”**
+
+The distinction is critical.
+
+The old editor's architectural problem is not simply bad selection restoration or insufficient optimization.
+
+The deeper problem is that the user is editing a visual projection of another representation.
+
+The new editor should instead make the rich document representation the actual editing representation.
+
+Markdown should be treated as:
+
+* import format
+* export format
+* sync interchange format
+* backup/interchange format
+* persistence format for the current experimental rollout
+
+It should not be the live cursor/selection/mutation substrate of Visual mode.
+
+---
+
+# 41. Do not sacrifice the existing Quiet Paper character
+
+The final editor should feel calm, warm and restrained.
+
+Use typography, spacing and subtle separators to create hierarchy.
+
+Do not solve complexity with more UI.
+
+Do not add a permanent toolbar just because the new architecture supports more formatting.
+
+Do not make the editor look like a generic rich-text component library.
+
+The ideal result is:
+
+```text
+←                                           ⋯
+
+My Weekend in Darjeeling
+September 16 · 2 tags
+
+
+We left early Saturday morning and drove
+toward the hills.
+
+The weather was surprisingly clear.
+
+Things I want to remember
+
+☐ Visit the tea gardens
+☑ Find that little café again
+☐ Book the train
+
+
+A good note should disappear into your thinking.
+```
+
+The user should primarily see:
+
+**paper, typography, content, cursor.**
+
+Not:
+
+**blocks, syntax, widgets, controls and implementation details.**
+
+---
+
+# 42. Development workflow
+
+Before modifying code:
+
+1. Inspect the current editor implementation and all editor dependencies.
+2. Identify the minimum set of existing services that should be preserved.
+3. Identify the old semantic-WYSIWYG-specific components that can eventually be removed.
+4. Identify existing tests that encode desirable behavior.
+5. Build the RichDocument domain model first.
+6. Build parser and serializer.
+7. Build mutations.
+8. Build editor surface.
+9. Integrate into `MarkdownEditor` and `EditorScreen`.
+10. Add end-to-end tests.
+11. Replace old Visual mode.
+12. Remove obsolete visual-editor machinery.
+13. Run full test suite.
+14. Run static analysis.
+15. Manually exercise representative notes with every supported block type.
+
+Do not perform a speculative large-scale rewrite of unrelated parts of the application.
+
+Do not touch cryptography, sync, backend security, or database schema unless strictly required.
+
+Do not introduce unrelated UI changes while replacing the editor.
+
+---
+
+# 43. Final deliverable
+
+At the end of the implementation, provide a concise engineering summary containing:
+
+1. The new RichDocument architecture.
+2. How Visual mode works.
+3. How Markdown mode works.
+4. How mode conversion works.
+5. How autosave works.
+6. How Markdown persistence remains compatible.
+7. Which old visual-editor components were removed.
+8. Which existing components were retained.
+9. Exact tests added.
+10. Exact commands run.
+11. Final `flutter analyze` result.
+12. Final `flutter test` result.
+13. Any genuinely unresolved limitations.
+
+Do not claim tests pass unless they were actually run.
+
+Do not claim production readiness unless the acceptance criteria above were actually verified.
+
+Do not leave TODOs, placeholder implementations, fake data paths, stub methods, or dead experimental code in the final implementation.
+
+The resulting code must be production-grade, deterministic, testable, maintainable and suitable for long-term ownership by another engineer.
+
+**The most important success criterion is not how sophisticated the internal editor architecture looks.**
+
+The success criterion is:
+
+> **When a person opens a Quiet Paper note and starts typing, the editor feels like one calm piece of paper and never makes them think about Markdown, blocks, parsing, controllers, source ranges, or synchronization.**

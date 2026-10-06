@@ -31,6 +31,7 @@ import '../../notes/domain/note_version_model.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
+import '../application/rich_document_controller.dart';
 import '../application/semantic_editor_controller.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
@@ -137,8 +138,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
+  RichDocumentController? _richDocumentController;
   SemanticEditorController? _semanticEditorController;
   bool _isDraggingOver = false;
+  bool _isDeactivated = false;
+
+  @override
+  void deactivate() {
+    _isDeactivated = true;
+    super.deactivate();
+  }
 
   @override
   void initState() {
@@ -445,6 +454,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _onTitleChanged() {
+    if (!mounted || _isDeactivated) return;
     final currentTitle = _titleController.text;
     if (_titleFocusNode.hasFocus) {
       // User is actively editing the title field directly
@@ -465,24 +475,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       );
       if (updatedContent != _contentController.text) {
         _contentController.text = updatedContent;
-        ref
-            .read(editorProviderFamily(_editorParams).notifier)
-            .updateContent(updatedContent);
+        try {
+          ref
+              .read(editorProviderFamily(_editorParams).notifier)
+              .updateContent(updatedContent);
+        } catch (_) {}
       }
     }
 
-    ref
-        .read(editorProviderFamily(_editorParams).notifier)
-        .updateTitle(currentTitle);
+    try {
+      ref
+          .read(editorProviderFamily(_editorParams).notifier)
+          .updateTitle(currentTitle);
+    } catch (_) {}
   }
 
   void _onContentChanged() {
+    if (!mounted || _isDeactivated) return;
     final newContent = _contentController.text;
     _undoRedoManager.registerEdit(_contentController.value);
 
-    ref
-        .read(editorProviderFamily(_editorParams).notifier)
-        .updateContent(newContent);
+    try {
+      ref
+          .read(editorProviderFamily(_editorParams).notifier)
+          .updateContent(newContent);
+    } catch (_) {}
 
     // If user has not manually set a custom title, automatically fill title field from 1st line
     if (!_isTitleManuallySet) {
@@ -490,9 +507,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       if (_titleController.text != autoTitle) {
         _lastAutoDerivedTitle = autoTitle;
         _titleController.text = autoTitle;
-        ref
-            .read(editorProviderFamily(_editorParams).notifier)
-            .updateTitle(autoTitle);
+        try {
+          ref
+              .read(editorProviderFamily(_editorParams).notifier)
+              .updateTitle(autoTitle);
+        } catch (_) {}
       }
     }
 
@@ -508,7 +527,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   SlashCommandOverlayController? _slashCommandOverlayController;
 
   bool get _isWysiwyg {
-    if (_semanticEditorController == null) return false;
+    if (_richDocumentController == null && _semanticEditorController == null) return false;
     final editorState = ref.read(editorProviderFamily(_editorParams));
     final globalEditingStyle = ref.read(editorEditingStyleProvider);
     return editorState.effectiveEditingStyle(globalEditingStyle) == EditorEditingStyle.wysiwyg;
@@ -674,10 +693,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _setHeadingLevel(int level) {
     if (_isWysiwyg) {
-      if (level == 0) {
-        _semanticEditorController?.convertHeadingToParagraph();
+      if (_richDocumentController != null) {
+        if (level == 0) {
+          _richDocumentController!.convertHeadingToParagraph();
+        } else {
+          _richDocumentController!.setHeadingLevel(level);
+        }
       } else {
-        _semanticEditorController?.setHeadingLevel(level);
+        if (level == 0) {
+          _semanticEditorController?.convertHeadingToParagraph();
+        } else {
+          _semanticEditorController?.setHeadingLevel(level);
+        }
       }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -688,7 +715,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleChecklist() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleChecklist();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleChecklist();
+      } else {
+        _semanticEditorController?.toggleChecklist();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -698,7 +729,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleBulletList() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleList();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleBulletedList();
+      } else {
+        _semanticEditorController?.toggleList();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -708,7 +743,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleOrderedList() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleOrderedList();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleOrderedList();
+      } else {
+        _semanticEditorController?.toggleOrderedList();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -718,7 +757,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleQuote() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleQuote();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleQuote();
+      } else {
+        _semanticEditorController?.toggleQuote();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -727,12 +770,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _insertCodeBlock() {
-    _applyFormattingHelper(MarkdownHelper.insertCodeBlock);
+    if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.insertCodeBlock();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingHelper(MarkdownHelper.insertCodeBlock);
+    }
   }
 
   void _insertDivider() {
     if (_isWysiwyg) {
-      _semanticEditorController?.insertHorizontalRule();
+      if (_richDocumentController != null) {
+        _richDocumentController!.insertHorizontalRule();
+      } else {
+        _semanticEditorController?.insertHorizontalRule();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -742,7 +795,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleBold() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleBold();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleBold();
+      } else {
+        _semanticEditorController?.toggleBold();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -752,7 +809,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleItalic() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleItalic();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleItalic();
+      } else {
+        _semanticEditorController?.toggleItalic();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -762,7 +823,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleStrikethrough() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleStrike();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleStrike();
+      } else {
+        _semanticEditorController?.toggleStrike();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -772,7 +837,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleInlineCode() {
     if (_isWysiwyg) {
-      _semanticEditorController?.toggleInlineCode();
+      if (_richDocumentController != null) {
+        _richDocumentController!.toggleCode();
+      } else {
+        _semanticEditorController?.toggleInlineCode();
+      }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -904,6 +973,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     FocusNode targetFocusNode,
   ) {
     if (_isWysiwyg) {
+      if (_richDocumentController != null) {
+        final linkMd = '[${item.title}](qp://note/${item.id})';
+        final text = targetController.text;
+        final start = replaceStart.clamp(0, text.length);
+        final end = replaceEnd.clamp(0, text.length);
+        final newText = text.replaceRange(start, end, linkMd);
+        final targetOffset = start + linkMd.length;
+        targetController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: targetOffset),
+        );
+        _inlineAutocompleteController?.hide();
+        if (!targetFocusNode.hasFocus) {
+          targetFocusNode.requestFocus();
+        }
+        return;
+      }
       var block = _semanticEditorController!.activeBlock;
       if (block == null) {
         for (final b in _semanticEditorController!.document.blocks) {
@@ -980,6 +1066,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     await notesRepo.saveNote(newNote);
 
     if (_isWysiwyg) {
+      if (_richDocumentController != null) {
+        final linkMd = '[$title](qp://note/$newNoteId)';
+        final text = targetController.text;
+        final start = replaceStart.clamp(0, text.length);
+        final end = replaceEnd.clamp(0, text.length);
+        final newText = text.replaceRange(start, end, linkMd);
+        final targetOffset = start + linkMd.length;
+        targetController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: targetOffset),
+        );
+        _inlineAutocompleteController?.hide();
+        if (mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => EditorScreen(note: newNote),
+            ),
+          );
+        }
+        return;
+      }
       var block = _semanticEditorController!.activeBlock;
       if (block == null) {
         for (final b in _semanticEditorController!.document.blocks) {
@@ -1046,6 +1153,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     FocusNode targetFocusNode,
   ) {
     if (_isWysiwyg) {
+      if (_richDocumentController != null) {
+        final text = targetController.text;
+        final start = replaceStart.clamp(0, text.length);
+        final end = replaceEnd.clamp(0, text.length);
+        final hasTrailingSpace = end < text.length && text[end] == ' ';
+        final replacement = hasTrailingSpace ? '#${tag.name}' : '#${tag.name} ';
+        final newText = text.replaceRange(start, end, replacement);
+        final targetOffset = start + replacement.length;
+        targetController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: targetOffset),
+        );
+        _tagAutocompleteController?.hide();
+        if (!targetFocusNode.hasFocus) {
+          targetFocusNode.requestFocus();
+        }
+        return;
+      }
       var block = _semanticEditorController!.activeBlock;
       if (block == null) {
         for (final b in _semanticEditorController!.document.blocks) {
@@ -1913,6 +2038,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                          });
                                        }
                                      },
+                                    onRichControllerChanged: (ctrl) {
+                                      _richDocumentController = ctrl;
+                                    },
                                     onSemanticControllerChanged: (ctrl) {
                                       _semanticEditorController = ctrl;
                                     },
@@ -1980,6 +2108,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return FormattingToolbar(
       controller: _activeTargetController ?? _contentController,
       focusNode: _activeTargetFocusNode ?? _contentFocusNode,
+      richController: isWysiwyg ? _richDocumentController : null,
       semanticController: isWysiwyg ? _semanticEditorController : null,
       canUndo: _undoRedoManager.canUndo,
       canRedo: _undoRedoManager.canRedo,
@@ -2281,6 +2410,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final result = await TableInsertDialog.show(context);
     if (result != null) {
+      if (_isWysiwyg && _richDocumentController != null) {
+        _richDocumentController!.insertTable(rows: result.rows, cols: result.columns);
+        return;
+      }
       final updated = MarkdownTableFormatter.insertTable(
         value: _contentController.value,
         rows: result.rows,
@@ -2982,6 +3115,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isPreviewMode) {
       ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
+    }
+
+    if (_isWysiwyg && _richDocumentController != null) {
+      final currentMd = _richDocumentController!.toMarkdown();
+      final insertOffset = _richDocumentController!.globalCaretOffset.clamp(0, currentMd.length);
+      final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
+      _richDocumentController!.setMarkdown(newMarkdown);
+      _contentController.value = TextEditingValue(
+        text: newMarkdown,
+        selection: TextSelection.collapsed(offset: insertOffset + snippet.length),
+      );
+      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _onContentChanged();
+      return;
     }
 
     if (_isWysiwyg && _semanticEditorController != null) {

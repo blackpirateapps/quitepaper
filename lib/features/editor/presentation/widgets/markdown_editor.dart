@@ -13,9 +13,13 @@ import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
 import '../../../../core/markdown/markdown_helper.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
+import '../../../../core/utils/debouncer.dart';
+import '../../application/rich_document_controller.dart';
+import '../../domain/rich_document.dart';
 import 'code_block_overlay.dart';
 import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
+import 'rich_editor_surface.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
 import 'visual_document_editor.dart';
@@ -41,6 +45,7 @@ class MarkdownEditor extends StatefulWidget {
     this.searchQuery,
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
+    this.onRichControllerChanged,
     this.onSemanticControllerChanged,
     this.onKeyEvent,
     this.onPaste,
@@ -62,6 +67,9 @@ class MarkdownEditor extends StatefulWidget {
   final FocusOnKeyEventCallback? onKeyEvent;
   final VoidCallback? onPaste;
 
+  /// Called when the [RichDocumentController] is created or disposed.
+  final ValueChanged<RichDocumentController?>? onRichControllerChanged;
+
   /// Called when the [SemanticEditorController] is created or disposed.
   /// Allows the parent to wire semantic operations (e.g., heading cycling) to the toolbar.
   final ValueChanged<SemanticEditorController?>? onSemanticControllerChanged;
@@ -75,12 +83,15 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   MarkdownTable? _activeTable;
   MarkdownTableController? _activeTableController;
+  RichDocumentController? _richController;
   SemanticEditorController? _semanticController;
+  final Debouncer _autosaveDebouncer = Debouncer(duration: const Duration(milliseconds: 700));
   bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
+    _initRichController();
     _initSemanticController();
     widget.controller.addListener(_onSourceControllerChanged);
   }
@@ -101,6 +112,50 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         ),
       );
     });
+  }
+
+  void _initRichController() {
+    final isTooLarge = SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text);
+    if (widget.editingStyle == EditorEditingStyle.wysiwyg && !isTooLarge) {
+      _richController?.dispose();
+      _richController = RichDocumentController(
+        initialMarkdown: widget.controller.text,
+        styles: widget.controller.styles,
+        stripFrontmatter: widget.stripFrontmatter,
+        onDocumentChanged: _onRichDocumentChanged,
+      );
+      _richController!.searchQuery = widget.searchQuery;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onRichControllerChanged?.call(_richController);
+      });
+    } else {
+      widget.onRichControllerChanged?.call(null);
+      _richController?.dispose();
+      _richController = null;
+    }
+  }
+
+  void _onRichDocumentChanged(RichDocument doc) {
+    if (_isSyncing) return;
+    _autosaveDebouncer.run(_flushRichMarkdown);
+  }
+
+  void _flushRichMarkdown() {
+    _autosaveDebouncer.cancel();
+    if (_richController == null || _isSyncing) return;
+    final newMarkdown = _richController!.toMarkdown();
+    if (widget.controller.text != newMarkdown) {
+      _isSyncing = true;
+      try {
+        widget.controller.value = TextEditingValue(
+          text: newMarkdown,
+          selection: widget.controller.selection,
+        );
+        widget.onChanged?.call(newMarkdown);
+      } finally {
+        _isSyncing = false;
+      }
+    }
   }
 
   void _initSemanticController() {
@@ -140,23 +195,41 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
     if (oldWidget.editingStyle != widget.editingStyle ||
         oldWidget.stripFrontmatter != widget.stripFrontmatter) {
+      if (oldWidget.editingStyle == EditorEditingStyle.wysiwyg) {
+        _flushRichMarkdown();
+      }
+      _initRichController();
       _initSemanticController();
     }
 
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onSourceControllerChanged);
       widget.controller.addListener(_onSourceControllerChanged);
+      if (_richController != null) {
+        _richController!.styles = widget.controller.styles;
+        _richController!.setMarkdown(widget.controller.text);
+      }
       if (_semanticController != null) {
         _semanticController!.styles = widget.controller.styles;
         _semanticController!.markdown = widget.controller.text;
       }
       _syncActiveTableWithDocument();
-    } else if (_semanticController != null) {
-      if (widget.controller.styles != _semanticController!.styles) {
-        _semanticController!.styles = widget.controller.styles;
+    } else {
+      if (_richController != null) {
+        if (widget.controller.styles != _richController!.styles) {
+          _richController!.styles = widget.controller.styles;
+        }
+        if (widget.searchQuery != _richController!.searchQuery) {
+          _richController!.searchQuery = widget.searchQuery;
+        }
       }
-      if (widget.searchQuery != _semanticController!.searchQuery) {
-        _semanticController!.searchQuery = widget.searchQuery;
+      if (_semanticController != null) {
+        if (widget.controller.styles != _semanticController!.styles) {
+          _semanticController!.styles = widget.controller.styles;
+        }
+        if (widget.searchQuery != _semanticController!.searchQuery) {
+          _semanticController!.searchQuery = widget.searchQuery;
+        }
       }
     }
   }
@@ -164,6 +237,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   void dispose() {
     widget.controller.removeListener(_onSourceControllerChanged);
+    _flushRichMarkdown();
+    _autosaveDebouncer.dispose();
+    widget.onRichControllerChanged?.call(null);
+    _richController?.dispose();
+    _richController = null;
     widget.onSemanticControllerChanged?.call(null);
     _semanticController?.dispose();
     _semanticController = null;
@@ -195,6 +273,16 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   void _onSourceControllerChanged() {
     if (_isSyncing) return;
+
+    if (_richController != null &&
+        _richController!.toMarkdown() != widget.controller.text) {
+      _isSyncing = true;
+      try {
+        _richController!.setMarkdown(widget.controller.text);
+      } finally {
+        _isSyncing = false;
+      }
+    }
 
     if (_semanticController != null &&
         _semanticController!.markdown != widget.controller.text) {
@@ -411,6 +499,19 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
       if (SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text)) {
         _notifyLargeDocumentFallback(context);
+      } else if (_richController != null) {
+        return RichEditorSurface(
+          controller: _richController!,
+          focusNode: widget.focusNode,
+          readOnly: widget.readOnly,
+          hintText: widget.hintText,
+          searchQuery: widget.searchQuery,
+          onActiveTargetChanged: widget.onActiveTargetChanged,
+          onKeyEvent: widget.onKeyEvent,
+          onChanged: (newVal) {
+            _flushRichMarkdown();
+          },
+        );
       } else if (_semanticController != null) {
         return VisualDocumentEditor(
           controller: _semanticController!,

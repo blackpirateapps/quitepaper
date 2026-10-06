@@ -9,7 +9,7 @@ import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/domain/semantic_nodes.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/visual_document_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
@@ -139,16 +139,16 @@ print(value);
       expect(find.byType(FrontmatterPropertiesSection), findsOneWidget);
       expect(find.text('Dr. Watson'), findsOneWidget);
 
-      // Verify VisualDocumentEditor
-      expect(find.byType(VisualDocumentEditor), findsOneWidget);
+      // Verify RichEditorSurface
+      expect(find.byType(RichEditorSurface), findsOneWidget);
 
       // Verify headings
-      expect(find.widgetWithText(TextField, 'Main Heading'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Secondary Heading'), findsOneWidget);
+      expect(find.textContaining('Main Heading'), findsWidgets);
+      expect(find.textContaining('Secondary Heading'), findsWidgets);
 
       // Verify checklist icons
-      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
-      expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.square), findsWidgets);
+      expect(find.byIcon(PhosphorIconsRegular.checkSquare), findsWidgets);
 
       // Verify code block
       expect(find.text('dart'), findsOneWidget);

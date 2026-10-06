@@ -13,7 +13,7 @@ enum EditorEditingStyle {
   String get label {
     switch (this) {
       case EditorEditingStyle.wysiwyg:
-        return 'WYSIWYG (Beta)';
+        return 'Visual';
       case EditorEditingStyle.markdown:
         return 'Markdown';
     }
@@ -23,7 +23,7 @@ enum EditorEditingStyle {
   String get description {
     switch (this) {
       case EditorEditingStyle.wysiwyg:
-        return 'Hide Markdown syntax for a cleaner writing experience';
+        return 'Clean visual writing surface without Markdown syntax';
       case EditorEditingStyle.markdown:
         return 'Show Markdown syntax while editing';
     }

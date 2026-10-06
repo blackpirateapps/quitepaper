@@ -10,6 +10,7 @@ import '../../../../core/utils/platform_layout_helper.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
+import '../../application/rich_document_controller.dart';
 import '../../application/semantic_editor_controller.dart';
 import 'formatting_hub_sheet.dart';
 import 'heading/markdown_heading_action_sheet.dart';
@@ -45,6 +46,7 @@ class FormattingToolbar extends StatefulWidget {
     this.onApplyAtomicEdit,
     this.onCycleHeading,
     this.onCycleHeadingLongPress,
+    this.richController,
     this.semanticController,
     this.isTopDocked = false,
   });
@@ -67,6 +69,9 @@ class FormattingToolbar extends StatefulWidget {
   final bool isDictating;
   final bool canDictate;
   final void Function(TextEditingValue value)? onApplyAtomicEdit;
+
+  /// Optional [RichDocumentController] when running in Visual mode.
+  final RichDocumentController? richController;
 
   /// Optional [SemanticEditorController] when running in WYSIWYG mode.
   final SemanticEditorController? semanticController;
@@ -93,9 +98,35 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   final GlobalKey _insertButtonKey = GlobalKey();
 
   @override
+  void initState() {
+    super.initState();
+    widget.richController?.addListener(_onControllerChanged);
+    widget.semanticController?.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(FormattingToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.richController != widget.richController) {
+      oldWidget.richController?.removeListener(_onControllerChanged);
+      widget.richController?.addListener(_onControllerChanged);
+    }
+    if (oldWidget.semanticController != widget.semanticController) {
+      oldWidget.semanticController?.removeListener(_onControllerChanged);
+      widget.semanticController?.addListener(_onControllerChanged);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.richController?.removeListener(_onControllerChanged);
+    widget.semanticController?.removeListener(_onControllerChanged);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
@@ -117,10 +148,15 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleLink(BuildContext context) async {
-    // WYSIWYG mode: route through the semantic controller. Operating on
-    // `widget.controller` here would inject literal `[title](url)` into a single
-    // block's plain-text controller, which is never committed to the document
-    // and is discarded on the next block sync.
+    if (widget.richController != null) {
+      final rc = widget.richController!;
+      final result = await LinkPromptDialog.show(context);
+      if (result != null) {
+        rc.applyLink(url: result.url, title: result.title);
+      }
+      return;
+    }
+
     if (widget.semanticController != null) {
       final sc = widget.semanticController!;
       var initialTitle = '';
@@ -164,8 +200,12 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleCodeBlock(BuildContext context) async {
-    // WYSIWYG mode: route through the semantic controller for the same reason
-    // as _handleLink — the raw block controller edit would never be committed.
+    if (widget.richController != null) {
+      final rc = widget.richController!;
+      rc.insertCodeBlock();
+      return;
+    }
+
     if (widget.semanticController != null) {
       final sc = widget.semanticController!;
       final currentLang = sc.activeCodeBlockLanguage;
@@ -209,6 +249,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   int _getActiveHeadingLevel() {
+    if (widget.richController != null) {
+      return widget.richController!.activeHeadingLevel ?? 0;
+    }
     if (widget.semanticController != null) {
       return widget.semanticController!.activeHeadingLevel ?? 0;
     }
@@ -216,6 +259,15 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   void _setHeadingLevel(int level) {
+    if (widget.richController != null) {
+      if (level == 0) {
+        widget.richController!.convertHeadingToParagraph();
+      } else {
+        widget.richController!.setHeadingLevel(level);
+      }
+      widget.focusNode?.requestFocus();
+      return;
+    }
     if (widget.semanticController != null) {
       if (level == 0) {
         widget.semanticController!.convertHeadingToParagraph();
@@ -314,6 +366,33 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleHeadingLongPress(BuildContext context) async {
+    if (widget.richController != null) {
+      final currentLevel = widget.richController!.activeHeadingLevel ?? 0;
+      await MarkdownHeadingActionSheet.show(
+        context,
+        currentLevel: currentLevel,
+        onSelectLevel: (newLevel) {
+          widget.richController!.setHeadingLevel(newLevel);
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+        onConvertToParagraph: () {
+          widget.richController!.convertHeadingToParagraph();
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+        onCycleLevel: () {
+          widget.richController!.cycleHeadingLevel();
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+      );
+      return;
+    }
+
     if (widget.semanticController != null) {
       final currentLevel = widget.semanticController!.activeHeadingLevel ?? 0;
       await MarkdownHeadingActionSheet.show(
@@ -383,28 +462,36 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   void _handleFormatOption(BuildContext context, FormattingOption option) {
     switch (option) {
       case FormattingOption.bold:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleBold();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleBold();
         } else {
           _applyFormat(MarkdownFormatter.toggleBold);
         }
         break;
       case FormattingOption.italic:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleItalic();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleItalic();
         } else {
           _applyFormat(MarkdownFormatter.toggleItalic);
         }
         break;
       case FormattingOption.strikethrough:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleStrike();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleStrike();
         } else {
           _applyFormat(MarkdownFormatter.toggleStrikethrough);
         }
         break;
       case FormattingOption.inlineCode:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleCode();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleInlineCode();
         } else {
           _applyFormat(MarkdownFormatter.toggleInlineCode);
@@ -423,7 +510,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _setHeadingLevel(3);
         break;
       case FormattingOption.quote:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleQuote();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleQuote();
           widget.focusNode?.requestFocus();
         } else {
@@ -434,7 +524,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _handleCodeBlock(context);
         break;
       case FormattingOption.checklist:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleChecklist();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleChecklist();
           widget.focusNode?.requestFocus();
         } else {
@@ -442,7 +535,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.bulletList:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleBulletedList();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleList();
           widget.focusNode?.requestFocus();
         } else {
@@ -450,7 +546,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.orderedList:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.toggleOrderedList();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.toggleOrderedList();
           widget.focusNode?.requestFocus();
         } else {
@@ -458,7 +557,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.divider:
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.insertHorizontalRule();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.insertHorizontalRule();
           widget.onApplyAtomicEdit?.call(widget.controller.value);
           widget.focusNode?.requestFocus();
@@ -777,7 +879,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         widget.onTagPressed();
         break;
       case 'divider':
-        if (widget.semanticController != null) {
+        if (widget.richController != null) {
+          widget.richController!.insertHorizontalRule();
+          widget.focusNode?.requestFocus();
+        } else if (widget.semanticController != null) {
           widget.semanticController!.insertHorizontalRule();
           widget.onApplyAtomicEdit?.call(widget.controller.value);
           widget.focusNode?.requestFocus();
@@ -801,6 +906,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isBoldActive() {
+    if (widget.richController != null) return widget.richController!.isBoldActive;
     if (widget.semanticController != null) return widget.semanticController!.isBoldActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isBoldActive;
@@ -809,6 +915,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isItalicActive() {
+    if (widget.richController != null) return widget.richController!.isItalicActive;
     if (widget.semanticController != null) return widget.semanticController!.isItalicActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isItalicActive;
@@ -817,6 +924,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isStrikethroughActive() {
+    if (widget.richController != null) return widget.richController!.isStrikeActive;
     if (widget.semanticController != null) return widget.semanticController!.isStrikeActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isStrikethroughActive;
@@ -825,6 +933,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isInlineCodeActive() {
+    if (widget.richController != null) return widget.richController!.isCodeActive;
     if (widget.semanticController != null) return widget.semanticController!.isCodeActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isInlineCodeActive;
@@ -833,6 +942,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isHeadingActive() {
+    if (widget.richController != null) {
+      return widget.richController!.activeHeadingLevel != null;
+    }
     if (widget.semanticController != null) {
       return widget.semanticController!.activeHeadingLevel != null;
     }
@@ -843,6 +955,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isChecklistActive() {
+    if (widget.richController != null) return widget.richController!.isChecklistActive;
     if (widget.semanticController != null) return widget.semanticController!.isChecklistActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isChecklistActive;
@@ -851,6 +964,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isBulletListActive() {
+    if (widget.richController != null) return widget.richController!.isBulletedListActive;
     if (widget.semanticController != null) return widget.semanticController!.isListActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isBulletListActive;
@@ -859,6 +973,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isOrderedListActive() {
+    if (widget.richController != null) return widget.richController!.isOrderedListActive;
     if (widget.semanticController != null) return widget.semanticController!.isOrderedListActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isOrderedListActive;
@@ -867,6 +982,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isQuoteActive() {
+    if (widget.richController != null) return widget.richController!.isQuoteActive;
     if (widget.semanticController != null) return widget.semanticController!.isQuoteActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isQuoteActive;
@@ -892,6 +1008,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       child: ListenableBuilder(
         listenable: Listenable.merge([
           widget.controller,
+          ?widget.richController,
           ?widget.semanticController,
         ]),
         builder: (context, _) {
@@ -971,6 +1088,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                         } else {
                           if (widget.onCycleHeading != null) {
                             widget.onCycleHeading!();
+                          } else if (widget.richController != null) {
+                            widget.richController!.cycleHeadingLevel();
+                            widget.focusNode?.requestFocus();
                           } else if (widget.semanticController != null) {
                             widget.semanticController!.cycleHeadingLevel();
                             widget.focusNode?.requestFocus();
@@ -993,7 +1113,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Bold (Ctrl+B)' : 'Bold (**text**)',
                       isActive: isBold,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleBold();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleBold();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleBold);
@@ -1005,7 +1127,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Italic (Ctrl+I)' : 'Italic (*text*)',
                       isActive: isItalic,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleItalic();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleItalic();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleItalic);
@@ -1019,7 +1143,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                           : 'Strikethrough (~~text~~)',
                       isActive: isStrikethrough,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleStrike();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleStrike();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleStrikethrough);
@@ -1033,7 +1159,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                           : 'Inline Code (`text`)',
                       isActive: isCode,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleCode();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleInlineCode();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleInlineCode);
@@ -1051,7 +1179,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Checklist (Ctrl+Shift+C)' : 'Checklist (- [ ])',
                       isActive: isChecklist,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleChecklist();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleChecklist();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1064,7 +1195,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Bullet List (Ctrl+Shift+8)' : 'Bullet List (-)',
                       isActive: isBullet,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleBulletedList();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleList();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1077,7 +1211,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Numbered List (Ctrl+Shift+7)' : 'Numbered List (1.)',
                       isActive: isOrdered,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleOrderedList();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleOrderedList();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1090,7 +1227,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Quote (Ctrl+Shift+.)' : 'Quote (>)',
                       isActive: isQuote,
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.toggleQuote();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.toggleQuote();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1103,7 +1243,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       icon: PhosphorIconsRegular.minus,
                       tooltip: isDesktop ? 'Divider (Ctrl+Alt+-)' : 'Divider (---)',
                       onPressed: () {
-                        if (widget.semanticController != null) {
+                        if (widget.richController != null) {
+                          widget.richController!.insertHorizontalRule();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.semanticController != null) {
                           widget.semanticController!.insertHorizontalRule();
                           widget.onApplyAtomicEdit?.call(widget.controller.value);
                           widget.focusNode?.requestFocus();

@@ -157,13 +157,13 @@ void main() {
 
     // Verify content loaded in text fields (in WYSIWYG mode, bold delimiters are visually hidden)
     expect(find.text('Persistent Title'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Paragraph 1'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Paragraph 2 with bold'), findsOneWidget);
+    expect(find.textContaining('Paragraph 1'), findsWidgets);
+    expect(find.textContaining('Paragraph 2 with bold'), findsWidgets);
 
     // Modify content
     await tester.enterText(
       find.byType(TextField).last,
-      'Paragraph 2 with bold modified',
+      'Paragraph 1\n\nParagraph 2 with bold modified',
     );
     await tester.pump(const Duration(milliseconds: 800));
 
@@ -179,8 +179,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(TextField, 'Paragraph 1'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Paragraph 2 with bold modified'), findsOneWidget);
+    expect(find.textContaining('Paragraph 1'), findsWidgets);
+    expect(find.textContaining('Paragraph 2 with bold modified'), findsWidgets);
 
     // Back to main
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -846,9 +846,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsWidgets);
-      expect(find.widgetWithText(TextField, 'This is the very first line of a massive document that discusses software engineering, offline architecture, and databases.'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Paragraph 2 with lots of words and detail.'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Paragraph 3.'), findsOneWidget);
+      expect(find.textContaining('This is the very first line of a massive document'), findsWidgets);
+      expect(find.textContaining('Paragraph 2 with lots of words and detail.'), findsWidgets);
+      expect(find.textContaining('Paragraph 3.'), findsWidgets);
 
       // Tap preview button next to 3-dots to switch back to preview
       await tester.tap(find.byIcon(Icons.remove_red_eye_outlined));
