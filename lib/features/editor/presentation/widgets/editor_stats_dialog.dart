@@ -9,9 +9,11 @@ class EditorStatsDialog extends StatelessWidget {
   const EditorStatsDialog({
     super.key,
     required this.note,
+    this.onOpenVersionHistory,
   });
 
   final Note note;
+  final VoidCallback? onOpenVersionHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +58,16 @@ class EditorStatsDialog extends StatelessWidget {
         ],
       ),
       actions: [
+        if (onOpenVersionHistory != null)
+          QuietButton(
+            label: 'Version history',
+            icon: Icons.history_rounded,
+            variant: QuietButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              onOpenVersionHistory!();
+            },
+          ),
         QuietButton(
           label: 'Close',
           variant: QuietButtonVariant.secondary,

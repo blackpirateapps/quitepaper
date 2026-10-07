@@ -7419,6 +7419,59 @@ In Flutter's text layout engine (SkParagraph / LibTxt), whitespace immediately p
 - Trailing Space Test Suite: `flutter test test/editor/rich_text_trailing_space_cursor_test.dart` passed (**4 of 4 tests passed**).
 - Full Test Suite: `flutter test` passed (**1,591 of 1,591 tests passed**).
 
+---
+
+## 146. Editor 3-Dot Overflow Menu Reorganization & Streamlining (October 2026)
+
+### 1. Overview & Motivation
+The note editor 3-dot overflow menu (`⋯`) had previously become cramped with 12–14 vertically stacked list items, causing unnecessary vertical scrolling and visual clutter. To align with Quiet Paper's calm editorial design principles:
+- High-frequency note actions (**Pin**, **Archive**, **Delete**) are elevated into a prominent 3-column quick-action bar at the top of the menu with large icons.
+- Related export and sharing actions are consolidated into a dedicated **Share** submenu.
+- Security and access-control actions are consolidated into a dedicated **Privacy** submenu.
+- **Version history** is removed from the 3-dot sheet and moved directly into the **Note details** dialog (`EditorStatsDialog`) beside the "Close" button.
+- Core content actions (**Insert**, **Find in note**, **Add tag**, **Edit Visually / Markdown**) remain directly accessible in the main menu.
+
+### 2. Architectural & UI Structure
+1. **`EditorQuickActionsBar` (`lib/features/editor/presentation/widgets/editor_quick_actions_bar.dart`)**:
+   - Rendered at the top of the overflow menu sheet as a single row of 3 equal-width columns.
+   - Built with subtle rounded cards (`colors.surfaceSecondary`, `AppRadii.rMd`), 26dp tactile monochrome icons, and concise labels (`AppTypography.caption`).
+   - Adapts to note state:
+     - **Active Notes**: `Pin / Unpin`, `Archive`, `Delete`.
+     - **Archived Notes**: `Pin / Unpin`, `Unarchive`, `Delete`.
+     - **Trashed Notes**: `Restore`, `Delete permanently`.
+2. **Smooth In-Sheet Submenu Drilldowns (`_OverflowMenuPage`)**:
+   - Expanded enum: `_OverflowMenuPage { main, insert, share, privacy }`.
+   - **`_OverflowMenuPage.share`**: Animated submenu view containing:
+     - `Export note` (`Icons.ios_share_rounded`)
+     - `Share as screenshot` (`Icons.image_outlined`)
+     - `Share as URL` (`Icons.link_rounded`)
+     - `Copy markdown` (`Icons.copy_rounded`)
+     - Top header with back button returning to `_OverflowMenuPage.main`.
+   - **`_OverflowMenuPage.privacy`**: Animated submenu view containing:
+     - `Lock note (Read-only)` / `Unlock note (Edit mode)`
+     - `Protect with password` / `Change note password` / `Remove password protection` / `Lock note now`
+     - Top header with back button returning to `_OverflowMenuPage.main`.
+3. **Note Details Dialog & Version History Integration (`EditorStatsDialog`)**:
+   - Added `onOpenVersionHistory` optional callback to `EditorStatsDialog`.
+   - Added a `Version history` action button (`QuietButtonVariant.secondary`, `Icons.history_rounded`) placed to the left of the `Close` button.
+   - When tapped, dismisses the dialog and presents `VersionHistorySheet`.
+4. **Modular Implementation in `EditorScreen`**:
+   - Extracted `_buildOverflowMenuPage` to separate submenu view rendering from sheet boilerplate, improving maintainability.
+
+### 3. Modified & Added Files
+- [`lib/features/editor/presentation/widgets/editor_quick_actions_bar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/editor_quick_actions_bar.dart): New 3-column tactile quick action bar widget.
+- [`lib/features/editor/presentation/widgets/editor_stats_dialog.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/editor_stats_dialog.dart): Added `onOpenVersionHistory` callback and `Version history` button.
+- [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart): Refactored `_showOverflowMenu` and `_buildOverflowMenuPage` with `share` and `privacy` submenus, quick actions bar, and version history wireup.
+- [`test/editor/editor_overflow_menu_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_overflow_menu_test.dart): Updated and added widget tests for quick actions, Share submenu, Privacy submenu, and Note details version history button.
+- [`test/editor/editor_stats_dialog_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_stats_dialog_test.dart): Added unit test for `EditorStatsDialog` `onOpenVersionHistory` action button.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 146.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` completed with **0 issues found** (0 errors, 0 warnings).
+- Targeted Tests: `flutter test test/editor/editor_overflow_menu_test.dart test/editor/editor_stats_dialog_test.dart` passed (**14 of 14 tests passed**).
+- Full Test Suite: `flutter test` running full verification.
+
+
 
 
 

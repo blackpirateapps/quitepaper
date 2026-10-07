@@ -198,5 +198,40 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets('EditorStatsDialog displays Version history button and triggers callback', (tester) async {
+      final note = Note(
+        id: 'stats-vh-test',
+        title: 'Version History Stats Note',
+        content: 'Content here.',
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 2),
+      );
+
+      var callbackInvoked = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
+          home: Scaffold(
+            body: EditorStatsDialog(
+              note: note,
+              onOpenVersionHistory: () {
+                callbackInvoked = true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Version history'), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+
+      await tester.tap(find.text('Version history'));
+      await tester.pumpAndSettle();
+
+      expect(callbackInvoked, isTrue);
+    });
   });
 }

@@ -8,6 +8,9 @@ import 'package:quitepaper/features/editor/presentation/widgets/table/table_inse
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/editor_quick_actions_bar.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/editor_stats_dialog.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/version_history_sheet.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -125,8 +128,11 @@ void main() {
 
       // Other core menu items remain accessible
       expect(find.text('Find in note'), findsOneWidget);
-      expect(find.text('Export note'), findsOneWidget);
-      expect(find.text('Version history'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.text('Note details'), findsOneWidget);
+      expect(find.text('Version history'), findsNothing);
+      expect(find.text('Export note'), findsNothing);
 
       await finishTest(tester);
     });
@@ -253,8 +259,11 @@ void main() {
       await tester.pumpWidget(createEditorApp(note));
       await tester.pumpAndSettle();
 
-      // Lock note via 3-dot menu
+      // Lock note via 3-dot menu -> Privacy submenu
       await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Privacy'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Lock note (Read-only)'));
@@ -267,6 +276,169 @@ void main() {
       // "Insert" is not present for read-only notes
       expect(find.text('Insert'), findsNothing);
       expect(find.byIcon(PhosphorIconsRegular.plusCircle), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('3-dot menu displays 3-column quick action bar with big icons for Pin, Archive, and Delete',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'quick-actions-test-1',
+        title: 'Quick Actions Note',
+        content: 'Testing quick actions row.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      // Open 3-dot menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      // Quick actions bar exists with 3 actions
+      expect(find.byType(EditorQuickActionsBar), findsOneWidget);
+      expect(find.text('Pin'), findsOneWidget);
+      expect(find.text('Archive'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+
+      // Tap Pin
+      await tester.tap(find.text('Pin'));
+      await tester.pumpAndSettle();
+
+      // Reopen menu to verify pin state updated
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Unpin'), findsOneWidget);
+      expect(find.byIcon(Icons.push_pin_rounded), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('Tapping "Share" transitions to submenu with Export, Screenshot, URL, and Copy markdown options',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'share-submenu-test-1',
+        title: 'Share Submenu Note',
+        content: 'Testing share submenu.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      // Open 3-dot menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      // Tap "Share"
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+
+      // Submenu header
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
+
+      // 4 collapsed share options are visible
+      expect(find.text('Export note'), findsOneWidget);
+      expect(find.text('Share as screenshot'), findsOneWidget);
+      expect(find.text('Share as URL'), findsOneWidget);
+      expect(find.text('Copy markdown'), findsOneWidget);
+
+      // Back navigation restores main menu
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Export note'), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('Tapping "Privacy" transitions to submenu with Lock and Protect with password options',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'privacy-submenu-test-1',
+        title: 'Privacy Submenu Note',
+        content: 'Testing privacy submenu.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      // Open 3-dot menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      // Tap "Privacy"
+      await tester.tap(find.text('Privacy'));
+      await tester.pumpAndSettle();
+
+      // Submenu header
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
+
+      // Collapsed privacy options are visible
+      expect(find.text('Lock note (Read-only)'), findsOneWidget);
+      expect(find.text('Protect with password'), findsOneWidget);
+
+      // Back navigation restores main menu
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.text('Lock note (Read-only)'), findsNothing);
+
+      await finishTest(tester);
+    });
+
+    testWidgets('Tapping "Note details" opens dialog with Version history button beside Close',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'note-details-vh-test-1',
+        title: 'Details History Note',
+        content: 'Testing details dialog version history button.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      // Open 3-dot menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      // Tap Note details
+      final noteDetailsFinder = find.text('Note details');
+      await tester.ensureVisible(noteDetailsFinder);
+      await tester.tap(noteDetailsFinder);
+      await tester.pumpAndSettle();
+
+      // Dialog is open
+      expect(find.byType(EditorStatsDialog), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+      expect(find.text('Version history'), findsOneWidget);
+
+      // Tap Version history
+      await tester.tap(find.text('Version history'));
+      await tester.pumpAndSettle();
+
+      // EditorStatsDialog is closed and VersionHistorySheet is opened
+      expect(find.byType(EditorStatsDialog), findsNothing);
+      expect(find.byType(VersionHistorySheet), findsOneWidget);
 
       await finishTest(tester);
     });

@@ -88,8 +88,9 @@ import '../../../core/speech/application/speech_text_insertion_helper.dart';
 import '../../../core/speech/presentation/speech_download_dialog.dart';
 import '../../../core/speech/presentation/speech_recording_bar.dart';
 import '../../tags/domain/phosphor_icons.dart';
+import 'widgets/editor_quick_actions_bar.dart';
 
-enum _OverflowMenuPage { main, insert }
+enum _OverflowMenuPage { main, insert, share, privacy }
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -3065,6 +3066,822 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   bool get isTabletEditor => widget.onClose != null;
 
+  Widget _buildOverflowMenuPage({
+    required BuildContext sheetCtx,
+    required _OverflowMenuPage currentPage,
+    required Note note,
+    required EditorNotifier notifier,
+    required bool isPreview,
+    required bool isReadOnly,
+    required void Function(_OverflowMenuPage page) onNavigate,
+  }) {
+    final colors = context.appColors;
+
+    switch (currentPage) {
+      case _OverflowMenuPage.insert:
+        return Column(
+          key: const ValueKey('overflow_insert_submenu'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xs,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      PhosphorIconsRegular.arrowLeft,
+                      color: colors.textSecondary,
+                      size: 20,
+                    ),
+                    tooltip: 'Back',
+                    onPressed: () => onNavigate(_OverflowMenuPage.main),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Insert',
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.divider),
+            const SizedBox(height: AppSpacing.xs),
+            ListTile(
+              leading: Icon(
+                PhosphorIconsRegular.image,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Insert image',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _handleInsertImage();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                PhosphorIconsRegular.scan,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Scan document',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _handleScanDocument();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                PhosphorIconsRegular.table,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Insert table',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _handleInsertTable();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                PhosphorIconsRegular.paperclip,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Attach file',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _handleAttachFile();
+              },
+            ),
+          ],
+        );
+
+      case _OverflowMenuPage.share:
+        return Column(
+          key: const ValueKey('overflow_share_submenu'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xs,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      PhosphorIconsRegular.arrowLeft,
+                      color: colors.textSecondary,
+                      size: 20,
+                    ),
+                    tooltip: 'Back',
+                    onPressed: () => onNavigate(_OverflowMenuPage.main),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Share',
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.divider),
+            const SizedBox(height: AppSpacing.xs),
+            ListTile(
+              leading: Icon(
+                Icons.ios_share_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Export note',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () async {
+                Navigator.of(sheetCtx).pop();
+                await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
+                final currentNoteSnapshot = note.copyWith(
+                  title: _titleController.text,
+                  content: _contentController.text,
+                );
+                if (!mounted) return;
+                ExportNoteSheet.show(context, note: currentNoteSnapshot);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.image_outlined,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Share as screenshot',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () async {
+                Navigator.of(sheetCtx).pop();
+                await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
+                final currentNoteSnapshot = note.copyWith(
+                  title: _titleController.text,
+                  content: _contentController.text,
+                );
+                if (!mounted) return;
+                _shareAsScreenshot(currentNoteSnapshot);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.link_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Share as URL',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () async {
+                Navigator.of(sheetCtx).pop();
+                final currentNoteSnapshot = note.copyWith(
+                  title: _titleController.text,
+                  content: _contentController.text,
+                );
+                if (currentNoteSnapshot.isShared) {
+                  ShareNoteSheet.show(context, note: currentNoteSnapshot);
+                  return;
+                }
+                final accepted = await ShareWarningDialog.show(context);
+                if (!accepted || !mounted) return;
+                ShareNoteSheet.show(context, note: currentNoteSnapshot);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.copy_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Copy markdown',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                Clipboard.setData(
+                  ClipboardData(
+                    text: '${note.title}\n\n${note.content}'.trim(),
+                  ),
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Note copied to clipboard'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+
+      case _OverflowMenuPage.privacy:
+        final currentEditorState = ref.read(editorProviderFamily(_editorParams));
+        final isNoteReadOnly = currentEditorState.isReadOnly;
+        return Column(
+          key: const ValueKey('overflow_privacy_submenu'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xs,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      PhosphorIconsRegular.arrowLeft,
+                      color: colors.textSecondary,
+                      size: 20,
+                    ),
+                    tooltip: 'Back',
+                    onPressed: () => onNavigate(_OverflowMenuPage.main),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Privacy',
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.divider),
+            const SizedBox(height: AppSpacing.xs),
+            ListTile(
+              leading: Icon(
+                isNoteReadOnly
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_outline_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                isNoteReadOnly
+                    ? 'Unlock note (Edit mode)'
+                    : 'Lock note (Read-only)',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                notifier.toggleReadOnly();
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      !isNoteReadOnly
+                          ? 'Note locked in read-only mode'
+                          : 'Note unlocked for editing',
+                    ),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+            if (currentEditorState.activePassword == null &&
+                !note.isPasswordProtected) ...[
+              ListTile(
+                leading: Icon(
+                  Icons.enhanced_encryption_outlined,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Protect with password',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  final res = await SetNotePasswordDialog.show(context);
+                  if (res != null) {
+                    await notifier.setPasswordProtection(
+                      password: res.password,
+                      hint: res.hint,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Note password protection enabled'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ] else ...[
+              ListTile(
+                leading: Icon(
+                  Icons.password_rounded,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Change note password',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  final res = await SetNotePasswordDialog.show(
+                    context,
+                    isChangingPassword: true,
+                  );
+                  if (res != null) {
+                    await notifier.setPasswordProtection(
+                      password: res.password,
+                      hint: res.hint,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Note password updated'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.no_encryption_outlined,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Remove password protection',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  await notifier.removePasswordProtection();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note password protection removed'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.lock_clock_outlined,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Lock note now',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  notifier.lockNow();
+                },
+              ),
+            ],
+          ],
+        );
+
+      case _OverflowMenuPage.main:
+        return Column(
+          key: const ValueKey('overflow_main_menu'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EditorQuickActionsBar(
+              note: note,
+              onTogglePin: () {
+                Navigator.of(sheetCtx).pop();
+                notifier.togglePinned();
+              },
+              onToggleArchive: () async {
+                Navigator.of(sheetCtx).pop();
+                if (note.isArchived) {
+                  await notifier.unarchiveNote();
+                  if (mounted) {
+                    if (isTabletEditor) {
+                      widget.onClose?.call();
+                    } else if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note unarchived'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } else {
+                  await notifier.archiveNote();
+                  if (mounted) {
+                    if (isTabletEditor) {
+                      widget.onClose?.call();
+                    } else if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note archived'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+              onTrash: () async {
+                Navigator.of(sheetCtx).pop();
+                await notifier.trashNote();
+                if (mounted) {
+                  if (isTabletEditor) {
+                    widget.onClose?.call();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Note moved to Trash'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              onRestore: () async {
+                Navigator.of(sheetCtx).pop();
+                await notifier.restoreNote();
+                if (mounted) {
+                  if (isTabletEditor) {
+                    widget.onClose?.call();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Note restored'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              onDeletePermanently: () async {
+                Navigator.of(sheetCtx).pop();
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (dCtx) => AlertDialog(
+                    backgroundColor: colors.surface,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(AppRadii.rLg),
+                    ),
+                    title: Text(
+                      'Delete permanently?',
+                      style: AppTypography.headline.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    content: Text(
+                      'This note will be permanently deleted.\nThis action cannot be undone.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dCtx).pop(false),
+                        child: Text(
+                          'Cancel',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(dCtx).pop(true),
+                        child: Text(
+                          'Delete Permanently',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: colors.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await notifier.deletePermanently();
+                  if (mounted) {
+                    if (isTabletEditor) {
+                      widget.onClose?.call();
+                    } else if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note permanently deleted'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            Divider(height: 16, color: colors.divider),
+            if (!note.isTrashed) ...[
+              if (!isPreview && !isReadOnly) ...[
+                ListTile(
+                  leading: Icon(
+                    PhosphorIconsRegular.plusCircle,
+                    color: colors.textSecondary,
+                  ),
+                  title: Text(
+                    'Insert',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  trailing: Icon(
+                    PhosphorIconsRegular.caretRight,
+                    color: colors.textTertiary,
+                    size: 18,
+                  ),
+                  onTap: () => onNavigate(_OverflowMenuPage.insert),
+                ),
+              ],
+              ListTile(
+                leading: Icon(
+                  Icons.search_rounded,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Find in note',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _openSearch();
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.tag_rounded,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Add tag',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  TagEditorBar.showAddTagDialog(context, notifier.addTag);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.ios_share_rounded,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Share',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                trailing: Icon(
+                  PhosphorIconsRegular.caretRight,
+                  color: colors.textTertiary,
+                  size: 18,
+                ),
+                onTap: () => onNavigate(_OverflowMenuPage.share),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.shield_outlined,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Privacy',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                trailing: Icon(
+                  PhosphorIconsRegular.caretRight,
+                  color: colors.textTertiary,
+                  size: 18,
+                ),
+                onTap: () => onNavigate(_OverflowMenuPage.privacy),
+              ),
+              Builder(
+                builder: (bCtx) {
+                  final globalStyle = ref.read(editorEditingStyleProvider);
+                  final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
+                  final isCurrentWysiwyg = currentStyle == EditorEditingStyle.wysiwyg;
+
+                  return ListTile(
+                    leading: Icon(
+                      isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
+                      color: colors.textSecondary,
+                    ),
+                    title: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        if (!isCurrentWysiwyg) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5.5,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4.0),
+                              border: Border.all(
+                                color: colors.accent.withValues(alpha: 0.35),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              'BETA',
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                                color: colors.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text(
+                      isCurrentWysiwyg
+                          ? 'Show raw Markdown syntax'
+                          : 'Hide Markdown syntax (Beta)',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      if (isCurrentWysiwyg) {
+                        if (_richDocumentController != null) {
+                          final md = _richDocumentController!.toMarkdown();
+                          _contentController.text = md;
+                          notifier.updateContent(md);
+                        }
+                      } else {
+                        if (_richDocumentController != null) {
+                          _richDocumentController!.setMarkdown(_contentController.text);
+                          final json = _richDocumentController!.toJsonString();
+                          _contentController.text = json;
+                          notifier.updateContent(json);
+                        }
+                      }
+                      notifier.setPerNoteEditingStyle(
+                        isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
+                      );
+                    },
+                  );
+                },
+              ),
+            ] else ...[
+              ListTile(
+                leading: Icon(
+                  Icons.ios_share_rounded,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Share',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                trailing: Icon(
+                  PhosphorIconsRegular.caretRight,
+                  color: colors.textTertiary,
+                  size: 18,
+                ),
+                onTap: () => onNavigate(_OverflowMenuPage.share),
+              ),
+            ],
+            ListTile(
+              leading: Icon(
+                Icons.info_outline_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Note details',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                final currentNote = ref
+                    .read(editorProviderFamily(_editorParams))
+                    .note
+                    .copyWith(
+                      content: _contentController.text,
+                      title: _titleController.text,
+                    );
+                showDialog(
+                  context: context,
+                  builder: (_) => EditorStatsDialog(
+                    note: currentNote,
+                    onOpenVersionHistory: () {
+                      VersionHistorySheet.show(
+                        context,
+                        note: note,
+                        currentTitle: _titleController.text,
+                        currentContent: _contentController.text,
+                        currentTags: note.tags,
+                        onRestoreVersion: _restoreVersion,
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+    }
+  }
+
   void _showOverflowMenu(
     BuildContext context,
     Note note,
@@ -3094,848 +3911,29 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
-                      child: currentPage == _OverflowMenuPage.insert
-                          ? Column(
-                              key: const ValueKey('overflow_insert_submenu'),
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    AppSpacing.xs,
-                                    0,
-                                    AppSpacing.md,
-                                    AppSpacing.xs,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(
-                                          PhosphorIconsRegular.arrowLeft,
-                                          color: colors.textSecondary,
-                                          size: 20,
-                                        ),
-                                        tooltip: 'Back',
-                                        onPressed: () {
-                                          setSheetState(() {
-                                            currentPage = _OverflowMenuPage.main;
-                                          });
-                                        },
-                                      ),
-                                      const SizedBox(width: AppSpacing.xs),
-                                      Text(
-                                        'Insert',
-                                        style: AppTypography.headline.copyWith(
-                                          color: colors.textPrimary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Divider(height: 1, color: colors.divider),
-                                const SizedBox(height: AppSpacing.xs),
-                                ListTile(
-                                  leading: Icon(
-                                    PhosphorIconsRegular.image,
-                                    color: colors.textSecondary,
-                                  ),
-                                  title: Text(
-                                    'Insert image',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    Navigator.of(ctx).pop();
-                                    _handleInsertImage();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: Icon(
-                                    PhosphorIconsRegular.scan,
-                                    color: colors.textSecondary,
-                                  ),
-                                  title: Text(
-                                    'Scan document',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    Navigator.of(ctx).pop();
-                                    _handleScanDocument();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: Icon(
-                                    PhosphorIconsRegular.table,
-                                    color: colors.textSecondary,
-                                  ),
-                                  title: Text(
-                                    'Insert table',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    Navigator.of(ctx).pop();
-                                    _handleInsertTable();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: Icon(
-                                    PhosphorIconsRegular.paperclip,
-                                    color: colors.textSecondary,
-                                  ),
-                                  title: Text(
-                                    'Attach file',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    Navigator.of(ctx).pop();
-                                    _handleAttachFile();
-                                  },
-                                ),
-                              ],
-                            )
-                          : Column(
-                              key: const ValueKey('overflow_main_menu'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!note.isTrashed) ...[
-                                  if (!isPreview && !isReadOnly) ...[
-                                    ListTile(
-                                      leading: Icon(
-                                        PhosphorIconsRegular.plusCircle,
-                                        color: colors.textSecondary,
-                                      ),
-                                      title: Text(
-                                        'Insert',
-                                        style: AppTypography.bodyMedium.copyWith(
-                                          color: colors.textPrimary,
-                                        ),
-                                      ),
-                                      trailing: Icon(
-                                        PhosphorIconsRegular.caretRight,
-                                        color: colors.textTertiary,
-                                        size: 18,
-                                      ),
-                                      onTap: () {
-                                        setSheetState(() {
-                                          currentPage = _OverflowMenuPage.insert;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                  ListTile(
-                    leading: Icon(
-                      Icons.search_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Find in note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _openSearch();
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.ios_share_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Export note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
-                      final currentNoteSnapshot = note.copyWith(
-                        title: _titleController.text,
-                        content: _contentController.text,
-                      );
-                      if (!context.mounted) return;
-                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.image_outlined,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Share as screenshot',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
-                      final currentNoteSnapshot = note.copyWith(
-                        title: _titleController.text,
-                        content: _contentController.text,
-                      );
-                      if (!context.mounted) return;
-                      _shareAsScreenshot(currentNoteSnapshot);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.link_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Share as URL',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      final currentNoteSnapshot = note.copyWith(
-                        title: _titleController.text,
-                        content: _contentController.text,
-                      );
-                      if (currentNoteSnapshot.isShared) {
-                        ShareNoteSheet.show(context, note: currentNoteSnapshot);
-                        return;
-                      }
-                      final accepted = await ShareWarningDialog.show(context);
-                      if (!accepted || !context.mounted) return;
-                      ShareNoteSheet.show(context, note: currentNoteSnapshot);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.history_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Version history',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      VersionHistorySheet.show(
-                        context,
+                      child: _buildOverflowMenuPage(
+                        sheetCtx: ctx,
+                        currentPage: currentPage,
                         note: note,
-                        currentTitle: _titleController.text,
-                        currentContent: _contentController.text,
-                        currentTags: note.tags,
-                        onRestoreVersion: _restoreVersion,
-                      );
-                    },
-                  ),
-                  Builder(
-                    builder: (context) {
-                      final globalStyle = ref.read(editorEditingStyleProvider);
-                      final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
-                      final isCurrentWysiwyg = currentStyle == EditorEditingStyle.wysiwyg;
-
-                      return ListTile(
-                        leading: Icon(
-                          isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
-                          color: colors.textSecondary,
-                        ),
-                        title: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                            if (!isCurrentWysiwyg) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5.5,
-                                  vertical: 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.accent.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4.0),
-                                  border: Border.all(
-                                    color: colors.accent.withValues(alpha: 0.35),
-                                    width: 0.8,
-                                  ),
-                                ),
-                                child: Text(
-                                  'BETA',
-                                  style: AppTypography.caption.copyWith(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.6,
-                                    color: colors.accent,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        subtitle: Text(
-                          isCurrentWysiwyg
-                              ? 'Show raw Markdown syntax'
-                              : 'Hide Markdown syntax (Beta)',
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textTertiary,
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          if (isCurrentWysiwyg) {
-                            if (_richDocumentController != null) {
-                              final md = _richDocumentController!.toMarkdown();
-                              _contentController.text = md;
-                              notifier.updateContent(md);
-                            }
-                          } else {
-                            if (_richDocumentController != null) {
-                              _richDocumentController!.setMarkdown(_contentController.text);
-                              final json = _richDocumentController!.toJsonString();
-                              _contentController.text = json;
-                              notifier.updateContent(json);
-                            }
-                          }
-                          notifier.setPerNoteEditingStyle(
-                            isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
-                          );
+                        notifier: notifier,
+                        isPreview: isPreview,
+                        isReadOnly: isReadOnly,
+                        onNavigate: (page) {
+                          setSheetState(() {
+                            currentPage = page;
+                          });
                         },
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      ref.read(editorProviderFamily(_editorParams)).isReadOnly
-                          ? Icons.lock_open_rounded
-                          : Icons.lock_outline_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      ref.read(editorProviderFamily(_editorParams)).isReadOnly
-                          ? 'Unlock note (Edit mode)'
-                          : 'Lock note (Read-only)',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
                       ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      final isCurrentlyReadOnly =
-                          ref.read(editorProviderFamily(_editorParams)).isReadOnly;
-                      notifier.toggleReadOnly();
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            !isCurrentlyReadOnly
-                                ? 'Note locked in read-only mode'
-                                : 'Note unlocked for editing',
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                  if (ref.read(editorProviderFamily(_editorParams)).activePassword == null &&
-                      !note.isPasswordProtected) ...[
-                    ListTile(
-                      leading: Icon(
-                        Icons.enhanced_encryption_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Protect with password',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        final res = await SetNotePasswordDialog.show(context);
-                        if (res != null) {
-                          await notifier.setPasswordProtection(
-                            password: res.password,
-                            hint: res.hint,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Note password protection enabled'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                  ] else ...[
-                    ListTile(
-                      leading: Icon(
-                        Icons.password_rounded,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Change note password',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        final res = await SetNotePasswordDialog.show(
-                          context,
-                          isChangingPassword: true,
-                        );
-                        if (res != null) {
-                          await notifier.setPasswordProtection(
-                            password: res.password,
-                            hint: res.hint,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Note password updated'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.no_encryption_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Remove password protection',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        await notifier.removePasswordProtection();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Note password protection removed'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.lock_clock_outlined,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Lock note now',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        notifier.lockNow();
-                      },
-                    ),
-                  ],
-                ],
-                if (note.isTrashed) ...[
-                  // Trash actions: Export, Restore, Delete Permanently
-                  ListTile(
-                    leading: Icon(
-                      Icons.ios_share_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Export note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      final currentNoteSnapshot = note.copyWith(
-                        title: _titleController.text,
-                        content: _contentController.text,
-                      );
-                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.restore_rounded,
-                      color: colors.textPrimary,
-                    ),
-                    title: Text(
-                      'Restore note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await notifier.restoreNote();
-                      if (context.mounted) {
-                        if (isTabletEditor) {
-                          widget.onClose?.call();
-                        } else if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note restored'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_forever_rounded,
-                      color: colors.error,
-                    ),
-                    title: Text(
-                      'Delete permanently',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.error,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (dCtx) => AlertDialog(
-                          backgroundColor: colors.surface,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(AppRadii.rLg),
-                          ),
-                          title: Text(
-                            'Delete permanently?',
-                            style: AppTypography.headline.copyWith(
-                              color: colors.textPrimary,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          content: Text(
-                            'This note will be permanently deleted.\nThis action cannot be undone.',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                              height: 1.4,
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(dCtx).pop(false),
-                              child: Text(
-                                'Cancel',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(dCtx).pop(true),
-                              child: Text(
-                                'Delete Permanently',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: colors.error,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true) {
-                        await notifier.deletePermanently();
-                        if (context.mounted) {
-                          if (isTabletEditor) {
-                            widget.onClose?.call();
-                          } else if (Navigator.of(context).canPop()) {
-                            Navigator.of(context).pop();
-                          }
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Note permanently deleted'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                ] else if (note.isArchived) ...[
-                  // Archive actions: Export, Unarchive, Move to Trash
-                  ListTile(
-                    leading: Icon(
-                      Icons.ios_share_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Export note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      final currentNoteSnapshot = note.copyWith(
-                        title: _titleController.text,
-                        content: _contentController.text,
-                      );
-                      ExportNoteSheet.show(context, note: currentNoteSnapshot);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.unarchive_outlined,
-                      color: colors.textPrimary,
-                    ),
-                    title: Text(
-                      'Unarchive note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await notifier.unarchiveNote();
-                      if (context.mounted) {
-                        if (isTabletEditor) {
-                          widget.onClose?.call();
-                        } else if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note unarchived'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outline_rounded,
-                      color: colors.error,
-                    ),
-                    title: Text(
-                      'Move to Trash',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.error,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await notifier.trashNote();
-                      if (context.mounted) {
-                        if (isTabletEditor) {
-                          widget.onClose?.call();
-                        } else if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note moved to Trash'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ] else ...[
-                  // Active note actions: Pin/Unpin, Archive, Move to Trash
-                  ListTile(
-                    leading: Icon(
-                      note.isPinned
-                          ? Icons.push_pin_outlined
-                          : Icons.push_pin_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      note.isPinned ? 'Unpin note' : 'Pin note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      notifier.togglePinned();
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.archive_outlined,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Archive note',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await notifier.archiveNote();
-                      if (context.mounted) {
-                        if (isTabletEditor) {
-                          widget.onClose?.call();
-                        } else if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note archived'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outline_rounded,
-                      color: colors.error,
-                    ),
-                    title: Text(
-                      'Move to Trash',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.error,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await notifier.trashNote();
-                      if (context.mounted) {
-                        if (isTabletEditor) {
-                          widget.onClose?.call();
-                        } else if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note moved to Trash'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ],
-                if (!note.isTrashed) ...[
-                  ListTile(
-                    leading: Icon(
-                      Icons.tag_rounded,
-                      color: colors.textSecondary,
-                    ),
-                    title: Text(
-                      'Add tag',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      TagEditorBar.showAddTagDialog(context, notifier.addTag);
-                    },
-                  ),
-                ],
-                ListTile(
-                  leading: Icon(
-                    Icons.info_outline_rounded,
-                    color: colors.textSecondary,
-                  ),
-                  title: Text(
-                    'Note details',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: colors.textPrimary,
                     ),
                   ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    final currentNote = ref
-                        .read(editorProviderFamily(_editorParams))
-                        .note
-                        .copyWith(
-                          content: _contentController.text,
-                          title: _titleController.text,
-                        );
-                    showDialog(
-                      context: context,
-                      builder: (_) => EditorStatsDialog(note: currentNote),
-                    );
-                  },
-                ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.copy_rounded,
-                        color: colors.textSecondary,
-                      ),
-                      title: Text(
-                        'Copy markdown',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        Clipboard.setData(
-                          ClipboardData(
-                            text: '${note.title}\n\n${note.content}'.trim(),
-                          ),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Note copied to clipboard'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
                 ),
               ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-},
-);
-}
+            );
+          },
+        );
+      },
+    );
+  }
 
   Future<void> _shareAsScreenshot(Note noteSnapshot) async {
     String? suppliedPassword;
