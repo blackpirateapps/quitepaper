@@ -2982,9 +2982,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       final insertOffset = _richDocumentController!.globalCaretOffset.clamp(0, currentMd.length);
       final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
       _richDocumentController!.setMarkdown(newMarkdown);
+      final newJson = _richDocumentController!.toJsonString();
       _contentController.value = TextEditingValue(
-        text: newMarkdown,
-        selection: TextSelection.collapsed(offset: insertOffset + snippet.length),
+        text: newJson,
+        selection: TextSelection.collapsed(offset: newJson.length),
       );
       _undoRedoManager.pushAtomicEdit(_contentController.value);
       _onContentChanged();
@@ -3368,6 +3369,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         ),
                         onTap: () {
                           Navigator.of(ctx).pop();
+                          if (isCurrentWysiwyg) {
+                            if (_richDocumentController != null) {
+                              final md = _richDocumentController!.toMarkdown();
+                              _contentController.text = md;
+                              notifier.updateContent(md);
+                            }
+                          } else {
+                            if (_richDocumentController != null) {
+                              _richDocumentController!.setMarkdown(_contentController.text);
+                              final json = _richDocumentController!.toJsonString();
+                              _contentController.text = json;
+                              notifier.updateContent(json);
+                            }
+                          }
                           notifier.setPerNoteEditingStyle(
                             isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
                           );

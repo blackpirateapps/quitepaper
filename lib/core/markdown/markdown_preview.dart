@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,8 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
+import '../../features/editor/application/rich_document_serializer.dart';
+import '../../features/editor/domain/rich_document.dart';
 import '../utils/font_family_helper.dart';
 import '../utils/link_launcher_helper.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
@@ -123,7 +126,14 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   }
 
   void _processMarkdown() {
-    _parsedMarkdown = MarkdownFrontmatterParser.parse(widget.markdownData);
+    var rawText = widget.markdownData;
+    if (RichDocument.isJson(rawText)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(rawText) as Map<String, dynamic>);
+        rawText = const RichDocumentSerializer().serialize(doc);
+      } catch (_) {}
+    }
+    _parsedMarkdown = MarkdownFrontmatterParser.parse(rawText);
     _chunks = MarkdownChunker.split(_parsedMarkdown.contentBody);
     _documentImages = _extractDocumentImages(_parsedMarkdown.contentBody);
 

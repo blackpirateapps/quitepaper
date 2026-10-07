@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../features/editor/domain/rich_document.dart';
 import '../../features/notes/domain/note_model.dart';
 import 'markdown_offset_mapper.dart';
 
@@ -59,6 +61,12 @@ class SearchIndexProjection {
   static String projectBody(String content) {
     if (isPasswordProtected(content)) {
       return '';
+    }
+    if (Note.isRichTextContent(content)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        return doc.plainText;
+      } catch (_) {}
     }
     return MarkdownOffsetMapper.normalize(content).normalizedText;
   }

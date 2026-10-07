@@ -15,6 +15,9 @@ class RichDocument {
         blocks: [ParagraphBlock.empty()],
       );
 
+  /// Schema identifier for persisting RichDocument AST in canonical JSON storage.
+  static const schemaId = 'quietpaper:rich_document:v1';
+
   /// Deserializes a [RichDocument] from JSON.
   factory RichDocument.fromJson(Map<String, dynamic> json) {
     final rawBlocks = json['blocks'] as List<dynamic>? ?? [];
@@ -25,11 +28,20 @@ class RichDocument {
     );
   }
 
+  /// Whether [text] represents a valid serialized [RichDocument] JSON payload.
+  static bool isJson(String text) {
+    final trimmed = text.trimLeft();
+    return trimmed.startsWith('{"\$schema":"$schemaId"') ||
+        trimmed.startsWith('{"\$schema": "$schemaId"') ||
+        (trimmed.startsWith('{') && trimmed.contains('"$schemaId"'));
+  }
+
   /// Structural blocks of this document in presentation order.
   final List<RichBlock> blocks;
 
   /// Serializes the document to JSON.
   Map<String, dynamic> toJson() => {
+        '\$schema': schemaId,
         'blocks': blocks.map((b) => b.toJson()).toList(),
       };
 

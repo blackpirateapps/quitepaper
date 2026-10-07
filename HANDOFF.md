@@ -7160,3 +7160,66 @@ This update addressed fundamental issues in the visual rich text editing experie
 - Full test suite: `flutter test` (**all 1564 tests passed with 0 failures**).
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
 
+---
+
+## 140. Visual Rich Text Editor: RichText AST as Source of Truth, Zero-Compilation Saves & On-Demand Mode Conversion (October 2026)
+
+### 1. Overview & Motivation
+Previously, the editor enforced Markdown as the sole canonical storage format for note bodies (`notes.content`). Even when users worked entirely within the Visual (WYSIWYG) editor, every note save or autosave flushed by serializing the entire in-memory AST (`RichDocument`) into a CommonMark markdown string. When reloaded, this Markdown string was reparsed through regexes back into blocks and spans.
+
+This update introduces **Single Polymorphic Content Storage** for note bodies:
+1. **Zero-Compilation Note Saves in Visual Mode**: In Visual (WYSIWYG) mode, the editor saves the in-memory AST directly as canonical RichDocument JSON (`quietpaper:rich_document:v1`). The expensive string serialization to CommonMark is completely skipped on save.
+2. **On-Demand Mode Conversion**: Markdown compilation and JSON deserialization are triggered strictly when the user switches editor styles (from Visual to Markdown mode, or vice versa), or when exporting/sharing.
+3. **No Duplicate Payloads**: Rather than storing both Markdown and JSON, `notes.content` stores either 100% RichText JSON AST (Visual mode notes) or 100% Markdown string (Markdown mode notes).
+4. **Transparent Full-Text Search & Metadata Indexing**: SQLite FTS search index projections, preview snippet generators, and auto-title extractors normalize `Note.plainText` directly from the AST so JSON structure tokens (`"spans"`, `"attributes"`, `"isBold"`, `"type"`) are never indexed into SQLite FTS or shown in snippets.
+
+### 2. Key Architectural Components & Changes
+
+#### A. Domain Models & Polymorphic Storage
+- [`lib/features/editor/domain/rich_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart):
+  - Defined `static const schemaId = 'quietpaper:rich_document:v1'`.
+  - Added `$schema` property in `toJson()`.
+  - Implemented `RichDocument.isJson(String text)` for fast $O(1)$ JSON structure detection (`startsWith('{')` and contains `"schemaId"` or `'"blocks"'`).
+- [`lib/features/notes/domain/note_model.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart):
+  - Added `bool get isRichText => isRichTextContent(content)`.
+  - Added `String get plainText`: returns plain user text extracted across all blocks if JSON, or the raw string if Markdown.
+  - Added `String get markdownContent`: on-demand Markdown conversion using `RichDocumentSerializer` for external consumers (export, share, preview).
+  - Updated `deriveTitle(String content)`: safely inspects first block/line without returning raw JSON syntax tokens.
+  - Updated `wordCount` and `charCount`: calculates metrics from `plainText` rather than raw JSON strings.
+- [`lib/features/notes/domain/note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart):
+  - Updated `deriveTitle` and `derivePreviewSnippet` to parse JSON AST into clean user text runs.
+
+#### B. Search Indexing & Query Execution
+- [`lib/core/search/search_index_projection.dart`](file:///home/dog/git/quitepaper/lib/core/search/search_index_projection.dart):
+  - In `projectBody(Note doc)`, projects `doc.plainText` into the SQLite FTS index table so searches match only user text and ignore AST syntax tokens.
+- [`lib/features/notes/data/notes_query_executor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_query_executor.dart):
+  - Updated `hasCode`, `hasChecklist`, `hasIncompleteTasks`, `hasCompletedTasks`, and `hasLinks` queries to check both Markdown syntax (`- [ ]`, ```` ````) and JSON AST tokens (`"checklist_item"`, `"code_block"`, `"linkUrl"`).
+
+#### C. Editor Application & Presentation Layer
+- [`lib/features/editor/application/rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart):
+  - Updated constructor to detect `RichDocument.isJson(initialMarkdown)` and deserialize directly via `RichDocument.fromJson()` with zero regex parsing.
+  - Added `toJsonString()` (`jsonEncode(_document.toJson())`) and `toPlainText()`.
+  - Added `setContent(String content)` to dynamically switch content without tearing down controller state.
+  - Updated `isDocumentTooLargeForWysiwyg(String content)` to inspect plain text length when given JSON payloads.
+- [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+  - In Visual mode, `_flushRichContent()` flushes `_richController.toJsonString()` directly to `widget.controller.value` and `widget.onChanged` without CommonMark compilation.
+  - For notes containing YAML frontmatter (`hasFrontmatter == true`), preserves YAML frontmatter headers via `toMarkdown()` and respects `FrontmatterPropertiesSection`.
+  - In `didUpdateWidget`, when switching between `wysiwyg` and `markdown` modes, seamlessly converts between JSON AST and clean Markdown on demand.
+- [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart):
+  - In `_processMarkdown()`, detects `RichDocument.isJson()` and formats text seamlessly on the fly so markdown previews display properly.
+
+### 3. Automated Verification & Quality
+- Created dedicated test suite [`test/editor/rich_text_source_of_truth_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_source_of_truth_test.dart) covering:
+  1. `RichDocument.toJson` schema inclusion and `RichDocument.isJson` detection.
+  2. `Note` model polymorphic detection, `plainText`, and `markdownContent`.
+  3. `SearchIndexProjection` indexing pure user plain text without JSON tokens.
+  4. `NoteMetadataExtractor` preview snippet extraction from RichDocument JSON.
+  5. `RichDocumentController` direct JSON instantiation with zero regex parsing.
+  6. `RichDocumentController.isDocumentTooLargeForWysiwyg` measuring plain text length.
+  7. `MarkdownEditor` flushing JSON in Visual mode and converting on mode switch.
+  8. `QuietMarkdownPreview` seamless rendering of RichDocument JSON.
+- Re-verified all dual-mode frontmatter tests in [`test/editor/dual_mode_editor_screen_test.dart`](file:///home/dog/git/quitepaper/test/editor/dual_mode_editor_screen_test.dart).
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- Test suite: `flutter test` (**all 1,572 tests passed with 0 failures** across the entire project).
+
+

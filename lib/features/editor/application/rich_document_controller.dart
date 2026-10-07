@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../domain/document_selection.dart';
@@ -25,6 +26,12 @@ class RichDocumentController extends ChangeNotifier {
   static const int largeDocumentThresholdLines = 1200;
 
   static bool isDocumentTooLargeForWysiwyg(String text) {
+    if (RichDocument.isJson(text)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(text) as Map<String, dynamic>);
+        return doc.plainText.length > largeDocumentThresholdCharacters;
+      } catch (_) {}
+    }
     return text.length > largeDocumentThresholdCharacters ||
         '\n'.allMatches(text).length > largeDocumentThresholdLines;
   }
@@ -38,15 +45,23 @@ class RichDocumentController extends ChangeNotifier {
     this.onDocumentChanged,
   })  : _parser = const RichDocumentParser(),
         _serializer = const RichDocumentSerializer() {
-    var bodyMarkdown = initialMarkdown;
-    if (stripFrontmatter) {
-      final fmDoc = FrontmatterEditorHelper.parse(initialMarkdown);
-      if (fmDoc.hasFrontmatter) {
-        _frontmatterPrefix = initialMarkdown.substring(0, fmDoc.bodyStartOffset);
-        bodyMarkdown = initialMarkdown.substring(fmDoc.bodyStartOffset);
+    if (RichDocument.isJson(initialMarkdown)) {
+      try {
+        _document = RichDocument.fromJson(jsonDecode(initialMarkdown) as Map<String, dynamic>);
+      } catch (_) {
+        _document = _parser.parse(initialMarkdown);
       }
+    } else {
+      var bodyMarkdown = initialMarkdown;
+      if (stripFrontmatter) {
+        final fmDoc = FrontmatterEditorHelper.parse(initialMarkdown);
+        if (fmDoc.hasFrontmatter) {
+          _frontmatterPrefix = initialMarkdown.substring(0, fmDoc.bodyStartOffset);
+          bodyMarkdown = initialMarkdown.substring(fmDoc.bodyStartOffset);
+        }
+      }
+      _document = _parser.parse(bodyMarkdown);
     }
-    _document = _parser.parse(bodyMarkdown);
     final firstBlockId = _document.blocks.isNotEmpty ? _document.blocks.first.id : '';
     _selection = RichDocumentSelection.collapsed(
       RichDocumentPosition(blockIndex: 0, blockId: firstBlockId, offset: 0),
@@ -205,8 +220,24 @@ class RichDocumentController extends ChangeNotifier {
     _commitMutation(newDoc, newSelection: newSelection);
   }
 
+  /// Sets the entire document from a Markdown source string or RichDocument JSON.
+  void setContent(String content) {
+    if (RichDocument.isJson(content)) {
+      try {
+        final newDoc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        setDocument(newDoc);
+        return;
+      } catch (_) {}
+    }
+    setMarkdown(content);
+  }
+
   /// Sets the entire document from a Markdown source string.
   void setMarkdown(String markdown) {
+    if (RichDocument.isJson(markdown)) {
+      setContent(markdown);
+      return;
+    }
     var bodyMarkdown = markdown;
     if (stripFrontmatter) {
       final fmDoc = FrontmatterEditorHelper.parse(markdown);
@@ -229,6 +260,12 @@ class RichDocumentController extends ChangeNotifier {
       onDocumentChanged?.call(_document);
     }
   }
+
+  /// Exports the current document to canonical RichDocument JSON format.
+  String toJsonString() => jsonEncode(_document.toJson());
+
+  /// Returns user plain text across all blocks.
+  String toPlainText() => _document.plainText;
 
   /// Exports the current document to canonical Markdown including any frontmatter.
   String toMarkdown() {

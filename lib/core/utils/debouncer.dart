@@ -9,6 +9,7 @@ class Debouncer {
   Timer? _timer;
 
   bool get isRunning => _timer?.isActive ?? false;
+  bool get isActive => isRunning;
 
   void run(VoidCallback action) {
     _timer?.cancel();

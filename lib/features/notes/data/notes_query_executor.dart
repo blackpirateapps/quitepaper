@@ -218,28 +218,38 @@ class NotesQueryExecutor {
         case ContentFilter.hasCode:
           predicate = predicate &
               (_db.notesTable.content.like('%```%') |
-                  _db.notesTable.content.like('%`%'));
+                  _db.notesTable.content.like('%`%') |
+                  _db.notesTable.content.like('%"code_block"%') |
+                  _db.notesTable.content.like('%"code":true%'));
           break;
         case ContentFilter.hasChecklist:
           predicate = predicate &
               (_db.notesTable.content.like('%- [ ]%') |
                   _db.notesTable.content.like('%- [x]%') |
-                  _db.notesTable.content.like('%- [X]%'));
+                  _db.notesTable.content.like('%- [X]%') |
+                  _db.notesTable.content.like('%"checklist_item"%'));
           break;
         case ContentFilter.hasIncompleteTasks:
-          predicate = predicate & _db.notesTable.content.like('%- [ ]%');
+          predicate = predicate &
+              (_db.notesTable.content.like('%- [ ]%') |
+                  (_db.notesTable.content.like('%"checklist_item"%') &
+                      _db.notesTable.content.like('%"isChecked":false%')));
           break;
         case ContentFilter.hasCompletedTasks:
           predicate = predicate &
               (_db.notesTable.content.like('%- [x]%') |
-                  _db.notesTable.content.like('%- [X]%'));
+                  _db.notesTable.content.like('%- [X]%') |
+                  (_db.notesTable.content.like('%"checklist_item"%') &
+                      _db.notesTable.content.like('%"isChecked":true%')));
           break;
         case ContentFilter.hasLinks:
           predicate = predicate &
               (_db.notesTable.content.like('%http://%') |
                   _db.notesTable.content.like('%https://%') |
                   _db.notesTable.content.like('%qp://%') |
-                  _db.notesTable.content.like('%](%'));
+                  _db.notesTable.content.like('%](%') |
+                  _db.notesTable.content.like('%"linkUrl"%') |
+                  _db.notesTable.content.like('%"noteLinkTarget"%'));
           break;
       }
     }

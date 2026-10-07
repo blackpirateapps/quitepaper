@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../editor/application/rich_document_serializer.dart';
+import '../../editor/domain/rich_document.dart';
 import 'note_metadata_extractor.dart';
 
 @immutable
@@ -50,6 +53,34 @@ class Note {
   bool get isPasswordProtected =>
       content.trimLeft().startsWith('<!-- quiet-paper-encrypted-note-v1:');
 
+  /// Whether the content is stored in canonical RichDocument JSON format.
+  bool get isRichText => isRichTextContent(content);
+
+  /// Tests whether [content] represents serialized RichDocument JSON.
+  static bool isRichTextContent(String content) => RichDocument.isJson(content);
+
+  /// User plain text extracted without Markdown syntax or JSON formatting keys.
+  String get plainText {
+    if (isRichText) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        return doc.plainText;
+      } catch (_) {}
+    }
+    return content;
+  }
+
+  /// On-demand Markdown conversion for external consumers (export, preview, copy).
+  String get markdownContent {
+    if (isRichText) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        return const RichDocumentSerializer().serialize(doc);
+      } catch (_) {}
+    }
+    return content;
+  }
+
   /// Returns display title or 'Untitled' if title is empty
   String get displayTitle {
     if (title.trim().isNotEmpty) {
@@ -60,8 +91,15 @@ class Note {
   }
 
   /// Derives a clean concise title from note content
-  static String deriveTitle(String content) =>
-      NoteMetadataExtractor.deriveTitle(content);
+  static String deriveTitle(String content) {
+    if (isRichTextContent(content)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        return NoteMetadataExtractor.deriveTitle(doc.plainText);
+      } catch (_) {}
+    }
+    return NoteMetadataExtractor.deriveTitle(content);
+  }
 
   /// Whether the title is considered empty (for subtle placeholder styling)
   bool get hasCustomTitle => title.trim().isNotEmpty;
@@ -75,13 +113,13 @@ class Note {
 
   /// Word count
   int get wordCount {
-    final text = '$title $content'.trim();
+    final text = '$title $plainText'.trim();
     if (text.isEmpty) return 0;
     return text.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length;
   }
 
   /// Character count
-  int get charCount => '$title $content'.length;
+  int get charCount => '$title $plainText'.length;
 
   Note copyWith({
     String? id,

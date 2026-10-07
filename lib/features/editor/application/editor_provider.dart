@@ -231,8 +231,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
     }
 
     // Extract tags during debounced save and merge with explicit tags
+    final textForTags = state.note.isRichText ? state.note.plainText : state.note.content;
     final extractedTags =
-        TagParser.extractTags('$titleToSave\n${state.note.content}');
+        TagParser.extractTags('$titleToSave\n$textForTags');
     final combinedTags = {...state.note.tags, ...extractedTags}.toList();
     final noteToSave = state.note.copyWith(
       title: titleToSave,

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -14,6 +15,7 @@ import '../../../../core/markdown/markdown_helper.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../application/rich_document_controller.dart';
+import '../../application/rich_document_serializer.dart';
 import '../../domain/rich_document.dart';
 import 'code_block_overlay.dart';
 import 'heading/markdown_heading_action_sheet.dart';
@@ -128,21 +130,24 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   void _onRichDocumentChanged(RichDocument doc) {
     if (_isSyncing) return;
-    _autosaveDebouncer.run(_flushRichMarkdown);
+    _autosaveDebouncer.run(_flushRichContent);
   }
 
-  void _flushRichMarkdown() {
+  void _flushRichContent() {
     _autosaveDebouncer.cancel();
-    if (_richController == null || _isSyncing) return;
-    final newMarkdown = _richController!.toMarkdown();
-    if (widget.controller.text != newMarkdown) {
+    if (_richController == null || _isSyncing || !_richController!.isDirty) return;
+    final newContent = _richController!.hasFrontmatter
+        ? _richController!.toMarkdown()
+        : _richController!.toJsonString();
+    if (widget.controller.text != newContent) {
       _isSyncing = true;
       try {
+        _richController!.markClean();
         widget.controller.value = TextEditingValue(
-          text: newMarkdown,
+          text: newContent,
           selection: widget.controller.selection,
         );
-        widget.onChanged?.call(newMarkdown);
+        widget.onChanged?.call(newContent);
       } finally {
         _isSyncing = false;
       }
@@ -159,10 +164,67 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
     if (oldWidget.editingStyle != widget.editingStyle ||
         oldWidget.stripFrontmatter != widget.stripFrontmatter) {
-      if (oldWidget.editingStyle == EditorEditingStyle.wysiwyg) {
-        _flushRichMarkdown();
+      if (oldWidget.editingStyle == EditorEditingStyle.wysiwyg &&
+          widget.editingStyle == EditorEditingStyle.markdown) {
+        String? md;
+        if (RichDocument.isJson(widget.controller.text)) {
+          if (_richController != null) {
+            md = _richController!.toMarkdown();
+          } else {
+            try {
+              final doc = RichDocument.fromJson(jsonDecode(widget.controller.text) as Map<String, dynamic>);
+              md = const RichDocumentSerializer().serialize(doc);
+            } catch (_) {}
+          }
+        }
+        _initRichController();
+        if (md != null && widget.controller.text != md) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _isSyncing = true;
+            try {
+              final sel = widget.controller.selection;
+              widget.controller.value = TextEditingValue(
+                text: md!,
+                selection: TextSelection(
+                  baseOffset: sel.baseOffset.clamp(0, md.length),
+                  extentOffset: sel.extentOffset.clamp(0, md.length),
+                ),
+              );
+              widget.onChanged?.call(md);
+            } finally {
+              _isSyncing = false;
+            }
+          });
+        }
+      } else if (oldWidget.editingStyle == EditorEditingStyle.markdown &&
+          widget.editingStyle == EditorEditingStyle.wysiwyg) {
+        _initRichController();
+        if (_richController != null && !_richController!.hasFrontmatter) {
+          final jsonStr = _richController!.toJsonString();
+          if (widget.controller.text != jsonStr) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _isSyncing = true;
+              try {
+                final sel = widget.controller.selection;
+                widget.controller.value = TextEditingValue(
+                  text: jsonStr,
+                  selection: TextSelection(
+                    baseOffset: sel.baseOffset.clamp(0, jsonStr.length),
+                    extentOffset: sel.extentOffset.clamp(0, jsonStr.length),
+                  ),
+                );
+                widget.onChanged?.call(jsonStr);
+              } finally {
+                _isSyncing = false;
+              }
+            });
+          }
+        }
+      } else {
+        _initRichController();
       }
-      _initRichController();
     }
 
     if (oldWidget.controller != widget.controller) {
@@ -170,7 +232,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       widget.controller.addListener(_onSourceControllerChanged);
       if (_richController != null) {
         _richController!.styles = widget.controller.styles;
-        _richController!.setMarkdown(widget.controller.text);
+        _richController!.setContent(widget.controller.text);
       }
       _syncActiveTableWithDocument();
     } else {
@@ -188,7 +250,13 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   void dispose() {
     widget.controller.removeListener(_onSourceControllerChanged);
-    _flushRichMarkdown();
+    if (_autosaveDebouncer.isActive && _richController != null && _richController!.isDirty) {
+      final flushedContent = _richController!.hasFrontmatter
+          ? _richController!.toMarkdown()
+          : _richController!.toJsonString();
+      widget.onChanged?.call(flushedContent);
+    }
+    _autosaveDebouncer.cancel();
     _autosaveDebouncer.dispose();
     widget.onRichControllerChanged?.call(null);
     _richController?.dispose();
@@ -203,13 +271,17 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _onSourceControllerChanged() {
     if (_isSyncing) return;
 
-    if (_richController != null &&
-        _richController!.toMarkdown() != widget.controller.text) {
-      _isSyncing = true;
-      try {
-        _richController!.setMarkdown(widget.controller.text);
-      } finally {
-        _isSyncing = false;
+    if (_richController != null) {
+      final currentDocStr = _richController!.hasFrontmatter
+          ? _richController!.toMarkdown()
+          : _richController!.toJsonString();
+      if (widget.controller.text != currentDocStr) {
+        _isSyncing = true;
+        try {
+          _richController!.setContent(widget.controller.text);
+        } finally {
+          _isSyncing = false;
+        }
       }
     }
 
@@ -412,7 +484,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           onActiveTargetChanged: widget.onActiveTargetChanged,
           onKeyEvent: widget.onKeyEvent,
           onChanged: (newVal) {
-            _autosaveDebouncer.run(_flushRichMarkdown);
+            _autosaveDebouncer.run(_flushRichContent);
           },
         );
       }

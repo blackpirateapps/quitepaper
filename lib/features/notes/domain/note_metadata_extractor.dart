@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../editor/domain/rich_document.dart';
 import '../../import/application/markdown_frontmatter_parser.dart';
 import 'note_model.dart';
 
@@ -231,8 +233,16 @@ abstract final class NoteMetadataExtractor {
       }
     }
 
+    var textToScan = content;
+    if (RichDocument.isJson(content)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        textToScan = doc.plainText;
+      } catch (_) {}
+    }
+
     // 2. Scan first line of body
-    final sample = content.length > 300 ? content.substring(0, 300) : content;
+    final sample = textToScan.length > 300 ? textToScan.substring(0, 300) : textToScan;
     final sampleTrimmed = sample.trim();
     if (sampleTrimmed.isEmpty) return '';
 
@@ -271,10 +281,16 @@ abstract final class NoteMetadataExtractor {
     if (content.isEmpty) return '';
 
     var bodyText = content;
+    if (RichDocument.isJson(content)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        bodyText = doc.plainText;
+      } catch (_) {}
+    }
 
     // 1. Check for YAML frontmatter
-    if (content.trim().startsWith('---')) {
-      final parsed = MarkdownFrontmatterParser.parse(content);
+    if (bodyText.trim().startsWith('---')) {
+      final parsed = MarkdownFrontmatterParser.parse(bodyText);
       if (parsed.description != null && parsed.description!.trim().isNotEmpty) {
         return cleanMarkdownLine(parsed.description!);
       }
