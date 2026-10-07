@@ -154,9 +154,18 @@ class ExportService {
         progress: 0.3,
       ));
 
+      // If note content is stored in RichDocument JSON format, compile to canonical Markdown
+      final canonicalMarkdown = Note(
+        id: note.id,
+        title: cleanTitle,
+        content: unlocked.content,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+      ).markdownContent;
+
       final attachmentResult = await _attachmentResolver.resolveResourcesForNote(
         noteId: request.noteId,
-        canonicalMarkdown: unlocked.content,
+        canonicalMarkdown: canonicalMarkdown,
         strategy: request.attachmentStrategy,
       );
       warnings.addAll(attachmentResult.warnings);

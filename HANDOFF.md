@@ -7348,6 +7348,37 @@ Requirements:
 - Added comprehensive widget test suite [`test/features/export/note_screenshot_card_test.dart`](file:///home/dog/git/quitepaper/test/features/export/note_screenshot_card_test.dart) verifying typography, tag pills, markdown body, watermark footer, and options toggles.
 - Updated [`test/features/export/export_note_sheet_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_note_sheet_test.dart) and [`test/features/export/export_service_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_service_test.dart) to cover `ExportFormat.image`.
 
+---
+
+## 144. Note Export: RichDocument JSON AST Leak Fix for Screenshots & Exporters (October 2026)
+
+### 1. Overview & Bug Description
+When sharing or exporting a note that was authored or edited in the Visual (WYSIWYG) rich-text editor, the exported screenshot or document rendered raw JSON text (e.g. `{"$schema":"quietpaper:rich_document:v1","blocks":[{"type":"paragraph", ...}]}`) instead of rendered text and formatting.
+
+### 2. Root Cause
+In Visual mode, notes persist their AST in canonical JSON (`quietpaper:rich_document:v1`).
+1. [`ExportService.exportNote`](file:///home/dog/git/quitepaper/lib/features/export/application/export_service.dart) previously passed `unlocked.content` directly to `_attachmentResolver.resolveResourcesForNote` as `canonicalMarkdown` without checking `Note.isRichTextContent(unlocked.content)`.
+2. Consequently, `NoteExportSnapshot.markdown` was populated with raw JSON AST strings. Exporters and [`NoteScreenshotCard`](file:///home/dog/git/quitepaper/lib/features/export/presentation/widgets/note_screenshot_card.dart) rendered the raw JSON syntax directly as paragraphs.
+3. In [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), tapping "Export note" or "Share as screenshot" did not flush active in-memory debounced state via `saveNow()` prior to opening export sheets.
+
+### 3. Solution
+1. **Canonical Markdown Compilation in Export Pipeline**:
+   - In [`ExportService.exportNote`](file:///home/dog/git/quitepaper/lib/features/export/application/export_service.dart), checked `Note.isRichTextContent(unlocked.content)` and invoked `Note.markdownContent` (which uses [`RichDocumentSerializer`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_serializer.dart)) to compile the AST into clean, canonical Markdown.
+   - All subsequent export steps (attachment image resolution, note link transformation, PDF generation, image rasterization, HTML, DOCX, PlainText) now receive valid Markdown.
+2. **Defense-in-Depth in `NoteScreenshotCard`**:
+   - In [`NoteScreenshotCard._cleanMarkdownBody`](file:///home/dog/git/quitepaper/lib/features/export/presentation/widgets/note_screenshot_card.dart), added automatic deserialization of `RichDocument` JSON to Markdown via `RichDocumentSerializer` before passing to `MarkdownBody`.
+3. **Editor Flush Synchronization**:
+   - In [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), awaited `notifier.saveNow()` before displaying `ExportNoteSheet` or executing `_shareAsScreenshot`.
+4. **Automated Test Coverage**:
+   - Added widget test in [`test/features/export/note_screenshot_card_test.dart`](file:///home/dog/git/quitepaper/test/features/export/note_screenshot_card_test.dart) ensuring `NoteScreenshotCard` converts RichDocument JSON into rendered text without leaking any JSON syntax.
+   - Added end-to-end integration test in [`test/features/export/export_service_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_service_test.dart) verifying `ExportService` exports notes with `quietpaper:rich_document:v1` storage to formatted Markdown without leaking JSON keys.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` completed with **0 issues found** (0 errors, 0 warnings).
+- Export Tests: `flutter test test/features/export/` passed (**49 of 49 tests passed**).
+- Editor Tests: `flutter test test/editor/` passed (**452 of 452 tests passed**).
+
+
 
 
 

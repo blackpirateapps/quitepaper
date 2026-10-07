@@ -3257,12 +3257,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         color: colors.textPrimary,
                       ),
                     ),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(ctx).pop();
+                      await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
                       final currentNoteSnapshot = note.copyWith(
                         title: _titleController.text,
                         content: _contentController.text,
                       );
+                      if (!context.mounted) return;
                       ExportNoteSheet.show(context, note: currentNoteSnapshot);
                     },
                   ),
@@ -3277,12 +3279,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         color: colors.textPrimary,
                       ),
                     ),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(ctx).pop();
+                      await ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
                       final currentNoteSnapshot = note.copyWith(
                         title: _titleController.text,
                         content: _contentController.text,
                       );
+                      if (!context.mounted) return;
                       _shareAsScreenshot(currentNoteSnapshot);
                     },
                   ),

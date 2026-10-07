@@ -93,4 +93,52 @@ void main() {
     // Body content is present
     expect(find.text('Only the plain text content here.'), findsOneWidget);
   });
+
+  testWidgets('NoteScreenshotCard automatically deserializes RichDocument JSON and displays formatted text instead of raw JSON', (tester) async {
+    const richJson = '{"\$schema":"quietpaper:rich_document:v1","blocks":[{"type":"paragraph","id":"p-1","spans":[{"text":"There was a video tape of abuse and murder"}]},{"type":"paragraph","id":"p-2","spans":[{"text":"there were two "},{"text":"people","attributes":{"bold":true}},{"text":" involved in it."}]}]}';
+
+    final snapshot = NoteExportSnapshot(
+      noteId: 'card-test-rich',
+      title: 'There was a video tape of...',
+      markdown: richJson,
+      createdAt: DateTime.utc(2026, 10, 7),
+      updatedAt: DateTime.utc(2026, 10, 7),
+      tags: const [],
+      attachments: const [],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.light(),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NoteScreenshotCard(
+              snapshot: snapshot,
+              options: const ImageExportOptions(
+                includeMetadata: true,
+                includeTags: true,
+                includeBranding: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify title
+    expect(find.text('There was a video tape of...'), findsOneWidget);
+
+    // Verify raw JSON keys are NEVER visible
+    expect(find.textContaining(r'{"$schema":'), findsNothing);
+    expect(find.textContaining('"blocks":'), findsNothing);
+    expect(find.textContaining('"spans":'), findsNothing);
+
+    // Verify formatted text is displayed
+    expect(find.textContaining('There was a video tape of abuse and murder'), findsOneWidget);
+    expect(find.textContaining('involved in it.'), findsOneWidget);
+
+    // Verify branding footer is present
+    expect(find.text('quietpaper.blackpiratex.com'), findsOneWidget);
+  });
 }

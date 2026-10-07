@@ -208,6 +208,39 @@ void main() => print("Ready");
       expect(imgResult.byteSize, greaterThan(0));
     });
 
+    test('exports rich-text note stored as RichDocument JSON to formatted Markdown without leaking JSON syntax', () async {
+      final noteId = 'rich-note-1';
+      final now = DateTime.utc(2026, 1, 1);
+      final note = Note(
+        id: noteId,
+        title: 'Interview Notes',
+        content: '{"\$schema":"quietpaper:rich_document:v1","blocks":[{"type":"paragraph","id":"p-1","spans":[{"text":"Witness reported seeing the suspect."}]},{"type":"paragraph","id":"p-2","spans":[{"text":"Status: "},{"text":"Active","attributes":{"bold":true}}]}]}',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      final mdResult = await exportService.exportNote(
+        ExportRequest(
+          noteId: noteId,
+          format: ExportFormat.markdown,
+          includeMetadata: true,
+        ),
+      );
+
+      expect(mdResult.format, equals(ExportFormat.markdown));
+      final mdContent = await mdResult.file.readAsString();
+
+      // Ensure JSON keys are never leaked in export
+      expect(mdContent, isNot(contains(r'{"$schema":')));
+      expect(mdContent, isNot(contains('"blocks":')));
+      expect(mdContent, isNot(contains('"spans":')));
+
+      // Ensure formatted markdown content is present
+      expect(mdContent, contains('Witness reported seeing the suspect.'));
+      expect(mdContent, contains('Status: **Active**'));
+    });
+
     test('exports password protected note after unlocking', () async {
       final encryptedBody = await NoteSecurityService.encryptNote(
         title: 'Confidential Strategy',

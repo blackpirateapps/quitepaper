@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart' hide SyntaxHighlighter;
 import 'package:intl/intl.dart';
@@ -8,6 +9,9 @@ import '../../../../core/markdown/markdown_highlight.dart';
 import '../../../../core/markdown/quiet_code_block_element_builder.dart';
 import '../../../../core/syntax/application/syntax_highlighter.dart';
 import '../../../../core/syntax/application/syntax_language_resolver.dart';
+import '../../../../features/editor/application/rich_document_serializer.dart';
+import '../../../../features/editor/domain/rich_document.dart';
+import '../../../../features/notes/domain/note_model.dart';
 import '../../../../features/settings/domain/typography_settings.dart';
 import '../../../../features/tags/domain/tag_colors.dart';
 import '../../domain/export_models.dart';
@@ -54,6 +58,12 @@ class NoteScreenshotCard extends StatelessWidget {
 
   String _cleanMarkdownBody(String rawMarkdown) {
     var content = rawMarkdown;
+    if (Note.isRichTextContent(content)) {
+      try {
+        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        content = const RichDocumentSerializer().serialize(doc);
+      } catch (_) {}
+    }
     // Strip YAML frontmatter delimiters from preview if present
     if (content.startsWith('---')) {
       final endIndex = content.indexOf('\n---', 3);
