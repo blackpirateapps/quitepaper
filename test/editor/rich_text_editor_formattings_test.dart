@@ -844,6 +844,376 @@ void main() {
 
         focusNode.dispose();
       });
+
+      testWidgets('Mid-sentence Bold: activating bold, typing word, deactivating bold, typing plain text stops bold immediately without Enter', (tester) async {
+        controller.setMarkdown('Prefix ');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+        expect(textFieldFinder, findsOneWidget);
+
+        // 1. Activate bold on collapsed caret
+        controller.toggleBold();
+        expect(controller.isBoldActive, true);
+
+        // 2. Type bold word
+        await tester.enterText(textFieldFinder, 'Prefix bold');
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), 'Prefix **bold**');
+
+        // 3. Deactivate bold on collapsed caret
+        controller.toggleBold();
+        expect(controller.isBoldActive, false);
+
+        // 4. Type plain text on the exact same line without pressing Enter
+        await tester.enterText(textFieldFinder, 'Prefix bold suffix');
+        await tester.pumpAndSettle();
+
+        // Must NOT remain bold!
+        expect(controller.toMarkdown(), 'Prefix **bold** suffix');
+        expect(controller.document.blocks.first.spans.length, 3);
+        expect(controller.document.blocks.first.spans[0].text, 'Prefix ');
+        expect(controller.document.blocks.first.spans[0].attributes.isBold, false);
+        expect(controller.document.blocks.first.spans[1].text, 'bold');
+        expect(controller.document.blocks.first.spans[1].attributes.isBold, true);
+        expect(controller.document.blocks.first.spans[2].text, ' suffix');
+        expect(controller.document.blocks.first.spans[2].attributes.isBold, false);
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Mid-sentence Italic: activating italic, typing word, deactivating italic, typing plain text stops italic immediately', (tester) async {
+        controller.setMarkdown('Prefix ');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // 1. Activate italic
+        controller.toggleItalic();
+        expect(controller.isItalicActive, true);
+
+        // 2. Type italic word
+        await tester.enterText(textFieldFinder, 'Prefix italic');
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), 'Prefix *italic*');
+
+        // 3. Deactivate italic
+        controller.toggleItalic();
+        expect(controller.isItalicActive, false);
+
+        // 4. Type plain text on the same line
+        await tester.enterText(textFieldFinder, 'Prefix italic suffix');
+        await tester.pumpAndSettle();
+
+        expect(controller.toMarkdown(), 'Prefix *italic* suffix');
+        expect(controller.document.blocks.first.spans.length, 3);
+        expect(controller.document.blocks.first.spans[1].attributes.isItalic, true);
+        expect(controller.document.blocks.first.spans[2].attributes.isItalic, false);
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Mid-sentence Strikethrough: activating strike, typing word, deactivating strike, typing plain text stops strike immediately', (tester) async {
+        controller.setMarkdown('Prefix ');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // 1. Activate strikethrough
+        controller.toggleStrike();
+        expect(controller.isStrikeActive, true);
+
+        // 2. Type struck word
+        await tester.enterText(textFieldFinder, 'Prefix struck');
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), 'Prefix ~~struck~~');
+
+        // 3. Deactivate strikethrough
+        controller.toggleStrike();
+        expect(controller.isStrikeActive, false);
+
+        // 4. Type plain text on same line
+        await tester.enterText(textFieldFinder, 'Prefix struck suffix');
+        await tester.pumpAndSettle();
+
+        expect(controller.toMarkdown(), 'Prefix ~~struck~~ suffix');
+        expect(controller.document.blocks.first.spans.length, 3);
+        expect(controller.document.blocks.first.spans[1].attributes.isStrike, true);
+        expect(controller.document.blocks.first.spans[2].attributes.isStrike, false);
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Mid-sentence Inline Code: activating code, typing word, deactivating code, typing plain text stops code immediately', (tester) async {
+        controller.setMarkdown('Prefix ');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // 1. Activate code
+        controller.toggleCode();
+        expect(controller.isCodeActive, true);
+
+        // 2. Type code word
+        await tester.enterText(textFieldFinder, 'Prefix code');
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), 'Prefix `code`');
+
+        // 3. Deactivate code
+        controller.toggleCode();
+        expect(controller.isCodeActive, false);
+
+        // 4. Type plain text on same line
+        await tester.enterText(textFieldFinder, 'Prefix code suffix');
+        await tester.pumpAndSettle();
+
+        expect(controller.toMarkdown(), 'Prefix `code` suffix');
+        expect(controller.document.blocks.first.spans.length, 3);
+        expect(controller.document.blocks.first.spans[1].attributes.isCode, true);
+        expect(controller.document.blocks.first.spans[2].attributes.isCode, false);
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Mid-sentence Highlight: activating highlight, typing word, deactivating highlight, typing plain text stops highlight immediately', (tester) async {
+        controller.setMarkdown('Prefix ');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // 1. Activate highlight
+        controller.toggleHighlight();
+        expect(controller.isHighlightActive, true);
+
+        // 2. Type highlighted word
+        await tester.enterText(textFieldFinder, 'Prefix note');
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), 'Prefix ==note==');
+
+        // 3. Deactivate highlight
+        controller.toggleHighlight();
+        expect(controller.isHighlightActive, false);
+
+        // 4. Type plain text on same line
+        await tester.enterText(textFieldFinder, 'Prefix note suffix');
+        await tester.pumpAndSettle();
+
+        expect(controller.toMarkdown(), 'Prefix ==note== suffix');
+        expect(controller.document.blocks.first.spans.length, 3);
+        expect(controller.document.blocks.first.spans[1].attributes.isHighlight, true);
+        expect(controller.document.blocks.first.spans[2].attributes.isHighlight, false);
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Lexical Playground Paragraph Parity: typing code, bold, and italic mid-sentence creates exact 7-span document tree', (tester) async {
+        // Recreates paragraph (5) from the Lexical Playground:
+        // "The playground is a demo environment built with "
+        // + `@lexical/react` (code)
+        // + ". Try typing in "
+        // + `some text` (bold)
+        // + " with "
+        // + `different` (italic)
+        // + " formats."
+        controller.setMarkdown('');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // Step 1: Plain text
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with ');
+        await tester.pumpAndSettle();
+
+        // Step 2: Code
+        controller.toggleCode();
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react');
+        await tester.pumpAndSettle();
+        controller.toggleCode();
+
+        // Step 3: Plain text
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react. Try typing in ');
+        await tester.pumpAndSettle();
+
+        // Step 4: Bold
+        controller.toggleBold();
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react. Try typing in some text');
+        await tester.pumpAndSettle();
+        controller.toggleBold();
+
+        // Step 5: Plain text
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react. Try typing in some text with ');
+        await tester.pumpAndSettle();
+
+        // Step 6: Italic
+        controller.toggleItalic();
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react. Try typing in some text with different');
+        await tester.pumpAndSettle();
+        controller.toggleItalic();
+
+        // Step 7: Plain text
+        await tester.enterText(textFieldFinder, 'The playground is a demo environment built with @lexical/react. Try typing in some text with different formats.');
+        await tester.pumpAndSettle();
+
+        final spans = controller.document.blocks.first.spans;
+        expect(spans.length, 7);
+        expect(spans[0].text, 'The playground is a demo environment built with ');
+        expect(spans[0].attributes.isEmpty, true);
+
+        expect(spans[1].text, '@lexical/react');
+        expect(spans[1].attributes.isCode, true);
+
+        expect(spans[2].text, '. Try typing in ');
+        expect(spans[2].attributes.isEmpty, true);
+
+        expect(spans[3].text, 'some text');
+        expect(spans[3].attributes.isBold, true);
+
+        expect(spans[4].text, ' with ');
+        expect(spans[4].attributes.isEmpty, true);
+
+        expect(spans[5].text, 'different');
+        expect(spans[5].attributes.isItalic, true);
+
+        expect(spans[6].text, ' formats.');
+        expect(spans[6].attributes.isEmpty, true);
+
+        expect(
+          controller.toMarkdown(),
+          'The playground is a demo environment built with `@lexical/react`. Try typing in **some text** with *different* formats.',
+        );
+
+        focusNode.dispose();
+      });
+
+      testWidgets('Mid-span insertion: typing inside formatted word with formatting toggled off splits word into prefix, plain, suffix', (tester) async {
+        controller.setMarkdown('Prefix **testing** suffix');
+        final focusNode = FocusNode();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RichTextEditor(
+                controller: controller,
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFieldFinder = find.byType(TextField);
+
+        // Place caret inside "testing" after "test" (offset 11: "Prefix test|ing suffix")
+        final blockId = controller.document.blocks.first.id;
+        controller.updateSelection(RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: 0, blockId: blockId, offset: 11),
+        ));
+        expect(controller.isBoldActive, true);
+
+        // Turn bold OFF
+        controller.toggleBold();
+        expect(controller.isBoldActive, false);
+
+        // Type "-not-"
+        await tester.enterText(textFieldFinder, 'Prefix test-not-ing suffix');
+        await tester.pumpAndSettle();
+
+        final spans = controller.document.blocks.first.spans;
+        expect(spans.length, 5);
+        expect(spans[0].text, 'Prefix ');
+        expect(spans[0].attributes.isBold, false);
+        expect(spans[1].text, 'test');
+        expect(spans[1].attributes.isBold, true);
+        expect(spans[2].text, '-not-');
+        expect(spans[2].attributes.isBold, false);
+        expect(spans[3].text, 'ing');
+        expect(spans[3].attributes.isBold, true);
+        expect(spans[4].text, ' suffix');
+        expect(spans[4].attributes.isBold, false);
+
+        expect(controller.toMarkdown(), 'Prefix **test**-not-**ing** suffix');
+
+        focusNode.dispose();
+      });
     });
   });
 }

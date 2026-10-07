@@ -445,7 +445,13 @@ class _RichTextEditingController extends TextEditingController {
     final endPos = resolveDocumentPosition(deleteEnd) ??
         RichDocumentPosition(blockIndex: indices.last, blockId: doc.blocks[indices.last].id, offset: doc.blocks[indices.last].plainText.length);
 
-    final docAfterReplacement = _replaceRangeWithText(doc, startPos, endPos, inserted);
+    final docAfterReplacement = _replaceRangeWithText(
+      doc,
+      startPos,
+      endPos,
+      inserted,
+      attributes: editorController.typingAttributes,
+    );
     editorController.setDocument(docAfterReplacement);
   }
 
@@ -487,8 +493,9 @@ class _RichTextEditingController extends TextEditingController {
     RichDocument doc,
     RichDocumentPosition startPos,
     RichDocumentPosition endPos,
-    String insertedText,
-  ) {
+    String insertedText, {
+    TextAttributes attributes = TextAttributes.none,
+  }) {
     final deletedDoc = _deleteRange(doc, startPos, endPos);
     if (insertedText.isEmpty) return deletedDoc;
 
@@ -499,7 +506,7 @@ class _RichTextEditingController extends TextEditingController {
     if (insertedLines.length == 1) {
       final spans = targetBlock.isTextBlock ? targetBlock.spans : [RichInlineSpan(text: targetBlock.plainText)];
       final (left, right) = _splitSpans(spans, startPos.offset);
-      final insertedSpan = RichInlineSpan(text: insertedLines.first);
+      final insertedSpan = RichInlineSpan(text: insertedLines.first, attributes: attributes);
       final merged = [...left, insertedSpan, ...right].normalized();
       final updated = _copyBlockWithSpans(targetBlock, merged);
       final newBlocks = List<RichBlock>.from(deletedDoc.blocks);
@@ -626,8 +633,7 @@ class _RichTextEditingController extends TextEditingController {
 
       // 2. Inserted text
       if (!insertedHandled && inserted.isNotEmpty) {
-        final insertAttrs = defaultAttributes.isEmpty ? span.attributes : defaultAttributes;
-        result.add(RichInlineSpan(text: inserted, attributes: insertAttrs));
+        result.add(RichInlineSpan(text: inserted, attributes: defaultAttributes));
         insertedHandled = true;
       }
 
@@ -638,9 +644,7 @@ class _RichTextEditingController extends TextEditingController {
     }
 
     if (!insertedHandled && inserted.isNotEmpty) {
-      final lastAttrs = spans.isNotEmpty ? spans.last.attributes : defaultAttributes;
-      final insertAttrs = defaultAttributes.isEmpty ? lastAttrs : defaultAttributes;
-      result.add(RichInlineSpan(text: inserted, attributes: insertAttrs));
+      result.add(RichInlineSpan(text: inserted, attributes: defaultAttributes));
     }
 
     return result.normalized();
@@ -785,8 +789,17 @@ class _RichTextEditingController extends TextEditingController {
       if (attr.isItalic) {
         spanStyle = spanStyle.copyWith(fontStyle: FontStyle.italic);
       }
+      final decorations = <TextDecoration>[];
       if (attr.isStrike) {
-        spanStyle = spanStyle.copyWith(decoration: TextDecoration.lineThrough);
+        decorations.add(TextDecoration.lineThrough);
+      }
+      if (attr.hasLink) {
+        decorations.add(TextDecoration.underline);
+      }
+      if (decorations.isNotEmpty) {
+        spanStyle = spanStyle.copyWith(
+          decoration: TextDecoration.combine(decorations),
+        );
       }
       if (attr.isHighlight) {
         spanStyle = spanStyle.copyWith(
@@ -803,7 +816,6 @@ class _RichTextEditingController extends TextEditingController {
       if (attr.hasLink) {
         spanStyle = spanStyle.copyWith(
           color: colors.accent,
-          decoration: TextDecoration.underline,
         );
       }
       if (attr.hasTag) {

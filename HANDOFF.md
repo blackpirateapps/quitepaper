@@ -7242,5 +7242,43 @@ This update introduces **Single Polymorphic Content Storage** for note bodies:
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
 - Test suite: `flutter test` (**all 1,576 tests passed with 0 failures**).
 
+---
+
+## 142. Rich Text Editor: Inline Styling Mid-Sentence Deactivation & Lexical Parity (October 2026)
+
+### 1. Overview & Problem Description
+In the Visual (WYSIWYG) rich text editor (`RichTextEditor`), when typing mid-sentence, users could activate an inline style (such as Bold, Italic, Strikethrough, Inline Code, or Highlight) from the formatting toolbar or keyboard shortcuts, type the formatted word, and then tap the formatting button to deactivate the style.
+- While the toolbar button un-highlighted correctly, newly typed characters immediately following the formatted word continued to be styled anyway.
+- The formatting only stopped when the user pressed Enter and started a new line.
+- The issue occurred across Bold, Italic, Strikethrough, Inline Code, and Highlight.
+
+### 2. Root Cause
+In `_RichTextEditingController._spliceSpans` ([`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart)):
+- Lines previously contained fallback expressions:
+  `final insertAttrs = defaultAttributes.isEmpty ? span.attributes : defaultAttributes;`
+  and
+  `final insertAttrs = defaultAttributes.isEmpty ? lastAttrs : defaultAttributes;`
+- When a user deactivates formatting on a collapsed caret, `editorController.typingAttributes` becomes `TextAttributes.none` (i.e. `defaultAttributes.isEmpty` is `true`).
+- Because of `defaultAttributes.isEmpty ? ...`, the algorithm discarded the user's explicit deactivation and fell back to `lastAttrs` or `span.attributes` (the previous span's bold/italic/strike/code format).
+- Consequently, the typed characters were inserted with the previous formatting and merged into the preceding formatted span.
+- When cursor selection synchronized, `_updateTypingAttributesFromSelection` inspected the cursor inside the merged formatted span, turning active formatting back on in the toolbar.
+
+### 3. Solution & Architectural Alignment
+1. **Direct Attribute Assignment**: Removed the faulty `defaultAttributes.isEmpty ? ... : defaultAttributes` checks in `_spliceSpans`. Inserted spans now directly take `defaultAttributes` (`editorController.typingAttributes`), ensuring that explicitly toggled-off formatting applies immediately to subsequent keystrokes on the same line.
+2. **Range Replacement Compatibility**: Updated `_replaceRangeWithText` to accept `attributes` parameter from `editorController.typingAttributes`.
+3. **Composable Text Decorations**: In `_buildInlineSpans`, combined multiple text decorations (such as strikethrough + link underline) via `TextDecoration.combine` instead of overriding earlier decorations.
+4. **Lexical Parity Verification**: Recreated paragraph (5) and paragraph (14) from the Lexical editor playground in automated widget tests:
+   ```text
+   The playground is a demo environment built with `@lexical/react`. Try typing in **some text** with *different* formats.
+   Make sure to check out the various plugins in the toolbar. You can also write something. ~~This is some strikethorugh text~~
+   ```
+   Verified that toggling inline styles (code, bold, italic, strikethrough, highlight) mid-sentence immediately applies and deactivates styling without requiring Enter key line breaks.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` completed with **0 issues found** (zero errors, zero warnings).
+- Automated tests: Added 7 new tests in [`test/editor/rich_text_editor_formattings_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_editor_formattings_test.dart) covering mid-sentence bold, italic, strikethrough, inline code, highlight, Lexical playground 7-span document tree creation, and mid-span splitting.
+- Full test suite: `flutter test` passed with zero failures across all test suites.
+
+
 
 
