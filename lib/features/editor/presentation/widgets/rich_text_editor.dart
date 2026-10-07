@@ -666,17 +666,18 @@ class _RichTextEditingController extends TextEditingController {
       final blockIdx = indices[i];
       if (blockIdx >= doc.blocks.length) continue;
       final block = doc.blocks[blockIdx];
+      final blockSpans = <InlineSpan>[];
 
       // 1. Heading Block
       if (block is HeadingBlock) {
         final headingStyle = _getHeadingStyle(block.level, styles, colors);
-        children.addAll(_buildInlineSpans(block.spans, headingStyle, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, headingStyle, colors));
       }
       // 2. Checklist Item Block
       else if (block is ChecklistItemBlock) {
         final itemChecked = block.isChecked;
         // Interactive Phosphor checkbox widget
-        children.add(
+        blockSpans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: GestureDetector(
@@ -701,54 +702,156 @@ class _RichTextEditingController extends TextEditingController {
                 color: colors.textSecondary,
               )
             : styles.body.copyWith(color: colors.textPrimary);
-        children.addAll(_buildInlineSpans(block.spans, baseStyle, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, baseStyle, colors));
       }
       // 3. Bulleted List Item
       else if (block is BulletedListItemBlock) {
         final indentSpace = '  ' * block.indent;
-        children.add(TextSpan(
+        blockSpans.add(TextSpan(
           text: '$indentSpace• ',
           style: styles.listMarker.copyWith(
             color: colors.accent,
             fontWeight: FontWeight.bold,
           ),
         ));
-        children.addAll(_buildInlineSpans(block.spans, styles.body, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, styles.body, colors));
       }
       // 4. Ordered List Item
       else if (block is OrderedListItemBlock) {
         final indentSpace = '  ' * block.indent;
-        children.add(TextSpan(
+        blockSpans.add(TextSpan(
           text: '$indentSpace${block.order}. ',
           style: styles.body.copyWith(
             color: colors.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ));
-        children.addAll(_buildInlineSpans(block.spans, styles.body, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, styles.body, colors));
       }
       // 5. Quote Block
       else if (block is QuoteBlock) {
-        children.add(TextSpan(
+        blockSpans.add(TextSpan(
           text: '▌ ',
           style: styles.body.copyWith(
             color: colors.accent.withValues(alpha: 0.7),
           ),
         ));
-        children.addAll(_buildInlineSpans(block.spans, styles.blockquote, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, styles.blockquote, colors));
       }
       // 6. Standard Paragraph
       else if (block is ParagraphBlock) {
-        children.addAll(_buildInlineSpans(block.spans, styles.body, colors));
+        blockSpans.addAll(_buildInlineSpans(block.spans, styles.body, colors));
       }
 
-      // Add newline delimiter between lines in the segment
+      // Add newline delimiter between lines in the segment.
+      // Trailing spaces on lines followed by '\n' are converted to non-breaking spaces (\u00A0)
+      // so Flutter's text layout engine (SkParagraph/LibTxt) does not collapse their advance
+      // width per Unicode Line Breaking Algorithm (UAX #14), keeping cursor movement responsive.
       if (i < indices.length - 1) {
+        children.addAll(_preserveTrailingSpacesInSpans(blockSpans));
         children.add(const TextSpan(text: '\n'));
+      } else {
+        children.addAll(blockSpans);
       }
     }
 
     return TextSpan(style: style, children: children);
+  }
+
+  /// Replaces trailing spaces at the end of inline spans with non-breaking spaces (\u00A0).
+  ///
+  /// This prevents Flutter's text layout engine from collapsing trailing whitespace before
+  /// hard newlines ('\n') per UAX #14 while retaining 1:1 UTF-16 code unit indexing.
+  List<InlineSpan> _preserveTrailingSpacesInSpans(List<InlineSpan> spans) {
+    if (spans.isEmpty) return spans;
+
+    final result = List<InlineSpan>.of(spans);
+
+    // 1. Preserve trailing spaces within individual TextSpans containing newlines
+    for (var i = 0; i < result.length; i++) {
+      final span = result[i];
+      if (span is TextSpan && span.text != null && span.text!.contains('\n')) {
+        final replaced = span.text!.replaceAllMapped(
+          RegExp(r' +(?=\r?\n)'),
+          (match) => '\u00A0' * match.group(0)!.length,
+        );
+        if (replaced != span.text) {
+          result[i] = _copyTextSpanWithText(span, replaced);
+        }
+      }
+    }
+
+    // 2. Preserve trailing spaces at the end of the span list (preceding the block's delimiter)
+    for (var i = result.length - 1; i >= 0; i--) {
+      final span = result[i];
+      if (span is! TextSpan) {
+        break;
+      }
+
+      if (span.children != null && span.children!.isNotEmpty) {
+        result[i] = _copyTextSpanWithChildren(
+          span,
+          _preserveTrailingSpacesInSpans(span.children!),
+        );
+        break;
+      }
+
+      final text = span.text;
+      if (text == null || text.isEmpty) {
+        continue;
+      }
+
+      var trailingCount = 0;
+      for (var j = text.length - 1; j >= 0; j--) {
+        if (text[j] == ' ') {
+          trailingCount++;
+        } else {
+          break;
+        }
+      }
+
+      if (trailingCount > 0) {
+        final preservedText = text.substring(0, text.length - trailingCount) +
+            '\u00A0' * trailingCount;
+        result[i] = _copyTextSpanWithText(span, preservedText);
+      }
+
+      if (trailingCount < text.length) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  static TextSpan _copyTextSpanWithText(TextSpan span, String text) {
+    return TextSpan(
+      text: text,
+      children: span.children,
+      style: span.style,
+      recognizer: span.recognizer,
+      mouseCursor: span.mouseCursor,
+      onEnter: span.onEnter,
+      onExit: span.onExit,
+      semanticsLabel: span.semanticsLabel,
+      locale: span.locale,
+      spellOut: span.spellOut,
+    );
+  }
+
+  static TextSpan _copyTextSpanWithChildren(TextSpan span, List<InlineSpan> children) {
+    return TextSpan(
+      text: span.text,
+      children: children,
+      style: span.style,
+      recognizer: span.recognizer,
+      mouseCursor: span.mouseCursor,
+      onEnter: span.onEnter,
+      onExit: span.onExit,
+      semanticsLabel: span.semanticsLabel,
+      locale: span.locale,
+      spellOut: span.spellOut,
+    );
   }
 
   TextStyle _getHeadingStyle(int level, MarkdownStyles styles, AppColors colors) {

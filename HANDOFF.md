@@ -7378,6 +7378,48 @@ In Visual mode, notes persist their AST in canonical JSON (`quietpaper:rich_docu
 - Export Tests: `flutter test test/features/export/` passed (**49 of 49 tests passed**).
 - Editor Tests: `flutter test test/editor/` passed (**452 of 452 tests passed**).
 
+---
+
+## 145. Rich Text Editor: Trailing Whitespace Cursor Preservation Before Newlines (October 2026)
+
+### 1. Overview & Bug Description
+In the continuous rich text editor ([`RichTextEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart)), when an active document has multiple lines (e.g. 5 lines) and the user moves the cursor to the end of any line preceding a newline `\n` (lines 1 to 4) and presses Space:
+- The cursor did not move forward visually.
+- Pressing Space multiple times kept the cursor frozen at the boundary of the last visible character.
+- Only upon typing an alphanumeric character (e.g. `'a'`) did the cursor suddenly advance along with all typed spaces.
+- On the final line of the document (which is not followed by a trailing `\n`), typing spaces advanced the cursor normally.
+
+### 2. Root Cause
+In Flutter's text layout engine (SkParagraph / LibTxt), whitespace immediately preceding a mandatory hard break (`\n`) is treated as trailing whitespace of the line box according to the Unicode Line Breaking Algorithm (UAX #14).
+- By design in Unicode line-layout standards, trailing spaces at line breaks are collapsed and measured with zero typographic advance width (`width = 0`).
+- Because `RichTextEditor` renders document blocks sequentially separated by `TextSpan(text: '\n')`, any spaces typed at the end of a block (lines 1–4) immediately precede `\n`.
+- SkParagraph collapsed their advance width to 0, pinning the caret geometry to the end of the last non-space glyph until a non-space character was entered.
+- On the last line (Line 5), there is no trailing `\n`, so spaces were not collapsed by the engine.
+
+### 3. Architectural Solution
+1. **Presentation-Layer Trailing Space Preservation**:
+   - In [`_RichTextEditingController.buildTextSpan`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart), any trailing ASCII spaces (`' '`, `0x20`) on lines immediately preceding the block delimiter `TextSpan(text: '\n')` are converted to Non-Breaking Spaces (`\u00A0`, U+00A0 NO-BREAK SPACE) via `_preserveTrailingSpacesInSpans`.
+   - Because `\u00A0` belongs to Unicode line break class `GL` (Glue / Non-breaking), SkParagraph does not collapse it and gives it the exact advance width of a space glyph.
+   - The caret visually advances by font space width per keystroke immediately.
+2. **Model Purity & 1:1 UTF-16 Invariants**:
+   - The underlying text model ([`TextEditingValue.text`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart), [`RichDocument`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart) AST, [`ParagraphBlock.spans`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart), Markdown export, Drift DB, and Cloud Sync) strictly retains canonical ASCII spaces (`' '`, `0x20`).
+   - Substitution only occurs during visual display in `buildTextSpan`.
+   - Because `\u00A0` is exactly 1 UTF-16 code unit (identical to `' '`), character offsets, selection ranges, cursor indexing, backspacing, IME composing bounds, and gesture tap-to-caret mappings remain 100% 1:1 aligned with zero offset shifts or desynchronization.
+3. **Comprehensive Block Type Coverage**:
+   - Trailing space preservation applies across all text block types: `ParagraphBlock`, `HeadingBlock`, `ChecklistItemBlock`, `BulletedListItemBlock`, `OrderedListItemBlock`, and `QuoteBlock`, as well as blank lines containing only spaces.
+   - On the final line without a trailing newline, spaces remain standard ASCII spaces, preserving natural soft-wrapping behavior at the viewport edge.
+
+### 4. Modified & Added Files
+- [`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart): Added `_preserveTrailingSpacesInSpans` and trailing whitespace preservation in `_RichTextEditingController.buildTextSpan`.
+- [`test/editor/rich_text_trailing_space_cursor_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_trailing_space_cursor_test.dart): New unit and widget test suite verifying visual `\u00A0` conversion before `\n`, ASCII preservation in `RichDocument`, monotonic caret advancement, and block-type coverage.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 145 documenting the fix.
+
+### 5. Verification & Quality
+- Static Analysis: `flutter analyze` completed with **0 issues found** (0 errors, 0 warnings).
+- Trailing Space Test Suite: `flutter test test/editor/rich_text_trailing_space_cursor_test.dart` passed (**4 of 4 tests passed**).
+- Full Test Suite: `flutter test` passed (**1,591 of 1,591 tests passed**).
+
+
 
 
 
