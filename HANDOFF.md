@@ -7222,4 +7222,25 @@ This update introduces **Single Polymorphic Content Storage** for note bodies:
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
 - Test suite: `flutter test` (**all 1,572 tests passed with 0 failures** across the entire project).
 
+---
+
+## 141. Note Details Dialog: Storage Format Indicator (October 2026)
+
+### 1. Overview & UI Enhancements
+- Added a dedicated **Format** row in the **Note details** dialog ([`EditorStatsDialog`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/editor_stats_dialog.dart)), accessible via the 3-dot overflow menu in [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart).
+- The dialog inspects `note.isRichText` to inform the user whether the note is saved as:
+  - `Rich text` (stored as polymorphic JSON AST `quietpaper:rich_document:v1` in Visual mode)
+  - `Plain markdown` (stored as plain Markdown text in Markdown mode)
+- In `EditorScreen`, passes the latest in-memory editor content snapshot (`currentNote = note.copyWith(content: _contentController.text, title: _titleController.text)`) when opening the dialog, ensuring immediate, accurate format and stat reporting even prior to repository autosave debouncer flush.
+
+### 2. Verification & Automated Tests
+- Created dedicated test suite [`test/editor/editor_stats_dialog_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_stats_dialog_test.dart) covering:
+  1. `EditorStatsDialog` rendering `Rich text` for `RichDocument` JSON note.
+  2. `EditorStatsDialog` rendering `Plain markdown` for Markdown note.
+  3. Opening 3-dot overflow menu $\to$ `Note details` in Markdown mode displaying `Format: Plain markdown`.
+  4. Opening 3-dot overflow menu $\to$ `Note details` in Visual/JSON mode displaying `Format: Rich text`.
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- Test suite: `flutter test` (**all 1,576 tests passed with 0 failures**).
+
+
 

@@ -28,6 +28,10 @@ class EditorStatsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _StatRow(
+            label: 'Format',
+            value: note.isRichText ? 'Rich text' : 'Plain markdown',
+          ),
+          _StatRow(
             label: 'Words',
             value: '${note.wordCount}',
           ),

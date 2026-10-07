@@ -3857,9 +3857,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                   onTap: () {
                     Navigator.of(ctx).pop();
+                    final currentNote = ref
+                        .read(editorProviderFamily(_editorParams))
+                        .note
+                        .copyWith(
+                          content: _contentController.text,
+                          title: _titleController.text,
+                        );
                     showDialog(
                       context: context,
-                      builder: (_) => EditorStatsDialog(note: note),
+                      builder: (_) => EditorStatsDialog(note: currentNote),
                     );
                   },
                 ),
