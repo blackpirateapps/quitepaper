@@ -383,6 +383,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.bold:
         if (widget.richController != null) {
           widget.richController!.toggleBold();
+          widget.focusNode?.requestFocus();
         } else {
           _applyFormat(MarkdownFormatter.toggleBold);
         }
@@ -390,6 +391,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.italic:
         if (widget.richController != null) {
           widget.richController!.toggleItalic();
+          widget.focusNode?.requestFocus();
         } else {
           _applyFormat(MarkdownFormatter.toggleItalic);
         }
@@ -397,6 +399,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.strikethrough:
         if (widget.richController != null) {
           widget.richController!.toggleStrike();
+          widget.focusNode?.requestFocus();
         } else {
           _applyFormat(MarkdownFormatter.toggleStrikethrough);
         }
@@ -404,6 +407,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.highlight:
         if (widget.richController != null) {
           widget.richController!.toggleHighlight();
+          widget.focusNode?.requestFocus();
         } else {
           _applyFormat(MarkdownFormatter.toggleHighlight);
         }
@@ -411,6 +415,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.inlineCode:
         if (widget.richController != null) {
           widget.richController!.toggleCode();
+          widget.focusNode?.requestFocus();
         } else {
           _applyFormat(MarkdownFormatter.toggleInlineCode);
         }
@@ -1006,6 +1011,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       onPressed: () {
                         if (widget.richController != null) {
                           widget.richController!.toggleBold();
+                          widget.focusNode?.requestFocus();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleBold);
                         }
@@ -1018,6 +1024,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       onPressed: () {
                         if (widget.richController != null) {
                           widget.richController!.toggleItalic();
+                          widget.focusNode?.requestFocus();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleItalic);
                         }
@@ -1032,6 +1039,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       onPressed: () {
                         if (widget.richController != null) {
                           widget.richController!.toggleStrike();
+                          widget.focusNode?.requestFocus();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleStrikethrough);
                         }
@@ -1046,6 +1054,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       onPressed: () {
                         if (widget.richController != null) {
                           widget.richController!.toggleCode();
+                          widget.focusNode?.requestFocus();
                         } else {
                           _applyFormat(MarkdownFormatter.toggleInlineCode);
                         }

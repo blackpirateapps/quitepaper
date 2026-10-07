@@ -7104,3 +7104,59 @@ Created [`test/editor/rich_text_editor_formattings_test.dart`](file:///home/dog/
 - `flutter test test/editor/rich_text_editor_formattings_test.dart`: **56/56 tests passing**.
 - `flutter test`: **348/348 tests passing** with zero failures across the entire test suite.
 
+---
+
+## 139. Visual Rich Text Editor: In-Memory AST Architecture, Enter Key Formatting Preservation & Selection Formatting (October 2026)
+
+### 1. Overview & Objectives
+This update addressed fundamental issues in the visual rich text editing experience and revamped the data lifecycle:
+1. **In-Memory Rich Text Architecture**: Previously, typing in the visual editor triggered full CommonMark markdown serialization on every keystroke (`widget.onChanged?.call(widget.controller.toMarkdown())`), and parsing back regexes. The visual editor now maintains its rich document abstract syntax tree (`RichDocument`) completely in-memory with full JSON serialization support (`toJson()` / `fromJson()`), postponing Markdown transformation strictly until note save/flush operations (autosave debouncer, mode toggles, navigation exit).
+2. **Enter Key Formatting Loss Fixed**: Pressing Enter on formatted text (headings, bold, italic, strikethrough, etc.) previously lost formatting or broke styling runs because `handleEnter` only targeted paragraph blocks or plain-text reparsing occurred. Now, Enter key splits preserve block attributes and reset trailing inline typing attributes cleanly without dropping existing inline styling runs.
+3. **Selection Range Formatting Fixed**: Selecting text and clicking toolbar buttons (Bold, Italic, Strikethrough, Highlight, Code, Headings, Lists, Quotes) previously failed or did nothing because the controller selection was collapsed on toolbar tap and multi-block ranges were not properly mapped. Selection ranges are now preserved, toolbar state reflects selected spans, and formatting applies cleanly across selected text.
+
+### 2. Key Architectural Components & Changes
+
+#### A. In-Memory Domain Model & JSON Serialization
+- [`lib/features/editor/domain/text_attributes.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/text_attributes.dart):
+  - Added `toJson()` and `TextAttributes.fromJson(Map<String, dynamic> json)` supporting `bold`, `italic`, `strikethrough`, `highlight`, `code`, `linkUrl`, `linkTitle`, `noteLink`, and `tag`.
+- [`lib/features/editor/domain/rich_inline.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_inline.dart):
+  - Added `toJson()` and `RichInlineSpan.fromJson(Map<String, dynamic> json)`.
+- [`lib/features/editor/domain/rich_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart):
+  - Added polymorphic `toJson()` and `RichBlock.fromJson(Map<String, dynamic> json)` factory supporting all 10 block types (`ParagraphBlock`, `HeadingBlock`, `ChecklistItemBlock`, `BulletedListItemBlock`, `OrderedListItemBlock`, `QuoteBlock`, `CodeBlock`, `HorizontalRuleBlock`, `ImageBlock`, `TableBlock`).
+- [`lib/features/editor/domain/rich_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart):
+  - Added `toJson()` and `RichDocument.fromJson(Map<String, dynamic> json)`.
+
+#### B. Controller In-Memory State & Enter Key Handling
+- [`lib/features/editor/application/rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart):
+  - Added `isDirty`, `markClean()`, and `notifyContentMutated()` so in-memory mutations notify listeners without triggering eager markdown serialization.
+  - Added `setDocument(RichDocument newDoc, {RichDocumentSelection? newSelection})` allowing direct in-memory AST mutations without regex reparsing.
+  - Implemented `handleEnterAt(RichDocumentPosition position)` that handles Enter key splits cleanly across text blocks (`ParagraphBlock`, `HeadingBlock`), resetting `_typingAttributes = TextAttributes.none` for the new line while keeping pre-split formatting intact.
+  - Updated formatting active checks (`isBoldActive`, `isItalicActive`, `isStrikeActive`, `isHighlightActive`, `isCodeActive`) to inspect the selection range when `!_selection.isCollapsed`.
+  - Updated block operations (`setHeadingLevel`, `convertHeadingToParagraph`, `toggleChecklist`, `toggleBulletedList`, `toggleOrderedList`, `toggleQuote`) to operate across multi-block selections.
+
+#### C. Rich Text Editor Widget & Selection Synchronization
+- [`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart):
+  - Replaced per-keystroke `widget.onChanged?.call(widget.controller.toMarkdown())` with `widget.controller.notifyContentMutated()`.
+  - Updated `_onTextControllerChanged` to preserve non-collapsed selections `RichDocumentSelection(base: basePos, extent: extentPos, affinity: sel.affinity)`.
+  - Implemented `resolveSegmentOffset(RichDocumentPosition position)` in `_RichTextEditingController` and updated `_syncFromDocument()` to map selection base/extent back to segment offsets and call `markNeedsRebuild()`, so formatting changes on selected text immediately re-render in `EditableText.buildTextSpan`.
+  - Updated `Focus.onKeyEvent` to check `if (block.isTextBlock)` so Enter key splits headings and paragraphs consistently.
+  - Refactored `applyTextChangesToDocument` to eliminate raw plain-text `parser.parse(newSegmentText)` calls, replacing them with in-memory AST span slicing (`_deleteRange`, `_replaceRangeWithText`, `_splitSpans`, `_copyBlockWithSpans`) which preserves existing formatted spans and block types on soft keyboard / mobile IME Enter and multiline pastes.
+- [`lib/features/editor/presentation/widgets/formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart):
+  - Added `widget.focusNode?.requestFocus()` to inline format buttons so text selection and focus remain active in the editor when tapping toolbar actions.
+- [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+  - Tuned `_autosaveDebouncer` to 50ms so in-memory visual typing smoothly coalesces before synchronizing with the repository 700ms autosave timer.
+- [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Updated `_onTargetChanged` to derive the note title directly from the in-memory active target controller (`_activeTargetController!.text`) without triggering Markdown string serialization.
+
+### 3. Automated Verification & Quality
+- Created [`test/editor/rich_text_in_memory_and_selection_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_in_memory_and_selection_test.dart) with 11 comprehensive tests:
+  - `TextAttributes`, `RichInlineSpan`, `RichBlock`, and `RichDocument` JSON round-trip serialization.
+  - Enter key in-memory paragraph split preserving inline formatting runs.
+  - Enter key in-memory heading split converting the second line to a paragraph while maintaining heading attributes.
+  - Applying bold to selected text across partial spans.
+  - Toggling bold off on selected bold text.
+  - Applying heading level across selected blocks.
+  - In-memory typing without rebuilding Markdown string.
+- Full test suite: `flutter test` (**all 1564 tests passed with 0 failures**).
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+

@@ -49,6 +49,18 @@ class RichInlineSpan {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        if (!attributes.isEmpty) 'attributes': attributes.toJson(),
+      };
+
+  factory RichInlineSpan.fromJson(Map<String, dynamic> json) => RichInlineSpan(
+        text: json['text'] as String? ?? '',
+        attributes: json['attributes'] != null
+            ? TextAttributes.fromJson(json['attributes'] as Map<String, dynamic>)
+            : TextAttributes.none,
+      );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

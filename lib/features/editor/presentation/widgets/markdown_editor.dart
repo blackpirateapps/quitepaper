@@ -77,7 +77,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   MarkdownTable? _activeTable;
   MarkdownTableController? _activeTableController;
   RichDocumentController? _richController;
-  final Debouncer _autosaveDebouncer = Debouncer(duration: const Duration(milliseconds: 700));
+  final Debouncer _autosaveDebouncer = Debouncer(duration: const Duration(milliseconds: 50));
   bool _isSyncing = false;
 
   @override
@@ -412,7 +412,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           onActiveTargetChanged: widget.onActiveTargetChanged,
           onKeyEvent: widget.onKeyEvent,
           onChanged: (newVal) {
-            _flushRichMarkdown();
+            _autosaveDebouncer.run(_flushRichMarkdown);
           },
         );
       }

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
@@ -11,8 +12,8 @@ import '../../domain/rich_document.dart';
 import '../../domain/rich_inline.dart';
 import '../../domain/text_attributes.dart';
 import '../../application/rich_document_controller.dart';
-import '../../application/rich_document_parser.dart';
-import '../../application/rich_document_serializer.dart';
+
+const _uuid = Uuid();
 
 /// A continuous visual rich-text writing surface for text blocks (Headings, Paragraphs,
 /// Checklists, Lists, Quotes) in Quiet Paper's Visual mode.
@@ -109,21 +110,36 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
   void _syncFromDocument() {
     final newText = _textController.computeSegmentText();
-    if (_textController.text != newText) {
-      _isInternalUpdate = true;
-      try {
+    _isInternalUpdate = true;
+    try {
+      TextSelection newSelection;
+      final docSel = widget.controller.selection;
+      final baseOffset = _textController.resolveSegmentOffset(docSel.base);
+      final extentOffset = _textController.resolveSegmentOffset(docSel.extent);
+      if (baseOffset != null && extentOffset != null) {
+        newSelection = TextSelection(
+          baseOffset: baseOffset.clamp(0, newText.length),
+          extentOffset: extentOffset.clamp(0, newText.length),
+          affinity: docSel.affinity,
+        );
+      } else {
         final currentSelection = _textController.selection;
-        final clampedSelection = TextSelection(
+        newSelection = TextSelection(
           baseOffset: currentSelection.baseOffset.clamp(0, newText.length),
           extentOffset: currentSelection.extentOffset.clamp(0, newText.length),
         );
+      }
+
+      if (_textController.text != newText || _textController.selection != newSelection) {
         _textController.value = TextEditingValue(
           text: newText,
-          selection: clampedSelection,
+          selection: newSelection,
         );
-      } finally {
-        _isInternalUpdate = false;
+      } else {
+        _textController.markNeedsRebuild();
       }
+    } finally {
+      _isInternalUpdate = false;
     }
   }
 
@@ -138,18 +154,30 @@ class _RichTextEditorState extends State<RichTextEditor> {
       _isInternalUpdate = true;
       try {
         _textController.applyTextChangesToDocument(currentText);
-        widget.onChanged?.call(widget.controller.toMarkdown());
+        widget.controller.notifyContentMutated();
       } finally {
         _isInternalUpdate = false;
       }
     }
 
-    // Sync selection back to RichDocumentController
+    // Sync selection back to RichDocumentController preserving full range
     final sel = _textController.selection;
     if (sel.isValid) {
-      final docPos = _textController.resolveDocumentPosition(sel.extentOffset);
-      if (docPos != null) {
-        widget.controller.updateSelection(RichDocumentSelection.collapsed(docPos));
+      if (sel.isCollapsed) {
+        final docPos = _textController.resolveDocumentPosition(sel.extentOffset);
+        if (docPos != null) {
+          widget.controller.updateSelection(RichDocumentSelection.collapsed(docPos));
+        }
+      } else {
+        final basePos = _textController.resolveDocumentPosition(sel.baseOffset);
+        final extentPos = _textController.resolveDocumentPosition(sel.extentOffset);
+        if (basePos != null && extentPos != null) {
+          widget.controller.updateSelection(RichDocumentSelection(
+            base: basePos,
+            extent: extentPos,
+            affinity: sel.affinity,
+          ));
+        }
       }
     }
   }
@@ -162,17 +190,13 @@ class _RichTextEditorState extends State<RichTextEditor> {
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.enter) {
-            // Check if Enter can be handled structurally
+            // Check if Enter can be handled structurally across text blocks
             final sel = _textController.selection;
             if (sel.isValid && sel.isCollapsed) {
               final docPos = _textController.resolveDocumentPosition(sel.baseOffset);
               if (docPos != null) {
                 final block = widget.controller.document.blocks[docPos.blockIndex];
-                if (block is ChecklistItemBlock ||
-                    block is BulletedListItemBlock ||
-                    block is OrderedListItemBlock ||
-                    block is QuoteBlock ||
-                    block is HeadingBlock) {
+                if (block.isTextBlock) {
                   widget.controller.handleEnter();
                   _syncFromDocument();
                   return KeyEventResult.handled;
@@ -185,11 +209,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
               final docPos = _textController.resolveDocumentPosition(sel.baseOffset);
               if (docPos != null && docPos.offset == 0) {
                 final block = widget.controller.document.blocks[docPos.blockIndex];
-                if (block is ChecklistItemBlock ||
-                    block is BulletedListItemBlock ||
-                    block is OrderedListItemBlock ||
-                    block is QuoteBlock ||
-                    block is HeadingBlock) {
+                if (block.isTextBlock) {
                   widget.controller.handleBackspaceAtStart();
                   _syncFromDocument();
                   return KeyEventResult.handled;
@@ -232,6 +252,11 @@ class _RichTextEditorState extends State<RichTextEditor> {
           onTap: () {
             widget.onActiveTargetChanged?.call(_textController, widget.focusNode);
           },
+          contextMenuBuilder: (context, editableTextState) {
+            return AdaptiveTextSelectionToolbar.editableText(
+              editableTextState: editableTextState,
+            );
+          },
           decoration: InputDecoration(
             hintText: widget.hintText,
             hintStyle: AppTypography.editorBody.copyWith(
@@ -263,6 +288,10 @@ class _RichTextEditingController extends TextEditingController {
   List<int>? blockIndices;
   final BuildContext Function() contextGetter;
   final void Function(int blockIndex) onToggleChecklist;
+
+  void markNeedsRebuild() {
+    notifyListeners();
+  }
 
   List<int> get effectiveIndices {
     if (blockIndices != null) return blockIndices!;
@@ -312,7 +341,29 @@ class _RichTextEditingController extends TextEditingController {
     return null;
   }
 
+  int? resolveSegmentOffset(RichDocumentPosition position) {
+    final doc = editorController.document;
+    final indices = effectiveIndices;
+    if (indices.isEmpty) return null;
+
+    int runningOffset = 0;
+    for (var i = 0; i < indices.length; i++) {
+      final idx = indices[i];
+      if (idx == position.blockIndex) {
+        final block = doc.blocks[idx];
+        final int blockLength = block.plainText.length;
+        final int clampedInner = position.offset.clamp(0, blockLength).toInt();
+        return runningOffset + clampedInner;
+      }
+      if (idx < doc.blocks.length) {
+        runningOffset += doc.blocks[idx].plainText.length + 1; // +1 for '\n'
+      }
+    }
+    return null;
+  }
+
   void applyTextChangesToDocument(String newSegmentText) {
+    final oldSegmentText = computeSegmentText();
     final lines = newSegmentText.split('\n');
     final indices = effectiveIndices;
     final doc = editorController.document;
@@ -334,27 +385,185 @@ class _RichTextEditingController extends TextEditingController {
           editorController.updateBlockSpans(blockIdx, updatedSpans);
         }
       }
-    } else {
-      // Line count changed (user pressed Enter or pasted multiline):
-      // Parse segment lines into rich blocks and update document
-      final parser = const RichDocumentParser();
-      final parsedSegment = parser.parse(newSegmentText);
-
-      final newDocBlocks = List<RichBlock>.from(doc.blocks);
-      // Remove old blocks at indices
-      for (final idx in indices.reversed) {
-        if (idx < newDocBlocks.length) {
-          newDocBlocks.removeAt(idx);
-        }
-      }
-      // Insert parsed blocks at the first index
-      final insertAt = indices.isNotEmpty ? indices.first.clamp(0, newDocBlocks.length).toInt() : 0;
-      newDocBlocks.insertAll(insertAt, parsedSegment.blocks);
-
-      editorController.setMarkdown(
-        const RichDocumentSerializer().serialize(doc.copyWith(blocks: newDocBlocks)),
-      );
+      return;
     }
+
+    // Line count changed. Diff old text and new text to identify the exact change.
+    var prefixLen = 0;
+    final minLen = math.min(oldSegmentText.length, newSegmentText.length);
+    while (prefixLen < minLen && oldSegmentText.codeUnitAt(prefixLen) == newSegmentText.codeUnitAt(prefixLen)) {
+      prefixLen++;
+    }
+
+    var oldSuffixLen = 0;
+    while (oldSuffixLen < oldSegmentText.length - prefixLen &&
+        oldSuffixLen < newSegmentText.length - prefixLen &&
+        oldSegmentText.codeUnitAt(oldSegmentText.length - 1 - oldSuffixLen) ==
+            newSegmentText.codeUnitAt(newSegmentText.length - 1 - oldSuffixLen)) {
+      oldSuffixLen++;
+    }
+
+    final deleteStart = prefixLen;
+    final deleteEnd = oldSegmentText.length - oldSuffixLen;
+    final inserted = newSegmentText.substring(prefixLen, newSegmentText.length - oldSuffixLen);
+
+    // Case 1: Simple Enter key insertion (\n inserted at deleteStart with no deletion)
+    if (inserted == '\n' && deleteStart == deleteEnd) {
+      final docPos = resolveDocumentPosition(deleteStart);
+      if (docPos != null) {
+        editorController.handleEnterAt(docPos);
+        return;
+      }
+    }
+
+    // Case 2: Enter key replacing a selection range
+    if (inserted == '\n' && deleteStart < deleteEnd) {
+      final startPos = resolveDocumentPosition(deleteStart);
+      final endPos = resolveDocumentPosition(deleteEnd);
+      if (startPos != null && endPos != null) {
+        final docAfterDelete = _deleteRange(doc, startPos, endPos);
+        editorController.setDocument(docAfterDelete, newSelection: RichDocumentSelection.collapsed(startPos));
+        editorController.handleEnterAt(startPos);
+        return;
+      }
+    }
+
+    // Case 3: Deletion across block boundaries (e.g. Backspace / Delete joining lines)
+    if (inserted.isEmpty && deleteStart < deleteEnd) {
+      final startPos = resolveDocumentPosition(deleteStart);
+      final endPos = resolveDocumentPosition(deleteEnd);
+      if (startPos != null && endPos != null) {
+        final docAfterDelete = _deleteRange(doc, startPos, endPos);
+        editorController.setDocument(docAfterDelete, newSelection: RichDocumentSelection.collapsed(startPos));
+        return;
+      }
+    }
+
+    // Case 4: General multiline paste or replacement
+    final startPos = resolveDocumentPosition(deleteStart) ??
+        RichDocumentPosition(blockIndex: indices.first, blockId: doc.blocks[indices.first].id, offset: 0);
+    final endPos = resolveDocumentPosition(deleteEnd) ??
+        RichDocumentPosition(blockIndex: indices.last, blockId: doc.blocks[indices.last].id, offset: doc.blocks[indices.last].plainText.length);
+
+    final docAfterReplacement = _replaceRangeWithText(doc, startPos, endPos, inserted);
+    editorController.setDocument(docAfterReplacement);
+  }
+
+  static RichDocument _deleteRange(
+    RichDocument doc,
+    RichDocumentPosition startPos,
+    RichDocumentPosition endPos,
+  ) {
+    if (startPos.blockIndex == endPos.blockIndex) {
+      final block = doc.blocks[startPos.blockIndex];
+      if (!block.isTextBlock) return doc;
+      final (left, _) = _splitSpans(block.spans, startPos.offset);
+      final (_, right) = _splitSpans(block.spans, endPos.offset);
+      final merged = [...left, ...right].normalized();
+      final updated = _copyBlockWithSpans(block, merged);
+      final newBlocks = List<RichBlock>.from(doc.blocks);
+      newBlocks[startPos.blockIndex] = updated;
+      return doc.copyWith(blocks: newBlocks);
+    }
+
+    final startBlock = doc.blocks[startPos.blockIndex];
+    final endBlock = doc.blocks[endPos.blockIndex];
+    final startSpans = startBlock.isTextBlock ? startBlock.spans : [RichInlineSpan(text: startBlock.plainText)];
+    final endSpans = endBlock.isTextBlock ? endBlock.spans : [RichInlineSpan(text: endBlock.plainText)];
+
+    final (startLeft, _) = _splitSpans(startSpans, startPos.offset);
+    final (_, endRight) = _splitSpans(endSpans, endPos.offset);
+
+    final mergedSpans = [...startLeft, ...endRight].normalized();
+    final updatedStartBlock = _copyBlockWithSpans(startBlock, mergedSpans);
+
+    final newBlocks = List<RichBlock>.from(doc.blocks);
+    newBlocks[startPos.blockIndex] = updatedStartBlock;
+    newBlocks.removeRange(startPos.blockIndex + 1, endPos.blockIndex + 1);
+    return doc.copyWith(blocks: newBlocks);
+  }
+
+  static RichDocument _replaceRangeWithText(
+    RichDocument doc,
+    RichDocumentPosition startPos,
+    RichDocumentPosition endPos,
+    String insertedText,
+  ) {
+    final deletedDoc = _deleteRange(doc, startPos, endPos);
+    if (insertedText.isEmpty) return deletedDoc;
+
+    final targetBlockIdx = startPos.blockIndex.clamp(0, deletedDoc.blocks.length - 1);
+    final targetBlock = deletedDoc.blocks[targetBlockIdx];
+    final insertedLines = insertedText.split('\n');
+
+    if (insertedLines.length == 1) {
+      final spans = targetBlock.isTextBlock ? targetBlock.spans : [RichInlineSpan(text: targetBlock.plainText)];
+      final (left, right) = _splitSpans(spans, startPos.offset);
+      final insertedSpan = RichInlineSpan(text: insertedLines.first);
+      final merged = [...left, insertedSpan, ...right].normalized();
+      final updated = _copyBlockWithSpans(targetBlock, merged);
+      final newBlocks = List<RichBlock>.from(deletedDoc.blocks);
+      newBlocks[targetBlockIdx] = updated;
+      return deletedDoc.copyWith(blocks: newBlocks);
+    }
+
+    final spans = targetBlock.isTextBlock ? targetBlock.spans : [RichInlineSpan(text: targetBlock.plainText)];
+    final (left, right) = _splitSpans(spans, startPos.offset);
+
+    final firstBlockSpans = [...left, RichInlineSpan(text: insertedLines.first)].normalized();
+    final firstBlock = _copyBlockWithSpans(targetBlock, firstBlockSpans);
+
+    final middleBlocks = <RichBlock>[];
+    for (var i = 1; i < insertedLines.length - 1; i++) {
+      middleBlocks.add(ParagraphBlock(
+        id: _uuid.v4(),
+        spans: [RichInlineSpan(text: insertedLines[i])],
+      ));
+    }
+
+    final lastBlockSpans = [RichInlineSpan(text: insertedLines.last), ...right].normalized();
+    final lastBlock = ParagraphBlock(
+      id: _uuid.v4(),
+      spans: lastBlockSpans,
+    );
+
+    final newBlocks = List<RichBlock>.from(deletedDoc.blocks);
+    newBlocks[targetBlockIdx] = firstBlock;
+    newBlocks.insertAll(targetBlockIdx + 1, [...middleBlocks, lastBlock]);
+    return deletedDoc.copyWith(blocks: newBlocks);
+  }
+
+  static (List<RichInlineSpan>, List<RichInlineSpan>) _splitSpans(List<RichInlineSpan> spans, int offset) {
+    final left = <RichInlineSpan>[];
+    final right = <RichInlineSpan>[];
+    var current = 0;
+
+    for (final span in spans) {
+      final start = current;
+      final end = current + span.length;
+      current = end;
+
+      if (end <= offset) {
+        left.add(span);
+      } else if (start >= offset) {
+        right.add(span);
+      } else {
+        final splitAt = offset - start;
+        left.add(span.slice(0, splitAt));
+        right.add(span.slice(splitAt));
+      }
+    }
+    return (left.normalized(), right.normalized());
+  }
+
+  static RichBlock _copyBlockWithSpans(RichBlock block, List<RichInlineSpan> spans) {
+    if (block is ParagraphBlock) return block.copyWith(spans: spans);
+    if (block is HeadingBlock) return block.copyWith(spans: spans);
+    if (block is ChecklistItemBlock) return block.copyWith(spans: spans);
+    if (block is BulletedListItemBlock) return block.copyWith(spans: spans);
+    if (block is OrderedListItemBlock) return block.copyWith(spans: spans);
+    if (block is QuoteBlock) return block.copyWith(spans: spans);
+    return ParagraphBlock(id: block.id, spans: spans);
   }
 
   static List<RichInlineSpan> _spliceSpans({

@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
+import '../application/markdown_table_formatter.dart';
+import '../application/markdown_table_parser.dart';
+import '../application/rich_document_serializer.dart';
 import 'markdown_table.dart';
 import 'rich_inline.dart';
 import 'text_attributes.dart';
@@ -30,6 +34,91 @@ abstract class RichBlock {
 
   /// Creates a copy of this block with an optional new local identifier.
   RichBlock copyWithId(String newId);
+
+  /// Serializes this block to structured JSON.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a polymorphic [RichBlock] from structured JSON.
+  static RichBlock fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String? ?? 'paragraph';
+    final id = json['id'] as String? ?? _uuid.v4();
+    switch (type) {
+      case 'heading':
+        return HeadingBlock(
+          id: id,
+          level: (json['level'] as num?)?.toInt() ?? 1,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'checklist_item':
+        return ChecklistItemBlock(
+          id: id,
+          isChecked: json['isChecked'] == true,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'bulleted_list_item':
+        return BulletedListItemBlock(
+          id: id,
+          indent: (json['indent'] as num?)?.toInt() ?? 0,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'ordered_list_item':
+        return OrderedListItemBlock(
+          id: id,
+          order: (json['order'] as num?)?.toInt() ?? 1,
+          indent: (json['indent'] as num?)?.toInt() ?? 0,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'quote':
+        return QuoteBlock(
+          id: id,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'code_block':
+        return CodeBlock(
+          id: id,
+          language: json['language'] as String? ?? '',
+          code: json['code'] as String? ?? '',
+        );
+      case 'horizontal_rule':
+        return HorizontalRuleBlock(id: id);
+      case 'image':
+        return ImageBlock(
+          id: id,
+          url: json['url'] as String? ?? '',
+          alt: json['alt'] as String? ?? '',
+          title: json['title'] as String?,
+        );
+      case 'table':
+        final md = json['markdown'] as String? ?? '';
+        final tables = const MarkdownTableParser().findTables(md);
+        if (tables.isNotEmpty) {
+          return TableBlock(id: id, table: tables.first);
+        }
+        final initial = MarkdownTableFormatter.insertTable(
+          value: const TextEditingValue(text: ''),
+          rows: 3,
+          columns: 3,
+        );
+        return TableBlock(
+          id: id,
+          table: const MarkdownTableParser().findTables(initial.text).first,
+        );
+      case 'paragraph':
+      default:
+        return ParagraphBlock(
+          id: id,
+          spans: _parseSpansJson(json['spans']),
+        );
+    }
+  }
+
+  static List<RichInlineSpan> _parseSpansJson(dynamic spansJson) {
+    if (spansJson is! List) return const [];
+    return spansJson
+        .whereType<Map<String, dynamic>>()
+        .map(RichInlineSpan.fromJson)
+        .toList();
+  }
 }
 
 /// A standard editorial paragraph block.
@@ -76,6 +165,13 @@ class ParagraphBlock extends RichBlock {
 
   @override
   ParagraphBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'paragraph',
+        'id': id,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -133,6 +229,14 @@ class HeadingBlock extends RichBlock {
 
   @override
   HeadingBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'heading',
+        'id': id,
+        'level': level,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -197,6 +301,14 @@ class ChecklistItemBlock extends RichBlock {
   ChecklistItemBlock copyWithId(String newId) => copyWith(id: newId);
 
   @override
+  Map<String, dynamic> toJson() => {
+        'type': 'checklist_item',
+        'id': id,
+        'isChecked': isChecked,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
+
+  @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ChecklistItemBlock &&
@@ -258,6 +370,14 @@ class BulletedListItemBlock extends RichBlock {
 
   @override
   BulletedListItemBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'bulleted_list_item',
+        'id': id,
+        'indent': indent,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -331,6 +451,15 @@ class OrderedListItemBlock extends RichBlock {
   OrderedListItemBlock copyWithId(String newId) => copyWith(id: newId);
 
   @override
+  Map<String, dynamic> toJson() => {
+        'type': 'ordered_list_item',
+        'id': id,
+        'order': order,
+        'indent': indent,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
+
+  @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is OrderedListItemBlock &&
@@ -383,6 +512,13 @@ class QuoteBlock extends RichBlock {
   QuoteBlock copyWithId(String newId) => copyWith(id: newId);
 
   @override
+  Map<String, dynamic> toJson() => {
+        'type': 'quote',
+        'id': id,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
+
+  @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is QuoteBlock &&
@@ -430,6 +566,14 @@ class CodeBlock extends RichBlock {
   CodeBlock copyWithId(String newId) => copyWith(id: newId);
 
   @override
+  Map<String, dynamic> toJson() => {
+        'type': 'code_block',
+        'id': id,
+        'language': language,
+        'code': code,
+      };
+
+  @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CodeBlock &&
@@ -457,6 +601,12 @@ class HorizontalRuleBlock extends RichBlock {
 
   @override
   HorizontalRuleBlock copyWithId(String newId) => HorizontalRuleBlock(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'horizontal_rule',
+        'id': id,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -511,6 +661,15 @@ class ImageBlock extends RichBlock {
   ImageBlock copyWithId(String newId) => copyWith(id: newId);
 
   @override
+  Map<String, dynamic> toJson() => {
+        'type': 'image',
+        'id': id,
+        'url': url,
+        'alt': alt,
+        if (title != null) 'title': title,
+      };
+
+  @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ImageBlock &&
@@ -552,6 +711,13 @@ class TableBlock extends RichBlock {
 
   @override
   TableBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'table',
+        'id': id,
+        'markdown': RichDocumentSerializer.formatTable(table),
+      };
 
   @override
   bool operator ==(Object other) =>

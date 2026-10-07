@@ -111,6 +111,31 @@ class TextAttributes {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        if (isBold) 'bold': true,
+        if (isItalic) 'italic': true,
+        if (isStrike) 'strike': true,
+        if (isHighlight) 'highlight': true,
+        if (isCode) 'code': true,
+        if (linkUrl != null) 'linkUrl': linkUrl,
+        if (linkTitle != null) 'linkTitle': linkTitle,
+        if (noteLinkTarget != null) 'noteLinkTarget': noteLinkTarget,
+        if (tag != null) 'tag': tag,
+      };
+
+  factory TextAttributes.fromJson(Map<String, dynamic> json) => TextAttributes(
+        isBold: json['bold'] == true,
+        isItalic: json['italic'] == true,
+        isStrike: json['strike'] == true,
+        isHighlight: json['highlight'] == true,
+        isCode: json['code'] == true,
+        linkUrl: json['linkUrl'] as String?,
+        linkTitle: json['linkTitle'] as String?,
+        noteLinkTarget: json['noteLinkTarget'] as String?,
+        tag: json['tag'] as String?,
+      );
+
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

@@ -15,8 +15,23 @@ class RichDocument {
         blocks: [ParagraphBlock.empty()],
       );
 
+  /// Deserializes a [RichDocument] from JSON.
+  factory RichDocument.fromJson(Map<String, dynamic> json) {
+    final rawBlocks = json['blocks'] as List<dynamic>? ?? [];
+    return RichDocument(
+      blocks: rawBlocks
+          .map((b) => RichBlock.fromJson(b as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
   /// Structural blocks of this document in presentation order.
   final List<RichBlock> blocks;
+
+  /// Serializes the document to JSON.
+  Map<String, dynamic> toJson() => {
+        'blocks': blocks.map((b) => b.toJson()).toList(),
+      };
 
   /// Whether the document contains no blocks, or only a single empty paragraph.
   bool get isEmpty =>

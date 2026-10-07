@@ -310,6 +310,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _onTargetChanged() {
+    if (_isWysiwyg && !_isTitleManuallySet && _activeTargetController != null) {
+      final autoTitle = Note.deriveTitle(_activeTargetController!.text);
+      if (_titleController.text != autoTitle) {
+        _lastAutoDerivedTitle = autoTitle;
+        _titleController.text = autoTitle;
+        try {
+          ref
+              .read(editorProviderFamily(_editorParams).notifier)
+              .updateTitle(autoTitle);
+        } catch (_) {}
+      }
+    }
     _checkAutocompleteTrigger();
   }
 

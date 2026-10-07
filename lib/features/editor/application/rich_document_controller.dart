@@ -79,6 +79,19 @@ class RichDocumentController extends ChangeNotifier {
   TextAttributes _typingAttributes = TextAttributes.none;
   TextAttributes get typingAttributes => _typingAttributes;
 
+  bool _isDirty = false;
+  bool get isDirty => _isDirty;
+  void markClean() {
+    _isDirty = false;
+  }
+
+  /// Notifies the controller and observers that content has been mutated in memory
+  /// without triggering immediate Markdown serialization.
+  void notifyContentMutated() {
+    _isDirty = true;
+    onDocumentChanged?.call(_document);
+  }
+
   // ===========================================================================
   // Undo / Redo Management
   // ===========================================================================
@@ -176,6 +189,7 @@ class RichDocumentController extends ChangeNotifier {
   void _commitMutation(RichDocument newDoc, {RichDocumentSelection? newSelection}) {
     if (_document != newDoc) {
       _document = newDoc;
+      _isDirty = true;
       if (newSelection != null) {
         _selection = newSelection;
       }
@@ -183,6 +197,12 @@ class RichDocumentController extends ChangeNotifier {
       notifyListeners();
       onDocumentChanged?.call(_document);
     }
+  }
+
+  /// Sets the authoritative document directly in-memory from a [RichDocument] model
+  /// without parsing or string serialization.
+  void setDocument(RichDocument newDoc, {RichDocumentSelection? newSelection}) {
+    _commitMutation(newDoc, newSelection: newSelection);
   }
 
   /// Sets the entire document from a Markdown source string.
@@ -330,11 +350,23 @@ class RichDocumentController extends ChangeNotifier {
       _document.blocks.isNotEmpty ? _document.blocks[currentBlockIndex] : null;
 
   void setHeadingLevel(int level) {
-    _commitMutation(RichDocumentMutations.setHeadingLevel(_document, currentBlockIndex, level));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.setHeadingLevel(doc, i, level);
+    }
+    _commitMutation(doc);
   }
 
   void convertHeadingToParagraph() {
-    _commitMutation(RichDocumentMutations.convertToParagraph(_document, currentBlockIndex));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.convertToParagraph(doc, i);
+    }
+    _commitMutation(doc);
   }
 
   void convertBlockToParagraph(int blockIndex) {
@@ -346,7 +378,13 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void toggleChecklist() {
-    _commitMutation(RichDocumentMutations.toggleChecklist(_document, currentBlockIndex));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.toggleChecklist(doc, i);
+    }
+    _commitMutation(doc);
   }
 
   void toggleChecklistItemChecked(int blockIndex) {
@@ -354,15 +392,33 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void toggleBulletedList() {
-    _commitMutation(RichDocumentMutations.toggleBulletedList(_document, currentBlockIndex));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.toggleBulletedList(doc, i);
+    }
+    _commitMutation(doc);
   }
 
   void toggleOrderedList() {
-    _commitMutation(RichDocumentMutations.toggleOrderedList(_document, currentBlockIndex));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.toggleOrderedList(doc, i);
+    }
+    _commitMutation(doc);
   }
 
   void toggleQuote() {
-    _commitMutation(RichDocumentMutations.toggleQuote(_document, currentBlockIndex));
+    final start = min(_selection.base.blockIndex, _selection.extent.blockIndex);
+    final end = max(_selection.base.blockIndex, _selection.extent.blockIndex);
+    var doc = _document;
+    for (var i = start; i <= end; i++) {
+      doc = RichDocumentMutations.toggleQuote(doc, i);
+    }
+    _commitMutation(doc);
   }
 
   void insertHorizontalRule() {
@@ -403,9 +459,14 @@ class RichDocumentController extends ChangeNotifier {
     );
   }
 
-  void handleEnter() {
-    final (newDoc, newPos) = RichDocumentMutations.handleEnter(_document, _selection.extent);
+  void handleEnterAt(RichDocumentPosition position) {
+    final (newDoc, newPos) = RichDocumentMutations.handleEnter(_document, position);
+    _typingAttributes = TextAttributes.none;
     _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
+  }
+
+  void handleEnter() {
+    handleEnterAt(_selection.extent);
   }
 
   void handleBackspaceAtStart() {
@@ -438,6 +499,7 @@ class RichDocumentController extends ChangeNotifier {
     final newBlocks = List<RichBlock>.from(_document.blocks);
     newBlocks[blockIndex] = updated;
     _document = _document.copyWith(blocks: newBlocks);
+    _isDirty = true;
     notifyListeners();
     onDocumentChanged?.call(_document);
   }
@@ -452,11 +514,36 @@ class RichDocumentController extends ChangeNotifier {
     return null;
   }
 
-  bool get isBoldActive => _typingAttributes.isBold;
-  bool get isItalicActive => _typingAttributes.isItalic;
-  bool get isStrikeActive => _typingAttributes.isStrike;
-  bool get isHighlightActive => _typingAttributes.isHighlight;
-  bool get isCodeActive => _typingAttributes.isCode;
+  bool _isAttributeActiveInSelection(bool Function(TextAttributes) test) {
+    if (_selection.isCollapsed) {
+      return test(_typingAttributes);
+    }
+    final startPos = _selection.start;
+    final endPos = _selection.end;
+
+    for (var bi = startPos.blockIndex; bi <= endPos.blockIndex && bi < _document.blocks.length; bi++) {
+      final block = _document.blocks[bi];
+      if (!block.isTextBlock) continue;
+      final startOffset = (bi == startPos.blockIndex) ? startPos.offset : 0;
+      final endOffset = (bi == endPos.blockIndex) ? endPos.offset : block.plainText.length;
+
+      var running = 0;
+      for (final span in block.spans) {
+        final spanEnd = running + span.length;
+        if (spanEnd > startOffset && running < endOffset) {
+          if (test(span.attributes)) return true;
+        }
+        running = spanEnd;
+      }
+    }
+    return false;
+  }
+
+  bool get isBoldActive => _isAttributeActiveInSelection((a) => a.isBold);
+  bool get isItalicActive => _isAttributeActiveInSelection((a) => a.isItalic);
+  bool get isStrikeActive => _isAttributeActiveInSelection((a) => a.isStrike);
+  bool get isHighlightActive => _isAttributeActiveInSelection((a) => a.isHighlight);
+  bool get isCodeActive => _isAttributeActiveInSelection((a) => a.isCode);
   bool get isChecklistActive => currentBlock is ChecklistItemBlock;
   bool get isBulletedListActive => currentBlock is BulletedListItemBlock;
   bool get isOrderedListActive => currentBlock is OrderedListItemBlock;
