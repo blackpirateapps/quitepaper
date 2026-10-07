@@ -2,63 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/application/markdown_editing_controller.dart';
-import 'package:quitepaper/features/editor/application/semantic_editor_controller.dart';
-import 'package:quitepaper/features/editor/application/semantic_markdown_parser.dart';
+import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
+import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/visual_document_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 
 void main() {
-  group('WYSIWYG Large Document & Performance Optimization Tests', () {
-    test('SemanticEditorController threshold identifies oversized documents', () {
-      expect(SemanticEditorController.maxWysiwygCharacters, equals(200000));
+  group('Rich Document Large Document & Performance Optimization Tests', () {
+    test('RichDocumentController threshold identifies oversized documents', () {
+      expect(RichDocumentController.maxWysiwygCharacters, equals(200000));
 
       final normalText = 'This is a normal note with some text.\n' * 100;
-      expect(SemanticEditorController.isDocumentTooLargeForWysiwyg(normalText), isFalse);
+      expect(RichDocumentController.isDocumentTooLargeForWysiwyg(normalText), isFalse);
 
       final hugeText = 'A' * 200001;
-      expect(SemanticEditorController.isDocumentTooLargeForWysiwyg(hugeText), isTrue);
+      expect(RichDocumentController.isDocumentTooLargeForWysiwyg(hugeText), isTrue);
 
-      final ctrl = SemanticEditorController(initialMarkdown: normalText);
+      final ctrl = RichDocumentController(initialMarkdown: normalText);
       expect(ctrl.exceedsWysiwygThreshold, isFalse);
     });
 
-    test('incrementalParse is orders of magnitude faster than full parse on large documents', () {
-      // Generate a large document with 1,000 blocks (~50,000 words, ~300k chars)
+    test('RichDocumentParser efficiently parses large documents with 1,000 blocks', () {
       final lines = List.generate(1000, (i) => 'Paragraph $i contains standard notes content with some words to parse.');
       final fullMarkdown = lines.join('\n');
 
-      final initialDoc = SemanticMarkdownParser.parse(fullMarkdown);
-      expect(initialDoc.blocks.length, equals(1000));
+      final watch = Stopwatch()..start();
+      final doc = const RichDocumentParser().parse(fullMarkdown);
+      watch.stop();
 
-      // Simulate an edit in paragraph 500
-      const editBlockIndex = 500;
-      final targetBlockId = initialDoc.blocks[editBlockIndex].id;
-      final updatedLines = List<String>.from(lines);
-      updatedLines[editBlockIndex] = 'Paragraph $editBlockIndex contains standard notes content with some words to parse and added text.';
-      final updatedMarkdown = updatedLines.join('\n');
-
-      // Time full parse
-      final fullParseWatch = Stopwatch()..start();
-      final fullDoc = SemanticMarkdownParser.parse(updatedMarkdown);
-      fullParseWatch.stop();
-
-      // Time incremental parse
-      final incrementalWatch = Stopwatch()..start();
-      final incDoc = SemanticMarkdownParser.incrementalParse(
-        newMarkdown: updatedMarkdown,
-        oldDocument: initialDoc,
-        editBlockId: targetBlockId,
-      );
-      incrementalWatch.stop();
-
-      expect(incDoc.blocks.length, equals(fullDoc.blocks.length));
-      expect(incDoc.blocks[editBlockIndex].plainText, equals(fullDoc.blocks[editBlockIndex].plainText));
-      expect(incDoc.blocks[editBlockIndex].id, equals(targetBlockId));
-
-      // Verify speedup: incremental parse must be faster than full parse
-      // and complete within negligible milliseconds
-      expect(incrementalWatch.elapsedMicroseconds, lessThanOrEqualTo(fullParseWatch.elapsedMicroseconds));
+      expect(doc.blocks.length, equals(1000));
+      expect(watch.elapsedMilliseconds, lessThan(1000));
     });
 
     testWidgets('MarkdownEditor auto-falls back to Markdown mode for notes exceeding WYSIWYG threshold', (tester) async {
@@ -82,47 +56,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // VisualDocumentEditor must NOT be mounted because document exceeds threshold
-      expect(find.byType(VisualDocumentEditor), findsNothing);
+      // RichEditorSurface must NOT be mounted because document exceeds threshold
+      expect(find.byType(RichEditorSurface), findsNothing);
       // TextField (Markdown source editor) must be mounted instead
       expect(find.byType(TextField), findsWidgets);
       // SnackBar fallback notification must be triggered
       expect(find.text('Document too large for visual editing — using Markdown mode'), findsOneWidget);
 
       controller.dispose();
-      focusNode.dispose();
-    });
-
-    testWidgets('VisualDocumentEditor windows block widgets when block count exceeds threshold', (tester) async {
-      // 100 blocks exceeds the 80 block threshold (_windowThreshold = 80)
-      final lines = List.generate(100, (i) => 'Block number $i content');
-      final markdown = lines.join('\n');
-
-      final semanticCtrl = SemanticEditorController(initialMarkdown: markdown);
-      final focusNode = FocusNode();
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData.light().copyWith(
-            extensions: const [AppColors.light],
-          ),
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: VisualDocumentEditor(
-                controller: semanticCtrl,
-                focusNode: focusNode,
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(VisualDocumentEditor), findsOneWidget);
-      // When windowed, the bottom spacer must be present to represent off-screen blocks
-      expect(find.byKey(const ValueKey('viewport_bottom_spacer')), findsOneWidget);
-
-      semanticCtrl.dispose();
       focusNode.dispose();
     });
   });

@@ -20,6 +20,17 @@ import 'rich_document_serializer.dart';
 /// - Coherent selection state and typing attribute persistence.
 /// - Clean serialization boundary for debounced autosave and mode switching.
 class RichDocumentController extends ChangeNotifier {
+  static const int maxWysiwygCharacters = 200000;
+  static const int largeDocumentThresholdCharacters = 35000;
+  static const int largeDocumentThresholdLines = 1200;
+
+  static bool isDocumentTooLargeForWysiwyg(String text) {
+    return text.length > largeDocumentThresholdCharacters ||
+        '\n'.allMatches(text).length > largeDocumentThresholdLines;
+  }
+
+  bool get exceedsWysiwygThreshold => isDocumentTooLargeForWysiwyg(toMarkdown());
+
   RichDocumentController({
     String initialMarkdown = '',
     this.styles,
@@ -50,6 +61,7 @@ class RichDocumentController extends ChangeNotifier {
   final bool stripFrontmatter;
 
   String? _frontmatterPrefix;
+  bool get hasFrontmatter => _frontmatterPrefix != null && _frontmatterPrefix!.isNotEmpty;
 
   /// Optional notification callback invoked whenever the rich document mutates.
   final ValueChanged<RichDocument>? onDocumentChanged;

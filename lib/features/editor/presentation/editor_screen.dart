@@ -32,7 +32,6 @@ import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
 import '../application/rich_document_controller.dart';
-import '../application/semantic_editor_controller.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -68,7 +67,6 @@ import '../application/tag_search_service.dart';
 import 'widgets/tag_inline_overlay.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_model.dart';
-import '../domain/document_position.dart';
 import '../../../core/markdown/markdown_helper.dart';
 import '../../../core/utils/platform_layout_helper.dart';
 import 'widgets/link_prompt_dialog.dart';
@@ -139,7 +137,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
-  SemanticEditorController? _semanticEditorController;
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
 
@@ -527,7 +524,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   SlashCommandOverlayController? _slashCommandOverlayController;
 
   bool get _isWysiwyg {
-    if (_richDocumentController == null && _semanticEditorController == null) return false;
+    if (_richDocumentController == null) return false;
     final editorState = ref.read(editorProviderFamily(_editorParams));
     final globalEditingStyle = ref.read(editorEditingStyleProvider);
     return editorState.effectiveEditingStyle(globalEditingStyle) == EditorEditingStyle.wysiwyg;
@@ -699,12 +696,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         } else {
           _richDocumentController!.setHeadingLevel(level);
         }
-      } else {
-        if (level == 0) {
-          _semanticEditorController?.convertHeadingToParagraph();
-        } else {
-          _semanticEditorController?.setHeadingLevel(level);
-        }
       }
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -715,11 +706,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleChecklist() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleChecklist();
-      } else {
-        _semanticEditorController?.toggleChecklist();
-      }
+      _richDocumentController?.toggleChecklist();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -729,11 +716,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleBulletList() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleBulletedList();
-      } else {
-        _semanticEditorController?.toggleList();
-      }
+      _richDocumentController?.toggleBulletedList();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -743,11 +726,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleOrderedList() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleOrderedList();
-      } else {
-        _semanticEditorController?.toggleOrderedList();
-      }
+      _richDocumentController?.toggleOrderedList();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -757,11 +736,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleQuote() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleQuote();
-      } else {
-        _semanticEditorController?.toggleQuote();
-      }
+      _richDocumentController?.toggleQuote();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -781,11 +756,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _insertDivider() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.insertHorizontalRule();
-      } else {
-        _semanticEditorController?.insertHorizontalRule();
-      }
+      _richDocumentController?.insertHorizontalRule();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -795,11 +766,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleBold() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleBold();
-      } else {
-        _semanticEditorController?.toggleBold();
-      }
+      _richDocumentController?.toggleBold();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -809,11 +776,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleItalic() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleItalic();
-      } else {
-        _semanticEditorController?.toggleItalic();
-      }
+      _richDocumentController?.toggleItalic();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -823,11 +786,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleStrikethrough() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleStrike();
-      } else {
-        _semanticEditorController?.toggleStrike();
-      }
+      _richDocumentController?.toggleStrike();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -837,11 +796,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _toggleInlineCode() {
     if (_isWysiwyg) {
-      if (_richDocumentController != null) {
-        _richDocumentController!.toggleCode();
-      } else {
-        _semanticEditorController?.toggleInlineCode();
-      }
+      _richDocumentController?.toggleCode();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
     } else {
@@ -990,46 +945,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
         return;
       }
-      var block = _semanticEditorController!.activeBlock;
-      if (block == null) {
-        for (final b in _semanticEditorController!.document.blocks) {
-          if (b.isEditable) {
-            block = b;
-            break;
-          }
-        }
-      }
-      if (block != null) {
-        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
-        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
-        final sel = DocumentSelection(base: startPos, extent: endPos);
-        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
-
-        final linkMd = '[${item.title}](qp://note/${item.id})';
-        final newMarkdown = _semanticEditorController!.markdown.replaceRange(range.start, range.end, linkMd);
-        final targetSourceOffset = range.start + linkMd.length;
-
-        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
-        final updatedBlock = _semanticEditorController!.document.findBlockById(block.id);
-        if (updatedBlock != null) {
-          final targetOffset = _semanticEditorController!.selection.base.offset;
-          targetController.value = TextEditingValue(
-            text: updatedBlock.plainText,
-            selection: TextSelection.collapsed(offset: targetOffset.clamp(0, updatedBlock.plainText.length)),
-          );
-        }
-        _contentController.value = TextEditingValue(
-          text: newMarkdown,
-          selection: TextSelection.collapsed(offset: targetSourceOffset),
-        );
-        _undoRedoManager.pushAtomicEdit(_contentController.value);
-        _inlineAutocompleteController?.hide();
-        _onContentChanged();
-        if (!targetFocusNode.hasFocus) {
-          targetFocusNode.requestFocus();
-        }
-        return;
-      }
     }
 
     final updated = MarkdownFormatter.insertNoteLink(
@@ -1087,42 +1002,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
         return;
       }
-      var block = _semanticEditorController!.activeBlock;
-      if (block == null) {
-        for (final b in _semanticEditorController!.document.blocks) {
-          if (b.isEditable) {
-            block = b;
-            break;
-          }
-        }
-      }
-      if (block != null) {
-        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
-        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
-        final sel = DocumentSelection(base: startPos, extent: endPos);
-        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
-
-        final linkMd = '[$title](qp://note/$newNoteId)';
-        final newMarkdown = _semanticEditorController!.markdown.replaceRange(range.start, range.end, linkMd);
-        final targetSourceOffset = range.start + linkMd.length;
-
-        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
-        _contentController.value = TextEditingValue(
-          text: newMarkdown,
-          selection: TextSelection.collapsed(offset: targetSourceOffset),
-        );
-        _undoRedoManager.pushAtomicEdit(_contentController.value);
-        _onContentChanged();
-
-        if (mounted) {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => EditorScreen(note: newNote),
-            ),
-          );
-        }
-        return;
-      }
     }
 
     final updated = MarkdownFormatter.insertNoteLink(
@@ -1166,49 +1045,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           selection: TextSelection.collapsed(offset: targetOffset),
         );
         _tagAutocompleteController?.hide();
-        if (!targetFocusNode.hasFocus) {
-          targetFocusNode.requestFocus();
-        }
-        return;
-      }
-      var block = _semanticEditorController!.activeBlock;
-      if (block == null) {
-        for (final b in _semanticEditorController!.document.blocks) {
-          if (b.isEditable) {
-            block = b;
-            break;
-          }
-        }
-      }
-      if (block != null) {
-        final startPos = DocumentPosition(blockId: block.id, offset: replaceStart);
-        final endPos = DocumentPosition(blockId: block.id, offset: replaceEnd);
-        final sel = DocumentSelection(base: startPos, extent: endPos);
-        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
-
-        final md = _semanticEditorController!.markdown;
-        final hasTrailingSpace = range.end < md.length && md[range.end] == ' ';
-        final replacement = hasTrailingSpace ? '#${tag.name}' : '#${tag.name} ';
-
-        final newMarkdown = md.replaceRange(range.start, range.end, replacement);
-        final targetSourceOffset = range.start + replacement.length;
-
-        _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, targetSourceOffset);
-        final updatedBlock = _semanticEditorController!.document.findBlockById(block.id);
-        if (updatedBlock != null) {
-          final targetOffset = _semanticEditorController!.selection.base.offset;
-          targetController.value = TextEditingValue(
-            text: updatedBlock.plainText,
-            selection: TextSelection.collapsed(offset: targetOffset.clamp(0, updatedBlock.plainText.length)),
-          );
-        }
-        _contentController.value = TextEditingValue(
-          text: newMarkdown,
-          selection: TextSelection.collapsed(offset: targetSourceOffset),
-        );
-        _undoRedoManager.pushAtomicEdit(_contentController.value);
-        _tagAutocompleteController?.hide();
-        _onContentChanged();
         if (!targetFocusNode.hasFocus) {
           targetFocusNode.requestFocus();
         }
@@ -2041,9 +1877,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onRichControllerChanged: (ctrl) {
                                       _richDocumentController = ctrl;
                                     },
-                                    onSemanticControllerChanged: (ctrl) {
-                                      _semanticEditorController = ctrl;
-                                    },
                                     onKeyEvent: _handleEditorKeyEvent,
                                     onPaste: _handlePaste,
                                   ),
@@ -2109,7 +1942,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       controller: _activeTargetController ?? _contentController,
       focusNode: _activeTargetFocusNode ?? _contentFocusNode,
       richController: isWysiwyg ? _richDocumentController : null,
-      semanticController: isWysiwyg ? _semanticEditorController : null,
       canUndo: _undoRedoManager.canUndo,
       canRedo: _undoRedoManager.canRedo,
       canDictate: editorState.isUnlocked && !editorState.isReadOnly,
@@ -3131,57 +2963,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     }
 
-    if (_isWysiwyg && _semanticEditorController != null) {
-      var block = _semanticEditorController!.activeBlock;
-      if (block == null) {
-        for (final b in _semanticEditorController!.document.blocks) {
-          if (b.isEditable) {
-            block = b;
-            break;
-          }
-        }
-      }
-      final md = _semanticEditorController!.markdown;
-      int insertOffset = md.length;
-      if (block != null) {
-        final sel = _semanticEditorController!.selection;
-        final range = _semanticEditorController!.document.sourceRangeAtSelection(sel);
-        insertOffset = range.end.clamp(0, md.length);
-      }
-      final newMarkdown = md.replaceRange(insertOffset, insertOffset, snippet);
-      _semanticEditorController!.updateMarkdownAndRetainSelection(newMarkdown, insertOffset + snippet.length);
-      _contentController.value = TextEditingValue(
-        text: newMarkdown,
-        selection: TextSelection.collapsed(offset: insertOffset + snippet.length),
-      );
-      _undoRedoManager.pushAtomicEdit(_contentController.value);
-      _onContentChanged();
-    } else {
-      final targetCtrl = _activeTargetController ?? _contentController;
-      final val = targetCtrl.value;
-      final text = val.text;
-      final sel = val.selection;
-      final start = sel.isValid ? sel.start : text.length;
-      final end = sel.isValid ? sel.end : text.length;
+    final targetCtrl = _activeTargetController ?? _contentController;
+    final val = targetCtrl.value;
+    final text = val.text;
+    final sel = val.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
 
-      final newText = text.replaceRange(start, end, snippet);
-      final newCursor = start + snippet.length;
+    final newText = text.replaceRange(start, end, snippet);
+    final newCursor = start + snippet.length;
 
-      final updated = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: newCursor),
-      );
+    final updated = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
 
-      targetCtrl.value = updated;
-      _undoRedoManager.pushAtomicEdit(updated);
+    targetCtrl.value = updated;
+    _undoRedoManager.pushAtomicEdit(updated);
 
-      final targetNode = _activeTargetFocusNode ?? _contentFocusNode;
-      if (!targetNode.hasFocus) {
-        targetNode.requestFocus();
-      }
-
-      _onContentChanged();
+    final targetNode = _activeTargetFocusNode ?? _contentFocusNode;
+    if (!targetNode.hasFocus) {
+      targetNode.requestFocus();
     }
+
+    _onContentChanged();
 
     if (mounted) {
       setState(() {});

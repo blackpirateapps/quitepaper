@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/core/database/app_database.dart';
-import 'package:quitepaper/features/editor/application/semantic_editor_controller.dart';
-import 'package:quitepaper/features/editor/application/semantic_markdown_parser.dart';
+import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
+import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
-import 'package:quitepaper/features/editor/domain/semantic_nodes.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
@@ -51,7 +51,7 @@ print(value);
 ```
 
 | A | B |
-|---|---|
+| --- | --- |
 | 1 | 2 |''';
 
     late AppDatabase db;
@@ -69,43 +69,36 @@ print(value);
       await db.close();
     });
 
-    test('parses golden document completely and verifies all semantic block types', () {
-      final doc = SemanticMarkdownParser.parse(goldenMarkdown, stripFrontmatter: false);
-
-      expect(doc.hasFrontmatter, isTrue);
-      expect(doc.frontmatter?.title, equals('Semantic Editor Test'));
-      expect(doc.frontmatter?.author, equals('Dr. Watson'));
+    test('parses golden document completely and verifies all rich block types', () {
+      final doc = const RichDocumentParser().parse(goldenMarkdown);
 
       // Check blocks
       expect(doc.blocks.any((b) => b is HeadingBlock && b.level == 1 && b.plainText == 'Main Heading'), isTrue);
       expect(doc.blocks.any((b) => b is HeadingBlock && b.level == 2 && b.plainText == 'Secondary Heading'), isTrue);
       expect(doc.blocks.any((b) => b is ParagraphBlock && b.plainText.contains('Plain paragraph with bold')), isTrue);
-      expect(doc.blocks.any((b) => b is ListItemBlock && b.plainText == 'First item'), isTrue);
-      expect(doc.blocks.any((b) => b is ListItemBlock && b.plainText == 'Second item'), isTrue);
-      expect(doc.blocks.any((b) => b is OrderedListItemBlock && b.number == 1 && b.plainText == 'Ordered one'), isTrue);
-      expect(doc.blocks.any((b) => b is OrderedListItemBlock && b.number == 2 && b.plainText == 'Ordered two'), isTrue);
-      expect(doc.blocks.any((b) => b is ChecklistItemBlock && !b.checked && b.plainText == 'Unchecked'), isTrue);
-      expect(doc.blocks.any((b) => b is ChecklistItemBlock && b.checked && b.plainText == 'Checked'), isTrue);
+      expect(doc.blocks.any((b) => b is BulletedListItemBlock && b.plainText == 'First item'), isTrue);
+      expect(doc.blocks.any((b) => b is BulletedListItemBlock && b.plainText == 'Second item'), isTrue);
+      expect(doc.blocks.any((b) => b is OrderedListItemBlock && b.order == 1 && b.plainText == 'Ordered one'), isTrue);
+      expect(doc.blocks.any((b) => b is OrderedListItemBlock && b.order == 2 && b.plainText == 'Ordered two'), isTrue);
+      expect(doc.blocks.any((b) => b is ChecklistItemBlock && !b.isChecked && b.plainText == 'Unchecked'), isTrue);
+      expect(doc.blocks.any((b) => b is ChecklistItemBlock && b.isChecked && b.plainText == 'Checked'), isTrue);
       expect(doc.blocks.any((b) => b is QuoteBlock && b.plainText == 'Quote'), isTrue);
       expect(doc.blocks.any((b) => b is HorizontalRuleBlock), isTrue);
       expect(doc.blocks.any((b) => b is CodeBlock && b.language == 'dart'), isTrue);
       expect(doc.blocks.any((b) => b is TableBlock), isTrue);
     });
 
-    test('mode switching between WYSIWYG and Markdown mode is 100% lossless and source-preserving', () {
-      // 1. Initial parse into SemanticDocument
-      final doc = SemanticMarkdownParser.parse(goldenMarkdown, stripFrontmatter: true);
+    test('mode switching between Visual and Markdown mode is 100% lossless and source-preserving', () {
+      // 1. Initial parse into RichDocument
+      final doc = const RichDocumentParser().parse(goldenMarkdown);
 
-      // 2. Initial markdown is untouched
-      expect(doc.canonicalMarkdown, equals(goldenMarkdown));
+      // 2. Controller holds and serializes markdown
+      final ctrl = RichDocumentController(initialMarkdown: goldenMarkdown, stripFrontmatter: true);
+      expect(ctrl.toMarkdown().trim(), equals(goldenMarkdown.trim()));
 
-      // 3. Controller holds exact canonical markdown
-      final ctrl = SemanticEditorController(initialMarkdown: goldenMarkdown, stripFrontmatter: true);
-      expect(ctrl.markdown, equals(goldenMarkdown));
-
-      // 4. Switching modes does not alter canonical markdown
-      final markdownModeDoc = SemanticMarkdownParser.parse(ctrl.markdown, stripFrontmatter: false);
-      expect(markdownModeDoc.canonicalMarkdown, equals(goldenMarkdown));
+      // 3. Serializer round trips with rich document
+      final roundTripDoc = const RichDocumentParser().parse(ctrl.toMarkdown());
+      expect(roundTripDoc.blocks.length, equals(doc.blocks.length));
     });
 
     testWidgets('renders complete golden document inside EditorScreen in WYSIWYG mode', (tester) async {

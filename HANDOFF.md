@@ -8122,3 +8122,69 @@ To resolve this, a production-grade, authoritative rich-text document architectu
 ### 5. Verification & Quality
 - Static analysis: `flutter analyze` completed with **0 issues found!** (zero errors, zero warnings).
 - Automated tests: `flutter test` completed with **1620/1620 tests passing!** (100% pass rate).
+
+---
+
+## 137. Complete Deprecation and Removal of Legacy Semantic WYSIWYG Architecture
+
+### 1. Problem & Motivation
+Following the implementation and stabilization of the new `RichDocument` continuous paper editor (Section 136, per `new-visual-architechture.txt` Sections 36 & 42), the codebase still retained the legacy semantic block editor files and dual controller routing. Specifically:
+- `SemanticEditorController`, `SemanticDocument`, `SemanticNodes`, `SemanticMarkdownParser`, `SemanticMutationService`, `SourceRange`, `DocumentPosition`, and `VisualDocumentEditor` were still present in the codebase.
+- Presentation widgets (`MarkdownEditor`, `EditorScreen`, `FormattingToolbar`) retained duplicate routing pathways, fallback parameters (`semanticController`, `onSemanticControllerChanged`), and listener attachments.
+- Unit tests contained duplicate and obsolete test files validating deprecated regex-based mutations and per-block `TextField` widgets.
+
+In this update, the legacy WYSIWYG architecture was cleanly and completely removed, unifying visual editing exclusively under `RichDocumentController` and `RichEditorSurface`.
+
+### 2. Changes & File Cleanups
+
+#### A. Production Cleanups (`lib/`)
+1. **Formatting Toolbar ([`formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart))**:
+   - Removed `semanticController` and `SemanticEditorController` import.
+   - Removed dual listener subscriptions and semantic fallback branching.
+   - All visual formatting operations route purely to `richController`, falling back to `controller` in Markdown mode.
+2. **Markdown Editor ([`markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart))**:
+   - Removed `_semanticController`, `onSemanticControllerChanged`, `_initSemanticController()`, and `_onSemanticMarkdownChanged()`.
+   - Removed `VisualDocumentEditor` imports and conditional rendering branch. Visual mode exclusively renders `RichEditorSurface`.
+   - Wired large-document threshold checks and mode fallback directly to `RichDocumentController.isDocumentTooLargeForWysiwyg()`.
+3. **Editor Screen ([`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart))**:
+   - Removed `_semanticEditorController` state field, imports, and passing of semantic controller props.
+   - Removed legacy semantic branches from formatting shortcuts, autocomplete handlers (tags, note links), and snippet insertions.
+4. **Rich Document Controller ([`rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart))**:
+   - Added `maxWysiwygCharacters`, `largeDocumentThresholdCharacters`, `largeDocumentThresholdLines`.
+   - Added static helper `isDocumentTooLargeForWysiwyg(text)`.
+   - Added `exceedsWysiwygThreshold` and `hasFrontmatter` convenience getters.
+5. **Deleted 8 Obsolete Legacy Files**:
+   - `lib/features/editor/application/semantic_markdown_parser.dart`
+   - `lib/features/editor/application/semantic_mutation_service.dart`
+   - `lib/features/editor/application/semantic_editor_controller.dart`
+   - `lib/features/editor/domain/semantic_document.dart`
+   - `lib/features/editor/domain/semantic_nodes.dart`
+   - `lib/features/editor/domain/source_range.dart`
+   - `lib/features/editor/domain/document_position.dart`
+   - `lib/features/editor/presentation/widgets/visual_document_editor.dart`
+
+#### B. Test Suite Migrations & Cleanups (`test/`)
+1. **Golden Document Test ([`golden_document_integration_test.dart`](file:///home/dog/git/quitepaper/test/editor/golden_document_integration_test.dart))**:
+   - Fully migrated to `RichDocumentParser`, `RichDocumentController`, and `RichEditorSurface`.
+   - Validated CommonMark table serialization formatting and lossless visual mode switching.
+2. **Heading Widget Test ([`markdown_heading_widget_test.dart`](file:///home/dog/git/quitepaper/test/editor/markdown_heading_widget_test.dart))**:
+   - Removed legacy `VisualDocumentEditor` and `SemanticEditorController` test groups while preserving `MarkdownHeadingBadge` and `MarkdownHeadingActionSheet` widget tests.
+3. **Large Document Performance Test ([`wysiwyg_large_document_performance_test.dart`](file:///home/dog/git/quitepaper/test/editor/wysiwyg_large_document_performance_test.dart))**:
+   - Migrated to test `RichDocumentController.isDocumentTooLargeForWysiwyg` and `MarkdownEditor` automatic fallback to Markdown mode.
+4. **Frontmatter Preservation Test ([`frontmatter_wysiwyg_preservation_test.dart`](file:///home/dog/git/quitepaper/test/editor/frontmatter_wysiwyg_preservation_test.dart))**:
+   - Migrated to test `RichDocumentController` frontmatter prefix retention and span mutations.
+5. **Deleted 10 Obsolete Legacy Test Files**:
+   - `test/editor/semantic_document_model_test.dart`
+   - `test/editor/semantic_markdown_parser_test.dart`
+   - `test/editor/semantic_mutation_service_test.dart`
+   - `test/editor/visual_document_editor_widget_test.dart`
+   - `test/editor/visual_document_editor_selection_bugs_test.dart`
+   - `test/editor/wysiwyg_heading_and_enter_key_test.dart`
+   - `test/editor/wysiwyg_inline_formatting_test.dart`
+   - `test/editor/wysiwyg_checklist_test.dart`
+   - `test/editor/wysiwyg_divider_test.dart`
+   - `test/editor/wysiwyg_table_editing_test.dart`
+
+### 3. Verification & Quality
+- Static analysis: `flutter analyze` completed with **0 issues found!** (zero errors, zero warnings).
+- Automated tests: `flutter test` fully passed with zero failures across all test suites.

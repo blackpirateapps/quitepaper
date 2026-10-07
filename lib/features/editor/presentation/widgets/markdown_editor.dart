@@ -7,7 +7,6 @@ import '../../application/markdown_formatter.dart';
 import '../../application/markdown_table_controller.dart';
 import '../../application/markdown_table_parser.dart';
 import '../../application/markdown_text_input_formatter.dart';
-import '../../application/semantic_editor_controller.dart';
 import '../../domain/editor_editing_style.dart';
 import '../../domain/markdown_table.dart';
 import '../../domain/markdown_table_position.dart';
@@ -22,11 +21,10 @@ import 'link_prompt_dialog.dart';
 import 'rich_editor_surface.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
-import 'visual_document_editor.dart';
 
 /// A dedicated, distraction-free Markdown and Visual (WYSIWYG) editor widget.
 ///
-/// In [EditorEditingStyle.wysiwyg], renders the semantic visual document editor
+/// In [EditorEditingStyle.wysiwyg], renders the rich visual document editor
 /// where users edit real headings, checklists, lists, tables, and formatted runs without syntax noise.
 /// In [EditorEditingStyle.markdown], renders the source-oriented Markdown editor.
 class MarkdownEditor extends StatefulWidget {
@@ -46,7 +44,6 @@ class MarkdownEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
     this.onRichControllerChanged,
-    this.onSemanticControllerChanged,
     this.onKeyEvent,
     this.onPaste,
   });
@@ -70,10 +67,6 @@ class MarkdownEditor extends StatefulWidget {
   /// Called when the [RichDocumentController] is created or disposed.
   final ValueChanged<RichDocumentController?>? onRichControllerChanged;
 
-  /// Called when the [SemanticEditorController] is created or disposed.
-  /// Allows the parent to wire semantic operations (e.g., heading cycling) to the toolbar.
-  final ValueChanged<SemanticEditorController?>? onSemanticControllerChanged;
-
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
 }
@@ -84,7 +77,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   MarkdownTable? _activeTable;
   MarkdownTableController? _activeTableController;
   RichDocumentController? _richController;
-  SemanticEditorController? _semanticController;
   final Debouncer _autosaveDebouncer = Debouncer(duration: const Duration(milliseconds: 700));
   bool _isSyncing = false;
 
@@ -92,7 +84,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void initState() {
     super.initState();
     _initRichController();
-    _initSemanticController();
     widget.controller.addListener(_onSourceControllerChanged);
   }
 
@@ -115,7 +106,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _initRichController() {
-    final isTooLarge = SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text);
+    final isTooLarge = RichDocumentController.isDocumentTooLargeForWysiwyg(widget.controller.text);
     if (widget.editingStyle == EditorEditingStyle.wysiwyg && !isTooLarge) {
       _richController?.dispose();
       _richController = RichDocumentController(
@@ -158,33 +149,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     }
   }
 
-  void _initSemanticController() {
-    final isTooLarge = SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text);
-    if (widget.editingStyle == EditorEditingStyle.wysiwyg && !isTooLarge) {
-      _semanticController?.dispose();
-      _semanticController = SemanticEditorController(
-        initialMarkdown: widget.controller.text,
-        styles: widget.controller.styles,
-        stripFrontmatter: widget.stripFrontmatter,
-        onMarkdownChanged: _onSemanticMarkdownChanged,
-      );
-      _semanticController!.searchQuery = widget.searchQuery;
-      // Carry the source-mode caret into the semantic document so switching to
-      // WYSIWYG keeps the cursor where the user was editing.
-      final sourceOffset = widget.controller.selection.baseOffset;
-      if (sourceOffset > 0) {
-        _semanticController!.setSelectionFromSourceOffset(sourceOffset);
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onSemanticControllerChanged?.call(_semanticController);
-      });
-    } else {
-      widget.onSemanticControllerChanged?.call(null);
-      _semanticController?.dispose();
-      _semanticController = null;
-    }
-  }
-
   @override
   void didUpdateWidget(MarkdownEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -199,7 +163,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         _flushRichMarkdown();
       }
       _initRichController();
-      _initSemanticController();
     }
 
     if (oldWidget.controller != widget.controller) {
@@ -209,10 +172,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         _richController!.styles = widget.controller.styles;
         _richController!.setMarkdown(widget.controller.text);
       }
-      if (_semanticController != null) {
-        _semanticController!.styles = widget.controller.styles;
-        _semanticController!.markdown = widget.controller.text;
-      }
       _syncActiveTableWithDocument();
     } else {
       if (_richController != null) {
@@ -221,14 +180,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         }
         if (widget.searchQuery != _richController!.searchQuery) {
           _richController!.searchQuery = widget.searchQuery;
-        }
-      }
-      if (_semanticController != null) {
-        if (widget.controller.styles != _semanticController!.styles) {
-          _semanticController!.styles = widget.controller.styles;
-        }
-        if (widget.searchQuery != _semanticController!.searchQuery) {
-          _semanticController!.searchQuery = widget.searchQuery;
         }
       }
     }
@@ -242,33 +193,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     widget.onRichControllerChanged?.call(null);
     _richController?.dispose();
     _richController = null;
-    widget.onSemanticControllerChanged?.call(null);
-    _semanticController?.dispose();
-    _semanticController = null;
     _activeTableController?.removeListener(_onActiveTableChanged);
     _activeTableController?.dispose();
     _activeTableController = null;
     _activeTable = null;
     super.dispose();
-  }
-
-  void _onSemanticMarkdownChanged(String newMarkdown) {
-    if (_isSyncing) return;
-    _isSyncing = true;
-    try {
-      if (widget.controller.text != newMarkdown) {
-        final sourceOffset = _semanticController != null && _semanticController!.document.blocks.isNotEmpty
-            ? _semanticController!.document.sourceOffsetAtPosition(_semanticController!.selection.base)
-            : widget.controller.selection.baseOffset;
-        widget.controller.value = TextEditingValue(
-          text: newMarkdown,
-          selection: TextSelection.collapsed(offset: sourceOffset.clamp(0, newMarkdown.length)),
-        );
-        widget.onChanged?.call(newMarkdown);
-      }
-    } finally {
-      _isSyncing = false;
-    }
   }
 
   void _onSourceControllerChanged() {
@@ -279,23 +208,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       _isSyncing = true;
       try {
         _richController!.setMarkdown(widget.controller.text);
-      } finally {
-        _isSyncing = false;
-      }
-    }
-
-    if (_semanticController != null &&
-        _semanticController!.markdown != widget.controller.text) {
-      // Map the source caret into the semantic document so external source
-      // edits (find/replace, title sync, dictation) don't reset the WYSIWYG
-      // caret to the top of the document.
-      final sourceOffset = widget.controller.selection.baseOffset;
-      _isSyncing = true;
-      try {
-        _semanticController!.updateMarkdownAndRetainSelection(
-          widget.controller.text,
-          sourceOffset >= 0 ? sourceOffset : widget.controller.text.length,
-        );
       } finally {
         _isSyncing = false;
       }
@@ -333,9 +245,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       getDocumentValue: () => widget.controller.value,
       onUpdateDocument: (newVal) {
         widget.controller.value = newVal;
-        if (_semanticController != null) {
-          _semanticController!.markdown = newVal.text;
-        }
         widget.onChanged?.call(newVal.text);
       },
       initialPosition: position ?? const TablePosition(row: 0, column: 0),
@@ -383,9 +292,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
     final updated = action(value: widget.controller.value);
     widget.controller.value = updated;
-    if (_semanticController != null) {
-      _semanticController!.markdown = updated.text;
-    }
     widget.onChanged?.call(widget.controller.text);
     if (!widget.focusNode.hasFocus) {
       widget.focusNode.requestFocus();
@@ -414,9 +320,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         title: result.title,
       );
       widget.controller.value = updated;
-      if (_semanticController != null) {
-        _semanticController!.markdown = updated.text;
-      }
       widget.onChanged?.call(widget.controller.text);
       if (!widget.focusNode.hasFocus) {
         widget.focusNode.requestFocus();
@@ -497,7 +400,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   Widget build(BuildContext context) {
     if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
-      if (SemanticEditorController.isDocumentTooLargeForWysiwyg(widget.controller.text)) {
+      if (RichDocumentController.isDocumentTooLargeForWysiwyg(widget.controller.text)) {
         _notifyLargeDocumentFallback(context);
       } else if (_richController != null) {
         return RichEditorSurface(
@@ -510,20 +413,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           onKeyEvent: widget.onKeyEvent,
           onChanged: (newVal) {
             _flushRichMarkdown();
-          },
-        );
-      } else if (_semanticController != null) {
-        return VisualDocumentEditor(
-          controller: _semanticController!,
-          focusNode: widget.focusNode,
-          readOnly: widget.readOnly,
-          hintText: widget.hintText,
-          searchQuery: widget.searchQuery,
-          onActiveTargetChanged: widget.onActiveTargetChanged,
-          onNoteLinkPrompt: widget.onNoteLinkPrompt,
-          onKeyEvent: widget.onKeyEvent,
-          onChanged: (newVal) {
-            widget.onChanged?.call(newVal);
           },
         );
       }
