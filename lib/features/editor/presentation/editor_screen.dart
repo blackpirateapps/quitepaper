@@ -804,6 +804,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  void _toggleHighlight() {
+    if (_isWysiwyg) {
+      _richDocumentController?.toggleHighlight();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingFormat(MarkdownFormatter.toggleHighlight);
+    }
+  }
+
   void _togglePreviewMode() {
     final editorNotifier = ref.read(editorProviderFamily(_editorParams).notifier);
     editorNotifier.togglePreviewMode();
@@ -872,6 +882,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
 
     if (result != null) {
+      if (_isWysiwyg && _richDocumentController != null) {
+        _richDocumentController!.applyLink(url: result.url, title: result.title);
+        return;
+      }
       final updated = MarkdownFormatter.createLink(
         value: targetController.value,
         url: result.url,
@@ -1510,6 +1524,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyI, meta: true): _toggleItalic,
         const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): _toggleStrikethrough,
         const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): _toggleStrikethrough,
+        const SingleActivator(LogicalKeyboardKey.keyH, control: true, shift: true): _toggleHighlight,
+        const SingleActivator(LogicalKeyboardKey.keyH, meta: true, shift: true): _toggleHighlight,
         const SingleActivator(LogicalKeyboardKey.backquote, control: true): _toggleInlineCode,
         const SingleActivator(LogicalKeyboardKey.backquote, meta: true): _toggleInlineCode,
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): _handleLinkPrompt,

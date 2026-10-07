@@ -215,5 +215,34 @@ void main() {
       focusNode.dispose();
       controller.dispose();
     });
+
+    testWidgets('Format Hub sheet shows Highlight and applies highlight formatting', (tester) async {
+      final controller = MarkdownEditingController(text: 'sample text');
+      controller.selection = const TextSelection(baseOffset: 0, extentOffset: 6); // select 'sample'
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestableWidget(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+
+      // Tap Format Hub (Aa) button
+      final hubButton = find.byTooltip('Format & Structure Catalog');
+      expect(hubButton, findsOneWidget);
+      await tester.tap(hubButton);
+      await tester.pumpAndSettle();
+
+      // Find Highlight tile
+      expect(find.text('Highlight'), findsOneWidget);
+      expect(find.text('Ctrl+Shift+H'), findsOneWidget);
+
+      await tester.tap(find.text('Highlight'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, equals('==sample== text'));
+
+      focusNode.dispose();
+      controller.dispose();
+    });
   });
 }

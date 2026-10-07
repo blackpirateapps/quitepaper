@@ -361,6 +361,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       isBold: _isBoldActive(),
       isItalic: _isItalicActive(),
       isStrikethrough: _isStrikethroughActive(),
+      isHighlight: _isHighlightActive(),
       isCode: _isInlineCodeActive(),
       headingLevel: _getActiveHeadingLevel(),
       isChecklist: _isChecklistActive(),
@@ -398,6 +399,13 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
           widget.richController!.toggleStrike();
         } else {
           _applyFormat(MarkdownFormatter.toggleStrikethrough);
+        }
+        break;
+      case FormattingOption.highlight:
+        if (widget.richController != null) {
+          widget.richController!.toggleHighlight();
+        } else {
+          _applyFormat(MarkdownFormatter.toggleHighlight);
         }
         break;
       case FormattingOption.inlineCode:
@@ -817,6 +825,14 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       return (widget.controller as MarkdownEditingController).isStrikethroughActive;
     }
     return MarkdownFormatter.isStrikethroughAt(widget.controller.value);
+  }
+
+  bool _isHighlightActive() {
+    if (widget.richController != null) return widget.richController!.isHighlightActive;
+    if (widget.controller is MarkdownEditingController) {
+      return (widget.controller as MarkdownEditingController).isHighlightActive;
+    }
+    return MarkdownFormatter.isHighlightAt(widget.controller.value);
   }
 
   bool _isInlineCodeActive() {

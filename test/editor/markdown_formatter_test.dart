@@ -155,6 +155,26 @@ void main() {
       final toggledOff = MarkdownFormatter.toggleInlineCode(value: result);
       expect(toggledOff.text, equals('Use print() in Dart'));
     });
+
+    test('toggles highlight == on selection and checks isHighlightAt', () {
+      const initial = TextEditingValue(
+        text: 'Important note here',
+        selection: TextSelection(baseOffset: 0, extentOffset: 9), // "Important"
+      );
+
+      final result = MarkdownFormatter.toggleHighlight(value: initial);
+      expect(result.text, equals('==Important== note here'));
+      expect(
+        MarkdownFormatter.isHighlightAt(TextEditingValue(
+          text: result.text,
+          selection: const TextSelection.collapsed(offset: 4),
+        )),
+        isTrue,
+      );
+
+      final toggledOff = MarkdownFormatter.toggleHighlight(value: result);
+      expect(toggledOff.text, equals('Important note here'));
+    });
   });
 
   group('MarkdownFormatter - Links', () {

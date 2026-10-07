@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -207,6 +208,8 @@ class _RichTextEditorState extends State<RichTextEditor> {
           const SingleActivator(LogicalKeyboardKey.keyI, meta: true): widget.controller.toggleItalic,
           const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): widget.controller.toggleStrike,
           const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): widget.controller.toggleStrike,
+          const SingleActivator(LogicalKeyboardKey.keyH, control: true, shift: true): widget.controller.toggleHighlight,
+          const SingleActivator(LogicalKeyboardKey.keyH, meta: true, shift: true): widget.controller.toggleHighlight,
           const SingleActivator(LogicalKeyboardKey.backquote, control: true): widget.controller.toggleCode,
           const SingleActivator(LogicalKeyboardKey.backquote, meta: true): widget.controller.toggleCode,
           const SingleActivator(LogicalKeyboardKey.keyZ, control: true): widget.controller.undo,
@@ -315,23 +318,20 @@ class _RichTextEditingController extends TextEditingController {
     final doc = editorController.document;
 
     if (lines.length == indices.length) {
-      // 1:1 line correspondence: update individual block spans directly
+      // 1:1 line correspondence: update individual block spans preserving formatted runs
       for (var i = 0; i < indices.length; i++) {
         final blockIdx = indices[i];
         final block = doc.blocks[blockIdx];
         final newLine = lines[i];
 
         if (block.plainText != newLine) {
-          // Preserve existing attributes if plainText matches prefix/suffix, or update text
-          final newSpans = [
-            RichInlineSpan(
-              text: newLine,
-              attributes: block.spans.isNotEmpty
-                  ? block.spans.first.attributes
-                  : TextAttributes.none,
-            ),
-          ];
-          editorController.updateBlockSpans(blockIdx, newSpans);
+          final updatedSpans = _spliceSpans(
+            spans: block.spans,
+            oldText: block.plainText,
+            newText: newLine,
+            defaultAttributes: editorController.typingAttributes,
+          );
+          editorController.updateBlockSpans(blockIdx, updatedSpans);
         }
       }
     } else {
@@ -355,6 +355,86 @@ class _RichTextEditingController extends TextEditingController {
         const RichDocumentSerializer().serialize(doc.copyWith(blocks: newDocBlocks)),
       );
     }
+  }
+
+  static List<RichInlineSpan> _spliceSpans({
+    required List<RichInlineSpan> spans,
+    required String oldText,
+    required String newText,
+    required TextAttributes defaultAttributes,
+  }) {
+    if (spans.isEmpty || oldText.isEmpty) {
+      return [RichInlineSpan(text: newText, attributes: defaultAttributes)].normalized();
+    }
+    if (oldText == newText) return spans;
+
+    var prefixLen = 0;
+    final minLen = math.min(oldText.length, newText.length);
+    while (prefixLen < minLen && oldText.codeUnitAt(prefixLen) == newText.codeUnitAt(prefixLen)) {
+      prefixLen++;
+    }
+
+    var oldSuffixLen = 0;
+    while (oldSuffixLen < oldText.length - prefixLen &&
+        oldSuffixLen < newText.length - prefixLen &&
+        oldText.codeUnitAt(oldText.length - 1 - oldSuffixLen) ==
+            newText.codeUnitAt(newText.length - 1 - oldSuffixLen)) {
+      oldSuffixLen++;
+    }
+
+    final deleteStart = prefixLen;
+    final deleteEnd = oldText.length - oldSuffixLen;
+    final inserted = newText.substring(prefixLen, newText.length - oldSuffixLen);
+
+    final result = <RichInlineSpan>[];
+    var insertedHandled = false;
+    var currentOffset = 0;
+
+    for (final span in spans) {
+      final spanStart = currentOffset;
+      final spanEnd = currentOffset + span.length;
+      currentOffset = spanEnd;
+
+      if (spanEnd <= deleteStart) {
+        result.add(span);
+        continue;
+      }
+
+      if (spanStart >= deleteEnd) {
+        if (!insertedHandled && inserted.isNotEmpty) {
+          result.add(RichInlineSpan(text: inserted, attributes: defaultAttributes));
+          insertedHandled = true;
+        }
+        result.add(span);
+        continue;
+      }
+
+      // Intersects delete range
+      // 1. Prefix before deleteStart
+      if (spanStart < deleteStart) {
+        result.add(span.slice(0, deleteStart - spanStart));
+      }
+
+      // 2. Inserted text
+      if (!insertedHandled && inserted.isNotEmpty) {
+        final insertAttrs = defaultAttributes.isEmpty ? span.attributes : defaultAttributes;
+        result.add(RichInlineSpan(text: inserted, attributes: insertAttrs));
+        insertedHandled = true;
+      }
+
+      // 3. Suffix after deleteEnd
+      if (spanEnd > deleteEnd) {
+        result.add(span.slice(deleteEnd - spanStart));
+      }
+    }
+
+    if (!insertedHandled && inserted.isNotEmpty) {
+      final lastAttrs = spans.isNotEmpty ? spans.last.attributes : defaultAttributes;
+      final insertAttrs = defaultAttributes.isEmpty ? lastAttrs : defaultAttributes;
+      result.add(RichInlineSpan(text: inserted, attributes: insertAttrs));
+    }
+
+    return result.normalized();
   }
 
   @override

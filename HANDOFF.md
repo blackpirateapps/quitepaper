@@ -7053,3 +7053,54 @@ In this update, the legacy WYSIWYG architecture was cleanly and completely remov
 ### 3. Verification & Quality
 - Static analysis: `flutter analyze` completed with **0 issues found!** (zero errors, zero warnings).
 - Automated tests: `flutter test` fully passed with zero failures across all test suites.
+
+---
+
+## 138. Rich Text Editor — Formattings Verification, Bugfixes & Highlight Integration (October 2026)
+
+### 1. Overview & Objectives
+As the visual editing engine migrated exclusively to the `RichDocument` / `RichEditorSurface` architecture, an exhaustive, granular test suite was implemented to test every single formatting type supported by the editor one by one, expose any underlying bugs in mutations and controller typing logic, and fix them with 100% test pass rate.
+
+In addition, Highlight (`==text==`) was fully integrated across the visual engine, the Bear-inspired `FormattingHubSheet` (`Aa` menu), the `FormattingToolbar`, and the main editor keyboard shortcuts (`Ctrl+Shift+H` / `Cmd+Shift+H`).
+
+### 2. Comprehensive Test Suite
+Created [`test/editor/rich_text_editor_formattings_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_editor_formattings_test.dart) containing **56 granular tests** across 19 categories:
+1. **Bold Formatting (`**text**`)**: Selection toggle, collapsed caret `typingAttributes` toggling, lossless CommonMark round-tripping.
+2. **Italic Formatting (`*text*`)**: Selection toggle, collapsed caret typing attributes, parser/serializer round-tripping.
+3. **Strikethrough Formatting (`~~text~~`)**: Selection toggle, collapsed caret typing attributes, round-trip serialization.
+4. **Highlight Formatting (`==text==`)**: Selection toggle, collapsed caret typing attributes, `==text==` round-tripping.
+5. **Inline Code (`` `code` ``)**: Selection toggle, atomic preservation of symbols without stripping backticks.
+6. **External Hyperlinks (`[label](url)`)**: Selection replacement, collapsed caret insertion, fallback of empty label to URL.
+7. **Wiki Note Links (`[[Note Title]]` / `qp://note/id`)**: Selection replacement, collapsed caret insertion, round-tripping.
+8. **Hashtags (`#tag`)**: Selection replacement, collapsed caret insertion, round-tripping.
+9. **Composable Inlines**: Combining Bold + Italic (`***text***`), Bold + Strikethrough + Highlight, Bold links (`[**bold**](url)`).
+10. **Headings 1 through 6**: Setting level 1-6, cycling (P -> H1 -> H2 -> H3 -> P), Enter key paragraph split, Backspace at index 0 converting to paragraph.
+11. **Checklists (`- [ ]`, `- [x]`)**: Toggle paragraph to task item, toggle checkbox checked state, Enter creates new unchecked item, Enter on empty task item exits list, Backspace at index 0 converts to paragraph.
+12. **Bulleted Lists (`- item`)**: Toggle item, Enter creates continuation bullet, Enter on empty bullet exits list, nested indentation round-tripping.
+13. **Ordered Lists (`1. item`)**: Toggle item, Enter creates incremented numbering (`1.` -> `2.`), Enter on empty item exits list.
+14. **Blockquotes (`> quote`)**: Toggle item, Enter creates continuation quote, Enter on empty quote exits list.
+15. **Fenced Code Blocks (```` ```lang ````)**: Insert block with paragraph below, verbatim multiline code round-tripping.
+16. **Dividers (`---`)**: Insertion creates Divider and trailing paragraph, round-tripping of `---`, `***`, `___`.
+17. **Markdown Tables**: Insert table block with row/column dimensions, CommonMark table alignment parsing/serialization.
+18. **Images (`![alt](url)`)**: Insert image block, round-tripping of source and title.
+19. **Widget Rendering & Typing Preservation**: `RichTextEditor` widget rendering with correct styling, interactive checklist tapping, and character typing inside lines containing pre-formatted spans without formatting loss.
+
+### 3. Bugs Discovered & Resolved
+1. **Typing Span Erasure in Visual Block Controller ([`rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart))**:
+   - *Problem*: In `_RichTextEditingController.applyTextChangesToDocument`, any single-line keystroke inside a block with formatted spans (e.g., typing a character inside `"Hello **world** test"`) was replacing all spans in the line with `block.spans.first.attributes`, destroying all bold, italic, code, and link spans across the rest of the line.
+   - *Fix*: Implemented a diff-based `_spliceSpans` algorithm in `_RichTextEditingController` that finds the exact edit range (`editStart`, `oldLen`, `newText`), preserves all untouched spans before and after the edit, slices the overlapping span, and applies typing attributes to the inserted slice.
+2. **Collapsed Selection No-Op on Link, Note Link, and Tag Insertion ([`rich_document_mutations.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_mutations.dart) & [`rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart))**:
+   - *Problem*: `applyLink`, `applyNoteLink`, and `applyTag` relied on `_applyAttributeRange`, which returned early without changes when `selection.isCollapsed`.
+   - *Fix*: Added `_insertSpanAtPosition` mutation to splice new spans at the caret position. Updated `applyLink`, `applyNoteLink`, and `applyTag` to branch on `selection.isCollapsed`, inserting the span directly at the caret and positioning the cursor immediately after the inserted span. Empty link titles gracefully fall back to the URL.
+3. **Format Hub & Toolbar Highlight Missing ([`formatting_hub_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_hub_sheet.dart) & [`formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart))**:
+   - *Fix*: Added `FormattingOption.highlight` to `FormattingOption` enum. Added `isHighlight` active-state indicator and a dedicated Highlight tile under `TEXT STYLES` with `PhosphorIconsRegular.highlighter`, `Ctrl+Shift+H` shortcut badge, and `==text==` syntax descriptor. Wired `FormattingToolbar` to track `_isHighlightActive()` and dispatch `widget.richController?.toggleHighlight()` (visual mode) or `_applyFormat(MarkdownFormatter.toggleHighlight)` (markdown mode).
+4. **Editor Screen Shortcut Routing ([`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart))**:
+   - *Fix*: Added `_toggleHighlight()` method to `EditorScreen` and registered `Ctrl+Shift+H` / `Cmd+Shift+H` shortcuts. Updated `_handleLinkPrompt` to call `_richDocumentController!.applyLink(url: result.url, title: result.title)` when in visual mode.
+5. **Markdown Mode Parity ([`markdown_formatter.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_formatter.dart) & [`markdown_editing_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_editing_controller.dart))**:
+   - *Fix*: Added `MarkdownFormatter.toggleHighlight` and `MarkdownFormatter.isHighlightAt` alongside `MarkdownEditingController.isHighlightActive` so both editor modes have identical highlight formatting capabilities.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues found** (zero warnings, zero errors).
+- `flutter test test/editor/rich_text_editor_formattings_test.dart`: **56/56 tests passing**.
+- `flutter test`: **348/348 tests passing** with zero failures across the entire test suite.
+

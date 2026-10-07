@@ -70,6 +70,9 @@ class MarkdownEditingController extends TextEditingController {
   /// Checks if strikethrough formatting is active at current selection or cursor.
   bool get isStrikethroughActive => MarkdownFormatter.isStrikethroughAt(value);
 
+  /// Checks if highlight formatting is active at current selection or cursor.
+  bool get isHighlightActive => MarkdownFormatter.isHighlightAt(value);
+
   /// Checks if inline code formatting is active at current selection or cursor.
   bool get isInlineCodeActive => MarkdownFormatter.isInlineCodeAt(value);
 

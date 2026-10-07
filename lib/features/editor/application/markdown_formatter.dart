@@ -128,6 +128,34 @@ abstract final class MarkdownFormatter {
     return _findSpanAroundOffset(text, cursor, '`') != null;
   }
 
+  /// Checks if highlight formatting is active at current selection or cursor.
+  static bool isHighlightAt(TextEditingValue value) {
+    if (!value.selection.isValid) return false;
+    final text = value.text;
+    final sel = value.selection;
+    if (!sel.isCollapsed) {
+      final start = min(sel.start, sel.end);
+      final end = max(sel.start, sel.end);
+      final selText = text.substring(start, end);
+      if (selText.startsWith('==') && selText.endsWith('==') && selText.length >= 4) {
+        return true;
+      }
+      if (start >= 2 && end + 2 <= text.length) {
+        if (text.substring(start - 2, start) == '==' && text.substring(end, end + 2) == '==') {
+          return true;
+        }
+      }
+      return false;
+    }
+    final cursor = sel.start;
+    if (cursor >= 2 && cursor + 2 <= text.length) {
+      if (text.substring(cursor - 2, cursor) == '==' && text.substring(cursor, cursor + 2) == '==') {
+        return true;
+      }
+    }
+    return _findSpanAroundOffset(text, cursor, '==') != null;
+  }
+
   /// Checks if the cursor or selection is on a heading line.
   static bool isHeadingAt(TextEditingValue value) {
     if (!value.selection.isValid) return false;
@@ -221,6 +249,15 @@ abstract final class MarkdownFormatter {
     return _toggleInlineWrapper(
       value: value,
       marker: '`',
+      defaultPlaceholder: '',
+    );
+  }
+
+  /// Toggles highlight (`==text==`) on current selection or inserts/exits `====` at cursor.
+  static TextEditingValue toggleHighlight({required TextEditingValue value}) {
+    return _toggleInlineWrapper(
+      value: value,
+      marker: '==',
       defaultPlaceholder: '',
     );
   }

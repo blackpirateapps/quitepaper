@@ -14,6 +14,7 @@ class FormattingHubSheet extends StatelessWidget {
     this.isBold = false,
     this.isItalic = false,
     this.isStrikethrough = false,
+    this.isHighlight = false,
     this.isCode = false,
     this.headingLevel = 0,
     this.isChecklist = false,
@@ -32,6 +33,7 @@ class FormattingHubSheet extends StatelessWidget {
   final bool isBold;
   final bool isItalic;
   final bool isStrikethrough;
+  final bool isHighlight;
   final bool isCode;
   final int headingLevel;
   final bool isChecklist;
@@ -51,6 +53,7 @@ class FormattingHubSheet extends StatelessWidget {
     bool isBold = false,
     bool isItalic = false,
     bool isStrikethrough = false,
+    bool isHighlight = false,
     bool isCode = false,
     int headingLevel = 0,
     bool isChecklist = false,
@@ -80,6 +83,7 @@ class FormattingHubSheet extends StatelessWidget {
         isBold: isBold,
         isItalic: isItalic,
         isStrikethrough: isStrikethrough,
+        isHighlight: isHighlight,
         isCode: isCode,
         headingLevel: headingLevel,
         isChecklist: isChecklist,
@@ -211,6 +215,14 @@ class FormattingHubSheet extends StatelessWidget {
                     syntax: '~~text~~',
                     shortcut: 'Ctrl+Shift+X',
                     isActive: isStrikethrough,
+                  ),
+                  _FormattingTileData(
+                    option: FormattingOption.highlight,
+                    icon: PhosphorIconsRegular.highlighter,
+                    title: 'Highlight',
+                    syntax: '==text==',
+                    shortcut: 'Ctrl+Shift+H',
+                    isActive: isHighlight,
                   ),
                   _FormattingTileData(
                     option: FormattingOption.inlineCode,
@@ -432,6 +444,7 @@ enum FormattingOption {
   bold,
   italic,
   strikethrough,
+  highlight,
   inlineCode,
   paragraph,
   heading1,

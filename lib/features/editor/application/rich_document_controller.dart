@@ -272,9 +272,18 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void applyLink({required String url, String? title}) {
-    _commitMutation(
-      RichDocumentMutations.applyLink(_document, _selection, url: url, title: title),
-    );
+    final newDoc = RichDocumentMutations.applyLink(_document, _selection, url: url, title: title);
+    if (_selection.isCollapsed) {
+      final label = (title != null && title.isNotEmpty) ? title : url;
+      final newPos = RichDocumentPosition(
+        blockIndex: _selection.extent.blockIndex,
+        blockId: _selection.extent.blockId,
+        offset: _selection.extent.offset + label.length,
+      );
+      _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
+    } else {
+      _commitMutation(newDoc);
+    }
   }
 
   void removeLink() {
@@ -282,15 +291,32 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void applyNoteLink({required String target}) {
-    _commitMutation(
-      RichDocumentMutations.applyNoteLink(_document, _selection, target: target),
-    );
+    final newDoc = RichDocumentMutations.applyNoteLink(_document, _selection, target: target);
+    if (_selection.isCollapsed) {
+      final newPos = RichDocumentPosition(
+        blockIndex: _selection.extent.blockIndex,
+        blockId: _selection.extent.blockId,
+        offset: _selection.extent.offset + target.length,
+      );
+      _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
+    } else {
+      _commitMutation(newDoc);
+    }
   }
 
   void applyTag({required String tag}) {
-    _commitMutation(
-      RichDocumentMutations.applyTag(_document, _selection, tag: tag),
-    );
+    final newDoc = RichDocumentMutations.applyTag(_document, _selection, tag: tag);
+    if (_selection.isCollapsed) {
+      final normalized = tag.startsWith('#') ? tag.substring(1) : tag;
+      final newPos = RichDocumentPosition(
+        blockIndex: _selection.extent.blockIndex,
+        blockId: _selection.extent.blockId,
+        offset: _selection.extent.offset + normalized.length + 1,
+      );
+      _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
+    } else {
+      _commitMutation(newDoc);
+    }
   }
 
   // ===========================================================================

@@ -73,6 +73,17 @@ abstract final class RichDocumentMutations {
     required String url,
     String? title,
   }) {
+    if (selection.isCollapsed) {
+      final label = (title != null && title.isNotEmpty) ? title : url;
+      return _insertSpanAtPosition(
+        doc,
+        selection.extent,
+        RichInlineSpan(
+          text: label,
+          attributes: TextAttributes(linkUrl: url),
+        ),
+      );
+    }
     return _applyAttributeRange(
       doc,
       selection,
@@ -95,6 +106,16 @@ abstract final class RichDocumentMutations {
     RichDocumentSelection selection, {
     required String target,
   }) {
+    if (selection.isCollapsed) {
+      return _insertSpanAtPosition(
+        doc,
+        selection.extent,
+        RichInlineSpan(
+          text: target,
+          attributes: TextAttributes(noteLinkTarget: target),
+        ),
+      );
+    }
     return _applyAttributeRange(
       doc,
       selection,
@@ -109,6 +130,16 @@ abstract final class RichDocumentMutations {
     required String tag,
   }) {
     final normalized = tag.startsWith('#') ? tag.substring(1) : tag;
+    if (selection.isCollapsed) {
+      return _insertSpanAtPosition(
+        doc,
+        selection.extent,
+        RichInlineSpan(
+          text: '#$normalized',
+          attributes: TextAttributes(tag: normalized),
+        ),
+      );
+    }
     return _applyAttributeRange(
       doc,
       selection,
@@ -748,5 +779,37 @@ abstract final class RichDocumentMutations {
     }
 
     return (left.normalized(), right.normalized());
+  }
+
+  static RichDocument _insertSpanAtPosition(
+    RichDocument doc,
+    RichDocumentPosition pos,
+    RichInlineSpan spanToInsert,
+  ) {
+    if (doc.blocks.isEmpty) return doc;
+    final bi = pos.blockIndex.clamp(0, doc.blocks.length - 1);
+    final block = doc.blocks[bi];
+    if (!block.isTextBlock) return doc;
+
+    final offset = pos.offset.clamp(0, block.plainText.length);
+    final (left, right) = _splitSpansAtOffset(block.spans, offset);
+    final newSpans = [...left, spanToInsert, ...right].normalized();
+
+    final newBlocks = List<RichBlock>.from(doc.blocks);
+    if (block is ParagraphBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    } else if (block is HeadingBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    } else if (block is ChecklistItemBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    } else if (block is BulletedListItemBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    } else if (block is OrderedListItemBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    } else if (block is QuoteBlock) {
+      newBlocks[bi] = block.copyWith(spans: newSpans);
+    }
+
+    return doc.copyWith(blocks: newBlocks);
   }
 }
