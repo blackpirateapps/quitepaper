@@ -7279,6 +7279,76 @@ In `_RichTextEditingController._spliceSpans` ([`lib/features/editor/presentation
 - Automated tests: Added 7 new tests in [`test/editor/rich_text_editor_formattings_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_editor_formattings_test.dart) covering mid-sentence bold, italic, strikethrough, inline code, highlight, Lexical playground 7-span document tree creation, and mid-span splitting.
 - Full test suite: `flutter test` passed with zero failures across all test suites.
 
+---
+
+## 143. Note Export: Share Note as Screenshot with Branding & Full Colorization (October 2026)
+
+### 1. Overview & Requirements
+Quiet Paper previously supported exporting notes to Markdown (`.md`), PDF (`.pdf`), HTML (`.html`), Plain Text (`.txt`), Microsoft Word (`.docx`), and Quiet Paper Packages (`.qpnote`). Users needed an easy, visually stunning way to share notes as a continuous, full-length image on social platforms, messaging apps, and portfolios without losing rich formatting or context.
+
+Requirements:
+1. **Full-Length Note Screenshot**: Capture the complete note continuously from top to bottom (never clipped to the device viewport).
+2. **Quiet Paper Branding**: Include an official footer with Quiet Paper iconography and the domain `quietpaper.blackpiratex.com`.
+3. **Full Colorization & Typography Parity**: Preserve syntax-highlighted code blocks, custom tag chips colorized with `TagColors`, Markdown highlight syntax (`==text==`), checklists (`[x]`), and editorial paper theme styling (`classicLight`, `warmPaperLight`, `classicDark`).
+4. **First-Class Export Integration**:
+   - Add `ExportFormat.image` (`.png`) as a first-class format in `ExportNoteSheet` with format-specific advanced options and dynamic action button labels (`Save Image` / `Share Image`).
+   - Add a direct overflow action in `EditorScreen` (`Share as screenshot`) for 1-tap sharing.
+
+### 2. Architecture & Implementation
+
+#### 2.1 Domain & Options Model
+- Added `ExportFormat.image` (`'png'`, `'Image Screenshot'`, `'image/png'`) to [`ExportFormat`](file:///home/dog/git/quitepaper/lib/features/export/domain/export_models.dart).
+- Added `ImageExportOptions` with settings:
+  - `themeMode`: `'current'`, `'light'`, `'dark'`, or `'warm'`.
+  - `includeMetadata`: toggles note creation date header.
+  - `includeTags`: toggles colorized tag chip pills.
+  - `includeBranding`: toggles Quiet Paper watermark footer (`quietpaper.blackpiratex.com`).
+  - `brandingUrl`: defaults to `'quietpaper.blackpiratex.com'`.
+  - `brandingTitle`: defaults to `'Quiet Paper'`.
+  - `pixelRatio`: defaults to `2.5` for crisp high-DPI rendering.
+  - `logicalWidth`: defaults to `600.0` dp for consistent column width across mobile and desktop.
+- Integrated `imageOptions` into `ExportRequest`, `ExportRequest.forFormat`, and `ExportRequest.copyWith`.
+
+#### 2.2 Editorial Screenshot Widget (`NoteScreenshotCard`)
+- Implemented [`NoteScreenshotCard`](file:///home/dog/git/quitepaper/lib/features/export/presentation/widgets/note_screenshot_card.dart):
+  - Renders document title and created date using Quiet Paper's warm editorial typography (`AppTypography`).
+  - Resolves tag background and foreground colors dynamically through [`TagColors`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_colors.dart) definition lookups.
+  - Formats body Markdown via `MarkdownBody` with:
+    - `HighlightElementBuilder` for `==text==` yellow highlight pill styling.
+    - `QuietCodeBlockElementBuilder` connected to `SyntaxHighlighter` and `SyntaxLanguageResolver` for code syntax highlighting.
+    - Checkbox lists rendered with interactive styling (`check_box_rounded` / `check_box_outline_blank_rounded`).
+    - Custom inline and block image builder for embedded attachments.
+  - Includes Quiet Paper watermark footer featuring app branding and `quietpaper.blackpiratex.com` link pill.
+
+#### 2.3 Off-Screen Rasterization Engine (`NoteImageRasterizer`)
+- Implemented [`NoteImageRasterizer`](file:///home/dog/git/quitepaper/lib/features/export/application/note_image_rasterizer.dart):
+  - Uses Flutter's `OverlayEntry` attached to `Navigator.of(context).overlay` offscreen (`left: -10000`, `top: -10000`) wrapped in an unconstrained `SingleChildScrollView` and `RepaintBoundary`.
+  - Waits for widget rendering via `WidgetsBinding.instance.endOfFrame`.
+  - Calls `RenderRepaintBoundary.toImage(pixelRatio: 2.5)` to generate a high-resolution `ui.Image`.
+  - Converts image to PNG byte buffer using `toByteData(format: ui.ImageByteFormat.png)` and cleans up the overlay entry safely.
+
+#### 2.4 Exporter & Service Integration
+- Implemented [`ImageExporter`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/image_exporter.dart) and injected it into [`ExportService`](file:///home/dog/git/quitepaper/lib/features/export/application/export_service.dart) and `exportServiceProvider`.
+- Supported optional `imageRasterizer` override parameter on `ExportService.exportNote` and `ExportService.exportAndSave` to facilitate mock rasterization in headless unit and widget tests.
+
+#### 2.5 Presentation Layer & Editor Shortcut
+- Updated [`ExportNoteSheet`](file:///home/dog/git/quitepaper/lib/features/export/presentation/export_note_sheet.dart):
+  - Added `Image Screenshot` format row with `.png · Full Note Image` subtitle.
+  - Added dedicated Advanced Options toggles for Image format: `Include metadata`, `Include tags`, `Branding footer`, and `Include attachments`.
+  - Dynamically switched action button labels to `Save Image` and `Share Image`.
+  - Wired `NoteImageRasterizer.rasterize` to offscreen render the note snapshot.
+- Added direct shortcut to [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Added `Share as screenshot` item with `photo_camera_back_outlined` icon in `⋯` overflow menu.
+  - Created `_shareAsScreenshot` method that initiates rasterization and system share sheet directly.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` completed with **0 issues found** (zero warnings, zero errors).
+- Export Tests: `flutter test test/features/export/` passed (**47 of 47 tests passed**).
+- Editor Tests: `flutter test test/editor/` passed (**452 of 452 tests passed**).
+- Added comprehensive widget test suite [`test/features/export/note_screenshot_card_test.dart`](file:///home/dog/git/quitepaper/test/features/export/note_screenshot_card_test.dart) verifying typography, tag pills, markdown body, watermark footer, and options toggles.
+- Updated [`test/features/export/export_note_sheet_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_note_sheet_test.dart) and [`test/features/export/export_service_test.dart`](file:///home/dog/git/quitepaper/test/features/export/export_service_test.dart) to cover `ExportFormat.image`.
+
+
 
 
 

@@ -76,6 +76,10 @@ import '../application/slash_command_trigger.dart';
 
 import '../../../core/utils/font_family_helper.dart';
 import '../../../core/utils/tag_parser.dart';
+import '../../../core/syntax/application/syntax_provider.dart';
+import '../../export/application/export_provider.dart';
+import '../../export/application/note_image_rasterizer.dart';
+import '../../export/domain/export_models.dart';
 import '../../export/presentation/export_note_sheet.dart';
 import '../../share/presentation/share_note_sheet.dart';
 import '../../share/presentation/share_warning_dialog.dart';
@@ -3264,6 +3268,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                   ListTile(
                     leading: Icon(
+                      Icons.image_outlined,
+                      color: colors.textSecondary,
+                    ),
+                    title: Text(
+                      'Share as screenshot',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      final currentNoteSnapshot = note.copyWith(
+                        title: _titleController.text,
+                        content: _contentController.text,
+                      );
+                      _shareAsScreenshot(currentNoteSnapshot);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
                       Icons.link_rounded,
                       color: colors.textSecondary,
                     ),
@@ -3908,6 +3932,74 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 },
 );
 }
+
+  Future<void> _shareAsScreenshot(Note noteSnapshot) async {
+    String? suppliedPassword;
+    if (noteSnapshot.isPasswordProtected) {
+      final passResult = await PromptPasswordDialog.show(
+        context,
+        title: 'Unlock Note to Share',
+        hint: 'Enter note password',
+        actionLabel: 'Share',
+      );
+      if (!mounted) return;
+      if (passResult == null || passResult.isEmpty) return;
+      suppliedPassword = passResult;
+    }
+
+    if (!mounted) return;
+
+    try {
+      final exportService = ref.read(exportServiceProvider);
+      final highlighter = ref.read(syntaxHighlighterProvider);
+      final resolver = ref.read(syntaxLanguageResolverProvider);
+      final typography = ref.read(typographySettingsProvider);
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preparing note screenshot...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      final request = ExportRequest(
+        noteId: noteSnapshot.id,
+        format: ExportFormat.image,
+        includeMetadata: true,
+        includeAttachments: true,
+        attachmentStrategy: AttachmentExportStrategy.embedLocally,
+        imageOptions: const ImageExportOptions(),
+        shareAfterExport: true,
+        notePassword: suppliedPassword,
+      );
+
+      await exportService.exportNote(
+        request,
+        imageRasterizer: ({required snapshot, required request}) {
+          if (!mounted) throw StateError('EditorScreen unmounted');
+          return NoteImageRasterizer.rasterizeNote(
+            context: context,
+            snapshot: snapshot,
+            request: request,
+            highlighter: highlighter,
+            resolver: resolver,
+            typography: typography,
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share screenshot: $e'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
 
   Widget _buildAttachedResourcesBar(BuildContext context, AppColors colors) {
     final db = ref.watch(databaseProvider);

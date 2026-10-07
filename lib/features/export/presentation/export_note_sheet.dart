@@ -4,11 +4,15 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/syntax/application/syntax_provider.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
+import '../../settings/application/typography_provider.dart';
 import '../application/export_provider.dart';
+import '../application/exporters/image_exporter.dart';
+import '../application/note_image_rasterizer.dart';
 import '../domain/export_models.dart';
 
 /// Modal bottom sheet for exporting an individual note to multiple formats.
@@ -41,6 +45,8 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
   late bool _includeOcr;
   late AttachmentExportStrategy _attachmentStrategy;
   late NoteLinkStrategy _noteLinkStrategy;
+  bool _imageIncludeTags = true;
+  bool _imageIncludeBranding = true;
 
   bool _showAdvanced = false;
   bool _isExporting = false;
@@ -93,6 +99,12 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
     try {
       final exportService = ref.read(exportServiceProvider);
 
+      final imageOptions = ImageExportOptions(
+        includeMetadata: _includeMetadata,
+        includeTags: _imageIncludeTags,
+        includeBranding: _imageIncludeBranding,
+      );
+
       final request = ExportRequest(
         noteId: widget.note.id,
         format: _selectedFormat,
@@ -106,6 +118,7 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
                 : OcrExportStrategy.appendToDocument)
             : OcrExportStrategy.none,
         noteLinkStrategy: _noteLinkStrategy,
+        imageOptions: imageOptions,
         shareAfterExport: isShare,
         notePassword: suppliedPassword,
       );
@@ -120,12 +133,30 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
             noteLinkStrategy: _noteLinkStrategy,
           );
 
+      ImageRasterizer? rasterizer;
+      if (_selectedFormat == ExportFormat.image) {
+        final highlighter = ref.read(syntaxHighlighterProvider);
+        final resolver = ref.read(syntaxLanguageResolverProvider);
+        final typography = ref.read(typographySettingsProvider);
+        rasterizer = ({required snapshot, required request}) {
+          return NoteImageRasterizer.rasterizeNote(
+            context: context,
+            snapshot: snapshot,
+            request: request,
+            highlighter: highlighter,
+            resolver: resolver,
+            typography: typography,
+          );
+        };
+      }
+
       if (isShare) {
         final result = await exportService.exportNote(
           request,
           onProgress: (prog) {
             if (mounted) setState(() => _progressState = prog);
           },
+          imageRasterizer: rasterizer,
         );
 
         if (mounted) {
@@ -144,6 +175,7 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
           onProgress: (prog) {
             if (mounted) setState(() => _progressState = prog);
           },
+          imageRasterizer: rasterizer,
         );
 
         if (mounted) {
@@ -367,10 +399,21 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
                         isSelected: _selectedFormat == ExportFormat.qpnote,
                         colors: colors,
                         isSpecial: true,
-                        isLast: true,
                         onTap: _isExporting
                             ? null
                             : () => setState(() => _selectedFormat = ExportFormat.qpnote),
+                      ),
+                      _buildRowDivider(colors),
+                      _FormatRow(
+                        title: 'Image Screenshot',
+                        subtitle: '.png · Full Note Image',
+                        icon: Icons.image_outlined,
+                        isSelected: _selectedFormat == ExportFormat.image,
+                        colors: colors,
+                        isLast: true,
+                        onTap: _isExporting
+                            ? null
+                            : () => setState(() => _selectedFormat = ExportFormat.image),
                       ),
                     ],
                   ),
@@ -534,7 +577,9 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
                     children: [
                       Expanded(
                         child: QuietButton(
-                          label: 'Save File',
+                          label: _selectedFormat == ExportFormat.image
+                              ? 'Save Image'
+                              : 'Save File',
                           icon: Icons.folder_open_rounded,
                           variant: QuietButtonVariant.secondary,
                           isLoading: _isExporting &&
@@ -547,8 +592,12 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: QuietButton(
-                          label: 'Share',
-                          icon: Icons.share_rounded,
+                          label: _selectedFormat == ExportFormat.image
+                              ? 'Share Image'
+                              : 'Share',
+                          icon: _selectedFormat == ExportFormat.image
+                              ? Icons.ios_share_rounded
+                              : Icons.share_rounded,
                           variant: QuietButtonVariant.primary,
                           isLoading: _isExporting &&
                               _progressState?.phase == ExportPhase.sharing,
@@ -760,6 +809,46 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
               colors: colors,
               isLast: true,
               onChanged: (val) => setState(() => _includeOcr = val),
+            ),
+          ],
+        );
+
+      case ExportFormat.image:
+        return _GroupedContainer(
+          colors: colors,
+          children: [
+            _OptionRow(
+              title: 'Include metadata',
+              subtitle: 'Creation date header in screenshot image',
+              value: _includeMetadata,
+              colors: colors,
+              isFirst: true,
+              onChanged: (val) => setState(() => _includeMetadata = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include tags',
+              subtitle: 'Colorized tag pills with custom tag colors',
+              value: _imageIncludeTags,
+              colors: colors,
+              onChanged: (val) => setState(() => _imageIncludeTags = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Branding footer',
+              subtitle: 'Quiet Paper mark with quietpaper.blackpiratex.com',
+              value: _imageIncludeBranding,
+              colors: colors,
+              onChanged: (val) => setState(() => _imageIncludeBranding = val),
+            ),
+            _buildOptionDivider(colors),
+            _OptionRow(
+              title: 'Include attachments',
+              subtitle: 'Render embedded images inside note screenshot',
+              value: _includeAttachments,
+              colors: colors,
+              isLast: true,
+              onChanged: (val) => setState(() => _includeAttachments = val),
             ),
           ],
         );

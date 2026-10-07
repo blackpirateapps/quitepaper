@@ -82,7 +82,7 @@ void main() {
   });
 
   group('ExportService End-to-End', () {
-    test('exports note to Markdown, PlainText, HTML, PDF, DOCX, and QPNOTE', () async {
+    test('exports note to Markdown, PlainText, HTML, PDF, DOCX, QPNOTE, and Image', () async {
       // 1. Create a note in database
       final noteId = 'note-test-1';
       final now = DateTime.utc(2026, 1, 1);
@@ -178,6 +178,34 @@ void main() => print("Ready");
       final val = await exportService.validateQpNote(qpResult.file);
       expect(val.isValid, isTrue);
       expect(val.noteTitle, equals('Weekly Standup Summary'));
+
+      // 8. Test Image Screenshot export
+      final imgResult = await exportService.exportNote(
+        ExportRequest(
+          noteId: noteId,
+          format: ExportFormat.image,
+          includeMetadata: true,
+          imageOptions: const ImageExportOptions(
+            includeBranding: true,
+            includeTags: true,
+          ),
+        ),
+        imageRasterizer: ({required snapshot, required request}) async => Uint8List.fromList([
+          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+          0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+          0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+          0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+          0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+          0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+          0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+          0x42, 0x60, 0x82,
+        ]),
+      );
+      expect(imgResult.format, equals(ExportFormat.image));
+      expect(await imgResult.file.exists(), isTrue);
+      expect(imgResult.file.path.endsWith('.png'), isTrue);
+      expect(imgResult.byteSize, greaterThan(0));
     });
 
     test('exports password protected note after unlocking', () async {

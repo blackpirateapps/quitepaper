@@ -23,7 +23,7 @@ void main() {
   }
 
   group('ExportNoteSheet Redesign Widget Tests', () {
-    testWidgets('renders header, note title, all 6 formats in unified grouped selector, and action buttons', (tester) async {
+    testWidgets('renders header, note title, all 7 formats in unified grouped selector, and action buttons', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -50,7 +50,7 @@ void main() {
       // Section header
       expect(find.text('FORMAT'), findsOneWidget);
 
-      // All 6 format titles and concise subtitles
+      // All 7 format titles and concise subtitles
       expect(find.text('Markdown'), findsOneWidget);
       expect(find.text('.md · Portable Markdown'), findsOneWidget);
 
@@ -69,6 +69,9 @@ void main() {
       expect(find.text('Quiet Paper Package'), findsOneWidget);
       expect(find.text('.qpnote · Full-Fidelity Note'), findsOneWidget);
       expect(find.text('Recommended'), findsOneWidget);
+
+      expect(find.text('Image Screenshot'), findsOneWidget);
+      expect(find.text('.png · Full Note Image'), findsOneWidget);
 
       // Action buttons
       expect(find.text('Save File'), findsOneWidget);
@@ -118,6 +121,12 @@ void main() {
 
       // Tap Quiet Paper Package
       await tester.tap(find.text('Quiet Paper Package'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+
+      // Tap Image Screenshot
+      await tester.tap(find.text('Image Screenshot'));
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
@@ -178,11 +187,23 @@ void main() {
       expect(find.text('Pack all attached images and documents into package'), findsOneWidget);
       expect(find.text('Pack structured OCR transcripts into ocr/ folder'), findsOneWidget);
 
+      // Switch to Image Screenshot
+      await tester.tap(find.text('Image Screenshot'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Creation date header in screenshot image'), findsOneWidget);
+      expect(find.text('Colorized tag pills with custom tag colors'), findsOneWidget);
+      expect(find.text('Quiet Paper mark with quietpaper.blackpiratex.com'), findsOneWidget);
+      expect(find.text('Render embedded images inside note screenshot'), findsOneWidget);
+      // Button labels dynamically update for Image Screenshot
+      expect(find.text('Save Image'), findsOneWidget);
+      expect(find.text('Share Image'), findsOneWidget);
+
       // Collapse Advanced Options
       await tester.tap(find.text('Advanced Options'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Preserve tags, timestamps, and note ID in metadata.json'), findsNothing);
+      expect(find.text('Quiet Paper mark with quietpaper.blackpiratex.com'), findsNothing);
     });
 
     testWidgets('toggling switch updates option state', (tester) async {

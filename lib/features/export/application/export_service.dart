@@ -16,6 +16,7 @@ import 'attachment_export_resolver.dart';
 import 'export_security_guard.dart';
 import 'exporters/docx_exporter.dart';
 import 'exporters/html_exporter.dart';
+import 'exporters/image_exporter.dart';
 import 'exporters/markdown_exporter.dart';
 import 'exporters/pdf_exporter.dart';
 import 'exporters/plain_text_exporter.dart';
@@ -45,6 +46,7 @@ class ExportService {
     DocxExporter? docxExporter,
     QpNotePackageExporter? qpNoteExporter,
     QpNoteValidator? qpNoteValidator,
+    ImageExporter? imageExporter,
     this.tempDirectoryProvider,
   })  : _securityGuard = securityGuard ?? const ExportSecurityGuard(),
         _attachmentResolver = attachmentResolver ??
@@ -66,7 +68,8 @@ class ExportService {
         _plainTextExporter = plainTextExporter ?? const PlainTextExporter(),
         _docxExporter = docxExporter ?? const DocxExporter(),
         _qpNoteExporter = qpNoteExporter ?? QpNotePackageExporter(),
-        _qpNoteValidator = qpNoteValidator ?? QpNoteValidator();
+        _qpNoteValidator = qpNoteValidator ?? QpNoteValidator(),
+        _imageExporter = imageExporter ?? const ImageExporter();
 
   final AppDatabase database;
   final KeyManager keyManager;
@@ -87,6 +90,7 @@ class ExportService {
   final DocxExporter _docxExporter;
   final QpNotePackageExporter _qpNoteExporter;
   final QpNoteValidator _qpNoteValidator;
+  final ImageExporter _imageExporter;
 
   static const _uuid = Uuid();
 
@@ -94,6 +98,7 @@ class ExportService {
   Future<ExportResult> exportNote(
     ExportRequest request, {
     void Function(ExportProgressState)? onProgress,
+    ImageRasterizer? imageRasterizer,
   }) async {
     Directory? tempWorkspace;
     final warnings = <ExportWarning>[];
@@ -256,6 +261,14 @@ class ExportService {
             outputFile: outputFile,
           );
           break;
+        case ExportFormat.image:
+          result = await _imageExporter.exportImage(
+            snapshot: snapshot,
+            request: request,
+            outputFile: outputFile,
+            overrideRasterizer: imageRasterizer,
+          );
+          break;
       }
 
       // Combine warnings
@@ -291,8 +304,13 @@ class ExportService {
   Future<ExportResult?> exportAndSave(
     ExportRequest request, {
     void Function(ExportProgressState)? onProgress,
+    ImageRasterizer? imageRasterizer,
   }) async {
-    final result = await exportNote(request, onProgress: onProgress);
+    final result = await exportNote(
+      request,
+      onProgress: onProgress,
+      imageRasterizer: imageRasterizer,
+    );
 
     onProgress?.call(const ExportProgressState(
       phase: ExportPhase.saving,

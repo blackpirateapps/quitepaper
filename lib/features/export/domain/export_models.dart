@@ -20,7 +20,10 @@ enum ExportFormat {
   docx('docx', 'Microsoft Word', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
 
   /// Full-fidelity Quiet Paper Note Package (`.qpnote`).
-  qpnote('qpnote', 'Quiet Paper Package', 'application/vnd.quietpaper.note');
+  qpnote('qpnote', 'Quiet Paper Package', 'application/vnd.quietpaper.note'),
+
+  /// Shareable High-Resolution Image Screenshot (`.png`).
+  image('png', 'Image Screenshot', 'image/png');
 
   const ExportFormat(this.extension, this.displayName, this.mimeType);
 
@@ -332,6 +335,76 @@ class QpNoteExportOptions {
   }
 }
 
+/// Options specific to Image / Screenshot generation.
+@immutable
+class ImageExportOptions {
+  const ImageExportOptions({
+    this.themeMode = 'current',
+    this.includeMetadata = true,
+    this.includeTags = true,
+    this.includeBranding = true,
+    this.brandingUrl = 'quietpaper.blackpiratex.com',
+    this.brandingTitle = 'Quiet Paper',
+    this.pixelRatio = 2.5,
+    this.logicalWidth = 600.0,
+  });
+
+  final String themeMode; // 'current', 'light', 'dark', 'warm'
+  final bool includeMetadata;
+  final bool includeTags;
+  final bool includeBranding;
+  final String brandingUrl;
+  final String brandingTitle;
+  final double pixelRatio;
+  final double logicalWidth;
+
+  ImageExportOptions copyWith({
+    String? themeMode,
+    bool? includeMetadata,
+    bool? includeTags,
+    bool? includeBranding,
+    String? brandingUrl,
+    String? brandingTitle,
+    double? pixelRatio,
+    double? logicalWidth,
+  }) {
+    return ImageExportOptions(
+      themeMode: themeMode ?? this.themeMode,
+      includeMetadata: includeMetadata ?? this.includeMetadata,
+      includeTags: includeTags ?? this.includeTags,
+      includeBranding: includeBranding ?? this.includeBranding,
+      brandingUrl: brandingUrl ?? this.brandingUrl,
+      brandingTitle: brandingTitle ?? this.brandingTitle,
+      pixelRatio: pixelRatio ?? this.pixelRatio,
+      logicalWidth: logicalWidth ?? this.logicalWidth,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'themeMode': themeMode,
+        'includeMetadata': includeMetadata,
+        'includeTags': includeTags,
+        'includeBranding': includeBranding,
+        'brandingUrl': brandingUrl,
+        'brandingTitle': brandingTitle,
+        'pixelRatio': pixelRatio,
+        'logicalWidth': logicalWidth,
+      };
+
+  factory ImageExportOptions.fromJson(Map<String, dynamic> json) {
+    return ImageExportOptions(
+      themeMode: json['themeMode'] as String? ?? 'current',
+      includeMetadata: json['includeMetadata'] as bool? ?? true,
+      includeTags: json['includeTags'] as bool? ?? true,
+      includeBranding: json['includeBranding'] as bool? ?? true,
+      brandingUrl: json['brandingUrl'] as String? ?? 'quietpaper.blackpiratex.com',
+      brandingTitle: json['brandingTitle'] as String? ?? 'Quiet Paper',
+      pixelRatio: (json['pixelRatio'] as num?)?.toDouble() ?? 2.5,
+      logicalWidth: (json['logicalWidth'] as num?)?.toDouble() ?? 600.0,
+    );
+  }
+}
+
 /// Strongly typed request container specifying export parameters.
 @immutable
 class ExportRequest {
@@ -349,6 +422,7 @@ class ExportRequest {
     this.htmlOptions = const HtmlExportOptions(),
     this.docxOptions = const DocxExportOptions(),
     this.packageOptions = const QpNoteExportOptions(),
+    this.imageOptions = const ImageExportOptions(),
     this.shareAfterExport = false,
     this.notePassword,
   });
@@ -366,6 +440,7 @@ class ExportRequest {
   final HtmlExportOptions htmlOptions;
   final DocxExportOptions docxOptions;
   final QpNoteExportOptions packageOptions;
+  final ImageExportOptions imageOptions;
   final bool shareAfterExport;
   final String? notePassword;
 
@@ -467,6 +542,18 @@ class ExportRequest {
           notePassword: notePassword,
           shareAfterExport: shareAfterExport,
         );
+      case ExportFormat.image:
+        return ExportRequest(
+          noteId: noteId,
+          format: format,
+          includeMetadata: true,
+          includeAttachments: true,
+          attachmentStrategy: AttachmentExportStrategy.embedLocally,
+          includeOcr: false,
+          imageOptions: const ImageExportOptions(),
+          notePassword: notePassword,
+          shareAfterExport: shareAfterExport,
+        );
     }
   }
 
@@ -484,6 +571,7 @@ class ExportRequest {
     HtmlExportOptions? htmlOptions,
     DocxExportOptions? docxOptions,
     QpNoteExportOptions? packageOptions,
+    ImageExportOptions? imageOptions,
     bool? shareAfterExport,
     String? notePassword,
   }) {
@@ -501,6 +589,7 @@ class ExportRequest {
       htmlOptions: htmlOptions ?? this.htmlOptions,
       docxOptions: docxOptions ?? this.docxOptions,
       packageOptions: packageOptions ?? this.packageOptions,
+      imageOptions: imageOptions ?? this.imageOptions,
       shareAfterExport: shareAfterExport ?? this.shareAfterExport,
       notePassword: notePassword ?? this.notePassword,
     );
