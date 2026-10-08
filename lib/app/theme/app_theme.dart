@@ -25,6 +25,7 @@ abstract final class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      primaryColor: colors.accent,
       fontFamily: resolvedBodyFont,
       textTheme: AppTypography.createTextTheme(typography),
       scaffoldBackgroundColor: colors.background,
@@ -163,6 +164,7 @@ abstract final class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      primaryColor: colors.accent,
       fontFamily: resolvedBodyFont,
       textTheme: AppTypography.createTextTheme(typography),
       scaffoldBackgroundColor: colors.background,

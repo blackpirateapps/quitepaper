@@ -7696,3 +7696,58 @@ To resolve this while keeping the writing experience calm and intuitive:
 - `test/widget_test.dart`: All 18 smoke & flow tests passing.
 - Full test suite: `flutter test` passing with zero failures.
 
+---
+
+## 152. Super Editor Dark Mode Caret Visibility & Quiet Formatting Toolbar Integration (October 2026)
+
+### 1. Overview & Motivation
+Following the initial introduction of Super Editor mode (`EditorEditingStyle.superEditor`), two critical user-experience issues were addressed:
+1. **Dark Mode Cursor Invisibility**:
+   - In Light Mode (`#F7F6F2`), the text cursor was visible. In Dark Mode (`#1D1C1A`), the caret was invisible because `super_editor`'s `DefaultCaretOverlayBuilder` defaulted to `Colors.black` and only rendered on desktop by default (`displayOnAllPlatforms: false`), while Android and iOS handle layers fell back to `Theme.of(context).primaryColor` (which in Flutter Material 3 dark themes resolves to `#212121`, blending into `#1D1C1A`).
+2. **Missing Formatting Toolbar in Super Editor Mode**:
+   - The primary Quiet Paper formatting toolbar (`FormattingToolbar`) above the keyboard was previously hidden when `_isSuperEditor` was active. Users expected Quiet Paper's familiar formatting buttons (Bold, Italic, Strikethrough, Code, Headings H1–H6, Checklist `- [ ]`, Bullet list, Numbered list, Blockquote, Divider, Link, Undo, Redo, and Snippet insertion) to work directly on the active Super Editor document without requiring gestures or desktop mouse selections.
+
+### 2. Architectural Adjustments & Implementation Details
+
+1. **Dark & Light Mode Caret & Handle Theme Support**:
+   - [`lib/app/theme/app_theme.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_theme.dart): Added `primaryColor: colors.accent` in both `ThemeData.light` and `ThemeData.dark`. Any fallback lookups for `primaryColor` inside third-party widgets (like SuperEditor handle layers) now resolve to Quiet Paper's warm editorial accent color instead of black or dark grey.
+   - [`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart):
+     - Configured `selectionStyle: SelectionStyles(selectionColor: colors.selection)`.
+     - Explicitly specified `androidHandleColor: colors.accent` and `iOSHandleColor: colors.accent`.
+     - Injected explicit `documentOverlayBuilders`:
+       - `SuperEditorIosToolbarFocalPointDocumentLayerBuilder()`
+       - `SuperEditorIosHandlesDocumentLayerBuilder(handleColor: colors.accent)`
+       - `SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder()`
+       - `SuperEditorAndroidHandlesDocumentLayerBuilder(caretColor: colors.accent)`
+       - `DefaultCaretOverlayBuilder(caretStyle: CaretStyle(width: 2, color: colors.accent), displayOnAllPlatforms: true)` ensuring high-contrast caret visibility across all platforms and themes.
+
+2. **`QuietSuperEditorController` Architecture**:
+   - [`lib/features/editor/application/quiet_super_editor_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/quiet_super_editor_controller.dart):
+     - Created a specialized `ChangeNotifier` that binds directly to SuperEditor's `Editor` and `MutableDocumentComposer`.
+     - **Inline formatting**: `toggleBold()`, `toggleItalic()`, `toggleStrike()`, `toggleCode()`, `isBoldActive`, `isItalicActive`, `isStrikeActive`, `isCodeActive` using SuperEditor's `ToggleTextAttributionsRequest` and `Attribution` spans.
+     - **Block formatting**: `setHeadingLevel(1..6)`, `convertHeadingToParagraph()`, `cycleHeadingLevel()`, `toggleChecklist()`, `toggleBulletedList()`, `toggleOrderedList()`, `toggleQuote()` executing `ChangeParagraphBlockTypeRequest`, `ConvertListItemToParagraphRequest`, `ConvertTaskToParagraphRequest`, and `ChangeListItemTypeRequest`.
+     - **Insertions**: `insertHorizontalRule()`, `applyLink({required url, title})`, `insertCodeBlock()`, `insertSnippet(snippet)`.
+     - **History & Undo/Redo**: `canUndo`, `canRedo`, `undo()`, `redo()` delegating directly to `_editor.history`, `_editor.future`, `_editor.undo()`, and `_editor.redo()`.
+     - **Disposal Safety**: Guarded `notifyListeners()` with `_isDisposed` to prevent late element unmount lifecycle assertions.
+
+3. **Toolbar & Editor Screen Integration**:
+   - [`lib/features/editor/presentation/widgets/formatting_toolbar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart):
+     - Added `superController` parameter and listener bindings.
+     - Dynamic state getters (`_isBoldActive`, `_getActiveHeadingLevel`, `_isChecklistActive`, etc.) route directly to `superController` when in Super Editor mode.
+     - Actions (`_handleBold`, `_setHeadingLevel`, `_handleLink`, `_handleCodeBlock`, etc.) execute through `superController`.
+     - Undo/Redo buttons automatically reflect `superController.canUndo` / `superController.canRedo`.
+   - [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+     - Forwards `superController` into `QuietSuperEditor`.
+   - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Owns `_superEditorController = QuietSuperEditorController()`, disposed cleanly on screen exit.
+     - Unhidden toolbar in `_buildToolbarOrSpeechBar` for Super Editor mode.
+     - Forwarded `superController` into both `FormattingToolbar` and `MarkdownEditor`.
+     - Updated desktop keyboard shortcuts (Bold, Italic, Headings, Lists, Quotes, Divider, Code) to invoke `_superEditorController` when `_isSuperEditor` is true.
+     - Updated `_insertSnippetAtCursor` and `LinkPromptDialog` handling to insert directly into SuperEditor.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Dedicated Tests: `test/editor/quiet_super_editor_test.dart` (8 passing unit & widget tests verifying document serialization, task toggles, controller attachment, bold toggle, headings, undo/redo, and dark mode caret builder).
+- Full Test Suite: `flutter test` (**all 1,628 tests passed, 0 failures**).
+
+

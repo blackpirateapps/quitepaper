@@ -53,6 +53,7 @@ import 'widgets/image_compression_dialog.dart';
 import '../domain/editor_editing_style.dart';
 import '../domain/frontmatter_document.dart';
 import '../application/frontmatter_editor_helper.dart';
+import '../application/quiet_super_editor_controller.dart';
 import 'widgets/frontmatter_properties_section.dart';
 import '../domain/markdown_styles.dart';
 import 'package:flutter/rendering.dart';
@@ -142,6 +143,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
+  final _superEditorController = QuietSuperEditorController();
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
 
@@ -547,6 +549,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return editorState.effectiveEditingStyle(globalEditingStyle) == EditorEditingStyle.wysiwyg;
   }
 
+  bool get _isSuperEditor {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    final globalEditingStyle = ref.read(editorEditingStyleProvider);
+    return editorState.effectiveEditingStyle(globalEditingStyle) == EditorEditingStyle.superEditor;
+  }
+
   void _checkAutocompleteTrigger() {
     final targetController = _activeTargetController ?? _contentController;
     final targetFocusNode = _activeTargetFocusNode ?? _contentFocusNode;
@@ -706,7 +714,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _setHeadingLevel(int level) {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      if (level == 0) {
+        _superEditorController.convertHeadingToParagraph();
+      } else {
+        _superEditorController.setHeadingLevel(level);
+      }
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       if (_richDocumentController != null) {
         if (level == 0) {
           _richDocumentController!.convertHeadingToParagraph();
@@ -722,7 +738,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleChecklist() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleChecklist();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleChecklist();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -732,7 +752,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleBulletList() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleBulletedList();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleBulletedList();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -742,7 +766,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleOrderedList() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleOrderedList();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleOrderedList();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -752,7 +780,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleQuote() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleQuote();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleQuote();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -762,7 +794,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _insertCodeBlock() {
-    if (_isWysiwyg && _richDocumentController != null) {
+    if (_isSuperEditor) {
+      _superEditorController.insertCodeBlock();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg && _richDocumentController != null) {
       _richDocumentController!.insertCodeBlock();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -772,7 +808,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _insertDivider() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.insertHorizontalRule();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.insertHorizontalRule();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -782,7 +822,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleBold() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleBold();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleBold();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -792,7 +836,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleItalic() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleItalic();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleItalic();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -802,7 +850,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleStrikethrough() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleStrike();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleStrike();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -812,7 +864,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleInlineCode() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleCode();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleCode();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -822,7 +878,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _toggleHighlight() {
-    if (_isWysiwyg) {
+    if (_isSuperEditor) {
+      _superEditorController.toggleHighlight();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg) {
       _richDocumentController?.toggleHighlight();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
@@ -899,6 +959,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
 
     if (result != null) {
+      if (_isSuperEditor) {
+        _superEditorController.applyLink(url: result.url, title: result.title);
+        return;
+      }
       if (_isWysiwyg && _richDocumentController != null) {
         _richDocumentController!.applyLink(url: result.url, title: result.title);
         return;
@@ -1373,6 +1437,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _scrollController.dispose();
     _searchAnimationController.dispose();
     _undoRedoManager.dispose();
+    _superEditorController.dispose();
     _inlineAutocompleteController?.dispose();
     _inlineAutocompleteController = null;
     _tagAutocompleteController?.dispose();
@@ -1910,6 +1975,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onRichControllerChanged: (ctrl) {
                                       _richDocumentController = ctrl;
                                     },
+                                    superController: _superEditorController,
                                     onKeyEvent: _handleEditorKeyEvent,
                                     onPaste: _handlePaste,
                                   ),
@@ -1957,10 +2023,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final globalEditingStyle = ref.watch(editorEditingStyleProvider);
     final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
     final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
+    final isSuperEditor = effectiveEditingStyle == EditorEditingStyle.superEditor;
 
     if (editorState.isPreviewMode ||
-        editorState.isReadOnly ||
-        effectiveEditingStyle == EditorEditingStyle.superEditor) {
+        editorState.isReadOnly) {
       return const SizedBox.shrink();
     }
 
@@ -1977,13 +2043,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       controller: _activeTargetController ?? _contentController,
       focusNode: _activeTargetFocusNode ?? _contentFocusNode,
       richController: isWysiwyg ? _richDocumentController : null,
-      canUndo: _undoRedoManager.canUndo,
-      canRedo: _undoRedoManager.canRedo,
+      superController: isSuperEditor ? _superEditorController : null,
+      canUndo: isSuperEditor ? _superEditorController.canUndo : _undoRedoManager.canUndo,
+      canRedo: isSuperEditor ? _superEditorController.canRedo : _undoRedoManager.canRedo,
       canDictate: editorState.isUnlocked && !editorState.isReadOnly,
       isDictating: !speechSession.isIdle,
       isTopDocked: isTopDocked,
-      onUndo: _undo,
-      onRedo: _redo,
+      onUndo: isSuperEditor ? _superEditorController.undo : _undo,
+      onRedo: isSuperEditor ? _superEditorController.redo : _redo,
       onNoteLinkPressed: _handleNoteLinkPrompt,
       onDictatePressed: _handleStartDictation,
       onApplyAtomicEdit: (val) {
@@ -2982,6 +3049,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isPreviewMode) {
       ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
+    }
+
+    if (_isSuperEditor) {
+      _superEditorController.insertSnippet(snippet);
+      return;
     }
 
     if (_isWysiwyg && _richDocumentController != null) {

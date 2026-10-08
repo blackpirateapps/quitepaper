@@ -6,6 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
+import '../../application/quiet_super_editor_controller.dart';
 
 /// Embedded block-based document editor surface powered by SuperEditor.
 ///
@@ -20,6 +21,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
     super.key,
     required this.initialMarkdown,
     required this.onChanged,
+    this.controller,
     this.focusNode,
     this.readOnly = false,
     this.stripFrontmatter = false,
@@ -28,6 +30,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
 
   final String initialMarkdown;
   final ValueChanged<String> onChanged;
+  final QuietSuperEditorController? controller;
   final FocusNode? focusNode;
   final bool readOnly;
   final bool stripFrontmatter;
@@ -78,14 +81,20 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
+    widget.controller?.attach(_editor, _composer);
   }
 
   @override
   void didUpdateWidget(QuietSuperEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?.detach();
+      widget.controller?.attach(_editor, _composer);
+    }
     if (widget.initialMarkdown != oldWidget.initialMarkdown &&
         widget.initialMarkdown != _lastSerializedMarkdown &&
         !_isInternalUpdate) {
+      widget.controller?.detach();
       _editor.document.removeListener(_onDocumentChange);
       _editor.dispose();
       _composer.dispose();
@@ -96,6 +105,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
   @override
   void dispose() {
+    widget.controller?.detach();
     _editor.document.removeListener(_onDocumentChange);
     _editor.dispose();
     _composer.dispose();
@@ -300,6 +310,28 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               focusNode: widget.focusNode,
               shrinkWrap: true,
               stylesheet: stylesheet,
+              selectionStyle: SelectionStyles(
+                selectionColor: colors.selection,
+              ),
+              androidHandleColor: colors.accent,
+              iOSHandleColor: colors.accent,
+              documentOverlayBuilders: [
+                const SuperEditorIosToolbarFocalPointDocumentLayerBuilder(),
+                SuperEditorIosHandlesDocumentLayerBuilder(
+                  handleColor: colors.accent,
+                ),
+                const SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder(),
+                SuperEditorAndroidHandlesDocumentLayerBuilder(
+                  caretColor: colors.accent,
+                ),
+                DefaultCaretOverlayBuilder(
+                  caretStyle: CaretStyle(
+                    width: 2,
+                    color: colors.accent,
+                  ),
+                  displayOnAllPlatforms: true,
+                ),
+              ],
             ),
           ),
         );

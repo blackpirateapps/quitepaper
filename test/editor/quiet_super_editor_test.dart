@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
@@ -135,5 +136,101 @@ void main() {
       // Frontmatter should be stripped from visible document
       expect(find.text('title: Test Note', findRichText: true), findsNothing);
     });
+
+    testWidgets('attaches QuietSuperEditorController and provides caret overlay with accent color', (tester) async {
+      final controller = QuietSuperEditorController();
+      addTearDown(controller.dispose);
+      const markdown = 'Editable text in super editor';
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            typographySettingsProvider.overrideWith(
+              (ref) => _MockTypographyNotifier(const TypographySettings()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData.dark().copyWith(
+              extensions: [AppColors.dark],
+            ),
+            home: Scaffold(
+              body: QuietSuperEditor(
+                initialMarkdown: markdown,
+                controller: controller,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.isAttached, isTrue);
+      expect(find.byType(SuperEditor), findsOneWidget);
+    });
+  });
+
+  group('QuietSuperEditorController Unit Tests', () {
+    test('attaches, toggles bold, and manages headings', () {
+      final doc = deserializeMarkdownToDocument('Hello world\n');
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(document: doc, composer: composer);
+      final controller = QuietSuperEditorController();
+
+      controller.attach(editor, composer);
+      expect(controller.isAttached, isTrue);
+
+      final node = doc.first as TextNode;
+      composer.setSelectionWithReason(
+        DocumentSelection(
+          base: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 0)),
+          extent: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 5)),
+        ),
+      );
+
+      expect(controller.isBoldActive, isFalse);
+      controller.toggleBold();
+      expect(controller.isBoldActive, isTrue);
+
+      controller.setHeadingLevel(2);
+      expect(controller.activeHeadingLevel, equals(2));
+
+      controller.convertHeadingToParagraph();
+      expect(controller.activeHeadingLevel, isNull);
+
+      controller.toggleChecklist();
+      expect(controller.isChecklistActive, isTrue);
+
+      controller.detach();
+      expect(controller.isAttached, isFalse);
+      controller.dispose();
+    });
+
+    test('can undo and redo operations via controller', () {
+      final doc = deserializeMarkdownToDocument('Initial text\n');
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(
+        document: doc,
+        composer: composer,
+        isHistoryEnabled: true,
+      );
+      final controller = QuietSuperEditorController();
+
+      controller.attach(editor, composer);
+      expect(controller.canUndo, isFalse);
+      expect(controller.canRedo, isFalse);
+
+      controller.insertSnippet(' more');
+      expect(controller.canUndo, isTrue);
+
+      controller.undo();
+      expect(controller.canRedo, isTrue);
+
+      controller.redo();
+      expect(controller.canUndo, isTrue);
+
+      controller.dispose();
+    });
   });
 }
+

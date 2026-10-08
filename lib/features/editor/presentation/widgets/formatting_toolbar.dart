@@ -10,6 +10,7 @@ import '../../../../core/utils/platform_layout_helper.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
+import '../../application/quiet_super_editor_controller.dart';
 import '../../application/rich_document_controller.dart';
 import 'formatting_hub_sheet.dart';
 import 'heading/markdown_heading_action_sheet.dart';
@@ -46,6 +47,7 @@ class FormattingToolbar extends StatefulWidget {
     this.onCycleHeading,
     this.onCycleHeadingLongPress,
     this.richController,
+    this.superController,
     this.isTopDocked = false,
   });
 
@@ -70,6 +72,9 @@ class FormattingToolbar extends StatefulWidget {
 
   /// Optional [RichDocumentController] when running in Visual mode.
   final RichDocumentController? richController;
+
+  /// Optional [QuietSuperEditorController] when running in Super Editor mode.
+  final QuietSuperEditorController? superController;
 
   /// When provided (WYSIWYG mode), tapping the heading button calls this
   /// instead of inserting raw `#` markdown syntax.
@@ -96,6 +101,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   void initState() {
     super.initState();
     widget.richController?.addListener(_onControllerChanged);
+    widget.superController?.addListener(_onControllerChanged);
   }
 
   @override
@@ -105,11 +111,16 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       oldWidget.richController?.removeListener(_onControllerChanged);
       widget.richController?.addListener(_onControllerChanged);
     }
+    if (oldWidget.superController != widget.superController) {
+      oldWidget.superController?.removeListener(_onControllerChanged);
+      widget.superController?.addListener(_onControllerChanged);
+    }
   }
 
   @override
   void dispose() {
     widget.richController?.removeListener(_onControllerChanged);
+    widget.superController?.removeListener(_onControllerChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -137,6 +148,15 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleLink(BuildContext context) async {
+    if (widget.superController != null) {
+      final sc = widget.superController!;
+      final result = await LinkPromptDialog.show(context);
+      if (result != null) {
+        sc.applyLink(url: result.url, title: result.title);
+      }
+      return;
+    }
+
     if (widget.richController != null) {
       final rc = widget.richController!;
       final result = await LinkPromptDialog.show(context);
@@ -175,6 +195,11 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleCodeBlock(BuildContext context) async {
+    if (widget.superController != null) {
+      widget.superController!.insertCodeBlock();
+      return;
+    }
+
     if (widget.richController != null) {
       final rc = widget.richController!;
       rc.insertCodeBlock();
@@ -206,6 +231,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   int _getActiveHeadingLevel() {
+    if (widget.superController != null) {
+      return widget.superController!.activeHeadingLevel ?? 0;
+    }
     if (widget.richController != null) {
       return widget.richController!.activeHeadingLevel ?? 0;
     }
@@ -213,6 +241,15 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   void _setHeadingLevel(int level) {
+    if (widget.superController != null) {
+      if (level == 0) {
+        widget.superController!.convertHeadingToParagraph();
+      } else {
+        widget.superController!.setHeadingLevel(level);
+      }
+      widget.focusNode?.requestFocus();
+      return;
+    }
     if (widget.richController != null) {
       if (level == 0) {
         widget.richController!.convertHeadingToParagraph();
@@ -311,6 +348,33 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   Future<void> _handleHeadingLongPress(BuildContext context) async {
+    if (widget.superController != null) {
+      final currentLevel = widget.superController!.activeHeadingLevel ?? 0;
+      await MarkdownHeadingActionSheet.show(
+        context,
+        currentLevel: currentLevel,
+        onSelectLevel: (newLevel) {
+          widget.superController!.setHeadingLevel(newLevel);
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+        onConvertToParagraph: () {
+          widget.superController!.convertHeadingToParagraph();
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+        onCycleLevel: () {
+          widget.superController!.cycleHeadingLevel();
+          if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
+            widget.focusNode!.requestFocus();
+          }
+        },
+      );
+      return;
+    }
+
     if (widget.richController != null) {
       final currentLevel = widget.richController!.activeHeadingLevel ?? 0;
       await MarkdownHeadingActionSheet.show(
@@ -381,7 +445,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   void _handleFormatOption(BuildContext context, FormattingOption option) {
     switch (option) {
       case FormattingOption.bold:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleBold();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleBold();
           widget.focusNode?.requestFocus();
         } else {
@@ -389,7 +456,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.italic:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleItalic();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleItalic();
           widget.focusNode?.requestFocus();
         } else {
@@ -397,7 +467,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.strikethrough:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleStrike();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleStrike();
           widget.focusNode?.requestFocus();
         } else {
@@ -405,7 +478,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.highlight:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleHighlight();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleHighlight();
           widget.focusNode?.requestFocus();
         } else {
@@ -413,7 +489,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.inlineCode:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleCode();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleCode();
           widget.focusNode?.requestFocus();
         } else {
@@ -433,7 +512,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _setHeadingLevel(3);
         break;
       case FormattingOption.quote:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleQuote();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleQuote();
           widget.focusNode?.requestFocus();
         } else {
@@ -444,7 +526,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _handleCodeBlock(context);
         break;
       case FormattingOption.checklist:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleChecklist();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleChecklist();
           widget.focusNode?.requestFocus();
         } else {
@@ -452,7 +537,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.bulletList:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleBulletedList();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleBulletedList();
           widget.focusNode?.requestFocus();
         } else {
@@ -460,7 +548,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.orderedList:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.toggleOrderedList();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.toggleOrderedList();
           widget.focusNode?.requestFocus();
         } else {
@@ -468,7 +559,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         }
         break;
       case FormattingOption.divider:
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.insertHorizontalRule();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.insertHorizontalRule();
           widget.focusNode?.requestFocus();
         } else {
@@ -786,7 +880,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         widget.onTagPressed();
         break;
       case 'divider':
-        if (widget.richController != null) {
+        if (widget.superController != null) {
+          widget.superController!.insertHorizontalRule();
+          widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
           widget.richController!.insertHorizontalRule();
           widget.focusNode?.requestFocus();
         } else {
@@ -809,6 +906,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isBoldActive() {
+    if (widget.superController != null) return widget.superController!.isBoldActive;
     if (widget.richController != null) return widget.richController!.isBoldActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isBoldActive;
@@ -817,6 +915,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isItalicActive() {
+    if (widget.superController != null) return widget.superController!.isItalicActive;
     if (widget.richController != null) return widget.richController!.isItalicActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isItalicActive;
@@ -825,6 +924,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isStrikethroughActive() {
+    if (widget.superController != null) return widget.superController!.isStrikeActive;
     if (widget.richController != null) return widget.richController!.isStrikeActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isStrikethroughActive;
@@ -833,6 +933,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isHighlightActive() {
+    if (widget.superController != null) return widget.superController!.isHighlightActive;
     if (widget.richController != null) return widget.richController!.isHighlightActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isHighlightActive;
@@ -841,6 +942,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isInlineCodeActive() {
+    if (widget.superController != null) return widget.superController!.isCodeActive;
     if (widget.richController != null) return widget.richController!.isCodeActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isInlineCodeActive;
@@ -849,6 +951,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isHeadingActive() {
+    if (widget.superController != null) {
+      return widget.superController!.isHeadingActive;
+    }
     if (widget.richController != null) {
       return widget.richController!.activeHeadingLevel != null;
     }
@@ -859,6 +964,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isChecklistActive() {
+    if (widget.superController != null) return widget.superController!.isChecklistActive;
     if (widget.richController != null) return widget.richController!.isChecklistActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isChecklistActive;
@@ -867,6 +973,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isBulletListActive() {
+    if (widget.superController != null) return widget.superController!.isBulletedListActive;
     if (widget.richController != null) return widget.richController!.isBulletedListActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isBulletListActive;
@@ -875,6 +982,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isOrderedListActive() {
+    if (widget.superController != null) return widget.superController!.isOrderedListActive;
     if (widget.richController != null) return widget.richController!.isOrderedListActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isOrderedListActive;
@@ -883,6 +991,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   bool _isQuoteActive() {
+    if (widget.superController != null) return widget.superController!.isQuoteActive;
     if (widget.richController != null) return widget.richController!.isQuoteActive;
     if (widget.controller is MarkdownEditingController) {
       return (widget.controller as MarkdownEditingController).isQuoteActive;
@@ -909,6 +1018,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         listenable: Listenable.merge([
           widget.controller,
           ?widget.richController,
+          ?widget.superController,
         ]),
         builder: (context, _) {
           final isBold = _isBoldActive();
@@ -944,14 +1054,22 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                     _ToolbarButton(
                       icon: PhosphorIconsRegular.arrowUUpLeft,
                       tooltip: isDesktop ? 'Undo (Ctrl+Z)' : 'Undo',
-                      isEnabled: widget.canUndo,
-                      onPressed: widget.onUndo ?? () {},
+                      isEnabled: widget.superController != null
+                          ? widget.superController!.canUndo
+                          : widget.canUndo,
+                      onPressed: widget.superController != null
+                          ? widget.superController!.undo
+                          : (widget.onUndo ?? () {}),
                     ),
                     _ToolbarButton(
                       icon: PhosphorIconsRegular.arrowUUpRight,
                       tooltip: isDesktop ? 'Redo (Ctrl+Y)' : 'Redo',
-                      isEnabled: widget.canRedo,
-                      onPressed: widget.onRedo ?? () {},
+                      isEnabled: widget.superController != null
+                          ? widget.superController!.canRedo
+                          : widget.canRedo,
+                      onPressed: widget.superController != null
+                          ? widget.superController!.redo
+                          : (widget.onRedo ?? () {}),
                     ),
                   ],
                 ),
@@ -987,6 +1105,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                         } else {
                           if (widget.onCycleHeading != null) {
                             widget.onCycleHeading!();
+                          } else if (widget.superController != null) {
+                            widget.superController!.cycleHeadingLevel();
+                            widget.focusNode?.requestFocus();
                           } else if (widget.richController != null) {
                             widget.richController!.cycleHeadingLevel();
                             widget.focusNode?.requestFocus();
@@ -1009,7 +1130,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Bold (Ctrl+B)' : 'Bold (**text**)',
                       isActive: isBold,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleBold();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleBold();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1022,7 +1146,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Italic (Ctrl+I)' : 'Italic (*text*)',
                       isActive: isItalic,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleItalic();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleItalic();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1037,7 +1164,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                           : 'Strikethrough (~~text~~)',
                       isActive: isStrikethrough,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleStrike();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleStrike();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1052,7 +1182,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                           : 'Inline Code (`text`)',
                       isActive: isCode,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleCode();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleCode();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1071,7 +1204,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Checklist (Ctrl+Shift+C)' : 'Checklist (- [ ])',
                       isActive: isChecklist,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleChecklist();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleChecklist();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1084,7 +1220,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Bullet List (Ctrl+Shift+8)' : 'Bullet List (-)',
                       isActive: isBullet,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleBulletedList();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleBulletedList();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1097,7 +1236,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Numbered List (Ctrl+Shift+7)' : 'Numbered List (1.)',
                       isActive: isOrdered,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleOrderedList();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleOrderedList();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1110,7 +1252,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Quote (Ctrl+Shift+.)' : 'Quote (>)',
                       isActive: isQuote,
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.toggleQuote();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.toggleQuote();
                           widget.focusNode?.requestFocus();
                         } else {
@@ -1123,7 +1268,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       icon: PhosphorIconsRegular.minus,
                       tooltip: isDesktop ? 'Divider (Ctrl+Alt+-)' : 'Divider (---)',
                       onPressed: () {
-                        if (widget.richController != null) {
+                        if (widget.superController != null) {
+                          widget.superController!.insertHorizontalRule();
+                          widget.focusNode?.requestFocus();
+                        } else if (widget.richController != null) {
                           widget.richController!.insertHorizontalRule();
                           widget.focusNode?.requestFocus();
                         } else {

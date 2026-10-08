@@ -14,6 +14,7 @@ import '../../domain/markdown_table_position.dart';
 import '../../../../core/markdown/markdown_helper.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../core/utils/debouncer.dart';
+import '../../application/quiet_super_editor_controller.dart';
 import '../../application/rich_document_controller.dart';
 import '../../application/rich_document_serializer.dart';
 import '../../domain/rich_document.dart';
@@ -47,6 +48,7 @@ class MarkdownEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onNoteLinkPrompt,
     this.onRichControllerChanged,
+    this.superController,
     this.onKeyEvent,
     this.onPaste,
   });
@@ -69,6 +71,9 @@ class MarkdownEditor extends StatefulWidget {
 
   /// Called when the [RichDocumentController] is created or disposed.
   final ValueChanged<RichDocumentController?>? onRichControllerChanged;
+
+  /// Optional controller bridging SuperEditor with formatting toolbar and shortcuts.
+  final QuietSuperEditorController? superController;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -474,6 +479,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   Widget build(BuildContext context) {
     if (widget.editingStyle == EditorEditingStyle.superEditor) {
       return QuietSuperEditor(
+        controller: widget.superController,
         initialMarkdown: widget.controller.text,
         focusNode: widget.focusNode,
         readOnly: widget.readOnly,
