@@ -395,7 +395,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
   Widget _buildLocationField(AppColors colors, JournalLocation? location) {
     if (_isFetchingLocation) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6.0),
+        padding: const EdgeInsets.only(top: 6.0, bottom: 6.0),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -421,96 +421,135 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     }
 
     if (location != null && location.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    location.displayString,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  if (location.address.isNotEmpty && location.coordinatesString.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 1.0),
-                      child: Text(
-                        location.coordinatesString,
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textTertiary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+      final hasAddress = location.address.trim().isNotEmpty;
+      final hasCoords = location.coordinatesString.isNotEmpty;
+
+      Widget actionButtons() => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.open_in_new_rounded, size: 14),
+            color: colors.accent,
+            tooltip: 'Open in Maps',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            onPressed: () {
+              LocationService().openInMaps(
+                location.latitude,
+                location.longitude,
+                address: location.address,
+              );
+            },
+          ),
+          if (!widget.readOnly) ...[
+            const SizedBox(width: 4.0),
             IconButton(
-              icon: const Icon(Icons.open_in_new_rounded, size: 14),
-              color: colors.accent,
-              tooltip: 'Open in Maps',
+              icon: const Icon(Icons.refresh_rounded, size: 14),
+              color: colors.textSecondary,
+              tooltip: 'Re-fetch location',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-              onPressed: () {
-                LocationService().openInMaps(
-                  location.latitude,
-                  location.longitude,
-                  address: location.address,
-                );
-              },
+              onPressed: _fetchLocation,
             ),
-            if (!widget.readOnly) ...[
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, size: 14),
-                color: colors.textSecondary,
-                tooltip: 'Re-fetch location',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                onPressed: _fetchLocation,
+            const SizedBox(width: 4.0),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 14),
+              color: colors.textTertiary,
+              tooltip: 'Remove location',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              onPressed: _removeLocation,
+            ),
+          ],
+        ],
+      );
+
+      if (hasAddress) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 6.0, bottom: 4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                location.displayString,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                  height: 1.35,
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.close_rounded, size: 14),
-                color: colors.textTertiary,
-                tooltip: 'Remove location',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                onPressed: _removeLocation,
+              Padding(
+                padding: const EdgeInsets.only(top: 3.0),
+                child: Row(
+                  children: [
+                    if (hasCoords)
+                      Expanded(
+                        child: Text(
+                          location.coordinatesString,
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                    actionButtons(),
+                  ],
+                ),
               ),
             ],
-          ],
-        ),
-      );
+          ),
+        );
+      } else {
+        return Padding(
+          padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  location.displayString,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              actionButtons(),
+            ],
+          ),
+        );
+      }
     }
 
     if (!widget.readOnly) {
       return Align(
         alignment: Alignment.centerLeft,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppRadii.sm),
-            onTap: _fetchLocation,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.my_location_rounded, size: 13, color: colors.accent),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'Fetch Location',
-                    style: AppTypography.caption.copyWith(
-                      color: colors.accent,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: _fetchLocation,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.my_location_rounded, size: 13, color: colors.accent),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Fetch Location',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -563,24 +602,27 @@ class _PropertyRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 105,
-            child: Row(
-              children: [
-                Icon(icon, size: 14, color: colors.textTertiary),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: AppTypography.caption.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w500,
+            width: 88,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6.0),
+              child: Row(
+                children: [
+                  Icon(icon, size: 14, color: colors.textTertiary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Expanded(child: child),

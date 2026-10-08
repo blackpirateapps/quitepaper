@@ -7526,6 +7526,37 @@ In `_RichTextEditingController.buildTextSpan`:
 - Checklist Test Suite: `flutter test test/editor/rich_text_checklist_editor_test.dart` passed (**9 of 9 tests passed**).
 - Full Test Suite: `flutter test` passed.
 
+---
+
+## 148. Journal & Frontmatter Location Display Visual Overhaul & Alignment (October 2026)
+
+### 1. Overview & Problem Description
+In visual WYSIWYG mode and markdown preview, location metadata in note frontmatter rendered in an awkward, crowded layout:
+1. **Vertical Centering in Property Rows**: In [`FrontmatterPropertiesSection`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart), `_PropertyRow` used `crossAxisAlignment: CrossAxisAlignment.center` with a fixed label width of `105dp`. When an address wrapped over multiple lines, the "Location" label and pin icon floated in the vertical dead-center of a tall multiline block rather than aligning cleanly at the top.
+2. **Cramped Address Width**: In `_buildLocationField`, the address text was placed in a horizontal `Row` alongside three action buttons (`open_in_new_rounded`, `refresh_rounded`, `close_rounded`). On mobile devices (~360dp width), this squeezed the text column down to ~110dp, forcing addresses to wrap into 10+ narrow lines of 1–2 words each.
+3. **Floating Centered Actions**: Because the row was vertically centered, the action buttons and coordinates floated next to the middle of the tall column of wrapped text.
+4. **Markdown Preview Inconsistency**: In [`QuietFrontmatterCard`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart), the address similarly shared a horizontal row with the "Open in Maps" pill, compressing long addresses.
+
+### 2. Solution & Visual Enhancements
+1. **Full-Width Address Presentation**:
+   - In both [`FrontmatterPropertiesSection`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart) and [`QuietFrontmatterCard`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart), the address text is granted 100% of the available value width with `1.35` line height. Addresses flow naturally across 1–2 lines without artificial wrapping.
+2. **Secondary Metadata & Action Bar**:
+   - Placed coordinates (`location.coordinatesString`) and action buttons in a dedicated secondary row directly beneath the address text.
+   - Coordinates are styled with muted tertiary caption typography (`AppTypography.caption`, 11sp) on the left, while compact action buttons (`open_in_new_rounded`, `refresh_rounded`, `close_rounded` in edit mode; `Open in Maps` in preview mode) align cleanly on the right.
+   - For coordinate-only locations (no human-readable address), single-line horizontal alignment is preserved.
+3. **Top-Aligned Property Rows (`CrossAxisAlignment.start`)**:
+   - Updated `_PropertyRow` in `FrontmatterPropertiesSection` to `crossAxisAlignment: CrossAxisAlignment.start` with an 88dp label width and 6dp top offset to align the label with the first line of content across all properties (Author, Created, Location, Source, Description, Tags).
+
+### 3. Modified Files
+- [`lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart): Top-aligned property rows, full-width address display, secondary row for coordinates and action buttons.
+- [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart): Full-width address presentation and secondary coordinates/Open in Maps row in `QuietFrontmatterCard`.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 148.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Full Test Suite: `flutter test` (**all 1605 tests passed, 0 failures**).
+
+
 
 
 

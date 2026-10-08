@@ -920,75 +920,106 @@ class QuietFrontmatterCard extends StatelessWidget {
 
     // 3. Location with Open in Maps
     if (metadata.location != null && metadata.location!.isNotEmpty) {
-      rows.add(
-        _PropertyRow(
-          icon: Icons.place_outlined,
-          label: 'Location',
+      final loc = metadata.location!;
+      final hasAddress = loc.address.trim().isNotEmpty;
+      final hasCoords = loc.coordinatesString.isNotEmpty;
+
+      Widget openInMapsButton() => InkWell(
+        borderRadius: AppRadii.borderSm,
+        onTap: () {
+          LocationService().openInMaps(
+            loc.latitude,
+            loc.longitude,
+            address: loc.address,
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      metadata.location!.displayString,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (metadata.location!.address.isNotEmpty &&
-                        metadata.location!.coordinatesString.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1.0),
-                        child: Text(
-                          metadata.location!.coordinatesString,
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              Icon(
+                Icons.map_outlined,
+                size: 13.0,
+                color: colors.accent,
               ),
-              InkWell(
-                borderRadius: AppRadii.borderSm,
-                onTap: () {
-                  LocationService().openInMaps(
-                    metadata.location!.latitude,
-                    metadata.location!.longitude,
-                    address: metadata.location!.address,
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.map_outlined,
-                        size: 13.0,
-                        color: colors.accent,
-                      ),
-                      const SizedBox(width: 4.0),
-                      Text(
-                        'Open in Maps',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.accent,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(width: 4.0),
+              Text(
+                'Open in Maps',
+                style: AppTypography.caption.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11.5,
                 ),
               ),
             ],
           ),
         ),
       );
+
+      if (hasAddress) {
+        rows.add(
+          _PropertyRow(
+            icon: Icons.place_outlined,
+            label: 'Location',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  loc.displayString,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                    height: 1.35,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3.0),
+                  child: Row(
+                    children: [
+                      if (hasCoords)
+                        Expanded(
+                          child: Text(
+                            loc.coordinatesString,
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textTertiary,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      openInMapsButton(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        rows.add(
+          _PropertyRow(
+            icon: Icons.place_outlined,
+            label: 'Location',
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    loc.displayString,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                openInMapsButton(),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
     // 4. Source
