@@ -356,3 +356,28 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     );
   }
 }
+
+/// A specialized [DocumentNodeMarkdownSerializer] that serializes [TableBlockNode]
+/// to Markdown and guarantees a blank line before following nodes.
+class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<TableBlockNode> {
+  const QuietTableBlockNodeSerializer();
+
+  @override
+  String doSerialization(
+    Document document,
+    TableBlockNode node, {
+    NodeSelection? selection,
+  }) {
+    const defaultSerializer = TableBlockNodeSerializer();
+    final serialized = defaultSerializer.serialize(document, node, selection: selection);
+    if (serialized == null || serialized.isEmpty) return serialized ?? '';
+
+    final buffer = StringBuffer(serialized);
+    final nodeIndex = document.getNodeIndexById(node.id);
+    if (nodeIndex != document.nodeCount - 1) {
+      buffer.writeln();
+    }
+    return buffer.toString();
+  }
+}
+

@@ -5,6 +5,7 @@ import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
@@ -58,6 +59,75 @@ void main() {
       doc.replaceNodeById(task.id, task.copyTaskWith(isComplete: true));
       final serialized = serializeDocumentToMarkdown(doc);
       expect(serialized, contains('- [x] Incomplete task'));
+    });
+
+    test('QuietImageNodeSerializer and normalizeMarkdown round trips perfectly', () {
+      final customSerializers = [
+        const QuietImageNodeSerializer(),
+        const QuietTableBlockNodeSerializer(),
+      ];
+
+      // Test Case 1: Heading -> Image -> Paragraph
+      const md1 = '# Heading\n![Alt](https://example.com/pic.png)\nSome text';
+      final doc1 = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(md1));
+      expect(doc1.nodeCount, equals(3));
+      expect(doc1.getNodeAt(0), isA<ParagraphNode>());
+      expect(doc1.getNodeAt(1), isA<ImageNode>());
+      expect(doc1.getNodeAt(2), isA<ParagraphNode>());
+
+      final serialized1 = serializeDocumentToMarkdown(
+        doc1,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: customSerializers,
+      );
+      final doc1Re = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized1));
+      expect(doc1Re.nodeCount, equals(3));
+      expect(doc1Re.getNodeAt(1), isA<ImageNode>());
+      expect((doc1Re.getNodeAt(1) as ImageNode).imageUrl, equals('https://example.com/pic.png'));
+
+      // Test Case 2: Paragraph -> Image -> Paragraph
+      const md2 = 'First paragraph\n\n![Alt](https://example.com/pic.png)\n\nSecond paragraph';
+      final doc2 = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(md2));
+      final serialized2 = serializeDocumentToMarkdown(
+        doc2,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: customSerializers,
+      );
+      final doc2Re = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized2));
+      expect(doc2Re.nodeCount, equals(3));
+      expect(doc2Re.getNodeAt(1), isA<ImageNode>());
+
+      // Test Case 3: Consecutive Images
+      final doc3 = MutableDocument(nodes: [
+        ImageNode(id: '1', imageUrl: 'https://example.com/pic1.png'),
+        ImageNode(id: '2', imageUrl: 'https://example.com/pic2.png'),
+      ]);
+      final serialized3 = serializeDocumentToMarkdown(
+        doc3,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: customSerializers,
+      );
+      final doc3Re = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized3));
+      expect(doc3Re.nodeCount, equals(2));
+      expect(doc3Re.getNodeAt(0), isA<ImageNode>());
+      expect(doc3Re.getNodeAt(1), isA<ImageNode>());
+
+      // Test Case 4: Table followed by text
+      const md4 = '| Col 1 | Col 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |\nSome text';
+      final doc4 = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(md4));
+      expect(doc4.nodeCount, equals(2));
+      expect(doc4.getNodeAt(0), isA<TableBlockNode>());
+      expect(doc4.getNodeAt(1), isA<ParagraphNode>());
+
+      final serialized4 = serializeDocumentToMarkdown(
+        doc4,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: customSerializers,
+      );
+      final doc4Re = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized4));
+      expect(doc4Re.nodeCount, equals(2));
+      expect(doc4Re.getNodeAt(0), isA<TableBlockNode>());
+      expect(doc4Re.getNodeAt(1), isA<ParagraphNode>());
     });
   });
 
@@ -187,6 +257,64 @@ void main() {
       expect(find.byType(ImageComponent), findsOneWidget);
     });
 
+    testWidgets('preserves ImageNode across edit -> preview -> edit toggle cycle', (tester) async {
+      String currentMarkdown = '# My Note\n\n![Image](https://example.com/pic.png)\n\nCaption text';
+      bool isPreview = false;
+      final controller = QuietSuperEditorController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return ProviderScope(
+              overrides: [
+                typographySettingsProvider.overrideWith(
+                  (ref) => _MockTypographyNotifier(const TypographySettings()),
+                ),
+              ],
+              child: MaterialApp(
+                theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
+                home: Scaffold(
+                  body: isPreview
+                      ? Text('Preview: $currentMarkdown')
+                      : QuietSuperEditor(
+                          initialMarkdown: currentMarkdown,
+                          controller: controller,
+                          onChanged: (val) {
+                            currentMarkdown = val;
+                          },
+                        ),
+                  floatingActionButton: IconButton(
+                    icon: const Icon(Icons.toggle_off),
+                    onPressed: () => setState(() => isPreview = !isPreview),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ImageComponent), findsOneWidget);
+
+      // Modify document so onChanged serializes document to currentMarkdown
+      controller.insertSnippet(' edited');
+      await tester.pumpAndSettle();
+
+      // Toggle to preview
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ImageComponent), findsNothing);
+
+      // Toggle back to edit
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ImageComponent), findsOneWidget);
+    });
+
     testWidgets('preserves frontmatter prefix when stripFrontmatter is true', (tester) async {
       const frontmatter = '---\ntitle: Test Note\ntags:\n  - sample\n---\n';
       const body = 'Actual body text here.';
@@ -298,6 +426,27 @@ void main() {
       controller.redo();
       expect(controller.canUndo, isTrue);
 
+      controller.dispose();
+    });
+
+    test('insertSnippet with image markdown creates ImageNode', () {
+      final doc = deserializeMarkdownToDocument('Hello world\n');
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(document: doc, composer: composer);
+      final controller = QuietSuperEditorController();
+      controller.attach(editor, composer);
+
+      final node = doc.first as TextNode;
+      composer.setSelectionWithReason(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 5)),
+        ),
+      );
+
+      controller.insertSnippet('![Alt](https://example.com/pic.png)');
+      expect(doc.any((n) => n is ImageNode), isTrue);
+      final imageNode = doc.firstWhere((n) => n is ImageNode) as ImageNode;
+      expect(imageNode.imageUrl, equals('https://example.com/pic.png'));
       controller.dispose();
     });
   });

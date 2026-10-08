@@ -7802,5 +7802,52 @@ Following the integration of the formatting toolbar and dark mode caret visibili
 - Test Suite: `test/editor/quiet_super_editor_test.dart` (11 unit & widget tests covering task checkboxes, task serialization, table rendering, table node deletion, image node rendering, dark mode caret, undo/redo).
 - Full Test Suite: `flutter test` (**all 1,631 tests passed, 0 failures**).
 
+---
+
+## 154. Super Editor Image & Block Node Persistence Across Preview Toggle (October 2026)
+
+### 1. Overview & Bug Analysis
+A bug was reported where an image entered in Super Editor mode appeared upon initial insertion, but after switching to preview mode and toggling back to edit mode, the image failed to show up.
+
+### 2. Root Cause Investigation
+1. **Single-Newline Serialization**:
+   - SuperEditor's built-in `ImageNodeSerializer` and `TableBlockNodeSerializer` did not emit a trailing newline after the node.
+   - When joined in `serializeDocumentToMarkdown` via `buffer.writeln("")`, subsequent nodes were separated by only a single newline (`\n`), producing `![alt](url)\nFollowing text`.
+   - In CommonMark/Markdown, a single newline does not break a paragraph. Consequently, `![alt](url)\nFollowing text` was parsed by `package:markdown` as a single paragraph containing both an image tag and text.
+   - SuperEditor's `_InlineMarkdownImageVisitor.isImage` strictly requires that block images contain no text (`_textStack.first.isEmpty`). Because the paragraph contained text from the next line, it rejected the block image and dropped the `ImageNode`, keeping only the text as a `ParagraphNode`.
+2. **Raw Plain Text Insertion**:
+   - `QuietSuperEditorController.insertSnippet` executed `InsertPlainTextAtCaretRequest(snippet)`, inserting the raw string `![alt](url)` as text into the active paragraph instead of parsing it into an `ImageNode`.
+3. **Editor Screen Attachment Snippet Isolation**:
+   - `_pickAndImportImage` directly modified `_contentController.value` with `\n${snippet}\n` without routing through `_superEditorController` or using double newlines for block isolation.
+
+### 3. Architectural Adjustments & Implementation Details
+
+1. **`QuietImageNodeSerializer` & `QuietTableBlockNodeSerializer`**:
+   - [`lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart) & [`lib/features/editor/presentation/widgets/super_editor/quiet_table_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_table_component.dart):
+   - Created custom `NodeTypedDocumentNodeMarkdownSerializer` classes for both `ImageNode` and `TableBlockNode`.
+   - If the node is not the last node in the document, appends a trailing newline (`buffer.writeln()`), guaranteeing that `serializeDocumentToMarkdown` emits a full blank line (`\n\n`) between block nodes and adjacent paragraphs.
+   - Registered both custom serializers in `QuietSuperEditor._onDocumentChange`.
+
+2. **Markdown Normalization before Deserialization (`normalizeMarkdownForSuperEditor`)**:
+   - Added `normalizeMarkdownForSuperEditor(String markdown)` in `quiet_image_component.dart`.
+   - Iterates lines and ensures any standalone image tag (`![alt](url)`) or table block is framed with blank lines (`\n\n`) before being deserialized by `deserializeMarkdownToDocument`.
+   - Prevents existing or imported notes with single-newline formatting from losing images when deserialized in `QuietSuperEditor._initEditor()`.
+
+3. **Structured Content Insertion in `QuietSuperEditorController`**:
+   - [`lib/features/editor/application/quiet_super_editor_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/quiet_super_editor_controller.dart):
+   - Updated `insertSnippet(String snippet)` to inspect whether the snippet contains block Markdown (images or tables).
+   - If block markdown is detected, normalizes and deserializes the snippet, executing `PasteStructuredContentEditorRequest` with the structured document at the composer's caret. This splits the current paragraph cleanly and embeds the `ImageNode` or `TableBlockNode` directly.
+
+4. **Editor Screen Snippet Routing**:
+   - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+   - Updated `_pickAndImportImage` to use `\n\n${importResult.markdownSnippet}\n\n` and route to `_insertSnippetAtCursor` when `_isSuperEditor` is active.
+   - Updated pasted and imported file/image snippets across `editor_screen.dart` to use double newlines (`\n\n`).
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Dedicated Tests: `test/editor/quiet_super_editor_test.dart` (14 passing tests, including image round-trip with following paragraphs, table round-trip, `insertSnippet` structured insertion, and full widget edit -> preview -> edit toggle cycle).
+- Full Test Suite: `flutter test` (**all 1,634 tests passed, 0 failures**).
+
+
 
 

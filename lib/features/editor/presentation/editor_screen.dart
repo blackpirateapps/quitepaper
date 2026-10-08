@@ -2637,26 +2637,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
         );
 
-        final val = _contentController.value;
-        final text = val.text;
-        final sel = val.selection;
-        final start = sel.isValid ? sel.start : text.length;
-        final end = sel.isValid ? sel.end : text.length;
+        final snippet = '\n\n${importResult.markdownSnippet}\n\n';
+        if (_isSuperEditor) {
+          _insertSnippetAtCursor(snippet);
+        } else {
+          final val = _contentController.value;
+          final text = val.text;
+          final sel = val.selection;
+          final start = sel.isValid ? sel.start : text.length;
+          final end = sel.isValid ? sel.end : text.length;
 
-        final snippet = '\n${importResult.markdownSnippet}\n';
-        final newText = text.replaceRange(start, end, snippet);
-        final newCursor = start + snippet.length;
+          final newText = text.replaceRange(start, end, snippet);
+          final newCursor = start + snippet.length;
 
-        _contentController.value = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newCursor),
-        );
+          _contentController.value = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(offset: newCursor),
+          );
 
-        if (!_contentFocusNode.hasFocus) {
-          _contentFocusNode.requestFocus();
+          if (!_contentFocusNode.hasFocus) {
+            _contentFocusNode.requestFocus();
+          }
+
+          _onContentChanged();
         }
-
-        _onContentChanged();
       }
     } catch (e) {
       if (mounted) {
@@ -2829,7 +2833,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 preferredAltText: name,
               ),
             );
-            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+            _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -2849,7 +2853,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 title: nameWithoutExt,
               ),
             );
-            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+            _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -2870,7 +2874,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 noteId: widget.note.id,
               ),
             );
-            _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+            _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -2907,7 +2911,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             preferredAltText: 'Pasted Image',
           ),
         );
-        _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+        _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2984,7 +2988,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               preferredAltText: name,
             ),
           );
-          _insertSnippetAtCursor('\n${importResult.markdownSnippet}\n');
+          _insertSnippetAtCursor('\n\n${importResult.markdownSnippet}\n\n');
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -3004,7 +3008,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               title: nameWithoutExt,
             ),
           );
-          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -3015,7 +3019,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       } else if (['.md', '.markdown', '.txt'].contains(ext)) {
         try {
           final content = await file.readAsString();
-          _insertSnippetAtCursor('\n$content\n');
+          _insertSnippetAtCursor('\n\n$content\n\n');
         } catch (_) {
           final bytes = await file.readAsBytes();
           final attachmentService = ref.read(attachmentServiceProvider);
@@ -3028,7 +3032,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               noteId: widget.note.id,
             ),
           );
-          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
         }
       } else {
         try {
@@ -3043,7 +3047,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               noteId: widget.note.id,
             ),
           );
-          _insertSnippetAtCursor('\n${res.markdownSnippet}\n');
+          _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

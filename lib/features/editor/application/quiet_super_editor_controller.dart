@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:super_editor/super_editor.dart';
 
+import '../presentation/widgets/super_editor/quiet_image_component.dart';
+
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
 ///
@@ -471,6 +473,8 @@ class QuietSuperEditorController extends ChangeNotifier {
   }
 
   /// Inserts an arbitrary text snippet at the current caret, or at the end of the document.
+  /// If the snippet contains block-level markdown (images, tables), it is deserialized
+  /// and pasted as structured document content.
   void insertSnippet(String snippet) {
     if (_editor == null) return;
     if (_composer?.selection == null && _editor!.document.isNotEmpty) {
@@ -488,6 +492,24 @@ class QuietSuperEditorController extends ChangeNotifier {
     }
 
     if (_composer?.selection != null) {
+      final trimmed = snippet.trim();
+      final hasBlockImage = trimmed.contains(RegExp(r'!\[.*?\]\(.*?\)'));
+      final hasBlockTable = trimmed.startsWith('|') && trimmed.contains('\n|');
+
+      if (hasBlockImage || hasBlockTable) {
+        final normalized = normalizeMarkdownForSuperEditor(trimmed);
+        final structuredDoc = deserializeMarkdownToDocument(normalized);
+        if (structuredDoc.isNotEmpty) {
+          _editor!.execute([
+            PasteStructuredContentEditorRequest(
+              content: structuredDoc,
+              pastePosition: _composer!.selection!.extent,
+            ),
+          ]);
+          return;
+        }
+      }
+
       _editor!.execute([
         InsertPlainTextAtCaretRequest(snippet),
       ]);

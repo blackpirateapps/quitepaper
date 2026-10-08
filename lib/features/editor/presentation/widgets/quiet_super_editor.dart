@@ -72,10 +72,11 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       _frontmatterPrefix = null;
     }
 
-    final trimmed = bodyMarkdown.trim();
+    final normalized = normalizeMarkdownForSuperEditor(bodyMarkdown);
+    final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
-        : deserializeMarkdownToDocument(bodyMarkdown);
+        : deserializeMarkdownToDocument(normalized);
 
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
@@ -124,6 +125,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       final bodyMarkdown = serializeDocumentToMarkdown(
         _editor.document,
         syntax: MarkdownSyntax.normal,
+        customNodeSerializers: const [
+          QuietImageNodeSerializer(),
+          QuietTableBlockNodeSerializer(),
+        ],
       );
       final fullMarkdown = _frontmatterPrefix != null
           ? '$_frontmatterPrefix$bodyMarkdown'
