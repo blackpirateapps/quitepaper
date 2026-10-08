@@ -7,6 +7,9 @@ import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
+import 'super_editor/quiet_image_component.dart';
+import 'super_editor/quiet_table_component.dart';
+import 'super_editor/quiet_task_component.dart';
 
 /// Embedded block-based document editor surface powered by SuperEditor.
 ///
@@ -26,6 +29,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
     this.readOnly = false,
     this.stripFrontmatter = false,
     this.hintText,
+    this.noteId,
   });
 
   final String initialMarkdown;
@@ -35,6 +39,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   final bool readOnly;
   final bool stripFrontmatter;
   final String? hintText;
+  final String? noteId;
 
   @override
   ConsumerState<QuietSuperEditor> createState() => _QuietSuperEditorState();
@@ -310,6 +315,12 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               focusNode: widget.focusNode,
               shrinkWrap: true,
               stylesheet: stylesheet,
+              componentBuilders: [
+                QuietTaskComponentBuilder(_editor),
+                QuietImageComponentBuilder(noteId: widget.noteId),
+                QuietTableComponentBuilder(editor: _editor),
+                ...defaultComponentBuilders,
+              ],
               selectionStyle: SelectionStyles(
                 selectionColor: colors.selection,
               ),

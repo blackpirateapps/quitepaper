@@ -5,8 +5,11 @@ import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
 class _MockTypographyNotifier extends TypographySettingsNotifier {
   _MockTypographyNotifier(TypographySettings settings) : super(null) {
@@ -102,8 +105,36 @@ void main() {
       expect(find.text('This is a super editor note.', findRichText: true), findsOneWidget);
     });
 
-    testWidgets('renders task nodes with checkboxes', (tester) async {
+    testWidgets('renders task nodes with QuietTaskComponent and toggles checkboxes', (tester) async {
       const markdown = '- [ ] First task\n- [x] Second task';
+      String? updatedMarkdown;
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: markdown,
+          onChanged: (val) {
+            updatedMarkdown = val;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuietTaskComponent), findsNWidgets(2));
+      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
+      expect(find.text('First task', findRichText: true), findsOneWidget);
+      expect(find.text('Second task', findRichText: true), findsOneWidget);
+
+      // Tap unchecked box
+      await tester.tap(find.byIcon(PhosphorIconsRegular.square));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(PhosphorIconsFill.checkSquare), findsNWidgets(2));
+      expect(updatedMarkdown, contains('- [x] First task'));
+    });
+
+    testWidgets('renders table block node with QuietTableComponent and shows table view', (tester) async {
+      const markdown = '| Col 1 | Col 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |';
 
       await tester.pumpWidget(
         buildTestWidget(
@@ -113,9 +144,47 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(SuperEditor), findsOneWidget);
-      expect(find.text('First task', findRichText: true), findsOneWidget);
-      expect(find.text('Second task', findRichText: true), findsOneWidget);
+      expect(find.byType(QuietTableComponent), findsOneWidget);
+      expect(find.text('Col 1', findRichText: true), findsOneWidget);
+      expect(find.text('Cell 1', findRichText: true), findsOneWidget);
+      expect(find.text('Edit', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('deletes table block node when trash icon is tapped', (tester) async {
+      const markdown = '| Col 1 | Col 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |';
+      String? updatedMarkdown;
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: markdown,
+          onChanged: (val) {
+            updatedMarkdown = val;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuietTableComponent), findsOneWidget);
+
+      await tester.tap(find.byIcon(PhosphorIconsRegular.trash));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuietTableComponent), findsNothing);
+      expect(updatedMarkdown, isNot(contains('Col 1')));
+    });
+
+    testWidgets('renders image node via QuietImageComponentBuilder', (tester) async {
+      const markdown = '![Alt](https://example.com/pic.png)';
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: markdown,
+          onChanged: (_) {},
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ImageComponent), findsOneWidget);
     });
 
     testWidgets('preserves frontmatter prefix when stripFrontmatter is true', (tester) async {

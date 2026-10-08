@@ -49,6 +49,7 @@ class MarkdownEditor extends StatefulWidget {
     this.onNoteLinkPrompt,
     this.onRichControllerChanged,
     this.superController,
+    this.noteId,
     this.onKeyEvent,
     this.onPaste,
   });
@@ -74,6 +75,9 @@ class MarkdownEditor extends StatefulWidget {
 
   /// Optional controller bridging SuperEditor with formatting toolbar and shortcuts.
   final QuietSuperEditorController? superController;
+
+  /// Current note identifier for asset and document resolution.
+  final String? noteId;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -485,6 +489,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         readOnly: widget.readOnly,
         stripFrontmatter: widget.stripFrontmatter,
         hintText: widget.hintText,
+        noteId: widget.noteId,
         onChanged: (newMarkdown) {
           widget.controller.text = newMarkdown;
           widget.onChanged?.call(newMarkdown);

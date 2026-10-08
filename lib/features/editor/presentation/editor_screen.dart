@@ -1976,6 +1976,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                       _richDocumentController = ctrl;
                                     },
                                     superController: _superEditorController,
+                                    noteId: widget.note.id,
                                     onKeyEvent: _handleEditorKeyEvent,
                                     onPaste: _handlePaste,
                                   ),
@@ -2344,6 +2345,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final result = await TableInsertDialog.show(context);
     if (result != null) {
+      if (_isSuperEditor) {
+        final tableSnippet = MarkdownTableFormatter.insertTable(
+          value: const TextEditingValue(),
+          rows: result.rows,
+          columns: result.columns,
+        ).text;
+        _superEditorController.insertSnippet('\n$tableSnippet\n');
+        return;
+      }
       if (_isWysiwyg && _richDocumentController != null) {
         _richDocumentController!.insertTable(rows: result.rows, cols: result.columns);
         return;

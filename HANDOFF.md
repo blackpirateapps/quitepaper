@@ -7750,4 +7750,57 @@ Following the initial introduction of Super Editor mode (`EditorEditingStyle.sup
 - Dedicated Tests: `test/editor/quiet_super_editor_test.dart` (8 passing unit & widget tests verifying document serialization, task toggles, controller attachment, bold toggle, headings, undo/redo, and dark mode caret builder).
 - Full Test Suite: `flutter test` (**all 1,628 tests passed, 0 failures**).
 
+---
+
+## 153. Super Editor Checklist Polish, Encrypted Image Attachments, & Interactive Table Component (October 2026)
+
+### 1. Overview & Motivation
+Following the integration of the formatting toolbar and dark mode caret visibility in Super Editor mode, three essential content component improvements were implemented:
+1. **Checklist Polish (`TaskNode`)**:
+   - Stock `super_editor` uses a standard 48dp Material `Checkbox` with wide margins and noticeable baseline misalignment. In Quiet Paper's warm editorial design, checklists must use Phosphor icons (`PhosphorIconsRegular.square` and `PhosphorIconsFill.checkSquare`), tight 8–10dp gap, zero extra indent, and baseline alignment matching normal paragraph text.
+2. **Local Encrypted Image & Attachment Support (`ImageNode`)**:
+   - Stock `ImageComponent` renders raw network URLs (`http(s)://`) directly via standard Flutter image widgets, failing for Quiet Paper's encrypted local attachments (`attachment:<UUID>`, `qp://asset/<UUID>`), documents, and encrypted vault storage.
+3. **Interactive & Editable Tables (`TableBlockNode`)**:
+   - `super_editor` includes an experimental `TableBlockNode` and parser, but lacks an inline cell editor widget. By embedding Quiet Paper's established `MarkdownTableView` inside Super Editor alongside `MarkdownTableEditor` modal editing, users can seamlessly view and edit table rows, columns, alignments, and cell text directly within the Super Editor canvas.
+
+### 2. Architectural Adjustments & Implementation Details
+
+1. **`QuietTaskComponentBuilder` & `QuietTaskComponent`**:
+   - [`lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart):
+     - Replaces SuperEditor's default `TaskComponentBuilder`.
+     - Builds a custom `QuietTaskComponent` implementing `ProxyDocumentComponent` and `ProxyTextComposable`.
+     - Renders an interactive Phosphor icon checkbox with `AppColors.accent` check color and `AppColors.textSecondary` outline.
+     - Features precise baseline positioning (`top: 2.0`, `right: 8.0`) inside a 22×22 hit target for effortless finger and stylus tapping without disrupting document layout.
+     - Integrates SuperEditor's `ChangeTaskCompletionRequest` to update task state and serialize directly to standard Markdown `- [ ]` / `- [x]`.
+
+2. **`QuietImageComponentBuilder`**:
+   - [`lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart):
+     - Overrides `ImageComponentBuilder` to route image URLs through `QuietPaperUri`.
+     - Renders encrypted local note attachments and vault assets via `QuietAssetImageView(noteId: noteId, uri: parsedUri)`.
+     - Supports non-image document attachments via `QuietDocumentCard(uri: parsedUri)`.
+     - Falls back cleanly to regular web image URLs with rounded corners and error placeholders.
+
+3. **`QuietTableComponentBuilder` & `QuietTableComponent`**:
+   - [`lib/features/editor/presentation/widgets/super_editor/quiet_table_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_table_component.dart):
+     - Intercepts `TableBlockNode` (parsed via `super_editor_markdown`'s GFM table parser).
+     - Renders a clean editorial container wrapping `MarkdownTableView` with horizontal scrolling, subtle borders, and header row tinting.
+     - Embeds an editorial header bar showing table dimensions (`Table (r × c)`), an "Edit" action button, and a "Delete" trash action executing `DeleteNodeRequest`.
+     - Tapping any table cell or the "Edit" action opens Quiet Paper's `MarkdownTableEditor` modal sheet. Modifying rows, columns, alignment, or cell content updates the document via `ReplaceNodeRequest`, seamlessly persisting updated Markdown tables.
+
+4. **Editor Wiring & Table Insertion**:
+   - [`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart):
+     - Added optional `noteId` property for asset decryption context.
+     - Pre-pended `QuietTaskComponentBuilder`, `QuietImageComponentBuilder`, and `QuietTableComponentBuilder` to `componentBuilders` ahead of default builders.
+   - [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart):
+     - Forwarded `noteId` down to `QuietSuperEditor`.
+   - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Forwarded `note.id` into `MarkdownEditor`.
+     - Updated `_handleInsertTable` to insert standard table Markdown snippets into `QuietSuperEditorController` when `_isSuperEditor` is active.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Test Suite: `test/editor/quiet_super_editor_test.dart` (11 unit & widget tests covering task checkboxes, task serialization, table rendering, table node deletion, image node rendering, dark mode caret, undo/redo).
+- Full Test Suite: `flutter test` (**all 1,631 tests passed, 0 failures**).
+
+
 
