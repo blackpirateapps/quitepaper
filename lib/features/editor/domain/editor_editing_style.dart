@@ -1,5 +1,8 @@
 /// Supported editing styles for the Quiet Paper Markdown editor.
 enum EditorEditingStyle {
+  /// Super Editor mode: Block-based editor powered by SuperEditor with native task checkboxes.
+  superEditor,
+
   /// WYSIWYG mode (Beta): Markdown syntax is hidden during editing for a calm, Bear-like writing experience.
   wysiwyg,
 
@@ -12,6 +15,8 @@ enum EditorEditingStyle {
   /// Human-readable label for UI display.
   String get label {
     switch (this) {
+      case EditorEditingStyle.superEditor:
+        return 'Super Editor';
       case EditorEditingStyle.wysiwyg:
         return 'Visual';
       case EditorEditingStyle.markdown:
@@ -22,6 +27,8 @@ enum EditorEditingStyle {
   /// Descriptive subtitle for settings presentation.
   String get description {
     switch (this) {
+      case EditorEditingStyle.superEditor:
+        return 'Block-based editor with native task checkboxes';
       case EditorEditingStyle.wysiwyg:
         return 'Clean visual writing surface without Markdown syntax';
       case EditorEditingStyle.markdown:
@@ -33,6 +40,12 @@ enum EditorEditingStyle {
   static EditorEditingStyle fromString(String? value) {
     if (value == 'markdown') {
       return EditorEditingStyle.markdown;
+    }
+    if (value == 'superEditor' || value == 'super_editor') {
+      return EditorEditingStyle.superEditor;
+    }
+    if (value == 'wysiwyg') {
+      return EditorEditingStyle.wysiwyg;
     }
     return EditorEditingStyle.wysiwyg;
   }

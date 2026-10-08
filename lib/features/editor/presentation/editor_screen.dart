@@ -90,7 +90,7 @@ import '../../../core/speech/presentation/speech_recording_bar.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import 'widgets/editor_quick_actions_bar.dart';
 
-enum _OverflowMenuPage { main, insert, share, privacy }
+enum _OverflowMenuPage { main, insert, share, privacy, editorStyle }
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -1958,7 +1958,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
     final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
 
-    if (editorState.isPreviewMode || editorState.isReadOnly) {
+    if (editorState.isPreviewMode ||
+        editorState.isReadOnly ||
+        effectiveEditingStyle == EditorEditingStyle.superEditor) {
       return const SizedBox.shrink();
     }
 
@@ -3501,6 +3503,150 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         );
 
+      case _OverflowMenuPage.editorStyle:
+        final globalStyle = ref.watch(editorEditingStyleProvider);
+        final currentStyle = ref.watch(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
+
+        return Column(
+          key: const ValueKey('overflow_editor_style_submenu'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xs,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      PhosphorIconsRegular.arrowLeft,
+                      color: colors.textSecondary,
+                      size: 20,
+                    ),
+                    tooltip: 'Back',
+                    onPressed: () => onNavigate(_OverflowMenuPage.main),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Editor Style',
+                    style: AppTypography.headline.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.divider),
+            const SizedBox(height: AppSpacing.xs),
+            ListTile(
+              leading: Icon(
+                Icons.auto_awesome_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Super Editor',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Block-based editor with native task checkboxes',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textTertiary,
+                ),
+              ),
+              trailing: currentStyle == EditorEditingStyle.superEditor
+                  ? Icon(Icons.check_rounded, color: colors.accent, size: 20)
+                  : null,
+              onTap: () {
+                _switchEditingStyle(EditorEditingStyle.superEditor, notifier, sheetCtx);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.visibility_outlined,
+                color: colors.textSecondary,
+              ),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Visual',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5.5,
+                      vertical: 1.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4.0),
+                      border: Border.all(
+                        color: colors.accent.withValues(alpha: 0.35),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      'BETA',
+                      style: AppTypography.caption.copyWith(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: colors.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              subtitle: Text(
+                'Clean visual writing surface without Markdown syntax',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textTertiary,
+                ),
+              ),
+              trailing: currentStyle == EditorEditingStyle.wysiwyg
+                  ? Icon(Icons.check_rounded, color: colors.accent, size: 20)
+                  : null,
+              onTap: () {
+                _switchEditingStyle(EditorEditingStyle.wysiwyg, notifier, sheetCtx);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.code_rounded,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Markdown',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Show Markdown syntax while editing',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textTertiary,
+                ),
+              ),
+              trailing: currentStyle == EditorEditingStyle.markdown
+                  ? Icon(Icons.check_rounded, color: colors.accent, size: 20)
+                  : null,
+              onTap: () {
+                _switchEditingStyle(EditorEditingStyle.markdown, notifier, sheetCtx);
+              },
+            ),
+          ],
+        );
+
       case _OverflowMenuPage.main:
         return Column(
           key: const ValueKey('overflow_main_menu'),
@@ -3742,80 +3888,98 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               ),
               Builder(
                 builder: (bCtx) {
-                  final globalStyle = ref.read(editorEditingStyleProvider);
-                  final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
+                  final globalStyle = ref.watch(editorEditingStyleProvider);
+                  final currentStyle = ref.watch(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
                   final isCurrentWysiwyg = currentStyle == EditorEditingStyle.wysiwyg;
 
-                  return ListTile(
-                    leading: Icon(
-                      isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
-                      color: colors.textSecondary,
-                    ),
-                    title: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          isCurrentWysiwyg ? Icons.code_rounded : Icons.visibility_outlined,
+                          color: colors.textSecondary,
+                        ),
+                        title: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isCurrentWysiwyg ? 'Edit Markdown' : 'Edit Visually',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            if (!isCurrentWysiwyg && currentStyle != EditorEditingStyle.superEditor) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5.5,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4.0),
+                                  border: Border.all(
+                                    color: colors.accent.withValues(alpha: 0.35),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  'BETA',
+                                  style: AppTypography.caption.copyWith(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                    color: colors.accent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          isCurrentWysiwyg
+                              ? 'Show raw Markdown syntax'
+                              : 'Hide Markdown syntax (Beta)',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                          ),
+                        ),
+                        onTap: () {
+                          _switchEditingStyle(
+                            isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
+                            notifier,
+                            sheetCtx,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          currentStyle == EditorEditingStyle.superEditor
+                              ? Icons.auto_awesome_rounded
+                              : Icons.tune_rounded,
+                          color: colors.textSecondary,
+                        ),
+                        title: Text(
+                          'Editor style (${currentStyle.label})',
                           style: AppTypography.bodyMedium.copyWith(
                             color: colors.textPrimary,
                           ),
                         ),
-                        if (!isCurrentWysiwyg) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5.5,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4.0),
-                              border: Border.all(
-                                color: colors.accent.withValues(alpha: 0.35),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              'BETA',
-                              style: AppTypography.caption.copyWith(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.6,
-                                color: colors.accent,
-                              ),
-                            ),
+                        subtitle: Text(
+                          currentStyle.description,
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
                           ),
-                        ],
-                      ],
-                    ),
-                    subtitle: Text(
-                      isCurrentWysiwyg
-                          ? 'Show raw Markdown syntax'
-                          : 'Hide Markdown syntax (Beta)',
-                      style: AppTypography.caption.copyWith(
-                        color: colors.textTertiary,
+                        ),
+                        trailing: Icon(
+                          PhosphorIconsRegular.caretRight,
+                          color: colors.textTertiary,
+                          size: 18,
+                        ),
+                        onTap: () => onNavigate(_OverflowMenuPage.editorStyle),
                       ),
-                    ),
-                    onTap: () {
-                      Navigator.of(sheetCtx).pop();
-                      if (isCurrentWysiwyg) {
-                        if (_richDocumentController != null) {
-                          final md = _richDocumentController!.toMarkdown();
-                          _contentController.text = md;
-                          notifier.updateContent(md);
-                        }
-                      } else {
-                        if (_richDocumentController != null) {
-                          _richDocumentController!.setMarkdown(_contentController.text);
-                          final json = _richDocumentController!.toJsonString();
-                          _contentController.text = json;
-                          notifier.updateContent(json);
-                        }
-                      }
-                      notifier.setPerNoteEditingStyle(
-                        isCurrentWysiwyg ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg,
-                      );
-                    },
+                    ],
                   );
                 },
               ),
@@ -3880,6 +4044,34 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         );
     }
+  }
+
+  void _switchEditingStyle(
+    EditorEditingStyle newStyle,
+    EditorNotifier notifier,
+    BuildContext sheetCtx,
+  ) {
+    Navigator.of(sheetCtx).pop();
+    final globalStyle = ref.read(editorEditingStyleProvider);
+    final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
+    if (currentStyle == newStyle) return;
+
+    if (currentStyle == EditorEditingStyle.wysiwyg && newStyle != EditorEditingStyle.wysiwyg) {
+      if (_richDocumentController != null) {
+        final md = _richDocumentController!.toMarkdown();
+        _contentController.text = md;
+        notifier.updateContent(md);
+      }
+    } else if (currentStyle != EditorEditingStyle.wysiwyg && newStyle == EditorEditingStyle.wysiwyg) {
+      if (_richDocumentController != null) {
+        _richDocumentController!.setMarkdown(_contentController.text);
+        final json = _richDocumentController!.toJsonString();
+        _contentController.text = json;
+        notifier.updateContent(json);
+      }
+    }
+
+    notifier.setPerNoteEditingStyle(newStyle);
   }
 
   void _showOverflowMenu(

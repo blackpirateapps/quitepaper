@@ -7650,3 +7650,49 @@ In addition, the journal models previously mixed Material icons with the rest of
 - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Full Test Suite: `flutter test` (**all 1,620 tests passed, 0 failures**).
 - Non-constant IconData verification: `git grep "IconData("` confirmed zero dynamic non-const `IconData` calls in codebase.
+
+---
+
+## 151. SuperEditor Integration as 3rd Editor Mode with Native Task Checklists (October 2026)
+
+### 1. Overview & Motivation
+Checklists and interactive task items (`- [ ]`, `- [x]`) in standard Flutter `EditableText` / `TextField` implementations suffer from cursor jumping, `WidgetSpan` / `\uFFFC` touch-stealing, and caret desynchronization when tapping checkboxes directly within the text layout.
+To resolve this while keeping the writing experience calm and intuitive:
+- Integrated `super_editor` (`^0.3.0-dev.52`) as a 3rd distinct editor mode: **Super Editor** (`EditorEditingStyle.superEditor`), joining the existing **Visual** (in-memory AST) and **Markdown** (source text) modes.
+- SuperEditor provides a native block-based document architecture where task checklist items are represented as first-class `TaskNode` models with dedicated `TaskComponentBuilder` checkboxes. Checkbox taps cleanly execute `ChangeTaskCompletionRequest` without cursor fighting or touch conflicts.
+- Adheres to standard CommonMark / GitHub Flavored Markdown (GFM) persistence via SuperEditor's built-in `deserializeMarkdownToDocument` and `serializeDocumentToMarkdown` serializers. Notes are saved as clean Markdown, allowing seamless bidirectional opening and editing across all three modes (Super Editor, Visual, Markdown).
+
+### 2. Architectural Adjustments & Implementation Details
+1. **Domain Model & Persistence**:
+   - [`lib/features/editor/domain/editor_editing_style.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/editor_editing_style.dart): Added `EditorEditingStyle.superEditor` with label `'Super Editor'` and description `'Block-based editor with native task checkboxes'`.
+   - Maintained `wysiwyg` as the factory default fallback for unconfigured environments to preserve existing workflows, while enabling `superEditor` as an active setting selectable globally and per-note.
+   - Persistence keys: `'superEditor'` and `'super_editor'` seamlessly deserialize in `fromString(val)`.
+2. **Settings Screen Integration**:
+   - [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart): Added dedicated `Super Editor` row under **APPEARANCE → Editor style** with `Icons.auto_awesome_rounded` and instant toggle persistence via `editorEditingStyleProvider`.
+3. **Dedicated SuperEditor Surface Widget**:
+   - [`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart): Created `QuietSuperEditor` wrapping `SuperEditor`, `MutableDocument`, `createDefaultDocumentEditor`, and `MutableDocumentComposer`.
+   - **Frontmatter Preservation**: When `stripFrontmatter` is enabled, YAML metadata header (`--- ... ---`) is safely extracted and preserved in the document body prefix, so note frontmatter properties remain untouched while the body is edited inside `SuperEditor`.
+   - **Typography & Color Harmony**: Dynamically derives a custom `Stylesheet` adapting `TypographySettings` (body font, heading fonts, scaled sizes, line height, letter spacing) and `AppColors` (palette tones for light and dark themes).
+   - **Scroll & Viewport Isolation**: SuperEditor's internal `DocumentScrollable` expects either no ancestor scrollable or a custom sliver context. To prevent `_RenderSliverHybridStack` crashes when hosted inside `Column` within `SingleChildScrollView`, `QuietSuperEditor` embeds `SuperEditor` inside a horizontal scroll isolation boundary with matching width constraints (`LayoutBuilder` + `SingleChildScrollView(scrollDirection: Axis.horizontal, physics: NeverScrollableScrollPhysics())`), ensuring smooth vertical scrolling within the note editor sheet.
+4. **Editor Screen Routing & Overflow Menu**:
+   - [`lib/features/editor/presentation/widgets/markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart): Routes to `QuietSuperEditor` when `effectiveEditingStyle == EditorEditingStyle.superEditor`.
+   - [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Hides bottom `FormattingToolbar` when SuperEditor is active, delegating to SuperEditor's native floating toolbar and gesture system.
+     - Added `_OverflowMenuPage.editorStyle` submenu in the 3-dot overflow menu (⋯) allowing instant switching between Super Editor, Visual, and Markdown modes for individual notes.
+     - Retained quick toggle tile (`Edit Markdown` / `Edit Visually`) for single-tap switching between visual and source modes.
+     - Implemented `_switchEditingStyle` method cleanly converting note representations when switching modes on the fly.
+   - [`lib/features/editor/application/editor_provider.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/editor_provider.dart): Updated `togglePerNoteEditingStyle` cycling logic across all three styles (`superEditor` -> `markdown` -> `wysiwyg`).
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues found** (zero warnings, zero errors).
+- `test/editor/quiet_super_editor_test.dart`: 5 dedicated tests verifying:
+  - Markdown deserialization into `ParagraphNode` and `TaskNode`.
+  - Task completion toggling and GFM task serialization (`- [ ]`, `- [x]`).
+  - Widget rendering and typography injection.
+  - Frontmatter preservation on save.
+- `test/editor/editing_style_settings_test.dart`: Domain and persistence tests for `superEditor`.
+- `test/editor/desktop_file_drop_and_paste_test.dart`: All drag-and-drop overlay tests passing.
+- `test/editor/dual_mode_editor_screen_test.dart`: All mode toggling tests passing.
+- `test/widget_test.dart`: All 18 smoke & flow tests passing.
+- Full test suite: `flutter test` passing with zero failures.
+

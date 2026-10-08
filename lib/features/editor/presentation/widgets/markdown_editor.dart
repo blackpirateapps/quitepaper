@@ -20,6 +20,7 @@ import '../../domain/rich_document.dart';
 import 'code_block_overlay.dart';
 import 'heading/markdown_heading_action_sheet.dart';
 import 'link_prompt_dialog.dart';
+import 'quiet_super_editor.dart';
 import 'rich_editor_surface.dart';
 import 'table/markdown_table_editor.dart';
 import 'table/markdown_table_view.dart';
@@ -165,7 +166,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (oldWidget.editingStyle != widget.editingStyle ||
         oldWidget.stripFrontmatter != widget.stripFrontmatter) {
       if (oldWidget.editingStyle == EditorEditingStyle.wysiwyg &&
-          widget.editingStyle == EditorEditingStyle.markdown) {
+          widget.editingStyle != EditorEditingStyle.wysiwyg) {
         String? md;
         if (RichDocument.isJson(widget.controller.text)) {
           if (_richController != null) {
@@ -197,7 +198,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             }
           });
         }
-      } else if (oldWidget.editingStyle == EditorEditingStyle.markdown &&
+      } else if (oldWidget.editingStyle != EditorEditingStyle.wysiwyg &&
           widget.editingStyle == EditorEditingStyle.wysiwyg) {
         _initRichController();
         if (_richController != null && !_richController!.hasFrontmatter) {
@@ -471,6 +472,20 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.editingStyle == EditorEditingStyle.superEditor) {
+      return QuietSuperEditor(
+        initialMarkdown: widget.controller.text,
+        focusNode: widget.focusNode,
+        readOnly: widget.readOnly,
+        stripFrontmatter: widget.stripFrontmatter,
+        hintText: widget.hintText,
+        onChanged: (newMarkdown) {
+          widget.controller.text = newMarkdown;
+          widget.onChanged?.call(newMarkdown);
+        },
+      );
+    }
+
     if (widget.editingStyle == EditorEditingStyle.wysiwyg) {
       if (RichDocumentController.isDocumentTooLargeForWysiwyg(widget.controller.text)) {
         _notifyLargeDocumentFallback(context);

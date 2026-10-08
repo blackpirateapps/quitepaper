@@ -919,6 +919,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 _SettingsGroup(
                   children: [
                     _SettingsRow(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'Super Editor',
+                      subtitle: 'Block-based editor with native task checkboxes',
+                      isSelected: editingStyle == EditorEditingStyle.superEditor,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.superEditor);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
                       icon: Icons.edit_note_rounded,
                       title: 'WYSIWYG',
                       badge: const _BetaBadge(),

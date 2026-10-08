@@ -74,6 +74,7 @@ dependencies:
   pasteboard: ^0.5.0
   geolocator: ^14.0.2
   geocoding: ^5.0.0
+  super_editor: ^0.3.0-dev.52
 
 dev_dependencies:
   flutter_test:

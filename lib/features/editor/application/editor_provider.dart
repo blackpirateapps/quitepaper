@@ -61,9 +61,11 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   void togglePerNoteEditingStyle(EditorEditingStyle currentGlobalStyle) {
     final effective = state.effectiveEditingStyle(currentGlobalStyle);
-    final next = effective == EditorEditingStyle.wysiwyg
-        ? EditorEditingStyle.markdown
-        : EditorEditingStyle.wysiwyg;
+    final next = switch (effective) {
+      EditorEditingStyle.superEditor => EditorEditingStyle.markdown,
+      EditorEditingStyle.markdown => EditorEditingStyle.wysiwyg,
+      EditorEditingStyle.wysiwyg => EditorEditingStyle.superEditor,
+    };
     setPerNoteEditingStyle(next);
   }
 

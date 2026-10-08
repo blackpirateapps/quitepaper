@@ -15,15 +15,21 @@ void main() {
       expect(EditorEditingStyle.fromString('invalid'), equals(EditorEditingStyle.wysiwyg));
     });
 
-    test('parses markdown style correctly', () {
+    test('parses styles correctly', () {
+      expect(EditorEditingStyle.fromString('super_editor'), equals(EditorEditingStyle.superEditor));
+      expect(EditorEditingStyle.fromString('superEditor'), equals(EditorEditingStyle.superEditor));
       expect(EditorEditingStyle.fromString('markdown'), equals(EditorEditingStyle.markdown));
+      expect(EditorEditingStyle.fromString('wysiwyg'), equals(EditorEditingStyle.wysiwyg));
     });
 
     test('storageKey and labels are consistent', () {
+      expect(EditorEditingStyle.superEditor.storageKey, equals('superEditor'));
       expect(EditorEditingStyle.wysiwyg.storageKey, equals('wysiwyg'));
       expect(EditorEditingStyle.markdown.storageKey, equals('markdown'));
+      expect(EditorEditingStyle.superEditor.label, equals('Super Editor'));
       expect(EditorEditingStyle.wysiwyg.label, equals('Visual'));
       expect(EditorEditingStyle.markdown.label, equals('Markdown'));
+      expect(EditorEditingStyle.superEditor.description, contains('Block-based editor'));
       expect(EditorEditingStyle.wysiwyg.description, contains('without Markdown syntax'));
       expect(EditorEditingStyle.markdown.description, contains('Show Markdown syntax'));
     });
@@ -40,11 +46,11 @@ void main() {
     });
 
     test('initializes with stored preference if available', () {
-      SharedPreferences.setMockInitialValues({'app_editor_editing_style': 'markdown'});
+      SharedPreferences.setMockInitialValues({'app_editor_editing_style': 'superEditor'});
       final prefs = SharedPreferences.getInstance();
       return prefs.then((p) {
         final notifier = EditingStyleNotifier(p);
-        expect(notifier.state, equals(EditorEditingStyle.markdown));
+        expect(notifier.state, equals(EditorEditingStyle.superEditor));
       });
     });
 
@@ -62,6 +68,10 @@ void main() {
       await notifier.setEditingStyle(EditorEditingStyle.wysiwyg);
       expect(notifier.state, equals(EditorEditingStyle.wysiwyg));
       expect(prefs.getString('app_editor_editing_style'), equals('wysiwyg'));
+
+      await notifier.setEditingStyle(EditorEditingStyle.superEditor);
+      expect(notifier.state, equals(EditorEditingStyle.superEditor));
+      expect(prefs.getString('app_editor_editing_style'), equals('superEditor'));
     });
   });
 
@@ -71,6 +81,7 @@ void main() {
       final note = Note(id: '1', title: 'Test', content: 'Content', createdAt: now, updatedAt: now);
       final state = EditorState(note: note);
 
+      expect(state.effectiveEditingStyle(EditorEditingStyle.superEditor), equals(EditorEditingStyle.superEditor));
       expect(state.effectiveEditingStyle(EditorEditingStyle.wysiwyg), equals(EditorEditingStyle.wysiwyg));
       expect(state.effectiveEditingStyle(EditorEditingStyle.markdown), equals(EditorEditingStyle.markdown));
     });
@@ -82,11 +93,15 @@ void main() {
         perNoteEditingStyleOverride: EditorEditingStyle.markdown,
       );
 
+      expect(state.effectiveEditingStyle(EditorEditingStyle.superEditor), equals(EditorEditingStyle.markdown));
       expect(state.effectiveEditingStyle(EditorEditingStyle.wysiwyg), equals(EditorEditingStyle.markdown));
       expect(state.effectiveEditingStyle(EditorEditingStyle.markdown), equals(EditorEditingStyle.markdown));
 
       final wysiwygOverride = state.copyWith(perNoteEditingStyleOverride: EditorEditingStyle.wysiwyg);
       expect(wysiwygOverride.effectiveEditingStyle(EditorEditingStyle.markdown), equals(EditorEditingStyle.wysiwyg));
+
+      final superEditorOverride = state.copyWith(perNoteEditingStyleOverride: EditorEditingStyle.superEditor);
+      expect(superEditorOverride.effectiveEditingStyle(EditorEditingStyle.markdown), equals(EditorEditingStyle.superEditor));
     });
 
     test('copyWith clears per-note override when requested', () {
@@ -98,6 +113,7 @@ void main() {
 
       final cleared = state.copyWith(clearPerNoteEditingStyleOverride: true);
       expect(cleared.perNoteEditingStyleOverride, isNull);
+      expect(cleared.effectiveEditingStyle(EditorEditingStyle.superEditor), equals(EditorEditingStyle.superEditor));
       expect(cleared.effectiveEditingStyle(EditorEditingStyle.wysiwyg), equals(EditorEditingStyle.wysiwyg));
     });
   });
