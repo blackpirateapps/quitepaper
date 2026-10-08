@@ -5,6 +5,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/application/activity_storage_service.dart';
 import '../../../../core/journal/domain/journal_activity.dart';
+import '../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Modal bottom sheet allowing users to multi-select activities and add custom activities with icons.
 class ActivityPickerSheet extends StatefulWidget {
@@ -82,28 +83,29 @@ class _ActivityPickerSheetState extends State<ActivityPickerSheet> {
   Future<void> _showAddCustomActivityDialog() async {
     final colors = context.appColors;
     final nameController = TextEditingController();
-    IconData selectedIcon = Icons.star_border_rounded;
 
-    const availableIcons = <IconData>[
-      Icons.star_border_rounded,
-      Icons.fitness_center_rounded,
-      Icons.pedal_bike_rounded,
-      Icons.pool_rounded,
-      Icons.hiking_rounded,
-      Icons.spa_outlined,
-      Icons.yard_outlined,
-      Icons.pets_outlined,
-      Icons.brush_outlined,
-      Icons.handyman_outlined,
-      Icons.auto_stories_outlined,
-      Icons.headphones_rounded,
-      Icons.camera_alt_outlined,
-      Icons.videogame_asset_outlined,
-      Icons.cake_outlined,
-      Icons.favorite_border_rounded,
-      Icons.wb_sunny_outlined,
-      Icons.nights_stay_outlined,
+    const availableIcons = <({String id, IconData icon})>[
+      (id: 'star', icon: PhosphorIconsRegular.star),
+      (id: 'barbell', icon: PhosphorIconsRegular.barbell),
+      (id: 'bicycle', icon: PhosphorIconsRegular.bicycle),
+      (id: 'swimming-pool', icon: PhosphorIconsRegular.swimmingPool),
+      (id: 'mountains', icon: PhosphorIconsRegular.mountains),
+      (id: 'sparkle', icon: PhosphorIconsRegular.sparkle),
+      (id: 'plant', icon: PhosphorIconsRegular.plant),
+      (id: 'paw-print', icon: PhosphorIconsRegular.pawPrint),
+      (id: 'paint-brush', icon: PhosphorIconsRegular.paintBrush),
+      (id: 'wrench', icon: PhosphorIconsRegular.wrench),
+      (id: 'book-bookmark', icon: PhosphorIconsRegular.bookBookmark),
+      (id: 'headphones', icon: PhosphorIconsRegular.headphones),
+      (id: 'camera', icon: PhosphorIconsRegular.camera),
+      (id: 'game-controller', icon: PhosphorIconsRegular.gameController),
+      (id: 'cake', icon: PhosphorIconsRegular.cake),
+      (id: 'heart', icon: PhosphorIconsRegular.heart),
+      (id: 'sun', icon: PhosphorIconsRegular.sun),
+      (id: 'moon', icon: PhosphorIconsRegular.moon),
     ];
+
+    var selectedIcon = availableIcons.first;
 
     await showDialog<void>(
       context: context,
@@ -159,13 +161,13 @@ class _ActivityPickerSheetState extends State<ActivityPickerSheet> {
                     Wrap(
                       spacing: 8.0,
                       runSpacing: 8.0,
-                      children: availableIcons.map((ic) {
-                        final isPicked = selectedIcon == ic;
+                      children: availableIcons.map((item) {
+                        final isPicked = selectedIcon.id == item.id;
                         return InkWell(
                           borderRadius: BorderRadius.circular(AppRadii.sm),
                           onTap: () {
                             setDialogState(() {
-                              selectedIcon = ic;
+                              selectedIcon = item;
                             });
                           },
                           child: Container(
@@ -182,7 +184,7 @@ class _ActivityPickerSheetState extends State<ActivityPickerSheet> {
                               ),
                             ),
                             child: Icon(
-                              ic,
+                              item.icon,
                               size: 18,
                               color: isPicked ? colors.accent : colors.textSecondary,
                             ),
@@ -208,7 +210,8 @@ class _ActivityPickerSheetState extends State<ActivityPickerSheet> {
                     final newActivity = JournalActivity(
                       id: cleanId,
                       label: rawName,
-                      icon: selectedIcon,
+                      icon: selectedIcon.icon,
+                      iconKey: selectedIcon.id,
                       isCustom: true,
                     );
 

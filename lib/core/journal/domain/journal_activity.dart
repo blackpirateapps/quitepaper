@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../features/tags/domain/phosphor_icons.dart';
+import '../../../../features/tags/domain/tag_icon_registry.dart';
 
 /// Represents an activity associated with a journal entry.
 @immutable
@@ -7,6 +9,7 @@ class JournalActivity {
     required this.id,
     required this.label,
     required this.icon,
+    this.iconKey = '',
     this.emoji,
     this.isCustom = false,
   });
@@ -20,6 +23,9 @@ class JournalActivity {
   /// Icon representing the activity.
   final IconData icon;
 
+  /// Canonical icon identifier for serialization (e.g. 'person-simple-run', 'book-open').
+  final String iconKey;
+
   /// Optional emoji representation.
   final String? emoji;
 
@@ -29,23 +35,25 @@ class JournalActivity {
   Map<String, dynamic> toJson() => {
         'id': id,
         'label': label,
-        'iconCodePoint': icon.codePoint,
-        'iconFontFamily': icon.fontFamily,
-        'iconFontPackage': icon.fontPackage,
+        'iconKey': iconKey.isNotEmpty ? iconKey : id,
         if (emoji != null) 'emoji': emoji,
         'isCustom': isCustom,
       };
 
   factory JournalActivity.fromJson(Map<String, dynamic> json) {
-    final codePoint = json['iconCodePoint'] as int? ?? Icons.star_border_rounded.codePoint;
-    final fontFamily = json['iconFontFamily'] as String?;
-    final fontPackage = json['iconFontPackage'] as String?;
+    final id = json['id'] as String;
+    final label = json['label'] as String;
+    final rawIconKey = json['iconKey'] as String? ?? id;
+    final resolvedIcon = TagIconRegistry.resolveIcon(
+      rawIconKey,
+      fallback: PhosphorIconsRegular.star,
+    );
 
     return JournalActivity(
-      id: json['id'] as String,
-      label: json['label'] as String,
-      // ignore: non_const_argument_for_const_parameter
-      icon: IconData(codePoint, fontFamily: fontFamily, fontPackage: fontPackage),
+      id: id,
+      label: label,
+      icon: resolvedIcon,
+      iconKey: rawIconKey,
       emoji: json['emoji'] as String?,
       isCustom: json['isCustom'] as bool? ?? true,
     );
@@ -68,91 +76,106 @@ class JournalActivity {
     JournalActivity(
       id: 'exercise',
       label: 'Exercise',
-      icon: Icons.directions_run_rounded,
+      icon: PhosphorIconsRegular.personSimpleRun,
+      iconKey: 'person-simple-run',
       emoji: '🏃',
     ),
     JournalActivity(
       id: 'reading',
       label: 'Reading',
-      icon: Icons.menu_book_rounded,
+      icon: PhosphorIconsRegular.bookOpen,
+      iconKey: 'book-open',
       emoji: '📚',
     ),
     JournalActivity(
       id: 'work',
       label: 'Work',
-      icon: Icons.laptop_chromebook_rounded,
+      icon: PhosphorIconsRegular.laptop,
+      iconKey: 'laptop',
       emoji: '💻',
     ),
     JournalActivity(
       id: 'walk',
       label: 'Walk',
-      icon: Icons.directions_walk_rounded,
+      icon: PhosphorIconsRegular.personSimpleWalk,
+      iconKey: 'person-simple-walk',
       emoji: '🚶',
     ),
     JournalActivity(
       id: 'cooking',
       label: 'Cooking',
-      icon: Icons.restaurant_rounded,
+      icon: PhosphorIconsRegular.cookingPot,
+      iconKey: 'cooking-pot',
       emoji: '🍳',
     ),
     JournalActivity(
       id: 'music',
       label: 'Music',
-      icon: Icons.music_note_rounded,
+      icon: PhosphorIconsRegular.musicNotes,
+      iconKey: 'music-notes',
       emoji: '🎵',
     ),
     JournalActivity(
       id: 'meditation',
       label: 'Meditation',
-      icon: Icons.self_improvement_rounded,
+      icon: PhosphorIconsRegular.peace,
+      iconKey: 'peace',
       emoji: '🧘',
     ),
     JournalActivity(
       id: 'gaming',
       label: 'Gaming',
-      icon: Icons.sports_esports_rounded,
+      icon: PhosphorIconsRegular.gameController,
+      iconKey: 'game-controller',
       emoji: '🎮',
     ),
     JournalActivity(
       id: 'shopping',
       label: 'Shopping',
-      icon: Icons.shopping_bag_outlined,
+      icon: PhosphorIconsRegular.shoppingBag,
+      iconKey: 'shopping-bag',
       emoji: '🛒',
     ),
     JournalActivity(
       id: 'movie',
       label: 'Movie',
-      icon: Icons.movie_outlined,
+      icon: PhosphorIconsRegular.filmSlate,
+      iconKey: 'film-slate',
       emoji: '🎬',
     ),
     JournalActivity(
       id: 'rest',
       label: 'Rest',
-      icon: Icons.bedtime_outlined,
+      icon: PhosphorIconsRegular.bed,
+      iconKey: 'bed',
       emoji: '😴',
     ),
     JournalActivity(
       id: 'social',
       label: 'Social',
-      icon: Icons.local_cafe_outlined,
+      icon: PhosphorIconsRegular.coffee,
+      iconKey: 'coffee',
       emoji: '☕',
     ),
     JournalActivity(
       id: 'family',
       label: 'Family',
-      icon: Icons.home_outlined,
+      icon: PhosphorIconsRegular.house,
+      iconKey: 'house',
       emoji: '🏡',
     ),
     JournalActivity(
       id: 'nature',
       label: 'Nature',
-      icon: Icons.forest_outlined,
+      icon: PhosphorIconsRegular.tree,
+      iconKey: 'tree',
       emoji: '🌲',
     ),
     JournalActivity(
       id: 'creative',
       label: 'Creative',
-      icon: Icons.palette_outlined,
+      icon: PhosphorIconsRegular.palette,
+      iconKey: 'palette',
       emoji: '🎨',
     ),
   ];

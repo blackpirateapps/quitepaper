@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Represents a curated moment category for a journal entry.
 @immutable
@@ -17,7 +18,7 @@ class JournalMoment {
   /// Human-readable title (e.g. 'Ordinary', 'Travel').
   final String label;
 
-  /// Material icon for editorial UI.
+  /// Phosphor icon for editorial UI.
   final IconData icon;
 
   /// Emoji representation.
@@ -43,70 +44,70 @@ class JournalMoment {
     JournalMoment(
       key: 'ordinary',
       label: 'Ordinary',
-      icon: Icons.coffee_rounded,
+      icon: PhosphorIconsRegular.coffee,
       emoji: '☕',
       description: 'Daily routines, calm quiet days',
     ),
     JournalMoment(
       key: 'travel',
       label: 'Travel',
-      icon: Icons.flight_takeoff_rounded,
+      icon: PhosphorIconsRegular.airplane,
       emoji: '✈️',
       description: 'Trips, exploration, transit',
     ),
     JournalMoment(
       key: 'work',
       label: 'Work',
-      icon: Icons.work_outline_rounded,
+      icon: PhosphorIconsRegular.briefcase,
       emoji: '💼',
       description: 'Career, projects, study',
     ),
     JournalMoment(
       key: 'family',
       label: 'Family',
-      icon: Icons.home_outlined,
+      icon: PhosphorIconsRegular.house,
       emoji: '🏡',
       description: 'Quality family time, home life',
     ),
     JournalMoment(
       key: 'social',
       label: 'Social',
-      icon: Icons.people_outline_rounded,
+      icon: PhosphorIconsRegular.chatsTeardrop,
       emoji: '👥',
       description: 'Friends, gatherings, community',
     ),
     JournalMoment(
       key: 'health',
       label: 'Health',
-      icon: Icons.spa_outlined,
+      icon: PhosphorIconsRegular.heart,
       emoji: '🌿',
       description: 'Wellness, recovery, fitness',
     ),
     JournalMoment(
       key: 'creative',
       label: 'Creative',
-      icon: Icons.palette_outlined,
+      icon: PhosphorIconsRegular.palette,
       emoji: '🎨',
       description: 'Art, writing, building, music',
     ),
     JournalMoment(
       key: 'celebration',
       label: 'Celebration',
-      icon: Icons.celebration_outlined,
+      icon: PhosphorIconsRegular.confetti,
       emoji: '🎉',
       description: 'Milestones, birthdays, wins',
     ),
     JournalMoment(
       key: 'difficult',
       label: 'Difficult',
-      icon: Icons.thunderstorm_outlined,
+      icon: PhosphorIconsRegular.cloudRain,
       emoji: '🌧️',
       description: 'Challenges, grief, obstacles',
     ),
     JournalMoment(
       key: 'reflection',
       label: 'Reflection',
-      icon: Icons.auto_stories_outlined,
+      icon: PhosphorIconsRegular.sparkle,
       emoji: '🕯️',
       description: 'Journaling, philosophy, clarity',
     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Represents weather metadata associated with a journal entry or note.
 @immutable
@@ -39,24 +40,24 @@ class JournalWeather {
     return '';
   }
 
-  /// Resolves an appropriate Material icon for the given WMO code.
+  /// Resolves an appropriate Phosphor icon for the given WMO code.
   IconData get icon => iconForWmoCode(code);
 
   static IconData iconForWmoCode(int code) {
     if (code == 0) {
-      return Icons.wb_sunny_rounded;
+      return PhosphorIconsRegular.sun;
     } else if (code <= 3) {
-      return Icons.cloud_queue_rounded;
+      return PhosphorIconsRegular.cloudSun;
     } else if (code == 45 || code == 48) {
-      return Icons.foggy;
+      return PhosphorIconsRegular.cloudFog;
     } else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-      return Icons.water_drop_rounded;
+      return PhosphorIconsRegular.cloudRain;
     } else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
-      return Icons.ac_unit_rounded;
+      return PhosphorIconsRegular.snowflake;
     } else if (code >= 95 && code <= 99) {
-      return Icons.thunderstorm_rounded;
+      return PhosphorIconsRegular.cloudLightning;
     }
-    return Icons.wb_cloudy_rounded;
+    return PhosphorIconsRegular.cloud;
   }
 
   static String conditionForWmoCode(int code) {

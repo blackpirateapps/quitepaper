@@ -7612,13 +7612,41 @@ Expanded Quiet Paper's journal and note frontmatter capabilities to support rich
 - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Full Test Suite: `flutter test` (**all 1,612 tests passed, 0 failures**).
 
+---
 
+## 150. Journal Properties Phosphor Icon Unification & Tree-Shaking Fix (October 2026)
 
+### 1. Overview & Problem Statement
+In Flutter release builds (e.g. CI GitHub Actions `compileFlutterBuildGithubRelease`), Flutter performs Ahead-Of-Time (AOT) icon font tree shaking (`--tree-shake-icons`). A dynamic runtime constructor call `IconData(codePoint, ...)` was previously present in `JournalActivity.fromJson`, causing release builds to fail with:
+```text
+This application cannot tree shake icons fonts. It has non-constant instances of IconData at the following locations:
+  - file:///.../lib/core/journal/domain/journal_activity.dart:48:13
+Target aot_android_asset_bundle failed: Error: Avoid non-constant invocations of IconData or try to build again with --no-tree-shake-icons.
+```
+In addition, the journal models previously mixed Material icons with the rest of Quiet Paper's design system.
 
+### 2. Architectural Adjustments
+1. **Unification with Existing Phosphor Icon Ecosystem**:
+   - Quiet Paper already maintains a complete compile-time constant Phosphor icon catalog in [`lib/features/tags/domain/phosphor_icons.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/phosphor_icons.dart) and [`lib/features/tags/domain/tag_icon_registry.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_icon_registry.dart).
+   - Migrated all journal models and sheets to use `PhosphorIconsRegular` compile-time constants:
+     - `JournalActivity`: Standard presets use `PhosphorIconsRegular` constants (`personSimpleRun`, `bookOpen`, `laptop`, `personSimpleWalk`, `cookingPot`, `musicNotes`, `peace`, `gameController`, `shoppingBag`, `filmSlate`, `bed`, `coffee`, `house`, `tree`, `palette`).
+     - `JournalMoment`: All 10 moments use `PhosphorIconsRegular` constants (`coffee` for ordinary, `airplane` for travel, `briefcase` for work, `house` for family, `chatsTeardrop` for social, `heart` for health, `palette` for creative, `confetti` for celebration, `cloudRain` for difficult, `sparkle` for reflection).
+     - `JournalWeather`: `iconForWmoCode` maps WMO codes to `PhosphorIconsRegular` constants (`sun`, `cloudSun`, `cloudFog`, `cloudRain`, `snowflake`, `cloudLightning`, `cloud`).
+     - `ActivityPickerSheet`: Custom activity icon picker offers curated Phosphor icon options.
+2. **Elimination of Non-Constant `IconData` Invocations**:
+   - `JournalActivity` now serializes `iconKey: String` (e.g. `'person-simple-run'`, `'mountains'`).
+   - Deserialization in `JournalActivity.fromJson` maps `rawIconKey` synchronously via `TagIconRegistry.resolveIcon(rawIconKey, fallback: PhosphorIconsRegular.star)` using the pre-compiled `kPhosphorRegularIcons` map.
+   - Zero dynamic `IconData(codePoint, ...)` constructor invocations exist in the entire codebase, ensuring complete compatibility with Flutter icon tree-shaking in release builds.
 
+### 3. Modified & Added Files
+- [`lib/core/journal/domain/journal_activity.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_activity.dart): Switched presets and deserialization to Phosphor icons and `TagIconRegistry`.
+- [`lib/core/journal/domain/journal_moment.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_moment.dart): Switched moment icons to `PhosphorIconsRegular`.
+- [`lib/core/journal/domain/journal_weather.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_weather.dart): Switched WMO code icon mappings to `PhosphorIconsRegular`.
+- [`lib/features/editor/presentation/widgets/activity_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/activity_picker_sheet.dart): Switched custom activity dialog icon picker to Phosphor icons.
+- [`test/journal/journal_properties_domain_test.dart`](file:///home/dog/git/quitepaper/test/journal/journal_properties_domain_test.dart): Added comprehensive domain unit tests verifying Phosphor icon mappings and serialization.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 150.
 
-
-
-
-
-
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Full Test Suite: `flutter test` (**all 1,620 tests passed, 0 failures**).
+- Non-constant IconData verification: `git grep "IconData("` confirmed zero dynamic non-const `IconData` calls in codebase.
