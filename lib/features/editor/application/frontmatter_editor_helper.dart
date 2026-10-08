@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/journal/domain/journal_weather.dart';
 import '../../../core/location/location_models.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../domain/frontmatter_document.dart';
@@ -36,6 +37,10 @@ abstract final class FrontmatterEditorHelper {
     String? parsedDescription;
     final parsedTags = <String>{};
     JournalLocation? parsedLocation;
+    int? parsedMood;
+    final parsedActivities = <String>{};
+    JournalWeather? parsedWeather;
+    String? parsedMoment;
     bool isJournal = false;
     String? journalDate;
 
@@ -67,6 +72,24 @@ abstract final class FrontmatterEditorHelper {
           displayValue: parsedLocation!.displayString,
           keyRange: TextRange(start: pStart, end: pStart + 8),
           valueRange: TextRange(start: pStart + 9, end: pEnd),
+          lineRange: TextRange(start: pStart, end: pEnd),
+          isKnown: true,
+          isEditable: true,
+        ));
+      } else if (_isWeatherKey(currentMapKey!)) {
+        final temp = double.tryParse(currentMapEntries['temperature'] ?? currentMapEntries['temp'] ?? '') ?? 0.0;
+        final cond = currentMapEntries['condition'] ?? currentMapEntries['cond'] ?? '';
+        final code = int.tryParse(currentMapEntries['code'] ?? currentMapEntries['weather_code'] ?? '') ?? 0;
+        parsedWeather = JournalWeather(temperature: temp, condition: cond, code: code);
+
+        final pStart = currentMapStartOffset ?? 0;
+        final pEnd = currentMapEndOffset ?? pStart;
+        properties.add(FrontmatterProperty(
+          key: 'weather',
+          rawValue: 'weather',
+          displayValue: parsedWeather!.displayString,
+          keyRange: TextRange(start: pStart, end: pStart + 7),
+          valueRange: TextRange(start: pStart + 8, end: pEnd),
           lineRange: TextRange(start: pStart, end: pEnd),
           isKnown: true,
           isEditable: true,
@@ -117,6 +140,11 @@ abstract final class FrontmatterEditorHelper {
           if (TagParser.isValidTag(normalized)) {
             parsedTags.add(normalized);
           }
+        } else if (_isActivitiesKey(currentListKey)) {
+          final cleanAct = itemVal.trim().toLowerCase();
+          if (cleanAct.isNotEmpty) {
+            parsedActivities.add(cleanAct);
+          }
         } else if (_isAuthorKey(currentListKey)) {
           if (itemVal.isNotEmpty) {
             if (parsedAuthor == null || parsedAuthor.isEmpty) {
@@ -150,7 +178,7 @@ abstract final class FrontmatterEditorHelper {
       currentListItems.clear();
 
       if (rawVal.isEmpty || rawVal == '|' || rawVal == '>') {
-        if (_isLocationKey(key)) {
+        if (_isLocationKey(key) || _isWeatherKey(key)) {
           currentMapKey = key;
           currentMapStartOffset = lineStart;
           currentMapEndOffset = lineEnd;
@@ -214,6 +242,29 @@ abstract final class FrontmatterEditorHelper {
             parsedLocation = JournalLocation(address: cleanVal, latitude: 0.0, longitude: 0.0);
           }
         }
+      } else if (_isMoodKey(key)) {
+        final m = int.tryParse(cleanVal);
+        if (m != null && m >= 1 && m <= 10) {
+          parsedMood = m;
+        }
+      } else if (_isMomentKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          parsedMoment = cleanVal.toLowerCase();
+        }
+      } else if (_isActivitiesKey(key)) {
+        final acts = _parseListValue(rawVal);
+        for (final a in acts) {
+          final trimmedA = a.trim().toLowerCase();
+          if (trimmedA.isNotEmpty) {
+            parsedActivities.add(trimmedA);
+          }
+        }
+      } else if (_isWeatherKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          final tempMatch = RegExp(r'(-?\d+(?:\.\d+)?)\s*°?C?').firstMatch(cleanVal);
+          final temp = tempMatch != null ? double.tryParse(tempMatch.group(1) ?? '') ?? 0.0 : 0.0;
+          parsedWeather = JournalWeather(temperature: temp, condition: cleanVal, code: 0);
+        }
       } else if (_isTagKey(key)) {
         final tagsList = _parseListValue(rawVal);
         for (final t in tagsList) {
@@ -243,6 +294,10 @@ abstract final class FrontmatterEditorHelper {
       description: parsedDescription,
       tags: parsedTags.toList(),
       location: parsedLocation,
+      mood: parsedMood,
+      activities: parsedActivities.toList(),
+      weather: parsedWeather,
+      moment: parsedMoment,
       isJournal: isJournal,
       journalDate: journalDate,
       unknownProperties: unknownProperties,
@@ -461,6 +516,194 @@ abstract final class FrontmatterEditorHelper {
     return documentText;
   }
 
+  /// Removes a single property line from frontmatter by its key.
+  static String removeProperty({
+    required String documentText,
+    required String key,
+  }) {
+    final doc = parse(documentText);
+    if (!doc.hasFrontmatter) return documentText;
+
+    final prop = doc.getProperty(key);
+    if (prop != null) {
+      final start = prop.lineRange.start;
+      var end = prop.lineRange.end;
+      if (end < documentText.length && documentText[end] == '\n') {
+        end += 1;
+      } else if (end + 1 < documentText.length &&
+          documentText[end] == '\r' &&
+          documentText[end + 1] == '\n') {
+        end += 2;
+      }
+      return documentText.replaceRange(start, end, '');
+    }
+    return documentText;
+  }
+
+  /// Updates or inserts the frontmatter `mood:` property (1..10).
+  static String updateMood({
+    required String documentText,
+    required int mood,
+  }) {
+    return updateProperty(
+      documentText: documentText,
+      key: 'mood',
+      newValue: mood.clamp(1, 10).toString(),
+    );
+  }
+
+  /// Removes the `mood:` property from frontmatter.
+  static String removeMood({
+    required String documentText,
+  }) {
+    return removeProperty(documentText: documentText, key: 'mood');
+  }
+
+  /// Updates or inserts the frontmatter `moment:` property.
+  static String updateMoment({
+    required String documentText,
+    required String moment,
+  }) {
+    return updateProperty(
+      documentText: documentText,
+      key: 'moment',
+      newValue: moment.trim().toLowerCase(),
+    );
+  }
+
+  /// Removes the `moment:` property from frontmatter.
+  static String removeMoment({
+    required String documentText,
+  }) {
+    return removeProperty(documentText: documentText, key: 'moment');
+  }
+
+  /// Updates or inserts the frontmatter `activities:` list.
+  static String updateActivities({
+    required String documentText,
+    required List<String> activities,
+  }) {
+    final clean = activities
+        .map((a) => a.trim().toLowerCase())
+        .where((a) => a.isNotEmpty)
+        .toList();
+    final formatted = '[${clean.join(', ')}]';
+    return updateProperty(
+      documentText: documentText,
+      key: 'activities',
+      newValue: formatted,
+    );
+  }
+
+  /// Removes the `activities:` property from frontmatter.
+  static String removeActivities({
+    required String documentText,
+  }) {
+    final removed = removeProperty(documentText: documentText, key: 'activities');
+    return removeProperty(documentText: removed, key: 'activity');
+  }
+
+  /// Updates or inserts the nested YAML `weather:` property inside frontmatter.
+  static String updateWeather({
+    required String documentText,
+    required JournalWeather weather,
+  }) {
+    final formatted = [
+      'weather:',
+      '  temperature: ${weather.temperature}',
+      '  condition: "${_escapeYamlString(weather.condition)}"',
+      '  code: ${weather.code}',
+    ].join('\n');
+
+    final doc = parse(documentText);
+    if (!doc.hasFrontmatter) {
+      return '---\n$formatted\n---\n\n$documentText';
+    }
+
+    final match = _frontmatterRegex.firstMatch(documentText)!;
+    final blockText = match.group(1) ?? '';
+    final openDelimiterEnd = documentText.indexOf('\n') + 1;
+
+    final lines = blockText.split(RegExp(r'\r?\n'));
+    int? weatherLineStart;
+    int? weatherLineEnd;
+    var currentOffset = openDelimiterEnd;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineStart = currentOffset;
+      final lineEnd = lineStart + line.length;
+      currentOffset = lineEnd + 1;
+
+      final trimmed = line.trim();
+      if (weatherLineStart == null) {
+        if (trimmed.startsWith('weather:') || trimmed == 'weather') {
+          weatherLineStart = lineStart;
+          weatherLineEnd = lineEnd;
+        }
+      } else {
+        if (line.startsWith(' ') || line.startsWith('\t')) {
+          weatherLineEnd = lineEnd;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (weatherLineStart != null && weatherLineEnd != null) {
+      return documentText.replaceRange(weatherLineStart, weatherLineEnd, formatted);
+    }
+
+    final closingIndex = documentText.lastIndexOf('---', match.end - 1);
+    final insertOffset = closingIndex > 0 ? closingIndex : match.end;
+    return documentText.replaceRange(insertOffset, insertOffset, '$formatted\n');
+  }
+
+  /// Removes the `weather:` property block from frontmatter.
+  static String removeWeather({
+    required String documentText,
+  }) {
+    final doc = parse(documentText);
+    if (!doc.hasFrontmatter) return documentText;
+
+    final match = _frontmatterRegex.firstMatch(documentText)!;
+    final blockText = match.group(1) ?? '';
+    final openDelimiterEnd = documentText.indexOf('\n') + 1;
+
+    final lines = blockText.split(RegExp(r'\r?\n'));
+    int? weatherLineStart;
+    int? weatherLineEnd;
+    var currentOffset = openDelimiterEnd;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineStart = currentOffset;
+      final lineEnd = lineStart + line.length;
+      final nextOffset = lineEnd + 1 <= documentText.length ? lineEnd + 1 : lineEnd;
+
+      final trimmed = line.trim();
+      if (weatherLineStart == null) {
+        if (trimmed.startsWith('weather:') || trimmed == 'weather') {
+          weatherLineStart = lineStart;
+          weatherLineEnd = nextOffset;
+        }
+      } else {
+        if (line.startsWith(' ') || line.startsWith('\t')) {
+          weatherLineEnd = nextOffset;
+        } else {
+          break;
+        }
+      }
+      currentOffset = nextOffset;
+    }
+
+    if (weatherLineStart != null && weatherLineEnd != null) {
+      return documentText.replaceRange(weatherLineStart, weatherLineEnd, '');
+    }
+
+    return documentText;
+  }
+
   /// Extracts the main Markdown body content by stripping the YAML frontmatter block.
   static String extractBody(String fullDocument) {
     if (fullDocument.isEmpty) return '';
@@ -488,7 +731,11 @@ abstract final class FrontmatterEditorHelper {
         _isSourceKey(key) ||
         _isDescriptionKey(key) ||
         _isTagKey(key) ||
-        _isLocationKey(key);
+        _isLocationKey(key) ||
+        _isMoodKey(key) ||
+        _isActivitiesKey(key) ||
+        _isWeatherKey(key) ||
+        _isMomentKey(key);
   }
 
   static bool _isTitleKey(String key) => key == 'title';
@@ -519,6 +766,14 @@ abstract final class FrontmatterEditorHelper {
 
   static bool _isLocationKey(String key) =>
       key == 'location' || key == 'geo' || key == 'coordinates';
+
+  static bool _isMoodKey(String key) => key == 'mood';
+
+  static bool _isActivitiesKey(String key) => key == 'activities' || key == 'activity';
+
+  static bool _isWeatherKey(String key) => key == 'weather';
+
+  static bool _isMomentKey(String key) => key == 'moment' || key == 'moments';
 
   static String _escapeYamlString(String s) {
     return s.replaceAll(r'\', r'\\').replaceAll('"', r'\"');

@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
+import '../../../core/journal/domain/journal_weather.dart';
 import '../../../core/location/location_models.dart';
 import '../../../core/utils/tag_parser.dart';
 
@@ -14,6 +15,10 @@ class ParsedMarkdown {
     this.description,
     this.createdRaw,
     this.location,
+    this.mood,
+    this.activities = const [],
+    this.weather,
+    this.moment,
     this.isJournal = false,
     this.journalDate,
     required this.body,
@@ -30,22 +35,27 @@ class ParsedMarkdown {
   final String? description;
   final String? createdRaw;
   final JournalLocation? location;
+  final int? mood;
+  final List<String> activities;
+  final JournalWeather? weather;
+  final String? moment;
   final bool isJournal;
   final String? journalDate;
   final String body; // Preserves full original raw content with frontmatter
   final String contentBody; // Content after frontmatter block
   final bool hasFrontmatter;
 
-  /// Returns true if there are displayable metadata fields (author, source, created, description, location).
+  /// Returns true if there are displayable metadata fields (author, source, created, description, location, mood, activities, weather, moment).
   bool get hasDisplayableMetadata {
     if (location != null && location!.isNotEmpty) return true;
+    if (mood != null) return true;
+    if (activities.isNotEmpty) return true;
+    if (weather != null && weather!.isNotEmpty) return true;
+    if (moment != null && moment!.trim().isNotEmpty) return true;
     final hasStandard = (source != null && source!.trim().isNotEmpty) ||
         (author != null && author!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty);
     if (hasStandard) return true;
-    if (isJournal) {
-      return createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty);
-    }
     return createdAt != null || (createdRaw != null && createdRaw!.trim().isNotEmpty);
   }
 }
@@ -84,6 +94,10 @@ abstract final class MarkdownFrontmatterParser {
     bool isJournal = false;
     String? journalDate;
     JournalLocation? parsedLocation;
+    int? parsedMood;
+    final activities = <String>{};
+    JournalWeather? parsedWeather;
+    String? parsedMoment;
 
     final lines = frontmatterBlock.split(RegExp(r'\r?\n'));
     String? currentListKey;
@@ -98,6 +112,11 @@ abstract final class MarkdownFrontmatterParser {
         final lat = double.tryParse(currentMapEntries['latitude'] ?? currentMapEntries['lat'] ?? '') ?? 0.0;
         final lng = double.tryParse(currentMapEntries['longitude'] ?? currentMapEntries['lng'] ?? currentMapEntries['lon'] ?? '') ?? 0.0;
         parsedLocation = JournalLocation(address: addr, latitude: lat, longitude: lng);
+      } else if (_isWeatherKey(currentMapKey!)) {
+        final temp = double.tryParse(currentMapEntries['temperature'] ?? currentMapEntries['temp'] ?? '') ?? 0.0;
+        final cond = currentMapEntries['condition'] ?? currentMapEntries['cond'] ?? '';
+        final code = int.tryParse(currentMapEntries['code'] ?? currentMapEntries['weather_code'] ?? '') ?? 0;
+        parsedWeather = JournalWeather(temperature: temp, condition: cond, code: code);
       }
       currentMapKey = null;
       currentMapEntries.clear();
@@ -110,7 +129,7 @@ abstract final class MarkdownFrontmatterParser {
         continue;
       }
 
-      // Handle indented continuation lines for map keys (e.g. location)
+      // Handle indented continuation lines for map keys (e.g. location, weather)
       if ((line.startsWith(' ') || line.startsWith('\t')) && currentMapKey != null) {
         final colonIndex = trimmed.indexOf(':');
         if (colonIndex != -1) {
@@ -132,6 +151,11 @@ abstract final class MarkdownFrontmatterParser {
           final normalized = _sanitizeTag(itemValue);
           if (TagParser.isValidTag(normalized)) {
             tags.add(normalized);
+          }
+        } else if (_isActivitiesKey(currentListKey)) {
+          final cleanAct = itemValue.trim().toLowerCase();
+          if (cleanAct.isNotEmpty) {
+            activities.add(cleanAct);
           }
         } else if (_isAuthorKey(currentListKey)) {
           if (itemValue.isNotEmpty) {
@@ -163,7 +187,7 @@ abstract final class MarkdownFrontmatterParser {
       currentListKey = null;
 
       if (val.isEmpty || val == '|' || val == '>') {
-        if (_isLocationKey(key)) {
+        if (_isLocationKey(key) || _isWeatherKey(key)) {
           currentMapKey = key;
           continue;
         }
@@ -215,6 +239,29 @@ abstract final class MarkdownFrontmatterParser {
           } else {
             parsedLocation = JournalLocation(address: cleanVal, latitude: 0.0, longitude: 0.0);
           }
+        }
+      } else if (_isMoodKey(key)) {
+        final m = int.tryParse(cleanVal);
+        if (m != null && m >= 1 && m <= 10) {
+          parsedMood = m;
+        }
+      } else if (_isMomentKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          parsedMoment = cleanVal.toLowerCase();
+        }
+      } else if (_isActivitiesKey(key)) {
+        final parsedActs = _parseTagsValue(val);
+        for (final a in parsedActs) {
+          final cleanA = a.trim().toLowerCase();
+          if (cleanA.isNotEmpty) {
+            activities.add(cleanA);
+          }
+        }
+      } else if (_isWeatherKey(key)) {
+        if (cleanVal.isNotEmpty) {
+          final tempMatch = RegExp(r'(-?\d+(?:\.\d+)?)\s*°?C?').firstMatch(cleanVal);
+          final temp = tempMatch != null ? double.tryParse(tempMatch.group(1) ?? '') ?? 0.0 : 0.0;
+          parsedWeather = JournalWeather(temperature: temp, condition: cleanVal, code: 0);
         }
       } else if (_isTagKey(key)) {
         final parsedTags = _parseTagsValue(val);
@@ -274,6 +321,10 @@ abstract final class MarkdownFrontmatterParser {
       description: description,
       tags: tags.toList(),
       location: parsedLocation,
+      mood: parsedMood,
+      activities: activities.toList(),
+      weather: parsedWeather,
+      moment: parsedMoment,
       isJournal: isJournal && journalDate != null,
       journalDate: (isJournal && journalDate != null) ? journalDate : null,
       body: rawContent, // Preserve full content as-is (do not strip frontmatter)
@@ -284,6 +335,22 @@ abstract final class MarkdownFrontmatterParser {
 
   static bool _isLocationKey(String key) {
     return key == 'location' || key == 'geo' || key == 'coordinates';
+  }
+
+  static bool _isMoodKey(String key) {
+    return key == 'mood';
+  }
+
+  static bool _isActivitiesKey(String key) {
+    return key == 'activities' || key == 'activity';
+  }
+
+  static bool _isWeatherKey(String key) {
+    return key == 'weather';
+  }
+
+  static bool _isMomentKey(String key) {
+    return key == 'moment' || key == 'moments';
   }
 
   static bool _isTitleKey(String key) {

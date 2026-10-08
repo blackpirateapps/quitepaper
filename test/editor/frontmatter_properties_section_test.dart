@@ -267,5 +267,64 @@ tags: [work]
       // Location is not shown for non-journal notes without location
       expect(find.text('Location'), findsNothing);
     });
+
+    testWidgets('journal mode displays moment, mood, weather, and activities when present', (tester) async {
+      const journalWithAll = '''---
+journal: true
+date: 2026-10-08
+moment: travel
+mood: 8
+activities: [exercise, reading]
+weather:
+  temperature: 22.0
+  condition: "Partly cloudy"
+  code: 1
+---
+# Diary
+''';
+      final doc = FrontmatterEditorHelper.parse(journalWithAll);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalWithAll,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+
+      expect(find.text('Moment'), findsOneWidget);
+      expect(find.text('Travel'), findsOneWidget);
+
+      expect(find.text('Mood'), findsOneWidget);
+      expect(find.textContaining('8/10'), findsOneWidget);
+
+      expect(find.text('Weather'), findsOneWidget);
+      expect(find.textContaining('22°C, Partly cloudy'), findsOneWidget);
+
+      expect(find.text('Activities'), findsOneWidget);
+      expect(find.text('Exercise'), findsOneWidget);
+      expect(find.text('Reading'), findsOneWidget);
+    });
+
+    testWidgets('journal mode shows action buttons when moment, mood, weather, activities are empty', (tester) async {
+      const emptyJournal = '''---
+journal: true
+date: 2026-10-08
+---
+# Diary
+''';
+      final doc = FrontmatterEditorHelper.parse(emptyJournal);
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: emptyJournal,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+
+      expect(find.text('Choose Moment'), findsOneWidget);
+      expect(find.text('Choose Mood'), findsOneWidget);
+      expect(find.text('Fetch Weather'), findsOneWidget);
+      expect(find.text('Add Activities'), findsOneWidget);
+    });
   });
 }

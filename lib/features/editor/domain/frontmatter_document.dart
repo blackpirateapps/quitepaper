@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/journal/domain/journal_weather.dart';
 import '../../../core/location/location_models.dart';
 
 /// Represents a single key-value property inside a YAML frontmatter block.
@@ -69,6 +70,10 @@ class FrontmatterDocument {
     this.description,
     this.tags = const [],
     this.location,
+    this.mood,
+    this.activities = const [],
+    this.weather,
+    this.moment,
     this.isJournal = false,
     this.journalDate,
     this.unknownProperties = const {},
@@ -110,6 +115,18 @@ class FrontmatterDocument {
   /// Recognized Location property value (address and coordinates).
   final JournalLocation? location;
 
+  /// Recognized Mood rating (1 to 10).
+  final int? mood;
+
+  /// Recognized Activities list.
+  final List<String> activities;
+
+  /// Recognized Weather metadata.
+  final JournalWeather? weather;
+
+  /// Recognized Moment category.
+  final String? moment;
+
   /// Whether this note has journal frontmatter (`journal: true`).
   final bool isJournal;
 
@@ -138,11 +155,15 @@ class FrontmatterDocument {
         (source != null && source!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty) ||
         (location != null && location!.isNotEmpty) ||
+        (mood != null) ||
+        activities.isNotEmpty ||
+        (weather != null && weather!.isNotEmpty) ||
+        (moment != null && moment!.trim().isNotEmpty) ||
         tags.isNotEmpty;
   }
 
   /// Returns true if there are matching frontmatter properties to display in the dedicated Properties card
-  /// (Author, Created, Source, Description, Location, Tags, or malformed YAML notice).
+  /// (Author, Created, Source, Description, Location, Tags, Mood, Activities, Weather, Moment, or malformed YAML notice).
   /// Note: Title is displayed and edited directly in the main note's title field.
   bool get hasMatchingSectionProperties {
     if (!hasFrontmatter) return false;
@@ -150,6 +171,10 @@ class FrontmatterDocument {
     if (isJournal) {
       return (created != null && created!.trim().isNotEmpty) ||
           (location != null && location!.isNotEmpty) ||
+          (mood != null) ||
+          activities.isNotEmpty ||
+          (weather != null && weather!.isNotEmpty) ||
+          (moment != null && moment!.trim().isNotEmpty) ||
           tags.isNotEmpty ||
           (author != null && author!.trim().isNotEmpty) ||
           (source != null && source!.trim().isNotEmpty) ||
@@ -160,6 +185,10 @@ class FrontmatterDocument {
         (source != null && source!.trim().isNotEmpty) ||
         (description != null && description!.trim().isNotEmpty) ||
         (location != null && location!.isNotEmpty) ||
+        (mood != null) ||
+        activities.isNotEmpty ||
+        (weather != null && weather!.isNotEmpty) ||
+        (moment != null && moment!.trim().isNotEmpty) ||
         tags.isNotEmpty;
   }
 

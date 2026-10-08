@@ -185,6 +185,35 @@ Reflections for today.
       expect(parsed.hasDisplayableMetadata, isTrue);
       expect(parsed.contentBody.trim(), equals('# Today\nReflections for today.'));
     });
+
+    test('extracts mood, moment, activities, and weather frontmatter', () {
+      const content = '''---
+journal: true
+date: 2026-10-08
+moment: celebration
+mood: 10
+activities: [travel, food, photography]
+weather:
+  temperature: 24.2
+  condition: "Sunny"
+  code: 0
+---
+Celebration day!
+''';
+
+      final parsed = MarkdownFrontmatterParser.parse(content);
+
+      expect(parsed.isJournal, isTrue);
+      expect(parsed.moment, equals('celebration'));
+      expect(parsed.mood, equals(10));
+      expect(parsed.activities, equals(['travel', 'food', 'photography']));
+      expect(parsed.weather, isNotNull);
+      expect(parsed.weather!.temperature, equals(24.2));
+      expect(parsed.weather!.condition, equals('Sunny'));
+      expect(parsed.weather!.code, equals(0));
+      expect(parsed.hasDisplayableMetadata, isTrue);
+      expect(parsed.contentBody.trim(), equals('Celebration day!'));
+    });
   });
 }
 

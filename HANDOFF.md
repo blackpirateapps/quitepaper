@@ -7556,6 +7556,63 @@ In visual WYSIWYG mode and markdown preview, location metadata in note frontmatt
 - Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
 - Full Test Suite: `flutter test` (**all 1605 tests passed, 0 failures**).
 
+---
+
+## 149. Journal Frontmatter Properties: Mood, Activities, Weather & Moment (October 2026)
+
+### 1. Overview & Requirements
+Expanded Quiet Paper's journal and note frontmatter capabilities to support rich, human-centered metadata alongside existing location and date tracking:
+1. **Mood**: A 10-level visual scale (1 to 10) representing emotional state with expressive icons/emojis (`😭`, `😢`, `😔`, `😕`, `😐`, `🙂`, `😊`, `😁`, `🥳`, `🤩`) instead of plain text strings, saved as integer `mood: <1..10>` in YAML frontmatter.
+2. **Activities**: Multi-select activity categorization with icons (e.g. `activities: [exercise, reading]`). Supports 15 standard presets plus user-created custom activities with selectable icons, automatically persisted to `SharedPreferences` and resurfaced across sessions.
+3. **Weather**: Automated weather fetching via Open-Meteo API using device GPS coordinates or existing frontmatter location coordinates (free, zero API key required, privacy-respecting), saved in YAML frontmatter under `weather:` (`temperature`, `condition`, `code`). Includes manual refresh and removal actions.
+4. **Moment**: A single-select context category chosen from 10 curated types (`ordinary`, `travel`, `work`, `family`, `social`, `health`, `creative`, `celebration`, `difficult`, `reflection`) with distinct icons, saved as `moment: <key>`.
+
+### 2. Architecture & Components
+1. **Domain Models**:
+   - [`lib/core/journal/domain/journal_mood.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_mood.dart): 10-level mood scale (`JournalMood`), emoji mappings, labels, and `fromLevel` resolver.
+   - [`lib/core/journal/domain/journal_moment.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_moment.dart): 10 curated moment categories with Material icon mappings and `fromKey` resolver.
+   - [`lib/core/journal/domain/journal_activity.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_activity.dart): Activity model with icon codepoint serialization, 15 standard presets, and custom activity flags.
+   - [`lib/core/journal/domain/journal_weather.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_weather.dart): Weather metadata model, WMO code interpretation, icon mappings, and `temperatureString` helper.
+2. **Application Services**:
+   - [`lib/core/journal/application/weather_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/weather_service.dart): Open-Meteo current forecast integration querying temperature and WMO weather codes.
+   - [`lib/core/journal/application/activity_storage_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/activity_storage_service.dart): Custom activity persistence in `SharedPreferences` (`quietpaper_custom_activities_v1`) merged with standard presets and synchronous cache lookup `findActivitySync`.
+3. **Frontmatter Infrastructure**:
+   - [`lib/features/editor/domain/frontmatter_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/frontmatter_document.dart): Added `mood`, `activities`, `weather`, and `moment` properties and display predicates.
+   - [`lib/features/editor/application/frontmatter_editor_helper.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/frontmatter_editor_helper.dart): Added parser support and manipulation helpers: `updateMood`, `removeMood`, `updateMoment`, `removeMoment`, `updateActivities`, `removeActivities`, `updateWeather`, `removeWeather`, and `removeProperty`.
+   - [`lib/features/import/application/markdown_frontmatter_parser.dart`](file:///home/dog/git/quitepaper/lib/features/import/application/markdown_frontmatter_parser.dart): Parser extraction and display checks for `ParsedMarkdown`.
+4. **Interactive Modal Sheets**:
+   - [`lib/features/editor/presentation/widgets/mood_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/mood_picker_sheet.dart): 10-level visual mood grid with emoji icons, level badges, and clear option.
+   - [`lib/features/editor/presentation/widgets/moment_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/moment_picker_sheet.dart): 10-moment selection list with icons, descriptions, and active state highlights.
+   - [`lib/features/editor/presentation/widgets/activity_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/activity_picker_sheet.dart): Multi-select activity chip picker with dialog to create custom activities with icons.
+5. **Visual WYSIWYG & Preview Presentation**:
+   - [`lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart): Interactive rows for Moment, Mood, Weather, Location, and Activities with top-aligned layout, badge pills, add/remove buttons, and summary bar preview.
+   - [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart): Read-only rendering in `QuietFrontmatterCard` with consistent typography, icons, and chip wraps.
+
+### 3. Modified & Added Files
+- [`lib/core/journal/domain/journal_mood.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_mood.dart): Created mood domain model.
+- [`lib/core/journal/domain/journal_moment.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_moment.dart): Created moment domain model.
+- [`lib/core/journal/domain/journal_activity.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_activity.dart): Created activity domain model and presets.
+- [`lib/core/journal/domain/journal_weather.dart`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_weather.dart): Created weather domain model.
+- [`lib/core/journal/application/weather_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/weather_service.dart): Open-Meteo weather service.
+- [`lib/core/journal/application/activity_storage_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/activity_storage_service.dart): Activity storage and memory service.
+- [`lib/features/editor/presentation/widgets/mood_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/mood_picker_sheet.dart): Mood picker bottom sheet.
+- [`lib/features/editor/presentation/widgets/moment_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/moment_picker_sheet.dart): Moment picker bottom sheet.
+- [`lib/features/editor/presentation/widgets/activity_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/activity_picker_sheet.dart): Activity picker and custom creator bottom sheet.
+- [`lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart): Interactive WYSIWYG properties section integration.
+- [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart): Preview card rendering.
+- [`lib/features/editor/domain/frontmatter_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/frontmatter_document.dart): Model extensions.
+- [`lib/features/editor/application/frontmatter_editor_helper.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/frontmatter_editor_helper.dart): Parser and modifier updates.
+- [`lib/features/import/application/markdown_frontmatter_parser.dart`](file:///home/dog/git/quitepaper/lib/features/import/application/markdown_frontmatter_parser.dart): Import and preview parser updates.
+- [`test/editor/frontmatter_editor_helper_test.dart`](file:///home/dog/git/quitepaper/test/editor/frontmatter_editor_helper_test.dart): Unit tests for mood, moment, activities, and weather.
+- [`test/import/markdown_frontmatter_parser_test.dart`](file:///home/dog/git/quitepaper/test/import/markdown_frontmatter_parser_test.dart): Unit tests for parser.
+- [`test/editor/frontmatter_properties_section_test.dart`](file:///home/dog/git/quitepaper/test/editor/frontmatter_properties_section_test.dart): Widget tests for visual edit mode.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 149.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Full Test Suite: `flutter test` (**all 1,612 tests passed, 0 failures**).
+
+
 
 
 

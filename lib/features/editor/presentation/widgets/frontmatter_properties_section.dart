@@ -3,11 +3,19 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/journal/application/activity_storage_service.dart';
+import '../../../../core/journal/application/weather_service.dart';
+import '../../../../core/journal/domain/journal_moment.dart';
+import '../../../../core/journal/domain/journal_mood.dart';
+import '../../../../core/journal/domain/journal_weather.dart';
 import '../../../../core/location/location_models.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/utils/link_launcher_helper.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../domain/frontmatter_document.dart';
+import 'activity_picker_sheet.dart';
+import 'moment_picker_sheet.dart';
+import 'mood_picker_sheet.dart';
 import 'tag_editor_bar.dart';
 
 /// An understated, calm editorial Properties section rendered above the body in WYSIWYG mode.
@@ -38,6 +46,7 @@ class FrontmatterPropertiesSection extends StatefulWidget {
 class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSection> {
   late bool _isExpanded;
   bool _isFetchingLocation = false;
+  bool _isFetchingWeather = false;
 
   late final TextEditingController _authorController;
   late final TextEditingController _createdController;
@@ -154,6 +163,146 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
+  Future<void> _fetchWeather() async {
+    if (widget.readOnly || _isFetchingWeather) return;
+    setState(() => _isFetchingWeather = true);
+    try {
+      double lat = 0.0;
+      double lng = 0.0;
+      var currentDoc = widget.rawDocument;
+      final loc = widget.frontmatter.location;
+      if (loc != null && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
+        lat = loc.latitude;
+        lng = loc.longitude;
+      } else {
+        final fetchedLoc = await LocationService().fetchCurrentLocation();
+        lat = fetchedLoc.latitude;
+        lng = fetchedLoc.longitude;
+        if (loc == null) {
+          currentDoc = FrontmatterEditorHelper.updateLocation(
+            documentText: currentDoc,
+            location: fetchedLoc,
+          );
+        }
+      }
+
+      final weatherService = WeatherService();
+      final weather = await weatherService.fetchWeather(lat, lng);
+      if (!mounted) return;
+      final updated = FrontmatterEditorHelper.updateWeather(
+        documentText: currentDoc,
+        weather: weather,
+      );
+      widget.onDocumentChanged(updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not fetch weather: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingWeather = false);
+      }
+    }
+  }
+
+  void _removeWeather() {
+    if (widget.readOnly) return;
+    final updated = FrontmatterEditorHelper.removeWeather(
+      documentText: widget.rawDocument,
+    );
+    widget.onDocumentChanged(updated);
+  }
+
+  void _showMomentPicker() {
+    if (widget.readOnly) return;
+    MomentPickerSheet.show(
+      context: context,
+      currentMoment: widget.frontmatter.moment,
+      onMomentSelected: (momentKey) {
+        final updated = FrontmatterEditorHelper.updateMoment(
+          documentText: widget.rawDocument,
+          moment: momentKey,
+        );
+        widget.onDocumentChanged(updated);
+      },
+      onMomentCleared: () {
+        final updated = FrontmatterEditorHelper.removeMoment(
+          documentText: widget.rawDocument,
+        );
+        widget.onDocumentChanged(updated);
+      },
+    );
+  }
+
+  void _removeMoment() {
+    if (widget.readOnly) return;
+    final updated = FrontmatterEditorHelper.removeMoment(
+      documentText: widget.rawDocument,
+    );
+    widget.onDocumentChanged(updated);
+  }
+
+  void _showMoodPicker() {
+    if (widget.readOnly) return;
+    MoodPickerSheet.show(
+      context: context,
+      currentMood: widget.frontmatter.mood,
+      onMoodSelected: (level) {
+        final updated = FrontmatterEditorHelper.updateMood(
+          documentText: widget.rawDocument,
+          mood: level,
+        );
+        widget.onDocumentChanged(updated);
+      },
+      onMoodCleared: () {
+        final updated = FrontmatterEditorHelper.removeMood(
+          documentText: widget.rawDocument,
+        );
+        widget.onDocumentChanged(updated);
+      },
+    );
+  }
+
+  void _removeMood() {
+    if (widget.readOnly) return;
+    final updated = FrontmatterEditorHelper.removeMood(
+      documentText: widget.rawDocument,
+    );
+    widget.onDocumentChanged(updated);
+  }
+
+  void _showActivityPicker() {
+    if (widget.readOnly) return;
+    ActivityPickerSheet.show(
+      context: context,
+      selectedIds: widget.frontmatter.activities,
+      onActivitiesChanged: (newActivities) {
+        final updated = FrontmatterEditorHelper.updateActivities(
+          documentText: widget.rawDocument,
+          activities: newActivities,
+        );
+        widget.onDocumentChanged(updated);
+      },
+    );
+  }
+
+  void _removeActivity(String activityId) {
+    if (widget.readOnly) return;
+    final current = List<String>.from(widget.frontmatter.activities);
+    current.removeWhere((id) => id.toLowerCase() == activityId.toLowerCase());
+    final updated = FrontmatterEditorHelper.updateActivities(
+      documentText: widget.rawDocument,
+      activities: current,
+    );
+    widget.onDocumentChanged(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -205,6 +354,18 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     final showLocation = isDiary
         ? (!widget.readOnly || doc.location != null)
         : (doc.location != null);
+    final showMoment = isDiary
+        ? (!widget.readOnly || (doc.moment != null && doc.moment!.isNotEmpty))
+        : (doc.moment != null && doc.moment!.isNotEmpty);
+    final showMood = isDiary
+        ? (!widget.readOnly || doc.mood != null)
+        : (doc.mood != null);
+    final showWeather = isDiary
+        ? (!widget.readOnly || doc.weather != null)
+        : (doc.weather != null);
+    final showActivities = isDiary
+        ? (!widget.readOnly || doc.activities.isNotEmpty)
+        : (doc.activities.isNotEmpty);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -305,12 +466,44 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                       ),
                     ),
 
+                  // Moment property
+                  if (showMoment)
+                    _PropertyRow(
+                      icon: JournalMoment.fromKey(doc.moment)?.icon ?? Icons.auto_awesome_outlined,
+                      label: 'Moment',
+                      child: _buildMomentField(colors, doc.moment),
+                    ),
+
+                  // Mood property
+                  if (showMood)
+                    _PropertyRow(
+                      icon: Icons.sentiment_satisfied_alt_rounded,
+                      label: 'Mood',
+                      child: _buildMoodField(colors, doc.mood),
+                    ),
+
+                  // Weather property
+                  if (showWeather)
+                    _PropertyRow(
+                      icon: doc.weather?.icon ?? Icons.wb_sunny_outlined,
+                      label: 'Weather',
+                      child: _buildWeatherField(colors, doc.weather),
+                    ),
+
                   // Location property
                   if (showLocation)
                     _PropertyRow(
                       icon: Icons.place_outlined,
                       label: 'Location',
                       child: _buildLocationField(colors, doc.location),
+                    ),
+
+                  // Activities property
+                  if (showActivities)
+                    _PropertyRow(
+                      icon: Icons.directions_run_rounded,
+                      label: 'Activities',
+                      child: _buildActivitiesField(colors, doc.activities),
                     ),
 
                   // Source property
@@ -560,11 +753,420 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     return const SizedBox.shrink();
   }
 
+  Widget _buildMomentField(AppColors colors, String? momentKey) {
+    if (momentKey != null && momentKey.trim().isNotEmpty) {
+      final moment = JournalMoment.fromKey(momentKey);
+      final label = moment?.label ?? momentKey;
+      final icon = moment?.icon ?? Icons.auto_awesome_outlined;
+
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: widget.readOnly ? null : _showMomentPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(
+                    color: colors.divider.withValues(alpha: 0.6),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 14, color: colors.accent),
+                    const SizedBox(width: 6.0),
+                    Text(
+                      label,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (!widget.readOnly) ...[
+                      const SizedBox(width: 6.0),
+                      InkWell(
+                        onTap: _removeMoment,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Icon(Icons.close_rounded, size: 13, color: colors.textTertiary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!widget.readOnly) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: _showMomentPicker,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 13, color: colors.accent),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Choose Moment',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildMoodField(AppColors colors, int? moodLevel) {
+    if (moodLevel != null) {
+      final mood = JournalMood.fromLevel(moodLevel);
+
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: widget.readOnly ? null : _showMoodPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(
+                    color: colors.divider.withValues(alpha: 0.6),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      mood?.emoji ?? '😊',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Text(
+                      mood != null ? '${mood.label} (${mood.level}/10)' : '$moodLevel/10',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (!widget.readOnly) ...[
+                      const SizedBox(width: 6.0),
+                      InkWell(
+                        onTap: _removeMood,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Icon(Icons.close_rounded, size: 13, color: colors.textTertiary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!widget.readOnly) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: _showMoodPicker,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 13, color: colors.accent),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Choose Mood',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildWeatherField(AppColors colors, JournalWeather? weather) {
+    if (_isFetchingWeather) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6.0, bottom: 6.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Fetching current weather...',
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (weather != null && weather.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              decoration: BoxDecoration(
+                color: colors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                border: Border.all(
+                  color: colors.divider.withValues(alpha: 0.6),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(weather.icon, size: 14, color: colors.accent),
+                  const SizedBox(width: 6.0),
+                  Text(
+                    '${weather.temperatureString}, ${weather.condition}',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!widget.readOnly) ...[
+              const SizedBox(width: 4.0),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 14),
+                color: colors.textSecondary,
+                tooltip: 'Refresh weather',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                onPressed: _fetchWeather,
+              ),
+              const SizedBox(width: 4.0),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 14),
+                color: colors.textTertiary,
+                tooltip: 'Remove weather',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                onPressed: _removeWeather,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (!widget.readOnly) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: _fetchWeather,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_outlined, size: 13, color: colors.accent),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Fetch Weather',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildActivitiesField(AppColors colors, List<String> activities) {
+    if (activities.isEmpty && widget.readOnly) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Wrap(
+        spacing: 6.0,
+        runSpacing: 4.0,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ...activities.map((actId) {
+            final activity = ActivityStorageService.findActivitySync(actId);
+            final label = activity?.label ??
+                (actId.isNotEmpty
+                    ? actId[0].toUpperCase() + actId.substring(1)
+                    : actId);
+            final icon = activity?.icon ?? Icons.label_outline_rounded;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: colors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                border: Border.all(
+                  color: colors.divider.withValues(alpha: 0.6),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 12.0, color: colors.textSecondary),
+                  const SizedBox(width: 4.0),
+                  Text(
+                    label,
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                  if (!widget.readOnly) ...[
+                    const SizedBox(width: 4.0),
+                    InkWell(
+                      onTap: () => _removeActivity(actId),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Icon(Icons.close_rounded, size: 12, color: colors.textTertiary),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+          if (!widget.readOnly)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                onTap: _showActivityPicker,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceSubtle.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    border: Border.all(
+                      color: colors.accent.withValues(alpha: 0.4),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_rounded, size: 12.0, color: colors.accent),
+                      const SizedBox(width: 3.0),
+                      Text(
+                        activities.isEmpty ? 'Add Activities' : 'Add',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   String _buildSummaryLabel(FrontmatterDocument doc) {
     final parts = <String>[];
     if (doc.author != null && doc.author!.isNotEmpty) parts.add(doc.author!);
     if (doc.created != null && doc.created!.isNotEmpty) parts.add(doc.created!);
+    if (doc.moment != null && doc.moment!.isNotEmpty) {
+      final moment = JournalMoment.fromKey(doc.moment);
+      parts.add(moment?.label ?? doc.moment!);
+    }
+    if (doc.mood != null) {
+      final mood = JournalMood.fromLevel(doc.mood);
+      parts.add(mood != null ? '${mood.emoji} ${mood.level}/10' : 'Mood ${doc.mood}/10');
+    }
+    if (doc.weather != null && doc.weather!.isNotEmpty) {
+      parts.add('${doc.weather!.temperatureString} ${doc.weather!.condition}');
+    }
     if (doc.location != null && doc.location!.isNotEmpty) parts.add(doc.location!.displayString);
+    if (doc.activities.isNotEmpty) parts.add('${doc.activities.length} activities');
     if (doc.tags.isNotEmpty) parts.add('${doc.tags.length} tags');
     return parts.join(' · ');
   }

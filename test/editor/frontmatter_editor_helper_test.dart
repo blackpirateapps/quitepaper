@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/journal/domain/journal_weather.dart';
 import 'package:quitepaper/core/location/location_models.dart';
 import 'package:quitepaper/features/editor/application/frontmatter_editor_helper.dart';
 
@@ -223,6 +224,123 @@ Entry body
       final parsed = FrontmatterEditorHelper.parse(removed);
       expect(parsed.location, isNull);
       expect(parsed.tags, equals(['travel']));
+    });
+
+    test('updateMood and removeMood work correctly', () {
+      const initialDoc = '''---
+journal: true
+date: 2026-10-08
+---
+
+Entry body
+''';
+
+      final withMood = FrontmatterEditorHelper.updateMood(
+        documentText: initialDoc,
+        mood: 9,
+      );
+
+      expect(withMood, contains('mood: 9'));
+      final parsed = FrontmatterEditorHelper.parse(withMood);
+      expect(parsed.mood, equals(9));
+
+      final removed = FrontmatterEditorHelper.removeMood(
+        documentText: withMood,
+      );
+      expect(removed, isNot(contains('mood:')));
+      final parsedRemoved = FrontmatterEditorHelper.parse(removed);
+      expect(parsedRemoved.mood, isNull);
+    });
+
+    test('updateMoment and removeMoment work correctly', () {
+      const initialDoc = '''---
+journal: true
+date: 2026-10-08
+---
+
+Entry body
+''';
+
+      final withMoment = FrontmatterEditorHelper.updateMoment(
+        documentText: initialDoc,
+        moment: 'reflection',
+      );
+
+      expect(withMoment, contains('moment: reflection'));
+      final parsed = FrontmatterEditorHelper.parse(withMoment);
+      expect(parsed.moment, equals('reflection'));
+
+      final removed = FrontmatterEditorHelper.removeMoment(
+        documentText: withMoment,
+      );
+      expect(removed, isNot(contains('moment:')));
+      final parsedRemoved = FrontmatterEditorHelper.parse(removed);
+      expect(parsedRemoved.moment, isNull);
+    });
+
+    test('updateActivities and removeActivities work correctly', () {
+      const initialDoc = '''---
+journal: true
+date: 2026-10-08
+---
+
+Entry body
+''';
+
+      final withActivities = FrontmatterEditorHelper.updateActivities(
+        documentText: initialDoc,
+        activities: ['exercise', 'reading', 'meditation'],
+      );
+
+      expect(withActivities, contains('activities: [exercise, reading, meditation]'));
+      final parsed = FrontmatterEditorHelper.parse(withActivities);
+      expect(parsed.activities, equals(['exercise', 'reading', 'meditation']));
+
+      final removed = FrontmatterEditorHelper.removeActivities(
+        documentText: withActivities,
+      );
+      expect(removed, isNot(contains('activities:')));
+      final parsedRemoved = FrontmatterEditorHelper.parse(removed);
+      expect(parsedRemoved.activities, isEmpty);
+    });
+
+    test('updateWeather and removeWeather work correctly', () {
+      const initialDoc = '''---
+journal: true
+date: 2026-10-08
+---
+
+Entry body
+''';
+
+      const weather = JournalWeather(
+        temperature: 21.5,
+        condition: 'Clear sky',
+        code: 0,
+      );
+
+      final withWeather = FrontmatterEditorHelper.updateWeather(
+        documentText: initialDoc,
+        weather: weather,
+      );
+
+      expect(withWeather, contains('weather:'));
+      expect(withWeather, contains('  temperature: 21.5'));
+      expect(withWeather, contains('  condition: "Clear sky"'));
+      expect(withWeather, contains('  code: 0'));
+
+      final parsed = FrontmatterEditorHelper.parse(withWeather);
+      expect(parsed.weather, isNotNull);
+      expect(parsed.weather!.temperature, equals(21.5));
+      expect(parsed.weather!.condition, equals('Clear sky'));
+      expect(parsed.weather!.code, equals(0));
+
+      final removed = FrontmatterEditorHelper.removeWeather(
+        documentText: withWeather,
+      );
+      expect(removed, isNot(contains('weather:')));
+      final parsedRemoved = FrontmatterEditorHelper.parse(removed);
+      expect(parsedRemoved.weather, isNull);
     });
   });
 }

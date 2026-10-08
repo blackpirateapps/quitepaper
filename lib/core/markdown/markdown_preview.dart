@@ -12,6 +12,9 @@ import '../../features/editor/application/rich_document_serializer.dart';
 import '../../features/editor/domain/rich_document.dart';
 import '../utils/font_family_helper.dart';
 import '../utils/link_launcher_helper.dart';
+import '../journal/application/activity_storage_service.dart';
+import '../journal/domain/journal_moment.dart';
+import '../journal/domain/journal_mood.dart';
 import '../../features/editor/presentation/widgets/tag_editor_bar.dart';
 import '../../features/import/application/markdown_frontmatter_parser.dart';
 import '../../features/settings/application/typography_provider.dart';
@@ -918,7 +921,74 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 3. Location with Open in Maps
+    // 3. Moment
+    if (metadata.moment != null && metadata.moment!.trim().isNotEmpty) {
+      final moment = JournalMoment.fromKey(metadata.moment);
+      final label = moment?.label ?? metadata.moment!.trim();
+      final icon = moment?.icon ?? Icons.auto_awesome_outlined;
+
+      rows.add(
+        _PropertyRow(
+          icon: icon,
+          label: 'Moment',
+          child: Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 4. Mood
+    if (metadata.mood != null) {
+      final mood = JournalMood.fromLevel(metadata.mood);
+      final emoji = mood?.emoji ?? '😊';
+      final label = mood != null ? '${mood.label} (${mood.level}/10)' : '${metadata.mood}/10';
+
+      rows.add(
+        _PropertyRow(
+          icon: Icons.sentiment_satisfied_alt_rounded,
+          label: 'Mood',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 6.0),
+              Text(
+                label,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 5. Weather
+    if (metadata.weather != null && metadata.weather!.isNotEmpty) {
+      final weather = metadata.weather!;
+      rows.add(
+        _PropertyRow(
+          icon: weather.icon,
+          label: 'Weather',
+          child: Text(
+            '${weather.temperatureString}, ${weather.condition}',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 6. Location with Open in Maps
     if (metadata.location != null && metadata.location!.isNotEmpty) {
       final loc = metadata.location!;
       final hasAddress = loc.address.trim().isNotEmpty;
@@ -1022,7 +1092,56 @@ class QuietFrontmatterCard extends StatelessWidget {
       }
     }
 
-    // 4. Source
+    // 7. Activities
+    if (metadata.activities.isNotEmpty) {
+      rows.add(
+        _PropertyRow(
+          icon: Icons.directions_run_rounded,
+          label: 'Activities',
+          child: Wrap(
+            spacing: 6.0,
+            runSpacing: 4.0,
+            children: metadata.activities.map((actId) {
+              final activity = ActivityStorageService.findActivitySync(actId);
+              final label = activity?.label ??
+                  (actId.isNotEmpty
+                      ? actId[0].toUpperCase() + actId.substring(1)
+                      : actId);
+              final icon = activity?.icon ?? Icons.label_outline_rounded;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(
+                    color: colors.divider.withValues(alpha: 0.6),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 12.0, color: colors.textSecondary),
+                    const SizedBox(width: 4.0),
+                    Text(
+                      label,
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      );
+    }
+
+    // 8. Source
     if (metadata.source != null && metadata.source!.trim().isNotEmpty) {
       final source = metadata.source!.trim();
       final isUrl = source.startsWith('http://') ||
