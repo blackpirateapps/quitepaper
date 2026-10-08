@@ -7469,7 +7469,63 @@ The note editor 3-dot overflow menu (`⋯`) had previously become cramped with 1
 ### 4. Verification & Quality
 - Static Analysis: `flutter analyze` completed with **0 issues found** (0 errors, 0 warnings).
 - Targeted Tests: `flutter test test/editor/editor_overflow_menu_test.dart test/editor/editor_stats_dialog_test.dart` passed (**14 of 14 tests passed**).
-- Full Test Suite: `flutter test` running full verification.
+- Full Test Suite: `flutter test` passed (**1,591 of 1,591 tests passed**).
+
+---
+
+## 147. Rich Text Editor: Todolist & Checklist 1:1 Caret Parity, Gutter Clamping & Block Alignment (October 2026)
+
+### 1. Overview & Bug Description
+In Quiet Paper's Visual (WYSIWYG) rich-text editor ([`RichTextEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart)), checklists and todolists exhibited several related caret and layout bugs:
+1. **Cursor trapped before checkbox**: Tapping the checklist icon on the formatting toolbar inserted an unchecked checkbox (`- [ ]`), but the blinking cursor appeared to the left of the checkbox inside the margin. There was no way to move the cursor after the checkbox because the text length was 0.
+2. **Caret jumping and lagging behind while typing**: When typing text (e.g. `"hey"`), the cursor lagged behind by 1 character (appearing after `'e'` rather than after `'y'`). In multi-line checklists, this offset grew cumulatively (+1 per checklist line, +2 per bullet line, +3 per numbered item), causing severe caret desynchronization.
+3. **Misplaced checkbox on Enter**: Pressing Enter on a checklist item sometimes inserted a new checkbox lines below rather than on the immediate next line because the desynchronized caret offset resolved to the wrong block in the document AST.
+
+### 2. Root Cause Analysis
+In `_RichTextEditingController.buildTextSpan`:
+- For `ChecklistItemBlock`, an interactive `WidgetSpan` containing the checkbox icon was prepended to the block's text spans.
+- In Flutter's text layout engine (SkParagraph / LibTxt), every `PlaceholderSpan`/`WidgetSpan` consumes **1 code unit** (`\uFFFC`, `PlaceholderSpan.placeholderCodeUnit`) in the laid-out `Paragraph`.
+- However, `_RichTextEditingController.computeSegmentText()` constructed the underlying controller text strictly from `block.plainText`.
+- For an empty checklist item, `block.plainText` was `""` (0 code units), while the paragraph layout had 1 code unit (`\uFFFC`).
+- Consequently:
+  - At offset 0 in the text, Flutter painted the cursor at offset 0 in the paragraph: **before the checkbox**.
+  - There was no offset 1 in the string, making it impossible to place the cursor after the checkbox until typing began.
+  - While typing, `text.length` was always 1 code unit behind `TextPainter`, causing the cursor to lag behind by 1 position (after `'e'` instead of `'y'`).
+  - In multi-item lists, every preceding list item added unrepresented code units, causing cumulative line drift and leading `resolveDocumentPosition` to resolve Enter keystrokes to the wrong block further down the document.
+
+### 3. Architectural Solution
+1. **Presentation-Layer 1:1 Code Unit Parity (`prefixForBlock`)**:
+   - In `_RichTextEditingController`, defined `prefixForBlock(RichBlock block)`:
+     - `ChecklistItemBlock`: `'\uFFFC'` (Unicode Object Replacement Character `0xFFFC`, matching Flutter's `PlaceholderSpan.placeholderCodeUnit` exactly).
+     - `BulletedListItemBlock`: `('  ' * block.indent) + '• '`.
+     - `OrderedListItemBlock`: `('  ' * block.indent) + '${block.order}. '`.
+     - `QuoteBlock`: `'▌ '`.
+     - `HeadingBlock` & `ParagraphBlock`: `''`.
+   - Updated `computeSegmentText()` to prepend `prefixForBlock(block)` to each line, establishing exact 1:1 code unit parity between `_textController.text` and `TextPainter` across all lines.
+2. **Prefix-Aware Resolvers**:
+   - Refactored `resolveDocumentPosition(int segmentOffset)` to subtract `prefixLength` and `runningOffset`, yielding accurate content offsets within `0..block.plainText.length`.
+   - Refactored `resolveSegmentOffset(RichDocumentPosition position)` to map to `runningOffset + prefixLength + position.offset`. For new checklist items at offset 0, this places the caret at `runningOffset + 1` (immediately after the checkbox).
+3. **Prefix Gutter Clamping (`clampSelectionAwayFromPrefixes`)**:
+   - Clamps any selection offset landing in `[runningOffset, runningOffset + prefixLength)` to `runningOffset + prefixLength`.
+   - Prevents the caret from ever being placed into the uneditable checkbox gutter before the checkbox.
+4. **Model Purity & Clean Persistence**:
+   - In `applyTextChangesToDocument`, stripped presentation prefixes before updating `block.spans`.
+   - If the user backspaces into the prefix via soft keyboard/IME, `convertBlockToParagraph` cleanly converts the item to a regular paragraph.
+   - The authoritative `RichDocument` AST, `ChecklistItemBlock.spans`, Markdown serializer (`- [ ] `), Drift SQLite DB, and E2EE cloud sync payloads remain 100% pure (zero `\uFFFC` leakage).
+5. **Key Bindings & Toolbar Wireup**:
+   - Added `Ctrl+Shift+C` and `Cmd+Shift+C` shortcut bindings for `toggleChecklist` in `RichTextEditor`.
+   - Ensured `widget.controller.handleEnterAt(docPos)` passes the resolved document position directly on Enter.
+
+### 4. Modified & Added Files
+- [`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart): Added `prefixForBlock`, `clampSelectionAwayFromPrefixes`, prefix-aware `computeSegmentText`, `resolveDocumentPosition`, `resolveSegmentOffset`, `applyTextChangesToDocument`, and `Ctrl+Shift+C` shortcut.
+- [`test/editor/rich_text_checklist_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_checklist_editor_test.dart): New comprehensive test suite with 9 tests covering empty-checklist caret placement, "hey" typing advance, gutter clamping, Enter continuation, empty-item Enter exit, Backspace-to-paragraph, checkbox toggle, multi-item drift resistance, and bullet list prefix parity.
+- [`HANDOFF.md`](file:///home/dog/git/quitepaper/HANDOFF.md): Added Section 147.
+
+### 5. Verification & Quality
+- Static Analysis: `flutter analyze` completed with **0 issues found** (0 errors, 0 warnings).
+- Checklist Test Suite: `flutter test test/editor/rich_text_checklist_editor_test.dart` passed (**9 of 9 tests passed**).
+- Full Test Suite: `flutter test` passed.
+
 
 
 

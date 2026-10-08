@@ -130,6 +130,8 @@ class _RichTextEditorState extends State<RichTextEditor> {
         );
       }
 
+      newSelection = _textController.clampSelectionAwayFromPrefixes(newSelection);
+
       if (_textController.text != newText || _textController.selection != newSelection) {
         _textController.value = TextEditingValue(
           text: newText,
@@ -160,22 +162,33 @@ class _RichTextEditorState extends State<RichTextEditor> {
       }
     }
 
-    // Sync selection back to RichDocumentController preserving full range
+    // Clamp selection away from leading prefixes if user tapped/clicked in gutter
     final sel = _textController.selection;
     if (sel.isValid) {
-      if (sel.isCollapsed) {
-        final docPos = _textController.resolveDocumentPosition(sel.extentOffset);
+      final clampedSel = _textController.clampSelectionAwayFromPrefixes(sel);
+      if (clampedSel != sel) {
+        _isInternalUpdate = true;
+        try {
+          _textController.selection = clampedSel;
+        } finally {
+          _isInternalUpdate = false;
+        }
+      }
+
+      final activeSel = _textController.selection;
+      if (activeSel.isCollapsed) {
+        final docPos = _textController.resolveDocumentPosition(activeSel.extentOffset);
         if (docPos != null) {
           widget.controller.updateSelection(RichDocumentSelection.collapsed(docPos));
         }
       } else {
-        final basePos = _textController.resolveDocumentPosition(sel.baseOffset);
-        final extentPos = _textController.resolveDocumentPosition(sel.extentOffset);
+        final basePos = _textController.resolveDocumentPosition(activeSel.baseOffset);
+        final extentPos = _textController.resolveDocumentPosition(activeSel.extentOffset);
         if (basePos != null && extentPos != null) {
           widget.controller.updateSelection(RichDocumentSelection(
             base: basePos,
             extent: extentPos,
-            affinity: sel.affinity,
+            affinity: activeSel.affinity,
           ));
         }
       }
@@ -197,7 +210,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
               if (docPos != null) {
                 final block = widget.controller.document.blocks[docPos.blockIndex];
                 if (block.isTextBlock) {
-                  widget.controller.handleEnter();
+                  widget.controller.handleEnterAt(docPos);
                   _syncFromDocument();
                   return KeyEventResult.handled;
                 }
@@ -230,6 +243,8 @@ class _RichTextEditorState extends State<RichTextEditor> {
           const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): widget.controller.toggleStrike,
           const SingleActivator(LogicalKeyboardKey.keyH, control: true, shift: true): widget.controller.toggleHighlight,
           const SingleActivator(LogicalKeyboardKey.keyH, meta: true, shift: true): widget.controller.toggleHighlight,
+          const SingleActivator(LogicalKeyboardKey.keyC, control: true, shift: true): widget.controller.toggleChecklist,
+          const SingleActivator(LogicalKeyboardKey.keyC, meta: true, shift: true): widget.controller.toggleChecklist,
           const SingleActivator(LogicalKeyboardKey.backquote, control: true): widget.controller.toggleCode,
           const SingleActivator(LogicalKeyboardKey.backquote, meta: true): widget.controller.toggleCode,
           const SingleActivator(LogicalKeyboardKey.keyZ, control: true): widget.controller.undo,
@@ -282,6 +297,7 @@ class _RichTextEditingController extends TextEditingController {
     required this.onToggleChecklist,
   }) {
     text = computeSegmentText();
+    selection = clampSelectionAwayFromPrefixes(selection);
   }
 
   RichDocumentController editorController;
@@ -306,12 +322,31 @@ class _RichTextEditingController extends TextEditingController {
     return indices;
   }
 
+  static String prefixForBlock(RichBlock block) {
+    if (block is ChecklistItemBlock) {
+      return '\uFFFC';
+    }
+    if (block is BulletedListItemBlock) {
+      final indentSpace = '  ' * block.indent;
+      return '$indentSpace• ';
+    }
+    if (block is OrderedListItemBlock) {
+      final indentSpace = '  ' * block.indent;
+      return '$indentSpace${block.order}. ';
+    }
+    if (block is QuoteBlock) {
+      return '▌ ';
+    }
+    return '';
+  }
+
   String computeSegmentText() {
     final doc = editorController.document;
     final lines = <String>[];
     for (final idx in effectiveIndices) {
       if (idx < doc.blocks.length) {
-        lines.add(doc.blocks[idx].plainText);
+        final block = doc.blocks[idx];
+        lines.add(prefixForBlock(block) + block.plainText);
       }
     }
     return lines.join('\n');
@@ -324,16 +359,21 @@ class _RichTextEditingController extends TextEditingController {
 
     int runningOffset = 0;
     for (final idx in indices) {
+      if (idx >= doc.blocks.length) break;
       final block = doc.blocks[idx];
-      final int blockLength = block.plainText.length;
-      final int blockEnd = runningOffset + blockLength;
+      final prefix = prefixForBlock(block);
+      final int prefixLength = prefix.length;
+      final int blockContentLength = block.plainText.length;
+      final int totalBlockLength = prefixLength + blockContentLength;
+      final int blockEnd = runningOffset + totalBlockLength;
 
       if (segmentOffset <= blockEnd || idx == indices.last) {
-        final int inner = (segmentOffset - runningOffset).clamp(0, blockLength).toInt();
+        final int inner = (segmentOffset - runningOffset).clamp(0, totalBlockLength).toInt();
+        final int contentOffset = (inner - prefixLength).clamp(0, blockContentLength).toInt();
         return RichDocumentPosition(
           blockIndex: idx,
           blockId: block.id,
-          offset: inner,
+          offset: contentOffset,
         );
       }
       runningOffset = blockEnd + 1; // +1 for '\n'
@@ -349,17 +389,58 @@ class _RichTextEditingController extends TextEditingController {
     int runningOffset = 0;
     for (var i = 0; i < indices.length; i++) {
       final idx = indices[i];
+      if (idx >= doc.blocks.length) break;
+      final block = doc.blocks[idx];
+      final prefix = prefixForBlock(block);
+      final int prefixLength = prefix.length;
+      final int blockContentLength = block.plainText.length;
+
       if (idx == position.blockIndex) {
-        final block = doc.blocks[idx];
-        final int blockLength = block.plainText.length;
-        final int clampedInner = position.offset.clamp(0, blockLength).toInt();
-        return runningOffset + clampedInner;
+        final int clampedInner = position.offset.clamp(0, blockContentLength).toInt();
+        return runningOffset + prefixLength + clampedInner;
       }
-      if (idx < doc.blocks.length) {
-        runningOffset += doc.blocks[idx].plainText.length + 1; // +1 for '\n'
-      }
+      runningOffset += prefixLength + blockContentLength + 1; // +1 for '\n'
     }
     return null;
+  }
+
+  TextSelection clampSelectionAwayFromPrefixes(TextSelection sel) {
+    if (!sel.isValid) return sel;
+    final doc = editorController.document;
+    final indices = effectiveIndices;
+    if (indices.isEmpty) return sel;
+
+    int clampOffset(int offset) {
+      int runningOffset = 0;
+      for (final idx in indices) {
+        if (idx >= doc.blocks.length) break;
+        final block = doc.blocks[idx];
+        final prefix = prefixForBlock(block);
+        final prefixLength = prefix.length;
+        final blockContentLength = block.plainText.length;
+        final blockEnd = runningOffset + prefixLength + blockContentLength;
+
+        if (prefixLength > 0 && offset >= runningOffset && offset < runningOffset + prefixLength) {
+          return runningOffset + prefixLength;
+        }
+        if (offset <= blockEnd) {
+          return offset;
+        }
+        runningOffset = blockEnd + 1; // +1 for '\n'
+      }
+      return offset;
+    }
+
+    final newBase = clampOffset(sel.baseOffset);
+    final newExtent = clampOffset(sel.extentOffset);
+    if (newBase != sel.baseOffset || newExtent != sel.extentOffset) {
+      return TextSelection(
+        baseOffset: newBase,
+        extentOffset: newExtent,
+        affinity: sel.affinity,
+      );
+    }
+    return sel;
   }
 
   void applyTextChangesToDocument(String newSegmentText) {
@@ -373,7 +454,26 @@ class _RichTextEditingController extends TextEditingController {
       for (var i = 0; i < indices.length; i++) {
         final blockIdx = indices[i];
         final block = doc.blocks[blockIdx];
-        final newLine = lines[i];
+        final newLineWithPrefix = lines[i];
+        final prefix = prefixForBlock(block);
+
+        String newLine;
+        if (prefix.isEmpty) {
+          newLine = newLineWithPrefix;
+        } else if (newLineWithPrefix.startsWith(prefix)) {
+          newLine = newLineWithPrefix.substring(prefix.length);
+        } else {
+          // The line does not start with the expected prefix.
+          // This happens when the user pressed backspace on the prefix via soft keyboard / IME.
+          if (!newLineWithPrefix.contains(prefix)) {
+            // User backspaced into the prefix -> convert block to paragraph
+            editorController.convertBlockToParagraph(blockIdx);
+            newLine = newLineWithPrefix.replaceAll('\uFFFC', '');
+          } else {
+            // Prefix might have moved slightly
+            newLine = newLineWithPrefix.replaceFirst(prefix, '').replaceAll('\uFFFC', '');
+          }
+        }
 
         if (block.plainText != newLine) {
           final updatedSpans = _spliceSpans(
@@ -445,11 +545,13 @@ class _RichTextEditingController extends TextEditingController {
     final endPos = resolveDocumentPosition(deleteEnd) ??
         RichDocumentPosition(blockIndex: indices.last, blockId: doc.blocks[indices.last].id, offset: doc.blocks[indices.last].plainText.length);
 
+    final cleanInserted = inserted.replaceAll('\uFFFC', '');
+
     final docAfterReplacement = _replaceRangeWithText(
       doc,
       startPos,
       endPos,
-      inserted,
+      cleanInserted,
       attributes: editorController.typingAttributes,
     );
     editorController.setDocument(docAfterReplacement);
