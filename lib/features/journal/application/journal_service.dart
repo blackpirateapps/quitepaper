@@ -11,8 +11,16 @@ class JournalService {
 
   /// Retrieves today's journal entry if it exists, or creates it atomically.
   Future<Note> getOrCreateToday([DateTime? now]) {
-    final localDate = now ?? DateTime.now();
-    return _repository.getOrCreateJournalEntry(localDate);
+    return getOrCreateForDate(now ?? DateTime.now());
+  }
+
+  /// Retrieves the journal entry for [date] if it exists, or creates it atomically.
+  ///
+  /// Works for any calendar date (including historical dates backfilled from paper
+  /// diaries). Ordering across the journal is keyed off the `date` frontmatter
+  /// property, so the created note's `createdAt` stays the real transcription time.
+  Future<Note> getOrCreateForDate(DateTime date) {
+    return _repository.getOrCreateJournalEntry(date);
   }
 
   /// Retrieves the journal entry for a specific calendar date (null if not found).
@@ -56,20 +64,37 @@ class JournalService {
     BuildContext context, {
     bool isTablet = false,
     void Function(Note note)? onTabletSelectNote,
+  }) {
+    return openOrCreateEntryFlow(
+      context,
+      DateTime.now(),
+      isTablet: isTablet,
+      onTabletSelectNote: onTabletSelectNote,
+    );
+  }
+
+  /// Opens the journal entry for [date] in the editor, creating it first if it
+  /// doesn't exist yet. Used for both Today and backfilling historical entries.
+  Future<Note> openOrCreateEntryFlow(
+    BuildContext context,
+    DateTime date, {
+    bool isTablet = false,
+    void Function(Note note)? onTabletSelectNote,
   }) async {
-    final note = await getOrCreateToday();
+    final note = await getOrCreateForDate(date);
 
     if (!context.mounted) return note;
 
     if (note.isTrashed) {
+      final dateLabel = JournalDateHelper.formatDisplayDate(date);
       final shouldRestore = await showDialog<bool>(
         context: context,
         builder: (ctx) {
           final theme = Theme.of(ctx);
           return AlertDialog(
-            title: const Text('Today\'s Journal Entry is in Trash'),
-            content: const Text(
-              'Today\'s journal entry was moved to Trash. Would you like to restore it to continue writing?',
+            title: Text('$dateLabel is in Trash'),
+            content: Text(
+              'The journal entry for $dateLabel was moved to Trash. Would you like to restore it to continue writing?',
             ),
             actions: [
               TextButton(

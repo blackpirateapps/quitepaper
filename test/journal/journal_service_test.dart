@@ -41,6 +41,18 @@ void main() {
       expect(after!.journalDate, '2026-09-01');
     });
 
+    test('getOrCreateForDate backfills a historical entry and is idempotent per day', () async {
+      final pastDate = DateTime(2019, 3, 14);
+
+      final created = await journalService.getOrCreateForDate(pastDate);
+      expect(created.isJournal, isTrue);
+      expect(created.journalDate, '2019-03-14');
+
+      // Same calendar date returns the same note (one-per-day invariant).
+      final again = await journalService.getOrCreateForDate(DateTime(2019, 3, 14, 23, 59));
+      expect(again.id, created.id);
+    });
+
     test('getOnThisDayEntries returns only previous year matching entries', () async {
       // Historical entries
       final n2025 = await repository.getOrCreateJournalEntry(DateTime(2025, 9, 1));

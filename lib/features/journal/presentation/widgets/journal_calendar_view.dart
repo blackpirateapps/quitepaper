@@ -18,10 +18,14 @@ class JournalCalendarView extends ConsumerWidget {
     super.key,
     required this.onOpenEntry,
     required this.onShowInTimeline,
+    required this.onCreateEntry,
   });
 
   final void Function(Note note) onOpenEntry;
   final void Function(String noteId, String journalDate) onShowInTimeline;
+
+  /// Called to create (and open) a journal entry for a date that has none yet.
+  final void Function(DateTime date) onCreateEntry;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -289,6 +293,7 @@ class JournalCalendarView extends ConsumerWidget {
                 onShowInTimeline(selectedEntry.id, selectedDate);
               }
             },
+            onCreateEntry: onCreateEntry,
           ),
         ],
       ],
@@ -439,12 +444,14 @@ class _SelectedDatePreview extends StatelessWidget {
     required this.entry,
     required this.onOpenEntry,
     required this.onShowInTimeline,
+    required this.onCreateEntry,
   });
 
   final String dateString;
   final Note? entry;
   final VoidCallback onOpenEntry;
   final VoidCallback onShowInTimeline;
+  final void Function(DateTime date) onCreateEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +462,9 @@ class _SelectedDatePreview extends StatelessWidget {
         : dateString.toUpperCase();
 
     if (entry == null) {
-      // Empty preview: date has no journal entry
+      // Empty preview: date has no journal entry yet.
+      final canCreate = parsed != null &&
+          dateString.compareTo(JournalDateHelper.todayString()) <= 0;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8.0),
         decoration: BoxDecoration(
@@ -483,6 +492,33 @@ class _SelectedDatePreview extends StatelessWidget {
                 fontSize: 13.0,
               ),
             ),
+            if (canCreate) ...[
+              const SizedBox(height: 8.0),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => onCreateEntry(parsed),
+                  icon: Icon(
+                    PhosphorIconsRegular.notePencil,
+                    size: 15,
+                    color: colors.accent,
+                  ),
+                  label: Text(
+                    'Write entry for this day',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       );

@@ -70,6 +70,37 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
     }
   }
 
+  /// Creates (or opens, if it already exists) the journal entry for [date],
+  /// then selects that date in the calendar so it stays in context.
+  Future<void> _createEntryForDate(DateTime date) async {
+    final normalized = DateTime(date.year, date.month, date.day);
+    ref.read(calendarVisibleMonthProvider.notifier).state =
+        (year: normalized.year, month: normalized.month);
+    ref.read(calendarSelectedDateProvider.notifier).state =
+        JournalDateHelper.toDateString(normalized);
+
+    await ref.read(journalServiceProvider).openOrCreateEntryFlow(
+          context,
+          normalized,
+          isTablet: widget.isTablet,
+          onTabletSelectNote: widget.onNoteSelected,
+        );
+  }
+
+  /// Opens a date picker (today or earlier) to backfill a past journal entry.
+  Future<void> _pickDateAndCreate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Add past entry',
+    );
+    if (picked == null || !mounted) return;
+    await _createEntryForDate(picked);
+  }
+
   Future<void> _jumpToEntry(String noteId, String journalDate) async {
     // 1. Collapse the calendar so timeline has maximum viewport
     ref.read(calendarIsCollapsedProvider.notifier).state = true;
@@ -170,6 +201,7 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
                             child: JournalCalendarView(
                               onOpenEntry: _navigateToEditor,
                               onShowInTimeline: _jumpToEntry,
+                              onCreateEntry: _createEntryForDate,
                             ),
                           ),
                         ),
@@ -336,6 +368,11 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
               ),
             ),
             QuietIconButton(
+              icon: PhosphorIconsRegular.calendarPlus,
+              tooltip: 'Add past entry',
+              onPressed: _pickDateAndCreate,
+            ),
+            QuietIconButton(
               icon: PhosphorIconsRegular.magnifyingGlass,
               tooltip: 'Search notes',
               onPressed: () {
@@ -382,6 +419,11 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
+          ),
+          QuietIconButton(
+            icon: PhosphorIconsRegular.calendarPlus,
+            tooltip: 'Add past entry',
+            onPressed: _pickDateAndCreate,
           ),
           QuietIconButton(
             icon: PhosphorIconsRegular.magnifyingGlass,

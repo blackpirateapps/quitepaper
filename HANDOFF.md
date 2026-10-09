@@ -7959,3 +7959,22 @@ All three surfaces now share the existing cell-edit engine (`MarkdownTableContro
 - Dedicated tests: `test/editor/markdown_table_formatter_ops_test.dart` (move/duplicate ops), `test/editor/table_clipboard_parser_test.dart` (CSV/TSV), `test/editor/table_editor_screen_test.dart` (full-screen render, duplicate-row-returns-changed-markdown, delete sentinel), and a new Super Editor case asserting a cell tap activates the inline `MarkdownTableEditor` (no popup).
 - Full Test Suite: `flutter test` (all tests passing).
 
+## 159. Journal: Backfilling Historical Entries by Date (October 2026)
+
+### 1. Summary
+The Journal could only ever create **today's** entry — the sole creation path was `openOrCreateTodayFlow` (sidebar "Today"), and selecting a past date on the calendar showed a dead "No journal entry" label. This blocked the real use case of transcribing **old paper-diary entries** (each dated in the past, often with a photo of the physical page attached). Two entry points now let you create a journal entry for **any date up to today**: a "Write entry for this day" button on the calendar's selected-date preview, and an "Add past entry" (`calendarPlus`) button in the All Entries top bar that opens a date picker.
+
+### 2. Architecture
+No data-layer change was needed. `DriftNotesRepository.getOrCreateJournalEntry(DateTime)` ([`notes_repository.dart`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_repository.dart)) already accepts an arbitrary date and already enforces the at-most-one-per-day invariant via the `notes_journal_date_unique_idx` partial index and race-safe retry. The gap was purely in the flow/UI layer.
+- **`JournalService`** ([`journal_service.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_service.dart)): added `getOrCreateForDate(DateTime)` and generalized `openOrCreateTodayFlow` into `openOrCreateEntryFlow(context, date, …)`. `openOrCreateTodayFlow` is now a thin wrapper passing `DateTime.now()`, preserving the sidebar "Today" behaviour and the trash-restore confirmation (its dialog copy is now date-specific, e.g. "March 14, 2019 is in Trash").
+- **Ordering is unaffected.** Every journal surface orders by the `date` frontmatter (`journal_date`), not timestamps (`app_database.dart` timeline/calendar/On-This-Day queries all `OrderingTerm.desc(journalDate)`). A backfilled entry therefore slots into the correct chronological position regardless of when it was transcribed, so `createdAt`/`updatedAt` are deliberately left as the real transcription time. (Side effect: a freshly transcribed historical entry surfaces at the top of the main Library list, which sorts by `updatedAt` — accepted, not a journal-view concern.)
+
+### 3. UI entry points
+- **Calendar selected-date preview** ([`journal_calendar_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/journal_calendar_view.dart)): `_SelectedDatePreview`'s empty branch now renders a "Write entry for this day" `TextButton` when the selected date is today-or-earlier (gated via `dateString.compareTo(JournalDateHelper.todayString()) <= 0`; future dates still show only "No journal entry"). `JournalCalendarView` gained a required `onCreateEntry(DateTime)` callback.
+- **All Entries top bar** ([`journal_all_entries_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/journal_all_entries_view.dart)): a `calendarPlus` "Add past entry" button (both phone and tablet bars) opens `showDatePicker` (`firstDate: 1900`, `lastDate: today`). Both entry points route through `_createEntryForDate`, which sets `calendarVisibleMonthProvider`/`calendarSelectedDateProvider` so the chosen day stays in context, then calls `openOrCreateEntryFlow` (tablet-aware). Transcription text + the diary-page photo then use the existing editor (image insertion via `FilePicker`) with no new code.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found**).
+- Tests: added `getOrCreateForDate` backfill + one-per-day idempotency cases to `test/journal/journal_service_test.dart`. Existing journal suite (incl. "selecting empty date never auto-creates today note") still green.
+- Full Test Suite: `flutter test` (all tests passing).
+
