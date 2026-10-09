@@ -8062,3 +8062,21 @@ All Entries timeline tiles now carry a quiet place & weather dateline (e.g. `�
 - Tests: `test/journal/journal_timeline_dateline_test.dart` — composes place+weather; place-only; nothing when absent; toggle OFF hides it; locked note hidden.
 - Full Test Suite: `flutter test` (**all 1705 tests passing**).
 
+## 165. Journal Location Features — Places Data Layer + Device-Local Merge Store (§2.3) (October 2026)
+
+### 1. Summary
+The data layer behind the Places page (Feature 4): providers that group located journal entries into places (reusing §2.2's `PlaceGroupingService`), a drill-in + visit sub-grouping, and a reversible, **device-local** place merge/alias store.
+
+### 2. New building blocks
+- **`lib/features/journal/application/place_alias_store.dart`**: `PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>>` + `placeAliasStoreProvider`. `merge(matchKeys, {canonicalKey, displayName})`, `rename({canonicalKey, displayName})`, `unmerge(matchKey)`. Persists one JSON key `journal_place_aliases` in SharedPreferences, with a corrupt-payload guard and in-memory fallback when prefs is absent.
+- **`lib/features/journal/application/places_providers.dart`**: `placeGranularityProvider` (default city), `placeSortOrderProvider` (default recency), `placeListProvider` (groups active/non-locked/located entries; **silently excludes** unlocated — §6.4), `placeEntriesProvider(matchKey)` (reverse-chrono members), `placeVisitsProvider(matchKey)`.
+- **`lib/features/journal/domain/journal_visit.dart`**: pure `JournalVisit` + `clusterVisits(reverseChronoNotes, {gapThresholdDays = 30})`; a gap > threshold starts a new visit, labeled `October 2024` or `October 2024 – November 2024`.
+
+### 3. Decision (locked, deviates from §2.3)
+The merge store is **device-local SharedPreferences, not synced** (per the user's decision for this pass). It is presentation-only — it never mutates note frontmatter — and is fully reversible via `unmerge`.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `place_alias_store_test.dart`, `places_providers_test.dart`, `journal_visit_test.dart` — merge/rename/unmerge + persistence round-trip; located-only grouping with granularity/sort/alias; visit gap splitting + labels.
+- Full Test Suite: `flutter test` (all passing).
+
