@@ -1460,9 +1460,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final defaultSettings = ref.watch(defaultSettingsProvider);
     final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
     final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
+    final isSuperEditor = effectiveEditingStyle == EditorEditingStyle.superEditor;
+    // Both the visual (WYSIWYG) and Super Editor surfaces render the editable
+    // frontmatter Properties card above the body. Markdown source mode keeps the
+    // raw frontmatter inline and never shows the card.
+    final showsPropertiesSection = isWysiwyg || isSuperEditor;
     final note = editorState.note;
     final contentText = _contentController.text.isNotEmpty ? _contentController.text : note.content;
-    final frontmatterDoc = isWysiwyg ? FrontmatterEditorHelper.parse(contentText) : FrontmatterDocument.empty;
+    final frontmatterDoc = showsPropertiesSection
+        ? FrontmatterEditorHelper.parse(contentText)
+        : FrontmatterDocument.empty;
 
     _contentController.styles = MarkdownStyles.fromColors(
       colors,
@@ -1920,7 +1927,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   const SizedBox(height: 20.0),
 
                                    // Tags bar (displayed seamlessly if tags exist on notes without properties card)
-                                   if (note.tags.isNotEmpty && (!isWysiwyg || !frontmatterDoc.hasMatchingSectionProperties)) ...[
+                                   if (note.tags.isNotEmpty && (!showsPropertiesSection || !frontmatterDoc.hasMatchingSectionProperties)) ...[
                                      TagEditorBar(
                                        tags: note.tags,
                                        onAddTag: editorNotifier.addTag,
@@ -1929,8 +1936,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                      const SizedBox(height: 12.0),
                                    ],
 
-                                   // Frontmatter Properties Section (in WYSIWYG mode when matching frontmatter exists)
-                                   if (isWysiwyg && frontmatterDoc.hasMatchingSectionProperties) ...[
+                                   // Frontmatter Properties Section (WYSIWYG and Super Editor modes when matching frontmatter exists)
+                                   if (showsPropertiesSection && frontmatterDoc.hasMatchingSectionProperties) ...[
                                      FrontmatterPropertiesSection(
                                        frontmatter: frontmatterDoc,
                                        rawDocument: contentText,
@@ -1959,7 +1966,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     editingStyle: effectiveEditingStyle,
-                                    stripFrontmatter: isWysiwyg && frontmatterDoc.hasFrontmatter,
+                                    stripFrontmatter: showsPropertiesSection && frontmatterDoc.hasFrontmatter,
                                     readOnly: editorState.isReadOnly,
                                     onNoteLinkPrompt: _handleNoteLinkPrompt,
                                     searchQuery: _isSearchVisible

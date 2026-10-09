@@ -59,20 +59,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   }
 
   void _initEditor() {
-    String bodyMarkdown = widget.initialMarkdown;
-    if (widget.stripFrontmatter) {
-      final fmDoc = FrontmatterEditorHelper.parse(widget.initialMarkdown);
-      if (fmDoc.hasFrontmatter) {
-        _frontmatterPrefix = widget.initialMarkdown.substring(0, fmDoc.bodyStartOffset);
-        bodyMarkdown = widget.initialMarkdown.substring(fmDoc.bodyStartOffset);
-      } else {
-        _frontmatterPrefix = null;
-      }
-    } else {
-      _frontmatterPrefix = null;
-    }
+    final split = _splitFrontmatter(widget.initialMarkdown);
+    _frontmatterPrefix = split.prefix;
 
-    final normalized = normalizeMarkdownForSuperEditor(bodyMarkdown);
+    final normalized = normalizeMarkdownForSuperEditor(split.body);
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
@@ -90,6 +80,23 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     widget.controller?.attach(_editor, _composer);
   }
 
+  /// Splits [markdown] into its preserved frontmatter prefix and the editable
+  /// body. When [QuietSuperEditor.stripFrontmatter] is false, the whole string
+  /// is treated as body and there is no prefix.
+  ({String? prefix, String body}) _splitFrontmatter(String markdown) {
+    if (!widget.stripFrontmatter) {
+      return (prefix: null, body: markdown);
+    }
+    final fmDoc = FrontmatterEditorHelper.parse(markdown);
+    if (fmDoc.hasFrontmatter) {
+      return (
+        prefix: markdown.substring(0, fmDoc.bodyStartOffset),
+        body: markdown.substring(fmDoc.bodyStartOffset),
+      );
+    }
+    return (prefix: null, body: markdown);
+  }
+
   @override
   void didUpdateWidget(QuietSuperEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -100,12 +107,26 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     if (widget.initialMarkdown != oldWidget.initialMarkdown &&
         widget.initialMarkdown != _lastSerializedMarkdown &&
         !_isInternalUpdate) {
-      widget.controller?.detach();
-      _editor.document.removeListener(_onDocumentChange);
-      _editor.dispose();
-      _composer.dispose();
-      _initEditor();
-      setState(() {});
+      // Detect a frontmatter-only change (e.g. the Properties card edited note
+      // metadata). The body is byte-identical in that case, so refresh the
+      // preserved prefix in place instead of rebuilding the whole SuperEditor
+      // document. This keeps the caret and selection, avoids flicker, and
+      // prevents a stale prefix from clobbering the metadata edit on the next
+      // body change.
+      final structuralChange = widget.stripFrontmatter != oldWidget.stripFrontmatter;
+      final oldSplit = _splitFrontmatter(oldWidget.initialMarkdown);
+      final newSplit = _splitFrontmatter(widget.initialMarkdown);
+      if (!structuralChange && widget.stripFrontmatter && newSplit.body == oldSplit.body) {
+        _frontmatterPrefix = newSplit.prefix;
+        _lastSerializedMarkdown = widget.initialMarkdown;
+      } else {
+        widget.controller?.detach();
+        _editor.document.removeListener(_onDocumentChange);
+        _editor.dispose();
+        _composer.dispose();
+        _initEditor();
+        setState(() {});
+      }
     }
   }
 

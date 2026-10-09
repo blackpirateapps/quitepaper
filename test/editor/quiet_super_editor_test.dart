@@ -334,6 +334,63 @@ void main() {
       expect(find.text('title: Test Note', findRichText: true), findsNothing);
     });
 
+    testWidgets('frontmatter-only change refreshes preserved prefix without clobbering next body edit', (tester) async {
+      const body = 'Journal body line.';
+      const oldFm = '---\nmood: 5\n---\n';
+      const newFm = '---\nmood: 8\n---\n';
+      final controller = QuietSuperEditorController();
+      addTearDown(controller.dispose);
+
+      String emitted = '';
+      String current = '$oldFm$body';
+      late StateSetter rebuild;
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return ProviderScope(
+              overrides: [
+                typographySettingsProvider.overrideWith(
+                  (ref) => _MockTypographyNotifier(const TypographySettings()),
+                ),
+              ],
+              child: MaterialApp(
+                theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
+                home: Scaffold(
+                  body: QuietSuperEditor(
+                    initialMarkdown: current,
+                    controller: controller,
+                    stripFrontmatter: true,
+                    onChanged: (val) => emitted = val,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Journal body line.', findRichText: true), findsOneWidget);
+
+      // Simulate the Properties card mutating only the frontmatter metadata.
+      current = '$newFm$body';
+      rebuild(() {});
+      await tester.pumpAndSettle();
+
+      // The body document must survive (no rebuild), and a subsequent body edit
+      // must re-prepend the NEW prefix rather than the stale one.
+      expect(find.text('Journal body line.', findRichText: true), findsOneWidget);
+
+      controller.insertSnippet(' edited');
+      await tester.pumpAndSettle();
+
+      expect(emitted, startsWith(newFm));
+      expect(emitted, isNot(contains('mood: 5')));
+      expect(emitted, contains('Journal body line.'));
+    });
+
     testWidgets('attaches QuietSuperEditorController and provides caret overlay with accent color', (tester) async {
       final controller = QuietSuperEditorController();
       addTearDown(controller.dispose);

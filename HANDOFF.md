@@ -7848,6 +7848,33 @@ A bug was reported where an image entered in Super Editor mode appeared upon ini
 - Dedicated Tests: `test/editor/quiet_super_editor_test.dart` (14 passing tests, including image round-trip with following paragraphs, table round-trip, `insertSnippet` structured insertion, and full widget edit -> preview -> edit toggle cycle).
 - Full Test Suite: `flutter test` (**all 1,634 tests passed, 0 failures**).
 
+---
+
+## 155. Frontmatter Properties Card in Super Editor Mode (October 2026)
+
+### 1. Summary
+The editable frontmatter **Properties** card (Author, Created, Source, Description, Location, Tags, Mood, Weather, Moment, Activities) previously rendered only in WYSIWYG mode. It is now shared by the Super Editor surface as well, giving journal entries and metadata-rich notes the same editing affordance in both visual editors. Markdown source mode is intentionally unchanged — it continues to show the raw YAML frontmatter inline.
+
+### 2. Problem
+In Super Editor mode the frontmatter block was never stripped (`stripFrontmatter` was gated on `isWysiwyg`), so a note's `---` metadata block leaked into the editable body — the `---` delimiters rendered as horizontal rules and `key: value` lines as stray paragraphs. There was also no Properties card to edit that metadata.
+
+### 3. Architectural Adjustments & Implementation Details
+
+1. **Shared rendering gate** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
+   - Introduced `isSuperEditor` and a unified `showsPropertiesSection = isWysiwyg || isSuperEditor` flag in `build()`.
+   - `frontmatterDoc` is now parsed for both visual modes (previously `isWysiwyg`-only).
+   - The Properties card render gate, the fallback tags-bar gate, and the `MarkdownEditor.stripFrontmatter` flag all now key off `showsPropertiesSection`.
+   - `FrontmatterPropertiesSection` is reused verbatim — it is already editor-agnostic (operates on raw Markdown via `FrontmatterEditorHelper` and a change callback), so no changes to the widget itself were needed.
+
+2. **Reactive frontmatter prefix in `QuietSuperEditor`** ([`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart)):
+   - Extracted a `_splitFrontmatter(markdown)` record helper (prefix + body) reused by `_initEditor()`.
+   - `didUpdateWidget` now distinguishes a **frontmatter-only change** (the Properties card edited metadata; body byte-identical) from a body change. On a frontmatter-only change it refreshes `_frontmatterPrefix` in place and advances `_lastSerializedMarkdown` — **without** tearing down and rebuilding the SuperEditor document. This preserves caret/selection, avoids flicker, and critically prevents a **stale prefix from clobbering the metadata edit** on the next body keystroke. Body changes (or a `stripFrontmatter` toggle) still trigger a full re-init as before.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Dedicated Tests: `test/editor/quiet_super_editor_test.dart` — added `frontmatter-only change refreshes preserved prefix without clobbering next body edit`, verifying the body document survives a metadata edit and the next body edit re-prepends the new prefix (not the stale one).
+- Full Test Suite: `flutter test` (**all 1,635 tests passed, 0 failures**).
+
 
 
 
