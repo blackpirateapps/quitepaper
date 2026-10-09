@@ -36,6 +36,7 @@ class JournalCalendarView extends ConsumerWidget {
     final journalDatesAsync = ref.watch(
       journalDatesForMonthStreamProvider(visibleMonth),
     );
+    final travelDates = ref.watch(travelDatesForMonthProvider(visibleMonth));
     final selectedEntryAsync = ref.watch(selectedDateJournalEntryProvider);
 
     final now = DateTime.now();
@@ -65,6 +66,7 @@ class JournalCalendarView extends ConsumerWidget {
               isCurrentMonth,
               selectedDate,
               journalDatesAsync.valueOrNull ?? const {},
+              travelDates,
               selectedEntryAsync.valueOrNull,
               now,
             ),
@@ -150,6 +152,7 @@ class JournalCalendarView extends ConsumerWidget {
     bool isCurrentMonth,
     String? selectedDate,
     Set<String> journalDates,
+    Set<String> travelDates,
     Note? selectedEntry,
     DateTime now,
   ) {
@@ -273,7 +276,7 @@ class JournalCalendarView extends ConsumerWidget {
         const SizedBox(height: 2.0),
 
         // Calendar Grid
-        _buildCalendarGrid(context, ref, colors, visibleMonth, selectedDate, journalDates, now),
+        _buildCalendarGrid(context, ref, colors, visibleMonth, selectedDate, journalDates, travelDates, now),
 
         // Selected Date Preview
         if (selectedDate != null) ...[
@@ -307,6 +310,7 @@ class JournalCalendarView extends ConsumerWidget {
     ({int year, int month}) visibleMonth,
     String? selectedDate,
     Set<String> journalDates,
+    Set<String> travelDates,
     DateTime now,
   ) {
     final daysCount = JournalDateHelper.daysInMonth(visibleMonth.year, visibleMonth.month);
@@ -331,14 +335,18 @@ class JournalCalendarView extends ConsumerWidget {
             final cellDateStr =
                 '${visibleMonth.year.toString().padLeft(4, '0')}-${visibleMonth.month.toString().padLeft(2, '0')}-${dayNumber.toString().padLeft(2, '0')}';
             final hasEntry = journalDates.contains(cellDateStr);
+            final isTravel = hasEntry && travelDates.contains(cellDateStr);
             final isToday = cellDateStr == todayStr;
             final isSelected = cellDateStr == selectedDate;
 
             final parsed = DateTime(visibleMonth.year, visibleMonth.month, dayNumber);
             final fullDateDisplay = JournalDateHelper.formatDisplayDate(parsed);
+            final entryLabel = hasEntry
+                ? ', journal entry exists${isTravel ? ', travel' : ''}'
+                : ', no journal entry';
             final semanticLabel = isToday
-                ? '$fullDateDisplay, today${hasEntry ? ', journal entry exists' : ', no journal entry'}'
-                : '$fullDateDisplay${hasEntry ? ', journal entry exists' : ', no journal entry'}';
+                ? '$fullDateDisplay, today$entryLabel'
+                : '$fullDateDisplay$entryLabel';
 
             return Expanded(
               child: Semantics(
@@ -389,13 +397,39 @@ class JournalCalendarView extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 1.5),
-                          // Understated entry dot indicator
-                          Container(
-                            width: 3.5,
-                            height: 3.5,
-                            decoration: BoxDecoration(
-                              color: hasEntry ? colors.accent : Colors.transparent,
-                              shape: BoxShape.circle,
+                          // Understated entry marker: a filled accent dot for a
+                          // normal entry, a hollow accent ring for a `moment: travel`
+                          // entry (distinguished by shape/weight, never a second
+                          // color), and nothing when the day has no entry. Both
+                          // markers sit centered in a fixed footprint so a travel
+                          // day never shifts the layout relative to a normal day.
+                          SizedBox(
+                            width: 5,
+                            height: 5,
+                            child: Center(
+                              child: !hasEntry
+                                  ? const SizedBox.shrink()
+                                  : (isTravel
+                                      ? Container(
+                                          width: 5,
+                                          height: 5,
+                                          decoration: BoxDecoration(
+                                            color: Colors.transparent,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: colors.accent,
+                                              width: 1.0,
+                                            ),
+                                          ),
+                                        )
+                                      : Container(
+                                          width: 3.5,
+                                          height: 3.5,
+                                          decoration: BoxDecoration(
+                                            color: colors.accent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        )),
                             ),
                           ),
                         ],

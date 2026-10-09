@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
+import '../../notes/domain/note_metadata_extractor.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/journal/domain/journal_models.dart';
 import 'journal_service.dart';
@@ -92,6 +93,34 @@ final journalDatesForMonthStreamProvider =
     StreamProvider.family<Set<String>, ({int year, int month})>((ref, arg) {
   final repository = ref.watch(notesRepositoryProvider);
   return repository.watchJournalDatesForMonth(arg.year, arg.month);
+});
+
+/// Set of active journal date strings (`YYYY-MM-DD`) in a given month whose entry
+/// is a `moment: travel` entry.
+///
+/// Derived entirely from already-cached [NoteMetadata] (via [NoteMetadataExtractor])
+/// over [allJournalEntriesStreamProvider] — it adds NO new DB column or query. The
+/// moment is read only from the LRU-cached metadata, never re-parsed per frame.
+/// Returns an empty set while the underlying entries stream is still loading.
+final travelDatesForMonthProvider =
+    Provider.family<Set<String>, ({int year, int month})>((ref, arg) {
+  final entries = ref.watch(allJournalEntriesStreamProvider).valueOrNull;
+  if (entries == null || entries.isEmpty) return const {};
+
+  final travelDates = <String>{};
+  for (final note in entries) {
+    final dateStr = note.journalDate;
+    if (dateStr == null) continue;
+    final parsed = JournalDateHelper.tryParseDateString(dateStr);
+    if (parsed == null) continue;
+    if (parsed.year != arg.year || parsed.month != arg.month) continue;
+
+    final metadata = NoteMetadataExtractor.extract(note);
+    if (metadata.moment == 'travel') {
+      travelDates.add(dateStr);
+    }
+  }
+  return travelDates;
 });
 
 /// Currently visible month in the calendar (year, month).

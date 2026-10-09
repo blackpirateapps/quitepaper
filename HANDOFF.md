@@ -8030,3 +8030,17 @@ Each historical entry on the On This Day view now appends its place to the date 
 - Tests: `test/journal/on_this_day_place_test.dart` — place appended when present; identical-to-today when absent; no place for a locked entry.
 - Full Test Suite: `flutter test` (all passing).
 
+## 163. Journal Location Features — Calendar Travel Marker (Feature 2 + §2.4) (October 2026)
+
+### 1. Summary
+Days whose journal entry is `moment: travel` are now distinguished in the calendar month grid by a **hollow accent ring** (vs the normal filled accent dot) — shape/weight only, single accent color, no legend.
+
+### 2. Implementation
+- **§2.4 provider** ([`journal_providers.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_providers.dart)): new `travelDatesForMonthProvider` (`Provider.family<Set<String>, ({int year, int month})>`). Derived from `allJournalEntriesStreamProvider` + cached `NoteMetadata.moment == 'travel'`, filtered to the requested month — **no DB column or query added**; moment is never re-parsed per frame. Empty set while entries load.
+- **Marker** ([`journal_calendar_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/journal_calendar_view.dart)): a date is travel iff it's in both `journalDates` and `travelDatesForMonthProvider(visibleMonth)`. The dot slot is a fixed 5×5 centered box so no marker ever shifts layout: no entry → nothing; entry → 3.5 px filled `colors.accent` dot; travel → 5 px transparent circle with a 1 px `colors.accent` border (hollow ring). Semantics label appends `', travel'` when applicable.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `test/journal/calendar_travel_marker_test.dart` — provider travel-date set per month; travel day → ring; non-travel entry → filled dot; empty day → no marker; semantics.
+- Full Test Suite: `flutter test` (all passing).
+
