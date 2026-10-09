@@ -67,6 +67,19 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
     _persist();
   }
 
+  /// Fully reverses a merge: removes every alias entry pointing at
+  /// [canonicalKey] (including the canonical self-map), so each constituent
+  /// regroups under its own label again. Reversible and non-destructive — it
+  /// only drops presentation aliases, never touching frontmatter. No-op when
+  /// nothing currently maps to [canonicalKey].
+  void unmergeCanonical(String canonicalKey) {
+    final next = Map<String, PlaceAlias>.of(state)
+      ..removeWhere((_, alias) => alias.canonicalKey == canonicalKey);
+    if (next.length == state.length) return; // nothing matched → no change
+    state = next;
+    _persist();
+  }
+
   static Map<String, PlaceAlias> _load(SharedPreferences? prefs) {
     if (prefs == null) return const {};
     final raw = prefs.getString(storageKey);

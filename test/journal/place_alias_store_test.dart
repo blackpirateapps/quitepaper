@@ -75,6 +75,51 @@ void main() {
       expect(c.read(placeAliasStoreProvider).length, 2); // calcutta + kolkata
     });
 
+    test('unmergeCanonical removes every entry pointing at the canonical key',
+        () {
+      final c = withPrefs();
+      final store = c.read(placeAliasStoreProvider.notifier);
+      store.merge(['calcutta', 'cal', 'kolkata'],
+          canonicalKey: 'kolkata', displayName: 'Kolkata');
+      // Also keep an unrelated merge to prove it is left intact.
+      store.merge(['bombay'], canonicalKey: 'mumbai', displayName: 'Mumbai');
+
+      store.unmergeCanonical('kolkata');
+
+      final state = c.read(placeAliasStoreProvider);
+      // Every kolkata-pointing entry (including the self-map) is gone.
+      expect(state.containsKey('calcutta'), isFalse);
+      expect(state.containsKey('cal'), isFalse);
+      expect(state.containsKey('kolkata'), isFalse);
+      // The unrelated mumbai merge is untouched.
+      expect(state['bombay']!.canonicalKey, 'mumbai');
+      expect(state['mumbai']!.canonicalKey, 'mumbai');
+    });
+
+    test('unmergeCanonical on an unknown canonical key is a no-op', () {
+      final c = withPrefs();
+      final store = c.read(placeAliasStoreProvider.notifier);
+      store.merge(['calcutta'], canonicalKey: 'kolkata', displayName: 'Kolkata');
+      store.unmergeCanonical('nowhere');
+      expect(c.read(placeAliasStoreProvider).length, 2); // unchanged
+    });
+
+    test('unmergeCanonical persists and stays unmerged in a fresh store',
+        () async {
+      final c1 = withPrefs();
+      final store = c1.read(placeAliasStoreProvider.notifier);
+      store.merge(['calcutta', 'kolkata'],
+          canonicalKey: 'kolkata', displayName: 'Kolkata');
+      store.unmergeCanonical('kolkata');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final c2 = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(c2.dispose);
+      expect(c2.read(placeAliasStoreProvider).isEmpty, isTrue);
+    });
+
     test('persists to SharedPreferences and reloads in a fresh store', () async {
       final c1 = withPrefs();
       c1.read(placeAliasStoreProvider.notifier).merge(

@@ -8126,3 +8126,19 @@ Journal entry (`note.isJournal || frontmatter.isJournal`) AND not password-prote
 - Static Analysis: whole-project `flutter analyze` — **No issues found!**
 - Tests: `test/journal/backfill_suppression_store_test.dart` (store add/idempotent/persist-reload/corrupt-fallback/in-memory) + `test/journal/backfill_place_nudge_test.dart` (visibility: positive + each negative case; Add place custom + known-place writes location; Not now persists nothing; per-day suppression affects only that date; Don't-ask-again flips the master toggle off + snackbar). Both files green (**16 tests**).
 - Full Test Suite: `flutter test` (**all 1745 tests passing**).
+
+## 168. Journal Location Features — Manual Merge / Rename / Unmerge UI (§2.3) (October 2026)
+
+### 1. Summary
+The user-facing controls for the device-local place merge/alias store (§2.3): combine 2+ place cards into one (choosing the canonical name), rename a place, and unmerge to restore the originals. Presentation-only, reversible, never mutates note frontmatter. Completes Feature 4 / the location-features spec (only §6.7 home detection remains intentionally unbuilt).
+
+### 2. Implementation
+- **Store** ([`place_alias_store.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/place_alias_store.dart)): added `unmergeCanonical(canonicalKey)` — removes every alias entry pointing at a canonical key (incl. the self-map) and persists; no-op when nothing matches. Existing merge/rename/unmerge untouched.
+- **Selection mode** ([`journal_places_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/journal_places_view.dart) + [`place_card.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_card.dart)): a quiet "Select" top-bar action (shown when ≥2 places) enters a multi-select mode — cards show a leading accent check, selected cards get an accent-tinted background, the granularity/sort toggles hide, and a "Merge" action appears once ≥2 are selected.
+- **Dialogs** ([`place_edit_dialogs.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_edit_dialogs.dart)): `PlaceMergeDialog` (canonical-name picker: each selected name as an accent-check choice + a custom field, default = most-frequent selected name), `PlaceRenameDialog` (prefilled), and `showPlaceActionsSheet` (Rename always; Unmerge only when the place is currently merged). Merge derives the canonical key via `PlaceGroupingService.normalizeKey`.
+- Per-place Rename/Unmerge are reached via card long-press and a ⋯ button in the drill-in top bar. Unmerge applies immediately (non-destructive/reversible).
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `places_merge_ui_test.dart` (select+merge named/custom; rename; unmerge restores; Unmerge hidden when unmerged; merged state persists) + extended `place_alias_store_test.dart` (`unmergeCanonical`).
+- Full Test Suite: `flutter test` (**all 1754 tests passing**).

@@ -5,13 +5,16 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/journal/application/place_grouping_service.dart';
 import '../../../core/journal/domain/journal_place.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/domain/note_model.dart';
+import '../application/place_alias_store.dart';
 import '../application/places_providers.dart';
 import 'widgets/place_card.dart';
 import 'widgets/place_detail_view.dart';
+import 'widgets/place_edit_dialogs.dart';
 
 /// The Places journal surface (§6). A calm, map-free, editorial browser of
 /// journal entries grouped by place. Shows a top-level list of place cards and
@@ -54,12 +57,104 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
   /// The match key of the drilled-in place, or null while on the list.
   String? _openMatchKey;
 
+  /// Whether the list is in multi-select (merge) mode.
+  bool _selectionMode = false;
+
+  /// Match keys currently selected for merging.
+  final Set<String> _selectedKeys = <String>{};
+
   void _openPlace(JournalPlace place) {
     setState(() => _openMatchKey = place.matchKey);
   }
 
   void _closePlace() {
     setState(() => _openMatchKey = null);
+  }
+
+  void _enterSelection() {
+    setState(() {
+      _selectionMode = true;
+      _selectedKeys.clear();
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedKeys.clear();
+    });
+  }
+
+  void _handleCardTap(JournalPlace place) {
+    if (_selectionMode) {
+      setState(() {
+        if (!_selectedKeys.remove(place.matchKey)) {
+          _selectedKeys.add(place.matchKey);
+        }
+      });
+    } else {
+      _openPlace(place);
+    }
+  }
+
+  /// A place is "merged" when some other normalized key folds into its match
+  /// key (beyond the canonical self-mapping) — only then is Unmerge offered.
+  bool _isMerged(Map<String, PlaceAlias> aliases, String matchKey) {
+    return aliases.entries
+        .any((e) => e.value.canonicalKey == matchKey && e.key != matchKey);
+  }
+
+  Future<void> _startMerge(List<JournalPlace> places) async {
+    final selected = places
+        .where((p) => _selectedKeys.contains(p.matchKey))
+        .toList(growable: false);
+    if (selected.length < 2) return;
+
+    final chosenName = await PlaceMergeDialog.show(context, places: selected);
+    if (chosenName == null || !mounted) return;
+
+    final canonicalKey = PlaceGroupingService.normalizeKey(chosenName);
+    ref.read(placeAliasStoreProvider.notifier).merge(
+          selected.map((p) => p.matchKey).toList(growable: false),
+          canonicalKey: canonicalKey,
+          displayName: chosenName,
+        );
+    _exitSelection();
+  }
+
+  Future<void> _showPlaceActions(JournalPlace place) async {
+    final aliases = ref.read(placeAliasStoreProvider);
+    final merged = _isMerged(aliases, place.matchKey);
+    final action = await showPlaceActionsSheet(
+      context,
+      place: place,
+      isMerged: merged,
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case PlaceAction.rename:
+        await _renamePlace(place);
+        break;
+      case PlaceAction.unmerge:
+        ref
+            .read(placeAliasStoreProvider.notifier)
+            .unmergeCanonical(place.matchKey);
+        // The regrouped constituents replace this place; leave any drill-in.
+        if (_openMatchKey == place.matchKey) _closePlace();
+        break;
+    }
+  }
+
+  Future<void> _renamePlace(JournalPlace place) async {
+    final newName = await PlaceRenameDialog.show(
+      context,
+      initialName: place.displayName,
+    );
+    if (newName == null || !mounted) return;
+    ref.read(placeAliasStoreProvider.notifier).rename(
+          canonicalKey: place.matchKey,
+          displayName: newName,
+        );
   }
 
   void _handleNoteTap(Note note) {
@@ -90,11 +185,17 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
       }
     }
 
+    // Drop any selected keys that no longer exist (e.g. after a regroup).
+    if (_selectionMode) {
+      final live = {for (final p in places) p.matchKey};
+      _selectedKeys.removeWhere((k) => !live.contains(k));
+    }
+
     return Container(
       color: colors.background,
       child: Column(
         children: [
-          _buildTopBar(context, colors, openPlace),
+          _buildTopBar(context, colors, openPlace, places),
           Expanded(
             child: openPlace != null
                 ? PlaceDetailView(
@@ -113,11 +214,18 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
     BuildContext context,
     AppColors colors,
     JournalPlace? openPlace,
+    List<JournalPlace> places,
   ) {
     final inDetail = openPlace != null;
 
     Widget leading;
-    if (inDetail) {
+    if (_selectionMode) {
+      leading = QuietIconButton(
+        icon: PhosphorIconsRegular.x,
+        tooltip: 'Cancel selection',
+        onPressed: _exitSelection,
+      );
+    } else if (inDetail) {
       leading = QuietIconButton(
         icon: PhosphorIconsRegular.arrowLeft,
         tooltip: 'Back to places',
@@ -139,6 +247,43 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
       );
     }
 
+    final trailing = <Widget>[];
+    if (_selectionMode) {
+      final count = _selectedKeys.length;
+      trailing.add(
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.sm),
+          child: Text(
+            count == 0 ? 'Select places' : '$count selected',
+            style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      );
+      trailing.add(
+        _TopBarTextAction(
+          label: 'Merge',
+          enabled: count >= 2,
+          onPressed: () => _startMerge(places),
+        ),
+      );
+    } else if (inDetail) {
+      trailing.add(
+        QuietIconButton(
+          icon: PhosphorIconsRegular.dotsThreeVertical,
+          tooltip: 'Place options',
+          onPressed: () => _showPlaceActions(openPlace),
+        ),
+      );
+    } else if (places.length >= 2) {
+      trailing.add(
+        _TopBarTextAction(
+          label: 'Select',
+          enabled: true,
+          onPressed: _enterSelection,
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
@@ -148,6 +293,7 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
         children: [
           leading,
           const Spacer(),
+          ...trailing,
         ],
       ),
     );
@@ -180,6 +326,7 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
                 entryCount: totalEntries,
                 granularity: granularity,
                 sortOrder: sortOrder,
+                selectionMode: _selectionMode,
                 onGranularity: (g) =>
                     ref.read(placeGranularityProvider.notifier).state = g,
                 onSort: (s) =>
@@ -202,7 +349,10 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
                       children: [
                         PlaceCard(
                           place: place,
-                          onTap: () => _openPlace(place),
+                          selectionMode: _selectionMode,
+                          isSelected: _selectedKeys.contains(place.matchKey),
+                          onTap: () => _handleCardTap(place),
+                          onLongPress: () => _showPlaceActions(place),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
@@ -224,6 +374,46 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A quiet text action for the top bar (Select / Merge). Carries the single
+/// accent when enabled, textTertiary when disabled; no chrome.
+class _TopBarTextAction extends StatelessWidget {
+  const _TopBarTextAction({
+    required this.label,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadii.borderSm,
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: AppRadii.borderSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 10.0,
+          ),
+          child: Text(
+            label,
+            style: AppTypography.bodySmallMedium.copyWith(
+              color: enabled ? colors.accent : colors.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -290,6 +480,7 @@ class _PlacesListHeader extends StatelessWidget {
     required this.sortOrder,
     required this.onGranularity,
     required this.onSort,
+    this.selectionMode = false,
   });
 
   final int placeCount;
@@ -298,6 +489,7 @@ class _PlacesListHeader extends StatelessWidget {
   final PlaceSortOrder sortOrder;
   final ValueChanged<PlaceGranularity> onGranularity;
   final ValueChanged<PlaceSortOrder> onSort;
+  final bool selectionMode;
 
   @override
   Widget build(BuildContext context) {
@@ -342,33 +534,35 @@ class _PlacesListHeader extends StatelessWidget {
           ),
           const SizedBox(height: 2.0),
           Text(
-            '$placeLabel · $entryLabel',
+            selectionMode ? 'Tap places to merge' : '$placeLabel · $entryLabel',
             style: AppTypography.bodySmall.copyWith(
-              color: colors.textSecondary,
+              color: selectionMode ? colors.accent : colors.textSecondary,
               fontSize: 13,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          _SegmentedToggle<PlaceGranularity>(
-            selected: granularity,
-            onChanged: onGranularity,
-            segments: const [
-              (value: PlaceGranularity.city, label: 'City'),
-              (value: PlaceGranularity.region, label: 'Region'),
-              (value: PlaceGranularity.country, label: 'Country'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _SegmentedToggle<PlaceSortOrder>(
-            selected: sortOrder,
-            onChanged: onSort,
-            segments: const [
-              (value: PlaceSortOrder.frequency, label: 'Frequency'),
-              (value: PlaceSortOrder.recency, label: 'Recency'),
-              (value: PlaceSortOrder.firstSeen, label: 'First seen'),
-              (value: PlaceSortOrder.alphabetical, label: 'A–Z'),
-            ],
-          ),
+          if (!selectionMode) ...[
+            const SizedBox(height: AppSpacing.md),
+            _SegmentedToggle<PlaceGranularity>(
+              selected: granularity,
+              onChanged: onGranularity,
+              segments: const [
+                (value: PlaceGranularity.city, label: 'City'),
+                (value: PlaceGranularity.region, label: 'Region'),
+                (value: PlaceGranularity.country, label: 'Country'),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _SegmentedToggle<PlaceSortOrder>(
+              selected: sortOrder,
+              onChanged: onSort,
+              segments: const [
+                (value: PlaceSortOrder.frequency, label: 'Frequency'),
+                (value: PlaceSortOrder.recency, label: 'Recency'),
+                (value: PlaceSortOrder.firstSeen, label: 'First seen'),
+                (value: PlaceSortOrder.alphabetical, label: 'A–Z'),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           Divider(color: colors.divider, height: 1, thickness: 0.8),
         ],

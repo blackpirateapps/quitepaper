@@ -34,15 +34,33 @@ String placeDateSpanLabel(JournalPlace place) {
 }
 
 /// A typographic, map-free place card for the Places list (§6.2).
+///
+/// Supports a quiet [selectionMode] for merge: when active, a leading check
+/// indicator (single accent) replaces the trailing caret and [isSelected]
+/// tints the card. [onLongPress] opens per-place actions (rename / unmerge).
 class PlaceCard extends StatefulWidget {
   const PlaceCard({
     super.key,
     required this.place,
     required this.onTap,
+    this.onLongPress,
+    this.selectionMode = false,
+    this.isSelected = false,
   });
 
   final JournalPlace place;
   final VoidCallback onTap;
+
+  /// Optional long-press handler (per-place actions). Ignored in selection mode.
+  final VoidCallback? onLongPress;
+
+  /// When true, the card shows a leading selection indicator and toggles
+  /// selection on tap instead of drilling in.
+  final bool selectionMode;
+
+  /// Whether this card is currently selected (only meaningful in selection
+  /// mode).
+  final bool isSelected;
 
   @override
   State<PlaceCard> createState() => _PlaceCardState();
@@ -61,17 +79,27 @@ class _PlaceCardState extends State<PlaceCard> {
     final entryLabel =
         '${place.entryCount} ${place.entryCount == 1 ? 'entry' : 'entries'}';
 
-    final semanticLabel = name.secondary != null
+    final baseSemantic = name.secondary != null
         ? '${name.primary}, ${name.secondary}, $entryLabel, $span'
         : '${name.primary}, $entryLabel, $span';
+    final semanticLabel = widget.selectionMode
+        ? '$baseSemantic, ${widget.isSelected ? 'selected' : 'not selected'}'
+        : baseSemantic;
 
-    final backgroundColor = _isHovered
-        ? colors.surfaceSubtle.withValues(alpha: isDark ? 0.5 : 0.45)
-        : Colors.transparent;
+    final Color backgroundColor;
+    if (widget.selectionMode && widget.isSelected) {
+      backgroundColor = colors.accent.withValues(alpha: isDark ? 0.16 : 0.1);
+    } else if (_isHovered) {
+      backgroundColor =
+          colors.surfaceSubtle.withValues(alpha: isDark ? 0.5 : 0.45);
+    } else {
+      backgroundColor = Colors.transparent;
+    }
 
     return Semantics(
       label: semanticLabel,
       button: true,
+      selected: widget.selectionMode ? widget.isSelected : null,
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
@@ -79,6 +107,7 @@ class _PlaceCardState extends State<PlaceCard> {
           color: backgroundColor,
           child: InkWell(
             onTap: widget.onTap,
+            onLongPress: widget.selectionMode ? null : widget.onLongPress,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -88,6 +117,18 @@ class _PlaceCardState extends State<PlaceCard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (widget.selectionMode) ...[
+                    Icon(
+                      widget.isSelected
+                          ? PhosphorIconsFill.checkCircle
+                          : PhosphorIconsRegular.circle,
+                      size: 20,
+                      color: widget.isSelected
+                          ? colors.accent
+                          : colors.textTertiary,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,11 +170,12 @@ class _PlaceCardState extends State<PlaceCard> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  Icon(
-                    PhosphorIconsRegular.caretRight,
-                    size: 16,
-                    color: colors.textTertiary,
-                  ),
+                  if (!widget.selectionMode)
+                    Icon(
+                      PhosphorIconsRegular.caretRight,
+                      size: 16,
+                      color: colors.textTertiary,
+                    ),
                 ],
               ),
             ),
