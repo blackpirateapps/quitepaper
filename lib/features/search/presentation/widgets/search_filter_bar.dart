@@ -5,7 +5,11 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../application/search_provider.dart';
 
-/// Horizontal filter chip selector for Global Search
+/// Segmented control for selecting the active Global Search category.
+///
+/// A single rounded track holds four equal segments; the selected segment is
+/// marked by an elevated "thumb" that slides smoothly between positions. This
+/// replaces the earlier row of four separately-bordered pills.
 class SearchFilterBar extends ConsumerWidget {
   const SearchFilterBar({
     super.key,
@@ -14,134 +18,132 @@ class SearchFilterBar extends ConsumerWidget {
 
   final GlobalSearchResults results;
 
+  /// Index order of segments, used to position the sliding thumb.
+  static const List<SearchFilter> _order = [
+    SearchFilter.all,
+    SearchFilter.notes,
+    SearchFilter.documents,
+    SearchFilter.tags,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final activeFilter = ref.watch(searchFilterProvider);
+    final selectedIndex =
+        _order.indexOf(activeFilter).clamp(0, _order.length - 1);
+
+    final segments = <_SegmentData>[
+      _SegmentData(SearchFilter.all, 'All', results.totalCount, 'search_filter_all'),
+      _SegmentData(SearchFilter.notes, 'Notes', results.notesCount, 'search_filter_notes'),
+      _SegmentData(SearchFilter.documents, 'Docs', results.documentsCount, 'search_filter_documents'),
+      _SegmentData(SearchFilter.tags, 'Tags', results.tagsCount, 'search_filter_tags'),
+    ];
 
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
-      decoration: BoxDecoration(
-        color: colors.background,
-        border: Border(
-          bottom: BorderSide(
-            color: colors.divider.withValues(alpha: 0.5),
-            width: 0.8,
-          ),
-        ),
-      ),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildFilterChip(
-            context: context,
-            ref: ref,
-            filter: SearchFilter.all,
-            label: 'All',
-            count: results.totalCount,
-            isSelected: activeFilter == SearchFilter.all,
-            colors: colors,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          _buildFilterChip(
-            context: context,
-            ref: ref,
-            filter: SearchFilter.notes,
-            label: 'Notes',
-            count: results.notesCount,
-            isSelected: activeFilter == SearchFilter.notes,
-            colors: colors,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          _buildFilterChip(
-            context: context,
-            ref: ref,
-            filter: SearchFilter.documents,
-            label: 'Documents & OCR',
-            count: results.documentsCount,
-            isSelected: activeFilter == SearchFilter.documents,
-            colors: colors,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          _buildFilterChip(
-            context: context,
-            ref: ref,
-            filter: SearchFilter.tags,
-            label: 'Tags',
-            count: results.tagsCount,
-            isSelected: activeFilter == SearchFilter.tags,
-            colors: colors,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip({
-    required BuildContext context,
-    required WidgetRef ref,
-    required SearchFilter filter,
-    required String label,
-    required int count,
-    required bool isSelected,
-    required AppColors colors,
-  }) {
-    return InkWell(
-      onTap: () {
-        ref.read(searchFilterProvider.notifier).state = filter;
-      },
-      borderRadius: BorderRadius.circular(20.0),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+      color: colors.background,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: isSelected
-              ? colors.accent.withValues(alpha: 0.15)
-              : colors.surface,
-          borderRadius: BorderRadius.circular(20.0),
-          border: Border.all(
-            color: isSelected
-                ? colors.accent
-                : colors.divider.withValues(alpha: 0.8),
-            width: isSelected ? 1.4 : 1.0,
-          ),
+          color: colors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(12),
         ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: AppTypography.caption.copyWith(
-                color: isSelected ? colors.accent : colors.textPrimary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 12.5,
-              ),
-            ),
-            if (count > 0) ...[
-              const SizedBox(width: 5),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? colors.accent
-                      : colors.divider.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : colors.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final segmentWidth = constraints.maxWidth / segments.length;
+            return Stack(
+              children: [
+                // Sliding selection thumb.
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  left: selectedIndex * segmentWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: segmentWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: colors.divider.withValues(alpha: 0.6),
+                        width: 0.8,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withValues(alpha: colors.isDark ? 0.28 : 0.07),
+                          blurRadius: 6,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ],
+                // Segment labels (drawn above the thumb).
+                Row(
+                  children: segments.map((seg) {
+                    final isSelected = seg.filter == activeFilter;
+                    return Expanded(
+                      child: InkWell(
+                        key: ValueKey(seg.keyId),
+                        onTap: () => ref
+                            .read(searchFilterProvider.notifier)
+                            .state = seg.filter,
+                        borderRadius: BorderRadius.circular(9),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                seg.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.caption.copyWith(
+                                  color: isSelected
+                                      ? colors.textPrimary
+                                      : colors.textSecondary,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            if (seg.count > 0) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '${seg.count}',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textTertiary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 10.5,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _SegmentData {
+  const _SegmentData(this.filter, this.label, this.count, this.keyId);
+
+  final SearchFilter filter;
+  final String label;
+  final int count;
+  final String keyId;
 }

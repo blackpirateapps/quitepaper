@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/presentation/image_viewer_modal.dart';
@@ -73,6 +74,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final searchResultsAsync = ref.watch(globalSearchResultsProvider);
     final activeFilter = ref.watch(searchFilterProvider);
+    final hasQuery = query.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -88,35 +90,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Navigator.of(context).pop();
           },
         ),
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          autofocus: widget.initialQuery.isEmpty,
-          cursorColor: colors.accent,
-          style: AppTypography.headline.copyWith(
-            color: colors.textPrimary,
-            fontSize: 18,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Search notes, documents, OCR, tags...',
-            hintStyle: AppTypography.headline.copyWith(
-              color: colors.textTertiary,
-              fontSize: 18,
-            ),
-            border: InputBorder.none,
-            isDense: true,
-          ),
-        ),
         actions: [
-          if (_searchController.text.isNotEmpty)
-            QuietIconButton(
-              icon: Icons.clear_rounded,
-              tooltip: 'Clear search',
-              onPressed: () {
-                _searchController.clear();
-                ref.read(searchQueryProvider.notifier).state = '';
-              },
-            ),
           QuietIconButton(
             icon: Icons.add_rounded,
             tooltip: 'New note',
@@ -126,66 +100,164 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ],
       ),
       body: SafeArea(
-        child: query.trim().isEmpty
-            ? _buildInitialState(colors)
-            : () {
-                final results = searchResultsAsync.valueOrNull;
-                final isLoading = searchResultsAsync.isLoading;
-
-                if (results != null) {
-                  return Column(
-                    children: [
-                      if (isLoading || results.searchPhase != SearchPhase.complete)
-                        LinearProgressIndicator(
-                          minHeight: 2.0,
-                          backgroundColor: Colors.transparent,
-                          color: colors.accent,
-                        )
-                      else
-                        const SizedBox(height: 2.0),
-
-                      // Filter bar for selecting category (All, Notes, Documents, Tags)
-                      SearchFilterBar(results: results),
-
-                      // Results list
-                      Expanded(
-                        child: results.isEmpty
-                            ? _buildEmptyResultsState(
-                                colors,
-                                query,
-                                isSearching: results.searchPhase != SearchPhase.complete,
-                              )
-                            : _buildResultsList(
-                                context: context,
-                                colors: colors,
-                                query: query,
-                                results: results,
-                                filter: activeFilter,
-                              ),
-                      ),
-                    ],
-                  );
-                }
-
-                if (isLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator.adaptive(),
-                  );
-                }
-
-                if (searchResultsAsync.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error searching: ${searchResultsAsync.error}',
-                      style: AppTypography.body.copyWith(color: colors.error),
-                    ),
-                  );
-                }
-
-                return _buildInitialState(colors);
-              }(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(colors, hasQuery),
+            Expanded(
+              child: hasQuery
+                  ? _buildResultsArea(
+                      context, colors, query, searchResultsAsync, activeFilter)
+                  : _buildInitialState(colors),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildHeader(AppColors colors, bool hasQuery) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Large editorial title; collapses once a query is active to give
+          // the results list more vertical room.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topLeft,
+            child: hasQuery
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Text(
+                      'Search',
+                      style: AppTypography.display.copyWith(
+                        color: colors.textPrimary,
+                        fontSize: 30,
+                      ),
+                    ),
+                  ),
+          ),
+          _buildSearchField(colors),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(AppColors colors) {
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: AppRadii.borderLg,
+        border: Border.all(color: colors.borderSubtle, width: 1.0),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, size: 20, color: colors.textSecondary),
+          const SizedBox(width: AppSpacing.compact),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: widget.initialQuery.isEmpty,
+              cursorColor: colors.accent,
+              textInputAction: TextInputAction.search,
+              style: AppTypography.body
+                  .copyWith(color: colors.textPrimary, fontSize: 16.5),
+              decoration: InputDecoration(
+                hintText: 'Search notes, documents, OCR, tags...',
+                hintStyle: AppTypography.body
+                    .copyWith(color: colors.textTertiary, fontSize: 16.5),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return InkResponse(
+                onTap: () {
+                  _searchController.clear();
+                  ref.read(searchQueryProvider.notifier).state = '';
+                },
+                radius: 20,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(Icons.close_rounded,
+                      size: 18, color: colors.textTertiary),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultsArea(
+    BuildContext context,
+    AppColors colors,
+    String query,
+    AsyncValue<GlobalSearchResults> searchResultsAsync,
+    SearchFilter activeFilter,
+  ) {
+    final results = searchResultsAsync.valueOrNull;
+    final isLoading = searchResultsAsync.isLoading;
+
+    if (results != null) {
+      return Column(
+        children: [
+          if (isLoading || results.searchPhase != SearchPhase.complete)
+            LinearProgressIndicator(
+              minHeight: 2.0,
+              backgroundColor: Colors.transparent,
+              color: colors.accent,
+            )
+          else
+            const SizedBox(height: 2.0),
+          SearchFilterBar(results: results),
+          Expanded(
+            child: results.isEmpty
+                ? _buildEmptyResultsState(
+                    colors,
+                    query,
+                    isSearching:
+                        results.searchPhase != SearchPhase.complete,
+                  )
+                : _buildResultsList(
+                    context: context,
+                    colors: colors,
+                    query: query,
+                    results: results,
+                    filter: activeFilter,
+                  ),
+          ),
+        ],
+      );
+    }
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator.adaptive());
+    }
+
+    if (searchResultsAsync.hasError) {
+      return Center(
+        child: Text(
+          'Error searching: ${searchResultsAsync.error}',
+          style: AppTypography.body.copyWith(color: colors.error),
+        ),
+      );
+    }
+
+    return _buildInitialState(colors);
   }
 
   Widget _buildResultsList({
@@ -424,28 +496,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final allTags = allTagsAsync.valueOrNull ?? [];
 
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.xl,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.xl,
       ),
       children: [
-        Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.search_rounded,
-                size: 36,
-                color: colors.textTertiary.withValues(alpha: 0.4),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Search notes, documents, OCR text, or tags',
-                style: AppTypography.body.copyWith(
-                  color: colors.textTertiary,
-                  fontSize: 14.5,
-                ),
-              ),
-            ],
+        Text(
+          'Notes, documents, OCR text, and tags — all in one search.',
+          style: AppTypography.body.copyWith(
+            color: colors.textTertiary,
+            fontSize: 14.5,
+            height: 1.4,
           ),
         ),
 
@@ -507,7 +570,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'TAGS SHORTCUTS',
+                  'QUICK TAGS',
                   style: AppTypography.caption.copyWith(
                     color: colors.textTertiary,
                     fontSize: 11,

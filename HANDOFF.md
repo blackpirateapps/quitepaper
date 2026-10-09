@@ -7906,4 +7906,32 @@ Two different, both-too-eager implementations:
 - Dedicated Tests ([`test/features/notes/gestures_test.dart`](file:///home/dog/git/quitepaper/test/features/notes/gestures_test.dart)): drag distances retuned to the new 96px threshold; added **"a drag that starts mid-list and scrolls up into the top does NOT open search"** covering the two-phase guard. Editor coverage (`test/editor/in_note_search_test.dart`) continues to pass for both the enabled reveal and the disabled setting.
 - Full Test Suite: `flutter test` (all tests passing).
 
+---
+
+## 157. Global Search UI Redesign: Editorial Large-Title, Segmented Filter Control & Decluttered Empty State (October 2026)
+
+### 1. Summary
+The Global Search screen ([`lib/features/search/presentation/search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart)) looked unfinished and "un-premium": the query was a bare `TextField` floating in the `AppBar` with no field affordance, the category filters were four separately-bordered pills with chunky count badges, and the empty state stacked a large grey magnifier above a hint line that merely repeated the field placeholder. Three coordinated changes bring it in line with the warm-editorial aesthetic: an **editorial large-title header with a contained search field**, a **sliding segmented control** for the category filters, and a **decluttered empty state**.
+
+### 2. Changes
+
+1. **Editorial large-title header** ([`search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart)):
+   - The `TextField` is removed from the `AppBar` `title`; the bar is now just `←` (back) and `+` (new note). The old inline clear action in the `AppBar` is gone.
+   - A new `_buildHeader()` renders a large **"Search"** title (`AppTypography.display`, 30sp) above `_buildSearchField()`. The title is wrapped in `AnimatedSize` and **collapses when a query is active** (`hasQuery`) so the results list gains vertical room — an iOS-style large title that recedes on active search.
+   - `_buildSearchField()` is a contained, filled field: `colors.surface` fill, `AppRadii.borderLg`, 1px `borderSubtle`, a leading `search_rounded` glyph, and an **inline clear button** driven by a `ValueListenableBuilder` on the controller so it toggles instantly (not after the 150ms search debounce).
+
+2. **Segmented filter control** ([`search_filter_bar.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/widgets/search_filter_bar.dart)):
+   - The four bordered pills are replaced by a single rounded track (`colors.surfaceSubtle`) holding four equal `Expanded` segments. An `AnimatedPositioned` elevated "thumb" (`colors.surface` + soft shadow) slides between positions (220ms `easeOutCubic`) to mark the selection.
+   - Counts become light inline numbers (`textTertiary`, 10.5sp) instead of filled badges. The selected label is `textPrimary`/w600, unselected `textSecondary`/w500.
+   - The long **"Documents & OCR"** label is shortened to **"Docs"** so four segments fit an equal split on phones (the results section header still reads "DOCUMENTS & SCANNED OCR"). Each segment carries a stable `ValueKey` (`search_filter_all|notes|documents|tags`) for testability. The `searchFilterProvider` read/write and `SearchFilter` mapping are unchanged.
+
+3. **Decluttered empty state** (`_buildInitialState` in [`search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart)):
+   - The centered magnifier icon and duplicate "Search notes, documents, OCR text, or tags" hint are removed in favour of a single quiet one-line intro. The "TAGS SHORTCUTS" header is renamed **"QUICK TAGS"**. Pinned-tag and quick-tag chip sections are otherwise unchanged.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found**).
+- Test update ([`test/search/ocr_global_search_test.dart`](file:///home/dog/git/quitepaper/test/search/ocr_global_search_test.dart)): the filter assertions follow the "Docs" label and tap the `documents` segment by its `ValueKey` rather than by the removed "Documents & OCR" text.
+- Full Test Suite: `flutter test` (all tests passing).
+
+
 

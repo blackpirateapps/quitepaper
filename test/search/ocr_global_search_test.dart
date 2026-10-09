@@ -437,7 +437,8 @@ void main() {
       expect(find.byType(SearchFilterBar), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('Documents & OCR'), findsOneWidget);
+      expect(find.text('Documents & OCR'), findsNothing);
+      expect(find.text('Docs'), findsOneWidget);
 
       // Dual surfacing in "All" view: Both NoteListTile and DocumentSearchTile appear
       expect(find.byType(DocumentSearchTile), findsOneWidget);
@@ -458,8 +459,8 @@ void main() {
       expect(find.byType(NoteListTile), findsOneWidget);
       expect(find.byType(DocumentSearchTile), findsNothing);
 
-      // Tap filter chip "Documents & OCR" -> DocumentSearchTile is visible
-      await tester.tap(find.text('Documents & OCR'));
+      // Tap filter chip "Documents & OCR" (now the "Docs" segment) -> DocumentSearchTile is visible
+      await tester.tap(find.byKey(const ValueKey('search_filter_documents')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
