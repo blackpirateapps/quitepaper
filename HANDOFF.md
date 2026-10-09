@@ -7997,3 +7997,23 @@ Merge/alias store (§2.3) will be **device-local (SharedPreferences)** for now r
 - Tests: new `test/notes/note_metadata_journal_test.dart` — parses all four fields; locked notes nulled; cache hit returns the same instance; empty/absent location → `null`; non-journal note → all null.
 - Full Test Suite: `flutter test` (**all 1668 tests passing**).
 
+## 161. Journal Location Features — Place Grouping Service (§2.2) (October 2026)
+
+### 1. Summary
+Pure domain service that groups journal entries by place, powering the forthcoming Places page (Feature 4). No UI, DB, or network — just deterministic grouping logic with thorough unit coverage.
+
+### 2. New building blocks
+- **`lib/core/journal/domain/journal_place.dart`**: `JournalPlace` aggregate (display name, normalized match key, granularity, member note ids, first→last date span, `isUnnamed`); `PlaceGranularity {city, region, country}`; `PlaceSortOrder {frequency, recency, firstSeen, alphabetical}` with a stable `matchKey` tiebreak via `comparatorFor` / `sorted`.
+- **`lib/core/journal/application/place_grouping_service.dart`**: `PlaceGroupingService.group(entries, {granularity, aliases, sortOrder, coordinateClusterRadiusMeters})`. Input is a decoupled `PlaceEntryInput {noteId, JournalLocation, date}` so the service never imports `Note`/`NoteMetadata`.
+
+### 3. Design
+- **Label-first, radius-second — never exact-coordinate match.** Labeled entries (non-blank address) key off comma tokens: City = first token, Country = last token, Region = `city|region` (token before country when ≥3 tokens). Match key normalization lowercases, strips Latin diacritics (dependency-free folding table incl. `ß`→`ss`, `æ`→`ae`), collapses whitespace; a separate pretty display label keeps casing/diacritics.
+- **Radius fallback** for blank-address-with-coords entries: greedy seed-anchored haversine clustering (`defaultSpotRadiusMeters` 250 m, `defaultNeighborhoodRadiusMeters` 1500 m default), named `Unnamed place near <lat>, <lng>`.
+- **Alias map** (`Map<String, PlaceAlias>`) remaps/renames normalized keys — the §2.3 store that fills it is built later; the service just consumes it.
+- Fully deterministic ordering throughout.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `test/journal/place_grouping_service_test.dart` — normalization (diacritics/case/whitespace), alias merge + rename, radius within/outside spot vs neighborhood, haversine known distances, City/Region/Country, all four sort orders + tiebreak determinism.
+- Full Test Suite: `flutter test` (all passing).
+
