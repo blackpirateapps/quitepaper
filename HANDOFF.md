@@ -8017,3 +8017,16 @@ Pure domain service that groups journal entries by place, powering the forthcomi
 - Tests: `test/journal/place_grouping_service_test.dart` — normalization (diacritics/case/whitespace), alias merge + rename, radius within/outside spot vs neighborhood, haversine known distances, City/Region/Country, all four sort orders + tiebreak determinism.
 - Full Test Suite: `flutter test` (all passing).
 
+## 162. Journal Location Features — On This Day Place (Feature 3) (October 2026)
+
+### 1. Summary
+Each historical entry on the On This Day view now appends its place to the date + relative-year line, e.g. `October 9, 2020 · 6 years ago · Mumbai`.
+
+### 2. Implementation
+[`on_this_day_view.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/on_this_day_view.dart): in `_OnThisDayTile`, read location from the cached `NoteMetadata` (`NoteMetadataExtractor.extract(note).location`) — never re-parsed in `build()`. When non-null, a ` · <City>` segment (muted `colors.textSecondary`, caption) is appended in a `Flexible` + ellipsis so a long city can't overflow or grow tile height, and the accessibility `semanticLabel` gains the place too. City is the first non-empty comma token of the address (tiny private `_cityLabel` helper; §2.2 centralizes later). Absent/empty location or a locked note → the line is byte-identical to before.
+
+### 3. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `test/journal/on_this_day_place_test.dart` — place appended when present; identical-to-today when absent; no place for a locked entry.
+- Full Test Suite: `flutter test` (all passing).
+

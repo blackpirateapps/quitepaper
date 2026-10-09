@@ -7,10 +7,28 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/journal/domain/journal_models.dart';
+import '../../../core/location/location_models.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../editor/presentation/editor_screen.dart';
+import '../../notes/domain/note_metadata_extractor.dart';
 import '../../notes/domain/note_model.dart';
 import '../application/journal_providers.dart';
+
+/// Derives a city-level label from a cached [JournalLocation].
+///
+/// Takes the first non-empty comma-separated token of the address as the city;
+/// falls back to the coordinate string when the address is blank. Intentionally
+/// tiny and private — §2.2 of the location spec centralizes this later.
+String _cityLabel(JournalLocation location) {
+  final address = location.address.trim();
+  if (address.isNotEmpty) {
+    for (final part in address.split(',')) {
+      final token = part.trim();
+      if (token.isNotEmpty) return token;
+    }
+  }
+  return location.coordinatesString;
+}
 
 class OnThisDayView extends ConsumerWidget {
   const OnThisDayView({
@@ -519,7 +537,15 @@ class _OnThisDayTileState extends State<_OnThisDayTile> {
         ? JournalDateHelper.formatRelativeYear(widget.note.journalDate!)
         : JournalDateHelper.formatRelativeYear(widget.note.createdAt);
 
-    final semanticLabel = '$dateDisplay, ${widget.note.displayTitle}, $relativeYear';
+    // Read place from the cached NoteMetadata only (never re-parse frontmatter
+    // in build). location is null when absent/empty or for locked notes.
+    final location = NoteMetadataExtractor.extract(widget.note).location;
+    final place = location != null ? _cityLabel(location) : '';
+    final hasPlace = place.isNotEmpty;
+
+    final semanticLabel = hasPlace
+        ? '$dateDisplay, ${widget.note.displayTitle}, $relativeYear, $place'
+        : '$dateDisplay, ${widget.note.displayTitle}, $relativeYear';
 
     final backgroundColor = widget.isSelected
         ? (isDark
@@ -579,6 +605,20 @@ class _OnThisDayTileState extends State<_OnThisDayTile> {
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
+                          ),
+                        ),
+                      ],
+                      if (hasPlace) ...[
+                        const SizedBox(width: 8.0),
+                        Flexible(
+                          child: Text(
+                            '· $place',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
