@@ -7877,4 +7877,33 @@ In Super Editor mode the frontmatter block was never stripped (`stripFrontmatter
 
 
 
+## 156. Pull-Down-to-Search Rewrite: Deliberate Two-Phase Gesture (October 2026)
+
+### 1. Summary
+The pull-down-to-search gesture on both the **notes list** and **inside the editor** triggered constantly by accident. Both surfaces were rewritten to share a single, deliberate *two-phase* gesture engine (`PullDownSearchReveal`) that only engages when a pull **begins from rest at the very top** of the content. The animation (content slides down with rubber-band resistance to reveal a search bar; commit on release past a threshold) is preserved and retuned, while the trigger logic is far stricter.
+
+### 2. Problem
+Two different, both-too-eager implementations:
+- **Notes list** (`pull_down_search_reveal.dart`): wrapped the whole `Scaffold` in a raw `GestureDetector(onVerticalDragUpdate)` **and** a scroll `NotificationListener` — two competing gesture sources (also fighting the drawer edge-drag). It committed navigation on release whenever the offset *ever* crossed a low 70px threshold, so a quick downward flick to scroll up could momentarily cross it and fire.
+- **Editor** (`editor_screen.dart`): an inline `NotificationListener` opened the find bar the instant overscroll passed **−15px** (or a −12px scroll delta at the top) — no release, no confirmation. On short notes or a fling-bounce at the top, almost any downward touch opened search.
+
+### 3. Architectural Adjustments & Implementation Details
+
+1. **Two-phase arming** ([`lib/features/notes/presentation/widgets/pull_down_search_reveal.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/pull_down_search_reveal.dart)):
+   - The raw `GestureDetector` is removed; the widget is driven **purely by scroll notifications**.
+   - **Phase 1 (arm):** on `ScrollStartNotification`, the pull arms only if the scrollable is already at the top (`pixels <= 0`) **and** the scroll is user-initiated (`dragDetails != null`). A drag that starts mid-list and scrolls up into the top boundary never arms; a ballistic fling-bounce (null `dragDetails`) never arms. The user must lift and touch again from rest at the top. This is the core accidental-trigger fix.
+   - **Phase 2 (pull):** while armed, the pull is accumulated from the **raw finger delta** (`dragDetails.delta.dy`), not the physics-damped overscroll (which varies wildly with content length). Bouncing physics surfaces this as negative pixels on a `ScrollUpdateNotification`; clamping physics surfaces it as an `OverscrollNotification` — both paths are handled, gated on `armed && dragDetails != null`.
+   - **Phase 3 (commit):** on release (`ScrollEndNotification` / idle `UserScrollNotification`), crossing `threshold` navigates; otherwise the content springs back. A `_committed` guard prevents a double-fire across the idle + end notifications.
+   - Threshold raised to **96px** (max pull **150px**) with a single rubber-band resistance curve; haptic tick + "Release" pill at the threshold are retained. Horizontal scrollables (tags filter bar) are ignored via an `axis == Axis.vertical` guard.
+   - New optional `hintText` parameter lets each surface label the revealed bar.
+
+2. **Editor reuses the shared engine, tailored** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
+   - The inline `NotificationListener` is replaced by `PullDownSearchReveal` wrapping `IntelligentHeadingScrollbar`, gated on `swipeToSearchEditor`, labelled `'Find in note'`, committing to the inline find bar (`_openSearch()`) rather than navigating.
+   - The editor's body `SingleChildScrollView` physics changed from `AlwaysScrollableScrollPhysics` to `BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics())` so overscroll is reported consistently across platforms (clamping Android previously emitted none).
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Dedicated Tests ([`test/features/notes/gestures_test.dart`](file:///home/dog/git/quitepaper/test/features/notes/gestures_test.dart)): drag distances retuned to the new 96px threshold; added **"a drag that starts mid-list and scrolls up into the top does NOT open search"** covering the two-phase guard. Editor coverage (`test/editor/in_note_search_test.dart`) continues to pass for both the enabled reveal and the disabled setting.
+- Full Test Suite: `flutter test` (all tests passing).
+
 

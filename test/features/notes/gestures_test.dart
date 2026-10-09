@@ -82,12 +82,51 @@ void main() {
       expect(find.byType(SearchScreen), findsNothing);
       expect(find.byType(PullDownSearchReveal), findsOneWidget);
 
-      // Drag down on notes list past threshold
-      await tester.drag(find.text('Morning Thoughts'), const Offset(0, 250));
+      // Deliberate pull down from rest at the top, past the commit threshold.
+      await tester.drag(find.text('Morning Thoughts'), const Offset(0, 400));
       await tester.pumpAndSettle();
 
       // SearchScreen should now be opened
       expect(find.byType(SearchScreen), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets(
+        'a drag that starts mid-list and scrolls up into the top does NOT open search',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      for (var i = 0; i < 30; i++) {
+        await repository.saveNote(
+          Note(
+            id: 'scroll-note-$i',
+            title: 'Scrollable Note $i',
+            content: 'Body for note $i.',
+            createdAt: now.subtract(Duration(minutes: i)),
+            updatedAt: now.subtract(Duration(minutes: i)),
+          ),
+        );
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // First, scroll the list down so it is no longer at the top.
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
+
+      // Now a *single* downward drag that begins mid-list, scrolls back to the
+      // top, and overscrolls. Because the gesture did not begin at rest at the
+      // top, it must not arm the pull-to-search.
+      await tester.drag(find.byType(ListView).first, const Offset(0, 600));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SearchScreen), findsNothing);
 
       await finishTest(tester);
     });
@@ -138,7 +177,7 @@ void main() {
       expect(find.byType(SearchScreen), findsNothing);
 
       // Drag down on empty state
-      await tester.drag(find.text('No notes yet'), const Offset(0, 300));
+      await tester.drag(find.text('No notes yet'), const Offset(0, 400));
       await tester.pumpAndSettle();
 
       // SearchScreen should be opened
@@ -184,7 +223,7 @@ void main() {
       expect(find.byType(SearchScreen), findsNothing);
 
       // Drag down on tablet notes column
-      await tester.drag(find.text('Tablet Note'), const Offset(0, 250));
+      await tester.drag(find.text('Tablet Note'), const Offset(0, 400));
       await tester.pumpAndSettle();
 
       // SearchScreen should be opened
@@ -261,7 +300,7 @@ void main() {
       expect(find.byType(SearchScreen), findsNothing);
 
       // Drag down on notes list past threshold
-      await tester.drag(find.text('Disabled Gesture Note'), const Offset(0, 250));
+      await tester.drag(find.text('Disabled Gesture Note'), const Offset(0, 400));
       await tester.pumpAndSettle();
 
       // SearchScreen should NOT be opened

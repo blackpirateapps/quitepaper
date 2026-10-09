@@ -43,6 +43,7 @@ import 'widgets/table/table_insert_dialog.dart';
 import 'widgets/tag_editor_bar.dart';
 import 'widgets/version_history_sheet.dart';
 import '../../notes/presentation/widgets/note_password_dialogs.dart';
+import '../../notes/presentation/widgets/pull_down_search_reveal.dart';
 import '../../scanner/presentation/document_scanner_screen.dart';
 import '../../../core/image_processing/image_compression_service.dart';
 import '../../settings/domain/default_settings.dart';
@@ -1788,29 +1789,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 if (isDesktop)
                   _buildToolbarOrSpeechBar(isTopDocked: true),
                 Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (!defaultSettings.swipeToSearchEditor) {
-                        return false;
+                  child: PullDownSearchReveal(
+                    enabled: defaultSettings.swipeToSearchEditor,
+                    hintText: 'Find in note',
+                    onOpenSearch: () {
+                      if (!_isSearchVisible) {
+                        _openSearch();
                       }
-                      if (notification is OverscrollNotification &&
-                          notification.overscroll < -15) {
-                        if (!_isSearchVisible) {
-                          _openSearch();
-                        }
-                        return true;
-                      }
-                      if (notification is ScrollUpdateNotification &&
-                          notification.metrics.pixels <= 0 &&
-                          notification.scrollDelta != null &&
-                          notification.scrollDelta! < -12 &&
-                          notification.dragDetails != null) {
-                        if (!_isSearchVisible) {
-                          _openSearch();
-                        }
-                        return true;
-                      }
-                      return false;
                     },
                     child: IntelligentHeadingScrollbar(
                       scrollController: _scrollController,
@@ -1876,7 +1861,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 top: AppSpacing.md,
                                 bottom: AppSpacing.md,
                               ),
-                              physics: const AlwaysScrollableScrollPhysics(),
+                              physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics(),
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
