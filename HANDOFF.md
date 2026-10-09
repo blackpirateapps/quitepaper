@@ -7978,3 +7978,22 @@ No data-layer change was needed. `DriftNotesRepository.getOrCreateJournalEntry(D
 - Tests: added `getOrCreateForDate` backfill + one-per-day idempotency cases to `test/journal/journal_service_test.dart`. Existing journal suite (incl. "selecting empty date never auto-creates today note") still green.
 - Full Test Suite: `flutter test` (all tests passing).
 
+## 160. Journal Location Features — Shared Cached Metadata (§2.1 foundation) (October 2026)
+
+### 1. Summary
+First slice of the Journal Location Features spec (`docs/specs/journal-location-features.md`). Establishes the shared data foundation every location feature reads from: journal `location`, `moment`, `mood`, and `weather` are now parsed once and cached on `NoteMetadata`, so no list tile, calendar cell, or Places surface re-parses frontmatter per frame. No user-visible change yet; this unblocks Features 1–4.
+
+### 2. Architectural Adjustments & Implementation Details
+- **`NoteMetadata`** ([`note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart)) gained four nullable fields: `JournalLocation? location`, `String? moment` (normalized key), `int? mood`, `JournalWeather? weather`.
+- **Population** reuses `FrontmatterEditorHelper.parse(note.content)` rather than new regexes, inside the existing `extract()` path so the values ride along on the existing content-hash LRU cache (max 500) for free on cache hits. A cheap `trimLeft().startsWith('---')` guard skips the parse for RichDocument-JSON and frontmatter-less notes.
+- **Privacy:** metadata is nulled for `isPasswordProtected` notes, mirroring the existing nulling of `attachmentSummary`/`thumbnailData` — locked notes expose no location/moment/mood/weather.
+- **"No location" normalization:** a parsed `JournalLocation.isEmpty` (blank address + 0/0 coords) or empty `JournalWeather` is stored as `null`, so downstream features test a single nullable rather than re-checking `isEmpty`.
+
+### 3. Decisions (carried for later phases)
+Merge/alias store (§2.3) will be **device-local (SharedPreferences)** for now rather than synced; §2.4 travel-dates provider will **derive from this cached `moment`** (no DB column); §6.7 home detection is **skipped** (never specified).
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found**).
+- Tests: new `test/notes/note_metadata_journal_test.dart` — parses all four fields; locked notes nulled; cache hit returns the same instance; empty/absent location → `null`; non-journal note → all null.
+- Full Test Suite: `flutter test` (**all 1668 tests passing**).
+

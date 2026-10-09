@@ -1,5 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../../core/journal/domain/journal_weather.dart';
+import '../../../core/location/location_models.dart';
+import '../../editor/application/frontmatter_editor_helper.dart';
+import '../../editor/domain/frontmatter_document.dart';
 import '../../editor/domain/rich_document.dart';
 import '../../import/application/markdown_frontmatter_parser.dart';
 import 'note_model.dart';
@@ -63,6 +67,10 @@ class NoteMetadata {
     this.tablePreview,
     this.hasCustomTitle = false,
     this.isPasswordProtected = false,
+    this.location,
+    this.moment,
+    this.mood,
+    this.weather,
   });
 
   final String displayTitle;
@@ -74,6 +82,18 @@ class NoteMetadata {
   final NoteTablePreview? tablePreview;
   final bool hasCustomTitle;
   final bool isPasswordProtected;
+
+  /// Cached journal location parsed from frontmatter (null when absent/empty or locked).
+  final JournalLocation? location;
+
+  /// Cached normalized journal moment key (e.g. 'travel'); null when absent or locked.
+  final String? moment;
+
+  /// Cached journal mood rating 1..10; null when absent or locked.
+  final int? mood;
+
+  /// Cached journal weather parsed from frontmatter (null when absent/empty or locked).
+  final JournalWeather? weather;
 }
 
 /// High-performance metadata extractor for clean note previews, frontmatter resolution,
@@ -192,6 +212,24 @@ abstract final class NoteMetadataExtractor {
         ? null
         : extractThumbnailData(note.content);
 
+    // Journal metadata (location/moment/mood/weather) rides along on the cache.
+    // Never parse/expose metadata for locked notes — mirror the nulling above.
+    JournalLocation? location;
+    String? moment;
+    int? mood;
+    JournalWeather? weather;
+    if (!note.isPasswordProtected) {
+      final frontmatter = _parseJournalFrontmatter(note.content);
+      if (frontmatter != null) {
+        final loc = frontmatter.location;
+        location = (loc != null && loc.isNotEmpty) ? loc : null;
+        moment = frontmatter.moment;
+        mood = frontmatter.mood;
+        final w = frontmatter.weather;
+        weather = (w != null && w.isNotEmpty) ? w : null;
+      }
+    }
+
     final metadata = NoteMetadata(
       displayTitle: effectiveTitle,
       previewSnippet: preview,
@@ -202,6 +240,10 @@ abstract final class NoteMetadataExtractor {
       tablePreview: tablePreview,
       hasCustomTitle: hasCustomTitle,
       isPasswordProtected: note.isPasswordProtected,
+      location: location,
+      moment: moment,
+      mood: mood,
+      weather: weather,
     );
 
     // Maintain bounded LRU cache size
@@ -600,4 +642,16 @@ abstract final class NoteMetadataExtractor {
   /// Extracts the first image URI or asset ID from content for thumbnail preview (backward compatibility).
   static String? extractThumbnailUri(String content) =>
       extractThumbnailData(content)?.uri;
+
+  /// Parses journal YAML frontmatter for cached location/moment/mood/weather.
+  ///
+  /// Returns null when the content has no leading frontmatter block (including
+  /// RichDocument JSON notes, which never carry a `---` header). Reuses
+  /// [FrontmatterEditorHelper.parse] rather than new regexes.
+  static FrontmatterDocument? _parseJournalFrontmatter(String content) {
+    if (content.isEmpty) return null;
+    if (!content.trimLeft().startsWith('---')) return null;
+    final doc = FrontmatterEditorHelper.parse(content);
+    return doc.hasFrontmatter ? doc : null;
+  }
 }
