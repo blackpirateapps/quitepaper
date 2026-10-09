@@ -28,6 +28,7 @@ import '../../sidebar/presentation/sidebar_view.dart';
 import '../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../journal/presentation/journal_all_entries_view.dart';
+import '../../journal/presentation/journal_places_view.dart';
 import '../../journal/presentation/on_this_day_view.dart';
 import '../../tags/presentation/widgets/tag_browser_view.dart';
 import '../../tags/presentation/widgets/tag_context_header.dart';
@@ -365,6 +366,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         return 'All Entries';
       case AppDestination.onThisDay:
         return 'On This Day';
+      case AppDestination.places:
+        return 'Places';
     }
   }
 
@@ -374,10 +377,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   ) async {
     final noteId = _selectedNoteIdForTablet;
     if (noteId == null) return;
-    // Opening Tag Browser, All Entries, or On This Day preserves the open note in editor
+    // Opening Tag Browser, All Entries, On This Day, or Places preserves the open note in editor
     if (destination == AppDestination.tagBrowser ||
         destination == AppDestination.allJournalEntries ||
-        destination == AppDestination.onThisDay) {
+        destination == AppDestination.onThisDay ||
+        destination == AppDestination.places) {
       return;
     }
 
@@ -513,7 +517,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 },
               ),
             ),
-            appBar: (isTagBrowser || destination == AppDestination.allJournalEntries)
+            appBar: (isTagBrowser ||
+                    destination == AppDestination.allJournalEntries ||
+                    destination == AppDestination.places)
                 ? null
                 : destination == AppDestination.onThisDay
                     ? AppBar(
@@ -753,6 +759,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       ? const SafeArea(
                           key: ValueKey('phone_on_this_day'),
                           child: OnThisDayView(),
+                        )
+                  : destination == AppDestination.places
+                      ? SafeArea(
+                          key: const ValueKey('phone_places'),
+                          child: Builder(
+                            builder: (scaffoldCtx) => JournalPlacesView(
+                              onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
+                            ),
+                          ),
                         )
                       : SafeArea(
                           key: const ValueKey('phone_notes_list'),
@@ -1202,6 +1217,23 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               ? OnThisDayView(
                                   key: const ValueKey('tablet_on_this_day'),
                                   selectedNoteId: _selectedNoteIdForTablet,
+                                  onNoteSelected: (note) {
+                                    setState(() {
+                                      _selectedNoteIdForTablet = note.id;
+                                    });
+                                  },
+                                )
+                          : destination == AppDestination.places
+                              ? JournalPlacesView(
+                                  key: const ValueKey('tablet_places'),
+                                  isTablet: true,
+                                  isSidebarVisible: isNavSidebarVisible,
+                                  selectedNoteId: _selectedNoteIdForTablet,
+                                  onToggleSidebar: () {
+                                    ref
+                                        .read(isNavSidebarVisibleProvider.notifier)
+                                        .state = !isNavSidebarVisible;
+                                  },
                                   onNoteSelected: (note) {
                                     setState(() {
                                       _selectedNoteIdForTablet = note.id;

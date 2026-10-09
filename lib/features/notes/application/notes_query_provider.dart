@@ -88,10 +88,10 @@ final notesQueryProvider =
     case AppDestination.tagBrowser:
     case AppDestination.allJournalEntries:
     case AppDestination.onThisDay:
+    case AppDestination.places:
       context = NotesContext.active;
       break;
   }
-
   final initialQuery = NotesQuery(
     context: context,
     sort: initialSort,
@@ -146,6 +146,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
       case AppDestination.tagBrowser:
       case AppDestination.allJournalEntries:
       case AppDestination.onThisDay:
+      case AppDestination.places:
         newContext = NotesContext.active;
         break;
     }

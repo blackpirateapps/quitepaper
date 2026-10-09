@@ -78,6 +78,11 @@ class NoteEmptyState extends StatelessWidget {
           subtitle = 'Your first entry here will appear next year.';
           showCreateButton = false;
           break;
+        case AppDestination.places:
+          title = 'No places yet.';
+          subtitle = 'Places you write from will gather here.';
+          showCreateButton = false;
+          break;
       }
     }
 

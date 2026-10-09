@@ -15,6 +15,7 @@ enum AppDestination {
   tagBrowser,
   allJournalEntries,
   onThisDay,
+  places,
 }
 
 /// Explicit representation of the active workspace context
@@ -27,6 +28,7 @@ enum WorkspaceContextType {
   tagBrowser,
   allJournalEntries,
   onThisDay,
+  places,
 }
 
 class WorkspaceContext {
@@ -47,6 +49,7 @@ class WorkspaceContext {
   static const tagBrowser = WorkspaceContext(type: WorkspaceContextType.tagBrowser);
   static const allJournalEntries = WorkspaceContext(type: WorkspaceContextType.allJournalEntries);
   static const onThisDay = WorkspaceContext(type: WorkspaceContextType.onThisDay);
+  static const places = WorkspaceContext(type: WorkspaceContextType.places);
 
   static WorkspaceContext tag({String? tagId, required String tagName}) =>
       WorkspaceContext(type: WorkspaceContextType.tag, tagId: tagId, tagName: tagName);
@@ -59,6 +62,7 @@ class WorkspaceContext {
   bool get isTagBrowser => type == WorkspaceContextType.tagBrowser;
   bool get isAllJournalEntries => type == WorkspaceContextType.allJournalEntries;
   bool get isOnThisDay => type == WorkspaceContextType.onThisDay;
+  bool get isPlaces => type == WorkspaceContextType.places;
 
   @override
   bool operator ==(Object other) =>
@@ -118,6 +122,8 @@ final workspaceContextProvider = Provider<WorkspaceContext>((ref) {
       return WorkspaceContext.allJournalEntries;
     case AppDestination.onThisDay:
       return WorkspaceContext.onThisDay;
+    case AppDestination.places:
+      return WorkspaceContext.places;
   }
 });
 
@@ -164,6 +170,7 @@ final filteredNotesStreamProvider = StreamProvider<List<Note>>((ref) {
     case AppDestination.tagBrowser:
     case AppDestination.allJournalEntries:
     case AppDestination.onThisDay:
+    case AppDestination.places:
       return Stream.value([]);
   }
 });

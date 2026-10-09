@@ -8080,3 +8080,28 @@ The merge store is **device-local SharedPreferences, not synced** (per the user'
 - Tests: `place_alias_store_test.dart`, `places_providers_test.dart`, `journal_visit_test.dart` — merge/rename/unmerge + persistence round-trip; located-only grouping with granularity/sort/alias; visit gap splitting + labels.
 - Full Test Suite: `flutter test` (all passing).
 
+## 166. Journal Location Features — Places Page UI + Navigation (Feature 4) (October 2026)
+
+### 1. Summary
+The **Places** journal surface: a map-free, editorial browser of journal entries grouped by place, with a City/Region/Country granularity toggle and a Frequency/Recency/First-seen/A–Z sort, drilling in to a place's entries sub-grouped by visit. New sidebar destination under "On This Day".
+
+### 2. Navigation wiring (mirrors `onThisDay`/`allJournalEntries`)
+- [`notes_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_provider.dart): `places` added to `AppDestination` + `WorkspaceContextType`; `WorkspaceContext.places`, `isPlaces`; cases in `workspaceContextProvider` + `filteredNotesStreamProvider`.
+- [`notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart): `places → NotesContext.active` in both switches.
+- [`note_empty_state.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_empty_state.dart): `places` case.
+- [`notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart): title, preserve-open-note set, null-appBar group, and `AppDestination.places → JournalPlacesView` routing in both the phone and tablet branches.
+- [`sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart): a "Places" row below "On This Day" (`mapPin` regular/fill selected-swap). *(All switch sites were found by running whole-project `flutter analyze` after the enum change.)*
+
+### 3. UI (new, under `lib/features/journal/presentation/`)
+- `journal_places_view.dart` — `JournalPlacesView` (constructor mirrors the other journal views: `onOpenDrawer`, `isTablet`, `isSidebarVisible`, `selectedNoteId`, `onToggleSidebar`, `onNoteSelected`). List ⇄ drill-in via internal state; in-scroll editorial "Places" header; single-accent `_SegmentedToggle` for granularity + sort; calm `_PlacesEmptyState` ("Places you write from will gather here.") — no Unknown/Without-location bucket.
+- `widgets/place_card.dart` — typographic `PlaceCard` (no map): name + region/country secondary, date span (`Oct 2024` / `2024` / `2019 – 2026`), entry count.
+- `widgets/place_detail_view.dart` — `PlaceDetailView`: header + entries reusing `JournalTimelineTile`, sub-grouped by `placeVisitsProvider` with `October 2024 · 5 entries` sub-headers; respects `selectedNoteId` / `onNoteSelected`.
+
+### 4. Deferred (later phases / out of scope)
+Manual merge/rename UI and the §6.5 backfill nudge are not built here (the alias store is already applied by `placeListProvider`). Per-entry `openInMaps` in the drill-in was left out (optional in §6.3; `JournalTimelineTile` has no action hook). No aggregate map, no map tiles, no thumbnails (§8).
+
+### 5. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `test/journal/journal_places_view_test.dart` — cards per located place + unlocated excluded; learning/empty state; Country toggle collapses to one card; sort reorders; drill-in visit sub-header + tiles + back.
+- Full Test Suite: `flutter test` (**all 1729 tests passing**).
+

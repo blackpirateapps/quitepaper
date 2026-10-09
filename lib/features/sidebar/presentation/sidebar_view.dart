@@ -284,6 +284,21 @@ class SidebarView extends ConsumerWidget {
                       },
                     ),
 
+                    SidebarItem(
+                      icon: currentDestination == AppDestination.places
+                          ? PhosphorIconsFill.mapPin
+                          : PhosphorIconsRegular.mapPin,
+                      label: 'Places',
+                      isSelected: currentDestination == AppDestination.places,
+                      onTap: () {
+                        ref.read(currentDestinationProvider.notifier).state =
+                            AppDestination.places;
+                        ref.read(selectedTagFilterProvider.notifier).state = null;
+                        ref.read(notesQueryProvider.notifier).clearAllFilters();
+                        onItemSelected?.call();
+                      },
+                    ),
+
                     // SMART VIEWS Section (if any saved views exist)
                     Builder(
                       builder: (ctx) {
