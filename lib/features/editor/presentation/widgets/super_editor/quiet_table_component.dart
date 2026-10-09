@@ -8,6 +8,7 @@ import 'package:quitepaper/features/editor/domain/markdown_table.dart';
 import 'package:quitepaper/features/editor/domain/markdown_table_position.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_view.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/table/table_editor_screen.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -96,6 +97,18 @@ class QuietTableComponent extends StatefulWidget {
 }
 
 class _QuietTableComponentState extends State<QuietTableComponent> {
+  /// Non-null while the table is being edited inline (tap-to-activate).
+  MarkdownTableController? _editController;
+  String _workingMarkdown = '';
+
+  bool get _isEditing => _editController != null;
+
+  @override
+  void dispose() {
+    _editController?.dispose();
+    super.dispose();
+  }
+
   String _serializeTableNode(TableBlockNode node) {
     try {
       final doc = MutableDocument(nodes: [node]);
@@ -135,118 +148,91 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     return null;
   }
 
-  Future<void> _openTableEditor(
-    BuildContext context,
-    MarkdownTable table,
-    String tableMarkdown, [
-    TablePosition? initialPos,
-  ]) async {
-    var workingMarkdown = tableMarkdown;
-    var currentTable = table;
+  /// Enters inline tap-to-activate editing, seeding a controller from the
+  /// node's current Markdown. Edits stay local until [_commitEdit].
+  void _startInlineEdit([TablePosition? initialPos]) {
+    if (_isEditing) {
+      if (initialPos != null) _editController!.setActivePosition(initialPos);
+      return;
+    }
+    _workingMarkdown = _serializeTableNode(widget.node);
+    final tables = const MarkdownTableParser().findTables(_workingMarkdown);
+    if (tables.isEmpty) return;
 
-    final controller = MarkdownTableController(
-      table: currentTable,
-      getDocumentValue: () => TextEditingValue(text: workingMarkdown),
-      onUpdateDocument: (newVal) {
-        workingMarkdown = newVal.text;
-        final reParsed = const MarkdownTableParser().findTables(workingMarkdown);
-        if (reParsed.isNotEmpty) {
-          currentTable = reParsed.first;
-        }
-      },
+    _editController = MarkdownTableController(
+      table: tables.first,
+      getDocumentValue: () => TextEditingValue(text: _workingMarkdown),
+      onUpdateDocument: (newVal) => _workingMarkdown = newVal.text,
       initialPosition: initialPos,
     );
+    setState(() {});
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final colors = sheetContext.appColors;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          builder: (dragContext, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(PhosphorIconsRegular.table, size: 20, color: colors.textPrimary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Edit Table',
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(sheetContext).pop(),
-                            child: Text(
-                              'Done',
-                              style: TextStyle(
-                                color: colors.accent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: MarkdownTableEditor(
-                        controller: controller,
-                        onClose: () => Navigator.of(sheetContext).pop(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (workingMarkdown.trim() != tableMarkdown.trim() && mounted) {
-      try {
-        final doc = deserializeMarkdownToDocument(workingMarkdown);
-        if (doc.isNotEmpty) {
-          final newTableNode = doc.firstWhere(
-            (n) => n is TableBlockNode,
-            orElse: () => doc.first,
-          );
-          if (newTableNode is TableBlockNode) {
-            widget.editor.execute([
-              ReplaceNodeRequest(
-                existingNodeId: widget.node.id,
-                newNode: newTableNode,
-              ),
-            ]);
-          }
-        }
-      } catch (_) {}
+    if (initialPos != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _editController?.setActivePosition(initialPos);
+      });
     }
   }
+
+  /// Commits the working Markdown back into the document node and leaves edit
+  /// mode. Mirrors the §155 frontmatter lesson: we only rewrite the node when
+  /// the user is done, so typing never tears down the live component.
+  void _commitEdit() {
+    final original = _serializeTableNode(widget.node);
+    final working = _workingMarkdown;
+    _editController?.dispose();
+    _editController = null;
+    if (working.trim() != original.trim()) {
+      _applyMarkdownToNode(working);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _applyMarkdownToNode(String markdown) {
+    if (!mounted) return;
+    try {
+      final doc = deserializeMarkdownToDocument(markdown);
+      if (doc.isEmpty) return;
+      final newTableNode = doc.firstWhere(
+        (n) => n is TableBlockNode,
+        orElse: () => doc.first,
+      );
+      if (newTableNode is TableBlockNode) {
+        widget.editor.execute([
+          ReplaceNodeRequest(
+            existingNodeId: widget.node.id,
+            newNode: newTableNode,
+          ),
+        ]);
+      }
+    } catch (_) {}
+  }
+
+  /// Opens the full-screen enhanced table editor as a new page (not a popup).
+  Future<void> _openFullScreen() async {
+    final current =
+        _isEditing ? _workingMarkdown : _serializeTableNode(widget.node);
+    final result = await TableEditorScreen.open(
+      context,
+      initialTableMarkdown: current,
+    );
+    if (!mounted || result == null) return;
+
+    if (result.trim().isEmpty) {
+      _editController?.dispose();
+      _editController = null;
+      _deleteTable();
+      return;
+    }
+
+    if (_isEditing) {
+      _workingMarkdown = result;
+      _editController?.reloadFrom(TextEditingValue(text: result));
+    }
+    _applyMarkdownToNode(result);
+    if (mounted) setState(() {});
+  }
+
 
   void _deleteTable() {
     widget.editor.execute([
@@ -259,6 +245,11 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     final colors = context.appColors;
     final tableMarkdown = _serializeTableNode(widget.node);
     final markdownTable = _parseMarkdownTable(tableMarkdown);
+    final editing = _isEditing && _editController != null;
+
+    final rowCount = editing ? _editController!.table.rowCount : widget.node.rowCount;
+    final colCount =
+        editing ? _editController!.table.columnCount : widget.node.columnCount;
 
     return BoxComponent(
       key: widget.componentKey,
@@ -267,7 +258,9 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: AppRadii.borderMd,
-          border: Border.all(color: colors.divider),
+          border: Border.all(
+            color: editing ? colors.accent.withValues(alpha: 0.6) : colors.divider,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -285,7 +278,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                   Icon(PhosphorIconsRegular.table, size: 14, color: colors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
-                    'Table (${widget.node.rowCount} × ${widget.node.columnCount})',
+                    'Table ($rowCount × $colCount)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -293,49 +286,49 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                     ),
                   ),
                   const Spacer(),
-                  if (markdownTable != null)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(4),
-                      onTap: () => _openTableEditor(context, markdownTable, tableMarkdown),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(PhosphorIconsRegular.pencilSimple, size: 13, color: colors.accent),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Edit',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: colors.accent,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  if (editing)
+                    _HeaderAction(
+                      icon: PhosphorIconsRegular.check,
+                      label: 'Done',
+                      color: colors.accent,
+                      onTap: _commitEdit,
                     ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: _deleteTable,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      child: Icon(PhosphorIconsRegular.trash, size: 13, color: colors.textTertiary),
-                    ),
+                  _HeaderAction(
+                    icon: PhosphorIconsRegular.arrowsOut,
+                    tooltip: 'Open full screen',
+                    color: colors.textSecondary,
+                    onTap: _openFullScreen,
+                  ),
+                  const SizedBox(width: 4),
+                  _HeaderAction(
+                    icon: PhosphorIconsRegular.trash,
+                    tooltip: 'Delete table',
+                    color: colors.textTertiary,
+                    onTap: () {
+                      _editController?.dispose();
+                      _editController = null;
+                      _deleteTable();
+                    },
                   ),
                 ],
               ),
             ),
             // Table content
-            if (markdownTable != null)
+            if (editing)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                child: MarkdownTableEditor(
+                  controller: _editController!,
+                  onClose: _commitEdit,
+                ),
+              )
+            else if (markdownTable != null)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 child: MarkdownTableView(
                   table: markdownTable,
                   readOnly: false,
-                  onCellTap: (pos) => _openTableEditor(context, markdownTable, tableMarkdown, pos),
+                  onCellTap: _startInlineEdit,
                 ),
               )
             else
@@ -354,6 +347,52 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
         ),
       ),
     );
+  }
+}
+
+/// Small tappable icon (+ optional label) used in the table component header.
+class _HeaderAction extends StatelessWidget {
+  const _HeaderAction({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.label,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String? label;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            if (label != null) ...[
+              const SizedBox(width: 4),
+              Text(
+                label!,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    return tooltip != null ? Tooltip(message: tooltip!, child: child) : child;
   }
 }
 

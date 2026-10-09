@@ -378,6 +378,111 @@ class MarkdownTableController extends ChangeNotifier {
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
   }
 
+  /// Duplicates the current active row, inserting the copy directly below it.
+  void duplicateCurrentRow() {
+    final docVal = getDocumentValue();
+    final updatedDocVal = MarkdownTableFormatter.duplicateRow(
+      value: docVal,
+      table: table,
+      rowIndex: _activePosition.row,
+    );
+
+    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    if (reloaded != null) {
+      table = reloaded;
+    }
+
+    onUpdateDocument(updatedDocVal);
+
+    final targetRow = (_activePosition.row < 1 ? 1 : _activePosition.row + 1)
+        .clamp(0, table.rowCount - 1);
+    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+  }
+
+  /// Duplicates the current active column, inserting the copy to its right.
+  void duplicateCurrentColumn() {
+    final docVal = getDocumentValue();
+    final updatedDocVal = MarkdownTableFormatter.duplicateColumn(
+      value: docVal,
+      table: table,
+      columnIndex: _activePosition.column,
+    );
+
+    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    if (reloaded != null) {
+      table = reloaded;
+    }
+
+    onUpdateDocument(updatedDocVal);
+
+    final targetCol = (_activePosition.column + 1).clamp(0, table.columnCount - 1);
+    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+  }
+
+  /// Moves the current active body row to visible [targetRowIndex] (1..N).
+  void moveCurrentRow(int targetRowIndex) {
+    if (_activePosition.row <= 0) return; // header is immovable
+    final docVal = getDocumentValue();
+    final updatedDocVal = MarkdownTableFormatter.moveRow(
+      value: docVal,
+      table: table,
+      fromRowIndex: _activePosition.row,
+      toRowIndex: targetRowIndex,
+    );
+
+    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    if (reloaded != null) {
+      table = reloaded;
+    }
+
+    onUpdateDocument(updatedDocVal);
+
+    final targetRow = targetRowIndex.clamp(1, table.rowCount - 1);
+    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+  }
+
+  /// Moves the current active column to [targetColumnIndex].
+  void moveCurrentColumn(int targetColumnIndex) {
+    final docVal = getDocumentValue();
+    final updatedDocVal = MarkdownTableFormatter.moveColumn(
+      value: docVal,
+      table: table,
+      fromColumnIndex: _activePosition.column,
+      toColumnIndex: targetColumnIndex,
+    );
+
+    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    if (reloaded != null) {
+      table = reloaded;
+    }
+
+    onUpdateDocument(updatedDocVal);
+
+    final targetCol = targetColumnIndex.clamp(0, table.columnCount - 1);
+    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+  }
+
+  /// Replaces the active table projection and resynchronises the active cell
+  /// controller. Used after an external structural rewrite (e.g. the full-screen
+  /// editor or a paste) mutates the working Markdown directly.
+  void reloadFrom(TextEditingValue docValue, {TablePosition? newActivePosition}) {
+    final found = _parser.findTables(docValue.text);
+    final reloaded = _parser.findTableAtOffset(docValue.text, table.sourceStart) ??
+        (found.isNotEmpty ? found.first : null);
+    if (reloaded == null) return;
+    table = reloaded;
+    final pos = newActivePosition ?? _activePosition;
+    final r = pos.row.clamp(0, table.rowCount - 1);
+    final c = pos.column.clamp(0, table.columnCount - 1);
+    _activePosition = TablePosition(row: r, column: c);
+    final cell = table.getCell(r, c);
+    _isInternalSync = true;
+    _cellController.text = cell?.trimmedText ?? '';
+    _isInternalSync = false;
+    _pruneDeadFocusNodes();
+    notifyListeners();
+  }
+
   /// Deletes the entire table.
   void deleteTable() {
     final docVal = getDocumentValue();

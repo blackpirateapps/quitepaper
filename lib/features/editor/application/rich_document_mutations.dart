@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../domain/document_selection.dart';
+import '../domain/markdown_table.dart';
 import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
 import '../domain/rich_inline.dart';
@@ -322,6 +323,22 @@ abstract final class RichDocumentMutations {
     if (insertIdx == newBlocks.length - 1) {
       newBlocks.add(ParagraphBlock.empty(_uuid.v4()));
     }
+    return doc.copyWith(blocks: newBlocks);
+  }
+
+  /// Replaces the [MarkdownTable] of the [TableBlock] at [blockIndex] in place,
+  /// preserving the block id. Used by inline table editing to write cell/row/
+  /// column edits back into the document without recreating the block.
+  static RichDocument updateTable(
+    RichDocument doc,
+    int blockIndex,
+    MarkdownTable newTable,
+  ) {
+    if (blockIndex < 0 || blockIndex >= doc.blocks.length) return doc;
+    final block = doc.blocks[blockIndex];
+    if (block is! TableBlock) return doc;
+    final newBlocks = List<RichBlock>.from(doc.blocks);
+    newBlocks[blockIndex] = TableBlock(id: block.id, table: newTable);
     return doc.copyWith(blocks: newBlocks);
   }
 

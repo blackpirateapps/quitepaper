@@ -7,6 +7,7 @@ import 'package:quitepaper/features/editor/application/quiet_super_editor_contro
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
@@ -217,7 +218,30 @@ void main() {
       expect(find.byType(QuietTableComponent), findsOneWidget);
       expect(find.text('Col 1', findRichText: true), findsOneWidget);
       expect(find.text('Cell 1', findRichText: true), findsOneWidget);
-      expect(find.text('Edit', findRichText: true), findsOneWidget);
+      // The table now exposes an inline editor + a full-screen expand button
+      // (the old bottom-sheet "Edit" button was removed).
+      expect(find.byIcon(PhosphorIconsRegular.arrowsOut), findsOneWidget);
+    });
+
+    testWidgets('tapping a table cell activates the inline editor (no popup)', (tester) async {
+      const markdown = '| Col 1 | Col 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |';
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: markdown,
+          onChanged: (_) {},
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MarkdownTableEditor), findsNothing);
+
+      await tester.tap(find.text('Cell 1', findRichText: true));
+      await tester.pumpAndSettle();
+
+      // Inline editing is active in-place — not a modal bottom sheet.
+      expect(find.byType(MarkdownTableEditor), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.check), findsOneWidget);
     });
 
     testWidgets('deletes table block node when trash icon is tapped', (tester) async {

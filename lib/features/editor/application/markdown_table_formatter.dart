@@ -325,6 +325,183 @@ abstract final class MarkdownTableFormatter {
     );
   }
 
+  /// Moves the body row at visible [fromRowIndex] to visible [toRowIndex].
+  /// Row 0 is the header and is immovable: if either index is <= 0 the call is a
+  /// no-op. Indices refer to visible rows (1..N map to bodyRows[index-1]).
+  static TextEditingValue moveRow({
+    required TextEditingValue value,
+    required MarkdownTable table,
+    required int fromRowIndex,
+    required int toRowIndex,
+  }) {
+    // Header (visible row 0) is immovable.
+    if (fromRowIndex <= 0 || toRowIndex <= 0) {
+      return value;
+    }
+    if (fromRowIndex == toRowIndex) {
+      return value;
+    }
+    if (fromRowIndex >= table.rowCount || toRowIndex >= table.rowCount) {
+      return value;
+    }
+
+    final text = value.text;
+
+    // Header and delimiter lines stay fixed; only body lines are reordered.
+    final headerLine = '|${table.headerRow.cells.map((c) => c.rawText).join('|')}|';
+    final delimiterLine = '|${table.delimiterRow.cells.map((c) => c.rawText).join('|')}|';
+    final bodyLines = table.bodyRows
+        .map((row) => '|${row.cells.map((c) => c.rawText).join('|')}|')
+        .toList();
+
+    final moved = bodyLines.removeAt(fromRowIndex - 1);
+    bodyLines.insert(toRowIndex - 1, moved);
+
+    final newTableMarkdown = [headerLine, delimiterLine, ...bodyLines].join('\n');
+    final newText = text.replaceRange(table.sourceStart, table.sourceEnd, newTableMarkdown);
+
+    final reloadedTable = _parser.findTableAtOffset(newText, table.sourceStart);
+    final targetCell = reloadedTable?.getCell(toRowIndex, 0);
+    final newCursor = targetCell?.contentStart ?? table.sourceStart;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  /// Moves the column at [fromColumnIndex] to [toColumnIndex] across the header,
+  /// delimiter (so the column's alignment travels with it), and every body row.
+  static TextEditingValue moveColumn({
+    required TextEditingValue value,
+    required MarkdownTable table,
+    required int fromColumnIndex,
+    required int toColumnIndex,
+  }) {
+    if (fromColumnIndex == toColumnIndex) {
+      return value;
+    }
+    if (fromColumnIndex < 0 || fromColumnIndex >= table.columnCount) {
+      return value;
+    }
+    if (toColumnIndex < 0 || toColumnIndex >= table.columnCount) {
+      return value;
+    }
+
+    final text = value.text;
+    final allRows = <MarkdownTableRow>[
+      table.headerRow,
+      table.delimiterRow,
+      ...table.bodyRows,
+    ];
+
+    final updatedLines = <String>[];
+    for (final row in allRows) {
+      final cells = List<String>.from(row.cells.map((c) => c.rawText));
+      if (fromColumnIndex < cells.length) {
+        final moved = cells.removeAt(fromColumnIndex);
+        cells.insert(toColumnIndex.clamp(0, cells.length), moved);
+      }
+      updatedLines.add('|${cells.join('|')}|');
+    }
+
+    final newTableMarkdown = updatedLines.join('\n');
+    final newText = text.replaceRange(table.sourceStart, table.sourceEnd, newTableMarkdown);
+
+    final reloadedTable = _parser.findTableAtOffset(newText, table.sourceStart);
+    final targetCell = reloadedTable?.getCell(0, toColumnIndex);
+    final newCursor = targetCell?.contentStart ?? table.sourceStart;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  /// Duplicates the visible row at [rowIndex], inserting the copy immediately
+  /// below it as a BODY row. If [rowIndex] == 0 (header) the header is preserved
+  /// and its cell contents are inserted as a new first body row.
+  static TextEditingValue duplicateRow({
+    required TextEditingValue value,
+    required MarkdownTable table,
+    required int rowIndex,
+  }) {
+    if (rowIndex < 0 || rowIndex >= table.rowCount) {
+      return value;
+    }
+
+    final text = value.text;
+
+    final headerLine = '|${table.headerRow.cells.map((c) => c.rawText).join('|')}|';
+    final delimiterLine = '|${table.delimiterRow.cells.map((c) => c.rawText).join('|')}|';
+    final bodyLines = table.bodyRows
+        .map((row) => '|${row.cells.map((c) => c.rawText).join('|')}|')
+        .toList();
+
+    final int newRowVisibleIndex;
+    if (rowIndex == 0) {
+      // Header stays put; its contents become a new first body row.
+      bodyLines.insert(0, headerLine);
+      newRowVisibleIndex = 1;
+    } else {
+      final bodyIdx = rowIndex - 1;
+      bodyLines.insert(bodyIdx + 1, bodyLines[bodyIdx]);
+      newRowVisibleIndex = rowIndex + 1;
+    }
+
+    final newTableMarkdown = [headerLine, delimiterLine, ...bodyLines].join('\n');
+    final newText = text.replaceRange(table.sourceStart, table.sourceEnd, newTableMarkdown);
+
+    final reloadedTable = _parser.findTableAtOffset(newText, table.sourceStart);
+    final targetCell = reloadedTable?.getCell(newRowVisibleIndex, 0);
+    final newCursor = targetCell?.contentStart ?? table.sourceStart;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  /// Duplicates the column at [columnIndex] (including its alignment), inserting
+  /// the copy immediately to its right.
+  static TextEditingValue duplicateColumn({
+    required TextEditingValue value,
+    required MarkdownTable table,
+    required int columnIndex,
+  }) {
+    if (columnIndex < 0 || columnIndex >= table.columnCount) {
+      return value;
+    }
+
+    final text = value.text;
+    final allRows = <MarkdownTableRow>[
+      table.headerRow,
+      table.delimiterRow,
+      ...table.bodyRows,
+    ];
+
+    final updatedLines = <String>[];
+    for (final row in allRows) {
+      final cells = List<String>.from(row.cells.map((c) => c.rawText));
+      if (columnIndex < cells.length) {
+        cells.insert(columnIndex + 1, cells[columnIndex]);
+      }
+      updatedLines.add('|${cells.join('|')}|');
+    }
+
+    final newTableMarkdown = updatedLines.join('\n');
+    final newText = text.replaceRange(table.sourceStart, table.sourceEnd, newTableMarkdown);
+
+    final reloadedTable = _parser.findTableAtOffset(newText, table.sourceStart);
+    final targetCell = reloadedTable?.getCell(0, columnIndex + 1);
+    final newCursor = targetCell?.contentStart ?? table.sourceStart;
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
   /// Sets the alignment for column [columnIndex].
   static TextEditingValue setColumnAlignment({
     required TextEditingValue value,

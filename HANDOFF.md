@@ -7933,5 +7933,29 @@ The Global Search screen ([`lib/features/search/presentation/search_screen.dart`
 - Test update ([`test/search/ocr_global_search_test.dart`](file:///home/dog/git/quitepaper/test/search/ocr_global_search_test.dart)): the filter assertions follow the "Docs" label and tap the `documents` segment by its `ValueKey` rather than by the removed "Documents & OCR" text.
 - Full Test Suite: `flutter test` (all tests passing).
 
+---
 
+## 158. Inline Table Editing + Full-Screen Table Workspace (October 2026)
+
+### 1. Summary
+Markdown tables in the two visual editor modes could not be edited in place. **Super Editor** mode opened a modal bottom-sheet popup to edit a table; **WYSIWYG** mode could not edit cells at all (its `onCellTap` was a no-op — only add-row/delete existed). Both now support **inline tap-to-activate editing** (matching Markdown mode) and an **expand button that opens a full-screen enhanced table workspace** on a new route. The bottom-sheet popup is removed.
+
+### 2. Architecture
+All three surfaces now share the existing cell-edit engine (`MarkdownTableController` + `MarkdownTableEditor`), which operates on a **standalone table-Markdown string** via `getDocumentValue`/`onUpdateDocument` callbacks. Each surface bridges its native table representation to that string:
+- **Super Editor** ([`quiet_table_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_table_component.dart)): serializes the `TableBlockNode` to Markdown; commits edits back via `ReplaceNodeRequest`. Following the §155 frontmatter lesson, the node is rewritten **only on commit** (tap "Done"/Escape, or returning from full-screen) — typing never tears down the live component.
+- **WYSIWYG** ([`rich_table_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_table_editor.dart)): reconstructs Markdown from the `TableBlock.table` rows' `rawLine`; commits via the new `RichDocumentController.updateTable(blockIndex, MarkdownTable)` → `RichDocumentMutations.updateTable` (replaces the block in place, preserving its id). Also commits only on done.
+
+### 3. New building blocks
+- **Formatter ops** ([`markdown_table_formatter.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_table_formatter.dart)): `moveRow`, `moveColumn` (alignment travels with the column), `duplicateRow`, `duplicateColumn` — source-preserving, following the existing full-rebuild pattern. Controller wrappers: `duplicateCurrentRow/Column`, `moveCurrentRow/Column`, and `reloadFrom` (re-projects after an external Markdown rewrite).
+- **Clipboard parser** ([`table_clipboard_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/table_clipboard_parser.dart)): RFC-4180 CSV + TSV → `List<List<String>>` for paste-to-fill.
+- **Full-screen workspace** ([`table_editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/table/table_editor_screen.dart)): a `MaterialPageRoute` editing one table's Markdown in isolation and returning the result via `Navigator.pop` (empty string = delete). Reuses `MarkdownTableEditor` for the grid and adds an app bar with **undo/redo** (Markdown-snapshot stacks), and an overflow menu for **duplicate row/column, move row/column, promote-row-to-header, paste CSV/TSV, and live-preview toggle**. Add/remove row & column, per-column alignment, and inline cell formatting come from the reused editor + toolbar.
+
+### 4. Notes & constraints
+- "Make row the header" swaps the chosen row with the header row (GFM requires a header; there is no header-off state).
+- View-only enhancements still pending (not persisted to Markdown by design): sticky header row, resizable column widths, density toggle, fit-to-width, row/column multi-select, and drag-to-reorder in the full-screen grid. The formatter `moveRow`/`moveColumn` ops that back drag-reorder already exist and are wired to the overflow menu's move actions.
+
+### 5. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues found, 0 warnings**).
+- Dedicated tests: `test/editor/markdown_table_formatter_ops_test.dart` (move/duplicate ops), `test/editor/table_clipboard_parser_test.dart` (CSV/TSV), `test/editor/table_editor_screen_test.dart` (full-screen render, duplicate-row-returns-changed-markdown, delete sentinel), and a new Super Editor case asserting a cell tap activates the inline `MarkdownTableEditor` (no popup).
+- Full Test Suite: `flutter test` (all tests passing).
 

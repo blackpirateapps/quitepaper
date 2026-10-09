@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../domain/document_selection.dart';
 import '../domain/markdown_styles.dart';
+import '../domain/markdown_table.dart';
 import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
 import '../domain/rich_inline.dart';
@@ -408,6 +409,12 @@ class RichDocumentController extends ChangeNotifier {
 
   void convertBlockToParagraph(int blockIndex) {
     _commitMutation(RichDocumentMutations.convertToParagraph(_document, blockIndex));
+  }
+
+  /// Replaces the table at [blockIndex] with [newTable] in place (inline table
+  /// editing). The block id is preserved so the surface does not rebuild it.
+  void updateTable(int blockIndex, MarkdownTable newTable) {
+    _commitMutation(RichDocumentMutations.updateTable(_document, blockIndex, newTable));
   }
 
   void cycleHeadingLevel() {
