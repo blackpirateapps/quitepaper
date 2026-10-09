@@ -8105,3 +8105,24 @@ Manual merge/rename UI and the §6.5 backfill nudge are not built here (the alia
 - Tests: `test/journal/journal_places_view_test.dart` — cards per located place + unlocated excluded; learning/empty state; Country toggle collapses to one card; sort reorders; drill-in visit sub-header + tiles + back.
 - Full Test Suite: `flutter test` (**all 1729 tests passing**).
 
+
+---
+
+## 167. Journal Location Features — Backfill Nudge + Place Picker (§6.5/§6.6) (October 2026)
+
+### 1. Summary
+The §6.5 backfill nudge: an inline, dismissible prompt rendered above the editor body that offers to add a place to a journal entry that has none. Manual only — location is never inferred. Opens a map-free place picker (known places / typed custom / current device location). Consumes the §6.6 settings fields (already present) and a new device-local per-day suppression set.
+
+### 2. Trigger (all must hold — `BackfillPlaceNudge.build`)
+Journal entry (`note.isJournal || frontmatter.isJournal`) AND not password-protected AND cached `NoteMetadataExtractor.extract(note).location == null` AND `defaultSettings.suggestPlaceForPastEntries` ON AND the entry's `YYYY-MM-DD` not in the device-local suppression set AND not dismissed-for-now (ephemeral). Any failing condition renders `SizedBox.shrink()`. Locked notes are short-circuited before any location read (§8).
+
+### 3. Files
+- NEW [`backfill_suppression_store.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/backfill_suppression_store.dart) — `BackfillSuppressionStore extends StateNotifier<Set<String>>`; `suppressDay(date)` + `isDaySuppressed(date)`; JSON list in SharedPreferences key `journal_backfill_suppressed_days`; **device-local, not synced** (§7). `backfillSuppressionProvider` mirrors the prefs + try/catch fallback of `place_alias_store.dart`.
+- NEW [`backfill_place_nudge.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/backfill_place_nudge.dart) — the four-action nudge (Add place / Not now / Don't ask again for this day / Don't ask again). Writes via `FrontmatterEditorHelper.updateLocation` → the editor's `onDocumentChanged`, then `NoteMetadataExtractor.invalidate(note.id)`.
+- NEW [`place_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_picker_sheet.dart) — bottom sheet returning a `JournalLocation?`: known places from `placeListProvider` (resolved from the most recent member entry's cached location, falling back to `JournalLocation(address: displayName, 0, 0)`), typed custom place, and `LocationService().fetchCurrentLocation()` with a "now may differ" caveat. No maps/tiles.
+- EDIT [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart) — one import + one block rendering `BackfillPlaceNudge` right after `FrontmatterPropertiesSection`, gated `showsPropertiesSection && !editorState.isReadOnly`, passing `note`, `rawDocument: contentText`, `isJournal`, and the same `onDocumentChanged` sink (`_contentController.text = updated; editorNotifier.updateContent(updated)`), so autosave persists the write.
+
+### 4. Verification & Quality
+- Static Analysis: whole-project `flutter analyze` — **No issues found!**
+- Tests: `test/journal/backfill_suppression_store_test.dart` (store add/idempotent/persist-reload/corrupt-fallback/in-memory) + `test/journal/backfill_place_nudge_test.dart` (visibility: positive + each negative case; Add place custom + known-place writes location; Not now persists nothing; per-day suppression affects only that date; Don't-ask-again flips the master toggle off + snackbar). Both files green (**16 tests**).
+- Full Test Suite: `flutter test` (**all 1745 tests passing**).

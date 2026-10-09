@@ -56,6 +56,7 @@ import '../domain/frontmatter_document.dart';
 import '../application/frontmatter_editor_helper.dart';
 import '../application/quiet_super_editor_controller.dart';
 import 'widgets/frontmatter_properties_section.dart';
+import '../../journal/presentation/widgets/backfill_place_nudge.dart';
 import '../domain/markdown_styles.dart';
 import 'package:flutter/rendering.dart';
 
@@ -1941,6 +1942,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                          if (!listEquals(newDoc.tags, note.tags)) {
                                            editorNotifier.setTags(newDoc.tags);
                                          }
+                                       },
+                                     ),
+                                   ],
+
+                                   // Backfill place nudge (§6.5): inline, dismissible prompt
+                                   // shown only for unlocated, unlocked journal entries when the
+                                   // master setting is on and the day is not locally suppressed.
+                                   // Writes via the SAME onDocumentChanged path as Properties.
+                                   if (showsPropertiesSection && !editorState.isReadOnly) ...[
+                                     BackfillPlaceNudge(
+                                       note: note,
+                                       rawDocument: contentText,
+                                       isJournal: note.isJournal || frontmatterDoc.isJournal,
+                                       onDocumentChanged: (updated) {
+                                         _contentController.text = updated;
+                                         editorNotifier.updateContent(updated);
                                        },
                                      ),
                                    ],
