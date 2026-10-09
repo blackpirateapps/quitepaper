@@ -153,6 +153,36 @@ class DefaultSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                _buildSectionHeader('JOURNAL', colors),
+                _buildGroupCard(
+                  colors: colors,
+                  children: [
+                    _buildSwitchRow(
+                      context: context,
+                      colors: colors,
+                      icon: PhosphorIconsRegular.mapPin,
+                      title: 'Show place & weather on entries',
+                      subtitle:
+                          'Display a quiet place and weather line on journal timeline entries',
+                      value: settings.showPlaceAndWeatherOnEntries,
+                      onChanged: (val) =>
+                          notifier.setShowPlaceAndWeatherOnEntries(val),
+                    ),
+                    _buildDivider(colors),
+                    _buildSwitchRow(
+                      context: context,
+                      colors: colors,
+                      icon: PhosphorIconsRegular.plusCircle,
+                      title: 'Suggest adding a place to past entries',
+                      subtitle:
+                          'Offer to add a place when you open a journal entry that has none',
+                      value: settings.suggestPlaceForPastEntries,
+                      onChanged: (val) =>
+                          notifier.setSuggestPlaceForPastEntries(val),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

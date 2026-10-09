@@ -17,6 +17,10 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       'setting_image_compression_action';
   static const String imageCompressionPresetKey =
       'setting_image_compression_preset';
+  static const String showPlaceAndWeatherOnEntriesKey =
+      'setting_show_place_and_weather_on_entries';
+  static const String suggestPlaceForPastEntriesKey =
+      'setting_suggest_place_for_past_entries';
 
   static DefaultSettings _loadSettings(SharedPreferences? prefs) {
     if (prefs == null) {
@@ -28,6 +32,9 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
         prefs.getBool(interactiveChecklistsInPreviewKey) ?? true;
     final actionString = prefs.getString(imageCompressionActionKey);
     final presetString = prefs.getString(imageCompressionPresetKey);
+    final showPlaceWeather =
+        prefs.getBool(showPlaceAndWeatherOnEntriesKey) ?? true;
+    final suggestPlace = prefs.getBool(suggestPlaceForPastEntriesKey) ?? true;
 
     return DefaultSettings(
       swipeToSearchEditor: swipeEditor,
@@ -35,6 +42,8 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       interactiveChecklistsInPreview: interactiveChecklists,
       imageCompressionAction: ImageCompressionAction.fromIdentifier(actionString),
       imageCompressionPreset: ImageCompressionPreset.fromIdentifier(presetString),
+      showPlaceAndWeatherOnEntries: showPlaceWeather,
+      suggestPlaceForPastEntries: suggestPlace,
     );
   }
 
@@ -61,6 +70,16 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   Future<void> setImageCompressionPreset(ImageCompressionPreset preset) async {
     state = state.copyWith(imageCompressionPreset: preset);
     await _prefs?.setString(imageCompressionPresetKey, preset.identifier);
+  }
+
+  Future<void> setShowPlaceAndWeatherOnEntries(bool value) async {
+    state = state.copyWith(showPlaceAndWeatherOnEntries: value);
+    await _prefs?.setBool(showPlaceAndWeatherOnEntriesKey, value);
+  }
+
+  Future<void> setSuggestPlaceForPastEntries(bool value) async {
+    state = state.copyWith(suggestPlaceForPastEntries: value);
+    await _prefs?.setBool(suggestPlaceForPastEntriesKey, value);
   }
 }
 

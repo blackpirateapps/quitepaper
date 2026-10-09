@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../tags/domain/phosphor_icons.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/domain/journal_date_helper.dart';
+import '../../../../core/location/location_models.dart';
+import '../../../notes/domain/note_metadata_extractor.dart';
 import '../../../notes/domain/note_model.dart';
+import '../../../settings/application/default_settings_provider.dart';
 
 /// A time-oriented, editorial journal tile rendered in the All Entries chronological timeline.
-class JournalTimelineTile extends StatefulWidget {
+class JournalTimelineTile extends ConsumerStatefulWidget {
   const JournalTimelineTile({
     super.key,
     required this.note,
@@ -24,10 +28,10 @@ class JournalTimelineTile extends StatefulWidget {
   final VoidCallback? onHighlightComplete;
 
   @override
-  State<JournalTimelineTile> createState() => _JournalTimelineTileState();
+  ConsumerState<JournalTimelineTile> createState() => _JournalTimelineTileState();
 }
 
-class _JournalTimelineTileState extends State<JournalTimelineTile>
+class _JournalTimelineTileState extends ConsumerState<JournalTimelineTile>
     with SingleTickerProviderStateMixin {
   AnimationController? _highlightController;
   Animation<double>? _highlightAnimation;
@@ -82,6 +86,81 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
   void dispose() {
     _highlightController?.dispose();
     super.dispose();
+  }
+
+  /// City-level display token from an address (first comma segment), falling back
+  /// to coordinates. Small private helper for now; §2.2 will centralize this.
+  String _cityLabel(JournalLocation loc) {
+    final addr = loc.address.trim();
+    if (addr.isEmpty) return loc.coordinatesString;
+    final first = addr.split(',').first.trim();
+    return first.isNotEmpty ? first : addr;
+  }
+
+  /// Builds the quiet place & weather dateline (Feature 1). Renders nothing (a
+  /// zero-size box) when the setting is off, the note is locked, or neither a
+  /// place nor weather exists — so absent metadata never changes tile height.
+  Widget _buildDateline(AppColors colors) {
+    if (widget.note.isPasswordProtected) return const SizedBox.shrink();
+    final show = ref.watch(
+      defaultSettingsProvider.select((s) => s.showPlaceAndWeatherOnEntries),
+    );
+    if (!show) return const SizedBox.shrink();
+
+    final meta = NoteMetadataExtractor.extract(widget.note);
+    final location = meta.location;
+    final weather = meta.weather;
+    final place = location != null ? _cityLabel(location) : null;
+    final hasPlace = place != null && place.isNotEmpty;
+    final hasWeather = weather != null && weather.isNotEmpty;
+    if (!hasPlace && !hasWeather) return const SizedBox.shrink();
+
+    final style = AppTypography.caption.copyWith(
+      color: colors.textTertiary,
+      fontSize: 11.5,
+    );
+
+    final spans = <InlineSpan>[];
+    if (hasPlace) {
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 3.0),
+          child: Icon(
+            PhosphorIconsRegular.mapPin,
+            size: 12,
+            color: colors.textTertiary,
+          ),
+        ),
+      ));
+      spans.add(TextSpan(text: place));
+    }
+    if (hasWeather) {
+      if (spans.isNotEmpty) {
+        spans.add(const TextSpan(text: ' · '));
+      }
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 3.0),
+          child: Icon(
+            weather.icon,
+            size: 12,
+            color: colors.textTertiary,
+          ),
+        ),
+      ));
+      spans.add(TextSpan(text: '${weather.temperature.round()}°'));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 5.0),
+      child: Text.rich(
+        TextSpan(style: style, children: spans),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 
   @override
@@ -231,6 +310,9 @@ class _JournalTimelineTileState extends State<JournalTimelineTile>
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+
+                      // Quiet place & weather dateline (Feature 1)
+                      _buildDateline(colors),
 
                       // Tags metadata if present
                       if (widget.note.tags.isNotEmpty) ...[

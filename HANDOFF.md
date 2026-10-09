@@ -8044,3 +8044,21 @@ Days whose journal entry is `moment: travel` are now distinguished in the calend
 - Tests: `test/journal/calendar_travel_marker_test.dart` — provider travel-date set per month; travel day → ring; non-travel entry → filled dot; empty day → no marker; semantics.
 - Full Test Suite: `flutter test` (all passing).
 
+## 164. Journal Location Features — Timeline Dateline + Journal Settings (Feature 1 + §6.6) (October 2026)
+
+### 1. Summary
+All Entries timeline tiles now carry a quiet place & weather dateline (e.g. `📍 Kolkata · ☁ 24°`), gated by a new Default Settings toggle. Also adds the two Journal settings toggles the spec requires (the second one is the master switch the later backfill nudge flips off).
+
+### 2. Implementation
+- **Settings model/provider** ([`default_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/default_settings.dart), [`default_settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/default_settings_provider.dart)): two new SharedPreferences-backed booleans, both default **ON** — `showPlaceAndWeatherOnEntries` and `suggestPlaceForPastEntries` (device-local, not synced).
+- **Settings UI** ([`default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart)): a new **JOURNAL** section with "Show place & weather on entries" and "Suggest adding a place to past entries".
+- **Dateline** ([`journal_timeline_tile.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/journal_timeline_tile.dart)): converted to a `ConsumerStatefulWidget` so it can read the toggle. Between the preview snippet and the tags, a single-line `Text.rich` composes only the parts that exist (place from cached `NoteMetadata.location` city token with a `mapPin` glyph; weather glyph + rounded °) in `textTertiary` caption, 1 line + ellipsis. Renders a zero-size box (no height) when the toggle is off, the note is locked, or neither part exists — so absent metadata never changes tile height.
+
+### 3. Notes
+`suggestPlaceForPastEntries` has no consumer yet; it is wired now so the §6.5 backfill nudge (later phase) only has to read it. The city-token helper is duplicated privately in the timeline tile and On This Day view for now; Feature 4 / §2.2 will centralize it.
+
+### 4. Verification & Quality
+- Static Analysis: `flutter analyze` (**0 issues**).
+- Tests: `test/journal/journal_timeline_dateline_test.dart` — composes place+weather; place-only; nothing when absent; toggle OFF hides it; locked note hidden.
+- Full Test Suite: `flutter test` (**all 1705 tests passing**).
+

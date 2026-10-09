@@ -85,6 +85,8 @@ class DefaultSettings {
     this.interactiveChecklistsInPreview = true,
     this.imageCompressionAction = ImageCompressionAction.ask,
     this.imageCompressionPreset = ImageCompressionPreset.balanced,
+    this.showPlaceAndWeatherOnEntries = true,
+    this.suggestPlaceForPastEntries = true,
   });
 
   /// Whether pulling/swiping down at the top of an open note reveals the in-note search bar.
@@ -102,12 +104,21 @@ class DefaultSettings {
   /// Resolution and quality preset used when compressing images.
   final ImageCompressionPreset imageCompressionPreset;
 
+  /// Whether the quiet place/weather dateline is shown on journal timeline entries.
+  final bool showPlaceAndWeatherOnEntries;
+
+  /// Whether to nudge the user to add a place to past journal entries that have none.
+  /// This is the master switch flipped off by the nudge's "Don't ask again" action.
+  final bool suggestPlaceForPastEntries;
+
   DefaultSettings copyWith({
     bool? swipeToSearchEditor,
     bool? swipeDownToSearchNotes,
     bool? interactiveChecklistsInPreview,
     ImageCompressionAction? imageCompressionAction,
     ImageCompressionPreset? imageCompressionPreset,
+    bool? showPlaceAndWeatherOnEntries,
+    bool? suggestPlaceForPastEntries,
   }) {
     return DefaultSettings(
       swipeToSearchEditor: swipeToSearchEditor ?? this.swipeToSearchEditor,
@@ -119,6 +130,10 @@ class DefaultSettings {
           imageCompressionAction ?? this.imageCompressionAction,
       imageCompressionPreset:
           imageCompressionPreset ?? this.imageCompressionPreset,
+      showPlaceAndWeatherOnEntries:
+          showPlaceAndWeatherOnEntries ?? this.showPlaceAndWeatherOnEntries,
+      suggestPlaceForPastEntries:
+          suggestPlaceForPastEntries ?? this.suggestPlaceForPastEntries,
     );
   }
 
@@ -132,7 +147,9 @@ class DefaultSettings {
           interactiveChecklistsInPreview ==
               other.interactiveChecklistsInPreview &&
           imageCompressionAction == other.imageCompressionAction &&
-          imageCompressionPreset == other.imageCompressionPreset;
+          imageCompressionPreset == other.imageCompressionPreset &&
+          showPlaceAndWeatherOnEntries == other.showPlaceAndWeatherOnEntries &&
+          suggestPlaceForPastEntries == other.suggestPlaceForPastEntries;
 
   @override
   int get hashCode => Object.hash(
@@ -141,5 +158,7 @@ class DefaultSettings {
         interactiveChecklistsInPreview,
         imageCompressionAction,
         imageCompressionPreset,
+        showPlaceAndWeatherOnEntries,
+        suggestPlaceForPastEntries,
       );
 }
