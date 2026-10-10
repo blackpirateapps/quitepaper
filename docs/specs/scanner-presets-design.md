@@ -1,8 +1,17 @@
 # Document Scanner Presets — Technical Design
 
-> Status: **Approved design, not yet built.** Author: product brainstorm, 2026-10-09.
+> Status: **Implemented (2026-10-10).** Author: product brainstorm, 2026-10-09.
 > Pairs with [`scanner-presets-spec.md`](./scanner-presets-spec.md) (the feature spec).
 > This doc is the *how*; the spec is the *what*. Read the spec's §0–§4 first.
+
+> **Implementation note (2026-10-10).** Built in **pure Dart** (the `image` package), not OpenCV.
+> OpenCV (`dartcv4`) was prototyped behind the same seam and **dropped for app size** (HANDOFF §169
+> for the shipped design; §170 recorded the reverted OpenCV spike). The §1/§4 OpenCV material below
+> is retained as design rationale; the shipping code lives in
+> `lib/core/image_processing/scan_pipelines.dart` (spatial ops) + `scan_mode.dart`, called from
+> `DartImageProcessor`. Where this doc says "OpenCV", read "the pure-Dart `ScanPipelines`
+> equivalent". Automatic corner detection remains unbuilt →
+> [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
 
 ---
 
@@ -27,15 +36,15 @@
 
 ---
 
-## 1. Dependency
+## 1. Dependency — none (as built)
 
-- Add **`opencv_core`** (opencv_dart family; image-only, no videoio — we feed it JPEG bytes from the
-  `camera` plugin, so we don't need OpenCV's capture/IO). Pin the current published version.
-- **License:** Apache-2.0 (binding + OpenCV builds). Add to the app's open-source licenses screen.
-- **Platforms:** declare the dependency so native libs ship for **Android/iOS only**. Desktop builds
-  must not require it (see §3 fallback).
-- **Native memory:** OpenCV `Mat` wraps native buffers and must be disposed. Every Mat is created and
-  released inside the isolate under `try/finally`; nothing OpenCV crosses the isolate boundary.
+- **No new dependency.** The pipelines use the already-present `image` package. OpenCV was
+  evaluated (`dartcv4`, the maintained successor to the discontinued `opencv_core`) and removed
+  because the bundled native libs grew the app for little gain.
+- **Platforms:** pure Dart, so the modes run on every platform (not just mobile).
+- **Threading/memory:** no native `Mat` lifetimes to manage. Heavy work runs in the existing
+  `compute()` isolate (bytes in → bytes out); the illumination-flatten background is estimated on a
+  downscaled copy so cost is roughly resolution-independent.
 
 ---
 
@@ -86,10 +95,13 @@ Implementations:
 
 ---
 
-## 4. Pipeline recipes (OpenCV)
+## 4. Pipeline recipes
 
 All operate on the already-geometry-corrected image (after rotate/crop/resize). Parameters are
-starting points; expect a tuning pass (spec §9).
+starting points; expect a tuning pass (spec §9). **As built,** these are implemented in pure Dart in
+`ScanPipelines` (`lib/core/image_processing/scan_pipelines.dart`); the OpenCV calls below map 1:1 to
+`image`-package equivalents (e.g. `adaptiveThreshold` → local-mean threshold via a downscaled blur;
+`divide`/`medianBlur`/`dilate` → their `image` counterparts).
 
 **Building block — illumination flatten** (the core "scanner" trick; powers Auto/Document/Whiteboard):
 ```
@@ -173,9 +185,10 @@ Precedence rules (define explicitly to avoid surprises):
 
 ---
 
-## 10. Rollout
+## 10. Rollout — done
 
-Follows spec §8 (Phase 0 spike → Phase 1 Auto+B&W → Phase 2 carousel + rest → Phase 3 OCR polish →
-later separate detection spec). Each phase: `flutter analyze` + `flutter test` clean, HANDOFF updated
-(including the measured app-size delta from Phase 0).
+Shipped on `main` (HANDOFF §169): `ScanMode` + `ScanPipelines` + all six modes + carousel +
+per-page/last-used state + `enhanceForOcr` polish, `flutter analyze` + `flutter test` clean, no
+app-size delta (pure Dart). The OpenCV variant was prototyped and reverted (§170). Remaining work is
+the separate automatic corner-detection effort → [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
 

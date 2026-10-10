@@ -1,9 +1,20 @@
 # Document Scanner Presets — Feature Spec
 
-> Status: **Approved design, not yet built.** Author: product brainstorm, 2026-10-09.
+> Status: **Implemented (2026-10-10).** Author: product brainstorm, 2026-10-09.
 > Audience: a coding agent / reviewer picking this up cold in a new session.
 > Pairs with [`scanner-presets-design.md`](./scanner-presets-design.md) (the technical design).
 > Read §0–§3 before touching anything.
+
+> **Implementation status (2026-10-10).** Shipped on `main` in **pure Dart** (the `image`
+> package), not OpenCV — see HANDOFF §169. The six capture modes, the post-capture carousel,
+> per-page + last-used-mode state, and composition with the tone sliders/crop/rotate are all live
+> and tested. OpenCV (`dartcv4`) was prototyped on a branch and **dropped** because the bundled
+> native libs increased app size for little gain over the pure-Dart pipelines; the pure-Dart
+> processor is the shipping (and only) implementation on every platform. The OpenCV-specific wording
+> below is kept as historical design context — read "OpenCV pipeline" as "spatial image pipeline".
+>
+> **Still outstanding:** automatic document corner detection + perspective dewarp (the fake
+> `normalizePage` crop) — see §2 "Out of scope" and [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
 
 ---
 
@@ -11,8 +22,9 @@
 
 Make the document scanner feel like a real scanner instead of a camera. Add Office Lens–style
 **capture modes** (Auto / Magic, Document, Whiteboard, Grayscale, B&W Text, Original) powered by
-**OpenCV**, selected from a **post-capture thumbnail carousel**. Mobile only (Android/iOS). The
-existing manual tone sliders and crop/rotate stay and layer on top of the chosen mode.
+**on-device spatial image pipelines** (shipped in pure Dart), selected from a **post-capture
+thumbnail carousel**. Works on all platforms. The existing manual tone sliders and crop/rotate stay
+and layer on top of the chosen mode.
 
 This is **presets first**. Real edge-detection + perspective dewarping (to replace today's fake
 auto-crop) is explicitly a **separate, later effort** — see §2.
@@ -39,35 +51,35 @@ not a crisp flat scan. The modes below fix the *look*; the deferred detection wo
 ## 2. Scope
 
 ### In scope
-- Six capture **modes** (§4), each a distinct OpenCV pipeline.
+- Six capture **modes** (§4), each a distinct spatial image pipeline.
 - **Post-capture carousel**: after a page is captured, a strip of thumbnails previews every mode;
   tapping one selects it for that page.
 - **Per-page** mode selection in multi-page scans; **remember last-used mode** within a scan session.
 - Manual **tone sliders** (brightness/contrast/saturation/grayscale) and **crop/rotate** continue to
   work, layered on top of the selected mode.
-- OpenCV shipped on **Android + iOS** only.
-- *(Nice-to-have, same effort)* upgrade `enhanceForOcr()` to use the B&W pipeline, to help ML Kit.
+- Pipelines run on **all platforms** (pure Dart; no native dependency).
+- *(Done, same effort)* `enhanceForOcr()` routed through the B&W pipeline, to help ML Kit.
 
 ### Out of scope — deferred, do not build here
-- **Real edge detection + perspective dewarping** (replacing the 3% inset). Own spec, later.
+- **Real edge detection + perspective dewarping** (replacing the 3% inset). **Still outstanding** —
+  own spec: [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
 - **Live preset preview in the viewfinder.** Post-capture only. (Live manual sliders stay.)
 - **Automatic mode detection** (guessing whiteboard vs document). Manual selection first.
-- **OpenCV on desktop.** Desktop/simulator stay import-only on the existing Dart processor.
 - Any change to PDF compilation, encryption (QPD1), sync, or the OCR subsystem beyond `enhanceForOcr`.
 
 ---
 
 ## 3. Locked decisions
 
-| Decision | Choice | Rationale |
+| Decision | Choice | Outcome / Rationale |
 |---|---|---|
-| Processing library | `opencv_core` (opencv_dart family) | Apache-2.0, permissive, FFI; project already has `ffi`. Image-only package, no video. |
-| Platforms | Mobile only (Android/iOS) | Live camera is mobile-only; desktop is already import-only. Smallest footprint. |
-| App size | A few MB per ABI accepted | Confirmed not a concern. |
+| Processing library | ~~`opencv_core`~~ → **pure Dart (`image` pkg)** | OpenCV (via `dartcv4`) was prototyped then **dropped**: native libs grew app size for little gain. Pure-Dart spatial pipelines ship instead — same `ImageProcessor` seam, works everywhere. |
+| Platforms | **All platforms** | Pure Dart has no native requirement, so modes work on desktop/web too (not just mobile). |
+| App size | **No increase** | The reason OpenCV was dropped; pure-Dart adds no binary weight. |
 | Preview | Post-capture carousel | Live viewfinder processing is far heavier; carousel matches Office Lens and is cheap. |
 | Scope | Presets first; detection later | Separable; presets are the biggest perceived win with the least risk. |
 | Mode selection | Manual first | Auto-detection deferred. |
-| Fallback | Keep `DartImageProcessor` | Desktop + any platform without native libs degrades gracefully. |
+| Fallback | `DartImageProcessor` is the impl | It is now the single implementation (OpenCV path removed). |
 
 ---
 
@@ -106,9 +118,8 @@ Default on capture: **Auto**. Each page remembers its own mode.
   work off the UI isolate (existing `compute` pattern).
 - **Offline & zero-knowledge:** no new network calls. All processing on-device. QPD1 encryption and
   sync paths unchanged.
-- **Graceful degradation:** if native OpenCV is unavailable (desktop, load failure), fall back to
-  the current Dart processor; modes that can't be reproduced approximate with existing knobs or are
-  hidden. No crash, no blank page.
+- **Graceful degradation:** the pure-Dart processor is the single implementation, so there is no
+  native-lib availability concern; it runs identically on every platform. No crash, no blank page.
 - **Non-destructive:** mode + manual adjustments are parameters applied at compile time; the raw
   capture drives every re-render during the scan session.
 
@@ -116,40 +127,38 @@ Default on capture: **Auto**. Each page remembers its own mode.
 
 ## 7. Acceptance criteria
 
-- [ ] Capturing a page shows a carousel with a live thumbnail for all six modes.
-- [ ] Selecting **B&W** yields adaptively-thresholded output (clean on uneven lighting), not a
+- [x] Capturing a page shows a carousel with a live thumbnail for all six modes.
+- [x] Selecting **B&W** yields adaptively-thresholded output (clean on uneven lighting), not a
       globally-darkened grayscale image.
-- [ ] Selecting **Auto** visibly removes a soft desk shadow that the old `auto` preset left in.
-- [ ] **Whiteboard** drives a gray whiteboard background toward white and keeps marker color.
-- [ ] Each page in a multi-page scan can hold a different mode; new captures reuse the last mode.
-- [ ] Manual sliders + crop/rotate still work and compose with the mode.
-- [ ] Desktop/import path still works with no OpenCV present.
-- [ ] `flutter analyze` clean; tests (incl. new golden/pipeline tests) pass.
-- [ ] App size increase measured and recorded in HANDOFF.
+- [x] Selecting **Auto** visibly removes a soft desk shadow that the old `auto` preset left in
+      (illumination flatten).
+- [x] **Whiteboard** drives a gray whiteboard background toward white and keeps marker color.
+- [x] Each page in a multi-page scan can hold a different mode; new captures reuse the last mode.
+- [x] Manual sliders + crop/rotate still work and compose with the mode.
+- [x] Works with no OpenCV present (there is no OpenCV; pure Dart runs everywhere).
+- [x] `flutter analyze` clean; tests (incl. new pipeline tests) pass.
+- [x] App size: **no increase** (pure Dart). OpenCV was dropped precisely to avoid the increase.
 
 ---
 
-## 8. Phasing
+## 8. Phasing — as built
 
-- **Phase 0 — Dependency spike.** Add `opencv_core`, build Android + iOS, measure size + CI impact.
-  Abort/rethink if build or size surprises.
-- **Phase 1 — Core pipelines.** `OpenCvImageProcessor` + `ScanMode` enum + **Auto** and **B&W**
-  wired into the existing single-mode render path (no carousel yet). Prove quality.
-- **Phase 2 — Carousel + remaining modes.** Document, Whiteboard, Grayscale, Original + the
-  post-capture carousel UI + per-page/last-used state.
-- **Phase 3 — (optional) OCR polish.** Route `enhanceForOcr()` through the B&W pipeline.
-- **Later / separate spec — Real detection.** Edge detection + perspective dewarping.
+- **Phase 1–2 (done, HANDOFF §169).** `ScanMode` enum + `ScanPipelines` (pure Dart) + all six modes
+  + the post-capture carousel + per-page/last-used state, wired through the `ImageProcessor` seam.
+- **Phase 3 (done).** `enhanceForOcr()` routed through the flatten + adaptive-threshold pipeline.
+- **OpenCV spike (done, reverted).** Prototyped `OpenCvImageProcessor` on `dartcv4`; dropped for app
+  size (HANDOFF §170 history; branch deleted).
+- **Later / separate spec — Real detection (STILL OUTSTANDING).** Edge detection + perspective
+  dewarp → [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
 
 ---
 
-## 9. Risks & open questions
+## 9. Risks & resolved questions
 
-- **Build/CI:** the plugin links prebuilt native libs at build time; validate offline/CI builds in
-  Phase 0.
-- **B&W parameters are DPI-sensitive:** `adaptiveThreshold` block size/C need tuning against real
-  captures at your 2048px bound. Expect a tuning pass with sample fixtures.
-- **Mode × manual-knob precedence** must be defined (see design §7) — e.g. the grayscale toggle is
-  redundant under B&W mode.
-- **Open:** should the selected mode persist into a resumable scan *draft* (if drafts exist), or is
-  it purely in-session? Confirm whether scan drafts are serialized today.
+- **B&W parameters are DPI-sensitive:** `adaptiveThreshold` block size/C are scaled to the image but
+  a tuning pass against real captures at the 2048px bound is still pending (sample scans to come).
+- **Mode × manual-knob precedence** — defined (design §7): under a monochrome mode the saturation
+  knob and grayscale toggle are no-ops (disabled in the UI).
+- **Resolved — persistence:** scan drafts are **not** serialized today (raw photos are discarded
+  after compile; HANDOFF §41), so `ScanMode` is purely in-session and persisted nowhere.
 
