@@ -17,6 +17,7 @@ import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/image_processing/image_adjustments.dart';
 import 'package:quitepaper/core/image_processing/image_processor.dart';
+import 'package:quitepaper/core/image_processing/scan_mode.dart';
 import 'package:quitepaper/core/ocr/ocr_crypto.dart';
 import 'package:quitepaper/core/ocr/ocr_models.dart';
 import 'package:quitepaper/core/ocr/ocr_provider.dart';
@@ -78,6 +79,7 @@ class FakeImageProcessor implements ImageProcessor {
     Uint8List rawBytes,
     ImageAdjustments adjustments, {
     int maxDimension = 2048,
+    ScanMode mode = ScanMode.original,
   }) async {
     return (
       imageBytes: rawBytes,
@@ -92,8 +94,18 @@ class FakeImageProcessor implements ImageProcessor {
     ImageAdjustments adjustments, {
     bool isPreview = false,
     int maxDimension = 2048,
+    ScanMode mode = ScanMode.original,
   }) async {
     return sourceBytes;
+  }
+
+  @override
+  Future<Map<ScanMode, Uint8List>> renderModePreviews(
+    Uint8List sourceBytes, {
+    List<ScanMode> modes = ScanMode.values,
+    int maxDimension = 600,
+  }) async {
+    return {for (final m in modes) m: sourceBytes};
   }
 
   @override
@@ -533,10 +545,10 @@ void main() {
       // Verify PageAdjustmentSheet is open with title 'Edit Image'
       expect(find.text('Edit Image'), findsWidgets);
       expect(find.text('Apply'), findsOneWidget);
-      expect(find.text('B&W'), findsOneWidget);
+      expect(find.text('B&W Text'), findsOneWidget);
 
-      // Tap 'B&W' preset to adjust image
-      await tester.tap(find.text('B&W'));
+      // Tap 'B&W Text' mode to adjust image
+      await tester.tap(find.text('B&W Text'));
       await tester.pumpAndSettle();
 
       // Tap 'Apply'

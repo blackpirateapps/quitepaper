@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';
@@ -11,11 +12,13 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
+import '../../../core/image_processing/scan_mode.dart';
 import '../../../core/ocr/ocr_models.dart';
 import '../../../core/ocr/ocr_provider.dart';
 import '../application/scanner_performance_tracker.dart';
 import '../domain/scanned_page.dart';
 import 'widgets/page_adjustment_sheet.dart';
+import 'widgets/scan_mode_carousel.dart';
 import 'widgets/scanner_preview_canvas.dart';
 
 /// Result returned when a document scanning session successfully finishes.
@@ -76,6 +79,12 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   bool _isProcessing = false;
   String _processingStatus = '';
   OcrLanguage _selectedLanguage = OcrLanguage.english;
+
+  /// Mode applied to the next captured page (remembered within the session).
+  ScanMode _lastUsedMode = ScanMode.defaultMode;
+
+  /// Baked per-mode carousel thumbnails, keyed by page id.
+  final Map<String, Map<ScanMode, Uint8List>> _modePreviews = {};
 
   final ScannerPerformanceTracker _performanceTracker = ScannerPerformanceTracker();
   static const _uuid = Uuid();
@@ -225,12 +234,14 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         width: reps.width,
         height: reps.height,
         pageNumber: replaceIndex != null ? replaceIndex + 1 : _pages.length + 1,
+        scanMode: _lastUsedMode,
         isNormalized: true,
       );
 
       if (mounted) {
         setState(() {
           if (replaceIndex != null && replaceIndex < _pages.length) {
+            _modePreviews.remove(_pages[replaceIndex].id);
             _pages[replaceIndex] = newPage;
             _selectedPageIndex = replaceIndex;
           } else {
@@ -240,6 +251,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           _reindexPages();
         });
       }
+
+      // Bake the mode carousel thumbnails off the UI isolate.
+      unawaited(_computeModePreviews(newPage));
     } finally {
       if (mounted && _performanceTracker.isGenerationCurrent(generation)) {
         setState(() {
@@ -263,7 +277,39 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     if (updated != null && mounted) {
       setState(() {
         _pages[index] = updated;
+        _lastUsedMode = updated.scanMode;
       });
+    }
+  }
+
+  /// Bakes the carousel thumbnails for every mode off the UI isolate and caches
+  /// them keyed by page id.
+  Future<void> _computeModePreviews(ScannedPage page) async {
+    try {
+      final imageProcessor = ref.read(imageProcessorProvider);
+      final previews = await imageProcessor.renderModePreviews(page.previewBytes);
+      if (!mounted) return;
+      setState(() => _modePreviews[page.id] = previews);
+    } catch (e) {
+      debugPrint('Mode preview generation failed: $e');
+    }
+  }
+
+  /// Resolves the base image bytes for a page's current mode: the baked mode
+  /// thumbnail if available, otherwise the plain preview.
+  Uint8List _displayBytesFor(ScannedPage page) {
+    return _modePreviews[page.id]?[page.scanMode] ?? page.previewBytes;
+  }
+
+  void _selectMode(int index, ScanMode mode) {
+    if (index < 0 || index >= _pages.length) return;
+    setState(() {
+      _pages[index] = _pages[index].copyWith(scanMode: mode);
+      _lastUsedMode = mode;
+    });
+    // Ensure previews exist (e.g. for an imported page whose bake is pending).
+    if (_modePreviews[_pages[index].id] == null) {
+      unawaited(_computeModePreviews(_pages[index]));
     }
   }
 
@@ -276,6 +322,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   void _deletePage(int index) {
     if (index >= 0 && index < _pages.length) {
       setState(() {
+        _modePreviews.remove(_pages[index].id);
         _pages.removeAt(index);
         _reindexPages();
         if (_selectedPageIndex >= _pages.length) {
@@ -344,6 +391,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         final result = await imageProcessor.processHighResolution(
           page.rawImageBytes,
           page.adjustments,
+          mode: page.scanMode,
         );
 
         finalPages.add(
@@ -524,6 +572,33 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                 right: 0,
                 child: _buildTopBar(colors, isTablet: true),
               ),
+              if (_pages.isNotEmpty && _selectedPageIndex < _pages.length)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.9),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    child: ScanModeCarousel(
+                      selected: _pages[_selectedPageIndex].scanMode,
+                      previews:
+                          _modePreviews[_pages[_selectedPageIndex].id] ?? const {},
+                      isLoading:
+                          _modePreviews[_pages[_selectedPageIndex].id] == null,
+                      onSelected: (mode) => _selectMode(_selectedPageIndex, mode),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -713,7 +788,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       color: Colors.black,
       child: Center(
         child: ScannerPreviewCanvas(
-          previewBytes: page.previewBytes,
+          previewBytes: _displayBytesFor(page),
           adjustments: page.adjustments,
           onAdjustmentsChanged: (updated) {
             setState(() {
@@ -827,6 +902,17 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Capture-mode carousel (post-capture, per selected page)
+          if (_pages.isNotEmpty && _selectedPageIndex < _pages.length) ...[
+            ScanModeCarousel(
+              selected: _pages[_selectedPageIndex].scanMode,
+              previews: _modePreviews[_pages[_selectedPageIndex].id] ?? const {},
+              isLoading: _modePreviews[_pages[_selectedPageIndex].id] == null,
+              onSelected: (mode) => _selectMode(_selectedPageIndex, mode),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+
           // Multi-Page Thumbnails Strip
           if (_pages.isNotEmpty) ...[
             _buildThumbnailStrip(colors),
@@ -1002,7 +1088,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                     child: ColorFiltered(
                       colorFilter: ColorFilter.matrix(page.adjustments.toColorMatrix()),
                       child: Image.memory(
-                        page.thumbnailBytes,
+                        _displayBytesFor(page),
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
                       ),
@@ -1081,7 +1167,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                     child: ColorFiltered(
                       colorFilter: ColorFilter.matrix(page.adjustments.toColorMatrix()),
                       child: Image.memory(
-                        page.thumbnailBytes,
+                        _displayBytesFor(page),
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
                       ),

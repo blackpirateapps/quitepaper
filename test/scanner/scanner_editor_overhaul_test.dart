@@ -313,7 +313,7 @@ void main() {
   });
 
   group('7. PageAdjustmentSheet Widget Tests', () {
-    testWidgets('Allows switching presets, adjusting sliders, and applying changes', (tester) async {
+    testWidgets('Allows switching modes, adjusting sliders, and applying changes', (tester) async {
       final sampleBytes = _createSampleImageBytes();
       final page = ScannedPage(
         id: 'page-adjust-test',
@@ -339,16 +339,16 @@ void main() {
       expect(find.text('Page 1 Adjustments'), findsOneWidget);
       expect(find.text('Original'), findsOneWidget);
       expect(find.text('Auto'), findsOneWidget);
-      expect(find.text('B&W'), findsOneWidget);
+      expect(find.text('B&W Text'), findsOneWidget);
       expect(find.text('Brightness'), findsOneWidget);
       expect(find.text('Contrast'), findsOneWidget);
 
-      // Tap Auto Preset
+      // Tap Auto mode
       await tester.tap(find.text('Auto'));
       await tester.pump();
 
-      // Tap B&W Preset
-      await tester.tap(find.text('B&W'));
+      // Tap B&W Text mode
+      await tester.tap(find.text('B&W Text'));
       await tester.pump();
 
       // Switch to Crop & Rotate Tab

@@ -14,6 +14,7 @@ import '../../../../features/scanner/domain/scanned_page.dart';
 import '../../../../features/scanner/presentation/widgets/page_adjustment_sheet.dart';
 import '../../database/app_database.dart';
 import '../../image_processing/image_adjustments.dart';
+import '../../image_processing/scan_mode.dart';
 import '../../ocr/ocr_models.dart';
 import '../../ocr/ocr_provider.dart';
 import '../../ocr/presentation/ocr_language_dialog.dart';
@@ -871,7 +872,9 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
       title: 'Edit Image',
     );
 
-    if (updatedPage == null || updatedPage.adjustments.isNeutral) {
+    if (updatedPage == null ||
+        (updatedPage.adjustments.isNeutral &&
+            updatedPage.scanMode == ScanMode.original)) {
       return;
     }
 
@@ -908,16 +911,20 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
 
     if (shouldSave != true || !mounted) return;
 
-    await _saveEditedImage(updatedPage.adjustments);
+    await _saveEditedImage(updatedPage.adjustments, updatedPage.scanMode);
   }
 
-  Future<void> _saveEditedImage(ImageAdjustments adjustments) async {
+  Future<void> _saveEditedImage(
+    ImageAdjustments adjustments,
+    ScanMode mode,
+  ) async {
     setState(() => _isSaving = true);
     try {
       final imageProcessor = ref.read(imageProcessorProvider);
       final processed = await imageProcessor.processHighResolution(
         _imageBytes!,
         adjustments,
+        mode: mode,
       );
 
       final attachmentService = ref.read(attachmentServiceProvider);

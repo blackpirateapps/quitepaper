@@ -8142,3 +8142,36 @@ The user-facing controls for the device-local place merge/alias store (§2.3): c
 - Static Analysis: `flutter analyze` (**0 issues**).
 - Tests: `places_merge_ui_test.dart` (select+merge named/custom; rename; unmerge restores; Unmerge hidden when unmerged; merged state persists) + extended `place_alias_store_test.dart` (`unmergeCanonical`).
 - Full Test Suite: `flutter test` (**all 1754 tests passing**).
+
+## 169. Document Scanner — Real Capture Modes / Presets Pipeline (October 2026)
+
+### 1. Summary
+Replaced the scanner's **fake presets** (global brightness/contrast knobs) with real, spatial **capture modes** — Office Lens–style — selected from a post-capture thumbnail carousel. Implements the approved spec/design in [`docs/specs/scanner-presets-spec.md`](file:///home/dog/git/quitepaper/docs/specs/scanner-presets-spec.md) + [`scanner-presets-design.md`](file:///home/dog/git/quitepaper/docs/specs/scanner-presets-design.md). Modes: **Original, Auto, Document, Whiteboard, Grayscale, B&W Text**. Each is a genuine image pipeline (illumination flatten, adaptive threshold, gray-world white balance, unsharp), not a color-matrix curve. Per-page selection, last-used-mode memory, and composition with the existing tone sliders + crop/rotate.
+
+**Scope note:** the spec locked `opencv_core` as the processing library. This landing implements the full feature on **pure-Dart pipelines** (`package:image`) behind the existing `ImageProcessor` seam — ships on every platform, no native dependency, fully testable on CI. OpenCV remains an **optional later perf/quality drop-in** behind the same seam (an `OpenCvImageProcessor` selected on mobile when the native lib is present); the mode contract would not change. The deferred **real edge detection + perspective dewarp** remains a separate later effort. App-size delta: **none** (no native dependency added yet).
+
+### 2. New concept: `ScanMode`
+- [`scan_mode.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/scan_mode.dart) — the `ScanMode` enum, orthogonal to `ImageAdjustments` (a mode sets the base look; the knobs fine-tune on top). `defaultMode = auto`; `isMonochrome`/`isBinary` drive knob precedence; `label`/`description` for UI; `fromName` for forward-compat.
+- Modes are ephemeral per-page scan-session state, baked into the PDF at compile time. **Not persisted** anywhere — raw photos are discarded after compile and no scan-draft serialization exists (HANDOFF §41 / design §0,§8). `ScannedPage` gained a `scanMode` field (+ `copyWith`).
+
+### 3. Pipelines
+- [`scan_pipelines.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/scan_pipelines.dart) — pure static functions, isolate-safe. Building blocks: **illumination flatten** (background estimated on a downscaled gaussian-blurred copy, upscaled, divided out → removes soft shadows, drives paper to white; resolution-independent cost), **adaptive threshold** (per-pixel vs local mean − C), **3×3 median despeckle**, **gray-world white balance**, **unsharp mask**, **near-white push** (whiteboard). `ScanPipelines.apply(image, mode)` maps each mode to its recipe.
+
+### 4. `ImageProcessor` seam
+- [`image_processor.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/image_processor.dart) — added `renderModePreviews(sourceBytes, {modes, maxDimension})` (decode once → one baked thumbnail per mode for the carousel, run in a `compute` isolate) and a `ScanMode mode` param on `process`/`processHighResolution` (default `original` = today's behavior). Final compile order per design §7: `bakeOrientation → rotate → crop → downscale(2048) → MODE pipeline → tone knobs → encodeJpg`; the raw-passthrough fast path now also requires `mode == original`. Precedence: under a monochrome mode the saturation knob is forced off. `enhanceForOcr` upgraded to route through flatten + adaptive-threshold (crisper ML Kit input).
+
+### 5. UI
+- NEW [`scan_mode_carousel.dart`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/scan_mode_carousel.dart) — horizontal baked-thumbnail strip; placeholder tiles while previews bake.
+- [`document_scanner_screen.dart`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/document_scanner_screen.dart) — `_lastUsedMode` (new captures inherit it) + a `_modePreviews` cache keyed by page id (baked off-isolate after capture, dropped on delete/retake). Carousel shown on phone (above the page strip) and tablet (bottom overlay); the active canvas + both page-thumbnail strips now render the baked selected-mode bytes with the tone color-matrix on top. Finalize passes `mode: page.scanMode`.
+- [`page_adjustment_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/page_adjustment_sheet.dart) — the 3 fake preset pills replaced by a 6-mode thumbnail selector; canvas base is the baked mode render (tone knobs stay GPU-live on top, design §6); grayscale toggle + saturation slider disabled under a monochrome mode. Returns `scanMode` on the page.
+- [`image_viewer_modal.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/image_viewer_modal.dart) — image editor reuses the sheet; save path now passes `mode` and treats a non-`original` mode as a modification.
+
+### 6. Verification & Quality
+- Static Analysis: whole-project `flutter analyze` — **No issues found!**
+- Tests: NEW [`scan_pipelines_test.dart`](file:///home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart) — enum metadata/`fromName`; B&W is near-binary on a shadowed page; Auto drops background variance; Whiteboard brightens the paper >230; every mode returns a valid same-size image; `renderModePreviews` covers all 6 modes + never throws on garbage; `processHighResolution` composes mode + knobs + crop/rotate; mono-knob precedence; `enhanceForOcr` binarizes. Updated `scanner_editor_overhaul_test.dart` + `image_viewer_modal_test.dart` for the new mode UI (B&W → "B&W Text") and the `FakeImageProcessor` override.
+- Full Test Suite: `flutter test` (**all 1766 tests passing**).
+
+### 7. Open follow-ups
+- Optional: add `opencv_core` + an `OpenCvImageProcessor` on mobile for faster/higher-quality pipelines (Phase 0 spike: build Android/iOS, measure size). The Dart impl stays the fallback.
+- Deferred separate spec: real edge detection + perspective dewarp (replace the hardcoded 3% `normalizePage` inset).
+- Carousel/canvas apply the mode on the oriented preview (crop/rotate are overlaid live, not baked into the preview); final compile bakes geometry before the mode. Immaterial for the modes shipped; revisit if a mode becomes crop-edge-sensitive.

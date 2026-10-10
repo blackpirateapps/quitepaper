@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../../../core/image_processing/image_adjustments.dart';
+import '../../../core/image_processing/scan_mode.dart';
 
 /// A single captured page within an active document scanning session.
 ///
@@ -18,6 +19,7 @@ class ScannedPage {
     required this.height,
     required this.pageNumber,
     this.adjustments = ImageAdjustments.neutral,
+    this.scanMode = ScanMode.defaultMode,
     this.isNormalized = false,
   })  : rawImageBytes = rawImageBytes ?? imageBytes,
         previewBytes = previewBytes ?? imageBytes,
@@ -41,6 +43,9 @@ class ScannedPage {
   /// Non-destructive adjustment parameters.
   final ImageAdjustments adjustments;
 
+  /// Selected scanner capture mode (pipeline), baked at compile time.
+  final ScanMode scanMode;
+
   /// Pixel width of the page image.
   final int width;
 
@@ -63,6 +68,7 @@ class ScannedPage {
     Uint8List? previewBytes,
     Uint8List? thumbnailBytes,
     ImageAdjustments? adjustments,
+    ScanMode? scanMode,
     int? width,
     int? height,
     int? pageNumber,
@@ -75,6 +81,7 @@ class ScannedPage {
       previewBytes: previewBytes ?? this.previewBytes,
       thumbnailBytes: thumbnailBytes ?? this.thumbnailBytes,
       adjustments: adjustments ?? this.adjustments,
+      scanMode: scanMode ?? this.scanMode,
       width: width ?? this.width,
       height: height ?? this.height,
       pageNumber: pageNumber ?? this.pageNumber,

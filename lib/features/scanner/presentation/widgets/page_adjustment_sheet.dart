@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -5,6 +6,7 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
 import '../../../../core/image_processing/image_processor.dart';
+import '../../../../core/image_processing/scan_mode.dart';
 import '../../domain/scanned_page.dart';
 import 'scanner_preview_canvas.dart';
 
@@ -12,7 +14,8 @@ import 'scanner_preview_canvas.dart';
 ///
 /// Features:
 /// - Real-time GPU color filtering for instant 60fps slider feedback.
-/// - Presets: Original, Auto, B&W.
+/// - Capture modes: Original, Auto, Document, Whiteboard, Grayscale, B&W Text
+///   (each a baked [ScanMode] pipeline previewed as a thumbnail).
 /// - Fine Tune: Brightness, Contrast, Saturation, Grayscale.
 /// - Direct manipulation interactive Crop & 90-degree Rotation.
 /// - Press-and-hold before/after comparison.
@@ -52,6 +55,8 @@ class PageAdjustmentSheet extends StatefulWidget {
 
 class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   late ImageAdjustments _adjustments;
+  late ScanMode _scanMode;
+  Map<ScanMode, Uint8List> _modePreviews = const {};
   int _activeTab = 0; // 0: Tone & Style, 1: Crop & Rotate
   bool _isFineTuneExpanded = true;
 
@@ -59,7 +64,24 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   void initState() {
     super.initState();
     _adjustments = widget.page.adjustments;
+    _scanMode = widget.page.scanMode;
+    _bakeModePreviews();
   }
+
+  Future<void> _bakeModePreviews() async {
+    try {
+      final previews =
+          await widget.imageProcessor.renderModePreviews(widget.page.previewBytes);
+      if (mounted) setState(() => _modePreviews = previews);
+    } catch (_) {
+      // Carousel falls back to plain preview bytes on the canvas.
+    }
+  }
+
+  /// The mode-baked base image shown on the live canvas (tone knobs layer on top
+  /// via the GPU colour matrix inside [ScannerPreviewCanvas]).
+  Uint8List get _canvasBytes =>
+      _modePreviews[_scanMode] ?? widget.page.previewBytes;
 
   void _onAdjustmentsChanged(ImageAdjustments updated) {
     setState(() {
@@ -67,15 +89,8 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     });
   }
 
-  void _applyPreset(ImageAdjustments preset) {
-    setState(() {
-      _adjustments = _adjustments.copyWith(
-        brightness: preset.brightness,
-        contrast: preset.contrast,
-        saturation: preset.saturation,
-        grayscale: preset.grayscale,
-      );
-    });
+  void _selectMode(ScanMode mode) {
+    setState(() => _scanMode = mode);
   }
 
   void _resetCrop() {
@@ -87,12 +102,14 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   void _resetAll() {
     setState(() {
       _adjustments = ImageAdjustments.neutral;
+      _scanMode = ScanMode.original;
     });
   }
 
   void _commitAndClose() {
     final updatedPage = widget.page.copyWith(
       adjustments: _adjustments,
+      scanMode: _scanMode,
     );
     Navigator.of(context).pop(updatedPage);
   }
@@ -155,7 +172,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
               padding: const EdgeInsets.all(AppSpacing.md),
               alignment: Alignment.center,
               child: ScannerPreviewCanvas(
-                previewBytes: widget.page.previewBytes,
+                previewBytes: _canvasBytes,
                 adjustments: _adjustments,
                 isCropMode: _activeTab == 1,
                 onAdjustmentsChanged: _onAdjustmentsChanged,
@@ -220,72 +237,67 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   }
 
   Widget _buildToneControls(AppColors colors) {
-    final isOriginal = _adjustments.isNeutral;
-    final isAuto = _adjustments.contrast == 0.20 &&
-        _adjustments.brightness == 0.05 &&
-        !_adjustments.grayscale;
-    final isBw = _adjustments.grayscale &&
-        _adjustments.contrast == 0.25 &&
-        _adjustments.brightness == 0.10;
+    final monochrome = _scanMode.isMonochrome;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Presets Row (Original, Auto, B&W)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildPresetPill(
-              label: 'Original',
-              isSelected: isOriginal,
-              icon: Icons.image_outlined,
-              colors: colors,
-              onTap: () => _applyPreset(ImageAdjustments.neutral),
-            ),
-            _buildPresetPill(
-              label: 'Auto',
-              isSelected: isAuto,
-              icon: Icons.auto_awesome,
-              colors: colors,
-              onTap: () => _applyPreset(ImageAdjustments.auto),
-            ),
-            _buildPresetPill(
-              label: 'B&W',
-              isSelected: isBw,
-              icon: Icons.filter_b_and_w_rounded,
-              colors: colors,
-              onTap: () => _applyPreset(ImageAdjustments.blackAndWhite),
-            ),
-          ],
+        // Capture-mode selector (replaces the old fake presets).
+        Text(
+          'MODE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.1,
+            color: colors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: ScanMode.values.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final mode = ScanMode.values[index];
+              return _buildModeTile(mode, colors);
+            },
+          ),
         ),
 
         const SizedBox(height: AppSpacing.md),
 
-        // Grayscale Toggle
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.filter_b_and_w_rounded, size: 20, color: colors.textSecondary),
-                const SizedBox(width: 8),
-                Text(
-                  'Grayscale Document',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
+        // Grayscale Toggle (redundant while a monochrome mode is active)
+        Opacity(
+          opacity: monochrome ? 0.4 : 1.0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.filter_b_and_w_rounded, size: 20, color: colors.textSecondary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Grayscale Document',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            CupertinoSwitch(
-              value: _adjustments.grayscale,
-              activeTrackColor: colors.accent,
-              onChanged: (val) =>
-                  _onAdjustmentsChanged(_adjustments.copyWith(grayscale: val)),
-            ),
-          ],
+                ],
+              ),
+              CupertinoSwitch(
+                value: monochrome || _adjustments.grayscale,
+                activeTrackColor: colors.accent,
+                onChanged: monochrome
+                    ? null
+                    : (val) =>
+                        _onAdjustmentsChanged(_adjustments.copyWith(grayscale: val)),
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: AppSpacing.sm),
@@ -345,12 +357,13 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
           ),
           const SizedBox(height: AppSpacing.xs),
 
-          // Saturation Slider (-1.0 to 1.0)
+          // Saturation Slider (-1.0 to 1.0) — no-op under a monochrome mode
           _buildSliderRow(
             label: 'Saturation',
-            value: _adjustments.saturation,
+            value: monochrome ? 0.0 : _adjustments.saturation,
             icon: Icons.color_lens_outlined,
             colors: colors,
+            enabled: !monochrome,
             onChanged: (val) =>
                 _onAdjustmentsChanged(_adjustments.copyWith(saturation: val)),
           ),
@@ -359,47 +372,41 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     );
   }
 
-  Widget _buildPresetPill({
-    required String label,
-    required bool isSelected,
-    required IconData icon,
-    required AppColors colors,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.accent.withValues(alpha: 0.18)
-              : colors.textTertiary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? colors.accent : colors.divider,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? colors.accent : colors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? colors.accent : colors.textPrimary,
+  Widget _buildModeTile(ScanMode mode, AppColors colors) {
+    final isSelected = mode == _scanMode;
+    final bytes = _modePreviews[mode];
+
+    return GestureDetector(
+      onTap: () => _selectMode(mode),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 66,
+            decoration: BoxDecoration(
+              color: colors.textTertiary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              border: Border.all(
+                color: isSelected ? colors.accent : colors.divider,
+                width: isSelected ? 2.2 : 1.0,
               ),
             ),
-          ],
-        ),
+            clipBehavior: Clip.antiAlias,
+            child: bytes != null
+                ? Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true)
+                : Icon(Icons.image_outlined, size: 20, color: colors.textTertiary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            mode.label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? colors.accent : colors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -475,48 +482,52 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     required IconData icon,
     required AppColors colors,
     required ValueChanged<double> onChanged,
+    bool enabled = true,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 16, color: colors.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
-                ),
-              ],
-            ),
-            Text(
-              value.toStringAsFixed(2),
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: colors.textPrimary,
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 16, color: colors.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                  ),
+                ],
               ),
+              Text(
+                value.toStringAsFixed(2),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: colors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: colors.accent,
+              thumbColor: colors.accent,
+              inactiveTrackColor: colors.divider,
+              trackHeight: 3,
             ),
-          ],
-        ),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: colors.accent,
-            thumbColor: colors.accent,
-            inactiveTrackColor: colors.divider,
-            trackHeight: 3,
+            child: Slider(
+              value: value,
+              min: -1.0,
+              max: 1.0,
+              onChanged: enabled ? onChanged : null,
+            ),
           ),
-          child: Slider(
-            value: value,
-            min: -1.0,
-            max: 1.0,
-            onChanged: onChanged,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
