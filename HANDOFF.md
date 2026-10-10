@@ -8172,7 +8172,7 @@ Replaced the scanner's **fake presets** (global brightness/contrast knobs) with 
 - Full Test Suite: `flutter test` (**all 1766 tests passing**).
 
 ### 7. Open follow-ups
-- Optional: add `opencv_core` + an `OpenCvImageProcessor` on mobile for faster/higher-quality pipelines (Phase 0 spike: build Android/iOS, measure size). The Dart impl stays the fallback.
+- ~~Optional: add OpenCV on mobile for faster/higher-quality pipelines.~~ **Evaluated and dropped (2026-10-10):** prototyped on branch `feat/scanner-opencv` with `dartcv4` (opencv_core is discontinued). It increased the app size (bundled OpenCV native libs) for little perceived gain over the pure-Dart pipelines, so it was abandoned — branch and files deleted. The pure-Dart implementation is the shipping one; do not re-add OpenCV without a size/benefit case.
 - Deferred separate spec: real edge detection + perspective dewarp (replace the hardcoded 3% `normalizePage` inset).
 - Carousel/canvas apply the mode on the oriented preview (crop/rotate are overlaid live, not baked into the preview); final compile bakes geometry before the mode. Immaterial for the modes shipped; revisit if a mode becomes crop-edge-sensitive.
 
