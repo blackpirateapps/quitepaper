@@ -8257,3 +8257,18 @@ Built in parallel by three subagents (dewarp / detector / overlay), then integra
 
 ### 5. Follow-ups (Phase 3, per spec §6)
 - Magnifier loupe on the dragged corner; output aspect-ratio estimation; capture-time confidence hint; parameter tuning on real captures (pending sample scans). Detection is best-effort by design — manual adjust is always available.
+
+## 173. Document Scanner — Re-open camera on "Add Page" + discard confirmation (October 2026)
+
+### 1. Problem
+Once a page was captured the viewport switched to the processed-page review and the live `CameraPreview` left the tree. Tapping "+" / the shutter then called `takePicture()` with no viewfinder visible, so the camera appeared **frozen** (no live feed to frame the next page). Closing the scanner also discarded captured pages with no confirmation.
+
+### 2. Fix (`document_scanner_screen.dart`)
+- New `_showCamera` state. The center viewport shows the live camera when `_pages.isEmpty || _showCamera`, else the active-page review.
+- "+" slot and (in review) the shutter call `_openCameraForNewPage()` → `resumePreview()` (guards against a frozen texture when the preview re-enters the tree) + `_showCamera = true`, re-mounting `CameraPreview`. The shutter captures when the viewfinder is showing (`_primaryCaptureAction`). A successful capture returns to review (`_showCamera = false`). Tablet "Add Page" button mirrors this (labelled "Capture" while the viewfinder is up). No camera → falls through to file import.
+- Discard confirmation: the close (X) and system back now route through `_handleBack()` (via `PopScope(canPop: false)`), which first cancels an in-progress new capture (`_showCamera` → review) and otherwise shows a "Discard scan?" dialog when `_pages.isNotEmpty` before popping.
+
+### 3. Verification & Quality
+- `flutter analyze` — **No issues found!**
+- Updated the tablet integration test (empty state now reads "Capture", not "Add Page").
+- Full Test Suite: `flutter test` (**all 1793 tests passing**).

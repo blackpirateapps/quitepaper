@@ -54,10 +54,8 @@ class DocumentScannerScreen extends ConsumerStatefulWidget {
     return Navigator.of(context).push<DocumentScanResult>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => DocumentScannerScreen(
-          noteId: noteId,
-          initialTitle: initialTitle,
-        ),
+        builder: (_) =>
+            DocumentScannerScreen(noteId: noteId, initialTitle: initialTitle),
       ),
     );
   }
@@ -80,13 +78,18 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   String _processingStatus = '';
   OcrLanguage _selectedLanguage = OcrLanguage.english;
 
+  /// When true, the live camera viewfinder is shown for capturing a new page
+  /// even though pages already exist (otherwise the active page is reviewed).
+  bool _showCamera = false;
+
   /// Mode applied to the next captured page (remembered within the session).
   ScanMode _lastUsedMode = ScanMode.defaultMode;
 
   /// Baked per-mode carousel thumbnails, keyed by page id.
   final Map<String, Map<ScanMode, Uint8List>> _modePreviews = {};
 
-  final ScannerPerformanceTracker _performanceTracker = ScannerPerformanceTracker();
+  final ScannerPerformanceTracker _performanceTracker =
+      ScannerPerformanceTracker();
   static const _uuid = Uuid();
 
   late AnimationController _pulseController;
@@ -177,6 +180,89 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     await _processAndAddPage(rawBytes, replaceIndex: replaceIndex);
   }
 
+  /// Shows the live camera viewfinder to capture an additional page (used by
+  /// the "+" / Add Page affordances once at least one page exists).
+  Future<void> _openCameraForNewPage() async {
+    if (_isProcessing) return;
+    try {
+      // The preview can be paused when the viewfinder leaves the tree on some
+      // platforms; resume it so re-opening shows a live feed, not a frozen frame.
+      if (_isCameraInitialized) {
+        await _cameraController?.resumePreview();
+      }
+    } catch (e) {
+      debugPrint('resumePreview failed: $e');
+    }
+    if (!mounted) return;
+    if (_isCameraInitialized && _cameraController != null) {
+      setState(() => _showCamera = true);
+    } else {
+      // No camera (desktop / denied): go straight to file import.
+      await _importPageFromGallery();
+    }
+  }
+
+  /// Primary shutter action: capture when the viewfinder is showing, otherwise
+  /// open the viewfinder for a new page.
+  void _primaryCaptureAction() {
+    if (_pages.isEmpty || _showCamera) {
+      _capturePage();
+    } else {
+      _openCameraForNewPage();
+    }
+  }
+
+  /// Confirms discarding the in-progress scan when pages have been captured.
+  Future<bool> _confirmDiscardIfNeeded() async {
+    if (_pages.isEmpty) return true;
+    final colors = context.appColors;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(
+          'Discard scan?',
+          style: TextStyle(color: colors.textPrimary),
+        ),
+        content: Text(
+          'You have ${_pages.length} captured page${_pages.length == 1 ? '' : 's'} '
+          'that will be lost. This cannot be undone.',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Keep editing',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text(
+              'Discard',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
+  }
+
+  /// Handles the close (X) / system-back gesture: cancel an in-progress new
+  /// capture first, otherwise confirm discarding captured pages before leaving.
+  Future<void> _handleBack() async {
+    if (_isProcessing) return;
+    if (_showCamera && _pages.isNotEmpty) {
+      setState(() => _showCamera = false);
+      return;
+    }
+    if (await _confirmDiscardIfNeeded() && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _importPageFromGallery({int? replaceIndex}) async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -203,7 +289,10 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     }
   }
 
-  Future<void> _processAndAddPage(Uint8List rawBytes, {int? replaceIndex}) async {
+  Future<void> _processAndAddPage(
+    Uint8List rawBytes, {
+    int? replaceIndex,
+  }) async {
     final generation = _performanceTracker.nextGeneration();
     final stopwatch = Stopwatch()..start();
 
@@ -223,7 +312,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       }
 
       stopwatch.stop();
-      _performanceTracker.recordPreviewCreation(stopwatch.elapsedMilliseconds.toDouble());
+      _performanceTracker.recordPreviewCreation(
+        stopwatch.elapsedMilliseconds.toDouble(),
+      );
 
       final newPage = ScannedPage(
         id: _uuid.v4(),
@@ -248,6 +339,8 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
             _pages.add(newPage);
             _selectedPageIndex = _pages.length - 1;
           }
+          // Return to review mode so the new page can be inspected/filtered.
+          _showCamera = false;
           _reindexPages();
         });
       }
@@ -290,7 +383,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   Future<void> _computeModePreviews(ScannedPage page) async {
     try {
       final imageProcessor = ref.read(imageProcessorProvider);
-      final previews = await imageProcessor.renderModePreviews(page.previewBytes);
+      final previews = await imageProcessor.renderModePreviews(
+        page.previewBytes,
+      );
       if (!mounted) return;
       setState(() => _modePreviews[page.id] = previews);
     } catch (e) {
@@ -304,7 +399,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     try {
       final imageProcessor = ref.read(imageProcessorProvider);
       final result = await imageProcessor.detectDocumentQuad(rawBytes);
-      if (!mounted || result.confidence < 0.4 || result.quad.isFullFrame) return;
+      if (!mounted || result.confidence < 0.4 || result.quad.isFullFrame) {
+        return;
+      }
       final idx = _pages.indexWhere((p) => p.id == page.id);
       if (idx < 0) return;
       setState(() {
@@ -404,7 +501,8 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         final page = _pages[i];
         if (mounted) {
           setState(() {
-            _processingStatus = 'Processing page ${i + 1} of ${_pages.length}...';
+            _processingStatus =
+                'Processing page ${i + 1} of ${_pages.length}...';
           });
         }
 
@@ -480,66 +578,75 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTablet = constraints.maxWidth >= 700;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth >= 700;
 
-            return Stack(
-              children: [
-                if (isTablet)
-                  _buildTabletLayout(colors)
-                else
-                  _buildPhoneLayout(colors),
+              return Stack(
+                children: [
+                  if (isTablet)
+                    _buildTabletLayout(colors)
+                  else
+                    _buildPhoneLayout(colors),
 
-                // Processing Progress Modal Overlay
-                if (_isProcessing)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      alignment: Alignment.center,
+                  // Processing Progress Modal Overlay
+                  if (_isProcessing)
+                    Positioned.fill(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xl,
-                          vertical: AppSpacing.lg,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(AppRadii.md),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black54,
-                              blurRadius: 16,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              _processingStatus,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
+                        color: Colors.black.withValues(alpha: 0.8),
+                        alignment: Alignment.center,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.lg,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(AppRadii.md),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 16,
+                                offset: Offset(0, 4),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  colors.accent,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                _processingStatus,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -550,18 +657,13 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       children: [
         // 1. Center Viewport (Live Camera or Active Page Preview)
         Positioned.fill(
-          child: _pages.isEmpty
+          child: (_pages.isEmpty || _showCamera)
               ? _buildCameraViewport(colors)
               : _buildActivePageCanvas(colors),
         ),
 
         // 2. Top Bar
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: _buildTopBar(colors),
-        ),
+        Positioned(top: 0, left: 0, right: 0, child: _buildTopBar(colors)),
 
         // 3. Bottom Controls & Thumbnails
         Positioned(
@@ -583,7 +685,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           child: Stack(
             children: [
               Positioned.fill(
-                child: _pages.isEmpty
+                child: (_pages.isEmpty || _showCamera)
                     ? _buildCameraViewport(colors)
                     : _buildActivePageCanvas(colors),
               ),
@@ -599,7 +701,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
@@ -613,10 +717,12 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                     child: ScanModeCarousel(
                       selected: _pages[_selectedPageIndex].scanMode,
                       previews:
-                          _modePreviews[_pages[_selectedPageIndex].id] ?? const {},
+                          _modePreviews[_pages[_selectedPageIndex].id] ??
+                          const {},
                       isLoading:
                           _modePreviews[_pages[_selectedPageIndex].id] == null,
-                      onSelected: (mode) => _selectMode(_selectedPageIndex, mode),
+                      onSelected: (mode) =>
+                          _selectMode(_selectedPageIndex, mode),
                     ),
                   ),
                 ),
@@ -651,13 +757,21 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: _pages.isNotEmpty ? _finishAndSaveDocument : null,
+                      onPressed: _pages.isNotEmpty
+                          ? _finishAndSaveDocument
+                          : null,
                       icon: const Icon(Icons.check, size: 16),
                       label: const Text('Save PDF'),
                       style: TextButton.styleFrom(
                         foregroundColor: colors.accent,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -687,9 +801,13 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                       onPressed: () => _importPageFromGallery(),
                     ),
                     ElevatedButton.icon(
-                      onPressed: () => _capturePage(),
+                      onPressed: _primaryCaptureAction,
                       icon: const Icon(Icons.camera_alt_outlined),
-                      label: const Text('Add Page'),
+                      label: Text(
+                        (_pages.isEmpty || _showCamera)
+                            ? 'Capture'
+                            : 'Add Page',
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colors.accent,
                         foregroundColor: Colors.white,
@@ -719,10 +837,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.8),
-            Colors.transparent,
-          ],
+          colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
         ),
       ),
       child: Row(
@@ -731,7 +846,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white, size: 26),
             tooltip: 'Cancel scan',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _handleBack,
           ),
           Expanded(
             child: Column(
@@ -762,7 +877,11 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
             children: [
               // OCR Language Picker
               PopupMenuButton<OcrLanguage>(
-                icon: const Icon(Icons.language_rounded, color: Colors.white, size: 22),
+                icon: const Icon(
+                  Icons.language_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 tooltip: 'OCR Language (${_selectedLanguage.displayName})',
                 initialValue: _selectedLanguage,
                 onSelected: (lang) => setState(() => _selectedLanguage = lang),
@@ -826,9 +945,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       return Stack(
         fit: StackFit.expand,
         children: [
-          Center(
-            child: CameraPreview(_cameraController!),
-          ),
+          Center(child: CameraPreview(_cameraController!)),
           _buildBoundaryIndicator(colors),
         ],
       );
@@ -896,7 +1013,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadii.md),
               border: Border.all(
-                color: colors.accent.withValues(alpha: 0.85 * _pulseAnimation.value),
+                color: colors.accent.withValues(
+                  alpha: 0.85 * _pulseAnimation.value,
+                ),
                 width: 2.5,
               ),
             ),
@@ -927,7 +1046,8 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           if (_pages.isNotEmpty && _selectedPageIndex < _pages.length) ...[
             ScanModeCarousel(
               selected: _pages[_selectedPageIndex].scanMode,
-              previews: _modePreviews[_pages[_selectedPageIndex].id] ?? const {},
+              previews:
+                  _modePreviews[_pages[_selectedPageIndex].id] ?? const {},
               isLoading: _modePreviews[_pages[_selectedPageIndex].id] == null,
               onSelected: (mode) => _selectMode(_selectedPageIndex, mode),
             ),
@@ -948,15 +1068,18 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
               children: [
                 // Gallery / File Import Button
                 IconButton(
-                  icon: const Icon(Icons.photo_library_outlined,
-                      color: Colors.white, size: 28),
+                  icon: const Icon(
+                    Icons.photo_library_outlined,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                   tooltip: 'Import image from files',
                   onPressed: () => _importPageFromGallery(),
                 ),
 
                 // Shutter Capture Button
                 GestureDetector(
-                  onTap: () => _capturePage(),
+                  onTap: _primaryCaptureAction,
                   child: Container(
                     width: 72,
                     height: 72,
@@ -966,14 +1089,22 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                       color: colors.accent,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 30),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 30,
+                    ),
                   ),
                 ),
 
                 // Selected Page Delete / Retake / Adjust shortcut
                 if (_pages.isNotEmpty)
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     tooltip: 'Page actions',
                     onSelected: (val) {
                       if (val == 'adjust') {
@@ -1035,11 +1166,16 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete_outline,
-                                color: Colors.redAccent, size: 18),
+                            Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                              size: 18,
+                            ),
                             SizedBox(width: 8),
-                            Text('Delete Page',
-                                style: TextStyle(color: Colors.redAccent)),
+                            Text(
+                              'Delete Page',
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
                           ],
                         ),
                       ),
@@ -1068,7 +1204,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
             // "+" Add Page Slot
             return Center(
               child: InkWell(
-                onTap: () => _capturePage(),
+                onTap: _openCameraForNewPage,
                 borderRadius: BorderRadius.circular(AppRadii.sm),
                 child: Container(
                   width: 54,
@@ -1107,7 +1243,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.sm - 1),
                     child: ColorFiltered(
-                      colorFilter: ColorFilter.matrix(page.adjustments.toColorMatrix()),
+                      colorFilter: ColorFilter.matrix(
+                        page.adjustments.toColorMatrix(),
+                      ),
                       child: Image.memory(
                         _displayBytesFor(page),
                         fit: BoxFit.cover,
@@ -1120,7 +1258,10 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                   bottom: 2,
                   right: 2,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(3),
@@ -1145,7 +1286,11 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                         color: colors.accent,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.tune, size: 10, color: Colors.white),
+                      child: const Icon(
+                        Icons.tune,
+                        size: 10,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
               ],
@@ -1171,7 +1316,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.xs),
             decoration: BoxDecoration(
-              color: isSelected ? colors.accent.withValues(alpha: 0.12) : colors.surface,
+              color: isSelected
+                  ? colors.accent.withValues(alpha: 0.12)
+                  : colors.surface,
               borderRadius: BorderRadius.circular(AppRadii.sm),
               border: Border.all(
                 color: isSelected ? colors.accent : colors.divider,
@@ -1186,7 +1333,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                     width: 48,
                     height: 64,
                     child: ColorFiltered(
-                      colorFilter: ColorFilter.matrix(page.adjustments.toColorMatrix()),
+                      colorFilter: ColorFilter.matrix(
+                        page.adjustments.toColorMatrix(),
+                      ),
                       child: Image.memory(
                         _displayBytesFor(page),
                         fit: BoxFit.cover,
@@ -1204,7 +1353,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                         'Page ${page.pageNumber}',
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: colors.textPrimary,
                         ),
                       ),
@@ -1229,7 +1380,11 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
                   onPressed: () => _openAdjustments(index),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: Colors.redAccent,
+                  ),
                   tooltip: 'Delete page',
                   onPressed: () => _deletePage(index),
                 ),

@@ -449,7 +449,8 @@ void main() {
 
       expect(find.text('Pages (0)'), findsOneWidget);
       expect(find.text('Save PDF'), findsOneWidget);
-      expect(find.text('Add Page'), findsOneWidget);
+      // With no pages yet the camera is showing, so the action reads "Capture".
+      expect(find.text('Capture'), findsOneWidget);
     });
   });
 }
