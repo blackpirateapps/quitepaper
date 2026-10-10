@@ -147,9 +147,9 @@ Default on capture: **Auto**. Each page remembers its own mode.
   + the post-capture carousel + per-page/last-used state, wired through the `ImageProcessor` seam.
 - **Phase 3 (done).** `enhanceForOcr()` routed through the flatten + adaptive-threshold pipeline.
 - **OpenCV spike (done, reverted).** Prototyped `OpenCvImageProcessor` on `dartcv4`; dropped for app
-  size (HANDOFF §170 history; branch deleted).
-- **Later / separate spec — Real detection (STILL OUTSTANDING).** Edge detection + perspective
-  dewarp → [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
+  size (recorded in §169 follow-ups; prototype branch + files deleted).
+- **Later / separate spec — Real detection (DONE 2026-10-10).** Edge detection + perspective
+  dewarp → [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md) (HANDOFF §172).
 
 ---
 

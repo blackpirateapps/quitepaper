@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import '../ocr/ocr_models.dart';
+import 'document_detector.dart';
+import 'document_quad.dart';
 import 'image_adjustments.dart';
+import 'scan_geometry.dart';
 import 'scan_mode.dart';
 import 'scan_pipelines.dart';
 
@@ -31,15 +34,26 @@ abstract class ImageProcessor {
     ScanMode mode = ScanMode.original,
   });
 
-  /// Processes high-resolution capture bytes applying final crop, rotation, the
-  /// selected scanner [mode] pipeline, tone adjustments, and max dimension
-  /// bounding for final PDF document embedding.
+  /// Processes high-resolution capture bytes applying final crop/dewarp,
+  /// rotation, the selected scanner [mode] pipeline, tone adjustments, and max
+  /// dimension bounding for final PDF document embedding.
+  ///
+  /// If [documentQuad] is non-null and not full-frame, a perspective dewarp of
+  /// that quadrilateral replaces the rectangular [ImageAdjustments.crop].
   Future<({Uint8List imageBytes, int width, int height})> processHighResolution(
     Uint8List rawBytes,
     ImageAdjustments adjustments, {
     int maxDimension = 2048,
     ScanMode mode = ScanMode.original,
+    NormalizedQuad? documentQuad,
   });
+
+  /// Best-effort automatic detection of the document boundary in [rawBytes].
+  /// Returns a normalized quad and a confidence `[0, 1]`; low confidence yields
+  /// [NormalizedQuad.full] with confidence `0`. Never throws.
+  Future<({NormalizedQuad quad, double confidence})> detectDocumentQuad(
+    Uint8List rawBytes,
+  );
 
   /// Decodes [sourceBytes] once and returns a bounded (~[maxDimension]px) baked
   /// render of each requested [modes] entry, for the post-capture mode carousel.
@@ -70,12 +84,14 @@ class _HighResProcessingParams {
     required this.adjustments,
     required this.maxDimension,
     required this.mode,
+    required this.documentQuad,
   });
 
   final Uint8List rawBytes;
   final ImageAdjustments adjustments;
   final int maxDimension;
   final ScanMode mode;
+  final NormalizedQuad? documentQuad;
 }
 
 /// Helper payload for background mode-carousel preview rendering.
@@ -182,9 +198,15 @@ class DartImageProcessor implements ImageProcessor {
     ImageAdjustments adjustments, {
     int maxDimension = defaultMaxDimension,
     ScanMode mode = ScanMode.original,
+    NormalizedQuad? documentQuad,
   }) async {
-    // If neutral AND no mode transform, return raw bytes with basic orientation check.
-    if (adjustments.isNeutral && mode == ScanMode.original) {
+    final hasDewarp = documentQuad != null &&
+        !documentQuad.isFullFrame &&
+        documentQuad.isConvex;
+
+    // If neutral AND no mode transform AND no dewarp, return raw bytes with a
+    // basic orientation check.
+    if (adjustments.isNeutral && mode == ScanMode.original && !hasDewarp) {
       final decoded = img.decodeImage(rawBytes);
       if (decoded == null) {
         return (imageBytes: rawBytes, width: 0, height: 0);
@@ -199,28 +221,39 @@ class DartImageProcessor implements ImageProcessor {
       }
     }
 
+    final params = _HighResProcessingParams(
+      rawBytes: rawBytes,
+      adjustments: adjustments,
+      maxDimension: maxDimension,
+      mode: mode,
+      documentQuad: hasDewarp ? documentQuad : null,
+    );
     try {
-      final result = await compute(
-        _executeHighResProcessing,
-        _HighResProcessingParams(
-          rawBytes: rawBytes,
-          adjustments: adjustments,
-          maxDimension: maxDimension,
-          mode: mode,
-        ),
-      );
-      return result;
+      return await compute(_executeHighResProcessing, params);
     } catch (e) {
       debugPrint('processHighResolution compute fallback: $e');
-      return _executeHighResProcessing(
-        _HighResProcessingParams(
-          rawBytes: rawBytes,
-          adjustments: adjustments,
-          maxDimension: maxDimension,
-          mode: mode,
-        ),
-      );
+      return _executeHighResProcessing(params);
     }
+  }
+
+  @override
+  Future<({NormalizedQuad quad, double confidence})> detectDocumentQuad(
+    Uint8List rawBytes,
+  ) async {
+    try {
+      return await compute(_executeDetectQuad, rawBytes);
+    } catch (e) {
+      debugPrint('detectDocumentQuad fallback: $e');
+      return (quad: NormalizedQuad.full, confidence: 0.0);
+    }
+  }
+
+  static ({NormalizedQuad quad, double confidence}) _executeDetectQuad(
+    Uint8List rawBytes,
+  ) {
+    final decoded = img.decodeImage(rawBytes);
+    if (decoded == null) return (quad: NormalizedQuad.full, confidence: 0.0);
+    return DocumentDetector.detect(img.bakeOrientation(decoded));
   }
 
   static ({Uint8List imageBytes, int width, int height}) _executeHighResProcessing(
@@ -240,8 +273,16 @@ class DartImageProcessor implements ImageProcessor {
         processed = img.copyRotate(processed, angle: turns * 90);
       }
 
-      // 2. High-Resolution Crop
-      if (params.adjustments.crop != null && params.adjustments.crop != NormalizedRect.full) {
+      // 2. Geometry: perspective dewarp of the detected/adjusted document quad,
+      //    OR the rectangular crop (dewarp supersedes crop when present).
+      if (params.documentQuad != null) {
+        processed = ScanGeometry.dewarp(
+          processed,
+          params.documentQuad!,
+          maxDimension: params.maxDimension,
+        );
+      } else if (params.adjustments.crop != null &&
+          params.adjustments.crop != NormalizedRect.full) {
         final crop = params.adjustments.crop!;
         final cropX = (crop.x * processed.width).round().clamp(0, processed.width - 1);
         final cropY = (crop.y * processed.height).round().clamp(0, processed.height - 1);

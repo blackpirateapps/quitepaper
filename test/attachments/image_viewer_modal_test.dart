@@ -15,6 +15,7 @@ import 'package:quitepaper/core/attachments/presentation/viewer_image_item.dart'
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/image_processing/document_quad.dart';
 import 'package:quitepaper/core/image_processing/image_adjustments.dart';
 import 'package:quitepaper/core/image_processing/image_processor.dart';
 import 'package:quitepaper/core/image_processing/scan_mode.dart';
@@ -80,12 +81,20 @@ class FakeImageProcessor implements ImageProcessor {
     ImageAdjustments adjustments, {
     int maxDimension = 2048,
     ScanMode mode = ScanMode.original,
+    NormalizedQuad? documentQuad,
   }) async {
     return (
       imageBytes: rawBytes,
       width: 200,
       height: 200,
     );
+  }
+
+  @override
+  Future<({NormalizedQuad quad, double confidence})> detectDocumentQuad(
+    Uint8List rawBytes,
+  ) async {
+    return (quad: NormalizedQuad.full, confidence: 0.0);
   }
 
   @override

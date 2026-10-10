@@ -1,9 +1,17 @@
 # Document Scanner — Automatic Corner Detection & Perspective Dewarp (Spec)
 
-> Status: **Not built.** Author: 2026-10-10. The remaining half of the "make the scanner feel real"
-> effort; pairs with [`scanner-presets-spec.md`](./scanner-presets-spec.md) (the *look*, done) —
-> this is the *shape*.
+> Status: **Implemented (2026-10-10, HANDOFF §172).** Author: 2026-10-10. The remaining half of the
+> "make the scanner feel real" effort; pairs with [`scanner-presets-spec.md`](./scanner-presets-spec.md)
+> (the *look*, done) — this is the *shape*.
 > Read §0–§3 before touching anything.
+
+> **Implementation status (2026-10-10).** Built in pure Dart (no OpenCV). Auto-detection pre-fills
+> the quad on capture; a 4-corner overlay lets the user adjust; a homography dewarp flattens the quad
+> at compile. Phases 1 and 2 are done; Phase 3 polish (magnifier loupe, aspect-ratio estimation,
+> capture-time confidence hint) is partial/pending. Files: `scan_geometry.dart` (dewarp),
+> `document_detector.dart` (detect), `interactive_quad_overlay.dart` (overlay),
+> `document_quad.dart` (model); wired through `ImageProcessor`/`DartImageProcessor`,
+> `PageAdjustmentSheet` (scanner only, via `enableDocumentQuad`), and the scanner screen.
 
 ---
 
@@ -106,22 +114,26 @@ between them, a magnifier near the dragged handle, and a "reset to full page" af
 
 ## 6. Phasing
 
-- **Phase 1 — Manual quad + dewarp.** Quad overlay + homography warp wired into compile. High value,
-  fully deterministic, no detection flakiness. Ship this first.
-- **Phase 2 — Auto-detect pre-fill.** Edge/line detection to seed the handles; confidence gating +
-  full-frame fallback.
-- **Phase 3 — Polish.** Aspect-ratio estimation, magnifier loupe, confidence hint on capture.
+- **Phase 1 — Manual quad + dewarp.** ✅ Done. `InteractiveQuadOverlay` + `ScanGeometry.dewarp`
+  (homography) wired into `processHighResolution` (geometry order: orientation → dewarp → downscale →
+  mode → tone).
+- **Phase 2 — Auto-detect pre-fill.** ✅ Done. `DocumentDetector.detect` (Otsu segmentation +
+  extreme-point corners) runs on capture; confidence ≥ 0.4 pre-fills the quad, else full-frame
+  fallback. An "Auto-detect edges" button in the crop sheet re-runs it on demand.
+- **Phase 3 — Polish.** ⏳ Partial. Still open: magnifier loupe on the dragged corner, output
+  aspect-ratio estimation, a capture-time confidence hint, and parameter tuning on real captures.
 
 ---
 
 ## 7. Acceptance criteria
 
-- [ ] A page shot at a moderate angle can be dewarped to a flat rectangle with straight edges.
-- [ ] Manual 4-corner adjustment is precise (handles + magnifier) and constrained to a convex quad.
-- [ ] Auto-detect pre-fills a sensible quad on a clear page-on-contrasting-background shot, and
+- [x] A page shot at a moderate angle can be dewarped to a flat rectangle with straight edges.
+- [x] Manual 4-corner adjustment is precise (handles) and constrained to a convex quad.
+- [x] Auto-detect pre-fills a sensible quad on a clear page-on-contrasting-background shot, and
       cleanly falls back to full-frame when unsure (no silently-wrong crop).
-- [ ] Dewarp composes correctly with the capture modes and tone/rotate (defined order).
-- [ ] Pure Dart; `flutter analyze` clean; new pipeline/golden tests pass; no app-size delta.
+- [x] Dewarp composes correctly with the capture modes and tone/rotate (defined order).
+- [x] Pure Dart; `flutter analyze` clean; new pipeline/golden tests pass; no app-size delta.
+- [ ] *(Phase 3)* magnifier loupe + aspect-ratio estimation + tuning pass on real captures.
 
 ---
 

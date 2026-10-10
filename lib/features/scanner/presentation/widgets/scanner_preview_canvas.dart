@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/image_processing/document_quad.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
 import 'interactive_crop_overlay.dart';
+import 'interactive_quad_overlay.dart';
 
 /// Interactive high-performance document canvas renderer.
 ///
@@ -21,6 +23,8 @@ class ScannerPreviewCanvas extends StatefulWidget {
     required this.adjustments,
     this.isCropMode = false,
     this.onAdjustmentsChanged,
+    this.quad,
+    this.onQuadChanged,
     this.isLoading = false,
     this.errorMessage,
     this.onRetry,
@@ -37,6 +41,13 @@ class ScannerPreviewCanvas extends StatefulWidget {
 
   /// Callback when adjustments are updated via crop or reset.
   final ValueChanged<ImageAdjustments>? onAdjustmentsChanged;
+
+  /// When non-null, crop mode shows the 4-corner [InteractiveQuadOverlay]
+  /// (perspective crop) instead of the rectangular crop overlay.
+  final NormalizedQuad? quad;
+
+  /// Callback when the document quad is dragged.
+  final ValueChanged<NormalizedQuad>? onQuadChanged;
 
   /// Whether asynchronous preparation is occurring.
   final bool isLoading;
@@ -136,18 +147,25 @@ class _ScannerPreviewCanvasState extends State<ScannerPreviewCanvas> {
                         fit: BoxFit.contain,
                         gaplessPlayback: true,
                       ),
-                      // 2. Interactive Crop Overlay
+                      // 2. Interactive Crop Overlay (rectangle) or Quad Overlay
                       if (widget.isCropMode && !_isComparingOriginal)
                         Positioned.fill(
-                          child: InteractiveCropOverlay(
-                            crop: widget.adjustments.crop,
-                            accentColor: colors.accent,
-                            onCropChanged: (newCrop) {
-                              widget.onAdjustmentsChanged?.call(
-                                widget.adjustments.copyWith(crop: newCrop),
-                              );
-                            },
-                          ),
+                          child: widget.quad != null
+                              ? InteractiveQuadOverlay(
+                                  quad: widget.quad!,
+                                  accentColor: colors.accent,
+                                  onQuadChanged: (q) =>
+                                      widget.onQuadChanged?.call(q),
+                                )
+                              : InteractiveCropOverlay(
+                                  crop: widget.adjustments.crop,
+                                  accentColor: colors.accent,
+                                  onCropChanged: (newCrop) {
+                                    widget.onAdjustmentsChanged?.call(
+                                      widget.adjustments.copyWith(crop: newCrop),
+                                    );
+                                  },
+                                ),
                         ),
                     ],
                   ),

@@ -8148,7 +8148,7 @@ The user-facing controls for the device-local place merge/alias store (§2.3): c
 ### 1. Summary
 Replaced the scanner's **fake presets** (global brightness/contrast knobs) with real, spatial **capture modes** — Office Lens–style — selected from a post-capture thumbnail carousel. Implements the approved spec/design in [`docs/specs/scanner-presets-spec.md`](file:///home/dog/git/quitepaper/docs/specs/scanner-presets-spec.md) + [`scanner-presets-design.md`](file:///home/dog/git/quitepaper/docs/specs/scanner-presets-design.md). Modes: **Original, Auto, Document, Whiteboard, Grayscale, B&W Text**. Each is a genuine image pipeline (illumination flatten, adaptive threshold, gray-world white balance, unsharp), not a color-matrix curve. Per-page selection, last-used-mode memory, and composition with the existing tone sliders + crop/rotate.
 
-**Scope note:** the spec locked `opencv_core` as the processing library. This landing implements the full feature on **pure-Dart pipelines** (`package:image`) behind the existing `ImageProcessor` seam — ships on every platform, no native dependency, fully testable on CI. OpenCV remains an **optional later perf/quality drop-in** behind the same seam (an `OpenCvImageProcessor` selected on mobile when the native lib is present); the mode contract would not change. The deferred **real edge detection + perspective dewarp** remains a separate later effort. App-size delta: **none** (no native dependency added yet).
+**Scope note:** the original spec locked `opencv_core` as the processing library. This feature ships on **pure-Dart pipelines** (`package:image`) behind the existing `ImageProcessor` seam — every platform, no native dependency. OpenCV (`dartcv4`) was later prototyped behind the same seam and **dropped for app size** (see the §7 follow-up below). App-size delta: **none**.
 
 ### 2. New concept: `ScanMode`
 - [`scan_mode.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/scan_mode.dart) — the `ScanMode` enum, orthogonal to `ImageAdjustments` (a mode sets the base look; the knobs fine-tune on top). `defaultMode = auto`; `isMonochrome`/`isBinary` drive knob precedence; `label`/`description` for UI; `fromName` for forward-compat.
@@ -8226,3 +8226,34 @@ Super Editor mode now embeds **document** (`[title](qp://document/<UUID>)`) and 
 
 ### 7. Branch note
 Implemented on `main` (not `feat/scanner-opencv`): that branch's `dartcv4` dependency builds OpenCV via cmake, which is absent in the current environment and blocks `flutter test`. `main` has no such dependency, so the full suite runs there.
+
+## 172. Document Scanner — Automatic Corner Detection & Perspective Dewarp (October 2026)
+
+### 1. Summary
+The *shape* half of the scanner overhaul (the modes in §169 were the *look*): replace the fake 3%
+`normalizePage` inset with real document geometry — detect the page's four corners on capture, let
+the user fine-tune them on a 4-corner overlay, and **perspective-dewarp** the quad into a flat scan
+at compile. Pure Dart, no OpenCV (dropped for size, §169). Spec:
+[`scanner-corner-detection-spec.md`](file:///home/dog/git/quitepaper/docs/specs/scanner-corner-detection-spec.md).
+Built in parallel by three subagents (dewarp / detector / overlay), then integrated.
+
+### 2. New building blocks
+- [`document_quad.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/document_quad.dart) — `NormalizedPoint` + `NormalizedQuad` (4 corners clockwise from top-left) with `full`, `fromRect`, `withCorner`, `isConvex`, `isFullFrame`, `boundingRect`, JSON. The shared contract for the three pieces below.
+- [`scan_geometry.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/scan_geometry.dart) — `ScanGeometry.dewarp(src, quad, {maxDimension})`: solves the dst-rect→src-quad homography (8×8 Gaussian elimination), forward-maps each output pixel into the source with bilinear sampling. Output size from the quad's edge lengths, capped to `maxDimension`. Returns a clone when the quad is full-frame/non-convex/singular. Pure/isolate-safe.
+- [`document_detector.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/document_detector.dart) — `DocumentDetector.detect(img) → ({NormalizedQuad quad, double confidence})`: downscale → grayscale → Otsu threshold → foreground mask → 4 corners as extreme points (handles rotation), both polarities, convexity+fill confidence; low confidence → `(full, 0)`. Never throws.
+- [`interactive_quad_overlay.dart`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/interactive_quad_overlay.dart) — draggable 4-corner overlay (scrim outside, accent border, 44px handles) that rejects non-convex drags; mirrors `InteractiveCropOverlay` style.
+
+### 3. Integration
+- `ImageProcessor`/[`DartImageProcessor`](file:///home/dog/git/quitepaper/lib/core/image_processing/image_processor.dart): new `detectDocumentQuad(bytes)` (runs the detector in a `compute` isolate); `processHighResolution` gained a `NormalizedQuad? documentQuad` param. Compile order is now **orientation → rotate → (dewarp if quad, else rectangular crop) → downscale → mode → tone → encode**; the raw-passthrough fast path also requires no dewarp. Dewarp supersedes the rectangle crop when a non-full convex quad is present.
+- [`ScannedPage`](file:///home/dog/git/quitepaper/lib/features/scanner/domain/scanned_page.dart): `NormalizedQuad? documentQuad` (+ `clearDocumentQuad` in `copyWith`); in-session only.
+- [`ScannerPreviewCanvas`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/scanner_preview_canvas.dart): in crop mode shows the quad overlay when a `quad` is supplied, else the rectangle overlay.
+- [`PageAdjustmentSheet`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/page_adjustment_sheet.dart): new `enableDocumentQuad` flag (scanner-only; the generic image editor keeps rectangular crop). When on, the Crop & Rotate tab edits the quad and offers **Auto-detect edges** + **Use Full Page**.
+- [`document_scanner_screen.dart`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/document_scanner_screen.dart): auto-detects the quad off-isolate on capture (confidence ≥ 0.4 pre-fills it, else full-frame), opens the adjust sheet with `enableDocumentQuad: true`, and passes `documentQuad` into the final compile.
+
+### 4. Verification & Quality
+- Static Analysis: whole-project `flutter analyze` — **No issues found!**
+- Tests: `scan_geometry_test.dart` (4), `document_detector_test.dart` (5), `interactive_quad_overlay_test.dart` (2), `document_dewarp_integration_test.dart` (detect + dewarp through `processHighResolution`, compose-with-mode, full-frame no-op), plus the `FakeImageProcessor` updated for the new seam.
+- Full Test Suite: `flutter test` (**all 1793 tests passing**).
+
+### 5. Follow-ups (Phase 3, per spec §6)
+- Magnifier loupe on the dragged corner; output aspect-ratio estimation; capture-time confidence hint; parameter tuning on real captures (pending sample scans). Detection is best-effort by design — manual adjust is always available.

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/image_processing/document_quad.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
 import '../../../../core/image_processing/image_processor.dart';
 import '../../../../core/image_processing/scan_mode.dart';
@@ -25,17 +26,24 @@ class PageAdjustmentSheet extends StatefulWidget {
     required this.page,
     this.imageProcessor = const DartImageProcessor(),
     this.title,
+    this.enableDocumentQuad = false,
   });
 
   final ScannedPage page;
   final ImageProcessor imageProcessor;
   final String? title;
 
+  /// When true, the Crop & Rotate tab uses the 4-corner perspective-crop
+  /// overlay (with auto-detect) instead of the rectangular crop. Enabled from
+  /// the document scanner; the generic image editor keeps rectangular crop.
+  final bool enableDocumentQuad;
+
   static Future<ScannedPage?> show(
     BuildContext context, {
     required ScannedPage page,
     ImageProcessor? imageProcessor,
     String? title,
+    bool enableDocumentQuad = false,
   }) {
     return showModalBottomSheet<ScannedPage>(
       context: context,
@@ -45,6 +53,7 @@ class PageAdjustmentSheet extends StatefulWidget {
         page: page,
         imageProcessor: imageProcessor ?? const DartImageProcessor(),
         title: title,
+        enableDocumentQuad: enableDocumentQuad,
       ),
     );
   }
@@ -56,6 +65,8 @@ class PageAdjustmentSheet extends StatefulWidget {
 class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   late ImageAdjustments _adjustments;
   late ScanMode _scanMode;
+  NormalizedQuad? _documentQuad;
+  bool _isDetecting = false;
   Map<ScanMode, Uint8List> _modePreviews = const {};
   int _activeTab = 0; // 0: Tone & Style, 1: Crop & Rotate
   bool _isFineTuneExpanded = true;
@@ -65,6 +76,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     super.initState();
     _adjustments = widget.page.adjustments;
     _scanMode = widget.page.scanMode;
+    _documentQuad = widget.page.documentQuad;
     _bakeModePreviews();
   }
 
@@ -103,13 +115,51 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
     setState(() {
       _adjustments = ImageAdjustments.neutral;
       _scanMode = ScanMode.original;
+      if (widget.enableDocumentQuad) _documentQuad = null;
     });
   }
 
+  /// The quad shown/edited on the canvas (full-frame when none is set yet).
+  NormalizedQuad get _effectiveQuad => _documentQuad ?? NormalizedQuad.full;
+
+  void _resetQuadToFullPage() {
+    setState(() => _documentQuad = NormalizedQuad.full);
+  }
+
+  Future<void> _autoDetectQuad() async {
+    setState(() => _isDetecting = true);
+    try {
+      final result =
+          await widget.imageProcessor.detectDocumentQuad(widget.page.rawImageBytes);
+      if (!mounted) return;
+      setState(() {
+        // Accept a confident detection; otherwise fall back to full page.
+        _documentQuad =
+            result.confidence >= 0.35 ? result.quad : NormalizedQuad.full;
+      });
+      if (mounted && result.confidence < 0.35) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not detect page edges — adjust the corners manually.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDetecting = false);
+    }
+  }
+
   void _commitAndClose() {
+    final quadIsMeaningful =
+        _documentQuad != null && !_documentQuad!.isFullFrame;
     final updatedPage = widget.page.copyWith(
       adjustments: _adjustments,
       scanMode: _scanMode,
+      documentQuad: widget.enableDocumentQuad && quadIsMeaningful
+          ? _documentQuad
+          : null,
+      clearDocumentQuad: widget.enableDocumentQuad && !quadIsMeaningful,
     );
     Navigator.of(context).pop(updatedPage);
   }
@@ -176,6 +226,10 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
                 adjustments: _adjustments,
                 isCropMode: _activeTab == 1,
                 onAdjustmentsChanged: _onAdjustmentsChanged,
+                quad: widget.enableDocumentQuad ? _effectiveQuad : null,
+                onQuadChanged: widget.enableDocumentQuad
+                    ? (q) => setState(() => _documentQuad = q)
+                    : null,
               ),
             ),
           ),
@@ -441,39 +495,93 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
         ),
         const SizedBox(height: AppSpacing.md),
 
-        // Crop Actions
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Crop Document',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            if (_adjustments.crop != null)
-              TextButton(
-                onPressed: _resetCrop,
-                child: Text(
-                  'Reset Crop',
-                  style: TextStyle(color: colors.accent, fontSize: 13),
+        // Crop Actions — perspective quad (scanner) or rectangle (image editor)
+        if (widget.enableDocumentQuad)
+          ..._buildQuadCropActions(colors)
+        else ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Crop Document',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Drag the corner handles or edge bars directly on the document image above to frame the page.',
-          style: TextStyle(
-            fontSize: 12.5,
-            color: colors.textSecondary,
-            height: 1.4,
+              if (_adjustments.crop != null)
+                TextButton(
+                  onPressed: _resetCrop,
+                  child: Text(
+                    'Reset Crop',
+                    style: TextStyle(color: colors.accent, fontSize: 13),
+                  ),
+                ),
+            ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Drag the corner handles or edge bars directly on the document image above to frame the page.',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  List<Widget> _buildQuadCropActions(AppColors colors) {
+    return [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Document Edges',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          TextButton(
+            onPressed: _resetQuadToFullPage,
+            child: Text(
+              'Use Full Page',
+              style: TextStyle(color: colors.accent, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.xs),
+      Text(
+        'Drag the four corners to frame the page; it will be flattened to a straight-on scan. '
+        'Auto-detect finds the edges for you.',
+        style: TextStyle(fontSize: 12.5, color: colors.textSecondary, height: 1.4),
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _isDetecting ? null : _autoDetectQuad,
+          icon: _isDetecting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_fix_high_rounded),
+          label: Text(_isDetecting ? 'Detecting…' : 'Auto-detect edges'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.accent,
+            side: BorderSide(color: colors.accent),
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildSliderRow({

@@ -254,6 +254,8 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
 
       // Bake the mode carousel thumbnails off the UI isolate.
       unawaited(_computeModePreviews(newPage));
+      // Best-effort auto-detect the document corners to pre-fill the quad.
+      unawaited(_detectQuad(newPage, rawBytes));
     } finally {
       if (mounted && _performanceTracker.isGenerationCurrent(generation)) {
         setState(() {
@@ -272,6 +274,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       context,
       page: _pages[index],
       imageProcessor: imageProcessor,
+      enableDocumentQuad: true,
     );
 
     if (updated != null && mounted) {
@@ -292,6 +295,23 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       setState(() => _modePreviews[page.id] = previews);
     } catch (e) {
       debugPrint('Mode preview generation failed: $e');
+    }
+  }
+
+  /// Best-effort automatic document-corner detection; pre-fills the page's quad
+  /// when confident so the user opens the crop editor to an already-framed page.
+  Future<void> _detectQuad(ScannedPage page, Uint8List rawBytes) async {
+    try {
+      final imageProcessor = ref.read(imageProcessorProvider);
+      final result = await imageProcessor.detectDocumentQuad(rawBytes);
+      if (!mounted || result.confidence < 0.4 || result.quad.isFullFrame) return;
+      final idx = _pages.indexWhere((p) => p.id == page.id);
+      if (idx < 0) return;
+      setState(() {
+        _pages[idx] = _pages[idx].copyWith(documentQuad: result.quad);
+      });
+    } catch (e) {
+      debugPrint('Document quad detection failed: $e');
     }
   }
 
@@ -392,6 +412,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
           page.rawImageBytes,
           page.adjustments,
           mode: page.scanMode,
+          documentQuad: page.documentQuad,
         );
 
         finalPages.add(

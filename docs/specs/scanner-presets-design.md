@@ -5,13 +5,13 @@
 > This doc is the *how*; the spec is the *what*. Read the spec's §0–§4 first.
 
 > **Implementation note (2026-10-10).** Built in **pure Dart** (the `image` package), not OpenCV.
-> OpenCV (`dartcv4`) was prototyped behind the same seam and **dropped for app size** (HANDOFF §169
-> for the shipped design; §170 recorded the reverted OpenCV spike). The §1/§4 OpenCV material below
-> is retained as design rationale; the shipping code lives in
+> OpenCV (`dartcv4`) was prototyped behind the same seam and **dropped for app size** (recorded in
+> HANDOFF §169's follow-ups; the prototype branch and its files were deleted). The §1/§4 OpenCV
+> material below is retained as design rationale; the shipping code lives in
 > `lib/core/image_processing/scan_pipelines.dart` (spatial ops) + `scan_mode.dart`, called from
 > `DartImageProcessor`. Where this doc says "OpenCV", read "the pure-Dart `ScanPipelines`
-> equivalent". Automatic corner detection remains unbuilt →
-> [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md).
+> equivalent". Automatic corner detection is now built →
+> [`scanner-corner-detection-spec.md`](./scanner-corner-detection-spec.md) (HANDOFF §172).
 
 ---
 

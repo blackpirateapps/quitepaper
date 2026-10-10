@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../core/image_processing/document_quad.dart';
 import '../../../core/image_processing/image_adjustments.dart';
 import '../../../core/image_processing/scan_mode.dart';
 
@@ -20,6 +21,7 @@ class ScannedPage {
     required this.pageNumber,
     this.adjustments = ImageAdjustments.neutral,
     this.scanMode = ScanMode.defaultMode,
+    this.documentQuad,
     this.isNormalized = false,
   })  : rawImageBytes = rawImageBytes ?? imageBytes,
         previewBytes = previewBytes ?? imageBytes,
@@ -46,6 +48,11 @@ class ScannedPage {
   /// Selected scanner capture mode (pipeline), baked at compile time.
   final ScanMode scanMode;
 
+  /// Detected/adjusted document boundary (4 corners) for perspective dewarp.
+  /// `null` or full-frame means no dewarp — use the rectangular [adjustments]
+  /// crop path. In-session only (not persisted).
+  final NormalizedQuad? documentQuad;
+
   /// Pixel width of the page image.
   final int width;
 
@@ -69,6 +76,8 @@ class ScannedPage {
     Uint8List? thumbnailBytes,
     ImageAdjustments? adjustments,
     ScanMode? scanMode,
+    NormalizedQuad? documentQuad,
+    bool clearDocumentQuad = false,
     int? width,
     int? height,
     int? pageNumber,
@@ -82,6 +91,7 @@ class ScannedPage {
       thumbnailBytes: thumbnailBytes ?? this.thumbnailBytes,
       adjustments: adjustments ?? this.adjustments,
       scanMode: scanMode ?? this.scanMode,
+      documentQuad: clearDocumentQuad ? null : (documentQuad ?? this.documentQuad),
       width: width ?? this.width,
       height: height ?? this.height,
       pageNumber: pageNumber ?? this.pageNumber,
