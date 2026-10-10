@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:super_editor/super_editor.dart';
 
+import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
@@ -495,10 +496,15 @@ class QuietSuperEditorController extends ChangeNotifier {
       final trimmed = snippet.trim();
       final hasBlockImage = trimmed.contains(RegExp(r'!\[.*?\]\(.*?\)'));
       final hasBlockTable = trimmed.startsWith('|') && trimmed.contains('\n|');
+      // Standalone `[name](qp://document|asset/...)` link snippets must embed as
+      // attachment cards, not land as inline hyperlink text.
+      final hasBlockAttachment =
+          trimmed.contains(RegExp(r'\[[^\]]*\]\(\s*qp://(?:document|asset)/'));
 
-      if (hasBlockImage || hasBlockTable) {
+      if (hasBlockImage || hasBlockTable || hasBlockAttachment) {
         final normalized = normalizeMarkdownForSuperEditor(trimmed);
         final structuredDoc = deserializeMarkdownToDocument(normalized);
+        promoteQuietAttachmentNodes(structuredDoc);
         if (structuredDoc.isNotEmpty) {
           _editor!.execute([
             PasteStructuredContentEditorRequest(

@@ -109,13 +109,19 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   final buffer = StringBuffer();
   final imageLineRegex = RegExp(r'^\s*!\[.*?\]\(.*?\)\s*$');
   final tableLineRegex = RegExp(r'^\s*\|.*?\|\s*$');
+  // A line that is exactly a single `[name](qp://document|asset/...)` link must
+  // be isolated as its own block so it deserializes into a standalone paragraph
+  // (which is then promoted to an embedded attachment card).
+  final qpLinkLineRegex =
+      RegExp(r'^\s*\[[^\]]*\]\(\s*qp://(?:document|asset)/[^)]*\)\s*$');
 
   for (int i = 0; i < lines.length; i++) {
     final line = lines[i];
     final isImage = imageLineRegex.hasMatch(line);
     final isTable = tableLineRegex.hasMatch(line);
+    final isQpLink = qpLinkLineRegex.hasMatch(line);
 
-    if (isImage) {
+    if (isImage || isQpLink) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
         if (!buffer.toString().endsWith('\n')) {
           buffer.write('\n');

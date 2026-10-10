@@ -5,6 +5,7 @@ import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
@@ -129,6 +130,91 @@ void main() {
       expect(doc4Re.nodeCount, equals(2));
       expect(doc4Re.getNodeAt(0), isA<TableBlockNode>());
       expect(doc4Re.getNodeAt(1), isA<ParagraphNode>());
+    });
+  });
+
+  group('QuietAttachment Node & Serialization Tests', () {
+    const docUri = 'qp://document/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const fileUri = 'qp://asset/bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbbb';
+    const imageUri = 'qp://asset/cccccccc-cccc-4ccc-accc-cccccccccccc';
+
+    final attachmentSerializers = [
+      const QuietImageNodeSerializer(),
+      const QuietAttachmentNodeSerializer(),
+      const QuietTableBlockNodeSerializer(),
+    ];
+
+    test('promotes standalone document & file links, leaves image syntax alone', () {
+      final markdown = '# Heading\n\n'
+          '[Report.pdf]($docUri)\n\n'
+          'Body paragraph\n\n'
+          '[notes.zip]($fileUri)\n\n'
+          '![pic]($imageUri)';
+
+      final doc = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(markdown));
+      promoteQuietAttachmentNodes(doc);
+
+      final attachments = doc.whereType<QuietAttachmentNode>().toList();
+      expect(attachments.length, equals(2));
+      expect(attachments.any((n) => n.uri == docUri && n.displayText == 'Report.pdf'), isTrue);
+      expect(attachments.any((n) => n.uri == fileUri && n.displayText == 'notes.zip'), isTrue);
+
+      // Image syntax stays an ImageNode (not promoted to an attachment card).
+      final images = doc.whereType<ImageNode>().toList();
+      expect(images.length, equals(1));
+      expect(images.first.imageUrl, equals(imageUri));
+    });
+
+    test('does NOT promote a qp link that is only part of a larger paragraph', () {
+      final markdown = 'See [Report.pdf]($docUri) for details.';
+      final doc = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(markdown));
+      promoteQuietAttachmentNodes(doc);
+
+      expect(doc.whereType<QuietAttachmentNode>(), isEmpty);
+      expect(doc.getNodeAt(0), isA<ParagraphNode>());
+    });
+
+    test('serializes QuietAttachmentNode back to link form, never image form', () {
+      final doc = MutableDocument(nodes: [
+        QuietAttachmentNode(id: '1', uri: docUri, displayText: 'Report.pdf'),
+        ParagraphNode(id: '2', text: AttributedText('middle')),
+        QuietAttachmentNode(id: '3', uri: fileUri, displayText: 'notes.zip'),
+      ]);
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: attachmentSerializers,
+      );
+
+      expect(serialized, contains('[Report.pdf]($docUri)'));
+      expect(serialized, contains('[notes.zip]($fileUri)'));
+      // Must be link form, not image form.
+      expect(serialized, isNot(contains('![Report.pdf]')));
+      expect(serialized, isNot(contains('![notes.zip]')));
+    });
+
+    test('round-trips document & file cards through serialize -> deserialize -> promote', () {
+      final markdown = '[Report.pdf]($docUri)\n\n'
+          'Body\n\n'
+          '[notes.zip]($fileUri)';
+
+      final doc = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(markdown));
+      promoteQuietAttachmentNodes(doc);
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: attachmentSerializers,
+      );
+
+      final docRe = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized));
+      promoteQuietAttachmentNodes(docRe);
+
+      final attachments = docRe.whereType<QuietAttachmentNode>().toList();
+      expect(attachments.length, equals(2));
+      expect(attachments.any((n) => n.uri == docUri), isTrue);
+      expect(attachments.any((n) => n.uri == fileUri), isTrue);
     });
   });
 
@@ -528,6 +614,32 @@ void main() {
       expect(doc.any((n) => n is ImageNode), isTrue);
       final imageNode = doc.firstWhere((n) => n is ImageNode) as ImageNode;
       expect(imageNode.imageUrl, equals('https://example.com/pic.png'));
+      controller.dispose();
+    });
+
+    test('insertSnippet with qp document/asset links creates QuietAttachmentNodes', () {
+      const docUri = 'qp://document/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const fileUri = 'qp://asset/bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbbb';
+
+      final doc = deserializeMarkdownToDocument('Hello world\n');
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(document: doc, composer: composer);
+      final controller = QuietSuperEditorController();
+      controller.attach(editor, composer);
+
+      final node = doc.first as TextNode;
+      composer.setSelectionWithReason(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 5)),
+        ),
+      );
+
+      controller.insertSnippet('\n\n[Report.pdf]($docUri)\n\n[notes.zip]($fileUri)\n\n');
+
+      final attachments = doc.whereType<QuietAttachmentNode>().toList();
+      expect(attachments.length, equals(2));
+      expect(attachments.any((n) => n.uri == docUri), isTrue);
+      expect(attachments.any((n) => n.uri == fileUri), isTrue);
       controller.dispose();
     });
   });

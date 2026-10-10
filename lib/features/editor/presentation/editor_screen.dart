@@ -2205,29 +2205,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
 
       if (validSnippets.isNotEmpty) {
-        final val = _contentController.value;
-        final text = val.text;
-        final sel = val.selection;
-        final start = sel.isValid ? sel.start : text.length;
-        final end = sel.isValid ? sel.end : text.length;
-
-        final combinedSnippet = '\n${validSnippets.join('\n')}\n';
-        final newText = text.replaceRange(start, end, combinedSnippet);
-        final newCursor = start + combinedSnippet.length;
-
-        final updated = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newCursor),
-        );
-
-        _contentController.value = updated;
-        _undoRedoManager.pushAtomicEdit(updated);
-
-        if (!_contentFocusNode.hasFocus) {
-          _contentFocusNode.requestFocus();
-        }
-
-        _onContentChanged();
+        // Route through the mode-aware insert path so each file renders as an
+        // embedded attachment card in Super Editor and Visual modes (not a raw
+        // hyperlink). Double newlines keep every snippet a standalone block.
+        final combinedSnippet = '\n\n${validSnippets.join('\n\n')}\n\n';
+        _insertSnippetAtCursor(combinedSnippet);
       }
 
       if (mounted && failCount > 0) {
@@ -2416,29 +2398,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             title: pickedFile.name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), ''),
           );
 
-          final val = _contentController.value;
-          final text = val.text;
-          final sel = val.selection;
-          final start = sel.isValid ? sel.start : text.length;
-          final end = sel.isValid ? sel.end : text.length;
-
-          final snippet = '\n${res.markdownSnippet}\n';
-          final newText = text.replaceRange(start, end, snippet);
-          final newCursor = start + snippet.length;
-
-          final updated = TextEditingValue(
-            text: newText,
-            selection: TextSelection.collapsed(offset: newCursor),
-          );
-
-          _contentController.value = updated;
-          _undoRedoManager.pushAtomicEdit(updated);
-
-          if (!_contentFocusNode.hasFocus) {
-            _contentFocusNode.requestFocus();
-          }
-
-          _onContentChanged();
+          // Route through the mode-aware insert path so the PDF renders as an
+          // embedded document card in Super Editor and Visual modes.
+          _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
         }
       }
     } catch (e) {
@@ -2466,29 +2428,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       );
 
       if (scanResult != null) {
-        final val = _contentController.value;
-        final text = val.text;
-        final sel = val.selection;
-        final start = sel.isValid ? sel.start : text.length;
-        final end = sel.isValid ? sel.end : text.length;
-
-        final snippet = '\n${scanResult.markdownSnippet}\n';
-        final newText = text.replaceRange(start, end, snippet);
-        final newCursor = start + snippet.length;
-
-        final updated = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newCursor),
-        );
-
-        _contentController.value = updated;
-        _undoRedoManager.pushAtomicEdit(updated);
-
-        if (!_contentFocusNode.hasFocus) {
-          _contentFocusNode.requestFocus();
-        }
-
-        _onContentChanged();
+        // Route through the mode-aware insert path so the scan renders as an
+        // embedded document card in Super Editor and Visual modes.
+        _insertSnippetAtCursor('\n\n${scanResult.markdownSnippet}\n\n');
       }
     } catch (e) {
       if (mounted) {

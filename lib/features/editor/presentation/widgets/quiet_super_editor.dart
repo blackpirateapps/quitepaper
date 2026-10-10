@@ -7,6 +7,7 @@ import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
+import 'super_editor/quiet_attachment_component.dart';
 import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_table_component.dart';
 import 'super_editor/quiet_task_component.dart';
@@ -67,6 +68,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
         : deserializeMarkdownToDocument(normalized);
+
+    // Promote standalone `[name](qp://document|asset/...)` link paragraphs into
+    // embedded attachment card nodes before the editor takes ownership.
+    promoteQuietAttachmentNodes(document);
 
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
@@ -148,6 +153,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         syntax: MarkdownSyntax.normal,
         customNodeSerializers: const [
           QuietImageNodeSerializer(),
+          QuietAttachmentNodeSerializer(),
           QuietTableBlockNodeSerializer(),
         ],
       );
@@ -344,6 +350,11 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               componentBuilders: [
                 QuietTaskComponentBuilder(_editor),
                 QuietImageComponentBuilder(noteId: widget.noteId),
+                QuietAttachmentComponentBuilder(
+                  editor: _editor,
+                  noteId: widget.noteId,
+                  showRemove: !widget.readOnly,
+                ),
                 QuietTableComponentBuilder(editor: _editor),
                 ...defaultComponentBuilders,
               ],
