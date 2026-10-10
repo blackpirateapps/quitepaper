@@ -8199,3 +8199,30 @@ The canonical on-disk Markdown contract is unchanged and byte-compatible across 
 ### 5. Verification & Quality
 - Static Analysis: `flutter analyze` — **No issues found!**
 - Tests: extended [`rich_document_parser_serializer_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_parser_serializer_test.dart) — standalone document/asset links → `AttachmentBlock` (correct kind), image-form asset stays `ImageBlock`, inline/non-`qp` links stay paragraphs, the mixed `[doc]/[file]/![img]` document round-trips **byte-identically**, and an `AttachmentBlock` JSON round-trip for both kinds. Existing `editor_image_upload_compression_test.dart` continues to pass (the encrypted-image path keeps the url caption text it asserts).
+
+## 171. Super Editor — Embedded Document & File Attachment Cards (October 2026)
+
+### 1. Summary
+Super Editor mode now embeds **document** (`[title](qp://document/<UUID>)`) and **generic-file** (`[name](qp://asset/<UUID>)`) attachments as rich cards, matching the Markdown preview and the Visual editor (§170). Previously only image syntax (`![alt](qp://asset/<UUID>)`) became a block (`ImageNode`); link-form documents and files deserialized to a `ParagraphNode` with a `LinkAttribution`, so they rendered as plain inline hyperlinks. The canonical on-disk Markdown is unchanged and byte-compatible (see §170 for the contract).
+
+### 2. New node: `QuietAttachmentNode`
+- NEW [`super_editor/quiet_attachment_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart) — `QuietAttachmentNode extends BlockNode` (mirrors `ImageNode`; fields `uri`, `displayText`; blockType `quietAttachment`). A dedicated node (not an overloaded `ImageNode`) so it round-trips to link form and never gets rewritten to `![..]` by the built-in `ImageNodeSerializer`.
+
+### 3. Deserialize-time promotion + serializer
+- `promoteQuietAttachmentNodes(MutableDocument)` — after `deserializeMarkdownToDocument`, swaps every `ParagraphNode` whose text is exactly one whole-span `LinkAttribution` resolving (via `QuietPaperUri.tryParse`) to `qp://document`/`qp://asset` for a `QuietAttachmentNode` (reusing the paragraph's id). Headings/quotes/code blocks and inline/partial links are skipped. Called from `QuietSuperEditor._initEditor` and `QuietSuperEditorController.insertSnippet`.
+- `QuietAttachmentNodeSerializer` (`NodeTypedDocumentNodeMarkdownSerializer<QuietAttachmentNode>`) → `[displayText](uri)` link form, with a trailing newline before non-last nodes (same block-isolation trick as `QuietImageNodeSerializer`/`QuietTableBlockNodeSerializer`). Registered in `QuietSuperEditor._onDocumentChange`'s `customNodeSerializers`.
+- [`quiet_image_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart) — `normalizeMarkdownForSuperEditor` now also blank-line-isolates standalone `[..](qp://document|asset/...)` link lines so they deserialize as their own paragraph (then get promoted).
+
+### 4. Renderer
+- `QuietAttachmentComponentBuilder` / `QuietAttachmentComponent` render `QuietDocumentCard` (document) or `QuietAttachmentCard` (file) — the cards' own tap opens the resource — with a small corner "Remove from note" control that executes `DeleteNodeRequest` (mirrors the table component's delete). Registered in `QuietSuperEditor`'s `componentBuilders` ahead of the defaults; `showRemove` is gated on `!readOnly`.
+
+### 5. Insertion paths (shared with Visual mode)
+- [`quiet_super_editor_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/quiet_super_editor_controller.dart) — `insertSnippet` now detects standalone `qp://document|asset` link snippets as block content, normalizes + deserializes + `promoteQuietAttachmentNodes`, and inserts via `PasteStructuredContentEditorRequest` (so a toolbar/drop/paste insert lands as a card, not inline link text).
+- [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart) — `_handleAttachFile`, `_handleAttachPdf`, and `_handleScanDocument` previously wrote directly into the plain-Markdown `_contentController` (bypassing the active editor). They now route through the mode-aware `_insertSnippetAtCursor` with `\n\n` block isolation, so attachments embed correctly in Super Editor and Visual modes. Drag-drop (`_handleDroppedFiles`) and paste (`_handlePaste`) already used that path.
+
+### 6. Verification & Quality
+- Static Analysis: `flutter analyze` — **No issues found!**
+- Tests: extended [`quiet_super_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/quiet_super_editor_test.dart) — promotion of standalone document/file links (image syntax left as `ImageNode`), inline qp link NOT promoted, serializer emits link form (never `![..]`), serialize→deserialize→promote round-trip, and `insertSnippet` with qp document/asset links creating `QuietAttachmentNode`s.
+
+### 7. Branch note
+Implemented on `main` (not `feat/scanner-opencv`): that branch's `dartcv4` dependency builds OpenCV via cmake, which is absent in the current environment and blocks `flutter test`. `main` has no such dependency, so the full suite runs there.
