@@ -507,6 +507,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           readOnly: widget.readOnly,
           hintText: widget.hintText,
           searchQuery: widget.searchQuery,
+          noteId: widget.noteId,
           onActiveTargetChanged: widget.onActiveTargetChanged,
           onKeyEvent: widget.onKeyEvent,
           onChanged: (newVal) {

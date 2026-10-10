@@ -8175,3 +8175,27 @@ Replaced the scanner's **fake presets** (global brightness/contrast knobs) with 
 - Optional: add `opencv_core` + an `OpenCvImageProcessor` on mobile for faster/higher-quality pipelines (Phase 0 spike: build Android/iOS, measure size). The Dart impl stays the fallback.
 - Deferred separate spec: real edge detection + perspective dewarp (replace the hardcoded 3% `normalizePage` inset).
 - Carousel/canvas apply the mode on the oriented preview (crop/rotate are overlaid live, not baked into the preview); final compile bakes geometry before the mode. Immaterial for the modes shipped; revisit if a mode becomes crop-edge-sensitive.
+
+## 170. Visual (WYSIWYG) Editor — Attachment Cards + Encrypted Image Fix (October 2026)
+
+### 1. Summary
+Brought the home-grown Visual / WYSIWYG editor (the custom `rich_block` model, not super_editor) to parity with the Markdown preview and super_editor for embedded **document** and **generic-file** attachments, and fixed its broken **encrypted-image** rendering. Previously only `![alt](url)` became a block (an `ImageBlock`); link-form `qp://` references (`[name](qp://asset/<UUID>)` for files, `[title](qp://document/<UUID>)` for documents) stayed inline hyperlinks, and `ImageBlock` rendered `qp://asset` images with a raw `Image.file`/`Image.network`, so encrypted images only showed a placeholder.
+
+The canonical on-disk Markdown contract is unchanged and byte-compatible across all editors + preview + sync: image asset → `![alt](qp://asset/<UUID>)`; generic file → `[name](qp://asset/<UUID>)` (link form, no `!`); document → `[title](qp://document/<UUID>)` (link form).
+
+### 2. New block: `AttachmentBlock`
+- [`rich_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart) — new `AttachmentBlock` (fields: `uri`, `name`, `kind`) with an `AttachmentBlockKind` discriminator (`document` vs `file`; `fromName` defaults to `file` for forward-compat). `plainText => name`. Standard `toJson`/`fromJson` (`type: 'attachment'`) wired into `RichBlock.fromJson`'s dispatch. `ImageBlock` is untouched and still used for images.
+
+### 3. Parser / Serializer
+- [`rich_document_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_parser.dart) — new `_parseStandaloneAttachment` promotes a line that is *exactly* a single Markdown link whose URL parses (via `QuietPaperUri.tryParse`) as `qp://document` (→ `document` kind) or `qp://asset` (→ `file` kind) into an `AttachmentBlock`. Runs right after the standalone-image check; image syntax (`![..]`) still wins. Inline links inside a larger paragraph, and non-`qp` links, stay regular inline link spans.
+- [`rich_document_serializer.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_serializer.dart) — `AttachmentBlock` → `[name](uri)` (link form, no leading `!`). `ImageBlock` still → `![alt](url)`.
+
+### 4. Renderers
+- NEW [`rich_attachment_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_attachment_block.dart) — renders `QuietDocumentCard` (document kind) or `QuietAttachmentCard` (file kind), reusing the core cards unmodified. The card's own tap opens the resource; a small overlaid delete control (`QuietIconButton`, top-right) removes the block via `controller.convertBlockToParagraph(blockIndex)` — the same affordance `RichImageBlock` uses.
+- [`rich_image_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_image_block.dart) — when `block.url` parses as a `qp://asset` URI, the image surface now renders via `QuietAssetImageView(assetId:…, noteId:…)` (resolves + decrypts encrypted assets) instead of raw `Image.file`/`Image.network`; the self-sizing view is placed directly (not inside the fixed 360px `Center`) to avoid an overflow. Raw http/file URLs keep the existing rendering + bounded box. The caption/url bar and delete button are unchanged.
+- [`rich_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_editor_surface.dart) — added an `AttachmentBlock` branch to the non-text block switch and a new optional `noteId`, forwarded to `RichImageBlock`.
+- [`markdown_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart) — passes `noteId: widget.noteId` to `RichEditorSurface` (mirrors how `QuietSuperEditor` already receives it). Inserts remain handled upstream: `editor_screen` routes snippets through the controller, which re-parses Markdown, so the new parser rule is what makes link-form inserts render as cards.
+
+### 5. Verification & Quality
+- Static Analysis: `flutter analyze` — **No issues found!**
+- Tests: extended [`rich_document_parser_serializer_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_parser_serializer_test.dart) — standalone document/asset links → `AttachmentBlock` (correct kind), image-form asset stays `ImageBlock`, inline/non-`qp` links stay paragraphs, the mixed `[doc]/[file]/![img]` document round-trips **byte-identically**, and an `AttachmentBlock` JSON round-trip for both kinds. Existing `editor_image_upload_compression_test.dart` continues to pass (the encrypted-image path keeps the url caption text it asserts).

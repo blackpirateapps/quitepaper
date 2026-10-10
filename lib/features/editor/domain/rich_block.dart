@@ -88,6 +88,13 @@ abstract class RichBlock {
           alt: json['alt'] as String? ?? '',
           title: json['title'] as String?,
         );
+      case 'attachment':
+        return AttachmentBlock(
+          id: id,
+          uri: json['uri'] as String? ?? '',
+          name: json['name'] as String? ?? '',
+          kind: AttachmentBlockKind.fromName(json['kind'] as String?),
+        );
       case 'table':
         final md = json['markdown'] as String? ?? '';
         final tables = const MarkdownTableParser().findTables(md);
@@ -684,6 +691,88 @@ class ImageBlock extends RichBlock {
 
   @override
   String toString() => 'ImageBlock($id, url: "$url", alt: "$alt")';
+}
+
+/// Semantic kind of an embedded [AttachmentBlock] card.
+enum AttachmentBlockKind {
+  /// A scanned document / PDF / web snapshot (`qp://document/<UUID>`).
+  document,
+
+  /// A generic binary file attachment (`qp://asset/<UUID>` in link form).
+  file;
+
+  /// Resolves a persisted discriminator back to a kind, defaulting to [file].
+  static AttachmentBlockKind fromName(String? name) {
+    return name == 'document' ? AttachmentBlockKind.document : AttachmentBlockKind.file;
+  }
+}
+
+/// An embedded attachment reference rendered as a card (document or generic file).
+///
+/// Serializes to a canonical Markdown link (`[name](uri)`) rather than image
+/// syntax, preserving byte-compatibility with the Markdown preview and the
+/// other editors. Images continue to use [ImageBlock].
+class AttachmentBlock extends RichBlock {
+  const AttachmentBlock({
+    required super.id,
+    required this.uri,
+    required this.name,
+    required this.kind,
+  });
+
+  /// The canonical `qp://document/<UUID>` or `qp://asset/<UUID>` URI.
+  final String uri;
+
+  /// Display label / title of the attachment (the Markdown link text).
+  final String name;
+
+  /// Whether this card represents a document or a generic file.
+  final AttachmentBlockKind kind;
+
+  @override
+  String get plainText => name;
+
+  AttachmentBlock copyWith({
+    String? id,
+    String? uri,
+    String? name,
+    AttachmentBlockKind? kind,
+  }) {
+    return AttachmentBlock(
+      id: id ?? this.id,
+      uri: uri ?? this.uri,
+      name: name ?? this.name,
+      kind: kind ?? this.kind,
+    );
+  }
+
+  @override
+  AttachmentBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'attachment',
+        'id': id,
+        'uri': uri,
+        'name': name,
+        'kind': kind.name,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AttachmentBlock &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          uri == other.uri &&
+          name == other.name &&
+          kind == other.kind;
+
+  @override
+  int get hashCode => Object.hash(id, uri, name, kind);
+
+  @override
+  String toString() => 'AttachmentBlock($id, kind: ${kind.name}, uri: "$uri")';
 }
 
 /// A Markdown table block.

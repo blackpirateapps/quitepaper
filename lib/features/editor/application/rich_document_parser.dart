@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import '../../../core/uri/quiet_paper_uri.dart';
 import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
 import '../domain/rich_inline.dart';
@@ -85,6 +86,16 @@ class RichDocumentParser {
       final standaloneImage = _parseStandaloneImage(line);
       if (standaloneImage != null) {
         blocks.add(standaloneImage);
+        i++;
+        continue;
+      }
+
+      // 4b. Standalone Attachment: [name](qp://document/<uuid>) or [name](qp://asset/<uuid>)
+      // Link-form qp:// references on their own line promote to card blocks.
+      // Inline links inside a larger paragraph remain regular inline links.
+      final standaloneAttachment = _parseStandaloneAttachment(line);
+      if (standaloneAttachment != null) {
+        blocks.add(standaloneAttachment);
         i++;
         continue;
       }
@@ -272,6 +283,41 @@ class RichDocumentParser {
         alt: match.group(1) ?? '',
         url: match.group(2) ?? '',
         title: match.group(3),
+      );
+    }
+    return null;
+  }
+
+  /// Promotes a line that is exactly a single Markdown link to a Quiet Paper
+  /// resource (`qp://document/<uuid>` or `qp://asset/<uuid>`) into an
+  /// [AttachmentBlock]. Returns null for non-qp links or inline links, which
+  /// stay as regular inline link spans within their paragraph.
+  static AttachmentBlock? _parseStandaloneAttachment(String line) {
+    final trimmed = line.trim();
+    final match = RegExp(r'^\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$').firstMatch(trimmed);
+    if (match == null) {
+      return null;
+    }
+    final name = match.group(1) ?? '';
+    final uri = match.group(2) ?? '';
+    final parsed = QuietPaperUri.tryParse(uri);
+    if (parsed == null) {
+      return null;
+    }
+    if (parsed.isDocument) {
+      return AttachmentBlock(
+        id: _uuid.v4(),
+        uri: uri,
+        name: name,
+        kind: AttachmentBlockKind.document,
+      );
+    }
+    if (parsed.isAsset) {
+      return AttachmentBlock(
+        id: _uuid.v4(),
+        uri: uri,
+        name: name,
+        kind: AttachmentBlockKind.file,
       );
     }
     return null;

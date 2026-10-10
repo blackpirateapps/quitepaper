@@ -4,6 +4,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/attachments/presentation/quiet_asset_image_view.dart';
+import '../../../../core/uri/quiet_paper_uri.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../domain/rich_block.dart';
 import '../../application/rich_document_controller.dart';
@@ -16,6 +18,7 @@ class RichImageBlock extends StatelessWidget {
     required this.blockIndex,
     required this.controller,
     this.readOnly = false,
+    this.noteId,
   });
 
   final ImageBlock block;
@@ -23,29 +26,49 @@ class RichImageBlock extends StatelessWidget {
   final RichDocumentController controller;
   final bool readOnly;
 
+  /// Owning note id, forwarded to [QuietAssetImageView] for encrypted assets.
+  final String? noteId;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final isLocal = !block.url.startsWith('http://') && !block.url.startsWith('https://');
 
     Widget imageWidget;
-    if (isLocal) {
-      final file = File(block.url);
-      if (file.existsSync()) {
-        imageWidget = Image.file(
-          file,
+    // QuietAssetImageView sizes itself responsively, so it is placed directly;
+    // raw Image.file/network paths are centred within a bounded height box.
+    var selfSizing = false;
+
+    // Encrypted Quiet Paper asset image (`qp://asset/<UUID>`): resolve and
+    // decrypt via QuietAssetImageView. Raw http/file paths keep the plain
+    // Image.network / Image.file rendering below.
+    final qpUri = QuietPaperUri.tryParse(block.url);
+    if (qpUri != null && qpUri.isAsset) {
+      selfSizing = true;
+      imageWidget = QuietAssetImageView(
+        assetId: qpUri.resourceId,
+        noteId: noteId,
+        altText: block.alt,
+      );
+    } else {
+      final isLocal = !block.url.startsWith('http://') && !block.url.startsWith('https://');
+      if (isLocal) {
+        final file = File(block.url);
+        if (file.existsSync()) {
+          imageWidget = Image.file(
+            file,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colors),
+          );
+        } else {
+          imageWidget = _buildPlaceholder(colors);
+        }
+      } else {
+        imageWidget = Image.network(
+          block.url,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colors),
         );
-      } else {
-        imageWidget = _buildPlaceholder(colors);
       }
-    } else {
-      imageWidget = Image.network(
-        block.url,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colors),
-      );
     }
 
     return Container(
@@ -61,10 +84,16 @@ class RichImageBlock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Image surface
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 360),
-            child: Center(child: imageWidget),
-          ),
+          if (selfSizing)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: imageWidget,
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: Center(child: imageWidget),
+            ),
 
           // Caption & actions bar
           if (block.alt.isNotEmpty || !readOnly)

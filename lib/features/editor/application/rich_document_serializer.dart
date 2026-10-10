@@ -80,6 +80,12 @@ class RichDocumentSerializer {
       return '![${block.alt}](${block.url}$titleAttr)';
     }
 
+    if (block is AttachmentBlock) {
+      // Link form (no leading `!`): keeps documents and generic files
+      // byte-compatible with the Markdown preview and the other editors.
+      return '[${block.name}](${block.uri})';
+    }
+
     if (block is TableBlock) {
       return formatTable(block.table);
     }

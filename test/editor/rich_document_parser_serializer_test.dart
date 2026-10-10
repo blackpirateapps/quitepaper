@@ -105,6 +105,84 @@ void main() {
       expect(serializer.serialize(doc), md);
     });
 
+    test('Standalone document link promotes to a document AttachmentBlock', () {
+      const md = '[Report](qp://document/11111111-1111-4111-8111-111111111111)';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 1);
+      final att = doc.blocks.first as AttachmentBlock;
+      expect(att.kind, AttachmentBlockKind.document);
+      expect(att.name, 'Report');
+      expect(att.uri, 'qp://document/11111111-1111-4111-8111-111111111111');
+      // Serializes back to exact link form (no leading `!`).
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Standalone asset link promotes to a file AttachmentBlock', () {
+      const md = '[notes.zip](qp://asset/22222222-2222-4222-8222-222222222222)';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 1);
+      final att = doc.blocks.first as AttachmentBlock;
+      expect(att.kind, AttachmentBlockKind.file);
+      expect(att.name, 'notes.zip');
+      expect(att.uri, 'qp://asset/22222222-2222-4222-8222-222222222222');
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Image-form asset link stays an ImageBlock, not an AttachmentBlock', () {
+      const md = '![pic](qp://asset/33333333-3333-4333-8333-333333333333)';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 1);
+      expect(doc.blocks.first, isA<ImageBlock>());
+      final img = doc.blocks.first as ImageBlock;
+      expect(img.url, 'qp://asset/33333333-3333-4333-8333-333333333333');
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Inline qp:// link inside a paragraph stays an inline link', () {
+      const md = 'See [Report](qp://document/11111111-1111-4111-8111-111111111111) later.';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 1);
+      expect(doc.blocks.first, isA<ParagraphBlock>());
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Non-qp standalone link stays an inline link paragraph', () {
+      const md = '[Quiet Paper](https://quitepaper.app)';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 1);
+      expect(doc.blocks.first, isA<ParagraphBlock>());
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Mixed document/file/image references round-trip byte-identically', () {
+      const md =
+          '[Report](qp://document/11111111-1111-4111-8111-111111111111)\n\n'
+          'text\n\n'
+          '[notes.zip](qp://asset/22222222-2222-4222-8222-222222222222)\n\n'
+          '![pic](qp://asset/33333333-3333-4333-8333-333333333333)';
+      final doc = parser.parse(md);
+      expect(doc.blocks.whereType<AttachmentBlock>().length, 2);
+      expect(doc.blocks.whereType<ImageBlock>().length, 1);
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('AttachmentBlock survives JSON round-trip for both kinds', () {
+      const docAtt = AttachmentBlock(
+        id: 'a1',
+        uri: 'qp://document/11111111-1111-4111-8111-111111111111',
+        name: 'Report',
+        kind: AttachmentBlockKind.document,
+      );
+      const fileAtt = AttachmentBlock(
+        id: 'a2',
+        uri: 'qp://asset/22222222-2222-4222-8222-222222222222',
+        name: 'notes.zip',
+        kind: AttachmentBlockKind.file,
+      );
+      expect(RichBlock.fromJson(docAtt.toJson()), docAtt);
+      expect(RichBlock.fromJson(fileAtt.toJson()), fileAtt);
+    });
+
     test('Markdown Tables parse and serialize', () {
       const md = '| Column A | Column B |\n| --- | --- |\n| Cell 1 | Cell 2 |';
       final doc = parser.parse(md);

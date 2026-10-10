@@ -3,6 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/rich_block.dart';
 import '../../application/rich_document_controller.dart';
+import 'rich_attachment_block.dart';
 import 'rich_code_block.dart';
 import 'rich_image_block.dart';
 import 'rich_table_editor.dart';
@@ -20,6 +21,7 @@ class RichEditorSurface extends StatefulWidget {
     this.readOnly = false,
     this.hintText = 'Start writing...',
     this.searchQuery,
+    this.noteId,
     this.onActiveTargetChanged,
     this.onChanged,
     this.onKeyEvent,
@@ -30,6 +32,10 @@ class RichEditorSurface extends StatefulWidget {
   final bool readOnly;
   final String hintText;
   final String? searchQuery;
+
+  /// Owning note id, used to resolve encrypted `qp://asset` images and provide
+  /// gallery context to embedded cards.
+  final String? noteId;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
   final FocusOnKeyEventCallback? onKeyEvent;
@@ -137,6 +143,17 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
         } else if (block is ImageBlock) {
           segments.add(
             RichImageBlock(
+              key: ValueKey(block.id),
+              block: block,
+              blockIndex: i,
+              controller: widget.controller,
+              readOnly: widget.readOnly,
+              noteId: widget.noteId,
+            ),
+          );
+        } else if (block is AttachmentBlock) {
+          segments.add(
+            RichAttachmentBlock(
               key: ValueKey(block.id),
               block: block,
               blockIndex: i,
