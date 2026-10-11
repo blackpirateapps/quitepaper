@@ -134,7 +134,8 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
           );
 
       ImageRasterizer? rasterizer;
-      if (_selectedFormat == ExportFormat.image) {
+      if (_selectedFormat == ExportFormat.image ||
+          _selectedFormat == ExportFormat.pdf) {
         final highlighter = ref.read(syntaxHighlighterProvider);
         final resolver = ref.read(syntaxLanguageResolverProvider);
         final typography = ref.read(typographySettingsProvider);

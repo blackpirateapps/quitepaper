@@ -15,6 +15,7 @@ enum FontPickerType {
   body,
   code,
   interface,
+  bengali,
 }
 
 class FontPickerSheet extends ConsumerStatefulWidget {
@@ -92,8 +93,14 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
         return CuratedFonts.codePresets;
       case FontPickerType.interface:
         return CuratedFonts.interfacePresets;
+      case FontPickerType.bengali:
+        return CuratedFonts.bengaliPresets;
     }
   }
+
+  /// Bengali pangram-ish sample shown in each candidate face (the family name
+  /// itself is Latin, which these Bengali-only subsets cannot render).
+  static const String _bengaliSample = 'আমার সোনার বাংলা, আমি তোমায় ভালোবাসি';
 
   Future<void> _importLocalFont() async {
     try {
@@ -140,7 +147,7 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
 
     final allFonts = <String>{
       ..._getPresets(),
-      ...typography.customFonts,
+      if (widget.type != FontPickerType.bengali) ...typography.customFonts,
     }.toList();
 
     final filtered = _searchQuery.isEmpty
@@ -154,9 +161,12 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
             ? CuratedFonts.systemMono
             : (widget.type == FontPickerType.interface
                 ? 'Match Editor Body'
-                : CuratedFonts.systemSans));
+                : (widget.type == FontPickerType.bengali
+                    ? CuratedFonts.bengaliDefault
+                    : CuratedFonts.systemSans)));
 
     final showCustomQueryOption = _searchQuery.isNotEmpty &&
+        widget.type != FontPickerType.bengali &&
         !allFonts.any((f) => f.toLowerCase() == _searchQuery.toLowerCase());
 
     return SafeArea(
@@ -195,34 +205,36 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                       ),
                     ),
                     // View Google Fonts Button
-                    TextButton.icon(
-                      icon: Icon(Icons.language_rounded,
-                          size: 15, color: colors.accent),
-                      label: Text(
-                        'Google Fonts',
-                        style: TextStyle(
-                          color: colors.accent,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
+                    if (widget.type != FontPickerType.bengali) ...[
+                      TextButton.icon(
+                        icon: Icon(Icons.language_rounded,
+                            size: 15, color: colors.accent),
+                        label: Text(
+                          'Google Fonts',
+                          style: TextStyle(
+                            color: colors.accent,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                        onPressed: _openGoogleFontsBrowser,
                       ),
-                      onPressed: _openGoogleFontsBrowser,
-                    ),
-                    const SizedBox(width: 4),
-                    // Import .TTF / .OTF Button
-                    TextButton.icon(
-                      icon: Icon(Icons.file_upload_outlined,
-                          size: 15, color: colors.accent),
-                      label: Text(
-                        'Import .ttf',
-                        style: TextStyle(
-                          color: colors.accent,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(width: 4),
+                      // Import .TTF / .OTF Button
+                      TextButton.icon(
+                        icon: Icon(Icons.file_upload_outlined,
+                            size: 15, color: colors.accent),
+                        label: Text(
+                          'Import .ttf',
+                          style: TextStyle(
+                            color: colors.accent,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                        onPressed: _importLocalFont,
                       ),
-                      onPressed: _importLocalFont,
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -282,17 +294,23 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                   children: [
                     ...filtered.map((font) {
                       final isMatchEditorBody = font == 'Match Editor Body';
+                      final isBengali = widget.type == FontPickerType.bengali;
                       final isSelected = (font == effectiveCurrent) ||
                           (isMatchEditorBody && (widget.currentFont == null || widget.currentFont == 'Match Editor Body')) ||
                           (font == 'System Sans' && widget.currentFont == null && widget.type != FontPickerType.interface) ||
                           (font == 'System Serif' && widget.currentFont == 'serif') ||
                           (font == 'Monospace' && widget.currentFont == 'monospace');
 
-                      final previewFamily = isMatchEditorBody
-                          ? FontFamilyHelper.resolveBodyFontFamily(typography.bodyFontFamily)
-                          : (widget.type == FontPickerType.heading
-                              ? FontFamilyHelper.resolveHeadingFontFamily(font)
-                              : FontFamilyHelper.resolveBodyFontFamily(font));
+                      // Bengali faces are Bengali-only subsets, so their Latin
+                      // family name must render in a neutral UI font; the face
+                      // itself is previewed on a Bengali sample line below.
+                      final previewFamily = isBengali
+                          ? null
+                          : (isMatchEditorBody
+                              ? FontFamilyHelper.resolveBodyFontFamily(typography.bodyFontFamily)
+                              : (widget.type == FontPickerType.heading
+                                  ? FontFamilyHelper.resolveHeadingFontFamily(font)
+                                  : FontFamilyHelper.resolveBodyFontFamily(font)));
 
                       final fontStyle = FontFamilyHelper.getTextStyle(
                         fontFamily: previewFamily,
@@ -360,6 +378,46 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                             ),
                           );
                         }
+                      }
+
+                      if (isBengali) {
+                        final sampleStyle = FontFamilyHelper.getTextStyle(
+                          fontFamily: font,
+                          baseStyle: TextStyle(
+                            fontSize: 17,
+                            height: 1.35,
+                            color: colors.textPrimary,
+                          ),
+                        );
+                        final statusLine = subtitleWidget;
+                        subtitleWidget = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              _bengaliSample,
+                              style: sampleStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (font == CuratedFonts.bengaliDefault)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(
+                                  'Bundled • always available offline',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.textTertiary,
+                                  ),
+                                ),
+                              )
+                            else if (statusLine != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: statusLine,
+                              ),
+                          ],
+                        );
                       }
 
                       Widget? trailingWidget;

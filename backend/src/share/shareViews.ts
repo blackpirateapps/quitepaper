@@ -23,6 +23,8 @@ const FONT_FACES = `
   @font-face { font-family:'Inter'; src:url('/fonts/Inter/Inter-Italic.ttf') format('truetype'); font-weight:400; font-style:italic; font-display:swap; }
   @font-face { font-family:'iA Writer Quattro'; src:url('/fonts/iAWriterQuattro/iAWriterQuattro-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
   @font-face { font-family:'iA Writer Quattro'; src:url('/fonts/iAWriterQuattro/iAWriterQuattro-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Kolpona'; src:url('/fonts/Kolpona/Kolpona-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Kolpona'; src:url('/fonts/Kolpona/Kolpona-Italic.ttf') format('truetype'); font-weight:400; font-style:italic; font-display:swap; }
 `;
 
 const BASE_STYLES = `
@@ -32,9 +34,9 @@ const BASE_STYLES = `
     --accent:#C2532F; --accent-soft:rgba(194,83,47,0.10); --amber:#B45309;
     --code-str:#4C8C4A; --code-fn:#7A6BC4;
     --shadow:0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.05);
-    --font-serif:'Lora', Georgia, 'Times New Roman', serif;
-    --font-sans:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-mono:'iA Writer Quattro', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-serif:'Lora', Georgia, 'Times New Roman', 'Kolpona', serif;
+    --font-sans:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, 'Kolpona', sans-serif;
+    --font-mono:'iA Writer Quattro', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Kolpona', monospace;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg:#1D1C1A; --surface:#26241F; --surface-2:#221F1B; --border:#37342E;

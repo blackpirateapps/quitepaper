@@ -21,6 +21,8 @@ Typography is two-dimensional architecture.
 ## Principles of Layout
 Good design is as little design as possible. **Bold ideas** and *delicate details* create quiet harmony.
 
+বাংলা হরফে লেখা — ক্ষুধার্ত ঋষি সঞ্চয় করেন। ০১২৩৪৫৬৭৮৯
+
 - [x] Clear visual hierarchy
 - [ ] Balanced letterforms
 
@@ -152,6 +154,24 @@ void compose() => print('Quiet Paper');
                           type: FontPickerType.code,
                           onFontSelected: (font) {
                             notifier.setCodeFontFamily(font);
+                          },
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _buildFontPickerRow(
+                      context: context,
+                      colors: colors,
+                      title: 'Bengali Font',
+                      fontFamily: typography.bengaliFontFamily ?? 'Kalpurush',
+                      onTap: () {
+                        FontPickerSheet.show(
+                          context,
+                          title: 'Bengali Font',
+                          currentFont: typography.bengaliFontFamily,
+                          type: FontPickerType.bengali,
+                          onFontSelected: (font) {
+                            notifier.setBengaliFontFamily(font);
                           },
                         );
                       },

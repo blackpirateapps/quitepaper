@@ -236,6 +236,7 @@ class ExportService {
             snapshot: snapshot,
             request: request,
             outputFile: outputFile,
+            imageRasterizer: imageRasterizer,
           );
           break;
         case ExportFormat.html:

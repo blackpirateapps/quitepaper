@@ -228,6 +228,38 @@ class FontCacheManager {
         HostedFontVariant(variant: 'boldItalic', weight: 700, style: 'italic', file: 'iAWriterQuattro/iAWriterQuattro-BoldItalic.ttf', size: 104520),
       ],
     ),
+    // Bengali content faces (Bengali-only subsets; render Bengali runs only).
+    HostedFontEntry(
+      family: 'Kolpona',
+      category: 'Bengali',
+      variants: [
+        HostedFontVariant(variant: 'regular', weight: 400, style: 'normal', file: 'Kolpona/Kolpona-Regular.ttf', size: 222420),
+        HostedFontVariant(variant: 'italic', weight: 400, style: 'italic', file: 'Kolpona/Kolpona-Italic.ttf', size: 127696),
+      ],
+    ),
+    HostedFontEntry(
+      family: 'Byomgraphy Koushali',
+      category: 'Bengali',
+      variants: [
+        HostedFontVariant(variant: 'regular', weight: 400, style: 'normal', file: 'ByomgraphyKoushali/ByomgraphyKoushali-Regular.ttf', size: 197956),
+        HostedFontVariant(variant: 'italic', weight: 400, style: 'italic', file: 'ByomgraphyKoushali/ByomgraphyKoushali-Italic.ttf', size: 131648),
+      ],
+    ),
+    HostedFontEntry(
+      family: 'Purno Pran',
+      category: 'Bengali',
+      variants: [
+        HostedFontVariant(variant: 'regular', weight: 400, style: 'normal', file: 'PurnoPran/PurnoPran-Regular.ttf', size: 98612),
+        HostedFontVariant(variant: 'italic', weight: 400, style: 'italic', file: 'PurnoPran/PurnoPran-Italic.ttf', size: 104664),
+      ],
+    ),
+    HostedFontEntry(
+      family: 'Samsung Bengali',
+      category: 'Bengali',
+      variants: [
+        HostedFontVariant(variant: 'regular', weight: 400, style: 'normal', file: 'SamsungBengali/SamsungBengali-Regular.ttf', size: 124448),
+      ],
+    ),
   ];
 
   /// Resolves the local fonts storage directory.
@@ -305,6 +337,12 @@ class FontCacheManager {
       case 'iawriterquattros':
       case 'quattro':
         return 'iA Writer Quattro';
+      case 'byomgraphykoushali':
+        return 'Byomgraphy Koushali';
+      case 'purnopran':
+        return 'Purno Pran';
+      case 'samsungbengali':
+        return 'Samsung Bengali';
       default:
         return raw;
     }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/fonts/font_cache_manager.dart';
+import '../../../core/utils/font_family_helper.dart';
 import '../domain/typography_settings.dart';
 import 'settings_provider.dart';
 
@@ -57,6 +58,18 @@ class CuratedFonts {
     'Courier Prime',
   ];
 
+  /// Bengali content fonts. The first option (bundled Kalpurush) maps to null —
+  /// the always-offline default. The rest are CDN-hosted and downloaded on tap.
+  static const String bengaliDefault = 'Kalpurush';
+
+  static const List<String> bengaliPresets = [
+    bengaliDefault,
+    'Kolpona',
+    'Byomgraphy Koushali',
+    'Purno Pran',
+    'Samsung Bengali',
+  ];
+
   static const List<String> interfacePresets = [
     'Match Editor Body',
     'System Sans',
@@ -78,6 +91,7 @@ class CuratedFonts {
 class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
   TypographySettingsNotifier([this._prefs]) : super(_loadInitialSettings(_prefs)) {
     _initCustomFonts();
+    _initBengaliFont();
   }
 
   final SharedPreferences? _prefs;
@@ -125,8 +139,17 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     }
   }
 
-  void _ensureFontLoaded(String family) {
-    String queryFamily = family;
+  /// Restores the active Bengali content font from persisted settings on launch,
+  /// mirroring it into [FontFamilyHelper]'s fallback chain and warming the cache.
+  void _initBengaliFont() {
+    final family = state.bengaliFontFamily;
+    setActiveBengaliContentFont(family);
+    if (family != null && family != kBengaliFallbackFamily) {
+      _ensureFontLoaded(family);
+    }
+  }
+
+  void _ensureFontLoaded(String family) {    String queryFamily = family;
     if (family == 'SF Pro Display' || family == 'SF Pro Text' || family == 'SF Pro') {
       queryFamily = 'San Francisco';
     } else if (family == 'Quattro') {
@@ -194,6 +217,24 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
     await _persist(state.copyWith(
       codeFontFamily: clean,
       clearCodeFont: clean == 'monospace',
+    ));
+  }
+
+  /// Sets the Bengali content font. Selecting the bundled Kalpurush default
+  /// clears the override (null). CDN-hosted families are downloaded on demand
+  /// and mirrored into the shared Bengali fallback chain for live note rendering.
+  Future<void> setBengaliFontFamily(String? family) async {
+    final clean =
+        (family == null || family.isEmpty || family == kBengaliFallbackFamily)
+            ? null
+            : family;
+    if (clean != null) {
+      _ensureFontLoaded(clean);
+    }
+    setActiveBengaliContentFont(clean);
+    await _persist(state.copyWith(
+      bengaliFontFamily: clean,
+      clearBengaliFont: clean == null,
     ));
   }
 
@@ -301,6 +342,7 @@ class TypographySettingsNotifier extends StateNotifier<TypographySettings> {
 
   /// Resets all typography preferences to factory defaults.
   Future<void> resetToDefault() async {
+    setActiveBengaliContentFont(null);
     await _persist(TypographySettings.defaultSettings.copyWith(
       customFonts: state.customFonts,
     ));

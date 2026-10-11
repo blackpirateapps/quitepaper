@@ -63,4 +63,33 @@ void main() {
       expect(occurrences, 1);
     });
   });
+
+  group('Active Bengali content font', () {
+    tearDown(() => setActiveBengaliContentFont(null));
+
+    test('defaults to Kalpurush only when no font is selected', () {
+      setActiveBengaliContentFont(null);
+      expect(kContentFontFallback, <String>['Kalpurush']);
+    });
+
+    test('selected Bengali font leads the chain, Kalpurush trails', () {
+      setActiveBengaliContentFont('Kolpona');
+      expect(kContentFontFallback, <String>['Kolpona', 'Kalpurush']);
+
+      final style = FontFamilyHelper.getTextStyle(fontFamily: 'Roboto', baseStyle: base);
+      expect(style.fontFamily, isNot('Kolpona')); // Latin primary unaffected
+      expect(style.fontFamilyFallback, containsAllInOrder(<String>['Kolpona', 'Kalpurush']));
+    });
+
+    test('selecting the bundled Kalpurush family clears the override', () {
+      setActiveBengaliContentFont('Kalpurush');
+      expect(kContentFontFallback, <String>['Kalpurush']);
+      expect(activeBengaliContentFont, isNull);
+    });
+
+    test('the Bengali faces are advertised as hosted downloads', () {
+      expect(FontFamilyHelper.hostedFonts, containsAll(FontFamilyHelper.bengaliFonts));
+      expect(FontFamilyHelper.bengaliFonts, contains('Kolpona'));
+    });
+  });
 }

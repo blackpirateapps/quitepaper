@@ -22,9 +22,9 @@ void main() {
   });
 
   group('FontCacheManager', () {
-    test('defaultHostedFonts contains 10 curated font families', () {
+    test('defaultHostedFonts contains the curated Latin + Bengali font families', () {
       final fonts = FontCacheManager.defaultHostedFonts;
-      expect(fonts.length, equals(10));
+      expect(fonts.length, equals(14));
 
       final families = fonts.map((f) => f.family).toSet();
       expect(families, containsAll([
@@ -38,7 +38,15 @@ void main() {
         'JetBrains Mono',
         'Fira Code',
         'iA Writer Quattro',
+        'Kolpona',
+        'Byomgraphy Koushali',
+        'Purno Pran',
+        'Samsung Bengali',
       ]));
+
+      // Bengali faces are categorized so the picker can group them.
+      final bengali = fonts.where((f) => f.category == 'Bengali').map((f) => f.family).toSet();
+      expect(bengali, equals({'Kolpona', 'Byomgraphy Koushali', 'Purno Pran', 'Samsung Bengali'}));
     });
 
     test('HostedFontEntry calculates totalSize and formats readable size', () {

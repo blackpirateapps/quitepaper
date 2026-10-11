@@ -2,13 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../fonts/font_cache_manager.dart';
 
-/// Bundled Bengali display font (Kalpurush, Regular-only). Used as a universal
-/// script fallback so Bengali runs render under any chosen Latin/code font.
+/// Bundled Bengali display font (Kalpurush, Regular-only, Bengali-only subset).
+/// Always the final, always-offline resort of the Bengali fallback chain.
 const String kBengaliFallbackFamily = 'Kalpurush';
 
+/// The user-selected Bengali content font (a CDN-hosted Bengali family), or null
+/// to render Bengali in the bundled [kBengaliFallbackFamily] only. Mutated by the
+/// typography notifier whenever the "Bengali font" setting loads or changes.
+String? _activeBengaliContentFont;
+
+/// Sets the active user-selected Bengali content font. Pass null/empty (or the
+/// bundled family itself) to clear it and fall back to bundled Kalpurush only.
+void setActiveBengaliContentFont(String? family) {
+  final clean = (family == null || family.trim().isEmpty) ? null : family.trim();
+  _activeBengaliContentFont = (clean == kBengaliFallbackFamily) ? null : clean;
+}
+
+/// The active user-selected Bengali content font, or null when using Kalpurush.
+String? get activeBengaliContentFont => _activeBengaliContentFont;
+
 /// Shared fallback chain appended to every note-content [TextStyle] so Bengali
-/// (and any other glyphs the primary family lacks) fall through to Kalpurush.
-const List<String> kContentFontFallback = <String>[kBengaliFallbackFamily];
+/// runs render in the chosen Bengali font (when one is selected and loaded),
+/// then fall through to the bundled Kalpurush, under any chosen Latin/code font.
+List<String> get kContentFontFallback => <String>[
+      ?_activeBengaliContentFont,
+      kBengaliFallbackFamily,
+    ];
 
 /// Helper utility for resolving font families across backend-hosted fonts, system fonts,
 /// Google Fonts, and custom user-imported fonts.
@@ -26,6 +45,17 @@ class FontFamilyHelper {
     'Fira Code',
     'iA Writer Quattro',
     'Quattro',
+    ...bengaliFonts,
+  };
+
+  /// CDN-hosted Bengali display faces, offered as a dedicated "Bengali font"
+  /// content fallback (they do not render Latin — Latin stays on the chosen
+  /// Latin family). The bundled [kBengaliFallbackFamily] is the offline default.
+  static const Set<String> bengaliFonts = {
+    'Kolpona',
+    'Byomgraphy Koushali',
+    'Purno Pran',
+    'Samsung Bengali',
   };
 
   /// Backwards-compatibility alias for hosted fonts

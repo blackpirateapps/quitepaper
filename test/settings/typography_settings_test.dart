@@ -37,6 +37,7 @@ void main() {
         headingFontFamily: 'Playfair Display',
         bodyFontFamily: 'Lora',
         codeFontFamily: 'Fira Code',
+        bengaliFontFamily: 'Kolpona',
         fontSize: 20.0,
         lineHeight: 1.8,
         letterSpacing: 0.5,
@@ -51,12 +52,22 @@ void main() {
       expect(restored.headingFontFamily, equals('Playfair Display'));
       expect(restored.bodyFontFamily, equals('Lora'));
       expect(restored.codeFontFamily, equals('Fira Code'));
+      expect(restored.bengaliFontFamily, equals('Kolpona'));
       expect(restored.fontSize, equals(20.0));
       expect(restored.lineHeight, equals(1.8));
       expect(restored.letterSpacing, equals(0.5));
       expect(restored.paragraphWidth, equals(ParagraphWidth.narrow));
       expect(restored.paragraphIndent, equals(16.0));
       expect(restored.customFonts, equals(['Custom-Sans']));
+    });
+
+    test('bengaliFontFamily defaults null and clears via copyWith', () {
+      const settings = TypographySettings();
+      expect(settings.bengaliFontFamily, isNull);
+      final set = settings.copyWith(bengaliFontFamily: 'Purno Pran');
+      expect(set.bengaliFontFamily, equals('Purno Pran'));
+      final cleared = set.copyWith(clearBengaliFont: true);
+      expect(cleared.bengaliFontFamily, isNull);
     });
 
     test('copyWith updates specified fields correctly', () {
@@ -190,6 +201,23 @@ void main() {
 
       await notifier.setInterfaceFontFamily('Match Editor Body');
       expect(notifier.state.interfaceFontFamily, isNull);
+    });
+
+    test('bengaliPresets and setBengaliFontFamily with the bundled default clears the override', () async {
+      SharedPreferences.setMockInitialValues({});
+      addTearDown(() => setActiveBengaliContentFont(null));
+      final notifier = TypographySettingsNotifier();
+
+      expect(CuratedFonts.bengaliPresets.first, equals('Kalpurush'));
+      expect(CuratedFonts.bengaliPresets, contains('Kolpona'));
+      expect(CuratedFonts.bengaliPresets, contains('Samsung Bengali'));
+
+      // Selecting the bundled Kalpurush default maps to null (no override) and
+      // leaves the shared fallback chain as Kalpurush-only.
+      await notifier.setBengaliFontFamily('Kalpurush');
+      expect(notifier.state.bengaliFontFamily, isNull);
+      expect(activeBengaliContentFont, isNull);
+      expect(kContentFontFallback, <String>['Kalpurush']);
     });
   });
 }

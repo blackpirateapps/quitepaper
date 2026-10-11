@@ -29,6 +29,7 @@ class TypographySettings {
     this.bodyFontFamily,
     this.codeFontFamily = 'monospace',
     this.interfaceFontFamily,
+    this.bengaliFontFamily,
     this.fontSize = 18.0,
     this.lineHeight = 1.6,
     this.letterSpacing = 0.0,
@@ -44,6 +45,12 @@ class TypographySettings {
   final String? bodyFontFamily;
   final String? codeFontFamily;
   final String? interfaceFontFamily;
+
+  /// User-selected Bengali content font (a CDN-hosted Bengali family). When null,
+  /// Bengali renders in the bundled Kalpurush face. This only governs Bengali
+  /// runs — Latin text continues to use [bodyFontFamily]/[headingFontFamily].
+  final String? bengaliFontFamily;
+
   final double fontSize;
   final double lineHeight;
   final double letterSpacing;
@@ -84,6 +91,8 @@ class TypographySettings {
     bool clearCodeFont = false,
     String? interfaceFontFamily,
     bool clearInterfaceFont = false,
+    String? bengaliFontFamily,
+    bool clearBengaliFont = false,
     double? fontSize,
     double? lineHeight,
     double? letterSpacing,
@@ -102,6 +111,9 @@ class TypographySettings {
       interfaceFontFamily: clearInterfaceFont
           ? null
           : (interfaceFontFamily ?? this.interfaceFontFamily),
+      bengaliFontFamily: clearBengaliFont
+          ? null
+          : (bengaliFontFamily ?? this.bengaliFontFamily),
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       letterSpacing: letterSpacing ?? this.letterSpacing,
@@ -118,6 +130,7 @@ class TypographySettings {
         if (codeFontFamily != null) 'codeFontFamily': codeFontFamily,
         if (interfaceFontFamily != null)
           'interfaceFontFamily': interfaceFontFamily,
+        if (bengaliFontFamily != null) 'bengaliFontFamily': bengaliFontFamily,
         'fontSize': fontSize,
         'lineHeight': lineHeight,
         'letterSpacing': letterSpacing,
@@ -148,6 +161,7 @@ class TypographySettings {
       bodyFontFamily: json['bodyFontFamily'] as String?,
       codeFontFamily: json['codeFontFamily'] as String? ?? 'monospace',
       interfaceFontFamily: json['interfaceFontFamily'] as String?,
+      bengaliFontFamily: json['bengaliFontFamily'] as String?,
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 18.0,
       lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.6,
       letterSpacing: (json['letterSpacing'] as num?)?.toDouble() ?? 0.0,
@@ -167,6 +181,7 @@ class TypographySettings {
           bodyFontFamily == other.bodyFontFamily &&
           codeFontFamily == other.codeFontFamily &&
           interfaceFontFamily == other.interfaceFontFamily &&
+          bengaliFontFamily == other.bengaliFontFamily &&
           fontSize == other.fontSize &&
           lineHeight == other.lineHeight &&
           letterSpacing == other.letterSpacing &&
@@ -180,6 +195,7 @@ class TypographySettings {
       bodyFontFamily.hashCode ^
       codeFontFamily.hashCode ^
       interfaceFontFamily.hashCode ^
+      bengaliFontFamily.hashCode ^
       fontSize.hashCode ^
       lineHeight.hashCode ^
       letterSpacing.hashCode ^
