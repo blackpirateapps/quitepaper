@@ -173,13 +173,12 @@ class DefaultSettingsScreen extends ConsumerWidget {
                     _buildSwitchRow(
                       context: context,
                       colors: colors,
-                      icon: PhosphorIconsRegular.plusCircle,
-                      title: 'Suggest adding a place to past entries',
+                      icon: PhosphorIconsRegular.translate,
+                      title: 'Bengali dates & numerals',
                       subtitle:
-                          'Offer to add a place when you open a journal entry that has none',
-                      value: settings.suggestPlaceForPastEntries,
-                      onChanged: (val) =>
-                          notifier.setSuggestPlaceForPastEntries(val),
+                          'Show journal dates, month names and numerals in Bengali (display only)',
+                      value: settings.bengaliDates,
+                      onChanged: (val) => notifier.setBengaliDates(val),
                     ),
                   ],
                 ),

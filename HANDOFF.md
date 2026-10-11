@@ -8316,3 +8316,23 @@ Every former ASCII word/tag class was replaced with `[\p{L}\p{M}\p{N}…]` (RegE
 - New test [`test/search/bengali_search_test.dart`](file:///home/dog/git/quitepaper/test/search/bengali_search_test.dart): Bengali/mixed tokenization, Bengali hashtag token, Bengali `#tag` + nested-tag extraction, `isValidTag` accept/reject, and a Bengali query matching/not-matching a Bengali note through `FuzzySearchEngine`.
 - `flutter analyze` — **No issues found!**
 - Full Test Suite: `flutter test` (**all 1808 tests passing**).
+
+## 176. Bengali Content Support — Feature C: Journal Bengali Dates & Numerals (October 2026)
+
+Implements §5 of [`docs/specs/bengali-content-support.md`](file:///home/dog/git/quitepaper/docs/specs/bengali-content-support.md). An opt-in, **display-only** toggle renders journal dates, month names and numerals in Bengali. Canonical date keys and storage stay ASCII `yyyy-MM-dd` always.
+
+### 1. Setting (default OFF)
+- `bengaliDates` added to [`DefaultSettings`](file:///home/dog/git/quitepaper/lib/features/settings/domain/default_settings.dart) (model: field, ctor, `copyWith`, `==`/`hashCode`) and [`DefaultSettingsNotifier`](file:///home/dog/git/quitepaper/lib/features/settings/application/default_settings_provider.dart) (SharedPreferences key `setting_bengali_dates`, `setBengaliDates`). Default **false**.
+- UI: a "Bengali dates & numerals" switch in the **JOURNAL** section of [`default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart).
+
+### 2. Locale threading (display only)
+- Startup: [`main.dart`](file:///home/dog/git/quitepaper/lib/main.dart) now calls `initializeDateFormatting('bn', null)` (added to the existing `Future.wait`) before any `'bn'` DateFormat runs.
+- A new `journalLocaleTagProvider` ([`journal_providers.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_providers.dart)) returns `'bn'` when the setting is on, else null — the single source for the active journal display locale.
+- [`JournalDateHelper`](file:///home/dog/git/quitepaper/lib/core/journal/domain/journal_date_helper.dart) display methods (`formatDisplayDate`, `formatMonthDay`, `formatMonthYear`, `formatMonthYearHeader`, `formatWeekday`, `formatWeekdayShort`, `formatTimelineEntryMetadata`, `formatDayHeader`) gained an optional `String? localeTag` passed to their `DateFormat`. The canonical/key methods (`toDateString`, `todayString`, `monthKey`, `tryParseMonthKey`, `tryParseDateString`, `_datePattern`) were **not** touched (§5.3).
+- Consumers thread the locale from `journalLocaleTagProvider`: `journalMonthGroupsProvider` (timeline month headers), `journal_timeline_tile`, `journal_calendar_view` (+ its `_SelectedDatePreview`), `on_this_day_view` (+ `_OnThisDayTile`), the Places chain (`journal_visit.clusterVisits` → `placeVisitsProvider`; `placeDateSpanLabel` → `PlaceCard`/`journal_places_view` and `_DetailHeader`/`place_detail_view`).
+- Left English intentionally (not journal-display, no `ref`): the default-note-title in `notes_repository` and the trash-restore dialog label in `journal_service`; app-wide `date_formatter.dart` is untouched (§5.3). The large day-number glyph in the timeline tile uses `formatDayTwoDigits` (a layout-width primitive, not in the spec's localizable set) and stays Western.
+
+### 3. Verification & Quality
+- New test [`test/journal/journal_bengali_dates_test.dart`](file:///home/dog/git/quitepaper/test/journal/journal_bengali_dates_test.dart): with `'bn'`, `formatMonthYear`/`formatDisplayDate`/`formatMonthYearHeader` emit Bengali numerals/month names; null keeps English; `toDateString`/`monthKey`/`tryParseDateString` stay ASCII.
+- `flutter analyze` — **No issues found!**
+- Full Test Suite: `flutter test` (**all 1815 tests passing**).

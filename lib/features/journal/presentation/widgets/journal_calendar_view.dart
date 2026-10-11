@@ -41,8 +41,10 @@ class JournalCalendarView extends ConsumerWidget {
 
     final now = DateTime.now();
     final isCurrentMonth = visibleMonth.year == now.year && visibleMonth.month == now.month;
+    final localeTag = ref.watch(journalLocaleTagProvider);
     final monthDisplayTitle = JournalDateHelper.formatMonthYear(
       DateTime(visibleMonth.year, visibleMonth.month),
+      localeTag: localeTag,
     );
 
     return AnimatedContainer(
@@ -286,6 +288,7 @@ class JournalCalendarView extends ConsumerWidget {
           _SelectedDatePreview(
             dateString: selectedDate,
             entry: selectedEntry,
+            localeTag: ref.watch(journalLocaleTagProvider),
             onOpenEntry: () {
               if (selectedEntry != null) {
                 onOpenEntry(selectedEntry);
@@ -340,7 +343,7 @@ class JournalCalendarView extends ConsumerWidget {
             final isSelected = cellDateStr == selectedDate;
 
             final parsed = DateTime(visibleMonth.year, visibleMonth.month, dayNumber);
-            final fullDateDisplay = JournalDateHelper.formatDisplayDate(parsed);
+            final fullDateDisplay = JournalDateHelper.formatDisplayDate(parsed, localeTag: ref.watch(journalLocaleTagProvider));
             final entryLabel = hasEntry
                 ? ', journal entry exists${isTravel ? ', travel' : ''}'
                 : ', no journal entry';
@@ -479,6 +482,7 @@ class _SelectedDatePreview extends StatelessWidget {
     required this.onOpenEntry,
     required this.onShowInTimeline,
     required this.onCreateEntry,
+    this.localeTag,
   });
 
   final String dateString;
@@ -486,13 +490,14 @@ class _SelectedDatePreview extends StatelessWidget {
   final VoidCallback onOpenEntry;
   final VoidCallback onShowInTimeline;
   final void Function(DateTime date) onCreateEntry;
+  final String? localeTag;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final parsed = JournalDateHelper.tryParseDateString(dateString);
     final headerLabel = parsed != null
-        ? JournalDateHelper.formatDisplayDate(parsed).toUpperCase()
+        ? JournalDateHelper.formatDisplayDate(parsed, localeTag: localeTag).toUpperCase()
         : dateString.toUpperCase();
 
     if (entry == null) {
@@ -561,6 +566,7 @@ class _SelectedDatePreview extends StatelessWidget {
     final relativeTime = JournalDateHelper.formatTimelineEntryMetadata(
       dateString,
       entry!.updatedAt,
+      localeTag: localeTag,
     );
 
     return Material(

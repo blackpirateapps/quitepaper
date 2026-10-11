@@ -84,7 +84,8 @@ final placeEntriesProvider = Provider.family<List<Note>, String>((ref, matchKey)
 final placeVisitsProvider =
     Provider.family<List<JournalVisit>, String>((ref, matchKey) {
   final notes = ref.watch(placeEntriesProvider(matchKey));
-  return clusterVisits(notes);
+  final localeTag = ref.watch(journalLocaleTagProvider);
+  return clusterVisits(notes, localeTag: localeTag);
 });
 
 /// Reduces active, non-locked, located notes into grouping inputs. Unlocated

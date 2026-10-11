@@ -69,6 +69,7 @@ const int kVisitGapThresholdDays = 30;
 List<JournalVisit> clusterVisits(
   List<Note> reverseChronoNotes, {
   int gapThresholdDays = kVisitGapThresholdDays,
+  String? localeTag,
 }) {
   if (reverseChronoNotes.isEmpty) return const [];
 
@@ -88,7 +89,7 @@ List<JournalVisit> clusterVisits(
     final note = ascending[i];
     final date = _dateOf(note);
     if (date.difference(previous).inDays > gapThresholdDays) {
-      visits.add(_buildVisit(clusterNotes, clusterStart, previous));
+      visits.add(_buildVisit(clusterNotes, clusterStart, previous, localeTag));
       clusterNotes = <Note>[note];
       clusterStart = date;
     } else {
@@ -96,29 +97,29 @@ List<JournalVisit> clusterVisits(
     }
     previous = date;
   }
-  visits.add(_buildVisit(clusterNotes, clusterStart, previous));
+  visits.add(_buildVisit(clusterNotes, clusterStart, previous, localeTag));
 
   // Newest visit first, matching the reverse-chronological drill-in timeline.
   visits.sort((a, b) => b.end.compareTo(a.end));
   return visits;
 }
 
-JournalVisit _buildVisit(List<Note> ascendingNotes, DateTime start, DateTime end) {
+JournalVisit _buildVisit(List<Note> ascendingNotes, DateTime start, DateTime end, [String? localeTag]) {
   // Member ids newest-first to mirror the drill-in timeline.
   final noteIds = ascendingNotes.reversed.map((n) => n.id).toList(growable: false);
   return JournalVisit(
     start: start,
     end: end,
     noteIds: noteIds,
-    label: _labelFor(start, end),
+    label: _labelFor(start, end, localeTag),
     entryCount: ascendingNotes.length,
   );
 }
 
-String _labelFor(DateTime start, DateTime end) {
-  final startLabel = DateFormat('MMMM yyyy').format(start);
+String _labelFor(DateTime start, DateTime end, [String? localeTag]) {
+  final startLabel = DateFormat('MMMM yyyy', localeTag).format(start);
   if (start.year == end.year && start.month == end.month) return startLabel;
-  final endLabel = DateFormat('MMMM yyyy').format(end);
+  final endLabel = DateFormat('MMMM yyyy', localeTag).format(end);
   return '$startLabel – $endLabel';
 }
 

@@ -87,6 +87,7 @@ class DefaultSettings {
     this.imageCompressionPreset = ImageCompressionPreset.balanced,
     this.showPlaceAndWeatherOnEntries = true,
     this.suggestPlaceForPastEntries = true,
+    this.bengaliDates = false,
   });
 
   /// Whether pulling/swiping down at the top of an open note reveals the in-note search bar.
@@ -111,6 +112,10 @@ class DefaultSettings {
   /// This is the master switch flipped off by the nudge's "Don't ask again" action.
   final bool suggestPlaceForPastEntries;
 
+  /// Whether journal dates & numerals are displayed localized in Bengali (`bn`).
+  /// Display-only: canonical date keys/storage always stay ASCII `yyyy-MM-dd`.
+  final bool bengaliDates;
+
   DefaultSettings copyWith({
     bool? swipeToSearchEditor,
     bool? swipeDownToSearchNotes,
@@ -119,6 +124,7 @@ class DefaultSettings {
     ImageCompressionPreset? imageCompressionPreset,
     bool? showPlaceAndWeatherOnEntries,
     bool? suggestPlaceForPastEntries,
+    bool? bengaliDates,
   }) {
     return DefaultSettings(
       swipeToSearchEditor: swipeToSearchEditor ?? this.swipeToSearchEditor,
@@ -134,6 +140,7 @@ class DefaultSettings {
           showPlaceAndWeatherOnEntries ?? this.showPlaceAndWeatherOnEntries,
       suggestPlaceForPastEntries:
           suggestPlaceForPastEntries ?? this.suggestPlaceForPastEntries,
+      bengaliDates: bengaliDates ?? this.bengaliDates,
     );
   }
 
@@ -149,7 +156,8 @@ class DefaultSettings {
           imageCompressionAction == other.imageCompressionAction &&
           imageCompressionPreset == other.imageCompressionPreset &&
           showPlaceAndWeatherOnEntries == other.showPlaceAndWeatherOnEntries &&
-          suggestPlaceForPastEntries == other.suggestPlaceForPastEntries;
+          suggestPlaceForPastEntries == other.suggestPlaceForPastEntries &&
+          bengaliDates == other.bengaliDates;
 
   @override
   int get hashCode => Object.hash(
@@ -160,5 +168,6 @@ class DefaultSettings {
         imageCompressionPreset,
         showPlaceAndWeatherOnEntries,
         suggestPlaceForPastEntries,
+        bengaliDates,
       );
 }

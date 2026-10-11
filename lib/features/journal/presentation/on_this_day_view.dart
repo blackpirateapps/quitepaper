@@ -61,7 +61,8 @@ class OnThisDayView extends ConsumerWidget {
     final entriesAsync = ref.watch(onThisDayEntriesStreamProvider);
     final historicalState = ref.watch(historicalWeekProvider);
     final today = ref.watch(historicalReferenceDateProvider);
-    final monthDayLabel = JournalDateHelper.formatMonthDay(today);
+    final localeTag = ref.watch(journalLocaleTagProvider);
+    final monthDayLabel = JournalDateHelper.formatMonthDay(today, localeTag: localeTag);
 
     final hasHistoricalEntries = historicalState.yearGroups.isNotEmpty;
 
@@ -187,6 +188,7 @@ class OnThisDayView extends ConsumerWidget {
                               note: note,
                               isSelected: selectedNoteId == note.id,
                               onTap: () => _handleNoteTap(context, note),
+                              localeTag: localeTag,
                             ),
                             if (index < entries.length - 1)
                               Padding(
@@ -512,11 +514,13 @@ class _OnThisDayTile extends StatefulWidget {
     required this.note,
     required this.onTap,
     this.isSelected = false,
+    this.localeTag,
   });
 
   final Note note;
   final VoidCallback onTap;
   final bool isSelected;
+  final String? localeTag;
 
   @override
   State<_OnThisDayTile> createState() => _OnThisDayTileState();
@@ -530,8 +534,8 @@ class _OnThisDayTileState extends State<_OnThisDayTile> {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateDisplay = widget.note.journalDate != null
-        ? JournalDateHelper.formatDisplayDate(widget.note.journalDate!)
-        : JournalDateHelper.formatDisplayDate(widget.note.createdAt);
+        ? JournalDateHelper.formatDisplayDate(widget.note.journalDate!, localeTag: widget.localeTag)
+        : JournalDateHelper.formatDisplayDate(widget.note.createdAt, localeTag: widget.localeTag);
 
     final relativeYear = widget.note.journalDate != null
         ? JournalDateHelper.formatRelativeYear(widget.note.journalDate!)

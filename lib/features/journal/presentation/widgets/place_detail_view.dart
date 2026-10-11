@@ -5,6 +5,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/domain/journal_place.dart';
 import '../../../notes/domain/note_model.dart';
+import '../../application/journal_providers.dart';
 import '../../application/places_providers.dart';
 import 'journal_timeline_tile.dart';
 import 'place_card.dart';
@@ -51,7 +52,7 @@ class PlaceDetailView extends ConsumerWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 680),
-              child: _DetailHeader(place: place),
+              child: _DetailHeader(place: place, localeTag: ref.watch(journalLocaleTagProvider)),
             ),
           ),
         ),
@@ -137,15 +138,16 @@ class _DetailRow {
 }
 
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.place});
+  const _DetailHeader({required this.place, this.localeTag});
 
   final JournalPlace place;
+  final String? localeTag;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final name = splitPlaceName(place.displayName);
-    final span = placeDateSpanLabel(place);
+    final span = placeDateSpanLabel(place, localeTag: localeTag);
     final entryLabel =
         '${place.entryCount} ${place.entryCount == 1 ? 'entry' : 'entries'}';
 

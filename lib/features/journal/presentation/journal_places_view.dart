@@ -11,6 +11,7 @@ import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/domain/note_model.dart';
 import '../application/place_alias_store.dart';
+import '../application/journal_providers.dart';
 import '../application/places_providers.dart';
 import 'widgets/place_card.dart';
 import 'widgets/place_detail_view.dart';
@@ -353,6 +354,7 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
                           isSelected: _selectedKeys.contains(place.matchKey),
                           onTap: () => _handleCardTap(place),
                           onLongPress: () => _showPlaceActions(place),
+                          localeTag: ref.watch(journalLocaleTagProvider),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(

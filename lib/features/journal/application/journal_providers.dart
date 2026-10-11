@@ -3,9 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_metadata_extractor.dart';
+import '../../settings/application/default_settings_provider.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/journal/domain/journal_models.dart';
 import 'journal_service.dart';
+
+/// Active display locale tag for journal dates & numerals: `'bn'` when the
+/// opt-in Bengali-dates setting is on, else null (default English). Display
+/// only — canonical date keys/storage are never localized.
+final journalLocaleTagProvider = Provider<String?>((ref) {
+  final bengali = ref.watch(
+    defaultSettingsProvider.select((s) => s.bengaliDates),
+  );
+  return bengali ? 'bn' : null;
+});
 
 /// Provider for JournalService
 final journalServiceProvider = Provider<JournalService>((ref) {
@@ -54,6 +65,7 @@ final allJournalEntriesStreamProvider = StreamProvider<List<Note>>((ref) {
 /// Groups active journal entries chronologically by Month/Year.
 final journalMonthGroupsProvider = Provider<AsyncValue<List<JournalMonthGroup>>>((ref) {
   final entriesAsync = ref.watch(allJournalEntriesStreamProvider);
+  final localeTag = ref.watch(journalLocaleTagProvider);
 
   return entriesAsync.whenData((entries) {
     if (entries.isEmpty) return const [];
@@ -72,7 +84,7 @@ final journalMonthGroupsProvider = Provider<AsyncValue<List<JournalMonthGroup>>>
     for (final entry in groupsMap.entries) {
       final parsedKey = JournalDateHelper.tryParseMonthKey(entry.key);
       if (parsedKey == null) continue;
-      final label = JournalDateHelper.formatMonthYearHeader(parsedKey.year, parsedKey.month);
+      final label = JournalDateHelper.formatMonthYearHeader(parsedKey.year, parsedKey.month, localeTag: localeTag);
       groups.add(
         JournalMonthGroup(
           year: parsedKey.year,

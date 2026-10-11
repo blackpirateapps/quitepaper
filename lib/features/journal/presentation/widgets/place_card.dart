@@ -9,14 +9,15 @@ import '../../../../core/journal/domain/journal_place.dart';
 
 /// Formats a place's [firstDate]→[lastDate] span editorially:
 /// `Oct 2024` for a single visit, `2024` within one year, else `2019 – 2026`.
-String placeDateSpanLabel(JournalPlace place) {
+/// [localeTag] (e.g. `'bn'`) localizes the month/numerals for display only.
+String placeDateSpanLabel(JournalPlace place, {String? localeTag}) {
   if (place.isSingleVisit) {
-    return DateFormat('MMM yyyy').format(place.firstDate);
+    return DateFormat('MMM yyyy', localeTag).format(place.firstDate);
   }
   if (place.firstDate.year == place.lastDate.year) {
-    return '${place.firstDate.year}';
+    return DateFormat('y', localeTag).format(place.firstDate);
   }
-  return '${place.firstDate.year} – ${place.lastDate.year}';
+  return '${DateFormat('y', localeTag).format(place.firstDate)} – ${DateFormat('y', localeTag).format(place.lastDate)}';
 }
 
 /// Splits a place display name into a primary token and an optional secondary
@@ -46,6 +47,7 @@ class PlaceCard extends StatefulWidget {
     this.onLongPress,
     this.selectionMode = false,
     this.isSelected = false,
+    this.localeTag,
   });
 
   final JournalPlace place;
@@ -62,6 +64,9 @@ class PlaceCard extends StatefulWidget {
   /// mode).
   final bool isSelected;
 
+  /// Display locale tag for the date span (`'bn'` for Bengali, else null).
+  final String? localeTag;
+
   @override
   State<PlaceCard> createState() => _PlaceCardState();
 }
@@ -75,7 +80,7 @@ class _PlaceCardState extends State<PlaceCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final place = widget.place;
     final name = splitPlaceName(place.displayName);
-    final span = placeDateSpanLabel(place);
+    final span = placeDateSpanLabel(place, localeTag: widget.localeTag);
     final entryLabel =
         '${place.entryCount} ${place.entryCount == 1 ? 'entry' : 'entries'}';
 

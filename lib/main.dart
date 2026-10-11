@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
@@ -38,6 +39,8 @@ void main([List<String> args = const []]) async {
     authService.initialize(),
     keyManager.initialize(),
     FontCacheManager.instance.initialize(),
+    // Load Bengali date symbols so opt-in 'bn' journal date formatting works.
+    initializeDateFormatting('bn', null),
   ]);
 
   // Clean any stale decrypted attachment temporary files in background

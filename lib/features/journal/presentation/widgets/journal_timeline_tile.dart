@@ -9,6 +9,7 @@ import '../../../../core/location/location_models.dart';
 import '../../../notes/domain/note_metadata_extractor.dart';
 import '../../../notes/domain/note_model.dart';
 import '../../../settings/application/default_settings_provider.dart';
+import '../../application/journal_providers.dart';
 
 /// A time-oriented, editorial journal tile rendered in the All Entries chronological timeline.
 class JournalTimelineTile extends ConsumerStatefulWidget {
@@ -166,17 +167,18 @@ class _JournalTimelineTileState extends ConsumerState<JournalTimelineTile>
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final localeTag = ref.watch(journalLocaleTagProvider);
     final dateStr = widget.note.journalDate;
     final parsedDate = dateStr != null
         ? JournalDateHelper.tryParseDateString(dateStr)
         : JournalDateHelper.toLocalDate(widget.note.createdAt);
 
     final dayNumber = parsedDate != null ? JournalDateHelper.formatDayTwoDigits(parsedDate.day) : '--';
-    final weekdayShort = parsedDate != null ? JournalDateHelper.formatWeekdayShort(parsedDate) : '';
+    final weekdayShort = parsedDate != null ? JournalDateHelper.formatWeekdayShort(parsedDate, localeTag: localeTag) : '';
     final isToday = dateStr == JournalDateHelper.todayString();
     final fullDateDisplay = parsedDate != null
-        ? JournalDateHelper.formatDisplayDate(parsedDate)
-        : JournalDateHelper.formatDisplayDate(widget.note.createdAt);
+        ? JournalDateHelper.formatDisplayDate(parsedDate, localeTag: localeTag)
+        : JournalDateHelper.formatDisplayDate(widget.note.createdAt, localeTag: localeTag);
 
     final semanticLabel = '$fullDateDisplay, ${widget.note.displayTitle}';
 

@@ -58,7 +58,10 @@ abstract final class JournalDateHelper {
 
   /// Formats a journal date string (or [DateTime]) into human-readable display string.
   /// E.g. "2026-09-01" -> "September 1, 2026".
-  static String formatDisplayDate(dynamic date) {
+  ///
+  /// [localeTag] (e.g. `'bn'`) localizes month names & numerals for DISPLAY only;
+  /// null keeps the default (English). Never affects stored/canonical keys.
+  static String formatDisplayDate(dynamic date, {String? localeTag}) {
     DateTime? dt;
     if (date is DateTime) {
       dt = toLocalDate(date);
@@ -66,11 +69,11 @@ abstract final class JournalDateHelper {
       dt = tryParseDateString(date);
     }
     if (dt == null) return date?.toString() ?? '';
-    return DateFormat('MMMM d, yyyy').format(dt);
+    return DateFormat('MMMM d, yyyy', localeTag).format(dt);
   }
 
   /// Formats month and day without year (e.g. "September 1").
-  static String formatMonthDay(dynamic date) {
+  static String formatMonthDay(dynamic date, {String? localeTag}) {
     DateTime? dt;
     if (date is DateTime) {
       dt = toLocalDate(date);
@@ -78,7 +81,7 @@ abstract final class JournalDateHelper {
       dt = tryParseDateString(date);
     }
     if (dt == null) return date?.toString() ?? '';
-    return DateFormat('MMMM d').format(dt);
+    return DateFormat('MMMM d', localeTag).format(dt);
   }
 
   /// Returns relative-year label comparing [historicalDate] with [currentDate].
@@ -146,7 +149,7 @@ abstract final class JournalDateHelper {
   }
 
   /// Formats month and year (e.g. "September 2026").
-  static String formatMonthYear(dynamic date) {
+  static String formatMonthYear(dynamic date, {String? localeTag}) {
     DateTime? dt;
     if (date is DateTime) {
       dt = toLocalDate(date);
@@ -154,17 +157,17 @@ abstract final class JournalDateHelper {
       dt = tryParseDateString(date);
     }
     if (dt == null) return date?.toString() ?? '';
-    return DateFormat('MMMM yyyy').format(dt);
+    return DateFormat('MMMM yyyy', localeTag).format(dt);
   }
 
   /// Formats uppercase month and year header for timeline grouping (e.g. "SEPTEMBER 2026").
-  static String formatMonthYearHeader(int year, int month) {
+  static String formatMonthYearHeader(int year, int month, {String? localeTag}) {
     final dt = DateTime(year, month);
-    return DateFormat('MMMM yyyy').format(dt).toUpperCase();
+    return DateFormat('MMMM yyyy', localeTag).format(dt).toUpperCase();
   }
 
   /// Formats full weekday name (e.g. "Tuesday").
-  static String formatWeekday(dynamic date) {
+  static String formatWeekday(dynamic date, {String? localeTag}) {
     DateTime? dt;
     if (date is DateTime) {
       dt = toLocalDate(date);
@@ -172,11 +175,11 @@ abstract final class JournalDateHelper {
       dt = tryParseDateString(date);
     }
     if (dt == null) return '';
-    return DateFormat('EEEE').format(dt);
+    return DateFormat('EEEE', localeTag).format(dt);
   }
 
   /// Formats short weekday name (e.g. "Tue").
-  static String formatWeekdayShort(dynamic date) {
+  static String formatWeekdayShort(dynamic date, {String? localeTag}) {
     DateTime? dt;
     if (date is DateTime) {
       dt = toLocalDate(date);
@@ -184,14 +187,18 @@ abstract final class JournalDateHelper {
       dt = tryParseDateString(date);
     }
     if (dt == null) return '';
-    return DateFormat('E').format(dt);
+    return DateFormat('E', localeTag).format(dt);
   }
 
   /// Formats timeline entry time metadata (e.g. "Tuesday · 9:42 PM" or "Tuesday").
-  static String formatTimelineEntryMetadata(dynamic journalDate, DateTime? updatedAt) {
-    final weekday = formatWeekday(journalDate);
+  static String formatTimelineEntryMetadata(
+    dynamic journalDate,
+    DateTime? updatedAt, {
+    String? localeTag,
+  }) {
+    final weekday = formatWeekday(journalDate, localeTag: localeTag);
     if (updatedAt == null) return weekday;
-    final timeStr = DateFormat('h:mm a').format(updatedAt.toLocal());
+    final timeStr = DateFormat('h:mm a', localeTag).format(updatedAt.toLocal());
     if (weekday.isEmpty) return timeStr;
     return '$weekday · $timeStr';
   }
@@ -336,8 +343,8 @@ abstract final class JournalDateHelper {
 
   /// Formats the date header for a single day group within a historical year group.
   /// E.g. "September 2"
-  static String formatDayHeader(dynamic date) {
-    return formatMonthDay(date);
+  static String formatDayHeader(dynamic date, {String? localeTag}) {
+    return formatMonthDay(date, localeTag: localeTag);
   }
 }
 

@@ -21,6 +21,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       'setting_show_place_and_weather_on_entries';
   static const String suggestPlaceForPastEntriesKey =
       'setting_suggest_place_for_past_entries';
+  static const String bengaliDatesKey = 'setting_bengali_dates';
 
   static DefaultSettings _loadSettings(SharedPreferences? prefs) {
     if (prefs == null) {
@@ -35,6 +36,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
     final showPlaceWeather =
         prefs.getBool(showPlaceAndWeatherOnEntriesKey) ?? true;
     final suggestPlace = prefs.getBool(suggestPlaceForPastEntriesKey) ?? true;
+    final bengaliDates = prefs.getBool(bengaliDatesKey) ?? false;
 
     return DefaultSettings(
       swipeToSearchEditor: swipeEditor,
@@ -44,6 +46,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       imageCompressionPreset: ImageCompressionPreset.fromIdentifier(presetString),
       showPlaceAndWeatherOnEntries: showPlaceWeather,
       suggestPlaceForPastEntries: suggestPlace,
+      bengaliDates: bengaliDates,
     );
   }
 
@@ -80,6 +83,11 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   Future<void> setSuggestPlaceForPastEntries(bool value) async {
     state = state.copyWith(suggestPlaceForPastEntries: value);
     await _prefs?.setBool(suggestPlaceForPastEntriesKey, value);
+  }
+
+  Future<void> setBengaliDates(bool value) async {
+    state = state.copyWith(bengaliDates: value);
+    await _prefs?.setBool(bengaliDatesKey, value);
   }
 }
 
