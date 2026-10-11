@@ -13,11 +13,15 @@ class NoteGroup {
   final List<Note> notes;
 
   /// Groups a list of notes by date buckets ("Today", "Yesterday", etc.)
-  /// If [separatePinned] is true, pinned notes can either be grouped in their own "Pinned" group or kept at the top.
+  /// If [separatePinned] is true, pinned notes are lifted into a leading
+  /// "Pinned" group. [contextTag] scopes what counts as pinned: inside a tag
+  /// view a note pinned within that tag (or pinned globally) is treated as
+  /// pinned; elsewhere only global pins count.
   static List<NoteGroup> groupByDate(
     List<Note> allNotes, {
     DateTime? now,
     bool separatePinned = true,
+    String? contextTag,
   }) {
     if (allNotes.isEmpty) return const [];
 
@@ -27,7 +31,7 @@ class NoteGroup {
     final unpinnedNotes = <Note>[];
 
     for (final note in allNotes) {
-      if (separatePinned && note.isPinned) {
+      if (separatePinned && note.isPinnedInContext(contextTag)) {
         pinnedNotes.add(note);
       } else {
         unpinnedNotes.add(note);

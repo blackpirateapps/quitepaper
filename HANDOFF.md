@@ -8497,3 +8497,49 @@ Until the backend is redeployed the push/pull calls fail soft (caught, rows stay
 - `flutter test` — **all 1858 passing**. New [`test/journal/place_alias_sync_test.dart`](file:///home/dog/git/quitepaper/test/journal/place_alias_sync_test.dart) covers encrypt/decrypt round-trip + zero-knowledge, deterministic/keyed id stability, DB dirty/tombstone/convergence, two-device engine push/pull convergence + tombstone propagation, store write-through, and the SharedPreferences→DB migration. Existing place tests (`place_alias_store_test.dart`, `places_providers_test.dart`, `places_merge_ui_test.dart`) stay green (locked path = legacy prefs). `journal_database_test.dart` schema assertion bumped to 17.
 - Backend: `npx tsc --noEmit` clean; `npm test` **all passing** incl. new `backend/tests/place_aliases_sync.test.ts` (push/pull pagination, per-user isolation, tombstone propagation — using opaque hex ids).
 - **Not verified on real multi-device hardware** (headless env) and the backend was not deployed/exercised live; convergence is proven at the engine + in-memory-API layer.
+
+## 183. Pinning — per-tag ("local") pins vs. global pins, aggregated Pinned view, refreshed icon (October 2026)
+
+### Summary / behavior
+Pinning gained a scope. Previously a note had a single global `isPinned` boolean that floated it to the top of every list. Now:
+- **Pin inside a tag view** → the note is pinned *only within that tag* (a "local" pin). It floats to the top of that tag's list and shows in the Pinned view, but does **not** clutter All Notes or other tags.
+- **Pin from All Notes** (no tag selected) → a **global** pin, as before: the note floats to the top of All Notes, the Pinned view, and **inside every tag it belongs to** ("always within reach"). This is the locked design decision (user chose *"Global = everywhere"* over fully-independent scopes).
+- The sidebar **Pinned** smart view now **aggregates** every pinned note — global pins *and* per-tag pins — and its count badge matches.
+- Inside a tag view the Pin action governs *that tag's* pin (labels: "Pin to tag" / "Unpin from tag"); a globally-pinned note still reads as pinned there and is unpinned from All Notes.
+- **Refreshed pin icon:** all note pin glyphs unified on the Phosphor `pushPin` (`PhosphorIconsFill.pushPin` active / `PhosphorIconsRegular.pushPin` idle), replacing the Material `Icons.push_pin_*` in note tiles, the editor quick-action bar, and the search "PINNED TAGS" header (the sidebar already used Phosphor).
+
+### Data model
+Per-tag pins live **inside the encrypted note content**, so the sync server never learns which tags a note is pinned in (zero-knowledge preserved; **no backend change required**). Global pins keep riding as the existing plaintext `pinned` metadata flag.
+- [`notes_table.dart`](file:///home/dog/git/quitepaper/lib/core/database/tables/notes_table.dart): new `pinnedTags` (`TEXT`, nullable) — JSON array of normalized tag names the note is pinned within. Authoritative local store.
+- [`note_tags_table.dart`](file:///home/dog/git/quitepaper/lib/core/database/tables/note_tags_table.dart): new `isPinned` (`BOOL`, default false) — a denormalized cache rebuilt from `notes.pinnedTags` on every save, so per-tag pins filter/order via an indexable join instead of parsing JSON. New index `note_tags_pinned_idx (note_id, is_pinned)`.
+- `app_database.dart` `schemaVersion` **17 → 18**, `onUpgrade from < 18` adds both columns via `_addColumnSafely` (additive, idempotent; existing global pins untouched, no backfill needed).
+- [`note_model.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_model.dart): `Note.pinnedTags`, `isPinnedInTag(tag)`, `isPinnedInContext(tagName)` (global OR tag pin), top-level `decodePinnedTagsJson(raw)`.
+- [`crypto_service.dart`](file:///home/dog/git/quitepaper/lib/core/crypto/crypto_service.dart): `NotePlaintext.pinnedTags` (serialized only when non-empty; `fromJson` tolerates its absence for forward/backward compatibility).
+
+### DAO (`app_database.dart`)
+- `saveNote(... List<String>? pinnedTags)`: resolves the note's current tag set first, then computes the effective pinned set = (explicit `pinnedTags` from sync, else the existing row's set preserved for local edits) **∩ current tags**, writes `notes.pinnedTags`, and passes it to `_syncNoteTags`. Pruning a tag out of the content drops its pin automatically.
+- `_syncNoteTags(noteId, tagNames, {pinnedNames})`: sets `note_tags.is_pinned` per rebuilt join row.
+- `setPinned(id, bool)` unchanged = **global** pin.
+- **`setPinnedInTag(id, tagName, bool)`** (new): toggles one tag's pin — updates `notes.pinnedTags` + the `note_tags` cache row, marks the note dirty. Exposed via `NotesRepository.setPinnedInTag`.
+- `watchPinnedNotesCount()` now counts `isPinned OR EXISTS(note_tags.is_pinned)` so the sidebar badge matches the aggregated view.
+
+### Query / ordering (`notes_query_executor.dart`)
+- `_pinnedContextTag(query)` = the single tag an active list is scoped to (else null). `_pinnedInContextExpr(tag)` = `notes.is_pinned OR EXISTS(note_tags⋈tags pinned for that tag)`.
+- The "pinned-first" ordering term and the keyset-cursor pinned partition now use `_pinnedInContextExpr` instead of the raw `is_pinned` column, so per-tag pins float correctly inside a tag view while keyset pagination stays consistent. `NotesCursor.fromNote(note, sort, {contextTag})` stores the context-scoped pinned value.
+- The `pinnedOnly` predicate (the Pinned smart view) is now `is_pinned OR EXISTS(note_tags.is_pinned)`.
+- Grouping ([`note_group.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_group.dart) `groupByDate({contextTag})`): the leading "Pinned" group is shown in All Notes (global pins) **and** inside a single tag view (that tag's pins + global), driven in [`notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart) `groupedNotesCollectionProvider`.
+
+### UI
+- [`notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart): `onTogglePin` is context-aware — in a tag view it calls `setPinnedInTag(note, tag, !note.isPinnedInTag(tag))`, otherwise `setPinned` (global). Passes `pinContextTag` to the tile.
+- [`note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart): new `pinContextTag`; `isPinnedHere`/`pinIsTagScoped` drive the inline glyph, the desktop right-click menu, and the bottom-sheet action (Phosphor icon + scope-aware labels). The bottom-sheet pin icon logic (previously inverted) is corrected.
+- Icon unification also in [`editor_quick_actions_bar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/editor_quick_actions_bar.dart) and [`search_screen.dart`](file:///home/dog/git/quitepaper/lib/features/search/presentation/search_screen.dart).
+
+### Sync (`sync_engine.dart`, `conflict_resolver.dart`)
+- PUSH builds `NotePlaintext(pinnedTags: decodePinnedTagsJson(note.pinnedTags))`; PULL calls `saveNote(pinnedTags: decrypted.pinnedTags)`. Because pins live in the ciphertext, `NoteSyncPayload`/`PullChangeItem` are unchanged and the server stays blind.
+- 3-way merge: `merge3Way` carries a merged `pinnedTags` (union of both branches ∩ merged tags); the three local `NotePlaintext` builders include local pins. Conflict-resolver `saveNote` calls omit `pinnedTags` → the DAO preserves the existing per-tag pins (pruned to current tags), so pins are not lost on conflict resolution.
+- **No backend changes and no redeploy required** (unlike §182).
+
+### Verification
+- `flutter analyze` — **No issues found!**
+- `flutter test` — **all 1865 passing**. New [`test/notes/note_pin_scope_test.dart`](file:///home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart) covers per-tag pin storage, survival across content edits, pruning when a tag is removed, tag-view vs All-Notes floating, global-pin-everywhere, and Pinned-view aggregation. Icon/schema assertions updated in `editor_overflow_menu_test.dart`, `notes_list_redesign_test.dart`, and `journal_database_test.dart` (schema → 18).
+- Not exercised on real multi-device hardware (headless env); per-tag pin sync is proven at the DB + plaintext round-trip layer.

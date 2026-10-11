@@ -72,16 +72,22 @@ class NotePlaintext {
     required this.title,
     required this.body,
     required this.tags,
+    this.pinnedTags = const [],
   });
 
   final String title;
   final String body;
   final List<String> tags;
 
+  /// Tags this note is pinned within (per-tag pins). Carried INSIDE the
+  /// ciphertext so the sync server never learns which tags a note is pinned in.
+  final List<String> pinnedTags;
+
   Map<String, dynamic> toJson() => {
         'title': title,
         'body': body,
         'tags': tags,
+        if (pinnedTags.isNotEmpty) 'pinnedTags': pinnedTags,
       };
 
   factory NotePlaintext.fromJson(Map<String, dynamic> json) {
@@ -90,10 +96,16 @@ class NotePlaintext {
         ? rawTags.map((t) => t.toString()).toList()
         : <String>[];
 
+    final rawPinned = json['pinnedTags'];
+    final pinnedList = rawPinned is List
+        ? rawPinned.map((t) => t.toString()).toList()
+        : <String>[];
+
     return NotePlaintext(
       title: json['title'] as String? ?? '',
       body: json['body'] as String? ?? '',
       tags: tagsList,
+      pinnedTags: pinnedList,
     );
   }
 
@@ -104,10 +116,12 @@ class NotePlaintext {
           runtimeType == other.runtimeType &&
           title == other.title &&
           body == other.body &&
-          listEquals(tags, other.tags);
+          listEquals(tags, other.tags) &&
+          listEquals(pinnedTags, other.pinnedTags);
 
   @override
-  int get hashCode => title.hashCode ^ body.hashCode ^ tags.hashCode;
+  int get hashCode =>
+      title.hashCode ^ body.hashCode ^ tags.hashCode ^ pinnedTags.hashCode;
 }
 
 /// Plaintext tag content object before encryption

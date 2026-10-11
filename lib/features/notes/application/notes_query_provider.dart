@@ -560,11 +560,20 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 final groupedNotesCollectionProvider = Provider<List<NoteGroup>>((ref) {
   final collectionState = ref.watch(notesCollectionProvider);
   final destination = ref.watch(currentDestinationProvider);
-  final separatePinned = destination == AppDestination.allNotes &&
+
+  // The "Pinned" group is shown in All Notes (global pins) and inside a single
+  // tag view (that tag's pins + global pins). It is NOT shown in the dedicated
+  // Pinned smart view (everything there is already pinned) or archive/trash.
+  final contextTag = destination == AppDestination.tag
+      ? ref.watch(selectedTagFilterProvider)
+      : null;
+  final separatePinned = (destination == AppDestination.allNotes ||
+          destination == AppDestination.tag) &&
       collectionState.query.sort.pinnedFirst;
 
   return NoteGroup.groupByDate(
     collectionState.notes,
     separatePinned: separatePinned,
+    contextTag: contextTag,
   );
 });

@@ -19,6 +19,12 @@ class NoteTagsTable extends Table {
         onDelete: KeyAction.cascade,
       )();
 
+  /// Denormalized cache: whether this note is pinned within this specific tag.
+  /// Authoritative source is `notes.pinnedTags`; this column is rebuilt from it
+  /// on every save and kept in sync by `setPinnedInTag`, so tag-scoped pins can
+  /// be filtered/ordered with an indexable join instead of parsing JSON.
+  BoolColumn get isPinned => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {noteId, tagId};
 }

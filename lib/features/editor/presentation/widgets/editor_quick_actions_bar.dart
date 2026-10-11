@@ -4,6 +4,7 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../notes/domain/note_model.dart';
+import '../../../tags/domain/phosphor_icons.dart';
 
 /// A 3-column quick-action bar at the top of the editor overflow menu.
 /// Features prominent, tactile icon buttons for frequent actions:
@@ -67,8 +68,8 @@ class EditorQuickActionsBar extends StatelessWidget {
           Expanded(
             child: _QuickActionButton(
               icon: note.isPinned
-                  ? Icons.push_pin_rounded
-                  : Icons.push_pin_outlined,
+                  ? PhosphorIconsFill.pushPin
+                  : PhosphorIconsRegular.pushPin,
               label: note.isPinned ? 'Unpin' : 'Pin',
               onTap: onTogglePin,
             ),

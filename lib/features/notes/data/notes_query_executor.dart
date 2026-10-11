@@ -38,9 +38,46 @@ class NotesQueryExecutor {
 
   final AppDatabase _db;
 
+  /// The single tag name the active list is scoped to, or null. Per-tag pins
+  /// only "float to the top" when the user is viewing exactly one tag in the
+  /// active (non-pinned, non-archive/trash) context.
+  String? _pinnedContextTag(NotesQuery query) {
+    if (query.context != NotesContext.active) return null;
+    if (query.filter.pinnedOnly) return null;
+    final tags = query.filter.tags
+        .map(TagParser.normalizeTag)
+        .where(TagParser.isValidTag)
+        .toList();
+    if (tags.length != 1) return null;
+    return tags.first;
+  }
+
+  /// SQL expression that is true when a note is "pinned" in the current
+  /// context: a global pin always counts; inside a single-tag view a pin within
+  /// that tag counts too.
+  Expression<bool> _pinnedInContextExpr(String? contextTag) {
+    final global = _db.notesTable.isPinned.equals(true);
+    if (contextTag == null) return global;
+    final sub = _db.selectOnly(_db.noteTagsTable)
+      ..join([
+        innerJoin(
+          _db.tagsTable,
+          _db.tagsTable.id.equalsExp(_db.noteTagsTable.tagId),
+        ),
+      ])
+      ..addColumns([_db.noteTagsTable.noteId])
+      ..where(
+        _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id) &
+            _db.noteTagsTable.isPinned.equals(true) &
+            _db.tagsTable.name.equals(contextTag),
+      );
+    return global | existsQuery(sub);
+  }
+
   /// Executes query against local Drift SQLite database using keyset cursor pagination
   Future<NotesQueryResult> execute(NotesQuery query) async {
     final wherePredicate = _buildWherePredicate(query);
+    final contextTag = _pinnedContextTag(query);
 
     // 1. Get total matching count
     final countExp = _db.notesTable.id.count();
@@ -63,14 +100,15 @@ class NotesQueryExecutor {
     // 2. Build keyset cursor predicate
     Expression<bool> fullPredicate = wherePredicate;
     if (query.cursor != null) {
-      final cursorPredicate = _buildCursorPredicate(query.sort, query.cursor!, query.context);
+      final cursorPredicate =
+          _buildCursorPredicate(query.sort, query.cursor!, query.context, contextTag);
       fullPredicate = fullPredicate & cursorPredicate;
     }
 
     // 3. Build ordered query
     final selectQuery = _db.select(_db.notesTable)
       ..where((_) => fullPredicate)
-      ..orderBy(_buildOrderingTerms(query.sort, query.context))
+      ..orderBy(_buildOrderingTerms(query.sort, query.context, contextTag))
       ..limit(query.limit);
 
     final noteEntities = await selectQuery.get();
@@ -102,12 +140,13 @@ class NotesQueryExecutor {
         isTrashed: e.isTrashed,
         deletedAt: e.deletedAt,
         tags: tagEntities.map((t) => t.name).toList(),
+        pinnedTags: decodePinnedTagsJson(e.pinnedTags),
       );
     }).toList();
 
     final hasMore = noteEntities.length == query.limit;
     final nextCursor = hasMore && notes.isNotEmpty
-        ? NotesCursor.fromNote(notes.last, query.sort)
+        ? NotesCursor.fromNote(notes.last, query.sort, contextTag: contextTag)
         : null;
 
     return NotesQueryResult(
@@ -140,9 +179,17 @@ class NotesQueryExecutor {
         break;
     }
 
-    // 2. Pinned predicate
+    // 2. Pinned predicate — the "Pinned" smart view aggregates BOTH global pins
+    //    (notes.is_pinned) and any per-tag pin (note_tags.is_pinned).
     if (query.filter.pinnedOnly) {
-      predicate = predicate & _db.notesTable.isPinned.equals(true);
+      final tagPinnedSub = _db.selectOnly(_db.noteTagsTable)
+        ..addColumns([_db.noteTagsTable.noteId])
+        ..where(
+          _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id) &
+              _db.noteTagsTable.isPinned.equals(true),
+        );
+      predicate = predicate &
+          (_db.notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub));
     }
 
     // 3. Untagged predicate
@@ -360,6 +407,7 @@ class NotesQueryExecutor {
   List<OrderingTerm Function($NotesTableTable)> _buildOrderingTerms(
     NotesSort sort,
     NotesContext context,
+    String? contextTag,
   ) {
     if (context == NotesContext.trash) {
       return [
@@ -371,9 +419,11 @@ class NotesQueryExecutor {
 
     final terms = <OrderingTerm Function($NotesTableTable)>[];
 
-    // 1. Pinned first in active context
+    // 1. Pinned first in active context (global pins everywhere; per-tag pins
+    //    float only within their own tag view).
     if (sort.pinnedFirst && context == NotesContext.active) {
-      terms.add((n) => OrderingTerm(expression: n.isPinned, mode: OrderingMode.desc));
+      final pinnedExpr = _pinnedInContextExpr(contextTag);
+      terms.add((_) => OrderingTerm(expression: pinnedExpr, mode: OrderingMode.desc));
     }
 
     // 2. Primary sort field
@@ -411,17 +461,18 @@ class NotesQueryExecutor {
     NotesSort sort,
     NotesCursor cursor,
     NotesContext context,
+    String? contextTag,
   ) {
     final sortCondition = _buildSortFieldCursorPredicate(sort, cursor);
 
     if (sort.pinnedFirst && context == NotesContext.active && cursor.lastIsPinned != null) {
+      final pinnedExpr = _pinnedInContextExpr(contextTag);
       if (cursor.lastIsPinned == true) {
         // Cursor is in pinned partition: next can be unpinned OR (pinned with sort condition)
-        return _db.notesTable.isPinned.equals(false) |
-            (_db.notesTable.isPinned.equals(true) & sortCondition);
+        return pinnedExpr.not() | (pinnedExpr & sortCondition);
       } else {
         // Cursor is in unpinned partition: next must be unpinned with sort condition
-        return _db.notesTable.isPinned.equals(false) & sortCondition;
+        return pinnedExpr.not() & sortCondition;
       }
     }
 

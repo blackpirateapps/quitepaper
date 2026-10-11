@@ -1754,7 +1754,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ref.read(notesQueryProvider.notifier).setTag(tag);
             },
             onTogglePin: () {
-              repository.setPinned(note.id, !note.isPinned);
+              final destination = ref.read(currentDestinationProvider);
+              final tagFilter = ref.read(selectedTagFilterProvider);
+              if (destination == AppDestination.tag &&
+                  tagFilter != null &&
+                  tagFilter.isNotEmpty) {
+                // Inside a tag view: toggle this tag's pin only (global pins
+                // are managed from All Notes).
+                repository.setPinnedInTag(
+                  note.id,
+                  tagFilter,
+                  !note.isPinnedInTag(tagFilter),
+                );
+              } else {
+                repository.setPinned(note.id, !note.isPinned);
+              }
               ref.read(notesCollectionProvider.notifier).refresh();
             },
             onArchive: () {
@@ -1778,6 +1792,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             onDuplicate: () {
               _duplicateNote(note);
             },
+            pinContextTag: ref.read(currentDestinationProvider) ==
+                    AppDestination.tag
+                ? ref.read(selectedTagFilterProvider)
+                : null,
           ),
         );
       }

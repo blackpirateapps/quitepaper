@@ -124,10 +124,20 @@ class ConflictResolver {
       remote: remote.body,
     );
 
+    // Per-tag pins survive a merge additively: union of both branches, kept
+    // only for tags that remain after the tag merge.
+    final mergedTagSet =
+        tagsResult.mergedValue.map((t) => t.toLowerCase()).toSet();
+    final mergedPinnedTags = <String>{
+      ...local.pinnedTags,
+      ...remote.pinnedTags,
+    }.where((t) => mergedTagSet.contains(t.toLowerCase())).toList();
+
     final mergedPlaintext = NotePlaintext(
       title: titleResult.mergedValue,
       body: contentResult.mergedValue,
       tags: tagsResult.mergedValue,
+      pinnedTags: mergedPinnedTags,
     );
 
     if (contentResult.hasConflicts) {

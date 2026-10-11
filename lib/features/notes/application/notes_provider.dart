@@ -181,8 +181,16 @@ final groupedNotesStreamProvider = Provider<AsyncValue<List<NoteGroup>>>((ref) {
   final destination = ref.watch(currentDestinationProvider);
 
   return notesAsync.whenData((notes) {
-    final separatePinned = destination == AppDestination.allNotes;
-    return NoteGroup.groupByDate(notes, separatePinned: separatePinned);
+    final contextTag = destination == AppDestination.tag
+        ? ref.watch(selectedTagFilterProvider)
+        : null;
+    final separatePinned = destination == AppDestination.allNotes ||
+        destination == AppDestination.tag;
+    return NoteGroup.groupByDate(
+      notes,
+      separatePinned: separatePinned,
+      contextTag: contextTag,
+    );
   });
 });
 

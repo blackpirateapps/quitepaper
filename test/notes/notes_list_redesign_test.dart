@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/app/theme/theme_family.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/core/search/search_models.dart';
 import 'package:quitepaper/features/notes/domain/note_metadata_extractor.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
@@ -445,7 +446,7 @@ The security vulnerability was discovered during an automated penetration test.
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.push_pin_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsFill.pushPin), findsOneWidget);
     });
   });
 

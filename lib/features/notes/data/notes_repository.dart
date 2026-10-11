@@ -25,6 +25,7 @@ abstract class NotesRepository {
   Future<void> saveNote(Note note);
   Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl});
   Future<void> setPinned(String id, bool isPinned);
+  Future<void> setPinnedInTag(String id, String tagName, bool pinned);
   Future<void> archiveNote(String id);
   Future<void> unarchiveNote(String id);
   Future<void> trashNote(String id);
@@ -111,6 +112,7 @@ class DriftNotesRepository implements NotesRepository {
       isTrashed: entity.note.isTrashed,
       deletedAt: entity.note.deletedAt,
       tags: entity.tagNames,
+      pinnedTags: decodePinnedTagsJson(entity.note.pinnedTags),
       journalDate: entity.note.journalDate,
       shareId: entity.note.shareId,
       shareUrl: entity.note.shareUrl,
@@ -276,6 +278,11 @@ class DriftNotesRepository implements NotesRepository {
   @override
   Future<void> setPinned(String id, bool isPinned) async {
     await _db.setPinned(id, isPinned);
+  }
+
+  @override
+  Future<void> setPinnedInTag(String id, String tagName, bool pinned) async {
+    await _db.setPinnedInTag(id, tagName, pinned);
   }
 
   @override

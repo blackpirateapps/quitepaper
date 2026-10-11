@@ -13,6 +13,7 @@ import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/presentation/widgets/note_list_tile.dart';
+import '../../tags/domain/phosphor_icons.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_icon_registry.dart';
 import '../application/search_provider.dart';
@@ -517,7 +518,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           const SizedBox(height: AppSpacing.xl),
           Row(
             children: [
-              Icon(Icons.push_pin_rounded, size: 14, color: colors.accent),
+              Icon(PhosphorIconsFill.pushPin, size: 14, color: colors.accent),
               const SizedBox(width: 6),
               Text(
                 'PINNED TAGS',

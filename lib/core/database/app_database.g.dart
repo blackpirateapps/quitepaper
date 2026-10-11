@@ -189,6 +189,17 @@ class $NotesTableTable extends NotesTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pinnedTagsMeta = const VerificationMeta(
+    'pinnedTags',
+  );
+  @override
+  late final GeneratedColumn<String> pinnedTags = GeneratedColumn<String>(
+    'pinned_tags',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -206,6 +217,7 @@ class $NotesTableTable extends NotesTable
     journalDate,
     shareId,
     shareUrl,
+    pinnedTags,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -318,6 +330,12 @@ class $NotesTableTable extends NotesTable
         shareUrl.isAcceptableOrUnknown(data['share_url']!, _shareUrlMeta),
       );
     }
+    if (data.containsKey('pinned_tags')) {
+      context.handle(
+        _pinnedTagsMeta,
+        pinnedTags.isAcceptableOrUnknown(data['pinned_tags']!, _pinnedTagsMeta),
+      );
+    }
     return context;
   }
 
@@ -387,6 +405,10 @@ class $NotesTableTable extends NotesTable
         DriftSqlType.string,
         data['${effectivePrefix}share_url'],
       ),
+      pinnedTags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pinned_tags'],
+      ),
     );
   }
 
@@ -412,6 +434,12 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
   final String? journalDate;
   final String? shareId;
   final String? shareUrl;
+
+  /// Tags this note is pinned WITHIN, as a JSON array of normalized tag names.
+  /// Null/empty means "not pinned in any tag". Distinct from [isPinned], which
+  /// is the global pin (pinned everywhere). Per-tag pins ride inside the
+  /// encrypted note content on sync, so the server never sees them.
+  final String? pinnedTags;
   const NoteEntity({
     required this.id,
     required this.title,
@@ -428,6 +456,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     this.journalDate,
     this.shareId,
     this.shareUrl,
+    this.pinnedTags,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -456,6 +485,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     }
     if (!nullToAbsent || shareUrl != null) {
       map['share_url'] = Variable<String>(shareUrl);
+    }
+    if (!nullToAbsent || pinnedTags != null) {
+      map['pinned_tags'] = Variable<String>(pinnedTags);
     }
     return map;
   }
@@ -487,6 +519,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       shareUrl: shareUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(shareUrl),
+      pinnedTags: pinnedTags == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pinnedTags),
     );
   }
 
@@ -511,6 +546,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       journalDate: serializer.fromJson<String?>(json['journalDate']),
       shareId: serializer.fromJson<String?>(json['shareId']),
       shareUrl: serializer.fromJson<String?>(json['shareUrl']),
+      pinnedTags: serializer.fromJson<String?>(json['pinnedTags']),
     );
   }
   @override
@@ -532,6 +568,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       'journalDate': serializer.toJson<String?>(journalDate),
       'shareId': serializer.toJson<String?>(shareId),
       'shareUrl': serializer.toJson<String?>(shareUrl),
+      'pinnedTags': serializer.toJson<String?>(pinnedTags),
     };
   }
 
@@ -551,6 +588,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     Value<String?> journalDate = const Value.absent(),
     Value<String?> shareId = const Value.absent(),
     Value<String?> shareUrl = const Value.absent(),
+    Value<String?> pinnedTags = const Value.absent(),
   }) => NoteEntity(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -567,6 +605,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     journalDate: journalDate.present ? journalDate.value : this.journalDate,
     shareId: shareId.present ? shareId.value : this.shareId,
     shareUrl: shareUrl.present ? shareUrl.value : this.shareUrl,
+    pinnedTags: pinnedTags.present ? pinnedTags.value : this.pinnedTags,
   );
   NoteEntity copyWithCompanion(NotesTableCompanion data) {
     return NoteEntity(
@@ -591,6 +630,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           : this.journalDate,
       shareId: data.shareId.present ? data.shareId.value : this.shareId,
       shareUrl: data.shareUrl.present ? data.shareUrl.value : this.shareUrl,
+      pinnedTags: data.pinnedTags.present
+          ? data.pinnedTags.value
+          : this.pinnedTags,
     );
   }
 
@@ -611,7 +653,8 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           ..write('syncedAt: $syncedAt, ')
           ..write('journalDate: $journalDate, ')
           ..write('shareId: $shareId, ')
-          ..write('shareUrl: $shareUrl')
+          ..write('shareUrl: $shareUrl, ')
+          ..write('pinnedTags: $pinnedTags')
           ..write(')'))
         .toString();
   }
@@ -633,6 +676,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     journalDate,
     shareId,
     shareUrl,
+    pinnedTags,
   );
   @override
   bool operator ==(Object other) =>
@@ -652,7 +696,8 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           other.syncedAt == this.syncedAt &&
           other.journalDate == this.journalDate &&
           other.shareId == this.shareId &&
-          other.shareUrl == this.shareUrl);
+          other.shareUrl == this.shareUrl &&
+          other.pinnedTags == this.pinnedTags);
 }
 
 class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
@@ -671,6 +716,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
   final Value<String?> journalDate;
   final Value<String?> shareId;
   final Value<String?> shareUrl;
+  final Value<String?> pinnedTags;
   final Value<int> rowid;
   const NotesTableCompanion({
     this.id = const Value.absent(),
@@ -688,6 +734,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.journalDate = const Value.absent(),
     this.shareId = const Value.absent(),
     this.shareUrl = const Value.absent(),
+    this.pinnedTags = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NotesTableCompanion.insert({
@@ -706,6 +753,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.journalDate = const Value.absent(),
     this.shareId = const Value.absent(),
     this.shareUrl = const Value.absent(),
+    this.pinnedTags = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -726,6 +774,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Expression<String>? journalDate,
     Expression<String>? shareId,
     Expression<String>? shareUrl,
+    Expression<String>? pinnedTags,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -744,6 +793,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       if (journalDate != null) 'journal_date': journalDate,
       if (shareId != null) 'share_id': shareId,
       if (shareUrl != null) 'share_url': shareUrl,
+      if (pinnedTags != null) 'pinned_tags': pinnedTags,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -764,6 +814,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Value<String?>? journalDate,
     Value<String?>? shareId,
     Value<String?>? shareUrl,
+    Value<String?>? pinnedTags,
     Value<int>? rowid,
   }) {
     return NotesTableCompanion(
@@ -782,6 +833,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       journalDate: journalDate ?? this.journalDate,
       shareId: shareId ?? this.shareId,
       shareUrl: shareUrl ?? this.shareUrl,
+      pinnedTags: pinnedTags ?? this.pinnedTags,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -834,6 +886,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     if (shareUrl.present) {
       map['share_url'] = Variable<String>(shareUrl.value);
     }
+    if (pinnedTags.present) {
+      map['pinned_tags'] = Variable<String>(pinnedTags.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -858,6 +913,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
           ..write('journalDate: $journalDate, ')
           ..write('shareId: $shareId, ')
           ..write('shareUrl: $shareUrl, ')
+          ..write('pinnedTags: $pinnedTags, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1654,8 +1710,23 @@ class $NoteTagsTableTable extends NoteTagsTable
       'REFERENCES tags (id) ON DELETE CASCADE',
     ),
   );
+  static const VerificationMeta _isPinnedMeta = const VerificationMeta(
+    'isPinned',
+  );
   @override
-  List<GeneratedColumn> get $columns => [noteId, tagId];
+  late final GeneratedColumn<bool> isPinned = GeneratedColumn<bool>(
+    'is_pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [noteId, tagId, isPinned];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1684,6 +1755,12 @@ class $NoteTagsTableTable extends NoteTagsTable
     } else if (isInserting) {
       context.missing(_tagIdMeta);
     }
+    if (data.containsKey('is_pinned')) {
+      context.handle(
+        _isPinnedMeta,
+        isPinned.isAcceptableOrUnknown(data['is_pinned']!, _isPinnedMeta),
+      );
+    }
     return context;
   }
 
@@ -1701,6 +1778,10 @@ class $NoteTagsTableTable extends NoteTagsTable
         DriftSqlType.string,
         data['${effectivePrefix}tag_id'],
       )!,
+      isPinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pinned'],
+      )!,
     );
   }
 
@@ -1713,17 +1794,32 @@ class $NoteTagsTableTable extends NoteTagsTable
 class NoteTagEntity extends DataClass implements Insertable<NoteTagEntity> {
   final String noteId;
   final String tagId;
-  const NoteTagEntity({required this.noteId, required this.tagId});
+
+  /// Denormalized cache: whether this note is pinned within this specific tag.
+  /// Authoritative source is `notes.pinnedTags`; this column is rebuilt from it
+  /// on every save and kept in sync by `setPinnedInTag`, so tag-scoped pins can
+  /// be filtered/ordered with an indexable join instead of parsing JSON.
+  final bool isPinned;
+  const NoteTagEntity({
+    required this.noteId,
+    required this.tagId,
+    required this.isPinned,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['note_id'] = Variable<String>(noteId);
     map['tag_id'] = Variable<String>(tagId);
+    map['is_pinned'] = Variable<bool>(isPinned);
     return map;
   }
 
   NoteTagsTableCompanion toCompanion(bool nullToAbsent) {
-    return NoteTagsTableCompanion(noteId: Value(noteId), tagId: Value(tagId));
+    return NoteTagsTableCompanion(
+      noteId: Value(noteId),
+      tagId: Value(tagId),
+      isPinned: Value(isPinned),
+    );
   }
 
   factory NoteTagEntity.fromJson(
@@ -1734,6 +1830,7 @@ class NoteTagEntity extends DataClass implements Insertable<NoteTagEntity> {
     return NoteTagEntity(
       noteId: serializer.fromJson<String>(json['noteId']),
       tagId: serializer.fromJson<String>(json['tagId']),
+      isPinned: serializer.fromJson<bool>(json['isPinned']),
     );
   }
   @override
@@ -1742,15 +1839,21 @@ class NoteTagEntity extends DataClass implements Insertable<NoteTagEntity> {
     return <String, dynamic>{
       'noteId': serializer.toJson<String>(noteId),
       'tagId': serializer.toJson<String>(tagId),
+      'isPinned': serializer.toJson<bool>(isPinned),
     };
   }
 
-  NoteTagEntity copyWith({String? noteId, String? tagId}) =>
-      NoteTagEntity(noteId: noteId ?? this.noteId, tagId: tagId ?? this.tagId);
+  NoteTagEntity copyWith({String? noteId, String? tagId, bool? isPinned}) =>
+      NoteTagEntity(
+        noteId: noteId ?? this.noteId,
+        tagId: tagId ?? this.tagId,
+        isPinned: isPinned ?? this.isPinned,
+      );
   NoteTagEntity copyWithCompanion(NoteTagsTableCompanion data) {
     return NoteTagEntity(
       noteId: data.noteId.present ? data.noteId.value : this.noteId,
       tagId: data.tagId.present ? data.tagId.value : this.tagId,
+      isPinned: data.isPinned.present ? data.isPinned.value : this.isPinned,
     );
   }
 
@@ -1758,44 +1861,51 @@ class NoteTagEntity extends DataClass implements Insertable<NoteTagEntity> {
   String toString() {
     return (StringBuffer('NoteTagEntity(')
           ..write('noteId: $noteId, ')
-          ..write('tagId: $tagId')
+          ..write('tagId: $tagId, ')
+          ..write('isPinned: $isPinned')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(noteId, tagId);
+  int get hashCode => Object.hash(noteId, tagId, isPinned);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is NoteTagEntity &&
           other.noteId == this.noteId &&
-          other.tagId == this.tagId);
+          other.tagId == this.tagId &&
+          other.isPinned == this.isPinned);
 }
 
 class NoteTagsTableCompanion extends UpdateCompanion<NoteTagEntity> {
   final Value<String> noteId;
   final Value<String> tagId;
+  final Value<bool> isPinned;
   final Value<int> rowid;
   const NoteTagsTableCompanion({
     this.noteId = const Value.absent(),
     this.tagId = const Value.absent(),
+    this.isPinned = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NoteTagsTableCompanion.insert({
     required String noteId,
     required String tagId,
+    this.isPinned = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : noteId = Value(noteId),
        tagId = Value(tagId);
   static Insertable<NoteTagEntity> custom({
     Expression<String>? noteId,
     Expression<String>? tagId,
+    Expression<bool>? isPinned,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (noteId != null) 'note_id': noteId,
       if (tagId != null) 'tag_id': tagId,
+      if (isPinned != null) 'is_pinned': isPinned,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1803,11 +1913,13 @@ class NoteTagsTableCompanion extends UpdateCompanion<NoteTagEntity> {
   NoteTagsTableCompanion copyWith({
     Value<String>? noteId,
     Value<String>? tagId,
+    Value<bool>? isPinned,
     Value<int>? rowid,
   }) {
     return NoteTagsTableCompanion(
       noteId: noteId ?? this.noteId,
       tagId: tagId ?? this.tagId,
+      isPinned: isPinned ?? this.isPinned,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1821,6 +1933,9 @@ class NoteTagsTableCompanion extends UpdateCompanion<NoteTagEntity> {
     if (tagId.present) {
       map['tag_id'] = Variable<String>(tagId.value);
     }
+    if (isPinned.present) {
+      map['is_pinned'] = Variable<bool>(isPinned.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1832,6 +1947,7 @@ class NoteTagsTableCompanion extends UpdateCompanion<NoteTagEntity> {
     return (StringBuffer('NoteTagsTableCompanion(')
           ..write('noteId: $noteId, ')
           ..write('tagId: $tagId, ')
+          ..write('isPinned: $isPinned, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10448,6 +10564,7 @@ typedef $$NotesTableTableCreateCompanionBuilder =
       Value<String?> journalDate,
       Value<String?> shareId,
       Value<String?> shareUrl,
+      Value<String?> pinnedTags,
       Value<int> rowid,
     });
 typedef $$NotesTableTableUpdateCompanionBuilder =
@@ -10467,6 +10584,7 @@ typedef $$NotesTableTableUpdateCompanionBuilder =
       Value<String?> journalDate,
       Value<String?> shareId,
       Value<String?> shareUrl,
+      Value<String?> pinnedTags,
       Value<int> rowid,
     });
 
@@ -10634,6 +10752,11 @@ class $$NotesTableTableFilterComposer
 
   ColumnFilters<String> get shareUrl => $composableBuilder(
     column: $table.shareUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pinnedTags => $composableBuilder(
+    column: $table.pinnedTags,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10821,6 +10944,11 @@ class $$NotesTableTableOrderingComposer
     column: $table.shareUrl,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get pinnedTags => $composableBuilder(
+    column: $table.pinnedTags,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$NotesTableTableAnnotationComposer
@@ -10882,6 +11010,11 @@ class $$NotesTableTableAnnotationComposer
 
   GeneratedColumn<String> get shareUrl =>
       $composableBuilder(column: $table.shareUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get pinnedTags => $composableBuilder(
+    column: $table.pinnedTags,
+    builder: (column) => column,
+  );
 
   Expression<T> noteTagsTableRefs<T extends Object>(
     Expression<T> Function($$NoteTagsTableTableAnnotationComposer a) f,
@@ -11034,6 +11167,7 @@ class $$NotesTableTableTableManager
                 Value<String?> journalDate = const Value.absent(),
                 Value<String?> shareId = const Value.absent(),
                 Value<String?> shareUrl = const Value.absent(),
+                Value<String?> pinnedTags = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion(
                 id: id,
@@ -11051,6 +11185,7 @@ class $$NotesTableTableTableManager
                 journalDate: journalDate,
                 shareId: shareId,
                 shareUrl: shareUrl,
+                pinnedTags: pinnedTags,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11070,6 +11205,7 @@ class $$NotesTableTableTableManager
                 Value<String?> journalDate = const Value.absent(),
                 Value<String?> shareId = const Value.absent(),
                 Value<String?> shareUrl = const Value.absent(),
+                Value<String?> pinnedTags = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion.insert(
                 id: id,
@@ -11087,6 +11223,7 @@ class $$NotesTableTableTableManager
                 journalDate: journalDate,
                 shareId: shareId,
                 shareUrl: shareUrl,
+                pinnedTags: pinnedTags,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11689,12 +11826,14 @@ typedef $$NoteTagsTableTableCreateCompanionBuilder =
     NoteTagsTableCompanion Function({
       required String noteId,
       required String tagId,
+      Value<bool> isPinned,
       Value<int> rowid,
     });
 typedef $$NoteTagsTableTableUpdateCompanionBuilder =
     NoteTagsTableCompanion Function({
       Value<String> noteId,
       Value<String> tagId,
+      Value<bool> isPinned,
       Value<int> rowid,
     });
 
@@ -11750,6 +11889,11 @@ class $$NoteTagsTableTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<bool> get isPinned => $composableBuilder(
+    column: $table.isPinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$NotesTableTableFilterComposer get noteId {
     final $$NotesTableTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -11806,6 +11950,11 @@ class $$NoteTagsTableTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<bool> get isPinned => $composableBuilder(
+    column: $table.isPinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NotesTableTableOrderingComposer get noteId {
     final $$NotesTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11862,6 +12011,9 @@ class $$NoteTagsTableTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<bool> get isPinned =>
+      $composableBuilder(column: $table.isPinned, builder: (column) => column);
+
   $$NotesTableTableAnnotationComposer get noteId {
     final $$NotesTableTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -11939,20 +12091,24 @@ class $$NoteTagsTableTableTableManager
               ({
                 Value<String> noteId = const Value.absent(),
                 Value<String> tagId = const Value.absent(),
+                Value<bool> isPinned = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NoteTagsTableCompanion(
                 noteId: noteId,
                 tagId: tagId,
+                isPinned: isPinned,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String noteId,
                 required String tagId,
+                Value<bool> isPinned = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NoteTagsTableCompanion.insert(
                 noteId: noteId,
                 tagId: tagId,
+                isPinned: isPinned,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

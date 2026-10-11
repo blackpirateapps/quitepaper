@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -85,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
 
   @override
@@ -205,6 +207,12 @@ class AppDatabase extends _$AppDatabase {
           if (from < 17) {
             await _createTableSafely(m, placeAliasesTable);
           }
+          if (from < 18) {
+            // Per-tag ("local") note pinning: authoritative set of tags each
+            // note is pinned within, plus a denormalized flag on the join row.
+            await _addColumnSafely(m, notesTable, notesTable.pinnedTags);
+            await _addColumnSafely(m, noteTagsTable, noteTagsTable.isPinned);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON;');
@@ -238,6 +246,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS note_tags_pinned_idx ON note_tags (note_id, is_pinned);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS tags_pinned_idx ON tags (is_pinned, pinned_order);',
@@ -1081,6 +1092,7 @@ class AppDatabase extends _$AppDatabase {
     bool isTrashed = false,
     DateTime? deletedAt,
     List<String>? tags,
+    List<String>? pinnedTags,
     String? journalDate,
     int serverRevision = 0,
     bool isDirty = true,
@@ -1090,6 +1102,33 @@ class AppDatabase extends _$AppDatabase {
         JournalMetadataService.extractJournalMetadata(content).journalDate;
 
     await transaction(() async {
+      // Resolve the note's current tag set first so per-tag pins can be pruned
+      // to tags the note still carries.
+      final extractedTags = (tags != null && tags.isNotEmpty)
+          ? tags
+          : TagParser.extractTags('$title\n$content');
+      final normalizedTagSet = extractedTags
+          .map(TagParser.normalizeTag)
+          .where(TagParser.isValidTag)
+          .toSet();
+
+      // Per-tag pin set: from sync (explicit [pinnedTags]) or, for local edits,
+      // preserved from the existing row. Always intersected with current tags.
+      final List<String> pinnedSource;
+      if (pinnedTags != null) {
+        pinnedSource = pinnedTags;
+      } else {
+        final existing = await (select(notesTable)
+              ..where((n) => n.id.equals(id)))
+            .getSingleOrNull();
+        pinnedSource = _decodePinnedTags(existing?.pinnedTags);
+      }
+      final effectivePinned = pinnedSource
+          .map(TagParser.normalizeTag)
+          .where(TagParser.isValidTag)
+          .where(normalizedTagSet.contains)
+          .toSet();
+
       await into(notesTable).insertOnConflictUpdate(
         NotesTableCompanion.insert(
           id: id,
@@ -1105,14 +1144,11 @@ class AppDatabase extends _$AppDatabase {
           isDirty: Value(isDirty),
           syncedAt: Value(syncedAt),
           journalDate: Value(effectiveJournalDate),
+          pinnedTags: Value(_encodePinnedTags(effectivePinned)),
         ),
       );
 
-      // Extract and sync tags if tags list is empty or not passed, or sync provided tags
-      final extractedTags = (tags != null && tags.isNotEmpty)
-          ? tags
-          : TagParser.extractTags('$title\n$content');
-      await _syncNoteTags(id, extractedTags);
+      await _syncNoteTags(id, extractedTags, pinnedNames: effectivePinned);
 
       // Atomic FTS5 Search Index Maintenance
       await customStatement(
@@ -1163,7 +1199,8 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// Toggle or set pin status
+  /// Toggle or set the GLOBAL pin status (pinned everywhere: All Notes, the
+  /// Pinned view, and inside every tag the note belongs to).
   Future<void> setPinned(String noteId, bool isPinned) async {
     await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
       NotesTableCompanion(
@@ -1171,6 +1208,69 @@ class AppDatabase extends _$AppDatabase {
         isDirty: const Value(true),
       ),
     );
+  }
+
+  /// Encode a set of normalized tag names to the JSON stored in
+  /// `notes.pinned_tags`. Empty collapses to null to keep the column tidy.
+  static String? _encodePinnedTags(Iterable<String> names) {
+    final list = names.toList();
+    if (list.isEmpty) return null;
+    return jsonEncode(list);
+  }
+
+  /// Decode `notes.pinned_tags` into a list of normalized tag names.
+  static List<String> _decodePinnedTags(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// Set or clear a per-tag ("local") pin: whether [noteId] is pinned within the
+  /// tag named [tagName]. Updates the authoritative `notes.pinned_tags` set and
+  /// the denormalized `note_tags.is_pinned` cache, and marks the note dirty so
+  /// the change rides out inside the encrypted note content on next sync.
+  Future<void> setPinnedInTag(
+    String noteId,
+    String tagName,
+    bool pinned,
+  ) async {
+    final norm = TagParser.normalizeTag(tagName);
+    if (!TagParser.isValidTag(norm)) return;
+
+    await transaction(() async {
+      final note =
+          await (select(notesTable)..where((n) => n.id.equals(noteId)))
+              .getSingleOrNull();
+      if (note == null) return;
+
+      final current = _decodePinnedTags(note.pinnedTags).toSet();
+      if (pinned) {
+        current.add(norm);
+      } else {
+        current.remove(norm);
+      }
+
+      await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+        NotesTableCompanion(
+          pinnedTags: Value(_encodePinnedTags(current)),
+          isDirty: const Value(true),
+        ),
+      );
+
+      final tag = await (select(tagsTable)..where((t) => t.name.equals(norm)))
+          .getSingleOrNull();
+      if (tag != null) {
+        await (update(noteTagsTable)
+              ..where((nt) =>
+                  nt.noteId.equals(noteId) & nt.tagId.equals(tag.id)))
+            .write(NoteTagsTableCompanion(isPinned: Value(pinned)));
+      }
+    });
   }
 
   /// Archive note: archived = true, trashed = false
@@ -1530,11 +1630,18 @@ class AppDatabase extends _$AppDatabase {
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
   }
 
-  /// Stream count of pinned active notes
+  /// Stream count of pinned active notes. Matches the "Pinned" smart view: a
+  /// note counts if it is globally pinned OR pinned within any tag.
   Stream<int> watchPinnedNotesCount() {
     final countExp = notesTable.id.count();
+    final tagPinnedSub = selectOnly(noteTagsTable)
+      ..addColumns([noteTagsTable.noteId])
+      ..where(
+        noteTagsTable.noteId.equalsExp(notesTable.id) &
+            noteTagsTable.isPinned.equals(true),
+      );
     final query = selectOnly(notesTable)
-      ..where(notesTable.isPinned.equals(true) &
+      ..where((notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub)) &
           notesTable.isArchived.equals(false) &
           notesTable.isTrashed.equals(false))
       ..addColumns([countExp]);
@@ -2201,7 +2308,11 @@ class AppDatabase extends _$AppDatabase {
     return map;
   }
 
-  Future<void> _syncNoteTags(String noteId, List<String> tagNames) async {
+  Future<void> _syncNoteTags(
+    String noteId,
+    List<String> tagNames, {
+    Set<String> pinnedNames = const {},
+  }) async {
     const uuid = Uuid();
     final normalized = tagNames
         .map(TagParser.normalizeTag)
@@ -2250,6 +2361,7 @@ class AppDatabase extends _$AppDatabase {
         NoteTagsTableCompanion.insert(
           noteId: noteId,
           tagId: tag.id,
+          isPinned: Value(pinnedNames.contains(tagName)),
         ),
       );
     }

@@ -10,6 +10,7 @@ import '../../../../core/utils/platform_layout_helper.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
 import '../../../export/presentation/export_note_sheet.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
+import '../../../tags/domain/phosphor_icons.dart';
 import '../../domain/note_metadata_extractor.dart';
 import '../../domain/note_model.dart';
 import 'note_mini_table_preview.dart';
@@ -39,6 +40,7 @@ class NoteListTile extends StatefulWidget {
     this.isMultiSelecting = false,
     this.isItemMultiSelected = false,
     this.onItemMultiSelectToggle,
+    this.pinContextTag,
   });
 
   final Note note;
@@ -60,6 +62,20 @@ class NoteListTile extends StatefulWidget {
   final bool isMultiSelecting;
   final bool isItemMultiSelected;
   final VoidCallback? onItemMultiSelectToggle;
+
+  /// When this tile is rendered inside a single-tag view, the (normalized) tag
+  /// name that view is scoped to. Governs whether the note reads as pinned and
+  /// whether the pin action toggles the global pin or this tag's pin. Null in
+  /// All Notes and other contexts (pin action is global there).
+  final String? pinContextTag;
+
+  /// Whether the note is "pinned" in this tile's context: a global pin always
+  /// counts; inside a tag view a pin within that tag counts too.
+  bool get isPinnedHere => note.isPinnedInContext(pinContextTag);
+
+  /// Whether toggling the pin here will govern this tag's pin (vs the global
+  /// pin). True only inside a tag view.
+  bool get pinIsTagScoped => pinContextTag != null;
 
   @override
   State<NoteListTile> createState() => _NoteListTileState();
@@ -190,7 +206,7 @@ class _NoteListTileState extends State<NoteListTile> {
                                   color: colors.accent,
                                 ),
                               ),
-                            ] else if (widget.note.isPinned &&
+                            ] else if (widget.isPinnedHere &&
                                 !widget.note.isTrashed &&
                                 !widget.note.isArchived) ...[
                               Padding(
@@ -199,7 +215,7 @@ class _NoteListTileState extends State<NoteListTile> {
                                   right: 6.0,
                                 ),
                                 child: Icon(
-                                  Icons.push_pin_rounded,
+                                  PhosphorIconsFill.pushPin,
                                   size: 14,
                                   color: colors.accent,
                                 ),
@@ -535,8 +551,15 @@ class _NoteListTileState extends State<NoteListTile> {
       return;
     }
 
-    final isPinned = widget.note.isPinned;
+    final isPinned = widget.isPinnedHere;
     final isArchived = widget.note.isArchived;
+    // Inside a tag view the pin action governs this tag's pin; the label tracks
+    // that scope so a globally-pinned note still offers "Pin to tag".
+    final pinActive =
+        widget.pinIsTagScoped ? widget.note.isPinnedInTag(widget.pinContextTag!) : isPinned;
+    final pinLabel = widget.pinIsTagScoped
+        ? (pinActive ? 'Unpin from tag' : 'Pin to tag')
+        : (pinActive ? 'Unpin note' : 'Pin note');
 
     final selected = await showMenu<String>(
       context: context,
@@ -552,12 +575,12 @@ class _NoteListTileState extends State<NoteListTile> {
           child: Row(
             children: [
               Icon(
-                isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                pinActive ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
                 size: 18,
-                color: isPinned ? colors.accent : colors.textPrimary,
+                color: pinActive ? colors.accent : colors.textPrimary,
               ),
               const SizedBox(width: 10),
-              Text(isPinned ? 'Unpin note' : 'Pin note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              Text(pinLabel, style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
             ],
           ),
         ),
@@ -796,13 +819,19 @@ class _NoteListTileState extends State<NoteListTile> {
                   if (widget.onTogglePin != null)
                     ListTile(
                       leading: Icon(
-                        widget.note.isPinned
-                            ? Icons.push_pin_outlined
-                            : Icons.push_pin_rounded,
+                        (widget.pinIsTagScoped
+                                ? widget.note.isPinnedInTag(widget.pinContextTag!)
+                                : widget.isPinnedHere)
+                            ? PhosphorIconsFill.pushPin
+                            : PhosphorIconsRegular.pushPin,
                         color: colors.textSecondary,
                       ),
                       title: Text(
-                        widget.note.isPinned ? 'Unpin note' : 'Pin note',
+                        widget.pinIsTagScoped
+                            ? (widget.note.isPinnedInTag(widget.pinContextTag!)
+                                ? 'Unpin from tag'
+                                : 'Pin to tag')
+                            : (widget.isPinnedHere ? 'Unpin note' : 'Pin note'),
                         style: AppTypography.bodyMedium.copyWith(
                           color: colors.textPrimary,
                         ),

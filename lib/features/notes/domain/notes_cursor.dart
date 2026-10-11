@@ -19,14 +19,17 @@ class NotesCursor {
   final String? lastTitle;
   final bool? lastIsPinned;
 
-  /// Creates a cursor from the last note in a loaded batch according to the active sort
-  factory NotesCursor.fromNote(Note note, NotesSort sort) {
+  /// Creates a cursor from the last note in a loaded batch according to the
+  /// active sort. [contextTag], when set, scopes the pinned-partition value to
+  /// "pinned in this tag" (a global pin always counts) so keyset pagination
+  /// stays aligned with the per-tag pinned-first ordering.
+  factory NotesCursor.fromNote(Note note, NotesSort sort, {String? contextTag}) {
     return NotesCursor(
       lastNoteId: note.id,
       lastUpdatedAt: note.updatedAt,
       lastCreatedAt: note.createdAt,
       lastTitle: note.title.trim().toLowerCase(),
-      lastIsPinned: note.isPinned,
+      lastIsPinned: note.isPinnedInContext(contextTag),
     );
   }
 

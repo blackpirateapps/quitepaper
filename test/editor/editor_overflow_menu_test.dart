@@ -313,7 +313,7 @@ void main() {
       await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
       expect(find.text('Unpin'), findsOneWidget);
-      expect(find.byIcon(Icons.push_pin_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsFill.pushPin), findsOneWidget);
 
       await finishTest(tester);
     });

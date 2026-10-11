@@ -18,6 +18,7 @@ import 'conflict/merge_result.dart';
 import '../device/device_info_service.dart';
 import 'sync_api_client.dart';
 import 'sync_models.dart';
+import '../../features/notes/domain/note_model.dart' show decodePinnedTagsJson;
 
 class SyncEngine {
   SyncEngine({
@@ -153,6 +154,7 @@ class SyncEngine {
           title: note.title,
           body: note.content,
           tags: tags,
+          pinnedTags: decodePinnedTagsJson(note.pinnedTags),
         );
 
         final envelope = await cryptoService.encryptNote(
@@ -480,6 +482,7 @@ class SyncEngine {
                 title: localNote.note.title,
                 body: localNote.note.content,
                 tags: localNote.tagNames,
+                pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
               );
               const remotePlaintext =
                   NotePlaintext(title: '', body: '', tags: []);
@@ -564,6 +567,7 @@ class SyncEngine {
                   title: localNote.note.title,
                   body: localNote.note.content,
                   tags: localNote.tagNames,
+                  pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
                 );
 
                 final mergeRes = conflictResolver.merge3Way(
@@ -629,6 +633,7 @@ class SyncEngine {
                   isTrashed: change.trashed,
                   deletedAt: change.deletedAt,
                   tags: decrypted.tags,
+                  pinnedTags: decrypted.pinnedTags,
                   serverRevision: change.revision,
                   isDirty: false,
                   syncedAt: DateTime.now(),
@@ -1225,6 +1230,7 @@ class SyncEngine {
               title: localNote.note.title,
               body: localNote.note.content,
               tags: localNote.tagNames,
+              pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
             )
           : const NotePlaintext(title: '', body: '', tags: []);
       final localIsDeleted = localNote == null || localNote.note.isTrashed;

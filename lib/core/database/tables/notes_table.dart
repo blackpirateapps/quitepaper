@@ -21,6 +21,12 @@ class NotesTable extends Table {
   TextColumn get shareId => text().nullable()();
   TextColumn get shareUrl => text().nullable()();
 
+  /// Tags this note is pinned WITHIN, as a JSON array of normalized tag names.
+  /// Null/empty means "not pinned in any tag". Distinct from [isPinned], which
+  /// is the global pin (pinned everywhere). Per-tag pins ride inside the
+  /// encrypted note content on sync, so the server never sees them.
+  TextColumn get pinnedTags => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

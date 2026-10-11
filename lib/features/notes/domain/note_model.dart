@@ -4,6 +4,19 @@ import '../../editor/application/rich_document_serializer.dart';
 import '../../editor/domain/rich_document.dart';
 import 'note_metadata_extractor.dart';
 
+/// Decodes the JSON stored in `notes.pinned_tags` into a list of normalized
+/// tag names. Tolerant of null/empty/malformed values (returns an empty list).
+List<String> decodePinnedTagsJson(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded.map((e) => e.toString()).toList();
+    }
+  } catch (_) {}
+  return const [];
+}
+
 @immutable
 class Note {
   const Note({
@@ -17,6 +30,7 @@ class Note {
     this.isTrashed = false,
     this.deletedAt,
     this.tags = const [],
+    this.pinnedTags = const [],
     this.journalDate,
     this.shareId,
     this.shareUrl,
@@ -32,6 +46,10 @@ class Note {
   final bool isTrashed;
   final DateTime? deletedAt;
   final List<String> tags;
+
+  /// Normalized names of the tags this note is pinned WITHIN (per-tag / "local"
+  /// pins). Independent of [isPinned], which is the global pin.
+  final List<String> pinnedTags;
   final String? journalDate;
 
   /// Public share slug (null when the note is not shared as a URL).
@@ -48,6 +66,22 @@ class Note {
 
   /// Whether the note is active (not archived and not trashed)
   bool get isActive => !isArchived && !isTrashed;
+
+  /// Whether this note is pinned within the tag named [tagName] (per-tag pin).
+  /// Expects/normalizes to the same lowercased form used in [pinnedTags].
+  bool isPinnedInTag(String tagName) {
+    final norm = tagName.trim().toLowerCase();
+    return pinnedTags.any((t) => t.toLowerCase() == norm);
+  }
+
+  /// Whether the note reads as "pinned" in the given workspace context: in a
+  /// tag view that means a global pin OR a pin within that tag; elsewhere it is
+  /// just the global pin.
+  bool isPinnedInContext(String? contextTagName) {
+    if (isPinned) return true;
+    if (contextTagName == null) return false;
+    return isPinnedInTag(contextTagName);
+  }
 
   /// Whether the note is encrypted with a custom note password
   bool get isPasswordProtected =>
@@ -132,6 +166,7 @@ class Note {
     bool? isTrashed,
     DateTime? deletedAt,
     List<String>? tags,
+    List<String>? pinnedTags,
     String? journalDate,
     bool clearJournalDate = false,
     String? shareId,
@@ -149,6 +184,7 @@ class Note {
       isTrashed: isTrashed ?? this.isTrashed,
       deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
+      pinnedTags: pinnedTags ?? this.pinnedTags,
       journalDate: clearJournalDate ? null : (journalDate ?? this.journalDate),
       shareId: clearShare ? null : (shareId ?? this.shareId),
       shareUrl: clearShare ? null : (shareUrl ?? this.shareUrl),
@@ -172,7 +208,8 @@ class Note {
           journalDate == other.journalDate &&
           shareId == other.shareId &&
           shareUrl == other.shareUrl &&
-          listEquals(tags, other.tags);
+          listEquals(tags, other.tags) &&
+          listEquals(pinnedTags, other.pinnedTags);
 
   @override
   int get hashCode =>
@@ -188,5 +225,6 @@ class Note {
       journalDate.hashCode ^
       shareId.hashCode ^
       shareUrl.hashCode ^
-      tags.hashCode;
+      tags.hashCode ^
+      pinnedTags.hashCode;
 }
