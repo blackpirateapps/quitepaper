@@ -1175,3 +1175,156 @@ export async function pullTags(
     hasMore,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Document annotation sync (spec §9). Crypto-blind per-document(-per-page)
+// encrypted blobs ride the same push/pull + revision-cursor path as tags; the
+// server stores and returns ciphertext by revision and NEVER merges annotation
+// lists (merge is client-side union-by-id + LWW on updatedAtMs).
+// ---------------------------------------------------------------------------
+
+export interface PullDocumentAnnotationChangeItem {
+  documentId: string;
+  pageNumber: number;
+  revision: number;
+  contentCiphertext: string;
+  annotationCount: number;
+  updatedAtMs: number;
+  isDeleted: boolean;
+  deletedAt?: string | null;
+}
+
+export interface PullDocumentAnnotationsResponse {
+  changes: PullDocumentAnnotationChangeItem[];
+  cursor: number;
+  hasMore: boolean;
+}
+
+export async function pushDocumentAnnotations(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<{ results: PushResultItem[]; cursor: number }> {
+  const { pushDocumentAnnotationsSchema } = await import('../validation/schemas.js');
+  const parsed = pushDocumentAnnotationsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid annotation push body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { annotations, deviceId } = parsed.data;
+  const appliedResults: PushResultItem[] = [];
+
+  const maxRevResult = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM document_annotations WHERE user_id = ?',
+    args: [userId],
+  });
+  let currentMaxRev = Number(maxRevResult.rows[0]?.max_rev || 0);
+
+  for (const a of annotations) {
+    currentMaxRev += 1;
+    const now = new Date().toISOString();
+    const deletedAt = a.isDeleted ? now : null;
+
+    await db.execute({
+      sql: `INSERT INTO document_annotations (
+              user_id, document_id, page_number, content_ciphertext, annotation_count,
+              updated_at_ms, is_deleted, deleted_at, revision, created_at, updated_at,
+              created_by_device, updated_by_device
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, document_id, page_number) DO UPDATE SET
+              content_ciphertext = excluded.content_ciphertext,
+              annotation_count = excluded.annotation_count,
+              updated_at_ms = excluded.updated_at_ms,
+              is_deleted = excluded.is_deleted,
+              deleted_at = excluded.deleted_at,
+              revision = excluded.revision,
+              updated_at = excluded.updated_at,
+              updated_by_device = excluded.updated_by_device`,
+      args: [
+        userId,
+        a.documentId,
+        a.pageNumber,
+        a.contentCiphertext,
+        a.annotationCount,
+        a.updatedAtMs,
+        a.isDeleted ? 1 : 0,
+        deletedAt,
+        currentMaxRev,
+        now,
+        now,
+        deviceId || null,
+        deviceId || null,
+      ],
+    });
+
+    // Composite result id "<documentId>:<pageNumber>" (documentId has no ':',
+    // so the client splits on the last ':'); mirrors how notes/tags echo ids.
+    appliedResults.push({
+      id: `${a.documentId}:${a.pageNumber}`,
+      revision: currentMaxRev,
+      status: 'applied',
+      updatedAt: now,
+    });
+  }
+
+  if (deviceId) {
+    await recordDeviceCheckpoint(db, userId, deviceId);
+  }
+
+  return {
+    results: appliedResults,
+    cursor: currentMaxRev,
+  };
+}
+
+export async function pullDocumentAnnotations(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<PullDocumentAnnotationsResponse> {
+  const { pullDocumentAnnotationsSchema } = await import('../validation/schemas.js');
+  const parsed = pullDocumentAnnotationsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid annotation pull body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { cursor, limit } = parsed.data;
+
+  const results = await db.execute({
+    sql: `SELECT document_id, page_number, revision, content_ciphertext,
+                 annotation_count, updated_at_ms, is_deleted, deleted_at
+          FROM document_annotations
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const hasMore = results.rows.length > limit;
+  const rowsToUse = hasMore ? results.rows.slice(0, limit) : results.rows;
+
+  const changes: PullDocumentAnnotationChangeItem[] = rowsToUse.map(r => ({
+    documentId: r.document_id as string,
+    pageNumber: Number(r.page_number),
+    revision: Number(r.revision),
+    contentCiphertext: (r.content_ciphertext as string) || '',
+    annotationCount: Number(r.annotation_count || 0),
+    updatedAtMs: Number(r.updated_at_ms || 0),
+    isDeleted: Number(r.is_deleted) === 1,
+    deletedAt: r.deleted_at as string | null,
+  }));
+
+  let nextAnnCursor = cursor;
+  for (const r of rowsToUse) {
+    if (Number(r.revision) > nextAnnCursor) {
+      nextAnnCursor = Number(r.revision);
+    }
+  }
+
+  return {
+    changes,
+    cursor: nextAnnCursor,
+    hasMore,
+  };
+}

@@ -194,6 +194,34 @@ export const pullTagsSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
 
+// ---------------------------------------------------------------------------
+// Document annotation sync (spec §9) — crypto-blind per-document(-per-page)
+// encrypted blobs. Modeled on the tag payload schema above; the server stores
+// ciphertext by revision and never merges annotation lists.
+// ---------------------------------------------------------------------------
+export const documentAnnotationSyncPayloadSchema = z.object({
+  // qp://document/<uuid> or a bare uuid — not constrained to uuid() so the
+  // qp:// prefixed form is accepted.
+  documentId: z.string().min(1).max(256),
+  pageNumber: z.number().int().min(1),
+  contentCiphertext: z.string().max(8 * 1024 * 1024),
+  annotationCount: z.number().int().min(0).default(0),
+  updatedAtMs: z.number().int().min(0).default(0),
+  isDeleted: z.boolean().default(false),
+  baseRevision: z.number().int().min(0).optional().nullable(),
+});
+
+export const pushDocumentAnnotationsSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  idempotencyKey: z.string().max(256).optional(),
+  annotations: z.array(documentAnnotationSyncPayloadSchema).min(1).max(500),
+});
+
+export const pullDocumentAnnotationsSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(500).default(100),
+});
+
 export const registerDeviceSchema = z.object({
   deviceId: z.string().min(1).max(128),
   deviceName: z.string().max(128).optional(),
@@ -296,6 +324,9 @@ export type PullVersionsInput = z.infer<typeof pullVersionsSchema>;
 export type TagSyncPayloadInput = z.infer<typeof tagSyncPayloadSchema>;
 export type PushTagsInput = z.infer<typeof pushTagsSchema>;
 export type PullTagsInput = z.infer<typeof pullTagsSchema>;
+export type DocumentAnnotationSyncPayloadInput = z.infer<typeof documentAnnotationSyncPayloadSchema>;
+export type PushDocumentAnnotationsInput = z.infer<typeof pushDocumentAnnotationsSchema>;
+export type PullDocumentAnnotationsInput = z.infer<typeof pullDocumentAnnotationsSchema>;
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 export type RenameDeviceInput = z.infer<typeof renameDeviceSchema>;
 export type RevokeOthersInput = z.infer<typeof revokeOthersSchema>;

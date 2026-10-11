@@ -946,3 +946,121 @@ class PullTagSyncResponse {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Document annotation sync (spec §9) — crypto-blind per-document(-per-page)
+// encrypted blobs riding the same push/pull path as tags. The backend only
+// ever sees ciphertext + a revision. Modeled on the tag payload shape above.
+// ---------------------------------------------------------------------------
+
+@immutable
+class DocumentAnnotationSyncPayload {
+  const DocumentAnnotationSyncPayload({
+    required this.documentId,
+    required this.pageNumber,
+    required this.contentCiphertext,
+    this.annotationCount = 0,
+    required this.updatedAtMs,
+    this.isDeleted = false,
+    this.baseRevision,
+  });
+
+  final String documentId;
+
+  /// 1-based page number (matches the `document_annotations` table).
+  final int pageNumber;
+
+  /// Base64 of the stored `QPAN` encrypted envelope (nonce + MAC embedded), so
+  /// no separate `contentNonce` is carried (unlike notes/tags).
+  final String contentCiphertext;
+
+  /// Count of non-deleted marks on the page (metadata only).
+  final int annotationCount;
+
+  /// Last local mutation time (epoch millis); informational page-level LWW.
+  final int updatedAtMs;
+
+  final bool isDeleted;
+
+  /// Last-synced server revision for optimistic concurrency; null until first
+  /// synced (mirrors [TagSyncPayload.baseRevision]).
+  final int? baseRevision;
+
+  Map<String, dynamic> toJson() => {
+        'documentId': documentId,
+        'pageNumber': pageNumber,
+        'contentCiphertext': contentCiphertext,
+        'annotationCount': annotationCount,
+        'updatedAtMs': updatedAtMs,
+        'isDeleted': isDeleted,
+        if (baseRevision != null) 'baseRevision': baseRevision,
+      };
+
+  factory DocumentAnnotationSyncPayload.fromJson(Map<String, dynamic> json) =>
+      DocumentAnnotationSyncPayload(
+        documentId: json['documentId'] as String? ?? '',
+        pageNumber: (json['pageNumber'] as num?)?.toInt() ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        annotationCount: (json['annotationCount'] as num?)?.toInt() ?? 0,
+        updatedAtMs: (json['updatedAtMs'] as num?)?.toInt() ?? 0,
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        baseRevision: (json['baseRevision'] as num?)?.toInt(),
+      );
+}
+
+@immutable
+class PullDocumentAnnotationChangeItem {
+  const PullDocumentAnnotationChangeItem({
+    required this.documentId,
+    required this.pageNumber,
+    required this.revision,
+    required this.contentCiphertext,
+    this.annotationCount = 0,
+    required this.updatedAtMs,
+    this.isDeleted = false,
+  });
+
+  final String documentId;
+  final int pageNumber;
+  final int revision;
+  final String contentCiphertext;
+  final int annotationCount;
+  final int updatedAtMs;
+  final bool isDeleted;
+
+  factory PullDocumentAnnotationChangeItem.fromJson(Map<String, dynamic> json) =>
+      PullDocumentAnnotationChangeItem(
+        documentId: json['documentId'] as String? ?? '',
+        pageNumber: (json['pageNumber'] as num?)?.toInt() ?? 1,
+        revision: (json['revision'] as num?)?.toInt() ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        annotationCount: (json['annotationCount'] as num?)?.toInt() ?? 0,
+        updatedAtMs: (json['updatedAtMs'] as num?)?.toInt() ?? 0,
+        isDeleted: json['isDeleted'] as bool? ?? false,
+      );
+}
+
+@immutable
+class PullDocumentAnnotationSyncResponse {
+  const PullDocumentAnnotationSyncResponse({
+    required this.changes,
+    required this.cursor,
+    required this.hasMore,
+  });
+
+  final List<PullDocumentAnnotationChangeItem> changes;
+  final int cursor;
+  final bool hasMore;
+
+  factory PullDocumentAnnotationSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['changes'] as List? ?? [];
+    return PullDocumentAnnotationSyncResponse(
+      changes: rawChanges
+          .map((c) =>
+              PullDocumentAnnotationChangeItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: json['cursor'] as int? ?? 0,
+      hasMore: json['hasMore'] as bool? ?? false,
+    );
+  }
+}
+

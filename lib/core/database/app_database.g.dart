@@ -7882,6 +7882,506 @@ class DocumentOcrPagesTableCompanion
   }
 }
 
+class $DocumentAnnotationsTableTable extends DocumentAnnotationsTable
+    with TableInfo<$DocumentAnnotationsTableTable, DocumentAnnotationEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DocumentAnnotationsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageNumberMeta = const VerificationMeta(
+    'pageNumber',
+  );
+  @override
+  late final GeneratedColumn<int> pageNumber = GeneratedColumn<int>(
+    'page_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _encryptedPayloadMeta = const VerificationMeta(
+    'encryptedPayload',
+  );
+  @override
+  late final GeneratedColumn<String> encryptedPayload = GeneratedColumn<String>(
+    'encrypted_payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _annotationCountMeta = const VerificationMeta(
+    'annotationCount',
+  );
+  @override
+  late final GeneratedColumn<int> annotationCount = GeneratedColumn<int>(
+    'annotation_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    documentId,
+    pageNumber,
+    encryptedPayload,
+    annotationCount,
+    revision,
+    isDirty,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'document_annotations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DocumentAnnotationEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('page_number')) {
+      context.handle(
+        _pageNumberMeta,
+        pageNumber.isAcceptableOrUnknown(data['page_number']!, _pageNumberMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pageNumberMeta);
+    }
+    if (data.containsKey('encrypted_payload')) {
+      context.handle(
+        _encryptedPayloadMeta,
+        encryptedPayload.isAcceptableOrUnknown(
+          data['encrypted_payload']!,
+          _encryptedPayloadMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_encryptedPayloadMeta);
+    }
+    if (data.containsKey('annotation_count')) {
+      context.handle(
+        _annotationCountMeta,
+        annotationCount.isAcceptableOrUnknown(
+          data['annotation_count']!,
+          _annotationCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {documentId, pageNumber};
+  @override
+  DocumentAnnotationEntity map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DocumentAnnotationEntity(
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      pageNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_number'],
+      )!,
+      encryptedPayload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}encrypted_payload'],
+      )!,
+      annotationCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}annotation_count'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DocumentAnnotationsTableTable createAlias(String alias) {
+    return $DocumentAnnotationsTableTable(attachedDatabase, alias);
+  }
+}
+
+class DocumentAnnotationEntity extends DataClass
+    implements Insertable<DocumentAnnotationEntity> {
+  /// Document canonical UUID reference.
+  final String documentId;
+
+  /// 1-based page number (matches the OCR page table convention).
+  final int pageNumber;
+
+  /// Base64-encoded encrypted binary annotation envelope (QPAN).
+  final String encryptedPayload;
+
+  /// Count of non-deleted annotations on the page (for badges, no decrypt).
+  final int annotationCount;
+
+  /// Server revision for optimistic sync; 0 until first synced.
+  final int revision;
+
+  /// Whether local changes await push to the backend.
+  final bool isDirty;
+
+  /// Last local mutation timestamp.
+  final DateTime updatedAt;
+  const DocumentAnnotationEntity({
+    required this.documentId,
+    required this.pageNumber,
+    required this.encryptedPayload,
+    required this.annotationCount,
+    required this.revision,
+    required this.isDirty,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['document_id'] = Variable<String>(documentId);
+    map['page_number'] = Variable<int>(pageNumber);
+    map['encrypted_payload'] = Variable<String>(encryptedPayload);
+    map['annotation_count'] = Variable<int>(annotationCount);
+    map['revision'] = Variable<int>(revision);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  DocumentAnnotationsTableCompanion toCompanion(bool nullToAbsent) {
+    return DocumentAnnotationsTableCompanion(
+      documentId: Value(documentId),
+      pageNumber: Value(pageNumber),
+      encryptedPayload: Value(encryptedPayload),
+      annotationCount: Value(annotationCount),
+      revision: Value(revision),
+      isDirty: Value(isDirty),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DocumentAnnotationEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DocumentAnnotationEntity(
+      documentId: serializer.fromJson<String>(json['documentId']),
+      pageNumber: serializer.fromJson<int>(json['pageNumber']),
+      encryptedPayload: serializer.fromJson<String>(json['encryptedPayload']),
+      annotationCount: serializer.fromJson<int>(json['annotationCount']),
+      revision: serializer.fromJson<int>(json['revision']),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'documentId': serializer.toJson<String>(documentId),
+      'pageNumber': serializer.toJson<int>(pageNumber),
+      'encryptedPayload': serializer.toJson<String>(encryptedPayload),
+      'annotationCount': serializer.toJson<int>(annotationCount),
+      'revision': serializer.toJson<int>(revision),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  DocumentAnnotationEntity copyWith({
+    String? documentId,
+    int? pageNumber,
+    String? encryptedPayload,
+    int? annotationCount,
+    int? revision,
+    bool? isDirty,
+    DateTime? updatedAt,
+  }) => DocumentAnnotationEntity(
+    documentId: documentId ?? this.documentId,
+    pageNumber: pageNumber ?? this.pageNumber,
+    encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+    annotationCount: annotationCount ?? this.annotationCount,
+    revision: revision ?? this.revision,
+    isDirty: isDirty ?? this.isDirty,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DocumentAnnotationEntity copyWithCompanion(
+    DocumentAnnotationsTableCompanion data,
+  ) {
+    return DocumentAnnotationEntity(
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      pageNumber: data.pageNumber.present
+          ? data.pageNumber.value
+          : this.pageNumber,
+      encryptedPayload: data.encryptedPayload.present
+          ? data.encryptedPayload.value
+          : this.encryptedPayload,
+      annotationCount: data.annotationCount.present
+          ? data.annotationCount.value
+          : this.annotationCount,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentAnnotationEntity(')
+          ..write('documentId: $documentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('annotationCount: $annotationCount, ')
+          ..write('revision: $revision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    documentId,
+    pageNumber,
+    encryptedPayload,
+    annotationCount,
+    revision,
+    isDirty,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DocumentAnnotationEntity &&
+          other.documentId == this.documentId &&
+          other.pageNumber == this.pageNumber &&
+          other.encryptedPayload == this.encryptedPayload &&
+          other.annotationCount == this.annotationCount &&
+          other.revision == this.revision &&
+          other.isDirty == this.isDirty &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DocumentAnnotationsTableCompanion
+    extends UpdateCompanion<DocumentAnnotationEntity> {
+  final Value<String> documentId;
+  final Value<int> pageNumber;
+  final Value<String> encryptedPayload;
+  final Value<int> annotationCount;
+  final Value<int> revision;
+  final Value<bool> isDirty;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const DocumentAnnotationsTableCompanion({
+    this.documentId = const Value.absent(),
+    this.pageNumber = const Value.absent(),
+    this.encryptedPayload = const Value.absent(),
+    this.annotationCount = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DocumentAnnotationsTableCompanion.insert({
+    required String documentId,
+    required int pageNumber,
+    required String encryptedPayload,
+    this.annotationCount = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : documentId = Value(documentId),
+       pageNumber = Value(pageNumber),
+       encryptedPayload = Value(encryptedPayload),
+       updatedAt = Value(updatedAt);
+  static Insertable<DocumentAnnotationEntity> custom({
+    Expression<String>? documentId,
+    Expression<int>? pageNumber,
+    Expression<String>? encryptedPayload,
+    Expression<int>? annotationCount,
+    Expression<int>? revision,
+    Expression<bool>? isDirty,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (documentId != null) 'document_id': documentId,
+      if (pageNumber != null) 'page_number': pageNumber,
+      if (encryptedPayload != null) 'encrypted_payload': encryptedPayload,
+      if (annotationCount != null) 'annotation_count': annotationCount,
+      if (revision != null) 'revision': revision,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DocumentAnnotationsTableCompanion copyWith({
+    Value<String>? documentId,
+    Value<int>? pageNumber,
+    Value<String>? encryptedPayload,
+    Value<int>? annotationCount,
+    Value<int>? revision,
+    Value<bool>? isDirty,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DocumentAnnotationsTableCompanion(
+      documentId: documentId ?? this.documentId,
+      pageNumber: pageNumber ?? this.pageNumber,
+      encryptedPayload: encryptedPayload ?? this.encryptedPayload,
+      annotationCount: annotationCount ?? this.annotationCount,
+      revision: revision ?? this.revision,
+      isDirty: isDirty ?? this.isDirty,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (pageNumber.present) {
+      map['page_number'] = Variable<int>(pageNumber.value);
+    }
+    if (encryptedPayload.present) {
+      map['encrypted_payload'] = Variable<String>(encryptedPayload.value);
+    }
+    if (annotationCount.present) {
+      map['annotation_count'] = Variable<int>(annotationCount.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentAnnotationsTableCompanion(')
+          ..write('documentId: $documentId, ')
+          ..write('pageNumber: $pageNumber, ')
+          ..write('encryptedPayload: $encryptedPayload, ')
+          ..write('annotationCount: $annotationCount, ')
+          ..write('revision: $revision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncConflictsTableTable extends SyncConflictsTable
     with TableInfo<$SyncConflictsTableTable, SyncConflictEntity> {
   @override
@@ -9129,6 +9629,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DocumentsTableTable documentsTable = $DocumentsTableTable(this);
   late final $DocumentOcrPagesTableTable documentOcrPagesTable =
       $DocumentOcrPagesTableTable(this);
+  late final $DocumentAnnotationsTableTable documentAnnotationsTable =
+      $DocumentAnnotationsTableTable(this);
   late final $SyncConflictsTableTable syncConflictsTable =
       $SyncConflictsTableTable(this);
   late final $NoteLinksTableTable noteLinksTable = $NoteLinksTableTable(this);
@@ -9148,6 +9650,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     noteVersionsTable,
     documentsTable,
     documentOcrPagesTable,
+    documentAnnotationsTable,
     syncConflictsTable,
     noteLinksTable,
   ];
@@ -13799,6 +14302,271 @@ typedef $$DocumentOcrPagesTableTableProcessedTableManager =
       DocumentOcrPageEntity,
       PrefetchHooks Function()
     >;
+typedef $$DocumentAnnotationsTableTableCreateCompanionBuilder =
+    DocumentAnnotationsTableCompanion Function({
+      required String documentId,
+      required int pageNumber,
+      required String encryptedPayload,
+      Value<int> annotationCount,
+      Value<int> revision,
+      Value<bool> isDirty,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DocumentAnnotationsTableTableUpdateCompanionBuilder =
+    DocumentAnnotationsTableCompanion Function({
+      Value<String> documentId,
+      Value<int> pageNumber,
+      Value<String> encryptedPayload,
+      Value<int> annotationCount,
+      Value<int> revision,
+      Value<bool> isDirty,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DocumentAnnotationsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $DocumentAnnotationsTableTable> {
+  $$DocumentAnnotationsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get annotationCount => $composableBuilder(
+    column: $table.annotationCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DocumentAnnotationsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $DocumentAnnotationsTableTable> {
+  $$DocumentAnnotationsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get annotationCount => $composableBuilder(
+    column: $table.annotationCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DocumentAnnotationsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DocumentAnnotationsTableTable> {
+  $$DocumentAnnotationsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get documentId => $composableBuilder(
+    column: $table.documentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pageNumber => $composableBuilder(
+    column: $table.pageNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get encryptedPayload => $composableBuilder(
+    column: $table.encryptedPayload,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get annotationCount => $composableBuilder(
+    column: $table.annotationCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DocumentAnnotationsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DocumentAnnotationsTableTable,
+          DocumentAnnotationEntity,
+          $$DocumentAnnotationsTableTableFilterComposer,
+          $$DocumentAnnotationsTableTableOrderingComposer,
+          $$DocumentAnnotationsTableTableAnnotationComposer,
+          $$DocumentAnnotationsTableTableCreateCompanionBuilder,
+          $$DocumentAnnotationsTableTableUpdateCompanionBuilder,
+          (
+            DocumentAnnotationEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $DocumentAnnotationsTableTable,
+              DocumentAnnotationEntity
+            >,
+          ),
+          DocumentAnnotationEntity,
+          PrefetchHooks Function()
+        > {
+  $$DocumentAnnotationsTableTableTableManager(
+    _$AppDatabase db,
+    $DocumentAnnotationsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DocumentAnnotationsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DocumentAnnotationsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DocumentAnnotationsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> documentId = const Value.absent(),
+                Value<int> pageNumber = const Value.absent(),
+                Value<String> encryptedPayload = const Value.absent(),
+                Value<int> annotationCount = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentAnnotationsTableCompanion(
+                documentId: documentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                annotationCount: annotationCount,
+                revision: revision,
+                isDirty: isDirty,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String documentId,
+                required int pageNumber,
+                required String encryptedPayload,
+                Value<int> annotationCount = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentAnnotationsTableCompanion.insert(
+                documentId: documentId,
+                pageNumber: pageNumber,
+                encryptedPayload: encryptedPayload,
+                annotationCount: annotationCount,
+                revision: revision,
+                isDirty: isDirty,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DocumentAnnotationsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DocumentAnnotationsTableTable,
+      DocumentAnnotationEntity,
+      $$DocumentAnnotationsTableTableFilterComposer,
+      $$DocumentAnnotationsTableTableOrderingComposer,
+      $$DocumentAnnotationsTableTableAnnotationComposer,
+      $$DocumentAnnotationsTableTableCreateCompanionBuilder,
+      $$DocumentAnnotationsTableTableUpdateCompanionBuilder,
+      (
+        DocumentAnnotationEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $DocumentAnnotationsTableTable,
+          DocumentAnnotationEntity
+        >,
+      ),
+      DocumentAnnotationEntity,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncConflictsTableTableCreateCompanionBuilder =
     SyncConflictsTableCompanion Function({
       required String id,
@@ -14680,6 +15448,11 @@ class $AppDatabaseManager {
       $$DocumentsTableTableTableManager(_db, _db.documentsTable);
   $$DocumentOcrPagesTableTableTableManager get documentOcrPagesTable =>
       $$DocumentOcrPagesTableTableTableManager(_db, _db.documentOcrPagesTable);
+  $$DocumentAnnotationsTableTableTableManager get documentAnnotationsTable =>
+      $$DocumentAnnotationsTableTableTableManager(
+        _db,
+        _db.documentAnnotationsTable,
+      );
   $$SyncConflictsTableTableTableManager get syncConflictsTable =>
       $$SyncConflictsTableTableTableManager(_db, _db.syncConflictsTable);
   $$NoteLinksTableTableTableManager get noteLinksTable =>

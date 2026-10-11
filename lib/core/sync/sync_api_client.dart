@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../attachments/attachment_models.dart';
 import '../auth/auth_service.dart';
@@ -99,6 +100,23 @@ abstract class SyncApiClient {
     int limit = 100,
   }) async {
     return const PullTagSyncResponse(changes: [], cursor: 0, hasMore: false);
+  }
+  // Document-annotation sync (spec §9). No-op defaults here keep alternate
+  // SyncApiClient implementations (mocks/tests) compiling; HttpSyncApiclient
+  // overrides them with the real endpoints below.
+  Future<PushSyncResponse> pushDocumentAnnotations(
+    List<DocumentAnnotationSyncPayload> annotations, {
+    String? deviceId,
+    String? idempotencyKey,
+  }) async {
+    return const PushSyncResponse(results: [], conflicts: [], cursor: 0);
+  }
+  Future<PullDocumentAnnotationSyncResponse> pullDocumentAnnotations({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    return const PullDocumentAnnotationSyncResponse(
+        changes: [], cursor: 0, hasMore: false);
   }
   Future<PullChangeItem?> getHistoricalRevision({
     required String noteId,
@@ -865,6 +883,86 @@ class HttpSyncApiClient implements SyncApiClient {
       throw Exception('Failed to pull tags: Invalid JSON response');
     }
     return PullTagSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<PushSyncResponse> pushDocumentAnnotations(
+    List<DocumentAnnotationSyncPayload> annotations, {
+    String? deviceId,
+    String? idempotencyKey,
+  }) async {
+    // Pushes crypto-blind annotation page blobs to
+    // POST /api/v1/sync/document-annotations/push (spec §9), modeled on pushTags.
+    // Fails soft: a transient network error or non-200 is caught and returns an
+    // empty result so the pages stay dirty and retry on the next sync.
+    try {
+      final url =
+          Uri.parse('$_baseUrl/api/v1/sync/document-annotations/push');
+      final body = <String, dynamic>{
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+        'deviceId': ?deviceId,
+      };
+      if (idempotencyKey != null) {
+        body['idempotencyKey'] = idempotencyKey;
+      }
+
+      final encoded = jsonEncode(body);
+      final res = await _sendWithAuthRetry((headers) => _client.post(
+            url,
+            headers: headers,
+            body: encoded,
+          ));
+
+      if (res.statusCode != 200) {
+        throw Exception(
+            _extractErrorMessage(res, 'Failed to push document annotations'));
+      }
+
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception(
+            'Failed to push document annotations: Invalid JSON response');
+      }
+      return PushSyncResponse.fromJson(data);
+    } catch (e) {
+      debugPrint(
+          '[SyncApiClient] pushDocumentAnnotations failed, will retry next sync: $e');
+      return const PushSyncResponse(results: [], conflicts: [], cursor: 0);
+    }
+  }
+
+  @override
+  Future<PullDocumentAnnotationSyncResponse> pullDocumentAnnotations({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    // Pulls crypto-blind annotation page blobs from
+    // GET /api/v1/sync/document-annotations/pull (spec §9), modeled on pullTags.
+    // Fails soft: a transient network error or non-200 is caught and returns no
+    // changes so the cursor is left untouched and retries on the next sync.
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/api/v1/sync/document-annotations/pull?cursor=$cursor&limit=$limit');
+      final res = await _sendWithAuthRetry(
+          (headers) => _client.get(url, headers: headers));
+
+      if (res.statusCode != 200) {
+        throw Exception(
+            _extractErrorMessage(res, 'Failed to pull document annotations'));
+      }
+
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception(
+            'Failed to pull document annotations: Invalid JSON response');
+      }
+      return PullDocumentAnnotationSyncResponse.fromJson(data);
+    } catch (e) {
+      debugPrint(
+          '[SyncApiClient] pullDocumentAnnotations failed, will retry next sync: $e');
+      return const PullDocumentAnnotationSyncResponse(
+          changes: [], cursor: 0, hasMore: false);
+    }
   }
 
   @override

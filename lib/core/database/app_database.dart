@@ -10,6 +10,7 @@ import 'connection/connection.dart' as conn;
 import 'tables/attachment_ocr_pages_table.dart';
 import 'tables/attachment_variants_table.dart';
 import 'tables/attachments_table.dart';
+import 'tables/document_annotations_table.dart';
 import 'tables/document_ocr_pages_table.dart';
 import 'tables/documents_table.dart';
 import 'tables/note_links_table.dart';
@@ -71,6 +72,7 @@ class TagWithCount {
   NoteVersionsTable,
   DocumentsTable,
   DocumentOcrPagesTable,
+  DocumentAnnotationsTable,
   SyncConflictsTable,
   NoteLinksTable,
 ])
@@ -81,7 +83,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
 
   @override
@@ -195,6 +197,9 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnSafely(m, notesTable, notesTable.shareId);
             await _addColumnSafely(m, notesTable, notesTable.shareUrl);
           }
+          if (from < 16) {
+            await _createTableSafely(m, documentAnnotationsTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON;');
@@ -271,6 +276,12 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS document_annotations_doc_idx ON document_annotations (document_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS document_annotations_dirty_idx ON document_annotations (is_dirty);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachment_ocr_att_idx ON attachment_ocr_pages (attachment_id);',
@@ -2870,6 +2881,96 @@ class AppDatabase extends _$AppDatabase {
   /// Get all OCR pages across all documents (for full backup)
   Future<List<DocumentOcrPageEntity>> getAllDocumentOcrPages() async {
     return select(documentOcrPagesTable).get();
+  }
+
+  // ==========================================
+  // DOCUMENT ANNOTATION OPERATIONS & QUERIES
+  // ==========================================
+
+  /// Save or update the encrypted annotation payload for a single page.
+  Future<void> saveDocumentAnnotationPage({
+    required String documentId,
+    required int pageNumber,
+    required String encryptedPayload,
+    int annotationCount = 0,
+    int revision = 0,
+    bool isDirty = true,
+    required DateTime updatedAt,
+  }) async {
+    await into(documentAnnotationsTable).insertOnConflictUpdate(
+      DocumentAnnotationsTableCompanion.insert(
+        documentId: documentId,
+        pageNumber: pageNumber,
+        encryptedPayload: encryptedPayload,
+        annotationCount: Value(annotationCount),
+        revision: Value(revision),
+        isDirty: Value(isDirty),
+        updatedAt: updatedAt,
+      ),
+    );
+  }
+
+  /// Get all annotation page rows for a document ordered by page number.
+  Future<List<DocumentAnnotationEntity>> getDocumentAnnotationPages(
+      String documentId) async {
+    return (select(documentAnnotationsTable)
+          ..where((p) => p.documentId.equals(documentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .get();
+  }
+
+  /// Get a single annotation page row for a document by page number.
+  Future<DocumentAnnotationEntity?> getDocumentAnnotationPage(
+      String documentId, int pageNumber) async {
+    return (select(documentAnnotationsTable)
+          ..where((p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+        .getSingleOrNull();
+  }
+
+  /// Watch all annotation page rows for a document (badge counts).
+  Stream<List<DocumentAnnotationEntity>> watchDocumentAnnotationPages(
+      String documentId) {
+    return (select(documentAnnotationsTable)
+          ..where((p) => p.documentId.equals(documentId))
+          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+        .watch();
+  }
+
+  /// All annotation rows awaiting push to the backend (sync §9).
+  Future<List<DocumentAnnotationEntity>> getDirtyDocumentAnnotations() async {
+    return (select(documentAnnotationsTable)
+          ..where((p) => p.isDirty.equals(true)))
+        .get();
+  }
+
+  /// Mark an annotation page synced at [revision] and clear its dirty flag.
+  Future<void> markDocumentAnnotationsSynced({
+    required String documentId,
+    required int pageNumber,
+    required int revision,
+  }) async {
+    await (update(documentAnnotationsTable)
+          ..where((p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+        .write(
+      DocumentAnnotationsTableCompanion(
+        revision: Value(revision),
+        isDirty: const Value(false),
+      ),
+    );
+  }
+
+  /// Delete all annotation pages for a document.
+  Future<void> deleteDocumentAnnotations(String documentId) async {
+    await (delete(documentAnnotationsTable)
+          ..where((p) => p.documentId.equals(documentId)))
+        .go();
+  }
+
+  /// Get all annotation pages across all documents (for full backup).
+  Future<List<DocumentAnnotationEntity>> getAllDocumentAnnotations() async {
+    return select(documentAnnotationsTable).get();
   }
 
   // ==========================================

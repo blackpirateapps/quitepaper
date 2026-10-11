@@ -7,6 +7,9 @@ import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
 import '../database/app_database.dart';
+import '../documents/annotations/annotation_crypto.dart';
+import '../documents/annotations/annotation_models.dart';
+import '../documents/annotations/annotation_service.dart';
 import '../documents/document_sync_service.dart';
 import '../utils/debouncer.dart';
 import 'conflict/conflict_model.dart';
@@ -288,6 +291,52 @@ class SyncEngine {
         } catch (tagPushErr) {
           debugPrint('Tag push error: $tagPushErr');
         }
+      }
+
+      // 2c. DOCUMENT ANNOTATIONS PUSH: Upload dirty encrypted per-page
+      // annotation blobs to POST /api/v1/sync/document-annotations/push (spec
+      // §9). The server stores ciphertext by revision, exactly like tags; it
+      // does NOT merge annotation lists (merge is client-side union-by-id + LWW
+      // on pull). Wrapped so an annotation sync hiccup never aborts note sync.
+      try {
+        final dirtyAnnotations = await database.getDirtyDocumentAnnotations();
+        if (dirtyAnnotations.isNotEmpty) {
+          final annotationPayloads = dirtyAnnotations
+              .map((row) => DocumentAnnotationSyncPayload(
+                    documentId: row.documentId,
+                    pageNumber: row.pageNumber,
+                    // contentCiphertext = the base64 QPAN envelope already in the row.
+                    contentCiphertext: row.encryptedPayload,
+                    annotationCount: row.annotationCount,
+                    updatedAtMs: row.updatedAt.millisecondsSinceEpoch,
+                    baseRevision: row.revision > 0 ? row.revision : null,
+                  ))
+              .toList();
+
+          const uuid = Uuid();
+          final annPushRes = await apiClient.pushDocumentAnnotations(
+            annotationPayloads,
+            deviceId: deviceId,
+            idempotencyKey: 'annpush_${uuid.v4()}',
+          );
+          for (final res in annPushRes.results) {
+            // Inferred contract: the per-page result id encodes
+            // "<documentId>:<pageNumber>" (documentId is a UUID, so split on the
+            // last ':'). Skip anything that does not parse.
+            final sep = res.id.lastIndexOf(':');
+            if (sep <= 0) continue;
+            final docId = res.id.substring(0, sep);
+            final pageNumber = int.tryParse(res.id.substring(sep + 1));
+            if (pageNumber == null) continue;
+            await database.markDocumentAnnotationsSynced(
+              documentId: docId,
+              pageNumber: pageNumber,
+              revision: res.revision,
+            );
+          }
+        }
+      } catch (annPushErr) {
+        debugPrint('Document annotation push error: $annPushErr');
       }
 
       // 3. PULL PHASE: Fetch server changes after cursor
@@ -818,6 +867,82 @@ class SyncEngine {
         } catch (tagPullErr) {
           debugPrint('Tags pull error: $tagPullErr');
           hasMoreTags = false;
+        }
+      }
+
+      // 4d. DOCUMENT ANNOTATIONS PULL: Fetch server annotation pages from
+      // GET /api/v1/sync/document-annotations/pull after the cursor and merge
+      // each remote page into the local page (spec §9) via union-by-id +
+      // last-writer-wins on updatedAtMs. The server returns opaque ciphertext by
+      // revision (like tags); the merge is entirely client-side. Wrapped so an
+      // annotation sync hiccup never aborts the rest of the sync.
+      final annotationCrypto = AnnotationCrypto(cryptoService: cryptoService);
+      final annotationService = DocumentAnnotationService(
+        database: database,
+        keyManager: keyManager,
+        crypto: annotationCrypto,
+      );
+      final annCursorStr =
+          await database.getSyncMetadata('annotation_sync_cursor');
+      var currentAnnCursor = int.tryParse(annCursorStr ?? '0') ?? 0;
+      var hasMoreAnnotations = true;
+
+      while (hasMoreAnnotations) {
+        try {
+          final annPullRes = await apiClient.pullDocumentAnnotations(
+            cursor: currentAnnCursor,
+            limit: 50,
+          );
+          for (final change in annPullRes.changes) {
+            try {
+              final pageIndex = change.pageNumber - 1;
+              if (change.isDeleted || change.contentCiphertext.isEmpty) {
+                // Whole-page tombstone: pages carry per-annotation tombstones
+                // inside the blob, so there is nothing to merge here.
+                await database.markDocumentAnnotationsSynced(
+                  documentId: change.documentId,
+                  pageNumber: change.pageNumber,
+                  revision: change.revision,
+                );
+                continue;
+              }
+
+              // Decrypt the remote page blob with the master key, merge it with
+              // the local page, then re-encrypt + persist the union (markDirty:
+              // false — it is now at the server revision).
+              final remoteBytes = base64Decode(change.contentCiphertext);
+              final remote = await annotationCrypto.decryptPage(
+                encryptedEnvelopeBytes: remoteBytes,
+                masterKeyBytes: masterKey,
+                documentId: change.documentId,
+                pageIndex: pageIndex,
+              );
+              final local =
+                  await annotationService.loadPage(change.documentId, pageIndex);
+              final merged = mergeAnnotations(local, remote);
+              await annotationService.savePage(
+                documentId: change.documentId,
+                pageIndex: pageIndex,
+                annotations: merged,
+                markDirty: false,
+              );
+              await database.markDocumentAnnotationsSynced(
+                documentId: change.documentId,
+                pageNumber: change.pageNumber,
+                revision: change.revision,
+              );
+            } catch (annDecErr) {
+              debugPrint(
+                  'Failed to merge pulled annotation page ${change.documentId} p${change.pageNumber}: $annDecErr');
+            }
+          }
+          currentAnnCursor = annPullRes.cursor;
+          await database.setSyncMetadata(
+              'annotation_sync_cursor', currentAnnCursor.toString());
+          hasMoreAnnotations = annPullRes.hasMore;
+        } catch (annPullErr) {
+          debugPrint('Document annotations pull error: $annPullErr');
+          hasMoreAnnotations = false;
         }
       }
 
