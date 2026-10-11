@@ -252,6 +252,27 @@ CREATE TABLE IF NOT EXISTS tags (
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags (user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user_rev ON tags (user_id, revision);
 
+CREATE TABLE IF NOT EXISTS document_annotations (
+  user_id TEXT NOT NULL,
+  document_id TEXT NOT NULL,
+  page_number INTEGER NOT NULL,
+  content_ciphertext TEXT NOT NULL,
+  annotation_count INTEGER NOT NULL DEFAULT 0,
+  updated_at_ms INTEGER NOT NULL DEFAULT 0,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  created_by_device TEXT,
+  updated_by_device TEXT,
+  PRIMARY KEY (user_id, document_id, page_number),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_annotations_user_id ON document_annotations (user_id);
+CREATE INDEX IF NOT EXISTS idx_doc_annotations_user_rev ON document_annotations (user_id, revision);
+
 CREATE TABLE IF NOT EXISTS storage_reservations (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
