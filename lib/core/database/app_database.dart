@@ -1945,6 +1945,19 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
+      // Tags are born from #hashtags in note Markdown, so each device independently
+      // mints its OWN random tag id for the same name (see _syncNoteTags). Those
+      // duplicate rows reconcile here by name. A tag's icon/color only ever live on
+      // the row of the device that chose them, so an icon-less duplicate pulled from
+      // another device must NEVER erase an icon/color we already hold for this tag --
+      // otherwise the accent can never propagate across devices. When the incoming
+      // change omits icon/color, fall back to whatever we already have for this
+      // logical tag. (The wire format cannot distinguish "unset" from "cleared":
+      // TagPlaintext.toJson drops null fields, so preserving is the safe choice.)
+      final priorForTag = existingById ?? existingByName;
+      final effectiveIcon = icon ?? priorForTag?.icon;
+      final effectiveColor = color ?? priorForTag?.color;
+
       // If a tag with the same name exists with a different ID (e.g. created offline on two devices)
       if (existingByName != null && existingByName.id != id) {
         // Merge note tags to the canonical remote ID
@@ -1962,8 +1975,8 @@ class AppDatabase extends _$AppDatabase {
         TagsTableCompanion(
           id: Value(id),
           name: Value(normalizedName),
-          icon: Value(icon),
-          color: Value(color),
+          icon: Value(effectiveIcon),
+          color: Value(effectiveColor),
           isPinned: Value(isPinned),
           pinnedOrder: Value(pinnedOrder),
           createdAt: Value(createdAt),

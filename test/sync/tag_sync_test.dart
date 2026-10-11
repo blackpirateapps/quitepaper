@@ -322,6 +322,142 @@ void main() {
       final remaining = await db.getTagById(tag.id);
       expect(remaining, isNull);
     });
+
+    test(
+        'icon/color survive when an icon-less same-name duplicate is pulled later '
+        '(cross-device icon/color sync regression)', () async {
+      // ROOT CAUSE: tags are born from #hashtags in note Markdown, so every device
+      // mints its OWN random tag id for the same name (see _syncNoteTags). The tag
+      // icon/color only ever live on the row of the device that chose them, while
+      // the other devices keep pushing their own icon-LESS duplicate of the same
+      // name. On pull these reconcile by name in upsertSyncedTag; before the fix
+      // the icon-less duplicate (arriving at a higher revision) wiped the icon/color.
+      // Names were unaffected (they are rebuilt identically from note Markdown), so
+      // the user saw names sync but icon/color never propagate.
+      final t1 = DateTime.now();
+
+      // Device A's tag row, carrying the user-chosen icon + color, arrives via pull.
+      await db.upsertSyncedTag(
+        id: 'device-a-work',
+        name: 'work',
+        icon: 'briefcase',
+        color: 'blue',
+        isPinned: false,
+        pinnedOrder: 0,
+        createdAt: t1,
+        updatedAt: t1,
+        serverRevision: 1,
+        isDeleted: false,
+      );
+
+      var tag = await db.getTagByName('work');
+      expect(tag, isNotNull);
+      expect(tag!.icon, equals('briefcase'));
+      expect(tag.color, equals('blue'));
+
+      // Device B independently created '#work' from note Markdown with its own id
+      // and pushed it WITHOUT an icon/color; it is pulled later at a higher revision.
+      final t2 = t1.add(const Duration(minutes: 5));
+      await db.upsertSyncedTag(
+        id: 'device-b-work',
+        name: 'work',
+        icon: null,
+        color: null,
+        isPinned: false,
+        pinnedOrder: 0,
+        createdAt: t2,
+        updatedAt: t2,
+        serverRevision: 2,
+        isDeleted: false,
+      );
+
+      // Exactly one logical 'work' tag remains after name reconciliation.
+      final names = await db.getAllTagNames();
+      expect(names.where((n) => n == 'work').length, equals(1));
+
+      // The icon/color chosen on Device A must NOT be erased by the icon-less
+      // duplicate from Device B.
+      tag = await db.getTagByName('work');
+      expect(tag, isNotNull);
+      expect(tag!.icon, equals('briefcase'),
+          reason: 'an icon-less same-name duplicate from another device must not wipe a synced icon');
+      expect(tag.color, equals('blue'),
+          reason: 'an icon-less same-name duplicate from another device must not wipe a synced color');
+    });
+
+    test(
+        'same-id pull without icon/color does not clear an existing synced accent',
+        () async {
+      final t1 = DateTime.now();
+      await db.upsertSyncedTag(
+        id: 'shared-id',
+        name: 'focus',
+        icon: 'target',
+        color: 'rose',
+        isPinned: false,
+        pinnedOrder: 0,
+        createdAt: t1,
+        updatedAt: t1,
+        serverRevision: 1,
+        isDeleted: false,
+      );
+
+      // A later pull for the SAME id that happens to omit icon/color (e.g. pushed
+      // by an older client build) must not blank the accent we already hold.
+      final t2 = t1.add(const Duration(minutes: 1));
+      await db.upsertSyncedTag(
+        id: 'shared-id',
+        name: 'focus',
+        icon: null,
+        color: null,
+        isPinned: true,
+        pinnedOrder: 0,
+        createdAt: t1,
+        updatedAt: t2,
+        serverRevision: 2,
+        isDeleted: false,
+      );
+
+      final tag = await db.getTagById('shared-id');
+      expect(tag, isNotNull);
+      expect(tag!.icon, equals('target'));
+      expect(tag.color, equals('rose'));
+      expect(tag.isPinned, isTrue);
+    });
+
+    test(
+        'tags born from note Markdown get an independent id per device '
+        '(documents why entity sync cannot match by id)', () async {
+      final dbOther = AppDatabase(NativeDatabase.memory());
+      addTearDown(() async => dbOther.close());
+
+      final now = DateTime.now();
+      await db.saveNote(
+        id: 'note-1',
+        title: 'Standup',
+        content: 'ship the thing #work',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+      await dbOther.saveNote(
+        id: 'note-1',
+        title: 'Standup',
+        content: 'ship the thing #work',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      final here = await db.getTagByName('work');
+      final there = await dbOther.getTagByName('work');
+      expect(here, isNotNull);
+      expect(there, isNotNull);
+      // Same name, different random ids -> the tag-entity sync (keyed by id) can
+      // only reconcile them by NAME, which is exactly where icon/color were lost.
+      expect(here!.id, isNot(equals(there!.id)));
+      expect(here.name, equals(there.name));
+    });
   });
 
   group('End-to-End Cross-Device Tag Sync Engine Integration', () {

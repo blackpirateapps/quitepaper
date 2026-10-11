@@ -8418,3 +8418,33 @@ Adding a location to a journal entry no longer silently captures the current GPS
 - `flutter analyze` — **No issues found!**
 - `flutter test` — **all 1843 tests passing** (updated `frontmatter_properties_section_test` for the new "Add Location" label + change icon; updated `backfill_place_nudge_test` to tap the keyed "use as typed" row instead of "Save").
 - **Not verified on-device** (headless env): native forward-geocoding results depend on Google Play Services / platform geocoder availability and network; the pure-Dart logic and fallbacks are covered, the actual geocoder round-trip is not.
+
+## 181. Tag icon & color now sync across devices (fix long-standing loss) (October 2026)
+
+A tag's **icon and color never propagated to other devices** since tag-entity sync was introduced (commit `690b6fb`). Tag *names* appeared to sync, so the bug looked icon/color-specific — but names actually arrive for free through note Markdown, which masked the real failure.
+
+### 1. Root cause
+Tags are born from `#hashtags` in note Markdown. When a note is saved — including every note **pulled from sync** (`sync_engine.dart:581` → `AppDatabase.saveNote` → `_syncNoteTags`, [`app_database.dart:2038-2051`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart)) — any tag name not already present is created locally with a **fresh random `uuid.v4()` and `isDirty = true`**. So each device mints its **own** tag id for the same name; devices never share an id for organically-created tags.
+
+The tag-entity sync (which is the *only* carrier of icon/color — they travel encrypted inside the tag ciphertext) is keyed by id. Because ids diverge per device, each device also pushes its own **icon-less duplicate** row of the same name. On pull, `upsertSyncedTag` reconciled these by name — but its name-collision branch (and the plain same-id update) wrote the **incoming** icon/color verbatim ([`app_database.dart` ~:1961](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart)), so an icon-less duplicate arriving at a higher revision **erased** the icon/color that another device had set. Tag **names** were unaffected because they are rebuilt identically from note Markdown on every device — which is exactly why the symptom read as "names sync, icon/color don't."
+
+The client crypto, push/pull wiring, serialization (`sync_models.dart`), and the backend (`syncService.ts` `pushTags`/`pullTags`, crypto-blind) are all correct and were left unchanged.
+
+### 2. Fix
+`upsertSyncedTag` ([`app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart)) now never lets a sync write **blank out** an icon/color it already holds for a tag. Before the final `insertOnConflictUpdate`, it falls back to the existing local value when the incoming change omits one:
+
+```dart
+final priorForTag = existingById ?? existingByName;
+final effectiveIcon  = icon  ?? priorForTag?.icon;
+final effectiveColor = color ?? priorForTag?.color;
+```
+
+This makes icon/color **sticky** across the per-device duplicate churn: the row that has the accent wins over icon-less duplicates regardless of pull order, so a chosen icon/color converges on every device. Note the wire format cannot distinguish "unset" from "cleared" (`TagPlaintext.toJson` drops null fields), so clearing an icon via sync is intentionally not supported — preserving is the safe, non-destructive choice. Edit is localized to the tag path only.
+
+- **No schema change** (no codegen needed).
+- **No backend change** — the server already round-trips tag ciphertext intact. **No redeploy required** for this fix.
+
+### 3. Verification & Notes
+- `flutter analyze` — **No issues found!**
+- `flutter test` — **all 1846 tests passing**. Added 3 tests to [`test/sync/tag_sync_test.dart`](file:///home/dog/git/quitepaper/test/sync/tag_sync_test.dart): a regression test proving an icon-less same-name duplicate pulled later no longer wipes a synced icon/color (fails before the fix, passes after), a same-id guard test, and a test documenting that Markdown-born tags get independent ids per device.
+- **Not verified on real multi-device hardware** (headless env): the defect and fix are reproduced at the `upsertSyncedTag` merge layer, which is where icon/color were lost; a full two-device round-trip over the live backend was not exercised.
