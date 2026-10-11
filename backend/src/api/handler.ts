@@ -337,6 +337,38 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // POST /api/v1/sync/place-aliases/push (crypto-blind place-alias push, §2.3)
+    if (pathname === '/api/v1/sync/place-aliases/push' && method === 'POST') {
+      const { pushPlaceAliases } = await import('../sync/syncService.js');
+      const pushResult = await pushPlaceAliases(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pushResult,
+      };
+    }
+
+    // GET or POST /api/v1/sync/place-aliases/pull (crypto-blind place-alias pull, §2.3)
+    if (pathname === '/api/v1/sync/place-aliases/pull') {
+      const { pullPlaceAliases } = await import('../sync/syncService.js');
+      let cursor = 0;
+      let limit = 100;
+      if (method === 'GET') {
+        const urlObj = new URL(rawUrl, 'http://localhost');
+        cursor = parseInt(urlObj.searchParams.get('cursor') || '0', 10);
+        limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+      } else if (method === 'POST') {
+        cursor = req.body?.cursor ?? 0;
+        limit = req.body?.limit ?? 100;
+      }
+      const pullResult = await pullPlaceAliases(db, userId, { cursor, limit });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pullResult,
+      };
+    }
+
     // POST /api/v1/sync/document-annotations/push (crypto-blind annotation push, spec §9)
     if (pathname === '/api/v1/sync/document-annotations/push' && method === 'POST') {
       const { pushDocumentAnnotations } = await import('../sync/syncService.js');

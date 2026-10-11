@@ -293,6 +293,46 @@ class SyncEngine {
         }
       }
 
+      // 2b-ii. PLACE ALIASES PUSH: Upload pending dirty place-alias rows (§2.3).
+      // Rows already hold ciphertext locally (crypto-blind), so we forward the
+      // stored envelope as-is — no re-encryption needed. Tombstones carry empty
+      // ciphertext and isDeleted = true so deletions propagate.
+      final dirtyPlaceAliases = await database.getDirtyPlaceAliases();
+      if (dirtyPlaceAliases.isNotEmpty) {
+        final placeAliasPayloads = <PlaceAliasSyncPayload>[];
+        for (final alias in dirtyPlaceAliases) {
+          placeAliasPayloads.add(PlaceAliasSyncPayload(
+            id: alias.id,
+            contentCiphertext: alias.contentCiphertext,
+            contentNonce: alias.contentNonce,
+            contentVersion: alias.contentVersion,
+            encryptionKeyVersion: alias.encryptionKeyVersion,
+            createdAt: alias.createdAt ?? DateTime.now(),
+            updatedAt: alias.updatedAt ?? DateTime.now(),
+            isDeleted: alias.isDeleted,
+            deletedAt: alias.deletedAt,
+            baseRevision:
+                alias.serverRevision > 0 ? alias.serverRevision : null,
+          ));
+        }
+
+        try {
+          final paPushRes = await apiClient.pushPlaceAliases(
+            placeAliases: placeAliasPayloads,
+            deviceId: deviceId,
+          );
+          for (final res in paPushRes.results) {
+            await database.markPlaceAliasSynced(
+              id: res.id,
+              serverRevision: res.revision,
+              syncedAt: DateTime.now(),
+            );
+          }
+        } catch (paPushErr) {
+          debugPrint('Place alias push error: $paPushErr');
+        }
+      }
+
       // 2c. DOCUMENT ANNOTATIONS PUSH: Upload dirty encrypted per-page
       // annotation blobs to POST /api/v1/sync/document-annotations/push (spec
       // §9). The server stores ciphertext by revision, exactly like tags; it
@@ -867,6 +907,50 @@ class SyncEngine {
         } catch (tagPullErr) {
           debugPrint('Tags pull error: $tagPullErr');
           hasMoreTags = false;
+        }
+      }
+
+      // 4c-ii. PLACE ALIASES PULL: Fetch server place-alias rows after the
+      // cursor (§2.3). The server returns opaque ciphertext by revision; we
+      // store the envelope verbatim (the store decrypts lazily on load, since
+      // ids are deterministic and bind the AAD). Convergent same-id upsert.
+      final paCursorStr =
+          await database.getSyncMetadata('place_alias_sync_cursor');
+      var currentPaCursor = int.tryParse(paCursorStr ?? '0') ?? 0;
+      var hasMorePlaceAliases = true;
+
+      while (hasMorePlaceAliases) {
+        try {
+          final paPullRes = await apiClient.pullPlaceAliases(
+            cursor: currentPaCursor,
+            limit: 50,
+          );
+          for (final change in paPullRes.changes) {
+            try {
+              await database.upsertSyncedPlaceAlias(
+                id: change.id,
+                contentCiphertext: change.isDeleted ? '' : change.contentCiphertext,
+                contentNonce: change.isDeleted ? '' : change.contentNonce,
+                contentVersion: change.contentVersion,
+                encryptionKeyVersion: change.encryptionKeyVersion,
+                createdAt: change.createdAt,
+                updatedAt: change.updatedAt,
+                serverRevision: change.revision,
+                isDeleted: change.isDeleted,
+                deletedAt: change.deletedAt,
+              );
+            } catch (paApplyErr) {
+              debugPrint(
+                  'Failed to apply pulled place alias ${change.id}: $paApplyErr');
+            }
+          }
+          currentPaCursor = paPullRes.cursor;
+          await database.setSyncMetadata(
+              'place_alias_sync_cursor', currentPaCursor.toString());
+          hasMorePlaceAliases = paPullRes.hasMore;
+        } catch (paPullErr) {
+          debugPrint('Place aliases pull error: $paPullErr');
+          hasMorePlaceAliases = false;
         }
       }
 

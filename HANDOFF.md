@@ -8448,3 +8448,52 @@ This makes icon/color **sticky** across the per-device duplicate churn: the row 
 - `flutter analyze` — **No issues found!**
 - `flutter test` — **all 1846 tests passing**. Added 3 tests to [`test/sync/tag_sync_test.dart`](file:///home/dog/git/quitepaper/test/sync/tag_sync_test.dart): a regression test proving an icon-less same-name duplicate pulled later no longer wipes a synced icon/color (fails before the fix, passes after), a same-id guard test, and a test documenting that Markdown-born tags get independent ids per device.
 - **Not verified on real multi-device hardware** (headless env): the defect and fix are reproduced at the `upsertSyncedTag` merge layer, which is where icon/color were lost; a full two-device round-trip over the live backend was not exercised.
+
+## 182. Journal Places merge/alias map now syncs as an encrypted, crypto-blind collection (October 2026)
+
+The journal Places **merge / rename / unmerge** map (§2.3, the "place alias map") was device-local in SharedPreferences and explicitly deferred. It is now a **synced vault record**: each alias is its own encrypted row that rides a push/pull path cloned from the TAG collection, with a deterministic crypto-blind row id. It remains a presentation-layer mapping only — it **never** mutates note frontmatter and is fully reversible.
+
+### 1. Model — a per-alias collection (not a blob)
+Each `matchKey → {canonicalKey, displayName}` mapping is one row in a new `place_aliases` collection (local Drift table + server table), modeled on `tags`.
+
+### 2. Crypto-blind row id (the key design)
+The server must never see place names, so the row id is **deterministic, opaque and server-unguessable**:
+
+```
+id = HMAC-SHA256(masterKey, "placealias:" + normalizedMatchKey)   // lowercase hex, 64 chars
+```
+
+- **Deterministic** ⇒ every device derives the SAME id for the same alias, so pulls reconcile by id (same-id upsert). This deliberately avoids the per-device duplicate-id churn that caused the tag icon/color loss (§181) — there is no name-collision dance here.
+- **Keyed** ⇒ the server cannot dictionary-attack low-entropy place names from the id.
+
+The payload `{matchKey, canonicalKey, displayName}` is sealed inside the ciphertext (XChaCha20-Poly1305, raw master key, AAD `quietpaper:placealias:<id>:v1`). New crypto surface in [`crypto_service.dart`](file:///home/dog/git/quitepaper/lib/core/crypto/crypto_service.dart): `PlaceAliasPlaintext`, `computePlaceAliasId`, `encryptPlaceAliasPayload`, `decryptPlaceAliasPayload`. Only opaque metadata is plaintext on the server (id, user_id, revision, timestamps, isDeleted/deletedAt, content/key versions, device ids).
+
+Notably, the **local** `place_aliases` table stores only ciphertext (unlike `tags`, which keeps plaintext name locally) — the store decrypts lazily on load with the master key.
+
+### 3. Store behavior (unchanged public contract)
+[`place_alias_store.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/place_alias_store.dart): `placeAliasStoreProvider` still exposes `Map<String, PlaceAlias>` and the same four methods (`merge`/`rename`/`unmerge`/`unmergeCanonical`), so `PlaceGroupingService`, `placeListProvider` and the Places UI are untouched. Internally:
+- When the vault is **unlocked**, a `PlaceAliasRepository` persists write-through to the DB (rows marked dirty), a live Drift `watch` keeps the map convergent with remote pulls, and each mutation requests `SyncEngine.triggerSyncDebounced()` so merges propagate promptly.
+- `unmerge`/`unmergeCanonical` write **tombstones** (`isDeleted = true`) for synced rows so deletions propagate (a never-synced row is just dropped).
+- **One-time migration:** on first unlocked run, any legacy SharedPreferences `journal_place_aliases` entries are imported into the DB (marked dirty, so they sync), guarded by a `place_alias_migrated` metadata flag. The old prefs copy is then ignored.
+- When the vault is **locked / DB unavailable**, it gracefully falls back to the legacy device-local SharedPreferences store (no data loss).
+- **Unlock activation:** the synced path is gated on `isKeyManagerUnlockedProvider`. For returning users the master key is restored at startup, so it reads unlocked when Places first builds. For a mid-session sign-in/unlock, that flag is now set explicitly on success in [`sync_auth_dialog.dart`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_dialog.dart) and [`sync_auth_screen.dart`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/sync_auth_screen.dart), so the store rebuilds onto the synced path without an app restart.
+
+### 4. Sync wiring
+- Table [`place_aliases_table.dart`](file:///home/dog/git/quitepaper/lib/core/database/tables/place_aliases_table.dart) + `app_database.dart` (`schemaVersion` 16 → **17**, `onUpgrade from < 17`, `getDirtyPlaceAliases`/`putLocalPlaceAlias`/`tombstoneLocalPlaceAlias`/`markPlaceAliasSynced`/`upsertSyncedPlaceAlias`/`getAllPlaceAliases`; added to `resetSyncCursors`, `eraseAllLocalVaultData`, unsynced count).
+- `sync_models.dart` (`PlaceAliasSyncPayload`/`PullPlaceAliasChangeItem`/`PullPlaceAliasSyncResponse`), `sync_api_client.dart` (`pushPlaceAliases`/`pullPlaceAliases`), `sync_engine.dart` (PUSH phase 2b-ii, PULL phase 4c-ii, new `place_alias_sync_cursor`). `upsertSyncedPlaceAlias` is convergent and keeps a newer local dirty edit over a reordered older remote change.
+- Backup: [`backup_models.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_models.dart) `BackupPlaceAlias` (stored **verbatim as ciphertext** + `totalPlaceAliases` manifest count) and [`backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart) export/restore (+ `RestoreStrategy.replace` wipe clears the table).
+
+### 5. Backend — redeploy required
+A backend redeploy is **required** for cross-device sync to work. Changes (user deploys; this agent cannot):
+- `backend/src/db/migrate.ts` `INITIAL_SCHEMA_SQL`: `CREATE TABLE place_aliases` (mirrors `tags`, no pinned columns) + `idx_place_aliases_user_id` / `idx_place_aliases_user_rev`. **This is the runtime schema** — the `backend/migrations/*.sql` files are not executed at runtime; `backend/migrations/014_place_aliases_schema.sql` is a reference copy only.
+- `backend/src/validation/schemas.ts`: `placeAliasSyncPayloadSchema` (id is an **opaque string**, NOT `.uuid()`) / `pushPlaceAliasesSchema` / `pullPlaceAliasesSchema`.
+- `backend/src/sync/syncService.ts`: `pushPlaceAliases` / `pullPlaceAliases` (MAX(revision)+1, +1 hasMore trick, blind `ON CONFLICT(id)` upsert).
+- `backend/src/api/handler.ts`: `POST /api/v1/sync/place-aliases/push` and `GET|POST /api/v1/sync/place-aliases/pull` behind the same auth middleware.
+
+Until the backend is redeployed the push/pull calls fail soft (caught, rows stay dirty, retry next cycle); the Places feature keeps working locally.
+
+### 6. Verification
+- `flutter analyze` — **No issues found!**
+- `flutter test` — **all 1858 passing**. New [`test/journal/place_alias_sync_test.dart`](file:///home/dog/git/quitepaper/test/journal/place_alias_sync_test.dart) covers encrypt/decrypt round-trip + zero-knowledge, deterministic/keyed id stability, DB dirty/tombstone/convergence, two-device engine push/pull convergence + tombstone propagation, store write-through, and the SharedPreferences→DB migration. Existing place tests (`place_alias_store_test.dart`, `places_providers_test.dart`, `places_merge_ui_test.dart`) stay green (locked path = legacy prefs). `journal_database_test.dart` schema assertion bumped to 17.
+- Backend: `npx tsc --noEmit` clean; `npm test` **all passing** incl. new `backend/tests/place_aliases_sync.test.ts` (push/pull pagination, per-user isolation, tombstone propagation — using opaque hex ids).
+- **Not verified on real multi-device hardware** (headless env) and the backend was not deployed/exercised live; convergence is proven at the engine + in-memory-API layer.

@@ -252,6 +252,21 @@ class BackupService {
         backupNotes.where((n) => !n.isArchived && !n.isTrashed).length;
     final archivedCount = backupNotes.where((n) => n.isArchived).length;
     final trashedCount = backupNotes.where((n) => n.isTrashed).length;
+
+    // Place-alias collection (§2.3): backed up verbatim as ciphertext rows, so
+    // the backup never exposes place names and needs no master key.
+    final placeAliasRows = await database.getAllPlaceAliases();
+    final backupPlaceAliases = [
+      for (final row in placeAliasRows)
+        if (row.contentCiphertext.isNotEmpty)
+          BackupPlaceAlias(
+            id: row.id,
+            contentCiphertext: row.contentCiphertext,
+            contentNonce: row.contentNonce,
+            contentVersion: row.contentVersion,
+            encryptionKeyVersion: row.encryptionKeyVersion,
+          ),
+    ];
     final pinnedCount =
         backupNotes.where((n) => n.isPinned && !n.isTrashed).length;
 
@@ -269,6 +284,7 @@ class BackupService {
       totalTags: allTagNames.length,
       totalAttachments: backupAttachments.length,
       totalDocuments: backupDocuments.length,
+      totalPlaceAliases: backupPlaceAliases.length,
     );
 
     return BackupPayload(
@@ -277,6 +293,7 @@ class BackupService {
       tags: allTagNames,
       attachments: backupAttachments,
       documents: backupDocuments,
+      placeAliases: backupPlaceAliases,
     );
   }
 
@@ -535,6 +552,7 @@ class BackupService {
         await database.delete(database.noteTagsTable).go();
         await database.delete(database.notesTable).go();
         await database.delete(database.tagsTable).go();
+        await database.delete(database.placeAliasesTable).go();
       }
 
       for (final backupNote in payload.notes) {
@@ -703,6 +721,19 @@ class BackupService {
             processedAt: ocrPage.processedAt,
           );
         }
+      }
+
+      // Restore place-alias rows (§2.3) verbatim as ciphertext, marked dirty so
+      // they re-sync; they decrypt on next load with the vault key.
+      for (final alias in payload.placeAliases) {
+        if (alias.id.isEmpty || alias.contentCiphertext.isEmpty) continue;
+        await database.putLocalPlaceAlias(
+          id: alias.id,
+          contentCiphertext: alias.contentCiphertext,
+          contentNonce: alias.contentNonce,
+          contentVersion: alias.contentVersion,
+          encryptionKeyVersion: alias.encryptionKeyVersion,
+        );
       }
     });
 

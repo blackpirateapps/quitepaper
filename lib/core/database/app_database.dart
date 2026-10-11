@@ -17,6 +17,7 @@ import 'tables/note_links_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
+import 'tables/place_aliases_table.dart';
 import 'tables/sync_conflicts_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
@@ -75,6 +76,7 @@ class TagWithCount {
   DocumentAnnotationsTable,
   SyncConflictsTable,
   NoteLinksTable,
+  PlaceAliasesTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -83,7 +85,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
 
   @override
@@ -199,6 +201,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 16) {
             await _createTableSafely(m, documentAnnotationsTable);
+          }
+          if (from < 17) {
+            await _createTableSafely(m, placeAliasesTable);
           }
         },
         beforeOpen: (details) async {
@@ -1438,8 +1443,12 @@ class AppDatabase extends _$AppDatabase {
   Future<int> getUnsyncedChangesCount() async {
     final dirtyNotes = await getDirtyNotes();
     final dirtyTags = await getDirtyTags();
+    final dirtyPlaceAliases = await getDirtyPlaceAliases();
     final pendingQueue = await getPendingSyncQueue();
-    return dirtyNotes.length + dirtyTags.length + pendingQueue.length;
+    return dirtyNotes.length +
+        dirtyTags.length +
+        dirtyPlaceAliases.length +
+        pendingQueue.length;
   }
 
   /// Explicitly and irreversibly erases all local vault data from SQLite.
@@ -1458,6 +1467,7 @@ class AppDatabase extends _$AppDatabase {
       await delete(syncMetadataTable).go();
       await delete(noteTagsTable).go();
       await delete(tagsTable).go();
+      await delete(placeAliasesTable).go();
       await delete(notesTable).go();
       try {
         await customStatement('DELETE FROM note_search_prefix;');
@@ -1477,7 +1487,8 @@ class AppDatabase extends _$AppDatabase {
           ..where((t) =>
               t.key.equals('sync_cursor') |
               t.key.equals('version_sync_cursor') |
-              t.key.equals('tag_sync_cursor')))
+              t.key.equals('tag_sync_cursor') |
+              t.key.equals('place_alias_sync_cursor')))
         .go();
   }
 
@@ -1979,6 +1990,166 @@ class AppDatabase extends _$AppDatabase {
           color: Value(effectiveColor),
           isPinned: Value(isPinned),
           pinnedOrder: Value(pinnedOrder),
+          createdAt: Value(createdAt),
+          updatedAt: Value(updatedAt),
+          isDirty: const Value(false),
+          serverRevision: Value(serverRevision),
+          syncedAt: Value(DateTime.now()),
+          isDeleted: const Value(false),
+          deletedAt: const Value(null),
+        ),
+      );
+    });
+  }
+
+  // ==========================================
+  // PLACE ALIASES (§2.3 — synced, encrypted, crypto-blind merge/rename map)
+  // ==========================================
+
+  /// All non-tombstoned place-alias rows (used to rebuild the in-memory map and
+  /// for backup export).
+  Future<List<PlaceAliasEntity>> getAllPlaceAliases() async {
+    return (select(placeAliasesTable)
+          ..where((t) => t.isDeleted.equals(false)))
+        .get();
+  }
+
+  /// All place-alias rows pending synchronization (including tombstones).
+  Future<List<PlaceAliasEntity>> getDirtyPlaceAliases() async {
+    return (select(placeAliasesTable)..where((t) => t.isDirty.equals(true)))
+        .get();
+  }
+
+  /// Write-through upsert of a locally-mutated place alias. Marks the row dirty
+  /// and bumps [updatedAt]; preserves [createdAt] and [serverRevision] of any
+  /// existing row so sync can send a correct baseRevision.
+  Future<void> putLocalPlaceAlias({
+    required String id,
+    required String contentCiphertext,
+    required String contentNonce,
+    int contentVersion = 1,
+    int encryptionKeyVersion = 1,
+  }) async {
+    final existing = await (select(placeAliasesTable)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    final now = DateTime.now();
+    await into(placeAliasesTable).insertOnConflictUpdate(
+      PlaceAliasesTableCompanion(
+        id: Value(id),
+        contentCiphertext: Value(contentCiphertext),
+        contentNonce: Value(contentNonce),
+        contentVersion: Value(contentVersion),
+        encryptionKeyVersion: Value(encryptionKeyVersion),
+        createdAt: Value(existing?.createdAt ?? now),
+        updatedAt: Value(now),
+        isDirty: const Value(true),
+        serverRevision: Value(existing?.serverRevision ?? 0),
+        isDeleted: const Value(false),
+        deletedAt: const Value(null),
+      ),
+    );
+  }
+
+  /// Soft-deletes a place alias as a tombstone so the removal propagates on the
+  /// next sync. When the row was never synced (serverRevision 0) and does not
+  /// exist, this is a no-op. Returns true when a tombstone was written.
+  Future<bool> tombstoneLocalPlaceAlias(String id) async {
+    final existing = await (select(placeAliasesTable)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (existing == null) return false;
+    if (existing.serverRevision == 0) {
+      // Never reached the server → just drop it; nothing to tombstone remotely.
+      await (delete(placeAliasesTable)..where((t) => t.id.equals(id))).go();
+      return true;
+    }
+    await (update(placeAliasesTable)..where((t) => t.id.equals(id))).write(
+      PlaceAliasesTableCompanion(
+        isDeleted: const Value(true),
+        deletedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+        isDirty: const Value(true),
+      ),
+    );
+    return true;
+  }
+
+  /// Marks a place alias as successfully synced with the server revision. A
+  /// confirmed tombstone is removed permanently (mirrors [markTagSynced]).
+  Future<void> markPlaceAliasSynced({
+    required String id,
+    required int serverRevision,
+    required DateTime syncedAt,
+  }) async {
+    final row = await (select(placeAliasesTable)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (row == null) return;
+    if (row.isDeleted) {
+      await (delete(placeAliasesTable)..where((t) => t.id.equals(id))).go();
+    } else {
+      await (update(placeAliasesTable)..where((t) => t.id.equals(id))).write(
+        PlaceAliasesTableCompanion(
+          isDirty: const Value(false),
+          serverRevision: Value(serverRevision),
+          syncedAt: Value(syncedAt),
+        ),
+      );
+    }
+  }
+
+  /// Upserts a place alias pulled from remote synchronization. Convergent and
+  /// order-independent: because the id is deterministic, same-id reconciliation
+  /// is the normal case. A local dirty row that was updated more recently keeps
+  /// its pending edit (last-writer-wins by [updatedAt]), so reordered pulls
+  /// never clobber unsynced local intent.
+  Future<void> upsertSyncedPlaceAlias({
+    required String id,
+    required String contentCiphertext,
+    required String contentNonce,
+    int contentVersion = 1,
+    int encryptionKeyVersion = 1,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required int serverRevision,
+    required bool isDeleted,
+    DateTime? deletedAt,
+  }) async {
+    await transaction(() async {
+      final existing = await (select(placeAliasesTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
+      if (isDeleted) {
+        // A remote tombstone wins unless we hold a newer local dirty edit.
+        if (existing != null &&
+            existing.isDirty &&
+            !existing.isDeleted &&
+            existing.updatedAt != null &&
+            existing.updatedAt!.isAfter(updatedAt)) {
+          return;
+        }
+        if (existing != null) {
+          await (delete(placeAliasesTable)..where((t) => t.id.equals(id))).go();
+        }
+        return;
+      }
+
+      // Keep a newer local dirty edit over an older remote change.
+      if (existing != null &&
+          existing.isDirty &&
+          existing.updatedAt != null &&
+          existing.updatedAt!.isAfter(updatedAt)) {
+        return;
+      }
+
+      await into(placeAliasesTable).insertOnConflictUpdate(
+        PlaceAliasesTableCompanion(
+          id: Value(id),
+          contentCiphertext: Value(contentCiphertext),
+          contentNonce: Value(contentNonce),
+          contentVersion: Value(contentVersion),
+          encryptionKeyVersion: Value(encryptionKeyVersion),
           createdAt: Value(createdAt),
           updatedAt: Value(updatedAt),
           isDirty: const Value(false),

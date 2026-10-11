@@ -195,6 +195,36 @@ export const pullTagsSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Place-alias sync (spec §2.3) — journal Places merge/rename/unmerge map as a
+// per-alias, crypto-blind, encrypted collection cloned from the tag payload.
+// The id is a deterministic HMAC (opaque hex), NOT a UUID — so it is validated
+// as a plain opaque string, never .uuid(). No pinned concept.
+// ---------------------------------------------------------------------------
+export const placeAliasSyncPayloadSchema = z.object({
+  id: z.string().min(16).max(128),
+  contentCiphertext: z.string().max(1 * 1024 * 1024),
+  contentNonce: z.string().max(256),
+  contentVersion: z.number().int().min(1).default(1),
+  encryptionKeyVersion: z.number().int().min(1).default(1),
+  createdAt: z.string().datetime({ offset: true }).or(z.string()),
+  updatedAt: z.string().datetime({ offset: true }).or(z.string()),
+  isDeleted: z.boolean().default(false),
+  deletedAt: z.string().datetime({ offset: true }).or(z.string()).optional().nullable(),
+  baseRevision: z.number().int().min(0).optional().nullable(),
+});
+
+export const pushPlaceAliasesSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  placeAliases: z.array(placeAliasSyncPayloadSchema).min(1).max(100),
+});
+
+export const pullPlaceAliasesSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(200).default(100),
+});
+
+
+// ---------------------------------------------------------------------------
 // Document annotation sync (spec §9) — crypto-blind per-document(-per-page)
 // encrypted blobs. Modeled on the tag payload schema above; the server stores
 // ciphertext by revision and never merges annotation lists.

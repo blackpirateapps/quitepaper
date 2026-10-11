@@ -947,6 +947,138 @@ class PullTagSyncResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Place-alias sync (spec §2.3) — the journal Places merge/rename/unmerge map
+// as a per-alias, crypto-blind, encrypted collection cloned from the tag
+// payload shape. The server only ever sees the opaque deterministic id,
+// revision and ciphertext; match keys / canonical keys / display names live
+// INSIDE contentCiphertext. There is no pinned concept, so those fields drop.
+// ---------------------------------------------------------------------------
+
+@immutable
+class PlaceAliasSyncPayload {
+  const PlaceAliasSyncPayload({
+    required this.id,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isDeleted = false,
+    this.deletedAt,
+    this.baseRevision,
+  });
+
+  final String id;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final int? baseRevision;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'contentCiphertext': contentCiphertext,
+        'contentNonce': contentNonce,
+        'contentVersion': contentVersion,
+        'encryptionKeyVersion': encryptionKeyVersion,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'isDeleted': isDeleted,
+        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+        if (baseRevision != null) 'baseRevision': baseRevision,
+      };
+
+  factory PlaceAliasSyncPayload.fromJson(Map<String, dynamic> json) =>
+      PlaceAliasSyncPayload(
+        id: json['id'] as String,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        contentNonce: json['contentNonce'] as String? ?? '',
+        contentVersion: json['contentVersion'] as int? ?? 1,
+        encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] != null
+            ? DateTime.parse(json['deletedAt'] as String)
+            : null,
+        baseRevision: json['baseRevision'] as int?,
+      );
+}
+
+@immutable
+class PullPlaceAliasChangeItem {
+  const PullPlaceAliasChangeItem({
+    required this.id,
+    required this.revision,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isDeleted = false,
+    this.deletedAt,
+  });
+
+  final String id;
+  final int revision;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+
+  factory PullPlaceAliasChangeItem.fromJson(Map<String, dynamic> json) =>
+      PullPlaceAliasChangeItem(
+        id: json['id'] as String,
+        revision: json['revision'] as int? ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        contentNonce: json['contentNonce'] as String? ?? '',
+        contentVersion: json['contentVersion'] as int? ?? 1,
+        encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] != null
+            ? DateTime.parse(json['deletedAt'] as String)
+            : null,
+      );
+}
+
+@immutable
+class PullPlaceAliasSyncResponse {
+  const PullPlaceAliasSyncResponse({
+    required this.changes,
+    required this.cursor,
+    required this.hasMore,
+  });
+
+  final List<PullPlaceAliasChangeItem> changes;
+  final int cursor;
+  final bool hasMore;
+
+  factory PullPlaceAliasSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['changes'] as List? ?? [];
+    return PullPlaceAliasSyncResponse(
+      changes: rawChanges
+          .map((c) =>
+              PullPlaceAliasChangeItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: json['cursor'] as int? ?? 0,
+      hasMore: json['hasMore'] as bool? ?? false,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Document annotation sync (spec §9) — crypto-blind per-document(-per-page)
 // encrypted blobs riding the same push/pull path as tags. The backend only
 // ever sees ciphertext + a revision. Modeled on the tag payload shape above.

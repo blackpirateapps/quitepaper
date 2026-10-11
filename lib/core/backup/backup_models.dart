@@ -353,6 +353,7 @@ class BackupManifest {
     required this.totalTags,
     this.totalAttachments = 0,
     this.totalDocuments = 0,
+    this.totalPlaceAliases = 0,
   });
 
   final String format;
@@ -368,6 +369,7 @@ class BackupManifest {
   final int totalTags;
   final int totalAttachments;
   final int totalDocuments;
+  final int totalPlaceAliases;
 
   Map<String, dynamic> toJson() => {
         'format': format,
@@ -384,6 +386,7 @@ class BackupManifest {
           'totalTags': totalTags,
           'totalAttachments': totalAttachments,
           'totalDocuments': totalDocuments,
+          'totalPlaceAliases': totalPlaceAliases,
         },
       };
 
@@ -404,6 +407,7 @@ class BackupManifest {
       totalTags: meta['totalTags'] as int? ?? 0,
       totalAttachments: meta['totalAttachments'] as int? ?? 0,
       totalDocuments: meta['totalDocuments'] as int? ?? 0,
+      totalPlaceAliases: meta['totalPlaceAliases'] as int? ?? 0,
     );
   }
 }
@@ -416,6 +420,7 @@ class BackupPayload {
     required this.tags,
     this.attachments = const [],
     this.documents = const [],
+    this.placeAliases = const [],
   });
 
   final BackupManifest manifest;
@@ -423,6 +428,7 @@ class BackupPayload {
   final List<String> tags;
   final List<BackupAttachment> attachments;
   final List<BackupDocument> documents;
+  final List<BackupPlaceAlias> placeAliases;
 
   Map<String, dynamic> toJson() => {
         ...manifest.toJson(),
@@ -432,6 +438,8 @@ class BackupPayload {
           'attachments': attachments.map((a) => a.toJson()).toList(),
         if (documents.isNotEmpty)
           'documents': documents.map((d) => d.toJson()).toList(),
+        if (placeAliases.isNotEmpty)
+          'placeAliases': placeAliases.map((p) => p.toJson()).toList(),
       };
 
   factory BackupPayload.fromJson(Map<String, dynamic> json) {
@@ -440,6 +448,7 @@ class BackupPayload {
     final rawTags = json['tags'] as List? ?? [];
     final rawAttachments = json['attachments'] as List? ?? [];
     final rawDocuments = json['documents'] as List? ?? [];
+    final rawPlaceAliases = json['placeAliases'] as List? ?? [];
 
     final notes = rawNotes
         .whereType<Map>()
@@ -458,14 +467,59 @@ class BackupPayload {
         .map((e) => BackupDocument.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
+    final placeAliases = rawPlaceAliases
+        .whereType<Map>()
+        .map((e) => BackupPlaceAlias.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
     return BackupPayload(
       manifest: manifest,
       notes: notes,
       tags: tags,
       attachments: attachments,
       documents: documents,
+      placeAliases: placeAliases,
     );
   }
+}
+
+/// One journal place-alias (§2.3) row in a backup. Stored **verbatim as
+/// ciphertext** (opaque id + encrypted payload), so the backup never exposes
+/// place names and needs no master key to produce or restore. On restore the
+/// row is re-inserted dirty and decrypts on next load with the same vault key.
+/// Presentation-layer mapping only — it never affects note frontmatter.
+@immutable
+class BackupPlaceAlias {
+  const BackupPlaceAlias({
+    required this.id,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    this.contentVersion = 1,
+    this.encryptionKeyVersion = 1,
+  });
+
+  final String id;
+  final String contentCiphertext;
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'contentCiphertext': contentCiphertext,
+        'contentNonce': contentNonce,
+        'contentVersion': contentVersion,
+        'encryptionKeyVersion': encryptionKeyVersion,
+      };
+
+  factory BackupPlaceAlias.fromJson(Map<String, dynamic> json) =>
+      BackupPlaceAlias(
+        id: json['id'] as String? ?? '',
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        contentNonce: json['contentNonce'] as String? ?? '',
+        contentVersion: json['contentVersion'] as int? ?? 1,
+        encryptionKeyVersion: json['encryptionKeyVersion'] as int? ?? 1,
+      );
 }
 
 @immutable

@@ -1177,7 +1177,160 @@ export async function pullTags(
 }
 
 // ---------------------------------------------------------------------------
-// Document annotation sync (spec §9). Crypto-blind per-document(-per-page)
+// Place-alias sync (spec §2.3). The journal Places merge/rename/unmerge map as
+// a per-alias, crypto-blind, encrypted collection. The server stores and
+// returns ciphertext by revision, exactly like tags; the id is a deterministic
+// opaque HMAC (never a place name), and there is no pinned concept.
+// ---------------------------------------------------------------------------
+
+export interface PullPlaceAliasChangeItem {
+  id: string;
+  revision: number;
+  contentCiphertext: string;
+  contentNonce: string;
+  contentVersion: number;
+  encryptionKeyVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+  deletedAt?: string | null;
+}
+
+export interface PullPlaceAliasesResponse {
+  changes: PullPlaceAliasChangeItem[];
+  cursor: number;
+  hasMore: boolean;
+}
+
+export async function pushPlaceAliases(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<{ results: PushResultItem[]; cursor: number }> {
+  const { pushPlaceAliasesSchema } = await import('../validation/schemas.js');
+  const parsed = pushPlaceAliasesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid place-alias push body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { placeAliases, deviceId } = parsed.data;
+  const appliedResults: PushResultItem[] = [];
+
+  const maxRevResult = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM place_aliases WHERE user_id = ?',
+    args: [userId],
+  });
+  let currentMaxRev = Number(maxRevResult.rows[0]?.max_rev || 0);
+
+  for (const p of placeAliases) {
+    currentMaxRev += 1;
+    const now = new Date().toISOString();
+
+    await db.execute({
+      sql: `INSERT INTO place_aliases (
+              id, user_id, content_ciphertext, content_nonce, content_version,
+              encryption_key_version, created_at, updated_at,
+              is_deleted, deleted_at, revision, updated_by_device
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              content_ciphertext = excluded.content_ciphertext,
+              content_nonce = excluded.content_nonce,
+              content_version = excluded.content_version,
+              encryption_key_version = excluded.encryption_key_version,
+              updated_at = excluded.updated_at,
+              is_deleted = excluded.is_deleted,
+              deleted_at = excluded.deleted_at,
+              revision = excluded.revision,
+              updated_by_device = excluded.updated_by_device`,
+      args: [
+        p.id,
+        userId,
+        p.contentCiphertext,
+        p.contentNonce,
+        p.contentVersion,
+        p.encryptionKeyVersion,
+        p.createdAt,
+        p.updatedAt,
+        p.isDeleted ? 1 : 0,
+        p.deletedAt || null,
+        currentMaxRev,
+        deviceId || null,
+      ],
+    });
+
+    appliedResults.push({
+      id: p.id,
+      revision: currentMaxRev,
+      status: 'applied',
+      updatedAt: now,
+    });
+  }
+
+  if (deviceId) {
+    await recordDeviceCheckpoint(db, userId, deviceId);
+  }
+
+  return {
+    results: appliedResults,
+    cursor: currentMaxRev,
+  };
+}
+
+export async function pullPlaceAliases(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<PullPlaceAliasesResponse> {
+  const { pullPlaceAliasesSchema } = await import('../validation/schemas.js');
+  const parsed = pullPlaceAliasesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid place-alias pull body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { cursor, limit } = parsed.data;
+
+  const results = await db.execute({
+    sql: `SELECT id, revision, content_ciphertext, content_nonce, content_version,
+                 encryption_key_version, created_at, updated_at,
+                 is_deleted, deleted_at
+          FROM place_aliases
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const hasMore = results.rows.length > limit;
+  const rowsToUse = hasMore ? results.rows.slice(0, limit) : results.rows;
+
+  const changes: PullPlaceAliasChangeItem[] = rowsToUse.map(r => ({
+    id: r.id as string,
+    revision: Number(r.revision),
+    contentCiphertext: r.content_ciphertext as string,
+    contentNonce: r.content_nonce as string,
+    contentVersion: Number(r.content_version || 1),
+    encryptionKeyVersion: Number(r.encryption_key_version || 1),
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+    isDeleted: Number(r.is_deleted) === 1,
+    deletedAt: r.deleted_at as string | null,
+  }));
+
+  let nextCursor = cursor;
+  for (const r of rowsToUse) {
+    if (Number(r.revision) > nextCursor) {
+      nextCursor = Number(r.revision);
+    }
+  }
+
+  return {
+    changes,
+    cursor: nextCursor,
+    hasMore,
+  };
+}
+
 // encrypted blobs ride the same push/pull + revision-cursor path as tags; the
 // server stores and returns ciphertext by revision and NEVER merges annotation
 // lists (merge is client-side union-by-id + LWW on updatedAtMs).

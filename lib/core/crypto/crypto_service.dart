@@ -148,6 +148,51 @@ class TagPlaintext {
   int get hashCode => name.hashCode ^ icon.hashCode ^ color.hashCode;
 }
 
+/// Plaintext place-alias content object before encryption (§2.3).
+///
+/// Holds the full presentation-layer mapping for one merged/renamed place:
+/// the normalized [matchKey] being remapped, the [canonicalKey] it folds into,
+/// and the chosen [displayName]. All three live INSIDE the ciphertext so the
+/// sync server never sees place names, addresses or keys in plaintext.
+@immutable
+class PlaceAliasPlaintext {
+  const PlaceAliasPlaintext({
+    required this.matchKey,
+    required this.canonicalKey,
+    required this.displayName,
+  });
+
+  final String matchKey;
+  final String canonicalKey;
+  final String displayName;
+
+  Map<String, dynamic> toJson() => {
+        'matchKey': matchKey,
+        'canonicalKey': canonicalKey,
+        'displayName': displayName,
+      };
+
+  factory PlaceAliasPlaintext.fromJson(Map<String, dynamic> json) =>
+      PlaceAliasPlaintext(
+        matchKey: json['matchKey'] as String? ?? '',
+        canonicalKey: json['canonicalKey'] as String? ?? '',
+        displayName: json['displayName'] as String? ?? '',
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlaceAliasPlaintext &&
+          runtimeType == other.runtimeType &&
+          matchKey == other.matchKey &&
+          canonicalKey == other.canonicalKey &&
+          displayName == other.displayName;
+
+  @override
+  int get hashCode =>
+      matchKey.hashCode ^ canonicalKey.hashCode ^ displayName.hashCode;
+}
+
 /// Parameters for Argon2id Key Derivation
 @immutable
 class KdfParameters {
@@ -323,6 +368,36 @@ abstract class CryptoService {
     required EncryptedEnvelope envelope,
     required Uint8List masterKeyBytes,
     required String tagId,
+  });
+
+  /// Computes a deterministic, opaque, server-unguessable id for a place-alias
+  /// row (§2.3) from the normalized [matchKey] and the master key.
+  ///
+  /// The id is `HMAC-SHA256(masterKey, "placealias:" + matchKey)` as lowercase
+  /// hex. It is **deterministic** so every device derives the SAME id for the
+  /// same alias (same-id reconciliation on pull, no per-device duplicate churn)
+  /// and **keyed** so the server cannot dictionary-attack low-entropy place
+  /// names. The server only ever stores this opaque id — never the match key.
+  String computePlaceAliasId({
+    required String matchKey,
+    required Uint8List masterKeyBytes,
+  });
+
+  /// Encrypts PlaceAliasPlaintext using Master Key with Authenticated
+  /// Associated Data (§2.3). The payload `{matchKey, canonicalKey, displayName}`
+  /// is sealed inside the ciphertext; only the opaque [placeAliasId] is public.
+  Future<EncryptedEnvelope> encryptPlaceAliasPayload({
+    required PlaceAliasPlaintext plaintext,
+    required Uint8List masterKeyBytes,
+    required String placeAliasId,
+    int keyVersion = 1,
+  });
+
+  /// Decrypts EncryptedEnvelope back to PlaceAliasPlaintext using Master Key.
+  Future<PlaceAliasPlaintext> decryptPlaceAliasPayload({
+    required EncryptedEnvelope envelope,
+    required Uint8List masterKeyBytes,
+    required String placeAliasId,
   });
 
   /// Generates a human-friendly high-entropy Recovery Key formatted with words/chunks
@@ -626,6 +701,89 @@ class DefaultCryptoService implements CryptoService {
 
     final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
     return TagPlaintext.fromJson(jsonMap);
+  }
+
+  static const String _placeAliasAadPrefix = 'quietpaper:placealias';
+
+  @override
+  String computePlaceAliasId({
+    required String matchKey,
+    required Uint8List masterKeyBytes,
+  }) {
+    final hmac = standard_crypto.Hmac(standard_crypto.sha256, masterKeyBytes);
+    final digest = hmac.convert(utf8.encode('placealias:$matchKey'));
+    return digest.toString(); // lowercase hex, 64 chars
+  }
+
+  @override
+  Future<EncryptedEnvelope> encryptPlaceAliasPayload({
+    required PlaceAliasPlaintext plaintext,
+    required Uint8List masterKeyBytes,
+    required String placeAliasId,
+    int keyVersion = 1,
+  }) async {
+    final payloadJson = jsonEncode(plaintext.toJson());
+    final payloadBytes = utf8.encode(payloadJson);
+
+    final masterSecretKey = SecretKey(masterKeyBytes);
+    final nonce = _cipher.newNonce();
+    final aad = utf8.encode('$_placeAliasAadPrefix:$placeAliasId:v1');
+
+    final secretBox = await _cipher.encrypt(
+      payloadBytes,
+      secretKey: masterSecretKey,
+      nonce: nonce,
+      aad: aad,
+    );
+
+    final combinedCiphertext = secretBox.concatenation(nonce: false);
+
+    return EncryptedEnvelope(
+      version: 1,
+      algorithm: 'xchacha20-poly1305',
+      keyVersion: keyVersion,
+      nonce: base64Encode(nonce),
+      ciphertext: base64Encode(combinedCiphertext),
+      contentVersion: 1,
+    );
+  }
+
+  @override
+  Future<PlaceAliasPlaintext> decryptPlaceAliasPayload({
+    required EncryptedEnvelope envelope,
+    required Uint8List masterKeyBytes,
+    required String placeAliasId,
+  }) async {
+    final nonce = base64Decode(envelope.nonce);
+    final combinedCiphertext = base64Decode(envelope.ciphertext);
+    final aad =
+        utf8.encode('$_placeAliasAadPrefix:$placeAliasId:v${envelope.version}');
+
+    if (combinedCiphertext.length < 16) {
+      throw const FormatException('Ciphertext too short for Poly1305 MAC');
+    }
+
+    final cipherBytes =
+        combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final macBytes =
+        combinedCiphertext.sublist(combinedCiphertext.length - 16);
+
+    final secretBox = SecretBox(
+      cipherBytes,
+      nonce: nonce,
+      mac: Mac(macBytes),
+    );
+
+    final masterSecretKey = SecretKey(masterKeyBytes);
+
+    final decryptedBytes = await _cipher.decrypt(
+      secretBox,
+      secretKey: masterSecretKey,
+      aad: aad,
+    );
+
+    final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+    return PlaceAliasPlaintext.fromJson(jsonMap);
   }
 
   @override

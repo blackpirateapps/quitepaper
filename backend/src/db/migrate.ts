@@ -252,6 +252,26 @@ CREATE TABLE IF NOT EXISTS tags (
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags (user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user_rev ON tags (user_id, revision);
 
+CREATE TABLE IF NOT EXISTS place_aliases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  content_ciphertext TEXT NOT NULL,
+  content_nonce TEXT NOT NULL,
+  content_version INTEGER NOT NULL DEFAULT 1,
+  encryption_key_version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_by_device TEXT,
+  updated_by_device TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_place_aliases_user_id ON place_aliases (user_id);
+CREATE INDEX IF NOT EXISTS idx_place_aliases_user_rev ON place_aliases (user_id, revision);
+
 CREATE TABLE IF NOT EXISTS document_annotations (
   user_id TEXT NOT NULL,
   document_id TEXT NOT NULL,

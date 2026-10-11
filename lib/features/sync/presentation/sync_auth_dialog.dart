@@ -187,6 +187,9 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       await api.putKeys(wrappedKey);
 
       // 5. Reset cursor & trigger initial sync
+      // Vault just unlocked — flip the shared unlock flag so providers gated on
+      // it (e.g. placeAliasStoreProvider) rebuild onto the synced path.
+      ref.read(isKeyManagerUnlockedProvider.notifier).state = true;
       await engine.resetSyncCursor();
       engine.syncNow();
 
@@ -317,6 +320,9 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
       }
 
       // Reset sync cursor on fresh login to guarantee pulling all cloud notes
+      // Vault just unlocked — flip the shared unlock flag so providers gated on
+      // it (e.g. placeAliasStoreProvider) rebuild onto the synced path.
+      ref.read(isKeyManagerUnlockedProvider.notifier).state = true;
       await engine.resetSyncCursor();
       engine.syncNow();
 

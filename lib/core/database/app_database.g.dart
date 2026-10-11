@@ -9608,6 +9608,740 @@ class NoteLinksTableCompanion extends UpdateCompanion<NoteLinkEntity> {
   }
 }
 
+class $PlaceAliasesTableTable extends PlaceAliasesTable
+    with TableInfo<$PlaceAliasesTableTable, PlaceAliasEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlaceAliasesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentCiphertextMeta = const VerificationMeta(
+    'contentCiphertext',
+  );
+  @override
+  late final GeneratedColumn<String> contentCiphertext =
+      GeneratedColumn<String>(
+        'content_ciphertext',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _contentNonceMeta = const VerificationMeta(
+    'contentNonce',
+  );
+  @override
+  late final GeneratedColumn<String> contentNonce = GeneratedColumn<String>(
+    'content_nonce',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _contentVersionMeta = const VerificationMeta(
+    'contentVersion',
+  );
+  @override
+  late final GeneratedColumn<int> contentVersion = GeneratedColumn<int>(
+    'content_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _encryptionKeyVersionMeta =
+      const VerificationMeta('encryptionKeyVersion');
+  @override
+  late final GeneratedColumn<int> encryptionKeyVersion = GeneratedColumn<int>(
+    'encryption_key_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _serverRevisionMeta = const VerificationMeta(
+    'serverRevision',
+  );
+  @override
+  late final GeneratedColumn<int> serverRevision = GeneratedColumn<int>(
+    'server_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    contentCiphertext,
+    contentNonce,
+    contentVersion,
+    encryptionKeyVersion,
+    createdAt,
+    updatedAt,
+    isDirty,
+    serverRevision,
+    syncedAt,
+    isDeleted,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'place_aliases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlaceAliasEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('content_ciphertext')) {
+      context.handle(
+        _contentCiphertextMeta,
+        contentCiphertext.isAcceptableOrUnknown(
+          data['content_ciphertext']!,
+          _contentCiphertextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('content_nonce')) {
+      context.handle(
+        _contentNonceMeta,
+        contentNonce.isAcceptableOrUnknown(
+          data['content_nonce']!,
+          _contentNonceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('content_version')) {
+      context.handle(
+        _contentVersionMeta,
+        contentVersion.isAcceptableOrUnknown(
+          data['content_version']!,
+          _contentVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('encryption_key_version')) {
+      context.handle(
+        _encryptionKeyVersionMeta,
+        encryptionKeyVersion.isAcceptableOrUnknown(
+          data['encryption_key_version']!,
+          _encryptionKeyVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('server_revision')) {
+      context.handle(
+        _serverRevisionMeta,
+        serverRevision.isAcceptableOrUnknown(
+          data['server_revision']!,
+          _serverRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PlaceAliasEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlaceAliasEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      contentCiphertext: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_ciphertext'],
+      )!,
+      contentNonce: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_nonce'],
+      )!,
+      contentVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}content_version'],
+      )!,
+      encryptionKeyVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}encryption_key_version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      serverRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_revision'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $PlaceAliasesTableTable createAlias(String alias) {
+    return $PlaceAliasesTableTable(attachedDatabase, alias);
+  }
+}
+
+class PlaceAliasEntity extends DataClass
+    implements Insertable<PlaceAliasEntity> {
+  /// Deterministic opaque id = HMAC-SHA256(masterKey, "placealias:"+matchKey).
+  final String id;
+
+  /// Encrypted `{matchKey, canonicalKey, displayName}` payload (base64).
+  final String contentCiphertext;
+
+  /// XChaCha20 nonce for [contentCiphertext] (base64).
+  final String contentNonce;
+  final int contentVersion;
+  final int encryptionKeyVersion;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final bool isDirty;
+  final int serverRevision;
+  final DateTime? syncedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  const PlaceAliasEntity({
+    required this.id,
+    required this.contentCiphertext,
+    required this.contentNonce,
+    required this.contentVersion,
+    required this.encryptionKeyVersion,
+    this.createdAt,
+    this.updatedAt,
+    required this.isDirty,
+    required this.serverRevision,
+    this.syncedAt,
+    required this.isDeleted,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['content_ciphertext'] = Variable<String>(contentCiphertext);
+    map['content_nonce'] = Variable<String>(contentNonce);
+    map['content_version'] = Variable<int>(contentVersion);
+    map['encryption_key_version'] = Variable<int>(encryptionKeyVersion);
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['server_revision'] = Variable<int>(serverRevision);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  PlaceAliasesTableCompanion toCompanion(bool nullToAbsent) {
+    return PlaceAliasesTableCompanion(
+      id: Value(id),
+      contentCiphertext: Value(contentCiphertext),
+      contentNonce: Value(contentNonce),
+      contentVersion: Value(contentVersion),
+      encryptionKeyVersion: Value(encryptionKeyVersion),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      isDirty: Value(isDirty),
+      serverRevision: Value(serverRevision),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory PlaceAliasEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlaceAliasEntity(
+      id: serializer.fromJson<String>(json['id']),
+      contentCiphertext: serializer.fromJson<String>(json['contentCiphertext']),
+      contentNonce: serializer.fromJson<String>(json['contentNonce']),
+      contentVersion: serializer.fromJson<int>(json['contentVersion']),
+      encryptionKeyVersion: serializer.fromJson<int>(
+        json['encryptionKeyVersion'],
+      ),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      serverRevision: serializer.fromJson<int>(json['serverRevision']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'contentCiphertext': serializer.toJson<String>(contentCiphertext),
+      'contentNonce': serializer.toJson<String>(contentNonce),
+      'contentVersion': serializer.toJson<int>(contentVersion),
+      'encryptionKeyVersion': serializer.toJson<int>(encryptionKeyVersion),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'serverRevision': serializer.toJson<int>(serverRevision),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  PlaceAliasEntity copyWith({
+    String? id,
+    String? contentCiphertext,
+    String? contentNonce,
+    int? contentVersion,
+    int? encryptionKeyVersion,
+    Value<DateTime?> createdAt = const Value.absent(),
+    Value<DateTime?> updatedAt = const Value.absent(),
+    bool? isDirty,
+    int? serverRevision,
+    Value<DateTime?> syncedAt = const Value.absent(),
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => PlaceAliasEntity(
+    id: id ?? this.id,
+    contentCiphertext: contentCiphertext ?? this.contentCiphertext,
+    contentNonce: contentNonce ?? this.contentNonce,
+    contentVersion: contentVersion ?? this.contentVersion,
+    encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+    isDirty: isDirty ?? this.isDirty,
+    serverRevision: serverRevision ?? this.serverRevision,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  PlaceAliasEntity copyWithCompanion(PlaceAliasesTableCompanion data) {
+    return PlaceAliasEntity(
+      id: data.id.present ? data.id.value : this.id,
+      contentCiphertext: data.contentCiphertext.present
+          ? data.contentCiphertext.value
+          : this.contentCiphertext,
+      contentNonce: data.contentNonce.present
+          ? data.contentNonce.value
+          : this.contentNonce,
+      contentVersion: data.contentVersion.present
+          ? data.contentVersion.value
+          : this.contentVersion,
+      encryptionKeyVersion: data.encryptionKeyVersion.present
+          ? data.encryptionKeyVersion.value
+          : this.encryptionKeyVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      serverRevision: data.serverRevision.present
+          ? data.serverRevision.value
+          : this.serverRevision,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlaceAliasEntity(')
+          ..write('id: $id, ')
+          ..write('contentCiphertext: $contentCiphertext, ')
+          ..write('contentNonce: $contentNonce, ')
+          ..write('contentVersion: $contentVersion, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    contentCiphertext,
+    contentNonce,
+    contentVersion,
+    encryptionKeyVersion,
+    createdAt,
+    updatedAt,
+    isDirty,
+    serverRevision,
+    syncedAt,
+    isDeleted,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlaceAliasEntity &&
+          other.id == this.id &&
+          other.contentCiphertext == this.contentCiphertext &&
+          other.contentNonce == this.contentNonce &&
+          other.contentVersion == this.contentVersion &&
+          other.encryptionKeyVersion == this.encryptionKeyVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.isDirty == this.isDirty &&
+          other.serverRevision == this.serverRevision &&
+          other.syncedAt == this.syncedAt &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PlaceAliasesTableCompanion extends UpdateCompanion<PlaceAliasEntity> {
+  final Value<String> id;
+  final Value<String> contentCiphertext;
+  final Value<String> contentNonce;
+  final Value<int> contentVersion;
+  final Value<int> encryptionKeyVersion;
+  final Value<DateTime?> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<bool> isDirty;
+  final Value<int> serverRevision;
+  final Value<DateTime?> syncedAt;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const PlaceAliasesTableCompanion({
+    this.id = const Value.absent(),
+    this.contentCiphertext = const Value.absent(),
+    this.contentNonce = const Value.absent(),
+    this.contentVersion = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlaceAliasesTableCompanion.insert({
+    required String id,
+    this.contentCiphertext = const Value.absent(),
+    this.contentNonce = const Value.absent(),
+    this.contentVersion = const Value.absent(),
+    this.encryptionKeyVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.serverRevision = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
+  static Insertable<PlaceAliasEntity> custom({
+    Expression<String>? id,
+    Expression<String>? contentCiphertext,
+    Expression<String>? contentNonce,
+    Expression<int>? contentVersion,
+    Expression<int>? encryptionKeyVersion,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<bool>? isDirty,
+    Expression<int>? serverRevision,
+    Expression<DateTime>? syncedAt,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (contentCiphertext != null) 'content_ciphertext': contentCiphertext,
+      if (contentNonce != null) 'content_nonce': contentNonce,
+      if (contentVersion != null) 'content_version': contentVersion,
+      if (encryptionKeyVersion != null)
+        'encryption_key_version': encryptionKeyVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (serverRevision != null) 'server_revision': serverRevision,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlaceAliasesTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? contentCiphertext,
+    Value<String>? contentNonce,
+    Value<int>? contentVersion,
+    Value<int>? encryptionKeyVersion,
+    Value<DateTime?>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<bool>? isDirty,
+    Value<int>? serverRevision,
+    Value<DateTime?>? syncedAt,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PlaceAliasesTableCompanion(
+      id: id ?? this.id,
+      contentCiphertext: contentCiphertext ?? this.contentCiphertext,
+      contentNonce: contentNonce ?? this.contentNonce,
+      contentVersion: contentVersion ?? this.contentVersion,
+      encryptionKeyVersion: encryptionKeyVersion ?? this.encryptionKeyVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDirty: isDirty ?? this.isDirty,
+      serverRevision: serverRevision ?? this.serverRevision,
+      syncedAt: syncedAt ?? this.syncedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (contentCiphertext.present) {
+      map['content_ciphertext'] = Variable<String>(contentCiphertext.value);
+    }
+    if (contentNonce.present) {
+      map['content_nonce'] = Variable<String>(contentNonce.value);
+    }
+    if (contentVersion.present) {
+      map['content_version'] = Variable<int>(contentVersion.value);
+    }
+    if (encryptionKeyVersion.present) {
+      map['encryption_key_version'] = Variable<int>(encryptionKeyVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (serverRevision.present) {
+      map['server_revision'] = Variable<int>(serverRevision.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlaceAliasesTableCompanion(')
+          ..write('id: $id, ')
+          ..write('contentCiphertext: $contentCiphertext, ')
+          ..write('contentNonce: $contentNonce, ')
+          ..write('contentVersion: $contentVersion, ')
+          ..write('encryptionKeyVersion: $encryptionKeyVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('serverRevision: $serverRevision, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -9634,6 +10368,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SyncConflictsTableTable syncConflictsTable =
       $SyncConflictsTableTable(this);
   late final $NoteLinksTableTable noteLinksTable = $NoteLinksTableTable(this);
+  late final $PlaceAliasesTableTable placeAliasesTable =
+      $PlaceAliasesTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -9653,6 +10389,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     documentAnnotationsTable,
     syncConflictsTable,
     noteLinksTable,
+    placeAliasesTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -15416,6 +16153,362 @@ typedef $$NoteLinksTableTableProcessedTableManager =
       NoteLinkEntity,
       PrefetchHooks Function({bool sourceNoteId})
     >;
+typedef $$PlaceAliasesTableTableCreateCompanionBuilder =
+    PlaceAliasesTableCompanion Function({
+      required String id,
+      Value<String> contentCiphertext,
+      Value<String> contentNonce,
+      Value<int> contentVersion,
+      Value<int> encryptionKeyVersion,
+      Value<DateTime?> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<bool> isDirty,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$PlaceAliasesTableTableUpdateCompanionBuilder =
+    PlaceAliasesTableCompanion Function({
+      Value<String> id,
+      Value<String> contentCiphertext,
+      Value<String> contentNonce,
+      Value<int> contentVersion,
+      Value<int> encryptionKeyVersion,
+      Value<DateTime?> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<bool> isDirty,
+      Value<int> serverRevision,
+      Value<DateTime?> syncedAt,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$PlaceAliasesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $PlaceAliasesTableTable> {
+  $$PlaceAliasesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contentVersion => $composableBuilder(
+    column: $table.contentVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PlaceAliasesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $PlaceAliasesTableTable> {
+  $$PlaceAliasesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get contentVersion => $composableBuilder(
+    column: $table.contentVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PlaceAliasesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PlaceAliasesTableTable> {
+  $$PlaceAliasesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get contentVersion => $composableBuilder(
+    column: $table.contentVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get encryptionKeyVersion => $composableBuilder(
+    column: $table.encryptionKeyVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<int> get serverRevision => $composableBuilder(
+    column: $table.serverRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$PlaceAliasesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PlaceAliasesTableTable,
+          PlaceAliasEntity,
+          $$PlaceAliasesTableTableFilterComposer,
+          $$PlaceAliasesTableTableOrderingComposer,
+          $$PlaceAliasesTableTableAnnotationComposer,
+          $$PlaceAliasesTableTableCreateCompanionBuilder,
+          $$PlaceAliasesTableTableUpdateCompanionBuilder,
+          (
+            PlaceAliasEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $PlaceAliasesTableTable,
+              PlaceAliasEntity
+            >,
+          ),
+          PlaceAliasEntity,
+          PrefetchHooks Function()
+        > {
+  $$PlaceAliasesTableTableTableManager(
+    _$AppDatabase db,
+    $PlaceAliasesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlaceAliasesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlaceAliasesTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlaceAliasesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> contentCiphertext = const Value.absent(),
+                Value<String> contentNonce = const Value.absent(),
+                Value<int> contentVersion = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlaceAliasesTableCompanion(
+                id: id,
+                contentCiphertext: contentCiphertext,
+                contentNonce: contentNonce,
+                contentVersion: contentVersion,
+                encryptionKeyVersion: encryptionKeyVersion,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                isDirty: isDirty,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String> contentCiphertext = const Value.absent(),
+                Value<String> contentNonce = const Value.absent(),
+                Value<int> contentVersion = const Value.absent(),
+                Value<int> encryptionKeyVersion = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<int> serverRevision = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlaceAliasesTableCompanion.insert(
+                id: id,
+                contentCiphertext: contentCiphertext,
+                contentNonce: contentNonce,
+                contentVersion: contentVersion,
+                encryptionKeyVersion: encryptionKeyVersion,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                isDirty: isDirty,
+                serverRevision: serverRevision,
+                syncedAt: syncedAt,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PlaceAliasesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PlaceAliasesTableTable,
+      PlaceAliasEntity,
+      $$PlaceAliasesTableTableFilterComposer,
+      $$PlaceAliasesTableTableOrderingComposer,
+      $$PlaceAliasesTableTableAnnotationComposer,
+      $$PlaceAliasesTableTableCreateCompanionBuilder,
+      $$PlaceAliasesTableTableUpdateCompanionBuilder,
+      (
+        PlaceAliasEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $PlaceAliasesTableTable,
+          PlaceAliasEntity
+        >,
+      ),
+      PlaceAliasEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -15457,4 +16550,6 @@ class $AppDatabaseManager {
       $$SyncConflictsTableTableTableManager(_db, _db.syncConflictsTable);
   $$NoteLinksTableTableTableManager get noteLinksTable =>
       $$NoteLinksTableTableTableManager(_db, _db.noteLinksTable);
+  $$PlaceAliasesTableTableTableManager get placeAliasesTable =>
+      $$PlaceAliasesTableTableTableManager(_db, _db.placeAliasesTable);
 }
