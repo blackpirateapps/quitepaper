@@ -96,6 +96,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   // --- Annotation layer (spec §4) ---
   AnnotationEditingController? _annotationController;
   final Map<int, OcrPage> _ocrPages = {};
+  bool _annotateMode = false;
 
   String get displayTitle => _currentTitle ?? _resolution?.data?.title ?? widget.title;
 
@@ -137,6 +138,90 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   void _preparePage(int pageIndex) {
     unawaited(_ensureAnnotationController().ensurePageLoaded(pageIndex));
     unawaited(_ensureOcrPage(pageIndex));
+  }
+
+  /// Enter/leave annotate mode. The markup palette and drawing gestures are
+  /// only active while annotating; reading is the default.
+  void _toggleAnnotateMode() {
+    final controller = _ensureAnnotationController();
+    setState(() {
+      _annotateMode = !_annotateMode;
+      if (_annotateMode) {
+        _preparePage(_selectedPageIndex);
+        controller.setTool(AnnotationTool.ink);
+      } else {
+        controller.setTool(AnnotationTool.navigate);
+      }
+    });
+  }
+
+  void _exitAnnotateMode() {
+    if (!_annotateMode) return;
+    setState(() {
+      _annotateMode = false;
+      _annotationController?.setTool(AnnotationTool.navigate);
+    });
+  }
+
+  /// Tombstone every annotation on the document, after confirmation.
+  Future<void> _deleteAllAnnotations() async {
+    final service = ref.read(documentAnnotationServiceProvider);
+    if (!await service.hasAnnotations(widget.documentId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No annotations to delete.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final colors = context.appColors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
+        title: Text(
+          'Delete all annotations?',
+          style: AppTypography.headline.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'This removes every mark, comment and redaction on all pages. '
+          'The original PDF is unaffected. This cannot be undone.',
+          style: TextStyle(fontSize: 13, color: colors.textSecondary),
+        ),
+        actions: [
+          QuietButton(
+            label: 'Cancel',
+            variant: QuietButtonVariant.secondary,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          QuietButton(
+            label: 'Delete all',
+            variant: QuietButtonVariant.primary,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await service.clearAllAnnotations(widget.documentId);
+    _annotationController?.invalidateCache();
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All annotations deleted'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   /// Copies text resolved from a text selection to the clipboard.
@@ -495,9 +580,60 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   Future<void> _sharePdf() async {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
-    final bytes = await _resolveExportBytes(docInfo);
+    final service = ref.read(documentAnnotationServiceProvider);
+    final hasAnnotations = await service.hasAnnotations(widget.documentId);
+    if (!hasAnnotations) {
+      await _shareBytes(docInfo, annotated: false);
+      return;
+    }
+    if (!mounted) return;
+    final annotated = await _pickShareVariant();
+    if (annotated == null) return;
+    await _shareBytes(docInfo, annotated: annotated);
+  }
+
+  /// Asks whether to share the original or the annotated (flattened) PDF.
+  /// Returns true for annotated, false for original, null if dismissed.
+  Future<bool?> _pickShareVariant() {
+    final colors = context.appColors;
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            ListTile(
+              leading: Icon(Icons.description_outlined, color: colors.accent),
+              title: const Text('Share with annotations'),
+              subtitle: const Text('Flattened PDF; redactions burned in'),
+              onTap: () => Navigator.of(sheetContext).pop(true),
+            ),
+            ListTile(
+              leading: Icon(Icons.picture_as_pdf_outlined,
+                  color: colors.textSecondary),
+              title: const Text('Share original'),
+              subtitle: const Text('Unmodified source PDF'),
+              onTap: () => Navigator.of(sheetContext).pop(false),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareBytes(ResolvedDocumentInfo docInfo,
+      {required bool annotated}) async {
+    final bytes =
+        annotated ? await _resolveExportBytes(docInfo) : docInfo.pdfBytes;
     final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
-    final fileName = '${cleanTitle.isEmpty ? 'document' : cleanTitle}.pdf';
+    final base = cleanTitle.isEmpty ? 'document' : cleanTitle;
+    final fileName = annotated ? '$base-annotated.pdf' : '$base.pdf';
     await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 
@@ -718,6 +854,15 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ],
           ),
           actions: [
+            if (docInfo != null)
+              IconButton(
+                icon: Icon(
+                  _annotateMode ? Icons.draw : Icons.draw_outlined,
+                ),
+                color: _annotateMode ? colors.accent : null,
+                tooltip: _annotateMode ? 'Done annotating' : 'Annotate PDF',
+                onPressed: _toggleAnnotateMode,
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Rename document',
@@ -790,6 +935,12 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     break;
                   case 'print':
                     _printPdf();
+                    break;
+                  case 'annotate':
+                    _toggleAnnotateMode();
+                    break;
+                  case 'delete_annotations':
+                    _deleteAllAnnotations();
                     break;
                   case 'reload':
                     _loadDocument();
@@ -881,6 +1032,31 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     ],
                   ),
                 ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'annotate',
+                  child: Row(
+                    children: [
+                      Icon(_annotateMode ? Icons.draw : Icons.draw_outlined,
+                          size: 18),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                            _annotateMode ? 'Done Annotating' : 'Annotate PDF'),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete_annotations',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_sweep_outlined, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Delete All Annotations')),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'reload',
                   child: Row(
@@ -930,24 +1106,26 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         ? _buildTabletLayout(colors, docInfo)
         : _buildPhoneLayout(colors, docInfo);
 
-    // Floating markup palette over the page (clear of the phone page pills).
+    // Floating markup palette, only while annotating (clear of phone pills).
     return Stack(
       children: [
         Positioned.fill(child: layout),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: isTablet ? null : 64,
-          top: isTablet ? 0 : null,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: AnnotationToolbar(
-              controller: _ensureAnnotationController(),
-              ocrAvailable: _isOcrAvailable,
-              ocrPending: _isOcrPending,
+        if (_annotateMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: isTablet ? null : 64,
+            top: isTablet ? 0 : null,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: AnnotationToolbar(
+                controller: _ensureAnnotationController(),
+                ocrAvailable: _isOcrAvailable,
+                ocrPending: _isOcrPending,
+                onClose: _exitAnnotateMode,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

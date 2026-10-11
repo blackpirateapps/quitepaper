@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
-import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../annotations/annotation_editing_controller.dart';
 
-/// Floating, theme-native markup palette for the document viewer (spec §4.5).
+/// Minimal, theme-native markup palette for the document viewer (spec §4.5).
 ///
-/// Lets the reader pick the active tool, color and stroke width, toggle the
-/// ruler/straight-line assist, undo/redo, and switch back to Navigate. Lives
-/// above the page, clear of the tablet thumbnail rail.
+/// Shown only while the reader is in annotate mode (toggled from the app bar).
+/// A leading close button exits back to reading. Tools, color and width live on
+/// one quiet scrolling row; the style row appears only for a style-bearing tool.
 class AnnotationToolbar extends StatelessWidget {
   const AnnotationToolbar({
     super.key,
     required this.controller,
     required this.ocrAvailable,
     required this.ocrPending,
+    required this.onClose,
   });
 
   final AnnotationEditingController controller;
@@ -26,13 +26,15 @@ class AnnotationToolbar extends StatelessWidget {
   /// Whether OCR is still processing (shows a quiet "preparing text…" hint).
   final bool ocrPending;
 
+  /// Exit annotate mode (back to reading / navigate).
+  final VoidCallback onClose;
+
   static const List<int> _palette = [
     0xFFEF5350, // red
-    0xFFFFCA28, // amber (highlighter)
+    0xFFFFCA28, // amber
     0xFF66BB6A, // green
     0xFF42A5F5, // blue
     0xFF000000, // black
-    0xFFFFFFFF, // white
   ];
 
   @override
@@ -48,18 +50,19 @@ class AnnotationToolbar extends StatelessWidget {
         return Material(
           color: Colors.transparent,
           child: Container(
-            margin: const EdgeInsets.all(AppSpacing.sm),
+            margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                horizontal: AppSpacing.xs, vertical: 2),
+            constraints: const BoxConstraints(maxWidth: 560),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.lg),
-              border: Border.all(color: colors.divider, width: 0.8),
+              borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -70,58 +73,55 @@ class AnnotationToolbar extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _toolBtn(colors, AnnotationTool.navigate,
-                          Icons.pan_tool_alt_outlined, 'Navigate'),
-                      _sep(colors),
-                      _toolBtn(colors, AnnotationTool.ink, Icons.edit, 'Pen'),
-                      _toolBtn(colors, AnnotationTool.highlighter,
+                      _btn(colors, Icons.close_rounded, 'Done', onClose),
+                      _gap(),
+                      _tool(colors, AnnotationTool.ink, Icons.edit_outlined, 'Pen'),
+                      _tool(colors, AnnotationTool.highlighter,
                           Icons.brush_outlined, 'Highlighter'),
-                      _toolBtn(colors, AnnotationTool.rect,
-                          Icons.crop_square, 'Rectangle'),
-                      _toolBtn(colors, AnnotationTool.ellipse,
+                      _tool(colors, AnnotationTool.rect,
+                          Icons.rectangle_outlined, 'Rectangle'),
+                      _tool(colors, AnnotationTool.ellipse,
                           Icons.circle_outlined, 'Ellipse'),
-                      _toolBtn(colors, AnnotationTool.line,
-                          Icons.horizontal_rule, 'Line'),
-                      _toolBtn(colors, AnnotationTool.arrow,
-                          Icons.north_east, 'Arrow'),
-                      _toolBtn(colors, AnnotationTool.eraser,
-                          Icons.auto_fix_normal, 'Eraser'),
-                      _sep(colors),
-                      _toolBtn(colors, AnnotationTool.textHighlight,
-                          Icons.highlight, 'Highlight text',
+                      _tool(colors, AnnotationTool.line,
+                          Icons.horizontal_rule_rounded, 'Line'),
+                      _tool(colors, AnnotationTool.arrow,
+                          Icons.north_east_rounded, 'Arrow'),
+                      _tool(colors, AnnotationTool.textHighlight,
+                          Icons.highlight_rounded, 'Highlight text',
                           enabled: ocrAvailable),
-                      _toolBtn(colors, AnnotationTool.underline,
-                          Icons.format_underlined, 'Underline',
+                      _tool(colors, AnnotationTool.underline,
+                          Icons.format_underlined_rounded, 'Underline',
                           enabled: ocrAvailable),
-                      _toolBtn(colors, AnnotationTool.strikethrough,
-                          Icons.format_strikethrough, 'Strikethrough',
+                      _tool(colors, AnnotationTool.strikethrough,
+                          Icons.strikethrough_s_rounded, 'Strikethrough',
                           enabled: ocrAvailable),
-                      _toolBtn(colors, AnnotationTool.squiggly,
-                          Icons.gesture, 'Squiggly',
+                      _tool(colors, AnnotationTool.squiggly,
+                          Icons.gesture_rounded, 'Squiggly',
                           enabled: ocrAvailable),
-                      _toolBtn(colors, AnnotationTool.select,
-                          Icons.content_copy, 'Select & copy',
+                      _tool(colors, AnnotationTool.select,
+                          Icons.text_fields_rounded, 'Select & copy',
                           enabled: ocrAvailable),
-                      _toolBtn(colors, AnnotationTool.comment,
-                          Icons.chat_bubble_outline, 'Comment'),
-                      _sep(colors),
-                      _toolBtn(colors, AnnotationTool.redaction,
-                          Icons.square, 'Redact'),
-                      _sep(colors),
-                      _iconBtn(colors, Icons.undo, 'Undo',
+                      _tool(colors, AnnotationTool.comment,
+                          Icons.sticky_note_2_outlined, 'Comment'),
+                      _tool(colors, AnnotationTool.redaction,
+                          Icons.square_rounded, 'Redact'),
+                      _tool(colors, AnnotationTool.eraser,
+                          Icons.auto_fix_normal_rounded, 'Eraser'),
+                      _gap(),
+                      _btn(colors, Icons.undo_rounded, 'Undo',
                           controller.canUndo ? controller.undo : null),
-                      _iconBtn(colors, Icons.redo, 'Redo',
+                      _btn(colors, Icons.redo_rounded, 'Redo',
                           controller.canRedo ? controller.redo : null),
                     ],
                   ),
                 ),
                 if (ocrPending && !ocrAvailable)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(bottom: 6, top: 2),
                     child: Text(
-                      'Preparing text… text tools will enable shortly',
-                      style: TextStyle(
-                          fontSize: 11, color: colors.textTertiary),
+                      'Preparing text…',
+                      style:
+                          TextStyle(fontSize: 11, color: colors.textTertiary),
                     ),
                   ),
                 if (showStyle) _styleRow(colors, tool),
@@ -135,7 +135,8 @@ class AnnotationToolbar extends StatelessWidget {
 
   Widget _styleRow(AppColors colors, AnnotationTool tool) {
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.xs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -143,26 +144,24 @@ class AnnotationToolbar extends StatelessWidget {
             GestureDetector(
               onTap: () => controller.setColor(c),
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 22,
-                height: 22,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 20,
+                height: 20,
                 decoration: BoxDecoration(
                   color: Color(c),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: controller.colorArgb == c
                         ? colors.accent
-                        : colors.divider,
+                        : colors.divider.withValues(alpha: 0.6),
                     width: controller.colorArgb == c ? 2.5 : 1,
                   ),
                 ),
               ),
             ),
-          const SizedBox(width: AppSpacing.sm),
-          if (tool.isFreeformDraw) ...[
-            Icon(Icons.line_weight, size: 16, color: colors.textSecondary),
+          if (tool.isFreeformDraw)
             SizedBox(
-              width: 120,
+              width: 110,
               child: Slider(
                 min: 0.001,
                 max: 0.02,
@@ -170,68 +169,69 @@ class AnnotationToolbar extends StatelessWidget {
                 onChanged: controller.setStrokeWidth,
               ),
             ),
-          ],
+          if (tool == AnnotationTool.rect || tool == AnnotationTool.ellipse)
+            _btn(
+              colors,
+              controller.filled
+                  ? Icons.format_color_fill_rounded
+                  : Icons.check_box_outline_blank_rounded,
+              'Toggle fill',
+              () => controller.setFilled(!controller.filled),
+              active: controller.filled,
+            ),
           if (tool == AnnotationTool.line ||
               tool == AnnotationTool.arrow ||
               tool == AnnotationTool.rect ||
               tool == AnnotationTool.ellipse)
-            _iconBtn(
+            _btn(
               colors,
-              Icons.straighten,
-              'Snap to straight / 45°',
+              Icons.straighten_rounded,
+              'Snap to 45°',
               () => controller.setSnapStraight(!controller.snapStraight),
               active: controller.snapStraight,
-            ),
-          if (tool == AnnotationTool.rect || tool == AnnotationTool.ellipse)
-            _iconBtn(
-              colors,
-              controller.filled ? Icons.format_color_fill : Icons.border_style,
-              'Toggle fill',
-              () => controller.setFilled(!controller.filled),
-              active: controller.filled,
             ),
         ],
       ),
     );
   }
 
-  Widget _toolBtn(AppColors colors, AnnotationTool tool, IconData icon,
+  Widget _tool(AppColors colors, AnnotationTool tool, IconData icon,
       String tooltip,
       {bool enabled = true}) {
     final active = controller.tool == tool;
     return Tooltip(
       message: enabled ? tooltip : '$tooltip (preparing text…)',
       child: IconButton(
-        icon: Icon(icon, size: 20),
+        icon: Icon(icon, size: 21),
         visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
         color: active ? colors.accent : colors.textSecondary,
-        disabledColor: colors.textTertiary.withValues(alpha: 0.4),
+        disabledColor: colors.textTertiary.withValues(alpha: 0.35),
         style: active
-            ? IconButton.styleFrom(backgroundColor: colors.accent.withValues(alpha: 0.14))
+            ? IconButton.styleFrom(
+                backgroundColor: colors.accent.withValues(alpha: 0.12))
             : null,
         onPressed: enabled ? () => controller.setTool(tool) : null,
       ),
     );
   }
 
-  Widget _iconBtn(AppColors colors, IconData icon, String tooltip,
+  Widget _btn(AppColors colors, IconData icon, String tooltip,
       VoidCallback? onPressed,
       {bool active = false}) {
     return Tooltip(
       message: tooltip,
       child: IconButton(
-        icon: Icon(icon, size: 20),
+        icon: Icon(icon, size: 21),
         visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
         color: active ? colors.accent : colors.textSecondary,
         onPressed: onPressed,
       ),
     );
   }
 
-  Widget _sep(AppColors colors) => Container(
-        width: 1,
-        height: 22,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        color: colors.divider,
-      );
+  Widget _gap() => const SizedBox(width: 6);
 }

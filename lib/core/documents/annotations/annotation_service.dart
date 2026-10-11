@@ -121,4 +121,29 @@ class DocumentAnnotationService {
   Future<void> deleteDocument(String documentId) async {
     await database.deleteDocumentAnnotations(documentId);
   }
+
+  /// Tombstones every annotation on every page ("delete all"), keeping the
+  /// rows so the deletions still propagate through sync (LWW). Page rows end
+  /// up with `annotationCount == 0`.
+  Future<void> clearAllAnnotations(String documentId) async {
+    if (!keyManager.isUnlocked) return;
+    final rows = await database.getDocumentAnnotationPages(documentId);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final row in rows) {
+      final pageIndex = row.pageNumber - 1;
+      final existing = await loadPage(documentId, pageIndex);
+      if (existing.isEmpty) continue;
+      final tombstoned = existing
+          .map((a) => a.deleted
+              ? a
+              : a.copyWith(deleted: true, updatedAtMs: now))
+          .toList();
+      await savePage(
+        documentId: documentId,
+        pageIndex: pageIndex,
+        annotations: tombstoned,
+        markDirty: true,
+      );
+    }
+  }
 }

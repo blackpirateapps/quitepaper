@@ -308,6 +308,20 @@ class AnnotationEditingController extends ChangeNotifier {
     }
   }
 
+  /// Drop all in-memory page state (after an external bulk change such as
+  /// "delete all"), forcing a fresh decrypt from storage on next access.
+  void invalidateCache() {
+    for (final t in _saveTimers.values) {
+      t.cancel();
+    }
+    _saveTimers.clear();
+    _pages.clear();
+    _loaded.clear();
+    _undo.clear();
+    _redo.clear();
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     for (final t in _saveTimers.values) {
