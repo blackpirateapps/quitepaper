@@ -11,6 +11,7 @@ import '../../../../core/journal/domain/journal_weather.dart';
 import '../../../../core/location/location_models.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/utils/link_launcher_helper.dart';
+import '../../../journal/presentation/widgets/place_picker_sheet.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../domain/frontmatter_document.dart';
 import 'activity_picker_sheet.dart';
@@ -45,7 +46,6 @@ class FrontmatterPropertiesSection extends StatefulWidget {
 
 class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSection> {
   late bool _isExpanded;
-  bool _isFetchingLocation = false;
   bool _isFetchingWeather = false;
 
   late final TextEditingController _authorController;
@@ -126,33 +126,18 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
-  Future<void> _fetchLocation() async {
-    if (widget.readOnly || _isFetchingLocation) return;
-    setState(() => _isFetchingLocation = true);
-    try {
-      final locationService = LocationService();
-      final loc = await locationService.fetchCurrentLocation();
-      if (!mounted) return;
-      final updated = FrontmatterEditorHelper.updateLocation(
-        documentText: widget.rawDocument,
-        location: loc,
-      );
-      widget.onDocumentChanged(updated);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not fetch location: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isFetchingLocation = false);
-      }
-    }
+  /// Opens the place picker (type/search, known places, or current location)
+  /// and writes the chosen location. Replaces the old auto-fetch-on-tap so the
+  /// user always chooses the place rather than it being silently captured.
+  Future<void> _pickLocation() async {
+    if (widget.readOnly) return;
+    final loc = await PlacePickerSheet.show(context);
+    if (loc == null || !mounted) return;
+    final updated = FrontmatterEditorHelper.updateLocation(
+      documentText: widget.rawDocument,
+      location: loc,
+    );
+    widget.onDocumentChanged(updated);
   }
 
   void _removeLocation() {
@@ -586,33 +571,6 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
   }
 
   Widget _buildLocationField(AppColors colors, JournalLocation? location) {
-    if (_isFetchingLocation) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 6.0, bottom: 6.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              'Fetching current location...',
-              style: AppTypography.caption.copyWith(
-                color: colors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (location != null && location.isNotEmpty) {
       final hasAddress = location.address.trim().isNotEmpty;
       final hasCoords = location.coordinatesString.isNotEmpty;
@@ -637,12 +595,12 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
           if (!widget.readOnly) ...[
             const SizedBox(width: 4.0),
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 14),
+              icon: const Icon(Icons.edit_location_alt_outlined, size: 14),
               color: colors.textSecondary,
-              tooltip: 'Re-fetch location',
+              tooltip: 'Change location',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-              onPressed: _fetchLocation,
+              onPressed: _pickLocation,
             ),
             const SizedBox(width: 4.0),
             IconButton(
@@ -725,16 +683,16 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadii.sm),
-              onTap: _fetchLocation,
+              onTap: _pickLocation,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.my_location_rounded, size: 13, color: colors.accent),
+                    Icon(Icons.add_rounded, size: 13, color: colors.accent),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
-                      'Fetch Location',
+                      'Add Location',
                       style: AppTypography.caption.copyWith(
                         color: colors.accent,
                         fontWeight: FontWeight.w600,

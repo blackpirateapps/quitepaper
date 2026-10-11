@@ -190,10 +190,10 @@ void main() {
       await tester.tap(find.text('Add place'));
       await tester.pumpAndSettle();
 
-      // Picker open: type a custom place and save.
+      // Picker open: type a custom place and use it verbatim.
       await tester.enterText(find.byType(TextField), 'Pondicherry');
       await tester.pump();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.byKey(const ValueKey('placePickerUseAsTyped')));
       await tester.pumpAndSettle();
 
       expect(captured, isNotNull);

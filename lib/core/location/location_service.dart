@@ -61,6 +61,87 @@ class LocationService {
     );
   }
 
+  /// Forward-geocodes a free-text [query] into candidate places using the
+  /// device-native geocoder (on Android, `Geocoder.getFromLocationName`). No
+  /// external service is added and no location permission is required — only
+  /// network connectivity. Returns readable [JournalLocation]s WITHOUT
+  /// coordinates (lat/lng = 0); resolve the chosen one with [geocodeCoordinates]
+  /// on pick. Returns an empty list when nothing matches, the geocoder is
+  /// unavailable (e.g. desktop), or [query] is blank. Never throws.
+  Future<List<JournalLocation>> searchPlaces(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return const <JournalLocation>[];
+    try {
+      final placemarks = await Geocoding().placemarkFromAddress(q);
+      final seen = <String>{};
+      final results = <JournalLocation>[];
+      for (final p in placemarks) {
+        final address = _formatPlacemark(p);
+        if (address.isEmpty) continue;
+        if (!seen.add(address.toLowerCase())) continue;
+        results.add(JournalLocation(address: address, latitude: 0, longitude: 0));
+      }
+      return results;
+    } catch (e) {
+      debugPrint('[LocationService] Forward geocoding unavailable or failed: $e');
+      return const <JournalLocation>[];
+    }
+  }
+
+  /// Resolves coordinates for an already-chosen [address] via the native
+  /// geocoder, returning a [JournalLocation] carrying lat/lng when found, or the
+  /// coordinate-less input (lat/lng = 0) when resolution fails. Never throws, so
+  /// a searched place is always usable even if coordinates can't be attached.
+  Future<JournalLocation> geocodeCoordinates(String address) async {
+    final a = address.trim();
+    final fallback = JournalLocation(address: a, latitude: 0, longitude: 0);
+    if (a.isEmpty) return fallback;
+    try {
+      final locations = await Geocoding().locationFromAddress(a);
+      if (locations.isNotEmpty) {
+        final loc = locations.first;
+        return JournalLocation(
+          address: a,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        );
+      }
+    } catch (e) {
+      debugPrint('[LocationService] Coordinate resolution failed: $e');
+    }
+    return fallback;
+  }
+
+  /// Joins the meaningful parts of a forward-geocoded [Placemark] into a single
+  /// clean line, de-duplicating repeated tokens (Android often echoes the
+  /// locality in `name`).
+  String _formatPlacemark(Placemark p) {
+    final parts = <String>[];
+    final name = p.name?.trim();
+    final street = p.street?.trim();
+    final locality = (p.locality?.trim().isNotEmpty ?? false)
+        ? p.locality!.trim()
+        : p.subAdministrativeArea?.trim();
+    final admin = p.administrativeArea?.trim();
+    final country = p.country?.trim();
+
+    if (name != null && name.isNotEmpty && name != locality && name != admin) {
+      parts.add(name);
+    } else if (street != null && street.isNotEmpty && street != locality) {
+      parts.add(street);
+    }
+    if (locality != null && locality.isNotEmpty && !parts.contains(locality)) {
+      parts.add(locality);
+    }
+    if (admin != null && admin.isNotEmpty && !parts.contains(admin)) {
+      parts.add(admin);
+    }
+    if (country != null && country.isNotEmpty && !parts.contains(country)) {
+      parts.add(country);
+    }
+    return parts.join(', ');
+  }
+
   /// Reverse-geocodes latitude and longitude into a clean, human-readable address.
   /// Tries device-native geocoder first; if unavailable (e.g. Linux desktop or platform error),
   /// seamlessly falls back to OpenStreetMap Nominatim API, and ultimately coordinates string.

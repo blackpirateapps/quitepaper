@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,9 +13,10 @@ import '../../../../core/location/location_service.dart';
 import '../../../notes/domain/note_metadata_extractor.dart';
 import '../../application/places_providers.dart';
 
-/// Bottom sheet that lets the user pick a place to backfill onto a journal
-/// entry that has none (§6.5, the nudge's primary action). Three calm ways to
-/// pick: an existing known place, a typed custom place, or the current device
+/// Bottom sheet that lets the user pick a place for a journal entry (§6.5, the
+/// nudge's primary action — now also the editor's "Add location" affordance).
+/// Calm ways to pick: type or search a place (device-native geocoder, no
+/// external service), use an existing known place, or the current device
 /// location. Resolves to the chosen [JournalLocation] via [Navigator.pop], or
 /// null when dismissed. No maps/tiles — purely typographic (§0, §8).
 class PlacePickerSheet extends ConsumerStatefulWidget {
@@ -35,10 +38,28 @@ class PlacePickerSheet extends ConsumerStatefulWidget {
 
 class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
   final TextEditingController _customController = TextEditingController();
+
+  /// Current-location fetch in progress.
   bool _isFetching = false;
+
+  /// Debounce timer for as-you-type search.
+  Timer? _debounce;
+
+  /// Forward-geocode search in progress.
+  bool _isSearching = false;
+
+  /// Resolving coordinates for a tapped search result before popping.
+  bool _isResolving = false;
+
+  /// Latest search results for the current query (coordinate-less).
+  List<JournalLocation> _results = const <JournalLocation>[];
+
+  /// The query the current [_results] belong to, to drop stale responses.
+  String _resultsQuery = '';
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _customController.dispose();
     super.dispose();
   }
@@ -60,7 +81,48 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
     Navigator.of(context).pop(loc);
   }
 
-  void _submitCustom() {
+  void _onQueryChanged(String value) {
+    _debounce?.cancel();
+    final q = value.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _isSearching = false;
+        _results = const <JournalLocation>[];
+        _resultsQuery = '';
+      });
+      return;
+    }
+    setState(() {}); // reflect the "Use as typed" row and spinner affordance
+    _debounce = Timer(const Duration(milliseconds: 500), _runSearch);
+  }
+
+  Future<void> _runSearch() async {
+    final q = _customController.text.trim();
+    if (q.isEmpty) return;
+    setState(() => _isSearching = true);
+    final results = await LocationService().searchPlaces(q);
+    if (!mounted) return;
+    // Drop responses for a query the user has already moved past.
+    if (_customController.text.trim() != q) return;
+    setState(() {
+      _isSearching = false;
+      _results = results;
+      _resultsQuery = q;
+    });
+  }
+
+  /// Picks a searched place, resolving its coordinates via the native geocoder
+  /// so Open-in-Maps and weather work; falls back to the address alone.
+  Future<void> _pickSearchResult(JournalLocation result) async {
+    if (_isResolving) return;
+    setState(() => _isResolving = true);
+    final resolved = await LocationService().geocodeCoordinates(result.address);
+    if (!mounted) return;
+    Navigator.of(context).pop(resolved);
+  }
+
+  /// Uses whatever the user typed, verbatim, as a coordinate-less place.
+  void _useAsTyped() {
     final text = _customController.text.trim();
     if (text.isEmpty) return;
     Navigator.of(context).pop(
@@ -150,7 +212,7 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
                       AppSpacing.lg,
                     ),
                     children: [
-                      _buildCustomField(colors),
+                      _buildTypeOrSearchField(colors),
                       const SizedBox(height: AppSpacing.md),
                       _buildCurrentLocation(colors),
                       if (places.isNotEmpty) ...[
@@ -170,31 +232,38 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
     );
   }
 
-  Widget _buildCustomField(AppColors colors) {
+  Widget _buildTypeOrSearchField(AppColors colors) {
+    final query = _customController.text.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionLabel(label: 'TYPE A PLACE', colors: colors),
+        _SectionLabel(label: 'TYPE OR SEARCH A PLACE', colors: colors),
         const SizedBox(height: AppSpacing.xs),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border.all(
-                    color: colors.divider.withValues(alpha: 0.6),
-                    width: 0.8,
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        Container(
+          decoration: BoxDecoration(
+            color: colors.surfaceSubtle,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            border: Border.all(
+              color: colors.divider.withValues(alpha: 0.6),
+              width: 0.8,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, size: 16, color: colors.textTertiary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
                 child: TextField(
                   controller: _customController,
                   cursorColor: colors.accent,
-                  textInputAction: TextInputAction.done,
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _submitCustom(),
+                  textInputAction: TextInputAction.search,
+                  autocorrect: false,
+                  onChanged: _onQueryChanged,
+                  onSubmitted: (_) {
+                    _debounce?.cancel();
+                    _runSearch();
+                  },
                   style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
                   decoration: InputDecoration(
                     isDense: true,
@@ -207,17 +276,125 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
                   ),
                 ),
               ),
+              if (_isSearching)
+                SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (query.isNotEmpty) _buildSearchResults(colors, query),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults(AppColors colors, String query) {
+    if (_isResolving) {
+      return Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm, left: 2.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            _AccentButton(
-              label: 'Save',
-              colors: colors,
-              enabled: _customController.text.trim().isNotEmpty,
-              onPressed: _submitCustom,
+            Text(
+              'Adding place…',
+              style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
+      );
+    }
+
+    final showResults = _resultsQuery == query && _results.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showResults) ...[
+          const SizedBox(height: AppSpacing.xs),
+          ..._results.map((r) => _buildResultRow(colors, r)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Divider(height: 1, color: colors.divider.withValues(alpha: 0.5)),
+          ),
+        ],
+        _buildUseAsTypedRow(colors, query),
       ],
+    );
+  }
+
+  Widget _buildResultRow(AppColors colors, JournalLocation result) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        onTap: () => _pickSearchResult(result),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9.0, horizontal: 2.0),
+          child: Row(
+            children: [
+              Icon(Icons.place_outlined, size: 15, color: colors.textTertiary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  result.address,
+                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUseAsTypedRow(AppColors colors, String query) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const ValueKey('placePickerUseAsTyped'),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        onTap: _isResolving ? null : _useAsTyped,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9.0, horizontal: 2.0),
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 15, color: colors.accent),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: RichText(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    style: AppTypography.bodySmall.copyWith(color: colors.accent),
+                    children: [
+                      const TextSpan(text: 'Use '),
+                      TextSpan(
+                        text: '“$query”',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const TextSpan(text: ' as typed'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -323,43 +500,6 @@ class _SectionLabel extends StatelessWidget {
         fontWeight: FontWeight.w700,
         letterSpacing: 0.8,
         fontSize: 10.5,
-      ),
-    );
-  }
-}
-
-class _AccentButton extends StatelessWidget {
-  const _AccentButton({
-    required this.label,
-    required this.colors,
-    required this.onPressed,
-    this.enabled = true,
-  });
-
-  final String label;
-  final AppColors colors;
-  final VoidCallback onPressed;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: enabled ? colors.accent : colors.accent.withValues(alpha: 0.35),
-      borderRadius: BorderRadius.circular(AppRadii.btn),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.btn),
-        onTap: enabled ? onPressed : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 9.0),
-          child: Text(
-            label,
-            style: AppTypography.caption.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ),
       ),
     );
   }

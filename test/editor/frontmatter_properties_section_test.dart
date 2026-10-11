@@ -186,7 +186,7 @@ tags: [diary]
       expect(find.text('Description'), findsNothing);
       // Location and Tags should be visible
       expect(find.text('Location'), findsOneWidget);
-      expect(find.text('Fetch Location'), findsOneWidget);
+      expect(find.text('Add Location'), findsOneWidget);
       expect(find.text('Tags'), findsOneWidget);
       expect(find.text('#diary'), findsOneWidget);
       expect(find.text('Tag'), findsOneWidget); // + Tag button
@@ -240,7 +240,7 @@ tags: [diary]
 
       expect(find.text('1600 Amphitheatre Pkwy, Mountain View, CA'), findsOneWidget);
       expect(find.text('37.422000, -122.084000'), findsOneWidget);
-      expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.edit_location_alt_outlined), findsOneWidget);
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     });
 

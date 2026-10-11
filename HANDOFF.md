@@ -8400,3 +8400,21 @@ Android users can now pick **Quiet Paper** from the system "Open with" chooser (
 - **Not verified on-device** (headless env): the actual Android chooser registration and intent delivery were implemented per the plugin's documented contract but not exercised on a device.
 - **Known limitation:** `.md` files delivered via `content://` with a generic MIME (`text/plain`) and no `.md` in the resolved path fall into the text branch (prompt) rather than auto-note. File-manager `file://` opens and proper `text/markdown` typing classify correctly.
 - iOS share-extension wiring is **not** included (Android-only request).
+
+## 180. Journal Location — pick a place via the sheet (search, known, current) instead of auto-fetching (October 2026)
+
+Adding a location to a journal entry no longer silently captures the current GPS fix. Tapping **Add Location** (and the ↻/change button on an existing one) now opens the shared `PlacePickerSheet` so the place is always a deliberate choice. The sheet gained a **type-or-search** field backed by the device-native geocoder (no external API, no location permission needed — just network).
+
+### 1. Behaviour
+- **Editor** ([`frontmatter_properties_section.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/frontmatter_properties_section.dart)): the empty-state location affordance is now **"Add Location"** (`Icons.add_rounded`) and opens `PlacePickerSheet`; when a location already exists, the former "re-fetch" button is now a **"Change location"** button (`Icons.edit_location_alt_outlined`) that re-opens the same sheet. The old auto-fetch-on-tap (`_fetchLocation` / `_isFetchingLocation`) and its inline spinner were removed. `_fetchWeather` still fetches current location directly when needed — unchanged.
+- **Sheet** ([`place_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_picker_sheet.dart)): the old "TYPE A PLACE" field + Save button is replaced by one **"TYPE OR SEARCH A PLACE"** field. As you type (500 ms debounce) it lists matching places from the native geocoder; below the results a **Use "<text>" as typed** row (keyed `placePickerUseAsTyped`) always lets you store the raw text verbatim (coordinate-less, the old Save behaviour). "Use current location" and "KNOWN PLACES" sections are unchanged. Reused everywhere the sheet already was (the §6.5 backfill nudge).
+- Picking a **search result** resolves its coordinates via the native geocoder (one extra call) so Open-in-Maps and weather work; falls back to the address alone if resolution fails. Typed-verbatim and known-place picks remain coordinate-less (lat/lng = 0), as before.
+
+### 2. Implementation
+- [`location_service.dart`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart): added `searchPlaces(query)` → `List<JournalLocation>` via `Geocoding().placemarkFromAddress` (Android `Geocoder.getFromLocationName`, up to 5 results, de-duped, formatted by `_formatPlacemark`), and `geocodeCoordinates(address)` → `JournalLocation` via `Geocoding().locationFromAddress` for on-pick coordinate resolution. Both catch all errors and degrade gracefully (empty list / coordinate-less), so desktop/no-network never throws.
+- Sheet state: `Timer` debounce, `_isSearching`/`_isResolving`/`_results`/`_resultsQuery`, stale-response guard (drops results whose query the user has moved past), `dispose` cancels the timer. Uses `LocationService()` directly, matching the existing current-location path in the same file.
+
+### 3. Verification & Notes
+- `flutter analyze` — **No issues found!**
+- `flutter test` — **all 1843 tests passing** (updated `frontmatter_properties_section_test` for the new "Add Location" label + change icon; updated `backfill_place_nudge_test` to tap the keyed "use as typed" row instead of "Save").
+- **Not verified on-device** (headless env): native forward-geocoding results depend on Google Play Services / platform geocoder availability and network; the pure-Dart logic and fallbacks are covered, the actual geocoder round-trip is not.
