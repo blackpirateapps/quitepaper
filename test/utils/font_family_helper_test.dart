@@ -38,6 +38,20 @@ void main() {
       expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
     });
 
+    test('Kalpurush is a fallback only, never the primary family', () {
+      // Regression: Kalpurush must not shadow the chosen Latin font. The primary
+      // family stays what was requested; Kalpurush only trails in the fallback.
+      final serif =
+          FontFamilyHelper.getTextStyle(fontFamily: 'System Serif', baseStyle: base);
+      expect(serif.fontFamily, 'serif');
+      expect(serif.fontFamily, isNot(kBengaliFallbackFamily));
+
+      final mono =
+          FontFamilyHelper.getTextStyle(fontFamily: 'monospace', baseStyle: base);
+      expect(mono.fontFamily, 'monospace');
+      expect(mono.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
     test('fallback is appended idempotently when style already has it', () {
       final once = FontFamilyHelper.getTextStyle(fontFamily: 'Roboto', baseStyle: base);
       final twice = FontFamilyHelper.getTextStyle(

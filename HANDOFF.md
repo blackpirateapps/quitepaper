@@ -8336,3 +8336,16 @@ Implements §5 of [`docs/specs/bengali-content-support.md`](file:///home/dog/git
 - New test [`test/journal/journal_bengali_dates_test.dart`](file:///home/dog/git/quitepaper/test/journal/journal_bengali_dates_test.dart): with `'bn'`, `formatMonthYear`/`formatDisplayDate`/`formatMonthYearHeader` emit Bengali numerals/month names; null keeps English; `toDateString`/`monthKey`/`tryParseDateString` stay ASCII.
 - `flutter analyze` — **No issues found!**
 - Full Test Suite: `flutter test` (**all 1815 tests passing**).
+
+## 177. Bengali Content Support — Fix: Kalpurush must fall back only for Bengali, never Latin (October 2026)
+
+Fixes a regression from §174: with the default/System typography (no explicit primary family), **English text rendered in Kalpurush**. Root cause: the bundled `Kalpurush-Regular.ttf` also contains Latin glyphs (A–z, digits, space — 58 Latin entries), and when a style has `fontFamily: null` + `fontFamilyFallback: ['Kalpurush']`, the fallback is consulted ahead of the system font, so Kalpurush — having Latin glyphs — shadowed the system Latin font for all text. (Explicitly-chosen Latin fonts were unaffected, since they sit ahead of Kalpurush in the chain.)
+
+### Fix — ship a Bengali-only subset
+- Generated [`assets/fonts/Kalpurush-Bengali.ttf`](file:///home/dog/git/quitepaper/assets/fonts/Kalpurush-Bengali.ttf) via `python3 -m fontTools.subset` from `Kalpurush-Regular.ttf`, keeping only `U+0980–U+09FF` (full Bengali block incl. digits ০–৯ and Taka ৳), `U+200C/U+200D` (ZWNJ/ZWJ for conjunct control), `U+0964–U+0965` (danda), `U+25CC` (dotted circle), with `--layout-features='*'` so `GSUB`/`GPOS`/`GDEF` and all conjunct/reph/kar shaping are preserved (465 glyphs, Latin dropped).
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml) now registers family `Kalpurush` → the Bengali-only subset. Because the subset has **no** Latin glyphs, Latin/digits/space always fall through to the chosen or system font, while Bengali resolves to Kalpurush — in both the explicit-font and default-font cases. The original `Kalpurush-Regular.ttf` is kept in the repo as the un-subsetted source (not referenced in `pubspec`, so not bundled).
+- No `FontFamilyHelper` logic change was needed — the fallback contract is unchanged; only the asset's glyph coverage was narrowed. Added a regression assertion to [`test/utils/font_family_helper_test.dart`](file:///home/dog/git/quitepaper/test/utils/font_family_helper_test.dart) that Kalpurush is only ever a fallback, never the primary family.
+
+### Verification & Quality
+- `flutter analyze` — **No issues found!**
+- Full Test Suite: `flutter test` (**all 1816 tests passing**).
