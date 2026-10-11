@@ -8379,3 +8379,24 @@ Unlike OCR pages (local-only), annotations **sync** on a new path modeled on tag
 - `flutter test` — **all 1843 tests passing** (incl. new `test/documents/annotation_models_test.dart`, `annotation_text_selection_test.dart`, `annotation_flattener_test.dart`; journal schema-version assertion updated 15 → 16).
 - Backend: `npx tsc --noEmit` clean; `npx vitest run` — **17 files, 116 tests passing** (incl. the 4 new annotation-sync tests).
 - **Not yet done:** on-device visual QA (gesture feel, zoom crispness §4.6, flatten fidelity) — this environment is headless, so the overlay/export were verified by analysis + unit/logic tests only, not by running the app. Zoom-in high-DPI re-raster (§4.6) and the annotation index panel (§11) remain deferred polish.
+
+## 179. Open-with / Share-to-Note — import PDF, text & Markdown files from other apps (October 2026)
+
+Android users can now pick **Quiet Paper** from the system "Open with" chooser (ACTION_VIEW) or the share sheet (ACTION_SEND) for PDF, `.txt` and `.md`/`.markdown` files. Each shared file is saved into a **brand-new note** and the most relevant screen opens automatically.
+
+### 1. Behaviour
+- **PDF** → imported as an encrypted Quiet Paper document (`DocumentService.importPdfFile`) embedded in a new note via its `qp://document/<id>` markdown link, then the [`DocumentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart) opens automatically.
+- **`.md` / `.markdown`** → always imported as the note **body** (never an attachment); front-matter title/tags/dates are honoured via `MarkdownFrontmatterParser`, and the note opens in the editor in Markdown preview mode.
+- **`.txt` (and other `text/*`)** → prompts the user with a dialog (**As note** / **As attachment** / Cancel). "As note" pastes the file content into the note body; "As attachment" keeps the file as an attachment only (`AttachmentService.importGenericFileFromFile`). Either way a new note is created and opened in the editor.
+
+### 2. Implementation
+- New [`lib/core/sharing/shared_file_importer.dart`](file:///home/dog/git/quitepaper/lib/core/sharing/shared_file_importer.dart): `SharedFileImporter.importFile({path, mimeType, navigatorKey})` classifies by extension + MIME (`_IncomingKind`), creates the note through `notesRepositoryProvider.saveNote` + `notesCollectionProvider.notifier.refresh()`, and pushes the viewer/editor on `rootNavigatorKey.currentState`. Providers are read through `ProviderScope.containerOf(navigatorKey.currentContext)` so the handler stays context-free. Errors surface as a SnackBar and are never rethrown.
+- Extended [`share_intent_handler.dart`](file:///home/dog/git/quitepaper/lib/core/web_clipper/share_intent_handler.dart): `_handleSharedFiles` now routes a real on-disk `SharedMediaFile.path` to `SharedFileImporter`, while non-file text (a URL) still opens the web clipper (`WebClipDialog`) — existing web-clip behaviour is unchanged. Reuses the already-wired `receive_sharing_intent` stream (1.9.0 handles ACTION_VIEW + ACTION_SEND).
+- [`AndroidManifest.xml`](file:///home/dog/git/quitepaper/android/app/src/main/AndroidManifest.xml): added ACTION_VIEW filters (`content`/`file` scheme) for `application/pdf` and for `text/plain` + `text/markdown` + `text/x-markdown`, plus an ACTION_SEND filter for `application/pdf` + markdown (the pre-existing `text/plain` SEND filter for the web clipper is retained).
+
+### 3. Verification & Notes
+- `flutter analyze` — **No issues found!**
+- `flutter test` — **all 1843 tests passing** (unchanged count; no behavioural regressions).
+- **Not verified on-device** (headless env): the actual Android chooser registration and intent delivery were implemented per the plugin's documented contract but not exercised on a device.
+- **Known limitation:** `.md` files delivered via `content://` with a generic MIME (`text/plain`) and no `.md` in the resolved path fall into the text branch (prompt) rather than auto-note. File-manager `file://` opens and proper `text/markdown` typing classify correctly.
+- iOS share-extension wiring is **not** included (Android-only request).

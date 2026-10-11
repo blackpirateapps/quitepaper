@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../../features/web_clipper/presentation/web_clip_dialog.dart';
+import '../sharing/shared_file_importer.dart';
 
-/// Handler for receiving shared URLs from external mobile browsers (Chrome, Firefox, Safari).
+/// Handler for content received from other apps via Android share / "Open with"
+/// intents: shared URLs are routed to the web clipper, while opened PDF, text,
+/// and Markdown files are imported into a new note by [SharedFileImporter].
 class ShareIntentHandler {
   static StreamSubscription<List<SharedMediaFile>>? _intentSub;
   static bool _initialized = false;
@@ -51,17 +54,39 @@ class ShareIntentHandler {
     if (files.isEmpty) return;
 
     for (final file in files) {
-      final text = file.path.trim();
-      final url = _extractUrl(text);
-      if (url != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final context = navigatorKey.currentContext;
-          if (context != null) {
+      final raw = file.path.trim();
+      if (raw.isEmpty) continue;
+
+      // A real on-disk file means the user opened or shared a document
+      // (PDF, text or Markdown); otherwise `path` carries shared text/URL.
+      final isFile = _isExistingFile(raw);
+      final mimeType = file.mimeType;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = navigatorKey.currentContext;
+        if (context == null) return;
+        if (isFile) {
+          SharedFileImporter.importFile(
+            path: raw,
+            mimeType: mimeType,
+            navigatorKey: navigatorKey,
+          );
+        } else {
+          final url = _extractUrl(raw);
+          if (url != null) {
             WebClipDialog.show(context, initialUrl: url);
           }
-        });
-        break;
-      }
+        }
+      });
+      return; // Handle only the first shareable item.
+    }
+  }
+
+  static bool _isExistingFile(String path) {
+    try {
+      return File(path).existsSync();
+    } catch (_) {
+      return false;
     }
   }
 
