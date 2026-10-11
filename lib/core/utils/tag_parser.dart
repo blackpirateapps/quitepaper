@@ -1,10 +1,12 @@
 abstract final class TagParser {
   /// Regular expression to match hashtags without catastrophic backtracking.
-  /// Matches `#tag`, `#nested/tag`, `#tag_1`, `#tag-name`.
+  /// Matches `#tag`, `#nested/tag`, `#tag_1`, `#tag-name`, and Unicode scripts
+  /// such as Bengali (`#বাংলা`).
   /// Ensures it does NOT match Markdown headers (which have space after `#`).
   static final RegExp _tagRegex = RegExp(
-    r'''(?:^|[\s(\[{<"'`])#([a-zA-Z0-9_\-/]+)(?=[)\],.!?\s>"'`:]|$)''',
+    r'''(?:^|[\s(\[{<"'`])#([\p{L}\p{M}\p{N}_\-/]+)(?=[)\],.!?\s>"'`:]|$)''',
     multiLine: true,
+    unicode: true,
   );
 
   /// Extracts unique normalized tag names from markdown text.
@@ -86,8 +88,9 @@ abstract final class TagParser {
         normalizedTag.endsWith('_')) {
       return false;
     }
-    // Tag should only contain alphanumeric, dash, underscore, and slash
-    return RegExp(r'^[a-z0-9_\-/]+$').hasMatch(normalizedTag);
+    // Tag should only contain letters (any script, incl. combining marks),
+    // numbers, dash, underscore, slash
+    return RegExp(r'^[\p{L}\p{M}\p{N}_\-/]+$', unicode: true).hasMatch(normalizedTag);
   }
 
   /// Displays tag with leading `#`.

@@ -8291,3 +8291,28 @@ Kalpurush ships Regular-only (locked decision §2 of the spec), so headings and 
 - New test [`test/utils/font_family_helper_test.dart`](file:///home/dog/git/quitepaper/test/utils/font_family_helper_test.dart): asserts `getTextStyle(...).fontFamilyFallback` contains `'Kalpurush'` for null/`System Sans`/`System Serif`/`monospace`/a Google-font name, and that the append is idempotent.
 - `flutter analyze` — **No issues found!**
 - Full Test Suite: `flutter test` (**all 1799 tests passing**).
+
+## 175. Bengali Content Support — Feature B: Unicode-aware Search & Tags (October 2026)
+
+Implements §4 of [`docs/specs/bengali-content-support.md`](file:///home/dog/git/quitepaper/docs/specs/bengali-content-support.md). Bengali note content and Bengali `#tags` are now tokenized, indexed, extracted, and matched. Previously ASCII-only `\w` / `[a-zA-Z0-9]` patterns yielded **zero** Bengali tokens, so Bengali notes and tags were invisible to search and the tag filter.
+
+### 1. Implementation — Unicode character class
+Every former ASCII word/tag class was replaced with `[\p{L}\p{M}\p{N}…]` (RegExp `unicode: true`):
+- **Search tokenizer** ([`search_tokenizer.dart:47`](file:///home/dog/git/quitepaper/lib/core/search/search_tokenizer.dart)): `[\w#]+` → `[\p{L}\p{M}\p{N}_#]+`.
+- **Fuzzy re-ranker** ([`fuzzy_search_engine.dart:192`](file:///home/dog/git/quitepaper/lib/core/search/fuzzy_search_engine.dart)): `\b[\w#]+\b` → `[\p{L}\p{M}\p{N}_#]+` (ASCII `\b` boundaries dropped — they never fire between non-ASCII letters).
+- **Editor tag regexes** ([`markdown_parser.dart:36`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_parser.dart) `_tagRegex`, [`markdown_tokenizer.dart:421`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_tokenizer.dart)): `#([a-zA-Z0-9_\-\/]+)` → `#([\p{L}\p{M}\p{N}_\-\/]+)`.
+- **Tag extraction/validation** ([`tag_parser.dart`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart) `_tagRegex` and `isValidTag`): also widened to `[\p{L}\p{M}\p{N}_\-/]`.
+
+### 2. Deviations from the spec text (deliberate, to meet its intent)
+- **`\p{M}` added beyond the spec's suggested `[\p{L}\p{N}_#]`.** The spec's class omits Unicode **Marks**, but Bengali is full of combining vowel signs (matras), anusvara `ং`, and the conjunct-forming virama `্` — all category `\p{M}`. Verified empirically: without `\p{M}`, `আমি বাংলা` tokenizes as `[আম, ব, ল]` (every word split at the first matra); with it, `[আমি, বাংলা]`. `\p{M}` is required for correct Indic tokenization.
+- **`TagParser._tagRegex` + `isValidTag` fixed (not in spec §4.2's list).** Spec §4.2 named only `markdown_parser`/`markdown_tokenizer` for tag *recognition* and said `tag_parser` patterns "should already work". That is true of the escaped-literal *removal* patterns (`_removeTagFromLine`, verified unchanged), **but** `extractTags` → `_tagRegex` + `isValidTag` are ASCII-only and are the real gatekeepers that feed the FTS index (`app_database`), the tag-search service, and the tag filter. Leaving them ASCII would make §4.6's own verification ("a Bengali `#বাংলা` tag is extracted") impossible, so they were widened too. `tag_autocomplete_trigger` uses a terminator class and needed no change (verified).
+
+### 3. Items evaluated and intentionally deferred (known gaps)
+- **§4.3 NFC normalization — SKIPPED for v1 (known gap).** Dart core has no NFC and no new dependency was added. More importantly, normalization must be applied consistently across query *and* indexed text or it is actively harmful: the fuzzy re-ranker (`evaluate`) matches the query against the raw, un-normalized note text via `indexOf`/word scan, and `markdown_offset_mapper` relies on a strict 1:1 char map for highlight positioning that NFC (which changes code-point counts) would break. So o-kar/au-kar (ো/ৌ) composed-vs-decomposed equivalence can still cause a self-match miss when IMEs emit different forms. Deferred.
+- **§4.4 FTS5 `remove_diacritics 2` — LEFT AS-IS (no migration).** `note_search_prefix` keeps `unicode61 remove_diacritics 2`. It is only a candidate generator; stripping Bengali matras *over-broadens* recall (e.g. করি/কর/করা collapse) but never *excludes* a valid match, and the now-Unicode-aware Dart re-ranker + the (unaffected) trigram index provide precision. Switching to `remove_diacritics 0` would require a risky FTS rebuild migration for marginal benefit, so it was not changed.
+- **§4.5 grapheme-aware edit distance — SKIPPED (low priority).** `damerauLevenshtein` still compares UTF-16 code units; acceptable for v1.
+
+### 4. Verification & Quality
+- New test [`test/search/bengali_search_test.dart`](file:///home/dog/git/quitepaper/test/search/bengali_search_test.dart): Bengali/mixed tokenization, Bengali hashtag token, Bengali `#tag` + nested-tag extraction, `isValidTag` accept/reject, and a Bengali query matching/not-matching a Bengali note through `FuzzySearchEngine`.
+- `flutter analyze` — **No issues found!**
+- Full Test Suite: `flutter test` (**all 1808 tests passing**).

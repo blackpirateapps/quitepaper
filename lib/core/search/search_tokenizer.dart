@@ -44,7 +44,10 @@ class SearchTokenizer {
     if (input.trim().isEmpty) return const [];
 
     final clean = input.toLowerCase();
-    final matches = RegExp(r'[\w#]+').allMatches(clean);
+    // Unicode-aware: \p{L} (letters) + \p{M} (combining marks, essential for
+    // Indic vowel signs / conjunct virama) + \p{N} (numbers) covers Bengali and
+    // other non-ASCII scripts that Dart's ASCII-only \w would miss entirely.
+    final matches = RegExp(r'[\p{L}\p{M}\p{N}_#]+', unicode: true).allMatches(clean);
     final tokens = <String>[];
 
     for (final m in matches) {

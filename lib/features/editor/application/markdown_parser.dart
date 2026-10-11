@@ -33,7 +33,7 @@ abstract final class MarkdownParser {
   static final _imageRegex = RegExp(r'!\[([^\]\n]*)\]\(([^)\n]*)\)');
   static final _linkRegex = RegExp(r'\[([^\]\n]+)\]\(([^)\n]*)\)');
   static final _urlRegex = RegExp(r'https?://[^\s<]+');
-  static final _tagRegex = RegExp(r'#([a-zA-Z0-9_\-\/]+)');
+  static final _tagRegex = RegExp(r'#([\p{L}\p{M}\p{N}_\-\/]+)', unicode: true);
 
   /// Builds a [TextSpan] tree representing [text] styled with [styles].
   ///

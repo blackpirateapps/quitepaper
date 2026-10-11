@@ -189,7 +189,10 @@ class FuzzySearchEngine {
     }
 
     // 2. Tokenized word-by-word matching
-    final wordRegex = RegExp(r'\b[\w#]+\b');
+    // Unicode-aware word match (Bengali etc.); \p{M} keeps combining marks
+    // attached to their base letter. ASCII \b boundaries dropped because they
+    // never fire between non-ASCII letters.
+    final wordRegex = RegExp(r'[\p{L}\p{M}\p{N}_#]+', unicode: true);
     final wordMatches = wordRegex.allMatches(text).toList();
 
     for (final qToken in queryTokens) {

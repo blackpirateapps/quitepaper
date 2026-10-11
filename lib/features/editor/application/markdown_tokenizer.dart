@@ -418,7 +418,7 @@ class MarkdownTokenizer {
 
       // Tags: #tag (must be preceded by start of line or whitespace)
       if (char == '#' && (i == 0 || text[i - 1] == ' ' || text[i - 1] == '\t')) {
-        final tagMatch = RegExp(r'#([a-zA-Z0-9_\-\/]+)').matchAsPrefix(text, i);
+        final tagMatch = RegExp(r'#([\p{L}\p{M}\p{N}_\-\/]+)', unicode: true).matchAsPrefix(text, i);
         if (tagMatch != null) {
           final fullTag = tagMatch.group(0)!;
           tokens.add(MarkdownToken(
