@@ -147,3 +147,28 @@ final editorEditingStyleProvider =
   return EditingStyleNotifier(prefs);
 });
 
+class SmartWebLinksNotifier extends StateNotifier<bool> {
+  SmartWebLinksNotifier(this._prefs) : super(_load(_prefs));
+
+  final SharedPreferences? _prefs;
+  static const String _key = 'app_smart_web_links';
+
+  static bool _load(SharedPreferences? prefs) => prefs?.getBool(_key) ?? false;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await _prefs?.setBool(_key, value);
+  }
+}
+
+final smartWebLinksProvider =
+    StateNotifierProvider<SmartWebLinksNotifier, bool>((ref) {
+  SharedPreferences? prefs;
+  try {
+    prefs = ref.watch(sharedPreferencesProvider);
+  } catch (_) {
+    // If not provided in a test scope, fallback to in-memory defaults
+  }
+  return SmartWebLinksNotifier(prefs);
+});
+

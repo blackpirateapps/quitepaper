@@ -21,6 +21,9 @@ import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
 import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/markdown/markdown_preview.dart';
+import '../../../core/utils/web_url_helper.dart';
+import '../../../core/web_clipper/link_title_fetcher.dart';
+import '../../../core/web_clipper/link_preview_baker.dart';
 import '../../../core/widgets/intelligent_heading_scrollbar.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -245,6 +248,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
       } catch (_) {}
     });
+
+    // Link previews: bake any lone-line URLs on open (Smart web links ON only).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeBakeLinkPreviews());
   }
 
 
@@ -262,6 +268,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
       _titleController.text = newTitle;
       _contentController.text = widget.note.content;
+      // Re-bake link previews for the newly opened note (Smart web links ON).
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _maybeBakeLinkPreviews());
       if (_isSearchVisible && _searchQueryController.text.isNotEmpty) {
         _recalculateMatches(_searchQueryController.text);
       }
@@ -538,6 +547,50 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _checkAutocompleteTrigger();
+  }
+
+  /// Link previews — "bake on open" (only when Smart web links is ON).
+  ///
+  /// Scans the current note for lone-line web URLs with no baked preview yet,
+  /// fetches/stores each off the main thread, and writes the result back
+  /// through [updateContent] so the note is marked dirty and re-synced like any
+  /// other edit. Rendering is never blocked: the plain link shows until the
+  /// card data lands, then the surface rebuilds with the card. A failed/offline
+  /// fetch leaves the note untouched and is retried on a later open.
+  Future<void> _maybeBakeLinkPreviews() async {
+    if (!mounted || _isDeactivated) return;
+    if (!ref.read(smartWebLinksProvider)) return;
+
+    final LinkPreviewBaker baker;
+    try {
+      baker = ref.read(linkPreviewBakerProvider);
+    } catch (_) {
+      return;
+    }
+
+    final source = _contentController.text;
+    if (baker.findUnbakedLoneLineUrls(source).isEmpty) return;
+
+    String baked;
+    try {
+      baked = await baker.bakeMarkdown(source, noteId: widget.note.id);
+    } catch (_) {
+      return;
+    }
+
+    // Bail if nothing changed, or the user edited the content while we fetched
+    // (match against the snapshot, never a raw offset).
+    if (!mounted || _isDeactivated) return;
+    if (baked == source || _contentController.text != source) return;
+
+    setState(() {
+      _contentController.text = baked;
+    });
+    try {
+      ref
+          .read(editorProviderFamily(_editorParams).notifier)
+          .updateContent(baked);
+    } catch (_) {}
   }
 
   NoteLinkInlineOverlayController? _inlineAutocompleteController;
@@ -944,6 +997,55 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _handleLinkPrompt() async {
+    // Feature 2 — Edit Link in place. When the caret/selection sits inside an
+    // existing hyperlink on a rich surface, open the dialog in edit mode
+    // prefilled with the link's URL and text, and apply the result over the
+    // existing link's range (edit / revert / remove) instead of inserting a new
+    // one. Plain-markdown mode keeps the original insert-only behaviour.
+    if (_isSuperEditor) {
+      final existing = _superEditorController.linkAtSelection();
+      if (existing != null) {
+        final result = await LinkPromptDialog.show(
+          context,
+          initialTitle: existing.text,
+          initialUrl: existing.url,
+          isEditing: true,
+        );
+        if (result == null) return;
+        if (result.url.isEmpty) {
+          _superEditorController.removeLinkInRange(existing.range);
+        } else {
+          _superEditorController.replaceLinkContent(
+            existing.range,
+            url: result.url,
+            displayText: result.title.isNotEmpty ? result.title : result.url,
+          );
+        }
+        return;
+      }
+    } else if (_isWysiwyg && _richDocumentController != null) {
+      final existing = _richDocumentController!.linkAtCaret;
+      if (existing != null) {
+        final result = await LinkPromptDialog.show(
+          context,
+          initialTitle: existing.title,
+          initialUrl: existing.url,
+          isEditing: true,
+        );
+        if (result == null) return;
+        if (result.url.isEmpty) {
+          _richDocumentController!.editLinkAtCaret(url: '');
+        } else {
+          _richDocumentController!.editLinkAtCaret(
+            url: result.url,
+            title: result.title.isNotEmpty ? result.title : result.url,
+          );
+        }
+        return;
+      }
+    }
+
+    // Insert path (no existing link under the caret).
     final targetController = _activeTargetController ?? _contentController;
     final targetFocusNode = _activeTargetFocusNode ?? _contentFocusNode;
     final selection = targetController.selection;
@@ -2877,8 +2979,62 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     // 3. Fallback: regular text paste
     if (plainText != null && plainText.isNotEmpty) {
+      // Feature 1 — Smart web links (gated, collapsed caret only). Non-empty
+      // selections fall through to _insertSnippetAtCursor, which wraps the
+      // selection as a titled link (Feature 4).
+      if (await _maybeInsertSmartWebLink(plainText)) return;
       _insertSnippetAtCursor(plainText);
     }
+  }
+
+  /// Feature 1 — Auto-filled titles on paste. When the smart-web-links toggle is
+  /// on and the pasted payload is a single web URL dropped at a collapsed caret,
+  /// insert a link (display = URL) immediately, then asynchronously fetch the
+  /// page title and patch the display text in place. Returns true when it took
+  /// over the paste. Never blocks on the network; never logs the URL.
+  Future<bool> _maybeInsertSmartWebLink(String rawText) async {
+    if (!ref.read(smartWebLinksProvider)) return false;
+    if (!isSingleWebUrl(rawText)) return false;
+    final url = normalizeWebUrl(rawText);
+    if (url == null) return false;
+
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isPreviewMode) {
+      ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
+    }
+
+    if (_isSuperEditor) {
+      if (_superEditorController.hasExpandedSelection) return false;
+      _superEditorController.insertLinkRun(url: url, displayText: url);
+      _fetchAndPatchLinkTitle(url);
+      return true;
+    }
+    if (_isWysiwyg && _richDocumentController != null) {
+      if (!_richDocumentController!.selection.isCollapsed) return false;
+      _richDocumentController!.applyLink(url: url);
+      _fetchAndPatchLinkTitle(url);
+      return true;
+    }
+    // Plain-markdown ("raw source") mode is out of scope.
+    return false;
+  }
+
+  /// Fires an async title fetch for [url] and, on success, patches the display
+  /// text of the just-inserted link on whichever surface is active. The patch
+  /// matches by href + unchanged display text, so a user edit cancels it.
+  void _fetchAndPatchLinkTitle(String url) {
+    final isSuper = _isSuperEditor;
+    final richController = _richDocumentController;
+    Future.microtask(() async {
+      final title = await LinkTitleFetcher().fetchTitle(url);
+      if (title == null || title.isEmpty) return;
+      if (!mounted) return;
+      if (isSuper) {
+        _superEditorController.replaceLinkDisplayText(url, title);
+      } else {
+        richController?.replaceLinkDisplayText(url, title);
+      }
+    });
   }
 
   Future<void> _handleDroppedFiles(DropDoneDetails details) async {
@@ -3024,11 +3180,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     if (_isWysiwyg && _richDocumentController != null) {
-      final currentMd = _richDocumentController!.toMarkdown();
-      final insertOffset = _richDocumentController!.globalCaretOffset.clamp(0, currentMd.length);
+      // Feature 4: wrap a non-empty single-block selection around a pasted lone
+      // web URL as a titled link (display = selected text) instead of replacing
+      // it. Skips cross-block selections and selections already containing a
+      // link, which fall through to the normal insert below.
+      final rc = _richDocumentController!;
+      if (!rc.selection.isCollapsed && isSingleWebUrl(snippet)) {
+        final url = normalizeWebUrl(snippet);
+        if (url != null && !rc.selection.spansMultipleBlocks && !rc.selectionHasLink) {
+          // Mirror the toolbar link path: mutate the rich controller and let
+          // MarkdownEditor's autosave propagate to the source controller.
+          rc.applyLink(url: url);
+          return;
+        }
+      }
+
+      final currentMd = rc.toMarkdown();
+      final insertOffset = rc.globalCaretOffset.clamp(0, currentMd.length);
       final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
-      _richDocumentController!.setMarkdown(newMarkdown);
-      final newJson = _richDocumentController!.toJsonString();
+      rc.setMarkdown(newMarkdown);
+      final newJson = rc.toJsonString();
       _contentController.value = TextEditingValue(
         text: newJson,
         selection: TextSelection.collapsed(offset: newJson.length),

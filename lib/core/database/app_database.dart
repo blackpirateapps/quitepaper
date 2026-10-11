@@ -2497,14 +2497,20 @@ class AppDatabase extends _$AppDatabase {
   /// Get all active attachments for a note
   Future<List<AttachmentEntity>> getAttachmentsForNote(String noteId) async {
     return (select(attachmentsTable)
-          ..where((a) => a.noteId.equals(noteId) & a.isDeleted.equals(false)))
+          ..where((a) =>
+              a.noteId.equals(noteId) &
+              a.isDeleted.equals(false) &
+              a.kind.isNotValue('linkPreview')))
         .get();
   }
 
   /// Watch active attachments for a note
   Stream<List<AttachmentEntity>> watchAttachmentsForNote(String noteId) {
     return (select(attachmentsTable)
-          ..where((a) => a.noteId.equals(noteId) & a.isDeleted.equals(false)))
+          ..where((a) =>
+              a.noteId.equals(noteId) &
+              a.isDeleted.equals(false) &
+              a.kind.isNotValue('linkPreview')))
         .watch();
   }
 

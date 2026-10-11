@@ -101,6 +101,133 @@ abstract final class RichDocumentMutations {
     );
   }
 
+  /// Returns the contiguous link run that contains [position], or null when the
+  /// caret is not inside a hyperlink. Adjacent spans sharing the same
+  /// `linkUrl` are coalesced into one run (so split formatting inside a link —
+  /// e.g. a bold word — is still treated as a single link).
+  static ({int blockIndex, int start, int end, String text, String url})? linkRunAt(
+    RichDocument doc,
+    RichDocumentPosition position,
+  ) {
+    if (doc.blocks.isEmpty) return null;
+    final bi = position.blockIndex.clamp(0, doc.blocks.length - 1);
+    final block = doc.blocks[bi];
+    if (!block.isTextBlock || block.spans.isEmpty) return null;
+
+    final offset = position.offset.clamp(0, block.plainText.length);
+
+    // Locate the span the caret sits in, mirroring the controller's typing
+    // attribute rule (favouring the span that ends at a boundary offset).
+    var currentOffset = 0;
+    var hitIndex = -1;
+    for (var i = 0; i < block.spans.length; i++) {
+      final spanEnd = currentOffset + block.spans[i].length;
+      if (offset >= currentOffset && offset <= spanEnd) {
+        hitIndex = i;
+        break;
+      }
+      currentOffset = spanEnd;
+    }
+    if (hitIndex == -1) return null;
+
+    final url = block.spans[hitIndex].attributes.linkUrl;
+    if (url == null || url.isEmpty) return null;
+
+    // Expand left/right over contiguous spans sharing the same href.
+    var startIndex = hitIndex;
+    while (startIndex > 0 && block.spans[startIndex - 1].attributes.linkUrl == url) {
+      startIndex--;
+    }
+    var endIndex = hitIndex;
+    while (endIndex < block.spans.length - 1 &&
+        block.spans[endIndex + 1].attributes.linkUrl == url) {
+      endIndex++;
+    }
+
+    var runStart = 0;
+    for (var i = 0; i < startIndex; i++) {
+      runStart += block.spans[i].length;
+    }
+    var runEnd = runStart;
+    final buffer = StringBuffer();
+    for (var i = startIndex; i <= endIndex; i++) {
+      runEnd += block.spans[i].length;
+      buffer.write(block.spans[i].text);
+    }
+
+    return (blockIndex: bi, start: runStart, end: runEnd, text: buffer.toString(), url: url);
+  }
+
+  /// Feature 1 (auto-filled titles): replaces the display text of the first
+  /// inline run whose href == [url] AND whose current display text still ==
+  /// [url] (i.e. the user hasn't edited it since paste). No-op if no such run
+  /// exists, so a late-arriving title never clobbers edited content.
+  static RichDocument replaceLinkDisplayText(
+    RichDocument doc, {
+    required String url,
+    required String newText,
+  }) {
+    if (newText.isEmpty) return doc;
+    for (var bi = 0; bi < doc.blocks.length; bi++) {
+      final block = doc.blocks[bi];
+      if (!block.isTextBlock) continue;
+      final idx = block.spans.indexWhere(
+        (s) => s.attributes.linkUrl == url && s.text == url,
+      );
+      if (idx == -1) continue;
+      final newSpans = List<RichInlineSpan>.from(block.spans);
+      newSpans[idx] = newSpans[idx].copyWith(text: newText);
+      return _replaceBlockSpans(doc, bi, newSpans.normalized());
+    }
+    return doc;
+  }
+
+  /// Features 2 & 5 (edit / revert): rewrites the contiguous link run that
+  /// contains [position]. When [url] is non-empty the run becomes a single link
+  /// span whose display text is [displayText] (falling back to [url]); when
+  /// [url] is empty the hyperlink attributes are cleared but the original
+  /// characters are kept. No-op when the caret is not inside a link.
+  static RichDocument editLinkRun(
+    RichDocument doc,
+    RichDocumentPosition position, {
+    required String url,
+    String displayText = '',
+  }) {
+    final run = linkRunAt(doc, position);
+    if (run == null) return doc;
+
+    final block = doc.blocks[run.blockIndex];
+    final (left, rest) = _splitSpansAtOffset(block.spans, run.start);
+    final (middle, right) = _splitSpansAtOffset(rest, run.end - run.start);
+
+    final List<RichInlineSpan> replacement;
+    if (url.isEmpty) {
+      // Revert: keep the original characters, drop only the link attributes.
+      replacement = middle
+          .map((s) => s.copyWith(attributes: s.attributes.copyWith(clearLink: true)))
+          .toList();
+    } else {
+      final base = middle.isNotEmpty ? middle.first.attributes : TextAttributes.none;
+      final display = displayText.isNotEmpty ? displayText : url;
+      replacement = [
+        RichInlineSpan(
+          text: display,
+          attributes: TextAttributes(
+            isBold: base.isBold,
+            isItalic: base.isItalic,
+            isStrike: base.isStrike,
+            isHighlight: base.isHighlight,
+            isCode: base.isCode,
+            linkUrl: url,
+          ),
+        ),
+      ];
+    }
+
+    final newSpans = [...left, ...replacement, ...right].normalized();
+    return _replaceBlockSpans(doc, run.blockIndex, newSpans);
+  }
+
   /// Applies a wiki-style internal note link on [selection].
   static RichDocument applyNoteLink(
     RichDocument doc,
@@ -827,6 +954,36 @@ abstract final class RichDocumentMutations {
       newBlocks[bi] = block.copyWith(spans: newSpans);
     }
 
+    return doc.copyWith(blocks: newBlocks);
+  }
+
+  /// Replaces the inline spans of the text block at [blockIndex], preserving the
+  /// block id and type. Non-text blocks and out-of-range indices are untouched.
+  static RichDocument _replaceBlockSpans(
+    RichDocument doc,
+    int blockIndex,
+    List<RichInlineSpan> newSpans,
+  ) {
+    if (blockIndex < 0 || blockIndex >= doc.blocks.length) return doc;
+    final block = doc.blocks[blockIndex];
+    if (!block.isTextBlock) return doc;
+
+    final newBlocks = List<RichBlock>.from(doc.blocks);
+    if (block is ParagraphBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else if (block is HeadingBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else if (block is ChecklistItemBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else if (block is BulletedListItemBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else if (block is OrderedListItemBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else if (block is QuoteBlock) {
+      newBlocks[blockIndex] = block.copyWith(spans: newSpans);
+    } else {
+      return doc;
+    }
     return doc.copyWith(blocks: newBlocks);
   }
 }

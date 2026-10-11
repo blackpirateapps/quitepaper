@@ -88,6 +88,8 @@ class AttachmentService implements AssetResolver {
     String fileName = 'image.png',
     String? noteId,
     String preferredAltText = 'Image',
+    String kind = 'image',
+    bool skipOcr = false,
   }) async {
     if (bytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
@@ -107,6 +109,10 @@ class AttachmentService implements AssetResolver {
     final now = DateTime.now();
     final sha256Hash = AttachmentCrypto.computeSha256(bytes);
     final masterKey = keyManager.getMasterKey();
+
+    // When importing a non-image or OCR-skipped asset (e.g. a link-preview
+    // thumbnail), bypass text recognition entirely.
+    final bool shouldSkipOcr = skipOcr || kind != 'image';
 
     // 1. Client-side authenticated encryption
     final encryptedBytes = await _crypto.encryptAttachment(
@@ -132,7 +138,7 @@ class AttachmentService implements AssetResolver {
       id: attachmentId,
       noteId: noteId,
       fileName: fileName,
-      kind: 'image',
+      kind: kind,
       createdAt: now,
       updatedAt: now,
       mimeType: mimeType,
@@ -144,12 +150,12 @@ class AttachmentService implements AssetResolver {
       serverRevision: 0,
       uploadState: AttachmentUploadState.uploadPending.identifier,
       localPath: localPath,
-      ocrState: 'queued',
+      ocrState: shouldSkipOcr ? 'not_requested' : 'queued',
       ocrLanguage: 'en',
     );
 
     // 5. Enqueue background OCR recognition asynchronously (non-blocking)
-    if (processingService != null) {
+    if (!shouldSkipOcr && processingService != null) {
       processingService!.processAttachment(
         attachmentId: attachmentId,
         imageBytes: bytes,

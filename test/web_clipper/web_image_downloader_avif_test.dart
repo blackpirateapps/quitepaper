@@ -18,6 +18,8 @@ class MockAttachmentService implements AttachmentService {
     String fileName = 'image.png',
     String? noteId,
     String preferredAltText = 'Image',
+    String kind = 'image',
+    bool skipOcr = false,
   }) async {
     _counter++;
     final assetId = '11111111-2222-3333-4444-55555555555$_counter';
@@ -27,7 +29,7 @@ class MockAttachmentService implements AttachmentService {
       id: assetId,
       noteId: noteId,
       fileName: fileName,
-      kind: 'image',
+      kind: kind,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       mimeType: mimeType,

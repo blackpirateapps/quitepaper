@@ -348,6 +348,56 @@ class RichDocumentController extends ChangeNotifier {
     _commitMutation(RichDocumentMutations.removeLink(_document, _selection));
   }
 
+  /// Whether the caret currently sits inside an external hyperlink.
+  bool get isLinkActive => _typingAttributes.hasLink;
+
+  /// Whether any run within the active selection carries a hyperlink.
+  bool get selectionHasLink => _isAttributeActiveInSelection((a) => a.hasLink);
+
+  /// The href + display text of the link run under the caret, or null when the
+  /// caret is not inside a hyperlink. Used to prefill the Edit Link panel.
+  ({String url, String title})? get linkAtCaret {
+    final run = RichDocumentMutations.linkRunAt(_document, _selection.extent);
+    if (run == null) return null;
+    return (url: run.url, title: run.text);
+  }
+
+  /// Feature 2 / 5: rewrites the link run under the caret in place. An empty
+  /// [url] reverts the run to plain text (keeping the characters); otherwise the
+  /// run's display text becomes [title] (or the url when [title] is empty).
+  void editLinkAtCaret({required String url, String? title}) {
+    final run = RichDocumentMutations.linkRunAt(_document, _selection.extent);
+    if (run == null) return;
+    final newDoc = RichDocumentMutations.editLinkRun(
+      _document,
+      _selection.extent,
+      url: url,
+      displayText: title ?? '',
+    );
+    final keptText = url.isEmpty
+        ? run.text
+        : ((title != null && title.isNotEmpty) ? title : url);
+    final blockId = run.blockIndex < _document.blocks.length
+        ? _document.blocks[run.blockIndex].id
+        : _selection.extent.blockId;
+    final newPos = RichDocumentPosition(
+      blockIndex: run.blockIndex,
+      blockId: blockId,
+      offset: run.start + keptText.length,
+    );
+    _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
+  }
+
+  /// Feature 1 (auto-filled titles): patches the display text of the link whose
+  /// href == [url] and whose display text is still the bare [url] to [newText].
+  /// No-op when the matching run is gone (user edited it) — safe to call from an
+  /// async title fetch without clobbering later edits.
+  void replaceLinkDisplayText(String url, String newText) {
+    _commitMutation(
+      RichDocumentMutations.replaceLinkDisplayText(_document, url: url, newText: newText),
+    );
+  }
+
   void applyNoteLink({required String target}) {
     final newDoc = RichDocumentMutations.applyNoteLink(_document, _selection, target: target);
     if (_selection.isCollapsed) {

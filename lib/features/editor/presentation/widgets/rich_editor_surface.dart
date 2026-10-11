@@ -6,6 +6,7 @@ import '../../application/rich_document_controller.dart';
 import 'rich_attachment_block.dart';
 import 'rich_code_block.dart';
 import 'rich_image_block.dart';
+import 'rich_link_preview_block.dart';
 import 'rich_table_editor.dart';
 import 'rich_text_editor.dart';
 
@@ -159,6 +160,17 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
               blockIndex: i,
               controller: widget.controller,
               readOnly: widget.readOnly,
+            ),
+          );
+        } else if (block is LinkPreviewBlock) {
+          segments.add(
+            RichLinkPreviewBlock(
+              key: ValueKey(block.id),
+              block: block,
+              blockIndex: i,
+              controller: widget.controller,
+              readOnly: widget.readOnly,
+              noteId: widget.noteId,
             ),
           );
         } else if (block is HorizontalRuleBlock) {

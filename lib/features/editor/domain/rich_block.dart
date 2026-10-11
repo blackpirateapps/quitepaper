@@ -95,6 +95,17 @@ abstract class RichBlock {
           name: json['name'] as String? ?? '',
           kind: AttachmentBlockKind.fromName(json['kind'] as String?),
         );
+      case 'link_preview':
+        return LinkPreviewBlock(
+          id: id,
+          url: json['url'] as String? ?? '',
+          title: json['title'] as String? ?? '',
+          description: json['description'] as String?,
+          siteName: json['siteName'] as String?,
+          thumbnailAssetId: json['thumbnailAssetId'] as String?,
+          fetchedAt:
+              DateTime.tryParse(json['fetchedAt'] as String? ?? '') ?? DateTime.now(),
+        );
       case 'table':
         final md = json['markdown'] as String? ?? '';
         final tables = const MarkdownTableParser().findTables(md);
@@ -773,6 +784,107 @@ class AttachmentBlock extends RichBlock {
 
   @override
   String toString() => 'AttachmentBlock($id, kind: ${kind.name}, uri: "$uri")';
+}
+
+/// A baked web-link preview card rendered from fetched page metadata.
+///
+/// Serializes to a canonical Markdown link (`[title](url)`) followed by an
+/// HTML-comment sentinel line carrying the baked preview metadata, keeping the
+/// visible link byte-compatible with the Markdown preview and the other
+/// editors while the sentinel degrades to an inert comment elsewhere.
+class LinkPreviewBlock extends RichBlock {
+  const LinkPreviewBlock({
+    required super.id,
+    required this.url,
+    required this.title,
+    this.description,
+    this.siteName,
+    this.thumbnailAssetId,
+    required this.fetchedAt,
+  });
+
+  /// The previewed web URL (`https://…` or `http://…`), the Markdown link target.
+  final String url;
+
+  /// Fetched page title / headline (the Markdown link text).
+  final String title;
+
+  /// Optional fetched page description or summary.
+  final String? description;
+
+  /// Optional site / publisher name.
+  final String? siteName;
+
+  /// Optional full `qp://asset/<id>` reference to the baked thumbnail image.
+  final String? thumbnailAssetId;
+
+  /// Timestamp at which the preview metadata was fetched.
+  final DateTime fetchedAt;
+
+  @override
+  String get plainText => title.isNotEmpty ? title : url;
+
+  LinkPreviewBlock copyWith({
+    String? id,
+    String? url,
+    String? title,
+    String? description,
+    String? siteName,
+    String? thumbnailAssetId,
+    DateTime? fetchedAt,
+  }) {
+    return LinkPreviewBlock(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      siteName: siteName ?? this.siteName,
+      thumbnailAssetId: thumbnailAssetId ?? this.thumbnailAssetId,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+    );
+  }
+
+  @override
+  LinkPreviewBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'link_preview',
+        'id': id,
+        'url': url,
+        'title': title,
+        if (description != null) 'description': description,
+        if (siteName != null) 'siteName': siteName,
+        if (thumbnailAssetId != null) 'thumbnailAssetId': thumbnailAssetId,
+        'fetchedAt': fetchedAt.toIso8601String(),
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LinkPreviewBlock &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          url == other.url &&
+          title == other.title &&
+          description == other.description &&
+          siteName == other.siteName &&
+          thumbnailAssetId == other.thumbnailAssetId &&
+          fetchedAt == other.fetchedAt;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        url,
+        title,
+        description,
+        siteName,
+        thumbnailAssetId,
+        fetchedAt,
+      );
+
+  @override
+  String toString() => 'LinkPreviewBlock($id, url: "$url", title: "$title")';
 }
 
 /// A Markdown table block.

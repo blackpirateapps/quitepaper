@@ -3,6 +3,7 @@ import '../domain/markdown_table_alignment.dart';
 import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
 import '../domain/rich_inline.dart';
+import 'link_preview_metadata.dart';
 
 /// Dedicated serializer compiling an authoritative [RichDocument] into canonical Markdown.
 ///
@@ -84,6 +85,13 @@ class RichDocumentSerializer {
       // Link form (no leading `!`): keeps documents and generic files
       // byte-compatible with the Markdown preview and the other editors.
       return '[${block.name}](${block.uri})';
+    }
+
+    if (block is LinkPreviewBlock) {
+      // Visible Markdown link followed by a sentinel comment carrying the baked
+      // metadata. The outer `serialize` loop joins blocks with a single `\n`,
+      // so the embedded `\n` keeps the comment adjacent to its link line.
+      return '[${block.title}](${block.url})\n${encodeLinkPreviewComment(block)}';
     }
 
     if (block is TableBlock) {

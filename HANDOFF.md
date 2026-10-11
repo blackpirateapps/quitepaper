@@ -8577,3 +8577,56 @@ Root cause: the `pdf` package (3.13.0) does **no complex-script shaping** — `t
 - `flutter test` — **all 1874 passing**. New [`test/features/export/pdf_bengali_export_test.dart`](file:///home/dog/git/quitepaper/test/features/export/pdf_bengali_export_test.dart) (Bengali→rasterized+warning, Latin→vector, Bengali-without-rasterizer→vector fallback); extended `font_family_helper_test.dart` (active Bengali font leads the chain, Kalpurush clears/ trails, faces are hosted), `typography_settings_test.dart` (bengaliFontFamily round-trip/copyWith, bengaliPresets, Kalpurush-clears), and the `font_cache_manager_test.dart` family-count/category assertion (10→14).
 - Not exercised on real hardware (headless env): on-device CDN download of a Bengali face and the rasterized Bengali PDF are proven at the unit/service layer (stub rasterizer) but not in a live app session.
 - Note: a 5th archive `backend/Shadhinata.zip` (not among the four at task start) was left untouched — out of scope.
+
+## 185. Link Enhancements — Bear-style web links (opt-in titles, ⌘K edit, smart clipboard, paste-to-link) (October 2026)
+
+Implements `docs/specs/link-enhancements-spec.md` (Features 1–5) across **Visual (WYSIWYG)** and **Super Editor**; raw-Markdown source mode is out of scope. Built by fanning out foundation + interaction agents against frozen contracts. A single **"Smart web links"** switch (default **OFF**) gates the only network behaviour (auto-title fetch) and is shared with preview cards (§186).
+
+### 1. Shared foundations
+- `lib/core/utils/web_url_helper.dart`: `isSingleWebUrl` / `normalizeWebUrl` behind one canonical anchored matcher `^https?://\S+$` (the pre-existing URL regexes were unanchored and unshared). Used by F1/F3/F4 so every path agrees on "a URL".
+- `lib/core/web_clipper/link_title_fetcher.dart`: thin `LinkTitleFetcher` over `ArticleExtractor`, injectable `http.Client`, 5 s timeout, returns null on any failure / non-HTML / missing title; never logs the URL.
+- `settings_provider.dart` `smartWebLinksProvider` (SharedPreferences key `app_smart_web_links`, default false, mirrors the nullable-prefs `EditingStyleNotifier`); `settings_screen.dart` adds the switch row (EDITOR section) with a network-request caption.
+
+### 2. Features
+- **F1 Auto-filled titles on paste (opt-in).** Collapsed caret + lone-URL paste (toggle ON) inserts `[url](url)` immediately, then an async fetch patches only the display text in place, matched by `href==url && display still==url` so a user edit/move cancels the patch. Never blocks the paste. Toggle OFF = raw paste as before.
+- **F2 Edit Link + ⌘K.** ⌘/Ctrl+K was already bound to the link prompt, so the handler was extended to detect a link under the caret/selection and open the dialog in edit mode, applying in place.
+- **F3 Smart clipboard.** Dialog peeks the clipboard on open; a lone URL pre-fills the URL field and focuses Title. Local only.
+- **F4 Paste-onto-selection → titled link.** Non-empty selection + lone-URL paste wraps the selection as the display text (no toggle gate, no network) on both paste paths; falls back to plain paste across block boundaries / existing links.
+- **F5 Revert/edit.** Clearing the URL removes the link attrs but keeps the characters; clearing the title falls the display back to the URL; a "Remove link" button in edit mode.
+
+### 3. Engine / controller API added
+- `rich_document_mutations.dart`: `linkRunAt`, `replaceLinkDisplayText`, `editLinkRun` (existing `applyLink`/`removeLink` left unchanged).
+- `rich_document_controller.dart`: `isLinkActive`, `selectionHasLink`, `linkAtCaret`, `editLinkAtCaret`, `replaceLinkDisplayText`.
+- `quiet_super_editor_controller.dart`: `insertLinkRun` (real `LinkAttribution` run instead of literal `[text](url)`), `linkAtSelection`, `replaceLinkContent`, `removeLinkInRange`, `replaceLinkDisplayText`, `hasExpandedSelection`.
+- `link_prompt_dialog.dart`: `isEditing` mode (relabel/prefill/Remove-link/empty-URL submit). Return shape kept as `({String title, String url})`; an empty `url` signals removal, keeping existing insert-path callers and `markdown_selection_toolbar_test` source-compatible.
+- Design note: the Bear "title" is the span **display text**, not the Markdown `"title"` tooltip (`linkTitle`), so collapsed inserts carry the title as display text and `linkTitle` serialization is untouched.
+
+## 186. Link Previews — "Wake up, Link!" baked preview cards (October 2026)
+
+Implements `docs/specs/link-previews-spec.md` (companion to §185). A web URL **alone on its own line** auto-promotes to a rich card (title / description / site + a synced encrypted thumbnail), **baked into the note** and gated by the same "Smart web links" toggle.
+
+### 1. Data model + on-disk encoding
+- `rich_block.dart`: new `LinkPreviewBlock` (`url`, `title`, `description?`, `siteName?`, `thumbnailAssetId?`, `fetchedAt`), type discriminator `link_preview`, atomic (`isTextBlock=false`).
+- Canonical Markdown form (survives export round-trip) — the visible link on its own line + an adjacent sentinel comment carrying the extras:
+  ```
+  [Title](https://example.com/post)
+  <!-- qp-link-preview: {"desc":"…","site":"…","img":"qp://asset/<id>","ts":"ISO"} -->
+  ```
+- `link_preview_metadata.dart`: `encodeLinkPreviewComment` / `decodeLinkPreview` / `isLinkPreviewComment` (sentinel convention mirrors the encrypted-note envelope). The RichDocument parser does a two-line lookahead; orphan sentinels are dropped (never shown as text); a lone link **without** a sentinel stays a plain inline link (not promoted).
+
+### 2. Thumbnail = hidden encrypted synced attachment
+- `attachment_service.dart` `importImageFromBytes` gained `kind` / `skipOcr`; the thumbnail imports with `kind:'linkPreview', skipOcr:true` (no OCR enqueue). `saveAttachment` already accepted `kind` — no schema migration (free-form column).
+- `app_database.dart`: `getAttachmentsForNote` / `watchAttachmentsForNote` exclude `kind=='linkPreview'`, keeping previews out of the user attachment list and exports. The `qp://asset/<id>` lives **only** inside the sentinel JSON (never a visible `![]()`), so it is also excluded from the content-driven list-tile thumbnail.
+- `link_preview_baker.dart`: fetch page HTML (browser UA) → `ArticleExtractor` metadata → fetch OG image → compress to `maxDimension: 800` via `image_processor.dart` (no settings-enum preset is that small) → import encrypted thumbnail → build the block. Returns null on page-fetch failure (never bakes a broken card); image failure → text-only card. Exposes `findUnbakedLoneLineUrls` + `bakeMarkdown`.
+
+### 3. Rendering — three surfaces, toggle-gated
+- Shared `LinkPreviewCard`: thumbnail via `resolveAsset` (local-first/offline), tap via `LinkLauncherHelper.handleLinkTap` so the trusted-domain gate is preserved.
+- WYSIWYG `RichLinkPreviewBlock` + arm in `rich_editor_surface.dart`; Super Editor atomic `LinkPreviewNode` / promote pass / component / node-serializer in `super_editor/quiet_link_preview_component.dart`, registered in `quiet_super_editor.dart`; read-only `markdown_preview.dart` `BlockSyntax` + element builder.
+- **Toggle OFF renders a baked card as a plain link on every surface**, while the block always serializes (data preserved). Promote/BlockSyntax always consume the sentinel so it never shows as raw text. Refresh (WYSIWYG) re-bakes, tombstones the old thumbnail, and replaces the block (id preserved); Remove demotes to an inline link and tombstones the thumbnail.
+
+### 4. Bake on open
+- `editor_screen.dart` `_maybeBakeLinkPreviews` (post-frame in `initState` + on note switch in `didUpdateWidget`): toggle ON → scan for unbaked lone-line URLs, bake off the main thread, write back via `updateContent` (→ `isDirty` → debounced save → sync). Snapshot-guarded against concurrent edits; offline/failed → retried on a later open; already-baked `[title](url)` lines are never re-scanned (no loop).
+
+### 5. Verification & quality
+- `flutter analyze` — **No issues found!** `flutter test` — **all 1931 passing.** New tests: `web_url_helper`, `link_title_fetcher`, linkPreview round-trip (serialize⇄parse idempotency, missing-optional subsets, orphan drop, lone-link-stays-plain), attachment hiding + `kind`/`skipOcr`, baker (find / bake happy+failure / offline), and the web-link-enhancement mutations/controller. Also updated three pre-existing attachment test doubles for the new `importImageFromBytes` signature.
+- Known limitations (not runtime-verified in this headless env): the live card swap-in after bake, the paste UX, and card visuals are proven at the unit/logic layer only, not in a running app session. Raw-Markdown source mode shows the sentinel as a literal comment line (expected for a source view). Super Editor relies on the sentinel surviving Markdown deserialization as its own paragraph; if a chunk boundary or the deserializer splits the link from its sentinel, the card degrades to a plain link (no raw JSON leak).

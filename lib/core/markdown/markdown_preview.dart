@@ -9,7 +9,9 @@ import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../features/editor/application/rich_document_serializer.dart';
+import '../../features/editor/application/link_preview_metadata.dart';
 import '../../features/editor/domain/rich_document.dart';
+import '../../features/editor/presentation/widgets/link_preview_card.dart';
 import '../utils/font_family_helper.dart';
 import '../utils/link_launcher_helper.dart';
 import '../journal/application/activity_storage_service.dart';
@@ -37,6 +39,7 @@ import '../../features/editor/presentation/widgets/backlinks_section.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../../features/notes/domain/note_model.dart';
 import '../../features/settings/application/default_settings_provider.dart';
+import '../../features/settings/application/settings_provider.dart';
 import '../../features/tags/domain/phosphor_icons.dart';
 import 'markdown_checklist_helper.dart';
 
@@ -207,6 +210,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final typography = ref.watch(typographySettingsProvider);
+    final smartWebLinks = ref.watch(smartWebLinksProvider);
 
     final headingFont = FontFamilyHelper.resolveHeadingFontFamily(
       typography.headingFontFamily ?? typography.bodyFontFamily,
@@ -544,6 +548,9 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       QuietDocumentSyntax(),
       QuietAttachmentSyntax(),
     ];
+    final blockSyntaxes = <md.BlockSyntax>[
+      const LinkPreviewBlockSyntax(),
+    ];
     final highlighter = ref.watch(syntaxHighlighterProvider);
     final resolver = ref.watch(syntaxLanguageResolverProvider);
 
@@ -555,6 +562,10 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       'quietattachment': QuietAttachmentElementBuilder(
         onAttachmentRenamed: widget.onAttachmentRenamed,
         onAttachmentDeleted: widget.onAttachmentDeleted,
+      ),
+      'linkpreview': LinkPreviewElementBuilder(
+        smartWebLinks: smartWebLinks,
+        onTapLink: effectiveOnTapLink,
       ),
       'pre': QuietCodeBlockElementBuilder(
         colors: colors,
@@ -704,6 +715,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         baseIndex: baseIndex,
         customStyleSheet: customStyleSheet,
         inlineSyntaxes: inlineSyntaxes,
+        blockSyntaxes: blockSyntaxes,
         builders: builders,
         customImageBuilder: customImageBuilder,
         effectiveOnTapLink: effectiveOnTapLink,
@@ -726,6 +738,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
               selectable: false,
               styleSheet: customStyleSheet,
               inlineSyntaxes: inlineSyntaxes,
+              blockSyntaxes: blockSyntaxes,
               builders: builders,
               checkboxBuilder: (bool checked) => buildCheckboxWidget(
                 checked: checked,
@@ -800,6 +813,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
                 selectable: false,
                 styleSheet: customStyleSheet,
                 inlineSyntaxes: inlineSyntaxes,
+                blockSyntaxes: blockSyntaxes,
                 builders: builders,
                 checkboxBuilder: (bool checked) => buildCheckboxWidget(
                   checked: checked,
@@ -1311,6 +1325,7 @@ class _QuietMarkdownChunkWidget extends StatelessWidget {
     required this.baseIndex,
     required this.customStyleSheet,
     required this.inlineSyntaxes,
+    required this.blockSyntaxes,
     required this.builders,
     required this.customImageBuilder,
     required this.effectiveOnTapLink,
@@ -1322,6 +1337,7 @@ class _QuietMarkdownChunkWidget extends StatelessWidget {
   final int baseIndex;
   final MarkdownStyleSheet customStyleSheet;
   final List<md.InlineSyntax> inlineSyntaxes;
+  final List<md.BlockSyntax> blockSyntaxes;
   final Map<String, MarkdownElementBuilder> builders;
   final Widget Function(Uri uri, String? title, String? alt) customImageBuilder;
   final MarkdownTapLinkCallback? effectiveOnTapLink;
@@ -1338,6 +1354,7 @@ class _QuietMarkdownChunkWidget extends StatelessWidget {
       selectable: false,
       styleSheet: customStyleSheet,
       inlineSyntaxes: inlineSyntaxes,
+      blockSyntaxes: blockSyntaxes,
       builders: builders,
       checkboxBuilder: (bool checked) {
         final itemIndex = baseIndex + localIndex;
@@ -1352,5 +1369,109 @@ class _QuietMarkdownChunkWidget extends StatelessWidget {
     );
   }
 }
+
+/// Block syntax that recognizes a baked web-link preview: a standalone
+/// `[title](http(s)://…)` line *immediately* followed by a `qp-link-preview`
+/// sentinel-comment line. It emits a single `<linkpreview>` element carrying
+/// the link + raw sentinel so [LinkPreviewElementBuilder] can decode it, and
+/// consumes both source lines so the sentinel never renders as text.
+///
+/// When the current line is a lone link that is NOT followed by a sentinel, the
+/// syntax yields (returns `null` without advancing) so the standard paragraph
+/// syntax renders it as an ordinary link.
+class LinkPreviewBlockSyntax extends md.BlockSyntax {
+  const LinkPreviewBlockSyntax();
+
+  @override
+  RegExp get pattern => RegExp(
+        r'^\[([^\]]*)\]\((https?://[^)\s]+)(?:\s+"[^"]*")?\)\s*$',
+      );
+
+  @override
+  md.Node? parse(md.BlockParser parser) {
+    final line = parser.current.content;
+    final match = pattern.firstMatch(line);
+    if (match == null) {
+      return null;
+    }
+    final next = parser.next;
+    if (next == null || !isLinkPreviewComment(next.content)) {
+      // Not a baked preview; let the paragraph syntax handle this line.
+      return null;
+    }
+
+    final title = match.group(1) ?? '';
+    final url = match.group(2) ?? '';
+    final comment = next.content.trim();
+
+    // Consume the link line and the sentinel comment line.
+    parser.advance();
+    parser.advance();
+
+    return md.Element('linkpreview', [md.Text(title)])
+      ..attributes['title'] = title
+      ..attributes['url'] = url
+      ..attributes['comment'] = comment;
+  }
+}
+
+/// Builds the read-only web-link preview element produced by
+/// [LinkPreviewBlockSyntax]. Renders a [LinkPreviewCard] when Smart Web Links
+/// are enabled, otherwise a plain tappable link. Both route taps through the
+/// preview's [onTapLink] (which funnels to [LinkLauncherHelper.handleLinkTap]).
+class LinkPreviewElementBuilder extends MarkdownElementBuilder {
+  LinkPreviewElementBuilder({
+    required this.smartWebLinks,
+    this.onTapLink,
+  });
+
+  final bool smartWebLinks;
+  final MarkdownTapLinkCallback? onTapLink;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final title = element.attributes['title'] ?? element.textContent;
+    final url = element.attributes['url'] ?? '';
+    final comment = element.attributes['comment'] ?? '';
+
+    final block = decodeLinkPreview(
+      linkLine: '[$title]($url)',
+      commentLine: comment,
+      id: 'preview',
+    );
+
+    final colors = context.appColors;
+
+    // Fall back to a plain link when decoding fails or Smart Web Links are off.
+    if (!smartWebLinks || block == null) {
+      final label = title.trim().isNotEmpty ? title.trim() : url;
+      return InkWell(
+        onTap: () => onTapLink?.call(label, url, ''),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.accent,
+              decoration: TextDecoration.underline,
+              decorationColor: colors.accent.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LinkPreviewCard(block: block, readOnly: true);
+  }
+}
+
 
 

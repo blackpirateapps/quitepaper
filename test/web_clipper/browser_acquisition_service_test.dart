@@ -52,6 +52,8 @@ class FakeAttachmentService implements AttachmentService {
     String fileName = 'image.png',
     String? noteId,
     String preferredAltText = 'Image',
+    String kind = 'image',
+    bool skipOcr = false,
   }) async {
     _importCounter++;
     final assetId = '00000000-0000-0000-0000-00000000000$_importCounter';
@@ -61,7 +63,7 @@ class FakeAttachmentService implements AttachmentService {
       id: assetId,
       noteId: noteId,
       fileName: fileName,
-      kind: 'image',
+      kind: kind,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       mimeType: mimeType,

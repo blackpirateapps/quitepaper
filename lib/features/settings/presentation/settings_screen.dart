@@ -973,6 +973,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         SpeechSettingsView.show(context);
                       },
                     ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.link_rounded,
+                      title: 'Smart web links',
+                      subtitle:
+                          'Fetch titles and preview cards for pasted links. Makes network requests to linked URLs.',
+                      trailing: CupertinoSwitch(
+                        value: ref.watch(smartWebLinksProvider),
+                        activeTrackColor: colors.accent,
+                        onChanged: (v) =>
+                            ref.read(smartWebLinksProvider.notifier).set(v),
+                      ),
+                    ),
                   ],
                 ),
 

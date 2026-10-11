@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:super_editor/super_editor.dart';
 
+import '../../../core/utils/web_url_helper.dart';
 import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
 
@@ -469,8 +470,204 @@ class QuietSuperEditorController extends ChangeNotifier {
       ]);
     } else {
       final displayText = (title != null && title.isNotEmpty) ? title : url;
-      insertSnippet('[$displayText]($url)');
+      insertLinkRun(url: url, displayText: displayText);
     }
+  }
+
+  /// Whether the current selection is a non-collapsed (expanded) range.
+  bool get hasExpandedSelection {
+    final sel = _composer?.selection;
+    return sel != null && !sel.isCollapsed;
+  }
+
+  /// Inserts [displayText] carrying a [url] [LinkAttribution] at the collapsed
+  /// caret (or the document end when there is no selection). Used by the
+  /// dialog's collapsed-insert path and by the smart-paste auto-link flow so a
+  /// real link run is created rather than literal `[text](url)` characters.
+  void insertLinkRun({required String url, required String displayText}) {
+    if (_editor == null || _composer == null) return;
+    if (_composer!.selection == null && _editor!.document.isNotEmpty) {
+      final lastNode = _editor!.document.last;
+      if (lastNode is TextNode) {
+        _composer!.setSelectionWithReason(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: lastNode.id,
+              nodePosition: TextNodePosition(offset: lastNode.text.length),
+            ),
+          ),
+        );
+      }
+    }
+    if (_composer!.selection == null) return;
+
+    final text = displayText.isNotEmpty ? displayText : url;
+    final attributed = AttributedText(text);
+    if (text.isNotEmpty) {
+      attributed.addAttribution(
+        LinkAttribution.fromUri(Uri.tryParse(url) ?? Uri()),
+        SpanRange(0, text.length - 1),
+      );
+    }
+    _editor!.execute([
+      InsertStyledTextAtCaretRequest(attributed),
+    ]);
+    notifyListeners();
+  }
+
+  /// Returns the hyperlink covering the current caret/selection (within a single
+  /// text node), or null. [range] spans the full link run so callers can rewrite
+  /// it in place. Used to prefill and apply the Edit Link panel (Feature 2).
+  ({String url, String text, DocumentRange range})? linkAtSelection() {
+    if (_editor == null || _composer == null) return null;
+    final sel = _composer!.selection;
+    if (sel == null) return null;
+    if (sel.base.nodeId != sel.extent.nodeId) return null;
+    final node = _editor!.document.getNodeById(sel.extent.nodeId);
+    if (node is! TextNode) return null;
+    if (sel.extent.nodePosition is! TextNodePosition) return null;
+
+    final plain = node.text.toPlainText();
+    final offset = (sel.extent.nodePosition as TextNodePosition).offset;
+    // Favour the character to the left of a boundary caret, matching how most
+    // editors treat a caret sitting just after a link.
+    final probe = (offset > 0 && offset <= plain.length) ? offset - 1 : offset;
+
+    final spans = node.text.getAttributionSpansByFilter((a) => a is LinkAttribution);
+    for (final span in spans) {
+      if (probe >= span.start && probe <= span.end) {
+        final link = span.attribution as LinkAttribution;
+        final text = plain.substring(span.start, span.end + 1);
+        return (
+          url: link.plainTextUri,
+          text: text,
+          range: DocumentRange(
+            start: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: span.start),
+            ),
+            end: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: span.end + 1),
+            ),
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
+  /// Feature 2: replaces the content in [range] with [displayText] carrying a
+  /// fresh [url] [LinkAttribution]. Used when editing an existing link in place.
+  void replaceLinkContent(
+    DocumentRange range, {
+    required String url,
+    required String displayText,
+  }) {
+    if (_editor == null) return;
+    final text = displayText.isNotEmpty ? displayText : url;
+    final attributed = AttributedText(text);
+    if (text.isNotEmpty) {
+      attributed.addAttribution(
+        LinkAttribution.fromUri(Uri.tryParse(url) ?? Uri()),
+        SpanRange(0, text.length - 1),
+      );
+    }
+    _editor!.execute([
+      DeleteContentRequest(documentRange: range),
+      InsertAttributedTextRequest(range.start, attributed),
+    ]);
+    notifyListeners();
+  }
+
+  /// Feature 5: strips every link attribution overlapping [range] while keeping
+  /// the characters, reverting a link back to plain text.
+  void removeLinkInRange(DocumentRange range) {
+    if (_editor == null) return;
+    final node = _editor!.document.getNodeById(range.start.nodeId);
+    if (node is! TextNode) return;
+    if (range.start.nodePosition is! TextNodePosition ||
+        range.end.nodePosition is! TextNodePosition) {
+      return;
+    }
+    final start = (range.start.nodePosition as TextNodePosition).offset;
+    final end = (range.end.nodePosition as TextNodePosition).offset;
+    final toRemove = <Attribution>{};
+    for (final span in node.text.getAttributionSpansByFilter((a) => a is LinkAttribution)) {
+      if (span.start < end && span.end >= start) {
+        toRemove.add(span.attribution);
+      }
+    }
+    if (toRemove.isEmpty) return;
+    _editor!.execute([
+      RemoveTextAttributionsRequest(
+        documentRange: range,
+        attributions: toRemove,
+      ),
+    ]);
+    notifyListeners();
+  }
+
+  /// Feature 1 (auto-filled titles): finds the link whose href == [url] and
+  /// whose display text is still the bare [url] (unchanged since paste) and
+  /// swaps its display text to [newText]. No-op when no such run survives, so a
+  /// late title fetch never overwrites edited content.
+  void replaceLinkDisplayText(String url, String newText) {
+    if (_editor == null || newText.isEmpty) return;
+    final normalized = Uri.tryParse(url)?.toString() ?? url;
+    for (final node in _editor!.document) {
+      if (node is! TextNode) continue;
+      final plain = node.text.toPlainText();
+      for (final span in node.text.getAttributionSpansByFilter((a) => a is LinkAttribution)) {
+        final link = span.attribution as LinkAttribution;
+        if (link.plainTextUri != url && link.plainTextUri != normalized) continue;
+        if (span.end + 1 > plain.length) continue;
+        if (plain.substring(span.start, span.end + 1) != url) continue;
+
+        final attributed = AttributedText(newText)
+          ..addAttribution(
+            LinkAttribution.fromUri(Uri.tryParse(url) ?? Uri()),
+            SpanRange(0, newText.length - 1),
+          );
+        final range = DocumentRange(
+          start: DocumentPosition(
+            nodeId: node.id,
+            nodePosition: TextNodePosition(offset: span.start),
+          ),
+          end: DocumentPosition(
+            nodeId: node.id,
+            nodePosition: TextNodePosition(offset: span.end + 1),
+          ),
+        );
+        _editor!.execute([
+          DeleteContentRequest(documentRange: range),
+          InsertAttributedTextRequest(range.start, attributed),
+        ]);
+        notifyListeners();
+        return;
+      }
+    }
+  }
+
+  /// Whether the single-node range [sel] already contains a hyperlink.
+  bool _rangeHasLink(DocumentSelection sel) {
+    if (_editor == null) return false;
+    final node = _editor!.document.getNodeById(sel.extent.nodeId);
+    if (node is! TextNode) return false;
+    if (sel.base.nodePosition is! TextNodePosition ||
+        sel.extent.nodePosition is! TextNodePosition) {
+      return false;
+    }
+    final a = (sel.base.nodePosition as TextNodePosition).offset;
+    final b = (sel.extent.nodePosition as TextNodePosition).offset;
+    final start = a < b ? a : b;
+    final end = a < b ? b : a;
+    if (end <= start) return false;
+    final spans = node.text.getAttributionSpansInRange(
+      attributionFilter: (attr) => attr is LinkAttribution,
+      range: SpanRange(start, end - 1),
+    );
+    return spans.isNotEmpty;
   }
 
   /// Inserts an arbitrary text snippet at the current caret, or at the end of the document.
@@ -478,6 +675,22 @@ class QuietSuperEditorController extends ChangeNotifier {
   /// and pasted as structured document content.
   void insertSnippet(String snippet) {
     if (_editor == null) return;
+
+    // Feature 4: pasting a lone web URL onto a non-empty single-block selection
+    // wraps the selected text as a link (display = selection, href = URL)
+    // instead of replacing it. Skips multi-node ranges and ranges already
+    // containing a link, falling through to the default paste in those cases.
+    final activeSel = _composer?.selection;
+    if (activeSel != null && !activeSel.isCollapsed && isSingleWebUrl(snippet)) {
+      final url = normalizeWebUrl(snippet);
+      if (url != null &&
+          activeSel.base.nodeId == activeSel.extent.nodeId &&
+          !_rangeHasLink(activeSel)) {
+        applyLink(url: url);
+        return;
+      }
+    }
+
     if (_composer?.selection == null && _editor!.document.isNotEmpty) {
       final lastNode = _editor!.document.last;
       if (lastNode is TextNode) {

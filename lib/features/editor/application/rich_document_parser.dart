@@ -4,6 +4,7 @@ import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
 import '../domain/rich_inline.dart';
 import '../domain/text_attributes.dart';
+import 'link_preview_metadata.dart';
 import 'markdown_table_parser.dart';
 
 const _uuid = Uuid();
@@ -96,6 +97,32 @@ class RichDocumentParser {
       final standaloneAttachment = _parseStandaloneAttachment(line);
       if (standaloneAttachment != null) {
         blocks.add(standaloneAttachment);
+        i++;
+        continue;
+      }
+
+      // 4c. Baked Link Preview card: a standalone `[Title](https://…)` link
+      // immediately followed by a `qp-link-preview` sentinel comment promotes
+      // to a card block, consuming both lines. If decode fails (e.g. the line
+      // is not an https link), neither line is consumed here: the link falls
+      // through to the inline-link paragraph path and the orphan sentinel is
+      // dropped defensively below.
+      if (i + 1 < rawLines.length && isLinkPreviewComment(rawLines[i + 1])) {
+        final linkPreview = decodeLinkPreview(
+          linkLine: line,
+          commentLine: rawLines[i + 1],
+          id: _uuid.v4(),
+        );
+        if (linkPreview != null) {
+          blocks.add(linkPreview);
+          i += 2;
+          continue;
+        }
+      }
+
+      // 4d. Stray link-preview sentinel not preceded by a matched link line:
+      // drop it so a baked comment never renders as visible paragraph text.
+      if (isLinkPreviewComment(line)) {
         i++;
         continue;
       }
