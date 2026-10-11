@@ -1,0 +1,52 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/utils/font_family_helper.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const base = TextStyle(fontSize: 16);
+
+  group('FontFamilyHelper.getTextStyle Bengali fallback', () {
+    test('null family carries Kalpurush fallback', () {
+      final style = FontFamilyHelper.getTextStyle(fontFamily: null, baseStyle: base);
+      expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
+    test('System Sans carries Kalpurush fallback', () {
+      final style =
+          FontFamilyHelper.getTextStyle(fontFamily: 'System Sans', baseStyle: base);
+      expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
+    test('System Serif resolves to serif with Kalpurush fallback', () {
+      final style =
+          FontFamilyHelper.getTextStyle(fontFamily: 'System Serif', baseStyle: base);
+      expect(style.fontFamily, 'serif');
+      expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
+    test('monospace (code) keeps monospace primary with Kalpurush fallback', () {
+      final style =
+          FontFamilyHelper.getTextStyle(fontFamily: 'monospace', baseStyle: base);
+      expect(style.fontFamily, 'monospace');
+      expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
+    test('a Google font name carries Kalpurush fallback', () {
+      final style =
+          FontFamilyHelper.getTextStyle(fontFamily: 'Roboto', baseStyle: base);
+      expect(style.fontFamilyFallback, contains(kBengaliFallbackFamily));
+    });
+
+    test('fallback is appended idempotently when style already has it', () {
+      final once = FontFamilyHelper.getTextStyle(fontFamily: 'Roboto', baseStyle: base);
+      final twice = FontFamilyHelper.getTextStyle(
+        fontFamily: 'Roboto',
+        baseStyle: once,
+      );
+      final occurrences =
+          (twice.fontFamilyFallback ?? const <String>[]).where((f) => f == kBengaliFallbackFamily).length;
+      expect(occurrences, 1);
+    });
+  });
+}

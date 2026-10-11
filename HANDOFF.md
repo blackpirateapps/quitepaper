@@ -8272,3 +8272,22 @@ Once a page was captured the viewport switched to the processed-page review and 
 - `flutter analyze` — **No issues found!**
 - Updated the tablet integration test (empty state now reads "Capture", not "Add Page").
 - Full Test Suite: `flutter test` (**all 1793 tests passing**).
+
+## 174. Bengali Content Support — Feature A: Kalpurush Font Fallback (October 2026)
+
+Implements §3 of [`docs/specs/bengali-content-support.md`](file:///home/dog/git/quitepaper/docs/specs/bengali-content-support.md). Bengali note content now renders under any chosen Latin/code font by falling through to the bundled Kalpurush face. UI chrome is **not** localized (out of scope).
+
+### 1. Implementation
+- **Asset registration** ([`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml)): the already-bundled `assets/fonts/Kalpurush-Regular.ttf` is registered as family `Kalpurush` (single Regular asset).
+- **Shared fallback constant** ([`font_family_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/font_family_helper.dart)): new top-level `kBengaliFallbackFamily = 'Kalpurush'` and `kContentFontFallback = ['Kalpurush']` — the single source of truth.
+- **`FontFamilyHelper.getTextStyle` chokepoint**: refactored into `_resolveTextStyle` (the original family-resolution logic) wrapped by `_withBengaliFallback`, so **every** return path (plain base, serif/monospace copyWith, SF Pro / iA Writer / cached family, and the `GoogleFonts.getFont` path) now carries the fallback. The wrapper preserves any pre-existing fallback and is idempotent (never double-appends Kalpurush). This one change covers the entire TextField/RichText editor (`MarkdownStyles.fromColors` → body/headings/code/blockquote all route through `getTextStyle`, and `MarkdownParser` merges every inline span onto `styles.body`), the markdown preview stylesheet (`QuietMarkdownPreview`), typography previews, and all theme surfaces that call `getTextStyle`.
+- **Base app theme** ([`app_theme.dart`](file:///home/dog/git/quitepaper/lib/app/theme/app_theme.dart)): both `light()` and `dark()` now pass `fontFamilyFallback: kContentFontFallback` to `ThemeData` and `.apply(fontFamilyFallback: ...)` to the base `textTheme`, so Material surfaces (note-list titles/snippets, dialogs, menus) fall back too.
+- **Super Editor** ([`quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart)): the WYSIWYG path builds its own `Stylesheet` with raw `TextStyle`s and does **not** route through `FontFamilyHelper`, so `fontFamilyFallback: kContentFontFallback` was added to all 11 block `TextStyle`s (base/all, header1–6, paragraph, blockquote, code, task, listItem). Inline bold/italic spans merge onto these block styles, so they inherit the fallback.
+
+### 2. Faux bold/italic (accepted)
+Kalpurush ships Regular-only (locked decision §2 of the spec), so headings and `**bold**`/`*italic*` Bengali are engine-synthesized. Accepted for v1.
+
+### 3. Verification & Quality
+- New test [`test/utils/font_family_helper_test.dart`](file:///home/dog/git/quitepaper/test/utils/font_family_helper_test.dart): asserts `getTextStyle(...).fontFamilyFallback` contains `'Kalpurush'` for null/`System Sans`/`System Serif`/`monospace`/a Google-font name, and that the append is idempotent.
+- `flutter analyze` — **No issues found!**
+- Full Test Suite: `flutter test` (**all 1799 tests passing**).

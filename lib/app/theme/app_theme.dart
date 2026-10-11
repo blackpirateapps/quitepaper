@@ -27,7 +27,9 @@ abstract final class AppTheme {
       brightness: Brightness.light,
       primaryColor: colors.accent,
       fontFamily: resolvedBodyFont,
-      textTheme: AppTypography.createTextTheme(typography),
+      fontFamilyFallback: kContentFontFallback,
+      textTheme: AppTypography.createTextTheme(typography)
+          .apply(fontFamilyFallback: kContentFontFallback),
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.light(
         primary: colors.accent,
@@ -166,7 +168,9 @@ abstract final class AppTheme {
       brightness: Brightness.dark,
       primaryColor: colors.accent,
       fontFamily: resolvedBodyFont,
-      textTheme: AppTypography.createTextTheme(typography),
+      fontFamilyFallback: kContentFontFallback,
+      textTheme: AppTypography.createTextTheme(typography)
+          .apply(fontFamilyFallback: kContentFontFallback),
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.dark(
         primary: colors.accent,

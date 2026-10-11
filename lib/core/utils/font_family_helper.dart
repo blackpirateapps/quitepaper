@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../fonts/font_cache_manager.dart';
 
+/// Bundled Bengali display font (Kalpurush, Regular-only). Used as a universal
+/// script fallback so Bengali runs render under any chosen Latin/code font.
+const String kBengaliFallbackFamily = 'Kalpurush';
+
+/// Shared fallback chain appended to every note-content [TextStyle] so Bengali
+/// (and any other glyphs the primary family lacks) fall through to Kalpurush.
+const List<String> kContentFontFallback = <String>[kBengaliFallbackFamily];
+
 /// Helper utility for resolving font families across backend-hosted fonts, system fonts,
 /// Google Fonts, and custom user-imported fonts.
 class FontFamilyHelper {
@@ -123,7 +131,34 @@ class FontFamilyHelper {
   ];
 
   /// Resolves an effective [TextStyle] with the requested [fontFamily].
+  ///
+  /// Every return path carries [kContentFontFallback] so Bengali runs fall
+  /// through to Kalpurush under whatever Latin/code family is chosen.
   static TextStyle getTextStyle({
+    required String? fontFamily,
+    required TextStyle baseStyle,
+  }) {
+    return _withBengaliFallback(
+      _resolveTextStyle(fontFamily: fontFamily, baseStyle: baseStyle),
+    );
+  }
+
+  /// Appends [kBengaliFallbackFamily] to [style]'s existing fallback chain
+  /// (idempotent — a style already carrying Kalpurush is returned unchanged).
+  static TextStyle _withBengaliFallback(TextStyle style) {
+    final existing = style.fontFamilyFallback;
+    if (existing != null && existing.contains(kBengaliFallbackFamily)) {
+      return style;
+    }
+    return style.copyWith(
+      fontFamilyFallback: <String>[
+        ...?existing,
+        ...kContentFontFallback,
+      ],
+    );
+  }
+
+  static TextStyle _resolveTextStyle({
     required String? fontFamily,
     required TextStyle baseStyle,
   }) {

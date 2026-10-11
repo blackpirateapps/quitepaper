@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/utils/font_family_helper.dart';
 import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
@@ -178,6 +179,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.fontSize,
               height: typography.lineHeight,
               letterSpacing: typography.letterSpacing,
@@ -191,6 +193,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading1Size,
               fontWeight: FontWeight.bold,
               height: typography.lineHeight,
@@ -204,6 +207,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading2Size,
               fontWeight: FontWeight.bold,
               height: typography.lineHeight,
@@ -217,6 +221,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading3Size,
               fontWeight: FontWeight.bold,
               height: typography.lineHeight,
@@ -230,6 +235,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading4Size,
               fontWeight: FontWeight.w600,
               height: typography.lineHeight,
@@ -243,6 +249,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading5Size,
               fontWeight: FontWeight.w600,
               height: typography.lineHeight,
@@ -256,6 +263,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.headingFontFamily ?? typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledHeading6Size,
               fontWeight: FontWeight.w600,
               height: typography.lineHeight,
@@ -269,6 +277,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.fontSize,
               height: typography.lineHeight,
             ),
@@ -281,6 +290,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textSecondary,
               fontFamily: typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.fontSize,
               fontStyle: FontStyle.italic,
               height: typography.lineHeight,
@@ -295,6 +305,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.codeFontFamily ?? 'monospace',
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.scaledCodeSize,
             ),
           },
@@ -306,6 +317,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.fontSize,
               height: typography.lineHeight,
             ),
@@ -318,6 +330,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.bodyFontFamily,
+              fontFamilyFallback: kContentFontFallback,
               fontSize: typography.fontSize,
               height: typography.lineHeight,
             ),

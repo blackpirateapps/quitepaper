@@ -104,6 +104,9 @@ flutter:
     - assets/icons/
 
   fonts:
+    - family: Kalpurush
+      fonts:
+        - asset: assets/fonts/Kalpurush-Regular.ttf
     - family: Phosphor
       fonts:
         - asset: assets/fonts/Phosphor.ttf
