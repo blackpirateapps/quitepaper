@@ -62,4 +62,6 @@ app.*.map.json
 
 # Local test artifacts
 /test.pdf
+.claude/
+backend/Shadhinata.zip
 

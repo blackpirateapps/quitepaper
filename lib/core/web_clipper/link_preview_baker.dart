@@ -46,11 +46,8 @@ class LinkPreviewBaker {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     'Accept':
-        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
     'Upgrade-Insecure-Requests': '1',
   };
 
@@ -60,10 +57,50 @@ class LinkPreviewBaker {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Fetch-Dest': 'image',
-    'Sec-Fetch-Mode': 'no-cors',
-    'Sec-Fetch-Site': 'cross-site',
   };
+
+  static final RegExp _markdownLinkLineRegex =
+      RegExp(r'^\s*\[([^\]]*)\]\((https?://[^)\s]+)(?:\s+"[^"]*")?\)\s*$');
+
+  /// Fetches [uri] with [headers], following 301/302/303/307/308 redirects manually
+  /// up to [maxRedirects]. This avoids dart:io's refusal to follow cross-scheme
+  /// (HTTP -> HTTPS) redirects which throws a RedirectException.
+  Future<http.Response?> _getWithRedirects(
+    Uri uri,
+    Map<String, String> headers, {
+    Duration timeout = const Duration(seconds: 10),
+    int maxRedirects = 5,
+  }) async {
+    var currentUri = uri;
+    for (var i = 0; i < maxRedirects; i++) {
+      final request = http.Request('GET', currentUri);
+      request.headers.addAll(headers);
+      request.followRedirects = false;
+
+      final http.StreamedResponse streamedResponse;
+      try {
+        streamedResponse = await _client.send(request).timeout(timeout);
+      } catch (_) {
+        return null;
+      }
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode >= 300 &&
+          response.statusCode < 400 &&
+          response.headers.containsKey('location')) {
+        final location = response.headers['location']!;
+        final nextUri = currentUri.resolve(location);
+        if (!nextUri.isScheme('http') && !nextUri.isScheme('https')) {
+          return null;
+        }
+        currentUri = nextUri;
+        continue;
+      }
+      return response;
+    }
+    return null;
+  }
 
   /// Fetches [url], extracts preview metadata, and (best-effort) bakes its lead
   /// image into a hidden encrypted thumbnail attachment.
@@ -81,10 +118,10 @@ class LinkPreviewBaker {
 
     final String html;
     try {
-      final response = await _client
-          .get(uri, headers: _htmlHeaders)
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      final response = await _getWithRedirects(uri, _htmlHeaders);
+      if (response == null ||
+          response.statusCode < 200 ||
+          response.statusCode >= 300) {
         return null;
       }
       final contentType = response.headers['content-type']?.toLowerCase();
@@ -109,8 +146,10 @@ class LinkPreviewBaker {
     }
 
     var title = _sanitizeTitle(metadata.title);
-    if (title.isEmpty) {
-      title = metadata.domain.isNotEmpty ? metadata.domain : target;
+    if (title.isEmpty || title == 'Web Article') {
+      title = metadata.domain.isNotEmpty
+          ? metadata.domain
+          : (uri.host.isNotEmpty ? uri.host : target);
     }
 
     final description =
@@ -120,7 +159,7 @@ class LinkPreviewBaker {
     final siteName =
         (metadata.siteName != null && metadata.siteName!.isNotEmpty)
             ? metadata.siteName
-            : metadata.domain;
+            : (metadata.domain.isNotEmpty ? metadata.domain : uri.host);
 
     final thumbnailAssetId = await _bakeThumbnail(
       metadata.leadImageUrl,
@@ -139,18 +178,35 @@ class LinkPreviewBaker {
     );
   }
 
-  /// Lone-line bare `http(s)` URLs in [markdown] eligible for baking: a line
-  /// whose trimmed content is exactly one web URL ([isSingleWebUrl]).
+  /// Lone-line bare `http(s)` URLs or lone `[title](url)` Markdown links in [markdown]
+  /// eligible for baking: a line whose trimmed content is exactly one web URL
+  /// ([isSingleWebUrl]) or a standalone Markdown link not followed by a
+  /// `qp-link-preview` sentinel comment.
   ///
-  /// A line already in baked `[title](url)` form or a sentinel comment is not a
-  /// bare URL, so it is naturally excluded (no re-bake). Order-preserving.
+  /// A line already in baked `[title](url)` form with a sentinel comment is
+  /// naturally excluded (no re-bake). Order-preserving.
   List<String> findUnbakedLoneLineUrls(String markdown) {
     final urls = <String>[];
-    for (final line in markdown.split('\n')) {
-      final trimmed = line.trim();
+    final lines = markdown.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
       if (trimmed.isEmpty) continue;
+
+      String? urlCandidate;
       if (isSingleWebUrl(trimmed)) {
-        urls.add(trimmed);
+        urlCandidate = trimmed;
+      } else {
+        final match = _markdownLinkLineRegex.firstMatch(trimmed);
+        if (match != null) {
+          urlCandidate = match.group(2);
+        }
+      }
+
+      if (urlCandidate != null) {
+        final isBaked = i + 1 < lines.length && isLinkPreviewComment(lines[i + 1]);
+        if (!isBaked) {
+          urls.add(urlCandidate);
+        }
       }
     }
     return urls;
@@ -169,10 +225,27 @@ class LinkPreviewBaker {
     final output = <String>[];
     var changed = false;
 
-    for (final line in lines) {
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
       final trimmed = line.trim();
-      if (trimmed.isNotEmpty && isSingleWebUrl(trimmed)) {
-        final block = await bakeUrl(trimmed, noteId: noteId);
+
+      String? urlCandidate;
+      if (isSingleWebUrl(trimmed)) {
+        urlCandidate = trimmed;
+      } else {
+        final match = _markdownLinkLineRegex.firstMatch(trimmed);
+        if (match != null) {
+          urlCandidate = match.group(2);
+        }
+      }
+
+      if (urlCandidate != null) {
+        if (i + 1 < lines.length && isLinkPreviewComment(lines[i + 1])) {
+          output.add(line);
+          continue;
+        }
+
+        final block = await bakeUrl(urlCandidate, noteId: noteId);
         if (block != null) {
           output.add('[${block.title}](${block.url})');
           output.add(encodeLinkPreviewComment(block));
@@ -180,6 +253,7 @@ class LinkPreviewBaker {
           continue;
         }
       }
+
       output.add(line);
     }
 
@@ -203,10 +277,10 @@ class LinkPreviewBaker {
     }
 
     try {
-      final response = await _client
-          .get(imageUri, headers: _imageHeaders)
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      final response = await _getWithRedirects(imageUri, _imageHeaders);
+      if (response == null ||
+          response.statusCode < 200 ||
+          response.statusCode >= 300) {
         return null;
       }
 

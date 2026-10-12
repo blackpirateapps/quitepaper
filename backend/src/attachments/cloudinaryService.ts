@@ -87,7 +87,7 @@ export function createSignedUploadAuth(
  * everything else as `raw` (arbitrary bytes).
  */
 export function shareResourceTypeForKind(kind: string | undefined): 'image' | 'raw' {
-  return kind === 'image' ? 'image' : 'raw';
+  return (kind === 'image' || kind === 'linkPreview') ? 'image' : 'raw';
 }
 
 /**

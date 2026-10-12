@@ -35,9 +35,13 @@ String encodeLinkPreviewComment(LinkPreviewBlock block) {
   return '$linkPreviewCommentPrefix ${jsonEncode(payload)} $linkPreviewCommentSuffix';
 }
 
-/// Whether a trimmed [line] is a `qp-link-preview` sentinel comment.
+/// Whether a trimmed [line] is a `qp-link-preview` sentinel comment
+/// (supporting either raw `<!--` or CommonMark-escaped `\<!--`).
 bool isLinkPreviewComment(String line) {
-  final trimmed = line.trim();
+  var trimmed = line.trim();
+  if (trimmed.startsWith(r'\<!--')) {
+    trimmed = trimmed.substring(1);
+  }
   return trimmed.startsWith(linkPreviewCommentPrefix) &&
       trimmed.endsWith(linkPreviewCommentSuffix);
 }
@@ -62,7 +66,10 @@ LinkPreviewBlock? decodeLinkPreview({
     return null;
   }
 
-  final trimmedComment = commentLine.trim();
+  var trimmedComment = commentLine.trim();
+  if (trimmedComment.startsWith(r'\<!--')) {
+    trimmedComment = trimmedComment.substring(1);
+  }
   final jsonSlice = trimmedComment
       .substring(
         linkPreviewCommentPrefix.length,

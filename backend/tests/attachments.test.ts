@@ -126,4 +126,36 @@ describe('Backend Attachment Control Plane & Cloudinary Auth Tests', () => {
 
     expect(crossRes.statusCode).toBe(404);
   });
+
+  it('Confirms attachment upload with kind: linkPreview', async () => {
+    const attachmentId = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+    const confirmRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/attachments/confirm',
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+      body: {
+        attachmentId,
+        cloudPublicId: 'quitepaper_test/user_1_dddddddd',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v12345/quitepaper_test/user_1_dddddddd',
+        mimeType: 'image/jpeg',
+        byteSize: 15000,
+        sha256: 'dddddd0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+        kind: 'linkPreview',
+      },
+    });
+
+    expect(confirmRes.statusCode).toBe(200);
+    expect(confirmRes.body.success).toBe(true);
+    expect(confirmRes.body.attachment.kind).toBe('linkPreview');
+
+    const getRes = await handleApiRequest({
+      method: 'GET',
+      url: `/api/v1/attachments/${attachmentId}`,
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+    });
+
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.kind).toBe('linkPreview');
+  });
 });
+

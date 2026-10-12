@@ -659,11 +659,29 @@ class HttpSyncApiClient implements SyncApiClient {
       body: encoded,
     ));
 
-    if (res.statusCode != 200) {
-      _checkQuotaOrSizeError(res, 'Failed to confirm attachment upload');
+    var response = res;
+    if (response.statusCode != 200) {
+      if (response.statusCode == 400 && kind == 'linkPreview') {
+        // Fallback for servers running earlier validation schema that only accepts
+        // 'image' | 'document' | 'file'. Retry confirmation with 'image' so sync
+        // does not fail or display an error on existing deployed control planes.
+        body['kind'] = 'image';
+        final fallbackRes = await _sendWithAuthRetry((headers) => _client.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ));
+        if (fallbackRes.statusCode == 200) {
+          response = fallbackRes;
+        }
+      }
     }
 
-    final data = _safeParseJson(res.body);
+    if (response.statusCode != 200) {
+      _checkQuotaOrSizeError(response, 'Failed to confirm attachment upload');
+    }
+
+    final data = _safeParseJson(response.body);
     if (data == null) {
       throw Exception('Failed to confirm attachment upload: Invalid JSON response');
     }

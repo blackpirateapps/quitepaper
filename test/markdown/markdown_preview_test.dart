@@ -375,6 +375,31 @@ Reflecting on the day.
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Reflecting on the day.'), findsOneWidget);
     });
+
+    testWidgets('renders baked link previews cleanly without grey-box assertion crash',
+        (tester) async {
+      const bakedMarkdown = '''# Links
+[Ways of Seeing](https://www.ways-of-seeing.com/ch1)
+<!-- qp-link-preview: {"desc":"In chapter 1...","site":"ways-of-seeing.com","ts":"2026-10-12T00:00:00.000Z"} -->
+
+[Nanolathe](https://nanolathe.gg/)
+<!-- qp-link-preview: {"desc":"Play demo...","site":"nanolathe.gg","ts":"2026-10-12T00:00:00.000Z"} -->
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: bakedMarkdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Links'), findsOneWidget);
+      expect(find.text('Ways of Seeing'), findsOneWidget);
+      expect(find.text('Nanolathe'), findsOneWidget);
+    });
   });
 }
+
 

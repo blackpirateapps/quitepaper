@@ -175,20 +175,25 @@ const Set<String> _nonPromotableBlockTypes = {
   }
 
   final plain = node.text.toPlainText();
-  if (plain.trim().isEmpty) return null;
+  final trimmed = plain.trim();
+  if (trimmed.isEmpty) return null;
 
   final spans = node.text.getAttributionSpansByFilter((a) => a is LinkAttribution);
   if (spans.length != 1) return null;
 
   final span = spans.first;
-  // The link must cover the whole paragraph (end offset is inclusive).
-  if (span.start != 0 || span.end != plain.length - 1) return null;
+  // The link must cover the whole paragraph (or the trimmed text).
+  final startOffset = plain.indexOf(trimmed);
+  final endOffset = startOffset + trimmed.length - 1;
+  final coversAll = (span.start == 0 && span.end == plain.length - 1) ||
+      (span.start == startOffset && span.end == endOffset);
+  if (!coversAll) return null;
 
   final link = span.attribution as LinkAttribution;
   final uri = link.plainTextUri;
   if (!uri.startsWith('http://') && !uri.startsWith('https://')) return null;
 
-  return (url: uri, title: plain);
+  return (url: uri, title: trimmed);
 }
 
 /// Walks [document] with a two-node lookahead and replaces every standalone
@@ -254,6 +259,13 @@ void promoteLinkPreviewNodes(MutableDocument document) {
       ),
     );
     document.deleteNode(swap.commentId);
+  }
+
+  // Defensively remove any orphan sentinel comments so raw JSON is never shown.
+  for (final node in document.toList()) {
+    if (node is ParagraphNode && isLinkPreviewComment(node.text.toPlainText().trim())) {
+      document.deleteNode(node.id);
+    }
   }
 }
 
@@ -479,6 +491,7 @@ class LinkPreviewNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<
     buffer.write(encodeLinkPreviewComment(node.toBlock()));
     final nodeIndex = document.getNodeIndexById(node.id);
     if (nodeIndex != document.nodeCount - 1) {
+      buffer.writeln();
       buffer.writeln();
     }
     return buffer.toString();

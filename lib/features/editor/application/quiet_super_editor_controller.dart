@@ -4,6 +4,7 @@ import 'package:super_editor/super_editor.dart';
 import '../../../core/utils/web_url_helper.dart';
 import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
+import '../presentation/widgets/super_editor/quiet_link_preview_component.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
@@ -713,11 +714,15 @@ class QuietSuperEditorController extends ChangeNotifier {
       // attachment cards, not land as inline hyperlink text.
       final hasBlockAttachment =
           trimmed.contains(RegExp(r'\[[^\]]*\]\(\s*qp://(?:document|asset)/'));
+      final hasBlockLinkPreview =
+          trimmed.contains('<!-- qp-link-preview:') ||
+          trimmed.contains(r'\<!-- qp-link-preview:');
 
-      if (hasBlockImage || hasBlockTable || hasBlockAttachment) {
+      if (hasBlockImage || hasBlockTable || hasBlockAttachment || hasBlockLinkPreview) {
         final normalized = normalizeMarkdownForSuperEditor(trimmed);
         final structuredDoc = deserializeMarkdownToDocument(normalized);
         promoteQuietAttachmentNodes(structuredDoc);
+        promoteLinkPreviewNodes(structuredDoc);
         if (structuredDoc.isNotEmpty) {
           _editor!.execute([
             PasteStructuredContentEditorRequest(

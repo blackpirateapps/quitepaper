@@ -653,11 +653,17 @@ class SyncEngine {
                     try {
                       final remoteMeta = await apiClient.getAttachmentMetadata(assetId);
                       if (remoteMeta != null) {
+                        final isLinkPreviewThumb =
+                            decrypted.body.contains('<!-- qp-link-preview:') &&
+                            decrypted.body.contains('qp://asset/$assetId');
+                        final effectiveKind =
+                            isLinkPreviewThumb ? 'linkPreview' : remoteMeta.kind;
+
                         await database.saveAttachment(
                           id: remoteMeta.id,
                           noteId: remoteMeta.noteId,
                           fileName: remoteMeta.fileName,
-                          kind: remoteMeta.kind,
+                          kind: effectiveKind,
                           createdAt: remoteMeta.createdAt,
                           updatedAt: remoteMeta.updatedAt,
                           mimeType: remoteMeta.mimeType,

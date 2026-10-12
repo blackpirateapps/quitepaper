@@ -8630,3 +8630,48 @@ Implements `docs/specs/link-previews-spec.md` (companion to §185). A web URL **
 ### 5. Verification & quality
 - `flutter analyze` — **No issues found!** `flutter test` — **all 1931 passing.** New tests: `web_url_helper`, `link_title_fetcher`, linkPreview round-trip (serialize⇄parse idempotency, missing-optional subsets, orphan drop, lone-link-stays-plain), attachment hiding + `kind`/`skipOcr`, baker (find / bake happy+failure / offline), and the web-link-enhancement mutations/controller. Also updated three pre-existing attachment test doubles for the new `importImageFromBytes` signature.
 - Known limitations (not runtime-verified in this headless env): the live card swap-in after bake, the paste UX, and card visuals are proven at the unit/logic layer only, not in a running app session. Raw-Markdown source mode shows the sentinel as a literal comment line (expected for a source view). Super Editor relies on the sentinel surviving Markdown deserialization as its own paragraph; if a chunk boundary or the deserializer splits the link from its sentinel, the card degrades to a plain link (no raw JSON leak).
+
+## 187. Link Enhancements & Previews Bugfixes & Hardening (Sync Schema, Flutter Markdown Grey Box, Redirect Following, Super Editor Promotion) (October 2026)
+
+Fixes production sync failures, preview mode rendering crashes (grey box bug), Super Editor link preview promotion, and link card fetch failures on external websites.
+
+### 1. Attachment Sync Schema Validation & Client Fallback
+- **Root Cause**: Backend attachment upload confirmation endpoint (`/api/v1/attachments/confirm`) validated `kind` using `z.enum(['image', 'document', 'file'])`. Link preview thumbnail attachments upload with `kind: 'linkPreview'`, triggering a 400 validation error (`Invalid confirmation payload: Invalid enum value. Expected 'image' | 'document' | 'file', received 'linkPreview'`).
+- **Backend Schema & Service**:
+  - `backend/src/validation/schemas.ts`: added `'linkPreview'` to `confirmAttachmentSchema`'s `kind` enum.
+  - `backend/src/attachments/cloudinaryService.ts`: updated `shareResourceTypeForKind` so `linkPreview` maps to `'image'` resource type on Cloudinary.
+  - `backend/tests/attachments.test.ts`: added test confirming `kind: 'linkPreview'` uploads succeed and persist.
+- **Client Resilience**:
+  - `lib/core/sync/sync_api_client.dart`: added automatic fallback retry with `kind = 'image'` if the backend returns HTTP 400 for `'linkPreview'` (guarantees sync continuity even against older backend deployments).
+  - `lib/core/sync/sync_engine.dart`: during note pull, if an asset is referenced inside a `<!-- qp-link-preview:` sentinel comment, `effectiveKind` is set to `'linkPreview'` even if the backend returned `'image'`.
+
+### 2. Flutter Markdown Grey Box Bugfix
+- **Root Cause**: In `lib/core/markdown/markdown_preview.dart`, `LinkPreviewBlockSyntax.parse` emitted `md.Element('linkpreview', [md.Text(title)])`. Because `isBlockElement() == true` in `LinkPreviewElementBuilder` and `visitElementAfterWithContext` returns a `LinkPreviewCard` widget without consuming the child inline text span, `flutter_markdown` failed its `assert(_inlines.isEmpty)` assertion during widget building. In Flutter release mode, builder assertion errors trigger Flutter's default `ErrorWidget`, displaying a solid grey box over the note preview.
+- **Fix**: Updated `LinkPreviewBlockSyntax.parse` to return `md.Element.empty('linkpreview')`. Without child inlines, `_inlines` remains clean, eliminating the assertion failure. Regression verified in `test/markdown/markdown_preview_test.dart`.
+
+### 3. Super Editor Link Preview Promotion & Serialization
+- **Root Cause**: `super_editor`'s `deserializeMarkdownToDocument` parses CommonMark, which strips raw HTML comments (`<!-- ... -->`) and merges consecutive non-blank lines into a single paragraph. Consequently:
+  1. The sentinel comment was dropped, preventing `promoteLinkPreviewNodes` from matching the link-comment pair.
+  2. Consecutive links were merged into a single paragraph, violating `_soleHttpLinkOf`'s single-link requirement.
+- **Fix**:
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`: updated `normalizeMarkdownForSuperEditor` to isolate standalone web links with double newlines (`\n\n`) and escape sentinel comments as `\<!-- qp-link-preview: ... -->` so CommonMark retains them as paragraphs.
+  - `lib/features/editor/application/link_preview_metadata.dart`: updated `isLinkPreviewComment` and `decodeLinkPreview` to handle escaped `\<!--` comments seamlessly.
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_link_preview_component.dart`:
+    - Updated `_soleHttpLinkOf` to handle paragraph trimming gracefully.
+    - Updated `promoteLinkPreviewNodes` to defensively delete any orphan sentinel comments so raw JSON never leaks.
+    - Updated `LinkPreviewNodeSerializer` to guarantee double newlines after the block when followed by another node.
+  - `lib/features/editor/application/quiet_super_editor_controller.dart`: updated `pasteSnippet` to detect link preview comments and promote `LinkPreviewNode`s on paste.
+  - Added unit test in `test/editor/quiet_super_editor_test.dart` verifying multiple link preview cards promote and round-trip cleanly.
+
+### 4. Link Preview Fetching & Redirect Handling
+- **Root Cause**:
+  1. `LinkPreviewBaker.findUnbakedLoneLineUrls` and `bakeMarkdown` only searched for bare URLs via `isSingleWebUrl`. Links pasted with Smart Web Links ON were formatted as `[Title](url)` or `[url](url)` by Feature 1, causing them to be ignored by the baker.
+  2. `_htmlHeaders` and `_imageHeaders` included `Sec-Fetch-*` headers which trigger 403 Forbidden on WAFs (Cloudflare/Akamai).
+  3. `http.Client` does not follow cross-scheme (HTTP -> HTTPS) redirects, throwing `RedirectException` in `dart:io`.
+  4. Sites without explicit `<title>`/OG tags fell back to generic `'Web Article'`.
+- **Fix**:
+  - Updated `findUnbakedLoneLineUrls` and `bakeMarkdown` to recognize standalone `[Title](https?://...)` links that lack sentinel comments in addition to bare URLs.
+  - Cleaned request headers, removing `Sec-Fetch-*`.
+  - Added `_getWithRedirects` to manually follow 301/302/303/307/308 redirects across schemes.
+  - Added domain/host fallback when extracted title is `'Web Article'` or empty.
+  - Added unit tests in `test/core/web_clipper/link_preview_baker_test.dart`.

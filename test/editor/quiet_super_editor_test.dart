@@ -9,6 +9,7 @@ import 'package:quitepaper/features/editor/presentation/widgets/super_editor/qui
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_link_preview_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
@@ -215,6 +216,39 @@ void main() {
       expect(attachments.length, equals(2));
       expect(attachments.any((n) => n.uri == docUri), isTrue);
       expect(attachments.any((n) => n.uri == fileUri), isTrue);
+    });
+
+    test('round-trips multiple link preview cards through serialize -> deserialize -> promote', () {
+      const markdown = '''[Ways of Seeing](https://www.ways-of-seeing.com/ch1)
+<!-- qp-link-preview: {"desc":"In chapter 1...","site":"ways-of-seeing.com","ts":"2026-10-12T00:00:00.000Z"} -->
+
+[Nanolathe](https://nanolathe.gg/)
+<!-- qp-link-preview: {"desc":"Play demo...","site":"nanolathe.gg","ts":"2026-10-12T00:00:00.000Z"} -->''';
+
+      final normalized = normalizeMarkdownForSuperEditor(markdown);
+      final doc = deserializeMarkdownToDocument(normalized);
+      promoteLinkPreviewNodes(doc);
+
+      final linkPreviews = doc.whereType<LinkPreviewNode>().toList();
+      expect(linkPreviews.length, equals(2));
+      expect(linkPreviews[0].title, equals('Ways of Seeing'));
+      expect(linkPreviews[0].url, equals('https://www.ways-of-seeing.com/ch1'));
+      expect(linkPreviews[1].title, equals('Nanolathe'));
+      expect(linkPreviews[1].url, equals('https://nanolathe.gg/'));
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: const [LinkPreviewNodeSerializer()],
+      );
+
+      final docRe = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized));
+      promoteLinkPreviewNodes(docRe);
+
+      final rePreviews = docRe.whereType<LinkPreviewNode>().toList();
+      expect(rePreviews.length, equals(2));
+      expect(rePreviews[0].url, equals('https://www.ways-of-seeing.com/ch1'));
+      expect(rePreviews[1].url, equals('https://nanolathe.gg/'));
     });
   });
 

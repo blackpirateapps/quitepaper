@@ -96,11 +96,12 @@ void main() {
           'See https://inline.com/x in the sentence\n'
           '[Baked Title](https://baked.com/a)\n'
           '<!-- qp-link-preview: {"ts":"2026-01-01T00:00:00.000"} -->\n'
+          '[Unbaked Title](https://unbaked.com/b)\n'
           'just some text';
 
       final urls = baker.findUnbakedLoneLineUrls(markdown);
 
-      expect(urls, ['https://example.com/post']);
+      expect(urls, ['https://example.com/post', 'https://unbaked.com/b']);
     });
   });
 
@@ -154,6 +155,33 @@ void main() {
       expect(block.description, 'OG Description');
       expect(block.thumbnailAssetId, isNull);
     });
+
+    test('follows redirects cleanly across schemes or locations', () async {
+      final client = MockClient((request) async {
+        if (request.url.toString() == 'http://example.com/redirect') {
+          return http.Response('', 301, headers: {
+            'location': 'https://example.com/target',
+          });
+        }
+        if (request.url.toString() == 'https://example.com/target') {
+          return http.Response(_pageHtml, 200, headers: {'content-type': 'text/html'});
+        }
+        return http.Response('not found', 404);
+      });
+
+      final block = await bakerWith(client).bakeUrl('http://example.com/redirect');
+      expect(block, isNotNull);
+      expect(block!.title, 'OG Title');
+    });
+
+    test('falls back to domain when title is Web Article or empty', () async {
+      const htmlWithoutTitle = '<html><body><article><p>Some plain text</p></article></body></html>';
+      final client = MockClient((_) async => http.Response(htmlWithoutTitle, 200, headers: {'content-type': 'text/html'}));
+
+      final block = await bakerWith(client).bakeUrl('https://custom-domain.org/article');
+      expect(block, isNotNull);
+      expect(block!.title, 'custom-domain.org');
+    });
   });
 
   group('bakeMarkdown', () {
@@ -178,6 +206,20 @@ void main() {
 
       expect(lines.first, 'Before line');
       expect(lines.last, 'After line');
+
+      final linkIndex = lines.indexOf('[OG Title](https://example.com/post)');
+      expect(linkIndex, greaterThan(0));
+      expect(isLinkPreviewComment(lines[linkIndex + 1]), isTrue);
+    });
+
+    test('rewrites an unbaked lone-line Markdown link into link + sentinel', () async {
+      final client = MockClient((request) async {
+        return http.Response(_pageHtml, 200, headers: {'content-type': 'text/html'});
+      });
+
+      const markdown = 'Before\n[Placeholder](https://example.com/post)\nAfter';
+      final result = await bakerWith(client).bakeMarkdown(markdown, noteId: 'note-1');
+      final lines = result.split('\n');
 
       final linkIndex = lines.indexOf('[OG Title](https://example.com/post)');
       expect(linkIndex, greaterThan(0));

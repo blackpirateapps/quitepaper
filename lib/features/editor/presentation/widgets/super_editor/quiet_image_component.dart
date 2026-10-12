@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:quitepaper/core/attachments/presentation/quiet_asset_image_view.dart';
 import 'package:quitepaper/core/documents/presentation/quiet_document_card.dart';
 import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
+import 'package:quitepaper/features/editor/application/link_preview_metadata.dart';
 import 'package:super_editor/super_editor.dart';
 
 /// Custom [ComponentBuilder] for SuperEditor that renders both encrypted
@@ -114,21 +115,43 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   // (which is then promoted to an embedded attachment card).
   final qpLinkLineRegex =
       RegExp(r'^\s*\[[^\]]*\]\(\s*qp://(?:document|asset)/[^)]*\)\s*$');
+  // A standalone web link line `[Title](https?://...)`
+  final webLinkLineRegex =
+      RegExp(r'^\s*\[[^\]]*\]\(\s*https?://[^)]*\)\s*$');
 
   for (int i = 0; i < lines.length; i++) {
     final line = lines[i];
+    final trimmed = line.trim();
     final isImage = imageLineRegex.hasMatch(line);
     final isTable = tableLineRegex.hasMatch(line);
     final isQpLink = qpLinkLineRegex.hasMatch(line);
+    final isWebLink = webLinkLineRegex.hasMatch(line);
+    final isLinkPreview = isLinkPreviewComment(trimmed) ||
+        trimmed.startsWith(r'\<!-- qp-link-preview:');
 
-    if (isImage || isQpLink) {
+    if (isImage || isQpLink || isWebLink) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
         if (!buffer.toString().endsWith('\n')) {
           buffer.write('\n');
         }
         buffer.write('\n');
       }
-      buffer.write(line.trim());
+      buffer.write(trimmed);
+      buffer.write('\n\n');
+      continue;
+    }
+
+    if (isLinkPreview) {
+      if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
+        if (!buffer.toString().endsWith('\n')) {
+          buffer.write('\n');
+        }
+        buffer.write('\n');
+      }
+      // Escape the leading '<' with a backslash so CommonMark does not strip it
+      // as a raw HTML block or comment, parsing it into a paragraph node instead.
+      final escaped = trimmed.startsWith(r'\<!--') ? trimmed : '\\$trimmed';
+      buffer.write(escaped);
       buffer.write('\n\n');
       continue;
     }

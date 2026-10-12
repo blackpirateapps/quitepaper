@@ -1408,7 +1408,9 @@ class LinkPreviewBlockSyntax extends md.BlockSyntax {
     parser.advance();
     parser.advance();
 
-    return md.Element('linkpreview', [md.Text(title)])
+    // Use md.Element.empty so no inlines are generated, preventing
+    // flutter_markdown's `_inlines.isEmpty` assertion failure during build.
+    return md.Element.empty('linkpreview')
       ..attributes['title'] = title
       ..attributes['url'] = url
       ..attributes['comment'] = comment;
