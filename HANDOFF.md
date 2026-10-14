@@ -8675,3 +8675,26 @@ Fixes production sync failures, preview mode rendering crashes (grey box bug), S
   - Added `_getWithRedirects` to manually follow 301/302/303/307/308 redirects across schemes.
   - Added domain/host fallback when extracted title is `'Web Article'` or empty.
   - Added unit tests in `test/core/web_clipper/link_preview_baker_test.dart`.
+
+## 188. Navigation Sidebar Sync Status & Action Tile (October 2026)
+
+Replaces the "Clip Webpage" option in the navigation sidebar footer with a rich, interactive **Sync Status & Action Tile** (`SidebarSyncTile`) directly above **Settings**.
+
+### 1. Functional Capabilities
+- **Sync Trigger**: Tapping the tile calls `syncEngine.syncNow()` with visual feedback (a rotating Phosphor `arrowsClockwise` icon driven by an `AnimationController` and status SnackBars).
+- **Logged-in Status**: Watches `currentUserProvider` and displays the active user's email address (or "Local Vault" / "Tap to set up sync" when signed out).
+- **Sync Status & Timestamp**: Real-time status display matching `SyncStatus`:
+  - `synced`: Shows "Sync" title with dynamic relative timestamp ("Just now", "5m ago", "2h ago", etc.) via `DateFormatter.formatRelative`.
+  - `syncing`: Animating spinning sync icon with "Syncing..." and "Updating changes...".
+  - `offline`: "Offline" title with "Saved locally" caption.
+  - `syncError`: "Sync Error" title with "Error • Tap to retry" caption.
+  - `pendingSync`: "Encryption Locked" with prompt to unlock.
+- **Merge Conflict Alerts**: Watches `pendingConflictsCountStreamProvider` and `syncState.conflictsCount`. When unresolved conflicts exist (`conflictsCount > 0`), renders an amber warning banner (`"$count conflict(s) require review"`) that directly navigates to `ConflictListScreen`.
+- **Signed-Out Interaction**: Tapping the tile while logged out opens an editorial "Offline Storage" dialog explaining local-first persistence with a direct button to open `SyncAuthScreen`.
+- **Theme-Aware Contrast**: Uses custom contrast tuning for dark sidebars (`isSidebarDark`) and light sidebars for all text, icons, and amber warning pills.
+
+### 2. File Changes
+- `lib/features/sidebar/presentation/widgets/sidebar_sync_tile.dart`: New stateful consumer widget implementing `SidebarSyncTile`.
+- `lib/features/sidebar/presentation/sidebar_view.dart`: Replaced "Clip Webpage" `SidebarItem` with `SidebarSyncTile`.
+- `test/sidebar/sidebar_sync_tile_test.dart`: Added comprehensive widget test suite covering signed-out dialog flow, signed-in sync triggering, active syncing animation, conflict warning banner navigation, encryption locked state, and sidebar layout verification.
+

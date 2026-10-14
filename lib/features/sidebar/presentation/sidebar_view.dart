@@ -24,7 +24,7 @@ import '../../tags/presentation/widgets/tag_action_dialogs.dart';
 import '../../tags/presentation/widgets/tag_color_picker_sheet.dart';
 import '../../tags/presentation/widgets/tag_icon_picker_sheet.dart';
 import '../../journal/application/journal_providers.dart';
-import '../../web_clipper/presentation/web_clip_dialog.dart';
+import 'widgets/sidebar_sync_tile.dart';
 import 'widgets/sidebar_item.dart';
 
 class SidebarView extends ConsumerWidget {
@@ -501,13 +501,8 @@ class SidebarView extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SidebarItem(
-                    icon: PhosphorIconsRegular.globe,
-                    label: 'Clip Webpage',
-                    onTap: () {
-                      onItemSelected?.call();
-                      WebClipDialog.show(context);
-                    },
+                  SidebarSyncTile(
+                    onItemSelected: onItemSelected,
                   ),
                   SidebarItem(
                     icon: PhosphorIconsRegular.gearSix,

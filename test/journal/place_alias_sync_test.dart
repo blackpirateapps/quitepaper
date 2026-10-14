@@ -333,6 +333,8 @@ void main() {
     });
 
     tearDown(() async {
+      engineA.dispose();
+      engineB.dispose();
       await dbA.close();
       await dbB.close();
     });
