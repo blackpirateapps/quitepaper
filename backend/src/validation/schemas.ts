@@ -143,7 +143,7 @@ export const confirmDocumentSchema = z.object({
   byteSize: z.number().int().min(0).optional(),
   pageCount: z.number().int().min(1).optional(),
   sha256: z.string().max(128).optional(),
-  ocrState: z.enum(['not_requested', 'queued', 'processing', 'available', 'failed']).optional(),
+  ocrState: z.enum(['not_requested', 'queued', 'processing', 'available', 'failed', 'skipped']).optional(),
   ocrLanguage: z.string().max(10).optional(),
 });
 

@@ -56,6 +56,7 @@ describe('Backend Scanned Document Control Plane & Sync Tests', () => {
         mimeType: 'application/pdf',
         byteSize: 524288,
         pageCount: 4,
+        ocrState: 'skipped',
         sha256: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
       },
     });
@@ -66,6 +67,7 @@ describe('Backend Scanned Document Control Plane & Sync Tests', () => {
     expect(confirmRes.body.document.cloudUrl).toContain('test-cloud');
     expect(confirmRes.body.document.pageCount).toBe(4);
     expect(confirmRes.body.document.serverRevision).toBe(1);
+    expect(confirmRes.body.document.ocrState).toBe('skipped');
 
     // Retrieve metadata
     const getRes = await handleApiRequest({
@@ -80,6 +82,7 @@ describe('Backend Scanned Document Control Plane & Sync Tests', () => {
     expect(getRes.body.mimeType).toBe('application/pdf');
     expect(getRes.body.pageCount).toBe(4);
     expect(getRes.body.byteSize).toBe(524288);
+    expect(getRes.body.ocrState).toBe('skipped');
   });
 
   it('Confirms web snapshot document upload and preserves web_snapshot source and text/html MIME type', async () => {

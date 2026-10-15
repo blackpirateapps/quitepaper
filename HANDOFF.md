@@ -8742,6 +8742,6 @@ Image imports already offloaded large XChaCha20 encryption work to a background 
 
 ## 191. Bound PDF Raster Memory and Skip OCR for Large Imports (October 2026)
 
-Imported PDFs larger than 8 MiB or whose declared page size would exceed the OCR pixel budget are stored without queuing OCR. The PDF remains viewable and the OCR state is `skipped`, shown explicitly in the viewer; manual OCR retry is blocked with an explanation. `PdfRasterPolicy` computes a reduced raster DPI for pages above 4 megapixels and is applied to the document viewer and PDF thumbnail renderers. OCR also renders and recognizes one page at a time, reducing peak memory for PDFs that remain eligible for OCR. The policy is intentionally conservative for oversized scans; encrypted storage and original PDF bytes are unchanged.
+Imported PDFs larger than 8 MiB or whose declared page size would exceed the OCR pixel budget are stored without queuing OCR. The PDF remains viewable and the OCR state is `skipped`, shown explicitly in the viewer; manual OCR retry is blocked with an explanation. Backend document confirmation validation accepts and preserves the `skipped` state. `PdfRasterPolicy` computes a reduced raster DPI for pages above 4 megapixels and is applied to the document viewer and PDF thumbnail renderers. OCR also renders and recognizes one page at a time, reducing peak memory for PDFs that remain eligible for OCR. The policy is intentionally conservative for oversized scans; encrypted storage and original PDF bytes are unchanged.
 
 
