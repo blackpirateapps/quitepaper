@@ -8738,6 +8738,6 @@ Fixes a bug where applying bold (or italic/strikethrough) formatting inside the 
 
 ## 190. Keep Image Attachment Import Responsive (October 2026)
 
-Image imports already offloaded large XChaCha20 encryption work to a background isolate, but the progress overlay could still stall while the main isolate hashed the entire image and synchronously flushed its encrypted bytes to disk. `AttachmentCrypto.computeSha256Async` now offloads digests at 256 KB and above while keeping smaller hashes inline, and `AttachmentLocalStorage.saveEncryptedBytes` awaits `File.writeAsBytes`. Image and generic-file import paths use the asynchronous digest. The SHA-256 value and encrypted attachment envelope are unchanged; filesystem writes still flush before the import continues.
+Image imports already offloaded large XChaCha20 encryption work to a background isolate, but the progress overlay could still stall while the main isolate hashed the entire image and synchronously flushed its encrypted bytes to disk. `AttachmentCrypto.computeSha256Async` now offloads digests at 256 KB and above while keeping smaller hashes inline, and `AttachmentLocalStorage.saveEncryptedBytes` awaits `File.writeAsBytes`. Image and generic-file import paths use the asynchronous digest. Attachment hashing now runs concurrently with encryption, avoiding serial passes over large payloads. The SHA-256 value and encrypted attachment envelope are unchanged; filesystem writes still flush before the import continues.
 
 

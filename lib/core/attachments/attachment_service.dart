@@ -107,21 +107,29 @@ class AttachmentService implements AssetResolver {
 
     final attachmentId = _uuid.v4();
     final now = DateTime.now();
-    final sha256Hash = await AttachmentCrypto.computeSha256Async(bytes);
     final masterKey = keyManager.getMasterKey();
-
-    // When importing a non-image or OCR-skipped asset (e.g. a link-preview
-    // thumbnail), bypass text recognition entirely.
-    final bool shouldSkipOcr = skipOcr || kind != 'image';
-
-    // 1. Client-side authenticated encryption
-    final encryptedBytes = await _crypto.encryptAttachment(
+    // Hashing and encryption both scan the full payload. Start them together
+    // so large images do not pay for these two CPU-heavy steps serially.
+    final sha256Future = AttachmentCrypto.computeSha256Async(bytes);
+    final encryptionFuture = _crypto.encryptAttachment(
       plaintextBytes: bytes,
       masterKeyBytes: masterKey,
       attachmentId: attachmentId,
       variant: 'original',
       keyVersion: 1,
     );
+    final importWork = await Future.wait<Object>([
+      sha256Future,
+      encryptionFuture,
+    ]);
+    final sha256Hash = importWork[0] as String;
+
+    // When importing a non-image or OCR-skipped asset (e.g. a link-preview
+    // thumbnail), bypass text recognition entirely.
+    final bool shouldSkipOcr = skipOcr || kind != 'image';
+
+    // 1. Client-side authenticated encryption
+    final encryptedBytes = importWork[1] as Uint8List;
 
     // 2. Persist encrypted ciphertext locally in app-private storage
     final localPath = await _storage.saveEncryptedBytes(
@@ -220,17 +228,23 @@ class AttachmentService implements AssetResolver {
 
     final attachmentId = _uuid.v4();
     final now = DateTime.now();
-    final sha256Hash = await AttachmentCrypto.computeSha256Async(bytes);
     final masterKey = keyManager.getMasterKey();
-
-    // 1. Client-side authenticated encryption
-    final encryptedBytes = await _crypto.encryptAttachment(
+    final sha256Future = AttachmentCrypto.computeSha256Async(bytes);
+    final encryptionFuture = _crypto.encryptAttachment(
       plaintextBytes: bytes,
       masterKeyBytes: masterKey,
       attachmentId: attachmentId,
       variant: 'original',
       keyVersion: 1,
     );
+    final importWork = await Future.wait<Object>([
+      sha256Future,
+      encryptionFuture,
+    ]);
+    final sha256Hash = importWork[0] as String;
+
+    // 1. Client-side authenticated encryption
+    final encryptedBytes = importWork[1] as Uint8List;
 
     // 2. Persist encrypted ciphertext locally in app-private storage
     final localPath = await _storage.saveEncryptedBytes(
