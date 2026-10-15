@@ -25,6 +25,7 @@ import '../annotations/annotation_provider.dart';
 import '../document_models.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
+import '../../pdf/pdf_page_renderer.dart';
 import 'annotation_overlay.dart';
 import 'annotation_toolbar.dart';
 
@@ -98,7 +99,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   final Map<int, OcrPage> _ocrPages = {};
   bool _annotateMode = false;
 
-  String get displayTitle => _currentTitle ?? _resolution?.data?.title ?? widget.title;
+  String get displayTitle =>
+      _currentTitle ?? _resolution?.data?.title ?? widget.title;
 
   bool get _isOcrAvailable => _resolution?.data?.ocrState == 'available';
   bool get _isOcrPending =>
@@ -122,7 +124,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     if (!_isOcrAvailable || _ocrPages.containsKey(pageIndex)) return;
     final service = ref.read(documentProcessingServiceProvider);
     final page = await service.getDecryptedOcrPage(
-        widget.documentId, pageIndex + 1);
+      widget.documentId,
+      pageIndex + 1,
+    );
     if (page != null && mounted) {
       setState(() => _ocrPages[pageIndex] = page);
     }
@@ -307,7 +311,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedPageIndex = widget.initialPageIndex >= 0 ? widget.initialPageIndex : 0;
+    _selectedPageIndex = widget.initialPageIndex >= 0
+        ? widget.initialPageIndex
+        : 0;
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
       _isLoading = false;
@@ -329,7 +335,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         }
         _selectedPageIndex = widget.initialPageIndex.clamp(
           0,
-          (_resolution!.data!.pageCount > 0 ? _resolution!.data!.pageCount : 1) - 1,
+          (_resolution!.data!.pageCount > 0
+                  ? _resolution!.data!.pageCount
+                  : 1) -
+              1,
         );
         _rasterizePages(_resolution!.data!.pdfBytes);
       }
@@ -362,7 +371,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       setState(() {
         _resolution = res;
         _isLoading = false;
-        _selectedPageIndex = widget.initialPageIndex.clamp(0, pageCount > 0 ? pageCount - 1 : 0);
+        _selectedPageIndex = widget.initialPageIndex.clamp(
+          0,
+          pageCount > 0 ? pageCount - 1 : 0,
+        );
       });
 
       if (res.isAvailable && res.data != null) {
@@ -378,13 +390,17 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     _renderedSizes.clear();
 
     try {
-      await for (final page in Printing.raster(pdfBytes, dpi: 150.0)) {
+      await for (final page in Printing.raster(
+        pdfBytes,
+        dpi: PdfRasterPolicy.safeDpi(pdfBytes, 150.0),
+      )) {
         final png = await page.toPng();
         if (!mounted) break;
         setState(() {
           _renderedPages.add(png);
           _renderedSizes.add(
-              Size(page.width.toDouble(), page.height.toDouble()));
+            Size(page.width.toDouble(), page.height.toDouble()),
+          );
         });
       }
     } catch (e) {
@@ -404,7 +420,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     if (controller != null) {
       controller.removeListener(_onAnnotationStateChanged);
       // Flush any debounced saves before tearing down.
-      unawaited(controller.flushPendingSaves().whenComplete(controller.dispose));
+      unawaited(
+        controller.flushPendingSaves().whenComplete(controller.dispose),
+      );
     }
     super.dispose();
   }
@@ -422,7 +440,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   Future<void> _copyOcrText() async {
     final service = ref.read(documentProcessingServiceProvider);
-    final copyText = await service.getDecryptedOcrFormattedCopyText(widget.documentId);
+    final copyText = await service.getDecryptedOcrFormattedCopyText(
+      widget.documentId,
+    );
     if (copyText.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -451,6 +471,17 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   Future<void> _regenerateOcr({OcrLanguage? language}) async {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
+    if (docInfo.ocrState == OcrProcessingState.skipped.identifier) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'OCR is skipped for this large PDF to protect device memory.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -504,8 +535,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       return await AnnotationFlattener().flatten(
         pdfBytes: docInfo.pdfBytes,
         annotationsByPageIndex: annotationsByPage,
-        ocrByPageIndex:
-            _ocrPages.isEmpty ? null : Map<int, OcrPage>.from(_ocrPages),
+        ocrByPageIndex: _ocrPages.isEmpty
+            ? null
+            : Map<int, OcrPage>.from(_ocrPages),
       );
     } catch (e) {
       debugPrint('[Annotations] Flatten failed, exporting raw bytes: $e');
@@ -565,10 +597,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           SnackBar(
             content: Text('Saved to ${targetDir.path}/$fileName'),
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Share',
-              onPressed: _sharePdf,
-            ),
+            action: SnackBarAction(label: 'Share', onPressed: _sharePdf),
           ),
         );
       }
@@ -614,8 +643,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               onTap: () => Navigator.of(sheetContext).pop(true),
             ),
             ListTile(
-              leading: Icon(Icons.picture_as_pdf_outlined,
-                  color: colors.textSecondary),
+              leading: Icon(
+                Icons.picture_as_pdf_outlined,
+                color: colors.textSecondary,
+              ),
               title: const Text('Share original'),
               subtitle: const Text('Unmodified source PDF'),
               onTap: () => Navigator.of(sheetContext).pop(false),
@@ -627,10 +658,13 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
   }
 
-  Future<void> _shareBytes(ResolvedDocumentInfo docInfo,
-      {required bool annotated}) async {
-    final bytes =
-        annotated ? await _resolveExportBytes(docInfo) : docInfo.pdfBytes;
+  Future<void> _shareBytes(
+    ResolvedDocumentInfo docInfo, {
+    required bool annotated,
+  }) async {
+    final bytes = annotated
+        ? await _resolveExportBytes(docInfo)
+        : docInfo.pdfBytes;
     final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
     final base = cleanTitle.isEmpty ? 'document' : cleanTitle;
     final fileName = annotated ? '$base-annotated.pdf' : '$base.pdf';
@@ -641,10 +675,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
     final bytes = await _resolveExportBytes(docInfo);
-    await Printing.layoutPdf(
-      name: docInfo.title,
-      onLayout: (_) async => bytes,
-    );
+    await Printing.layoutPdf(name: docInfo.title, onLayout: (_) async => bytes);
   }
 
   Future<void> _promptRenameDocument() async {
@@ -675,19 +706,13 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             children: [
               Text(
                 'Enter a new name for this document:',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: controller,
                 autofocus: true,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: colors.textPrimary,
-                ),
+                style: TextStyle(fontSize: 15, color: colors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Document Name',
                   hintStyle: TextStyle(color: colors.textTertiary),
@@ -721,7 +746,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             QuietButton(
               label: 'Rename',
               variant: QuietButtonVariant.primary,
-              onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
             ),
           ],
         );
@@ -777,8 +803,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final docInfo = _resolution?.data;
 
     final isOcrAvailable = docInfo?.ocrState == 'available';
-    final isOcrProcessing = docInfo?.ocrState == 'processing' || docInfo?.ocrState == 'queued';
+    final isOcrProcessing =
+        docInfo?.ocrState == 'processing' || docInfo?.ocrState == 'queued';
     final isOcrFailed = docInfo?.ocrState == 'failed';
+    final isOcrSkipped = docInfo?.ocrState == 'skipped';
 
     return PopScope(
       canPop: false,
@@ -819,33 +847,38 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: isOcrAvailable
                             ? Colors.green.withValues(alpha: 0.15)
                             : isOcrFailed
-                                ? Colors.redAccent.withValues(alpha: 0.15)
-                                : colors.accent.withValues(alpha: 0.15),
+                            ? Colors.redAccent.withValues(alpha: 0.15)
+                            : colors.accent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         isOcrAvailable
                             ? 'Searchable (OCR)'
                             : docInfo.ocrState == 'processing'
-                                ? 'Processing text…'
-                                : docInfo.ocrState == 'queued'
-                                    ? 'Preparing text…'
-                                    : isOcrFailed
-                                        ? 'OCR unavailable'
-                                        : 'PDF',
+                            ? 'Processing text…'
+                            : docInfo.ocrState == 'queued'
+                            ? 'Preparing text…'
+                            : isOcrFailed
+                            ? 'OCR unavailable'
+                            : isOcrSkipped
+                            ? 'OCR skipped (large PDF)'
+                            : 'PDF',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: isOcrAvailable
                               ? Colors.green
                               : isOcrFailed
-                                  ? Colors.redAccent
-                                  : colors.accent,
+                              ? Colors.redAccent
+                              : colors.accent,
                         ),
                       ),
                     ),
@@ -856,9 +889,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           actions: [
             if (docInfo != null)
               IconButton(
-                icon: Icon(
-                  _annotateMode ? Icons.draw : Icons.draw_outlined,
-                ),
+                icon: Icon(_annotateMode ? Icons.draw : Icons.draw_outlined),
                 color: _annotateMode ? colors.accent : null,
                 tooltip: _annotateMode ? 'Done annotating' : 'Annotate PDF',
                 onPressed: _toggleAnnotateMode,
@@ -883,6 +914,12 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 ),
                 tooltip: 'OCR is processing... Tap to restart',
                 onPressed: _regenerateOcr,
+              )
+            else if (isOcrSkipped)
+              IconButton(
+                icon: const Icon(Icons.document_scanner_outlined),
+                tooltip: 'OCR skipped for this large PDF',
+                onPressed: null,
               )
             else
               IconButton(
@@ -1037,12 +1074,15 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   value: 'annotate',
                   child: Row(
                     children: [
-                      Icon(_annotateMode ? Icons.draw : Icons.draw_outlined,
-                          size: 18),
+                      Icon(
+                        _annotateMode ? Icons.draw : Icons.draw_outlined,
+                        size: 18,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                            _annotateMode ? 'Done Annotating' : 'Annotate PDF'),
+                          _annotateMode ? 'Done Annotating' : 'Annotate PDF',
+                        ),
                       ),
                     ],
                   ),
@@ -1212,7 +1252,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           width: 180,
           decoration: BoxDecoration(
             color: colors.surface,
-            border: Border(right: BorderSide(color: colors.divider, width: 0.8)),
+            border: Border(
+              right: BorderSide(color: colors.divider, width: 0.8),
+            ),
           ),
           child: ListView.separated(
             padding: const EdgeInsets.all(AppSpacing.sm),
@@ -1249,15 +1291,21 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                             Icon(
                               Icons.description_outlined,
                               size: 36,
-                              color: isSelected ? colors.accent : colors.textTertiary,
+                              color: isSelected
+                                  ? colors.accent
+                                  : colors.textTertiary,
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Page ${index + 1}',
                               style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                color: isSelected ? colors.accent : colors.textSecondary,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isSelected
+                                    ? colors.accent
+                                    : colors.textSecondary,
                               ),
                             ),
                           ],
@@ -1367,11 +1415,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.picture_as_pdf_rounded,
-              size: 64,
-              color: colors.accent,
-            ),
+            Icon(Icons.picture_as_pdf_rounded, size: 64, color: colors.accent),
             const SizedBox(height: AppSpacing.md),
             Text(
               docInfo.title,
@@ -1385,10 +1429,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Page ${_selectedPageIndex + 1} of ${docInfo.pageCount}',
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 14, color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.sm),
             Container(
@@ -1443,10 +1484,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             ElevatedButton(

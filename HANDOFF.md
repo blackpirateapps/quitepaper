@@ -8740,4 +8740,8 @@ Fixes a bug where applying bold (or italic/strikethrough) formatting inside the 
 
 Image imports already offloaded large XChaCha20 encryption work to a background isolate, but the progress overlay could still stall while the main isolate hashed the entire image and synchronously flushed its encrypted bytes to disk. `AttachmentCrypto.computeSha256Async` now offloads digests at 256 KB and above while keeping smaller hashes inline, and `AttachmentLocalStorage.saveEncryptedBytes` awaits `File.writeAsBytes`. Image and generic-file import paths use the asynchronous digest. Attachment hashing now runs concurrently with encryption, avoiding serial passes over large payloads. The SHA-256 value and encrypted attachment envelope are unchanged; filesystem writes still flush before the import continues.
 
+## 191. Bound PDF Raster Memory and Skip OCR for Large Imports (October 2026)
+
+Imported PDFs larger than 8 MiB or whose declared page size would exceed the OCR pixel budget are stored without queuing OCR. The PDF remains viewable and the OCR state is `skipped`, shown explicitly in the viewer; manual OCR retry is blocked with an explanation. `PdfRasterPolicy` computes a reduced raster DPI for pages above 4 megapixels and is applied to the document viewer and PDF thumbnail renderers. OCR also renders and recognizes one page at a time, reducing peak memory for PDFs that remain eligible for OCR. The policy is intentionally conservative for oversized scans; encrypted storage and original PDF bytes are unchanged.
+
 

@@ -37,8 +37,15 @@ class MockKeyManager implements KeyManager {
 }
 
 class FakePdfPageRenderer implements PdfPageRenderer {
+  int renderCalls = 0;
+
   @override
-  Future<List<RenderedPage>> renderPages(Uint8List pdfBytes, {List<int>? pageIndices, double dpi = 150.0}) async {
+  Future<List<RenderedPage>> renderPages(
+    Uint8List pdfBytes, {
+    List<int>? pageIndices,
+    double dpi = 150.0,
+  }) async {
+    renderCalls++;
     return [
       RenderedPage(
         pageNumber: 1,
@@ -50,7 +57,11 @@ class FakePdfPageRenderer implements PdfPageRenderer {
   }
 
   @override
-  Future<RenderedPage?> renderSinglePage(Uint8List pdfBytes, int pageIndex, {double dpi = 150.0}) async {
+  Future<RenderedPage?> renderSinglePage(
+    Uint8List pdfBytes,
+    int pageIndex, {
+    double dpi = 150.0,
+  }) async {
     final list = await renderPages(pdfBytes);
     return list.first;
   }
@@ -84,9 +95,7 @@ class FakeOcrService implements OcrService {
     return OcrDocument(
       documentId: documentId,
       processedAt: DateTime.now(),
-      pages: [
-        await recognizePage(Uint8List(0), pageNumber: 1),
-      ],
+      pages: [await recognizePage(Uint8List(0), pageNumber: 1)],
     );
   }
 }
@@ -101,7 +110,9 @@ void main() {
     late CryptoService cryptoService;
 
     const testDocId = '99999999-8888-7777-6666-555555555555';
-    final samplePdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 sample payload'));
+    final samplePdfBytes = Uint8List.fromList(
+      utf8.encode('%PDF-1.4 sample payload'),
+    );
 
     setUp(() async {
       database = AppDatabase.memory();
@@ -123,132 +134,183 @@ void main() {
       await database.close();
     });
 
-    test('Runs on-device OCR for imported PDF, encrypts with Master Key, and updates state to available', () async {
+    test(
+      'Runs on-device OCR for imported PDF, encrypts with Master Key, and updates state to available',
+      () async {
+        processingService = DocumentProcessingService(
+          database: database,
+          keyManager: keyManager,
+          ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+          pageRenderer: FakePdfPageRenderer(),
+          ocrService: FakeOcrService(
+            mockText: 'Imported PDF OCR Recognized Text',
+          ),
+        );
+
+        await processingService.processDocument(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          source: DocumentSource.importedPdf,
+        );
+
+        final doc = await database.getDocument(testDocId);
+        expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
+
+        final ocrPages = await database.getDocumentOcrPages(testDocId);
+        expect(ocrPages.length, equals(1));
+        expect(ocrPages.first.pageNumber, equals(1));
+
+        final decryptedDoc = await processingService.getDecryptedOcrDocument(
+          testDocId,
+        );
+        expect(decryptedDoc, isNotNull);
+        expect(
+          decryptedDoc?.fullPlainText,
+          contains('Imported PDF OCR Recognized Text'),
+        );
+        expect(decryptedDoc?.pages.first.source, equals(OcrSource.onDeviceOcr));
+      },
+    );
+
+    test(
+      'Runs on-device OCR for scanner document, encrypts with Master Key, and updates state to available',
+      () async {
+        processingService = DocumentProcessingService(
+          database: database,
+          keyManager: keyManager,
+          ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+          pageRenderer: FakePdfPageRenderer(),
+          ocrService: FakeOcrService(
+            mockText: 'Scanned Document OCR Recognized Text',
+          ),
+        );
+
+        await processingService.processDocument(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          source: DocumentSource.scanner,
+        );
+
+        final doc = await database.getDocument(testDocId);
+        expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
+
+        final decryptedDoc = await processingService.getDecryptedOcrDocument(
+          testDocId,
+        );
+        expect(decryptedDoc, isNotNull);
+        expect(
+          decryptedDoc?.fullPlainText,
+          contains('Scanned Document OCR Recognized Text'),
+        );
+        expect(decryptedDoc?.pages.first.source, equals(OcrSource.onDeviceOcr));
+      },
+    );
+
+    test('skips OCR for oversized imported PDF without rasterizing', () async {
+      final renderer = FakePdfPageRenderer();
       processingService = DocumentProcessingService(
         database: database,
         keyManager: keyManager,
         ocrCrypto: OcrCrypto(cryptoService: cryptoService),
-        pageRenderer: FakePdfPageRenderer(),
-        ocrService: FakeOcrService(mockText: 'Imported PDF OCR Recognized Text'),
+        pageRenderer: renderer,
+        ocrService: FakeOcrService(),
       );
 
       await processingService.processDocument(
         documentId: testDocId,
-        pdfBytes: samplePdfBytes,
+        pdfBytes: Uint8List(8 * 1024 * 1024 + 1),
         source: DocumentSource.importedPdf,
       );
 
       final doc = await database.getDocument(testDocId);
-      expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
-
-      final ocrPages = await database.getDocumentOcrPages(testDocId);
-      expect(ocrPages.length, equals(1));
-      expect(ocrPages.first.pageNumber, equals(1));
-
-      final decryptedDoc = await processingService.getDecryptedOcrDocument(testDocId);
-      expect(decryptedDoc, isNotNull);
-      expect(decryptedDoc?.fullPlainText, contains('Imported PDF OCR Recognized Text'));
-      expect(decryptedDoc?.pages.first.source, equals(OcrSource.onDeviceOcr));
+      expect(doc?.ocrState, equals(OcrProcessingState.skipped.identifier));
+      expect(renderer.renderCalls, 0);
     });
 
-    test('Runs on-device OCR for scanner document, encrypts with Master Key, and updates state to available', () async {
-      processingService = DocumentProcessingService(
-        database: database,
-        keyManager: keyManager,
-        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
-        pageRenderer: FakePdfPageRenderer(),
-        ocrService: FakeOcrService(mockText: 'Scanned Document OCR Recognized Text'),
-      );
+    test(
+      'retryOcr and regenerateOcr atomically re-process and replace OCR dataset',
+      () async {
+        processingService = DocumentProcessingService(
+          database: database,
+          keyManager: keyManager,
+          ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+          pageRenderer: FakePdfPageRenderer(),
+          ocrService: FakeOcrService(mockText: 'Initial OCR Text'),
+        );
 
-      await processingService.processDocument(
-        documentId: testDocId,
-        pdfBytes: samplePdfBytes,
-        source: DocumentSource.scanner,
-      );
+        await processingService.processDocument(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          source: DocumentSource.importedPdf,
+        );
 
-      final doc = await database.getDocument(testDocId);
-      expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
+        final doc1 = await processingService.getDecryptedOcrDocument(testDocId);
+        expect(doc1?.fullPlainText, contains('Initial OCR Text'));
 
-      final decryptedDoc = await processingService.getDecryptedOcrDocument(testDocId);
-      expect(decryptedDoc, isNotNull);
-      expect(decryptedDoc?.fullPlainText, contains('Scanned Document OCR Recognized Text'));
-      expect(decryptedDoc?.pages.first.source, equals(OcrSource.onDeviceOcr));
-    });
+        // Now regenerate with updated OCR service
+        final updatedService = DocumentProcessingService(
+          database: database,
+          keyManager: keyManager,
+          ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+          pageRenderer: FakePdfPageRenderer(),
+          ocrService: FakeOcrService(mockText: 'Updated Regenerated Text'),
+        );
 
-    test('retryOcr and regenerateOcr atomically re-process and replace OCR dataset', () async {
-      processingService = DocumentProcessingService(
-        database: database,
-        keyManager: keyManager,
-        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
-        pageRenderer: FakePdfPageRenderer(),
-        ocrService: FakeOcrService(mockText: 'Initial OCR Text'),
-      );
+        await updatedService.regenerateOcr(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          source: DocumentSource.importedPdf,
+        );
 
-      await processingService.processDocument(
-        documentId: testDocId,
-        pdfBytes: samplePdfBytes,
-        source: DocumentSource.importedPdf,
-      );
+        final doc2 = await updatedService.getDecryptedOcrDocument(testDocId);
+        expect(doc2?.fullPlainText, contains('Updated Regenerated Text'));
+        expect(doc2?.pages.length, equals(1));
+      },
+    );
 
-      final doc1 = await processingService.getDecryptedOcrDocument(testDocId);
-      expect(doc1?.fullPlainText, contains('Initial OCR Text'));
+    test(
+      'getDocumentOcrMetadata, getDecryptedOcrPage, and getDecryptedOcrFormattedCopyText support lazy single-page access',
+      () async {
+        processingService = DocumentProcessingService(
+          database: database,
+          keyManager: keyManager,
+          ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+          pageRenderer: FakePdfPageRenderer(),
+          ocrService: FakeOcrService(mockText: 'Page One Content'),
+        );
 
-      // Now regenerate with updated OCR service
-      final updatedService = DocumentProcessingService(
-        database: database,
-        keyManager: keyManager,
-        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
-        pageRenderer: FakePdfPageRenderer(),
-        ocrService: FakeOcrService(mockText: 'Updated Regenerated Text'),
-      );
+        await processingService.processDocument(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          source: DocumentSource.importedPdf,
+        );
 
-      await updatedService.regenerateOcr(
-        documentId: testDocId,
-        pdfBytes: samplePdfBytes,
-        source: DocumentSource.importedPdf,
-      );
+        // Verify metadata query without full payload decryption
+        final meta = await processingService.getDocumentOcrMetadata(testDocId);
+        expect(meta, isNotNull);
+        expect(meta?.pageCount, equals(1));
+        expect(meta?.language, equals(OcrLanguage.english));
+        expect(meta?.pageNumbers, equals([1]));
 
-      final doc2 = await updatedService.getDecryptedOcrDocument(testDocId);
-      expect(doc2?.fullPlainText, contains('Updated Regenerated Text'));
-      expect(doc2?.pages.length, equals(1));
-    });
+        // Verify single page decryption
+        final page1 = await processingService.getDecryptedOcrPage(testDocId, 1);
+        expect(page1, isNotNull);
+        expect(page1?.pageNumber, equals(1));
+        expect(page1?.plainText, equals('Page One Content'));
 
-    test('getDocumentOcrMetadata, getDecryptedOcrPage, and getDecryptedOcrFormattedCopyText support lazy single-page access', () async {
-      processingService = DocumentProcessingService(
-        database: database,
-        keyManager: keyManager,
-        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
-        pageRenderer: FakePdfPageRenderer(),
-        ocrService: FakeOcrService(mockText: 'Page One Content'),
-      );
+        // Non-existent page returns null
+        final page99 = await processingService.getDecryptedOcrPage(
+          testDocId,
+          99,
+        );
+        expect(page99, isNull);
 
-      await processingService.processDocument(
-        documentId: testDocId,
-        pdfBytes: samplePdfBytes,
-        source: DocumentSource.importedPdf,
-      );
-
-      // Verify metadata query without full payload decryption
-      final meta = await processingService.getDocumentOcrMetadata(testDocId);
-      expect(meta, isNotNull);
-      expect(meta?.pageCount, equals(1));
-      expect(meta?.language, equals(OcrLanguage.english));
-      expect(meta?.pageNumbers, equals([1]));
-
-      // Verify single page decryption
-      final page1 = await processingService.getDecryptedOcrPage(testDocId, 1);
-      expect(page1, isNotNull);
-      expect(page1?.pageNumber, equals(1));
-      expect(page1?.plainText, equals('Page One Content'));
-
-      // Non-existent page returns null
-      final page99 = await processingService.getDecryptedOcrPage(testDocId, 99);
-      expect(page99, isNull);
-
-      // Verify streaming formatted copy text
-      final copyText = await processingService.getDecryptedOcrFormattedCopyText(testDocId);
-      expect(copyText, contains('Page 1'));
-      expect(copyText, contains('Page One Content'));
-    });
+        // Verify streaming formatted copy text
+        final copyText = await processingService
+            .getDecryptedOcrFormattedCopyText(testDocId);
+        expect(copyText, contains('Page 1'));
+        expect(copyText, contains('Page One Content'));
+      },
+    );
   });
 }

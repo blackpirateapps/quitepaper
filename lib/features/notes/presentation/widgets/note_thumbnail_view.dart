@@ -6,6 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/attachments/attachment_provider.dart';
 import '../../../../core/documents/document_provider.dart';
+import '../../../../core/pdf/pdf_page_renderer.dart';
 import '../../domain/note_metadata_extractor.dart';
 
 /// In-memory cache for rasterized PDF page-0 thumbnails to ensure smooth 60fps scrolling.
@@ -48,7 +49,8 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
   ThumbnailKind get _effectiveKind {
     if (widget.thumbnailData != null) return widget.thumbnailData!.kind;
     final uri = _effectiveUri;
-    if (uri.startsWith('qp://document/') || uri.toLowerCase().contains('.pdf')) {
+    if (uri.startsWith('qp://document/') ||
+        uri.toLowerCase().contains('.pdf')) {
       return ThumbnailKind.pdf;
     }
     return ThumbnailKind.image;
@@ -61,7 +63,8 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
     final kind = _effectiveKind;
     if (kind == ThumbnailKind.pdf && _pdfThumbnailCache.containsKey(uri)) {
       _imageBytes = _pdfThumbnailCache[uri];
-    } else if (kind == ThumbnailKind.image && _assetThumbnailCache.containsKey(uri)) {
+    } else if (kind == ThumbnailKind.image &&
+        _assetThumbnailCache.containsKey(uri)) {
       _imageBytes = _assetThumbnailCache[uri];
     } else {
       _loadThumbnail();
@@ -80,7 +83,8 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
           _imageBytes = _pdfThumbnailCache[uri];
           _isLoading = false;
         });
-      } else if (kind == ThumbnailKind.image && _assetThumbnailCache.containsKey(uri)) {
+      } else if (kind == ThumbnailKind.image &&
+          _assetThumbnailCache.containsKey(uri)) {
         setState(() {
           _imageBytes = _assetThumbnailCache[uri];
           _isLoading = false;
@@ -130,14 +134,21 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         } else if (uri.startsWith('qp://asset/')) {
           final assetId = uri.replaceFirst('qp://asset/', '').trim();
           final attachmentService = ref.read(attachmentServiceProvider);
-          final res = await attachmentService.resolveAsset(assetId, variant: 'original');
+          final res = await attachmentService.resolveAsset(
+            assetId,
+            variant: 'original',
+          );
           if (res.isAvailable && res.data != null) {
             pdfBytes = res.data;
           }
         }
 
         if (pdfBytes != null && pdfBytes.isNotEmpty) {
-          await for (final page in Printing.raster(pdfBytes, pages: const [0], dpi: 72.0)) {
+          await for (final page in Printing.raster(
+            pdfBytes,
+            pages: const [0],
+            dpi: PdfRasterPolicy.safeDpi(pdfBytes, 72.0),
+          )) {
             final png = await page.toPng();
             _pdfThumbnailCache[uri] = png;
             if (mounted) {
@@ -178,7 +189,10 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
 
     try {
       final service = ref.read(attachmentServiceProvider);
-      final resolution = await service.resolveAsset(assetId, variant: 'thumbnail');
+      final resolution = await service.resolveAsset(
+        assetId,
+        variant: 'thumbnail',
+      );
 
       if (!mounted) return;
       if (resolution.isAvailable && resolution.data != null) {
@@ -188,7 +202,10 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         });
       } else {
         // Fallback to original variant
-        final origResolution = await service.resolveAsset(assetId, variant: 'original');
+        final origResolution = await service.resolveAsset(
+          assetId,
+          variant: 'original',
+        );
         if (!mounted) return;
         if (origResolution.isAvailable && origResolution.data != null) {
           _assetThumbnailCache[uri] = origResolution.data!;
@@ -207,7 +224,9 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
     final colors = context.appColors;
     final uri = _effectiveUri;
     final kind = _effectiveKind;
-    final label = widget.thumbnailData?.label ?? (kind == ThumbnailKind.pdf ? 'PDF' : null);
+    final label =
+        widget.thumbnailData?.label ??
+        (kind == ThumbnailKind.pdf ? 'PDF' : null);
 
     Widget content;
 
@@ -231,7 +250,11 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView> {
         ],
       );
     } else if (kind == ThumbnailKind.pdf && _isLoading) {
-      content = _buildPlaceholder(colors, icon: Icons.picture_as_pdf_outlined, label: 'PDF');
+      content = _buildPlaceholder(
+        colors,
+        icon: Icons.picture_as_pdf_outlined,
+        label: 'PDF',
+      );
     } else if (uri.startsWith('http://') || uri.startsWith('https://')) {
       content = Image.network(
         uri,

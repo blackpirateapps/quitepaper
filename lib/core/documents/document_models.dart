@@ -38,6 +38,9 @@ enum OcrProcessingState {
   /// Structured OCR and searchable text are available.
   available('available'),
 
+  /// OCR was intentionally skipped because rasterizing the PDF is too costly.
+  skipped('skipped'),
+
   /// Processing failed.
   failed('failed');
 
@@ -52,7 +55,9 @@ enum OcrProcessingState {
     return OcrProcessingState.notRequested;
   }
 
-  bool get isProcessing => this == OcrProcessingState.processing || this == OcrProcessingState.queued;
+  bool get isProcessing =>
+      this == OcrProcessingState.processing ||
+      this == OcrProcessingState.queued;
   bool get isAvailable => this == OcrProcessingState.available;
   bool get isFailed => this == OcrProcessingState.failed;
 }
@@ -133,25 +138,25 @@ class DocumentSyncPayload {
   final String ocrLanguage;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        if (noteId != null) 'noteId': noteId,
-        'title': title,
-        'source': source.identifier,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'mimeType': mimeType,
-        'byteSize': byteSize,
-        'pageCount': pageCount,
-        'sha256': sha256,
-        'encryptionKeyVersion': encryptionKeyVersion,
-        'serverRevision': serverRevision,
-        'isDeleted': isDeleted,
-        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
-        if (cloudPublicId != null) 'cloudPublicId': cloudPublicId,
-        if (cloudUrl != null) 'cloudUrl': cloudUrl,
-        'ocrState': ocrState.identifier,
-        'ocrLanguage': ocrLanguage,
-      };
+    'id': id,
+    if (noteId != null) 'noteId': noteId,
+    'title': title,
+    'source': source.identifier,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'mimeType': mimeType,
+    'byteSize': byteSize,
+    'pageCount': pageCount,
+    'sha256': sha256,
+    'encryptionKeyVersion': encryptionKeyVersion,
+    'serverRevision': serverRevision,
+    'isDeleted': isDeleted,
+    if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+    if (cloudPublicId != null) 'cloudPublicId': cloudPublicId,
+    if (cloudUrl != null) 'cloudUrl': cloudUrl,
+    'ocrState': ocrState.identifier,
+    'ocrLanguage': ocrLanguage,
+  };
 
   factory DocumentSyncPayload.fromJson(Map<String, dynamic> json) {
     return DocumentSyncPayload(

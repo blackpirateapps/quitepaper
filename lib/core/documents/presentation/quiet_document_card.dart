@@ -13,6 +13,7 @@ import '../../uri/resource_resolver.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
+import '../../pdf/pdf_page_renderer.dart';
 import 'document_viewer_screen.dart';
 
 /// Embedded interactive card widget for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
@@ -61,7 +62,9 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
   bool _isWebSnapshotDoc(ResolvedDocumentInfo? docInfo) {
     if (docInfo == null) {
       final lower = widget.title.toLowerCase();
-      return lower.contains('(web snapshot)') || lower.endsWith('.html') || lower.endsWith('.htm');
+      return lower.contains('(web snapshot)') ||
+          lower.endsWith('.html') ||
+          lower.endsWith('.htm');
     }
     return DocumentService.isHtmlDocumentPayload(
       bytes: docInfo.pdfBytes,
@@ -93,7 +96,11 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
 
   Future<void> _rasterizeFirstPage(Uint8List pdfBytes) async {
     try {
-      await for (final page in Printing.raster(pdfBytes, pages: const [0], dpi: 72.0)) {
+      await for (final page in Printing.raster(
+        pdfBytes,
+        pages: const [0],
+        dpi: PdfRasterPolicy.safeDpi(pdfBytes, 72.0),
+      )) {
         final png = await page.toPng();
         if (mounted) {
           setState(() {
@@ -115,13 +122,16 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
       final isWebSnapshot = _isWebSnapshotDoc(docInfo);
       final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
       final ext = isWebSnapshot ? 'html' : 'pdf';
-      final fileName = '${cleanTitle.isEmpty ? (isWebSnapshot ? 'snapshot' : 'document') : cleanTitle}.$ext';
+      final fileName =
+          '${cleanTitle.isEmpty ? (isWebSnapshot ? 'snapshot' : 'document') : cleanTitle}.$ext';
 
       // 1. Try file picker save dialog if available
       String? selectedPath;
       try {
         selectedPath = await FilePicker.platform.saveFile(
-          dialogTitle: isWebSnapshot ? 'Save Web Snapshot' : 'Save PDF Document',
+          dialogTitle: isWebSnapshot
+              ? 'Save Web Snapshot'
+              : 'Save PDF Document',
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: [ext],
@@ -139,7 +149,9 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${isWebSnapshot ? "Snapshot" : "Document"} saved: ${p.basename(selectedPath)}'),
+              content: Text(
+                '${isWebSnapshot ? "Snapshot" : "Document"} saved: ${p.basename(selectedPath)}',
+              ),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -180,7 +192,8 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     final colors = context.appColors;
     final docInfo = _resolution?.data;
     final isLocked = _resolution?.isLocked ?? false;
-    final isError = _resolution != null && !_resolution!.isAvailable && !isLocked;
+    final isError =
+        _resolution != null && !_resolution!.isAvailable && !isLocked;
     final isWebSnapshot = _isWebSnapshotDoc(docInfo);
 
     final displayTitle = docInfo?.title ?? widget.title;
@@ -233,10 +246,7 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(
-                color: colors.divider,
-                width: 0.8,
-              ),
+              border: Border.all(color: colors.divider, width: 0.8),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -259,7 +269,12 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                   ),
                   clipBehavior: Clip.antiAlias,
                   alignment: Alignment.center,
-                  child: _buildThumbnail(colors, isLocked, isError, isWebSnapshot),
+                  child: _buildThumbnail(
+                    colors,
+                    isLocked,
+                    isError,
+                    isWebSnapshot,
+                  ),
                 ),
 
                 const SizedBox(width: AppSpacing.md),
@@ -285,17 +300,15 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                         isLocked
                             ? 'Encrypted (Locked)'
                             : isError
-                                ? (_resolution?.errorMessage ?? 'Unavailable')
-                                : (isWebSnapshot
-                                    ? 'Web Snapshot'
-                                    : pageCountText),
+                            ? (_resolution?.errorMessage ?? 'Unavailable')
+                            : (isWebSnapshot ? 'Web Snapshot' : pageCountText),
                         style: TextStyle(
                           fontSize: 12,
                           color: isLocked
                               ? colors.accent
                               : isError
-                                  ? Colors.redAccent
-                                  : colors.textSecondary,
+                              ? Colors.redAccent
+                              : colors.textSecondary,
                           fontWeight: FontWeight.normal,
                         ),
                         maxLines: 1,
@@ -303,15 +316,16 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
                       ),
                       const SizedBox(height: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: colors.accent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(AppRadii.sm / 2),
                         ),
                         child: Text(
-                          isWebSnapshot
-                              ? 'WEB (QPD1)'
-                              : 'PDF (QPD1)',
+                          isWebSnapshot ? 'WEB (QPD1)' : 'PDF (QPD1)',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -347,7 +361,12 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     );
   }
 
-  Widget _buildThumbnail(AppColors colors, bool isLocked, bool isError, bool isWebSnapshot) {
+  Widget _buildThumbnail(
+    AppColors colors,
+    bool isLocked,
+    bool isError,
+    bool isWebSnapshot,
+  ) {
     if (_firstPageThumbnail != null) {
       return Image.memory(
         _firstPageThumbnail!,
@@ -369,34 +388,18 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
     }
 
     if (isLocked) {
-      return Icon(
-        Icons.lock_outline,
-        size: 24,
-        color: colors.accent,
-      );
+      return Icon(Icons.lock_outline, size: 24, color: colors.accent);
     }
 
     if (isError) {
-      return const Icon(
-        Icons.error_outline,
-        size: 24,
-        color: Colors.redAccent,
-      );
+      return const Icon(Icons.error_outline, size: 24, color: Colors.redAccent);
     }
 
     if (isWebSnapshot) {
-      return Icon(
-        Icons.language_rounded,
-        size: 28,
-        color: colors.accent,
-      );
+      return Icon(Icons.language_rounded, size: 28, color: colors.accent);
     }
 
-    return Icon(
-      Icons.picture_as_pdf_rounded,
-      size: 28,
-      color: colors.accent,
-    );
+    return Icon(Icons.picture_as_pdf_rounded, size: 28, color: colors.accent);
   }
 
   String _formatByteSize(int bytes) {

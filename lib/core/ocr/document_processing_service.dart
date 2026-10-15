@@ -40,6 +40,19 @@ class DocumentProcessingService {
     DocumentSource source = DocumentSource.scanner,
     OcrLanguage language = OcrLanguage.english,
   }) async {
+    if (source == DocumentSource.importedPdf &&
+        PdfRasterPolicy.shouldSkipOcr(pdfBytes)) {
+      await database.updateDocumentOcrState(
+        documentId,
+        OcrProcessingState.skipped.identifier,
+        ocrLanguage: language.code,
+      );
+      debugPrint(
+        '[QuietPaper OCR] Skipped imported PDF $documentId because its size or page dimensions exceed OCR limits.',
+      );
+      return;
+    }
+
     if (_inFlightJobIds.contains(documentId)) {
       debugPrint(
         '[QuietPaper OCR] Document $documentId is already being processed. Skipping duplicate.',
@@ -65,16 +78,20 @@ class DocumentProcessingService {
       debugPrint(
         '[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...',
       );
-      final renderedPages = await _pageRenderer.renderPages(
-        pdfBytes,
-        dpi: 150.0,
-      );
-      debugPrint(
-        '[QuietPaper OCR] Rasterized ${renderedPages.length} pages. Starting text recognition...',
-      );
       final ocrPages = <OcrPage>[];
+      final document = await database.getDocument(documentId);
+      final pageCount = document?.pageCount ?? 1;
+      debugPrint(
+        '[QuietPaper OCR] Rasterizing and recognizing $pageCount pages one at a time...',
+      );
 
-      for (final rendered in renderedPages) {
+      for (var pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        final rendered = await _pageRenderer.renderSinglePage(
+          pdfBytes,
+          pageIndex,
+          dpi: 150.0,
+        );
+        if (rendered == null) continue;
         final ocrPage = await _ocrService.recognizePage(
           rendered.imageBytes,
           pageNumber: rendered.pageNumber,
@@ -234,7 +251,9 @@ class DocumentProcessingService {
       );
       return decryptedDoc.pages.isNotEmpty ? decryptedDoc.pages.first : null;
     } catch (e) {
-      debugPrint('Failed to decrypt OCR page $pageNumber for doc $documentId: $e');
+      debugPrint(
+        'Failed to decrypt OCR page $pageNumber for doc $documentId: $e',
+      );
       return null;
     }
   }
@@ -267,7 +286,9 @@ class DocumentProcessingService {
           buffer.writeln(page.plainText.trim());
         }
       } catch (e) {
-        debugPrint('Failed to extract plain text for OCR page ${row.pageNumber}: $e');
+        debugPrint(
+          'Failed to extract plain text for OCR page ${row.pageNumber}: $e',
+        );
       }
     }
 

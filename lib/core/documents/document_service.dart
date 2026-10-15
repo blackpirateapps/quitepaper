@@ -9,6 +9,7 @@ import '../ocr/document_processing_service.dart';
 import '../ocr/ocr_models.dart';
 import '../storage/cloud_storage_exceptions.dart';
 import '../storage/cloud_storage_models.dart';
+import '../pdf/pdf_page_renderer.dart';
 import '../sync/sync_api_client.dart';
 import '../uri/quiet_paper_uri.dart';
 import '../uri/resource_resolver.dart';
@@ -27,9 +28,9 @@ class DocumentService implements DocumentResolver {
     CloudinaryClient? cloudinaryClient,
     this.processingService,
     this.apiClient,
-  })  : _crypto = crypto ?? DocumentCrypto(),
-        _storage = storage ?? DocumentLocalStorage(),
-        _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
+  }) : _crypto = crypto ?? DocumentCrypto(),
+       _storage = storage ?? DocumentLocalStorage(),
+       _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
 
   final AppDatabase database;
   final KeyManager keyManager;
@@ -49,7 +50,8 @@ class DocumentService implements DocumentResolver {
   /// Encrypts the PDF with the user's Master Key, persists the encrypted ciphertext (.qpd)
   /// locally, caches decrypted bytes in RAM, saves document metadata to Drift DB,
   /// triggers background OCR processing, and returns the persisted entity and canonical Markdown reference.
-  Future<({DocumentEntity document, String markdownSnippet})> createDocumentFromPdfBytes({
+  Future<({DocumentEntity document, String markdownSnippet})>
+  createDocumentFromPdfBytes({
     required Uint8List pdfBytes,
     required int pageCount,
     String? noteId,
@@ -60,7 +62,8 @@ class DocumentService implements DocumentResolver {
   }) async {
     if (pdfBytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
-        message: 'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        message:
+            'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
         maxBytes: maxFileSizeBytes,
         providedBytes: pdfBytes.length,
       );
@@ -97,8 +100,13 @@ class DocumentService implements DocumentResolver {
     // 4. Save metadata to Drift database
     final cleanTitle = title.trim().isNotEmpty
         ? title.trim()
-        : (source == DocumentSource.importedPdf ? 'Imported PDF' : 'Scanned Document');
+        : (source == DocumentSource.importedPdf
+              ? 'Imported PDF'
+              : 'Scanned Document');
 
+    final skipOcr =
+        source == DocumentSource.importedPdf &&
+        PdfRasterPolicy.shouldSkipOcr(pdfBytes);
     await database.saveDocument(
       id: documentId,
       noteId: noteId,
@@ -117,21 +125,25 @@ class DocumentService implements DocumentResolver {
       uploadState: DocumentUploadState.uploadPending.identifier,
       localPath: localPath,
       thumbnailPath: thumbnailPath,
-      ocrState: OcrProcessingState.queued.identifier,
+      ocrState:
+          (skipOcr ? OcrProcessingState.skipped : OcrProcessingState.queued)
+              .identifier,
       ocrLanguage: language.code,
     );
 
     // 5. Enqueue background OCR / text extraction asynchronously
-    if (processingService != null) {
+    if (processingService != null && !skipOcr) {
       // Non-blocking invocation
-      processingService!.processDocument(
-        documentId: documentId,
-        pdfBytes: pdfBytes,
-        source: source,
-        language: language,
-      ).catchError((err) {
-        debugPrint('Async document processing error: $err');
-      });
+      processingService!
+          .processDocument(
+            documentId: documentId,
+            pdfBytes: pdfBytes,
+            source: source,
+            language: language,
+          )
+          .catchError((err) {
+            debugPrint('Async document processing error: $err');
+          });
     }
 
     final entity = await database.getDocument(documentId);
@@ -142,14 +154,16 @@ class DocumentService implements DocumentResolver {
   }
 
   /// Creates and stores a web snapshot document from UTF-8 HTML [htmlBytes].
-  Future<({DocumentEntity document, String markdownSnippet})> createWebSnapshotDocument({
+  Future<({DocumentEntity document, String markdownSnippet})>
+  createWebSnapshotDocument({
     required Uint8List htmlBytes,
     String? noteId,
     String title = 'Web Snapshot',
   }) async {
     if (htmlBytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
-        message: 'Snapshot exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        message:
+            'Snapshot exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
         maxBytes: maxFileSizeBytes,
         providedBytes: htmlBytes.length,
       );
@@ -229,7 +243,8 @@ class DocumentService implements DocumentResolver {
     final pdfBytes = await file.readAsBytes();
     if (pdfBytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
-        message: 'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        message:
+            'Document exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
         maxBytes: maxFileSizeBytes,
         providedBytes: pdfBytes.length,
       );
@@ -237,7 +252,9 @@ class DocumentService implements DocumentResolver {
 
     // Estimate page count by counting /Type /Page occurrences in PDF structure
     final pdfContent = String.fromCharCodes(pdfBytes);
-    final pageMatches = RegExp(r'/Type\s*/Page\b').allMatches(pdfContent).toList();
+    final pageMatches = RegExp(
+      r'/Type\s*/Page\b',
+    ).allMatches(pdfContent).toList();
     final estimatedPages = pageMatches.isNotEmpty ? pageMatches.length : 1;
 
     final documentTitle = title != null && title.trim().isNotEmpty
@@ -279,7 +296,9 @@ class DocumentService implements DocumentResolver {
       if (noteWithTags != null) {
         final note = noteWithTags.note;
         final regex = RegExp(
-          r'\[([^\]\n]*)\]\(qp:\/\/document\/' + RegExp.escape(documentId) + r'(\?[^\)]*)?\)',
+          r'\[([^\]\n]*)\]\(qp:\/\/document\/' +
+              RegExp.escape(documentId) +
+              r'(\?[^\)]*)?\)',
         );
         if (regex.hasMatch(note.content)) {
           final updatedContent = note.content.replaceAllMapped(regex, (match) {
@@ -332,19 +351,24 @@ class DocumentService implements DocumentResolver {
     String? mimeType,
     String? source,
   }) {
-    if (source == DocumentSource.webSnapshot.identifier || source == 'web_snapshot') {
+    if (source == DocumentSource.webSnapshot.identifier ||
+        source == 'web_snapshot') {
       return true;
     }
     if (mimeType == 'text/html') {
       return true;
     }
     final lowerTitle = (title ?? '').toLowerCase().trim();
-    if (lowerTitle.contains('(web snapshot)') || lowerTitle.endsWith('.html') || lowerTitle.endsWith('.htm')) {
+    if (lowerTitle.contains('(web snapshot)') ||
+        lowerTitle.endsWith('.html') ||
+        lowerTitle.endsWith('.htm')) {
       return true;
     }
     if (bytes.length >= 4) {
       final sampleLen = bytes.length < 64 ? bytes.length : 64;
-      final prefix = String.fromCharCodes(bytes.sublist(0, sampleLen)).trimLeft().toLowerCase();
+      final prefix = String.fromCharCodes(
+        bytes.sublist(0, sampleLen),
+      ).trimLeft().toLowerCase();
       if (prefix.startsWith('<!doctype html') ||
           prefix.startsWith('<html') ||
           prefix.startsWith('<!--') ||
@@ -370,7 +394,9 @@ class DocumentService implements DocumentResolver {
     var entity = await database.getDocument(documentId);
 
     final client = apiClient;
-    if ((entity == null || entity.cloudUrl == null || entity.cloudUrl!.isEmpty) &&
+    if ((entity == null ||
+            entity.cloudUrl == null ||
+            entity.cloudUrl!.isEmpty) &&
         client != null) {
       try {
         final remotePayload = await client.getDocumentMetadata(documentId);
@@ -400,7 +426,9 @@ class DocumentService implements DocumentResolver {
           entity = await database.getDocument(documentId);
         }
       } catch (metaErr) {
-        debugPrint('Failed to query remote metadata for document $documentId: $metaErr');
+        debugPrint(
+          'Failed to query remote metadata for document $documentId: $metaErr',
+        );
       }
     }
 
@@ -428,7 +456,9 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
-          source: isWebSnapshot ? DocumentSource.webSnapshot.identifier : entity.source,
+          source: isWebSnapshot
+              ? DocumentSource.webSnapshot.identifier
+              : entity.source,
           ocrState: entity.ocrState,
           ocrLanguage: entity.ocrLanguage,
         ),
@@ -452,7 +482,9 @@ class DocumentService implements DocumentResolver {
     );
 
     // 5. If missing locally on disk but cloudUrl exists, download directly from Cloudinary
-    if (encryptedBytes == null && entity.cloudUrl != null && entity.cloudUrl!.isNotEmpty) {
+    if (encryptedBytes == null &&
+        entity.cloudUrl != null &&
+        entity.cloudUrl!.isNotEmpty) {
       try {
         encryptedBytes = await _cloudinary.downloadEncryptedBytes(
           cloudUrl: entity.cloudUrl!,
@@ -478,7 +510,10 @@ class DocumentService implements DocumentResolver {
     }
 
     if (encryptedBytes == null) {
-      return ResourceResolution.missing(uri, 'Encrypted document file missing from disk');
+      return ResourceResolution.missing(
+        uri,
+        'Encrypted document file missing from disk',
+      );
     }
 
     // 6. Decrypt ciphertext using Master Key
@@ -510,7 +545,8 @@ class DocumentService implements DocumentResolver {
 
       // Self-heal local database record if legacy record had 'scanner' or 'application/pdf'
       if (isWebSnapshot &&
-          (entity.source != DocumentSource.webSnapshot.identifier || entity.mimeType != 'text/html')) {
+          (entity.source != DocumentSource.webSnapshot.identifier ||
+              entity.mimeType != 'text/html')) {
         await database.saveDocument(
           id: entity.id,
           noteId: entity.noteId,
@@ -551,7 +587,9 @@ class DocumentService implements DocumentResolver {
           sha256: entity.sha256,
           title: entity.title,
           noteId: entity.noteId,
-          source: isWebSnapshot ? DocumentSource.webSnapshot.identifier : entity.source,
+          source: isWebSnapshot
+              ? DocumentSource.webSnapshot.identifier
+              : entity.source,
           ocrState: entity.ocrState,
           ocrLanguage: entity.ocrLanguage,
         ),
@@ -565,7 +603,10 @@ class DocumentService implements DocumentResolver {
   }
 
   /// Deletes a document record and queues sync tombstone.
-  Future<void> deleteDocument(String documentId, {bool enqueueSync = true}) async {
+  Future<void> deleteDocument(
+    String documentId, {
+    bool enqueueSync = true,
+  }) async {
     _storage.invalidateDecryptedCache(documentId);
     await database.deleteDocument(documentId, enqueueSync: enqueueSync);
     await database.deleteDocumentOcrPages(documentId);
