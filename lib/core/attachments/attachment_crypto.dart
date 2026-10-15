@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as standard_crypto;
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import '../crypto/crypto_service.dart';
 
 /// Thrown when attachment decryption or MAC authentication fails.
@@ -33,6 +34,12 @@ class AttachmentCrypto {
   static String computeSha256(Uint8List bytes) {
     return standard_crypto.sha256.convert(bytes).toString();
   }
+
+  /// Computes an attachment digest away from the UI isolate. Image imports can
+  /// contain several megabytes, so hashing those bytes inline makes the
+  /// encryption progress overlay appear frozen.
+  static Future<String> computeSha256Async(Uint8List bytes) =>
+      compute(_computeSha256InBackground, bytes);
 
   /// Builds authenticated associated data string bound to the attachment and variant.
   static String buildAad(String attachmentId, {String variant = 'original', int version = 1}) {
@@ -143,3 +150,6 @@ class AttachmentCrypto {
     }
   }
 }
+
+String _computeSha256InBackground(Uint8List bytes) =>
+    standard_crypto.sha256.convert(bytes).toString();

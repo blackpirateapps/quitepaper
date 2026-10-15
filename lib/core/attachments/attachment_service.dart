@@ -107,7 +107,7 @@ class AttachmentService implements AssetResolver {
 
     final attachmentId = _uuid.v4();
     final now = DateTime.now();
-    final sha256Hash = AttachmentCrypto.computeSha256(bytes);
+    final sha256Hash = await AttachmentCrypto.computeSha256Async(bytes);
     final masterKey = keyManager.getMasterKey();
 
     // When importing a non-image or OCR-skipped asset (e.g. a link-preview
@@ -220,7 +220,7 @@ class AttachmentService implements AssetResolver {
 
     final attachmentId = _uuid.v4();
     final now = DateTime.now();
-    final sha256Hash = AttachmentCrypto.computeSha256(bytes);
+    final sha256Hash = await AttachmentCrypto.computeSha256Async(bytes);
     final masterKey = keyManager.getMasterKey();
 
     // 1. Client-side authenticated encryption

@@ -56,7 +56,7 @@ class AttachmentLocalStorage {
     final dir = await getAttachmentsDirectory();
     final fileName = _getFileName(attachmentId, variant);
     final file = File('${dir.path}/$fileName');
-    file.writeAsBytesSync(encryptedBytes, flush: true);
+    await file.writeAsBytes(encryptedBytes, flush: true);
     return file.path;
   }
 
