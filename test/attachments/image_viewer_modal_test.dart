@@ -121,6 +121,38 @@ class FakeImageProcessor implements ImageProcessor {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _WidgetTestAttachmentService extends AttachmentService {
+  _WidgetTestAttachmentService({required super.database, required super.keyManager});
+
+  @override
+  Future<({AttachmentEntity newAttachment, String markdownSnippet})> replaceImage({
+    required String oldAssetId,
+    required Uint8List newBytes,
+    required String mimeType,
+    String? fileName,
+    String? noteId,
+    String? preferredAltText,
+  }) async {
+    const newId = 'edited-widget-test-asset';
+    final now = DateTime.now();
+    await database.saveAttachment(
+      id: newId,
+      noteId: noteId,
+      fileName: fileName ?? 'edited_image.jpg',
+      createdAt: now,
+      updatedAt: now,
+      mimeType: mimeType,
+      byteSize: newBytes.length,
+      uploadState: 'upload_pending',
+    );
+    final attachment = await database.getAttachment(newId);
+    return (
+      newAttachment: attachment!,
+      markdownSnippet: '![$preferredAltText](qp://asset/$newId)',
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -238,6 +270,7 @@ void main() {
     Widget buildTestWidget({
       void Function(String text)? onInsertText,
       void Function(String oldAssetId, String newAssetId)? onImageReplaced,
+      AttachmentService? service,
     }) {
       return ProviderScope(
         overrides: [
@@ -245,7 +278,7 @@ void main() {
           keyManagerProvider.overrideWithValue(keyManager),
           ocrCryptoProvider.overrideWithValue(ocrCrypto),
           attachmentLocalStorageProvider.overrideWithValue(storage),
-          attachmentServiceProvider.overrideWithValue(attachmentService),
+          attachmentServiceProvider.overrideWithValue(service ?? attachmentService),
           imageProcessorProvider.overrideWithValue(FakeImageProcessor()),
           syncEngineProvider.overrideWithValue(FakeSyncEngine()),
         ],
@@ -535,8 +568,13 @@ void main() {
     testWidgets('Selecting Edit Image opens PageAdjustmentSheet and prompts to save on modification', (tester) async {
       String? replacedOldId;
       String? replacedNewId;
+      final widgetTestAttachmentService = _WidgetTestAttachmentService(
+        database: database,
+        keyManager: keyManager,
+      );
 
       await tester.pumpWidget(buildTestWidget(
+        service: widgetTestAttachmentService,
         onImageReplaced: (oldId, newId) {
           replacedOldId = oldId;
           replacedNewId = newId;

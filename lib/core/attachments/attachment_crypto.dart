@@ -29,6 +29,7 @@ class AttachmentCrypto {
   static const int nonceLength = 24; // XChaCha20 24-byte nonce
   static const int macLength = 16; // Poly1305 16-byte MAC tag
   static const int headerLength = 8 + nonceLength; // 4 magic + 2 version + 2 keyVersion + 24 nonce = 32 bytes
+  static const int _sha256IsolateThresholdBytes = 256 * 1024;
 
   /// Computes standard hex SHA-256 of plaintext bytes.
   static String computeSha256(Uint8List bytes) {
@@ -38,8 +39,12 @@ class AttachmentCrypto {
   /// Computes an attachment digest away from the UI isolate. Image imports can
   /// contain several megabytes, so hashing those bytes inline makes the
   /// encryption progress overlay appear frozen.
-  static Future<String> computeSha256Async(Uint8List bytes) =>
-      compute(_computeSha256InBackground, bytes);
+  static Future<String> computeSha256Async(Uint8List bytes) {
+    if (bytes.length < _sha256IsolateThresholdBytes) {
+      return Future<String>.value(computeSha256(bytes));
+    }
+    return compute(_computeSha256InBackground, bytes);
+  }
 
   /// Builds authenticated associated data string bound to the attachment and variant.
   static String buildAad(String attachmentId, {String variant = 'original', int version = 1}) {
