@@ -98,6 +98,74 @@ class QuietImageComponentBuilder implements ComponentBuilder {
   }
 }
 
+/// Normalizes inline formatting delimiter spacing so whitespace is not flanked
+/// by emphasis markers (e.g. `**word **` -> `**word** `, `** word**` -> ` **word**`).
+/// CommonMark specifications mandate that opening delimiters cannot be followed
+/// by whitespace and closing delimiters cannot be preceded by whitespace.
+String normalizeInlineMarkdownSpacing(String markdown) {
+  if (markdown.isEmpty) return markdown;
+  final lines = markdown.split('\n');
+  final result = <String>[];
+  bool inFencedCode = false;
+
+  for (final line in lines) {
+    final trimmed = line.trim();
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      inFencedCode = !inFencedCode;
+      result.add(line);
+      continue;
+    }
+    if (inFencedCode) {
+      result.add(line);
+      continue;
+    }
+
+    // Protect inline code backticks: odd parts are inside inline code
+    final parts = line.split('`');
+    for (int i = 0; i < parts.length; i += 2) {
+      parts[i] = _normalizeInlineSegment(parts[i]);
+    }
+    result.add(parts.join('`'));
+  }
+
+  return result.join('\n');
+}
+
+String _normalizeInlineSegment(String text) {
+  var s = text;
+  // Bold: ** or __
+  s = s.replaceAllMapped(
+    RegExp(r'(\*\*|__)\s+([^\s*_\n].*?)\1'),
+    (m) => ' ${m[1]}${m[2]}${m[1]}',
+  );
+  s = s.replaceAllMapped(
+    RegExp(r'(\*\*|__)(.*?[^\s*_\n])\s+\1'),
+    (m) => '${m[1]}${m[2]}${m[1]} ',
+  );
+
+  // Strikethrough: ~~
+  s = s.replaceAllMapped(
+    RegExp(r'(~~)\s+([^\s~\n].*?)\1'),
+    (m) => ' ${m[1]}${m[2]}${m[1]}',
+  );
+  s = s.replaceAllMapped(
+    RegExp(r'(~~)(.*?[^\s~\n])\s+\1'),
+    (m) => '${m[1]}${m[2]}${m[1]} ',
+  );
+
+  // Italic: * (single asterisk, not bold **)
+  s = s.replaceAllMapped(
+    RegExp(r'(?<!\*)\*\s+([^\s*\n].*?)(?<!\*)\*(?!\*)'),
+    (m) => ' *${m[1]}*',
+  );
+  s = s.replaceAllMapped(
+    RegExp(r'(?<!\*)\*(.*?)(?<=[^\s*\n])\s+\*(?!\*)'),
+    (m) => '*${m[1]}* ',
+  );
+
+  return s;
+}
+
 /// Normalizes markdown text for SuperEditor document deserialization.
 ///
 /// Ensures standalone image blocks (`![alt](url)`) and table blocks have blank lines
@@ -106,7 +174,8 @@ class QuietImageComponentBuilder implements ComponentBuilder {
 String normalizeMarkdownForSuperEditor(String markdown) {
   if (markdown.isEmpty) return markdown;
 
-  final lines = const LineSplitter().convert(markdown);
+  final inlineNormalized = normalizeInlineMarkdownSpacing(markdown);
+  final lines = const LineSplitter().convert(inlineNormalized);
   final buffer = StringBuffer();
   final imageLineRegex = RegExp(r'^\s*!\[.*?\]\(.*?\)\s*$');
   final tableLineRegex = RegExp(r'^\s*\|.*?\|\s*$');

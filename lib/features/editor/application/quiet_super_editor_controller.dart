@@ -22,6 +22,14 @@ class QuietSuperEditorController extends ChangeNotifier {
   /// Whether an [Editor] is currently attached.
   bool get isAttached => _editor != null && _composer != null;
 
+  /// The underlying [Editor], exposed for testing and low-level commands.
+  @visibleForTesting
+  Editor? get editor => _editor;
+
+  /// The underlying [MutableDocumentComposer], exposed for testing and low-level selection control.
+  @visibleForTesting
+  MutableDocumentComposer? get composer => _composer;
+
   /// Attaches this controller to an active [Editor] and [MutableDocumentComposer].
   void attach(Editor editor, MutableDocumentComposer composer) {
     if (_editor == editor && _composer == composer) return;
@@ -141,9 +149,11 @@ class QuietSuperEditorController extends ChangeNotifier {
     if (_composer == null || _editor == null) return;
     final sel = _composer!.selection;
     if (sel != null && !sel.isCollapsed) {
+      final range = _trimRangeWhitespace(_editor!.document, sel);
+      if (range == null) return;
       _editor!.execute([
         ToggleTextAttributionsRequest(
-          documentRange: sel,
+          documentRange: range,
           attributions: {attribution},
         ),
       ]);
@@ -151,6 +161,76 @@ class QuietSuperEditorController extends ChangeNotifier {
       _composer!.preferences.toggleStyle(attribution);
       notifyListeners();
     }
+  }
+
+  /// Trims leading and trailing whitespace from [sel] so inline attributions
+  /// do not flank or enclose whitespace, which violates CommonMark flanking rules
+  /// and breaks Markdown serialization/deserialization.
+  DocumentRange? _trimRangeWhitespace(Document doc, DocumentSelection sel) {
+    final normalized = sel.normalize(doc);
+    final startNode = doc.getNodeById(normalized.start.nodeId);
+    final endNode = doc.getNodeById(normalized.end.nodeId);
+
+    if (startNode is! TextNode || endNode is! TextNode) {
+      return normalized;
+    }
+
+    if (normalized.start.nodePosition is! TextNodePosition ||
+        normalized.end.nodePosition is! TextNodePosition) {
+      return normalized;
+    }
+
+    var startOffset = (normalized.start.nodePosition as TextNodePosition).offset;
+    var endOffset = (normalized.end.nodePosition as TextNodePosition).offset;
+
+    if (startNode.id == endNode.id) {
+      final text = startNode.text.toPlainText();
+      if (startOffset >= endOffset) return null;
+
+      // Advance startOffset past leading whitespace
+      while (startOffset < endOffset && text[startOffset].trim().isEmpty) {
+        startOffset++;
+      }
+      // Retreat endOffset before trailing whitespace
+      while (endOffset > startOffset && text[endOffset - 1].trim().isEmpty) {
+        endOffset--;
+      }
+
+      if (startOffset >= endOffset) return null;
+
+      return DocumentRange(
+        start: DocumentPosition(
+          nodeId: startNode.id,
+          nodePosition: TextNodePosition(offset: startOffset),
+        ),
+        end: DocumentPosition(
+          nodeId: endNode.id,
+          nodePosition: TextNodePosition(offset: endOffset),
+        ),
+      );
+    }
+
+    // Cross-node selection: trim outer boundaries
+    final startText = startNode.text.toPlainText();
+    while (startOffset < startText.length && startText[startOffset].trim().isEmpty) {
+      startOffset++;
+    }
+
+    final endText = endNode.text.toPlainText();
+    while (endOffset > 0 && endText[endOffset - 1].trim().isEmpty) {
+      endOffset--;
+    }
+
+    return DocumentRange(
+      start: DocumentPosition(
+        nodeId: startNode.id,
+        nodePosition: TextNodePosition(offset: startOffset),
+      ),
+      end: DocumentPosition(
+        nodeId: endNode.id,
+        nodePosition: TextNodePosition(offset: endOffset),
+      ),
+    );
   }
 
   /// Whether bold styling is currently active.

@@ -8698,3 +8698,42 @@ Replaces the "Clip Webpage" option in the navigation sidebar footer with a rich,
 - `lib/features/sidebar/presentation/sidebar_view.dart`: Replaced "Clip Webpage" `SidebarItem` with `SidebarSyncTile`.
 - `test/sidebar/sidebar_sync_tile_test.dart`: Added comprehensive widget test suite covering signed-out dialog flow, signed-in sync triggering, active syncing animation, conflict warning banner navigation, encryption locked state, and sidebar layout verification.
 
+## 189. Super Editor Inline Formatting Delimiter Normalization & Bold Preservation (October 2026)
+
+Fixes a bug where applying bold (or italic/strikethrough) formatting inside the Super Editor produced literal asterisks or stripped formatting after toggling preview mode on and returning to the editor ("clicking on editor").
+
+### 1. Root Cause Analysis
+- **CommonMark Flanking Rules**: In Markdown / CommonMark specifications, an opening emphasis delimiter cannot be followed by whitespace (left-flanking delimiter run rule), and a closing delimiter cannot be preceded by whitespace (right-flanking delimiter run rule).
+- **Loose Selection in Super Editor**: When users select words (e.g., via double-click or drag selection) or type spaces before toggling formatting off, the selection often includes leading and/or trailing whitespace (`" world "`). Applying `boldAttribution` across the raw selection formatted the whitespace as bold.
+- **Serialization & Deserialization Collapse**:
+  - `serializeDocumentToMarkdown` naively wrapped the entire attribution span with delimiters: `Hello **world ** again`.
+  - When switching to preview mode and back to editor, `deserializeMarkdownToDocument` parsed `**world **`. Due to the CommonMark flanking rule violation, `**` could not be parsed as emphasis and was parsed as literal plain text.
+  - The deserialized `ParagraphNode` contained literal asterisks with an empty attribution span, stripping the bold styling and displaying `**` to the user.
+
+### 2. Implementation: Two-Layer Defense
+1. **Layer 1: Selection Whitespace Trimming in Controller (`QuietSuperEditorController`)**:
+   - Added `_trimRangeWhitespace(Document doc, DocumentSelection sel)` to `lib/features/editor/application/quiet_super_editor_controller.dart`.
+   - When users toggle bold, italic, or strikethrough via toolbar or keyboard shortcuts, outer whitespace is trimmed from the `DocumentRange` before dispatching `ToggleTextAttributionsRequest`.
+   - Replaced deprecated `.text.text` calls with `.text.toPlainText()`.
+   - Added `@visibleForTesting` getters for `editor` and `composer`.
+2. **Layer 2: Inline Spacing Normalizer (`normalizeInlineMarkdownSpacing`)**:
+   - Added `normalizeInlineMarkdownSpacing(String markdown)` in `lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`.
+   - Uses regex replacements to push whitespace outside of delimiter bounds:
+     - `**word **` -> `**word** `
+     - `** word**` -> ` **word**`
+     - `~~word ~~` -> `~~word~~ `
+     - `*word *` -> `*word* `
+   - Safely skips fenced code blocks (` ``` ` or `~~~`) and inline code backticks (`` ` ``).
+   - Integrated into `normalizeMarkdownForSuperEditor()` so existing notes and external markdown strings are repaired on deserialization.
+   - Integrated into `QuietSuperEditor._onDocumentChange` before calling `widget.onChanged()`, guaranteeing clean CommonMark on serialization.
+
+### 3. Verification & Quality
+- `flutter analyze` — **No issues found!**
+- `flutter test` — all tests in `test/editor/` passing (545 passing tests).
+- Added comprehensive unit and widget tests in `test/editor/quiet_super_editor_test.dart`:
+  - Unit tests verifying `normalizeInlineMarkdownSpacing` with bold, italic, strikethrough, multi-word spans, and code block preservation.
+  - Unit test verifying `deserializeMarkdownToDocument` + `normalizeMarkdownForSuperEditor` recovers bold text with trailing space without literal asterisks.
+  - Controller unit test confirming `toggleBold` trims whitespace from selection.
+  - Widget integration test verifying bold styling survives edit -> preview -> edit toggle cycle with zero literal asterisks and `boldAttribution` intact.
+
+

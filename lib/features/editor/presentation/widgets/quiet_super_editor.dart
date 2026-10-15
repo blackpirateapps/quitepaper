@@ -165,9 +165,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietTableBlockNodeSerializer(),
         ],
       );
+      final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
       final fullMarkdown = _frontmatterPrefix != null
-          ? '$_frontmatterPrefix$bodyMarkdown'
-          : bodyMarkdown;
+          ? '$_frontmatterPrefix$normalizedBody'
+          : normalizedBody;
       _lastSerializedMarkdown = fullMarkdown;
       widget.onChanged(fullMarkdown);
     } finally {

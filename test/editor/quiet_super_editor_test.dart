@@ -566,6 +566,84 @@ void main() {
       expect(controller.isAttached, isTrue);
       expect(find.byType(SuperEditor), findsOneWidget);
     });
+
+    testWidgets('bold formatting survives edit -> preview -> edit toggle without literal asterisks', (tester) async {
+      String currentMarkdown = 'Hello world again';
+      bool isPreview = false;
+      final controller = QuietSuperEditorController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return ProviderScope(
+              overrides: [
+                typographySettingsProvider.overrideWith(
+                  (ref) => _MockTypographyNotifier(const TypographySettings()),
+                ),
+              ],
+              child: MaterialApp(
+                theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
+                home: Scaffold(
+                  body: isPreview
+                      ? Text('Preview: $currentMarkdown')
+                      : QuietSuperEditor(
+                          initialMarkdown: currentMarkdown,
+                          controller: controller,
+                          onChanged: (val) {
+                            currentMarkdown = val;
+                          },
+                        ),
+                  floatingActionButton: IconButton(
+                    icon: const Icon(Icons.toggle_off),
+                    onPressed: () => setState(() => isPreview = !isPreview),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.isAttached, isTrue);
+      final doc = controller.editor!.document;
+      final node = doc.first as TextNode;
+
+      // Select " world " (offsets 5 to 12)
+      controller.composer!.setSelectionWithReason(
+        DocumentSelection(
+          base: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 5)),
+          extent: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 12)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.toggleBold();
+      await tester.pumpAndSettle();
+
+      // Toggle to preview mode
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SuperEditor), findsNothing);
+      expect(currentMarkdown, contains('**world**'));
+      expect(currentMarkdown, isNot(contains('**world **')));
+      expect(currentMarkdown, isNot(contains('** world**')));
+
+      // Toggle back to editor mode
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SuperEditor), findsOneWidget);
+      final newDoc = controller.editor!.document;
+      final firstNode = newDoc.first as TextNode;
+      final plainText = firstNode.text.toPlainText();
+
+      expect(plainText, isNot(contains('**')));
+      expect(plainText, equals('Hello world again'));
+      expect(firstNode.text.hasAttributionAt(6, attribution: boldAttribution), isTrue);
+    });
   });
 
   group('QuietSuperEditorController Unit Tests', () {
@@ -676,6 +754,69 @@ void main() {
       expect(attachments.any((n) => n.uri == fileUri), isTrue);
       controller.dispose();
     });
+
+    test('toggleBold trims leading and trailing whitespace from selection', () {
+      final doc = deserializeMarkdownToDocument('Hello world again\n');
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(document: doc, composer: composer);
+      final controller = QuietSuperEditorController();
+      controller.attach(editor, composer);
+
+      final node = doc.first as TextNode;
+      // "Hello world again"
+      // Select " world " (offsets 5 to 12)
+      composer.setSelectionWithReason(
+        DocumentSelection(
+          base: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 5)),
+          extent: DocumentPosition(nodeId: node.id, nodePosition: const TextNodePosition(offset: 12)),
+        ),
+      );
+
+      controller.toggleBold();
+
+      final updatedNode = doc.first as TextNode;
+      // Bold should only be applied to "world" (offset 6 to 10), not to whitespace
+      expect(updatedNode.text.hasAttributionAt(5, attribution: boldAttribution), isFalse);
+      expect(updatedNode.text.hasAttributionAt(6, attribution: boldAttribution), isTrue);
+      expect(updatedNode.text.hasAttributionAt(10, attribution: boldAttribution), isTrue);
+      expect(updatedNode.text.hasAttributionAt(11, attribution: boldAttribution), isFalse);
+
+      controller.dispose();
+    });
+  });
+
+  group('normalizeInlineMarkdownSpacing Tests', () {
+    test('normalizes bold formatting with whitespace inside delimiters', () {
+      expect(normalizeInlineMarkdownSpacing('Hello **world ** again'), equals('Hello **world**  again'));
+      expect(normalizeInlineMarkdownSpacing('Hello ** world** again'), equals('Hello  **world** again'));
+      expect(normalizeInlineMarkdownSpacing('Hello ** world ** again'), equals('Hello  **world**  again'));
+      expect(normalizeInlineMarkdownSpacing('**quick brown fox **'), equals('**quick brown fox** '));
+    });
+
+    test('normalizes italic and strikethrough formatting with whitespace inside delimiters', () {
+      expect(normalizeInlineMarkdownSpacing('Hello *world * again'), equals('Hello *world*  again'));
+      expect(normalizeInlineMarkdownSpacing('Hello * world* again'), equals('Hello  *world* again'));
+      expect(normalizeInlineMarkdownSpacing('Hello ~~world ~~ again'), equals('Hello ~~world~~  again'));
+      expect(normalizeInlineMarkdownSpacing('Hello ~~ world~~ again'), equals('Hello  ~~world~~ again'));
+    });
+
+    test('preserves code blocks and inline code containing asterisks or tildes', () {
+      const codeBlock = '```dart\nfinal x = **y**;\n```';
+      expect(normalizeInlineMarkdownSpacing(codeBlock), equals(codeBlock));
+
+      const inlineCode = 'Use `**not bold **` in syntax';
+      expect(normalizeInlineMarkdownSpacing(inlineCode), equals(inlineCode));
+    });
+
+    test('deserializeMarkdownToDocument with normalizeMarkdownForSuperEditor recovers bold with trailing space', () {
+      const rawMarkdown = 'Hello **world ** again';
+      final normalized = normalizeMarkdownForSuperEditor(rawMarkdown);
+      final doc = deserializeMarkdownToDocument(normalized);
+      final node = doc.first as ParagraphNode;
+      expect(node.text.toPlainText(), isNot(contains('**')));
+      expect(node.text.hasAttributionAt(6, attribution: boldAttribution), isTrue);
+    });
   });
 }
+
 
