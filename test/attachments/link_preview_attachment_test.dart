@@ -3,10 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/attachments/attachment_crypto.dart';
 import 'package:quitepaper/core/attachments/attachment_service.dart';
+import 'package:quitepaper/core/attachments/attachment_processing_service.dart';
 import 'package:quitepaper/core/attachments/attachment_storage.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/ocr/ocr_models.dart';
 
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -31,6 +33,24 @@ class MockKeyManager implements KeyManager {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeAttachmentProcessingService extends AttachmentProcessingService {
+  FakeAttachmentProcessingService({
+    required super.database,
+    required super.keyManager,
+  });
+
+  int processCalls = 0;
+
+  @override
+  Future<void> processAttachment({
+    required String attachmentId,
+    required Uint8List imageBytes,
+    OcrLanguage language = OcrLanguage.english,
+  }) async {
+    processCalls++;
+  }
 }
 
 void main() {
@@ -183,6 +203,36 @@ void main() {
 
       final visible = await db.getAttachmentsForNote(noteId);
       expect(visible.map((a) => a.id), contains(attachment.id));
+    });
+
+    test('deferred OCR starts only when explicitly scheduled after import', () async {
+      final processingService = FakeAttachmentProcessingService(
+        database: db,
+        keyManager: keyManager,
+      );
+      attachmentService = AttachmentService(
+        database: db,
+        keyManager: keyManager,
+        crypto: attachmentCrypto,
+        storage: attachmentStorage,
+        processingService: processingService,
+      );
+      final bytes = Uint8List.fromList([1, 2, 3]);
+
+      final result = await attachmentService.importImageFromBytes(
+        bytes,
+        mimeType: 'image/png',
+        deferOcr: true,
+      );
+
+      expect(result.attachment.ocrState, 'queued');
+      expect(processingService.processCalls, 0);
+
+      attachmentService.processImageOcrInBackground(
+        attachmentId: result.attachment.id,
+        imageBytes: bytes,
+      );
+      expect(processingService.processCalls, 1);
     });
   });
 }

@@ -90,6 +90,7 @@ class AttachmentService implements AssetResolver {
     String preferredAltText = 'Image',
     String kind = 'image',
     bool skipOcr = false,
+    bool deferOcr = false,
   }) async {
     if (bytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
@@ -163,13 +164,8 @@ class AttachmentService implements AssetResolver {
     );
 
     // 5. Enqueue background OCR recognition asynchronously (non-blocking)
-    if (!shouldSkipOcr && processingService != null) {
-      processingService!.processAttachment(
-        attachmentId: attachmentId,
-        imageBytes: bytes,
-      ).catchError((err) {
-        debugPrint('[QuietPaper Image OCR] Async image processing error: $err');
-      });
+    if (!shouldSkipOcr && !deferOcr) {
+      processImageOcrInBackground(attachmentId: attachmentId, imageBytes: bytes);
     }
 
     final entity = await database.getAttachment(attachmentId);
@@ -178,6 +174,22 @@ class AttachmentService implements AssetResolver {
     final markdownSnippet = '![$cleanAlt]($uri)';
 
     return (attachment: entity!, markdownSnippet: markdownSnippet);
+  }
+
+  /// Starts OCR without making the caller wait for recognition to finish.
+  /// UI flows with a blocking save overlay should call this after dismissing it.
+  void processImageOcrInBackground({
+    required String attachmentId,
+    required Uint8List imageBytes,
+  }) {
+    final service = processingService;
+    if (service == null) return;
+    service.processAttachment(
+      attachmentId: attachmentId,
+      imageBytes: imageBytes,
+    ).catchError((err) {
+      debugPrint('[QuietPaper Image OCR] Async image processing error: $err');
+    });
   }
 
   /// Imports an arbitrary generic file from a local [File] into the encrypted Quiet Paper notebook.

@@ -2689,7 +2689,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             fileName: prepared.fileName,
             noteId: widget.note.id,
             preferredAltText: prepared.fileName,
+            deferOcr: true,
           ),
+        );
+
+        attachmentService.processImageOcrInBackground(
+          attachmentId: importResult.attachment.id,
+          imageBytes: prepared.bytes,
         );
 
         final snippet = '\n\n${importResult.markdownSnippet}\n\n';
@@ -2886,7 +2892,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 fileName: prepared.fileName,
                 noteId: widget.note.id,
                 preferredAltText: name,
+                deferOcr: true,
               ),
+            );
+            attachmentService.processImageOcrInBackground(
+              attachmentId: res.attachment.id,
+              imageBytes: prepared.bytes,
             );
             _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
           } catch (e) {
@@ -2964,7 +2975,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             fileName: prepared.fileName,
             noteId: widget.note.id,
             preferredAltText: 'Pasted Image',
+            deferOcr: true,
           ),
+        );
+        attachmentService.processImageOcrInBackground(
+          attachmentId: res.attachment.id,
+          imageBytes: prepared.bytes,
         );
         _insertSnippetAtCursor('\n\n${res.markdownSnippet}\n\n');
       } catch (e) {
@@ -3095,7 +3111,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               fileName: prepared.fileName,
               noteId: widget.note.id,
               preferredAltText: name,
+              deferOcr: true,
             ),
+          );
+          attachmentService.processImageOcrInBackground(
+            attachmentId: importResult.attachment.id,
+            imageBytes: prepared.bytes,
           );
           _insertSnippetAtCursor('\n\n${importResult.markdownSnippet}\n\n');
         } catch (e) {
