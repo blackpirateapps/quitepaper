@@ -8746,4 +8746,24 @@ Imported PDFs larger than 8 MiB or whose declared page size would exceed the OCR
 
 Editor image imports now defer OCR scheduling until after the blocking “Encrypting & saving…” overlay has been removed. Attachment persistence remains synchronous with the import; OCR still runs asynchronously immediately after the UI save step completes.
 
+## 192. Desktop Adaptive Modals — Architecture & Core Abstraction Layer (Phase 1) (October 2026)
+
+### Architectural Overview & Motivation
+Quiet Paper previously presented modals across the entire app using mobile `showModalBottomSheet`. On Linux and desktop platforms (mouse and keyboard, widescreen displays), bottom sheets impose significant Fitts's Law inefficiency (cursor traveling from top-bar triggers down to the screen floor), lack visual anchoring to action triggers, hide the active note during comparative tasks, and display mobile-only artifacts (drag handle pills, swipe-to-dismiss gestures).
+
+To address this, Phase 1 establishes the unified core abstraction and 4 adaptive desktop paradigms:
+1. **`QuietAdaptiveModal`** ([`lib/core/widgets/quiet_adaptive_modal.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_adaptive_modal.dart)):
+   - Centralized presentation facade routing between mobile bottom sheets (`showModalBottomSheet`) and desktop modals (`showQuietPopover`, `showQuietSpotlight`, `showQuietDialog`).
+   - Integrates with `PlatformLayoutHelper.isDesktop([context])` to respect runtime theme overrides (`ThemeData.platform`) and `defaultTargetPlatform`.
+   - `AdaptiveSheetDragHandle`: Renders a subtle touch handle on mobile, and `SizedBox.shrink` on desktop.
+2. **`QuietPopoverRoute` & `showQuietPopover`** ([`lib/core/widgets/quiet_popover.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_popover.dart)):
+   - Anchors contextual flyouts adjacent to trigger `GlobalKey` or cursor `Offset`.
+   - Dynamic collision detection: Automatically flips between opening below or above the anchor based on available vertical clearance, and clamps horizontally within viewport margins.
+   - Editorial styling: Warm `colors.surface`, 0.8px border in `colors.divider`, `AppRadii.borderMd` (12dp), subtle elevation, and `Escape` key dismissal via `CallbackShortcuts`.
+3. **`showQuietSpotlight`** ([`lib/core/widgets/quiet_spotlight_dialog.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_spotlight_dialog.dart)):
+   - Floating Command Palette modal anchored in the upper-third of the screen (`Alignment(0.0, -0.38)`) for keyboard-first selectors (note links, syntax languages, fonts, tags).
+   - Instant keyboard autofocus and `Escape` key dismissal.
+4. **`showQuietDialog` & `QuietEditorialDialogCard`** ([`lib/core/widgets/quiet_editorial_dialog.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_editorial_dialog.dart)):
+   - Centered editorial dialog with structured header (title, subtitle, trailing actions), discrete '✕' close button, scrollable body, and `Escape` key dismissal.
+
 
