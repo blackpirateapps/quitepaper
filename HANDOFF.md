@@ -8839,6 +8839,44 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
   - Verified static analysis with `flutter analyze` (**0 issues, 0 warnings**).
   - Verified test suite: all widget and regression tests pass (**100% passing**).
 
+---
+
+## 196. Desktop Adaptive Modals: Multi-Pane Right Inspector Pane (Phase 5) (October 2026)
+
+- **Architecture & Overview**:
+  - Implemented Phase 5 of the Desktop Adaptive Modals system, establishing the 4th column "Right Inspector Pane" (`AdaptiveModalType.inspector`) docked beside the editor on widescreen desktop environments ($\ge 1100\text{dp}$).
+  - Solves the problem of comparative and contextual workflows (version comparison, attachment metadata inspection, file properties) obstructing the active note by allowing concurrent side-by-side editing and inspection without modal barriers.
+  - On standard desktop viewports ($< 1100\text{dp}$), components cleanly adapt into centered editorial dialogs (`QuietEditorialDialogCard`).
+  - On mobile/touch platforms, components fall back to bottom sheets with drag handles and sheet physics via `AdaptiveSheetDragHandle()`.
+- **Key Components & Implementations**:
+  1. [`lib/core/utils/platform_layout_helper.dart`](file:///home/dog/git/quitepaper/lib/core/utils/platform_layout_helper.dart):
+     - Added `PlatformLayoutHelper.isWidescreen(context, [double breakpoint = 1100])` checking `isDesktop(context) && MediaQuery.of(context).size.width >= breakpoint`.
+  2. [`lib/features/editor/presentation/active_inspector_provider.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/active_inspector_provider.dart):
+     - Created `activeInspectorProvider`, `ActiveInspectorNotifier`, and `ActiveInspectorState` managing global inspector lifecycle across `versionHistory`, `attachmentDetails`, and `attachmentFileInfo`.
+     - Static callers in modal sheets can transparently invoke `container.read(activeInspectorProvider.notifier)...` from anywhere within the widget tree.
+  3. [`lib/features/editor/presentation/widgets/editor_inspector_pane.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/editor_inspector_pane.dart):
+     - Right-docked 380dp persistent inspector panel with subtle surface coloring (`colors.surface`) and left divider line.
+     - Routes active inspector state to `VersionHistorySheet`, `AttachmentDetailsSheet`, or `AttachmentFileInfoSheet` with unified `onClose` callback wiring.
+  4. [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Embedded `EditorInspectorPane` adjacent to `PullDownSearchReveal` in a horizontal `Row(crossAxisAlignment: CrossAxisAlignment.stretch)` when `isWidescreen` and `activeInspectorProvider.isOpen`.
+     - Automatically resets/closes the inspector on active note switch (`didUpdateWidget`) and screen teardown (`dispose()`).
+  5. [`lib/features/editor/presentation/widgets/version_history_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/version_history_sheet.dart):
+     - Added widescreen routing in `show()`, header close button, and adaptive container (`BoxConstraints.expand()` when embedded in inspector; `maxHeight: 640` in desktop dialog; `0.85 * viewport` on mobile).
+  6. [`lib/core/attachments/presentation/attachment_details_sheet.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_details_sheet.dart):
+     - Added `onClose` callback, widescreen routing to inspector, desktop header close button, and unified `_closeSheet()` handling across preview, open, share, saveAs, rename, and delete actions.
+  7. [`lib/core/attachments/presentation/attachment_file_info_sheet.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_file_info_sheet.dart):
+     - Migrated from raw `showModalBottomSheet` to `PlatformLayoutHelper.isWidescreen` inspector docking, desktop centered dialog (`maxWidth: 460`), and mobile bottom sheet fallback.
+- **Verification & Test Coverage**:
+  - Added [`test/widgets/inspector_pane_test.dart`](file:///home/dog/git/quitepaper/test/widgets/inspector_pane_test.dart) covering:
+    - Empty inspector pane when inactive.
+    - `VersionHistorySheet` docking on widescreen desktop ($\ge 1100\text{dp}$) and closing via header button.
+    - `AttachmentFileInfoSheet` docking on widescreen desktop and closing via header button.
+    - Fallback to centered editorial dialog on narrow desktop ($< 1100\text{dp}$) with Escape key dismissal.
+    - Fallback to `BottomSheet` on Android mobile platform.
+  - Verified regression safety with all 5 adaptive modal test suites passing (**27 of 27 tests passed**).
+  - Static analysis: `flutter analyze` reports **0 issues found**.
+
+
 
 
 

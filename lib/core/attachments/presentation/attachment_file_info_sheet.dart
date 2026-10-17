@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../features/editor/presentation/active_inspector_provider.dart';
 import '../../database/app_database.dart';
+import '../../utils/platform_layout_helper.dart';
+import '../../widgets/quiet_adaptive_modal.dart';
+import '../../widgets/quiet_icon_button.dart';
 import '../attachment_icon_resolver.dart';
 import '../attachment_type_resolver.dart';
 import '../text/attachment_text_decoder.dart';
 import '../text/attachment_text_detector.dart';
 
-/// Modal bottom sheet displaying detailed file and encoding metadata for an attachment.
+/// Modal bottom sheet or right inspector pane displaying detailed file and encoding metadata for an attachment.
 class AttachmentFileInfoSheet extends StatelessWidget {
   const AttachmentFileInfoSheet({
     super.key,
     required this.entity,
     this.decodedResult,
     this.format = TextAttachmentFormat.plainText,
+    this.onClose,
   });
 
   final AttachmentEntity entity;
   final DecodedTextResult? decodedResult;
   final TextAttachmentFormat format;
+  final VoidCallback? onClose;
 
   static Future<void> show(
     BuildContext context, {
@@ -29,14 +36,25 @@ class AttachmentFileInfoSheet extends StatelessWidget {
     DecodedTextResult? decodedResult,
     TextAttachmentFormat format = TextAttachmentFormat.plainText,
   }) {
-    final colors = context.appColors;
-    return showModalBottomSheet(
+    if (PlatformLayoutHelper.isWidescreen(context)) {
+      try {
+        final container = ProviderScope.containerOf(context, listen: false);
+        container.read(activeInspectorProvider.notifier).openAttachmentFileInfo(
+          entity: entity,
+          decodedResult: decodedResult,
+          format: format,
+        );
+        return Future.value();
+      } catch (_) {
+        // Fallback to dialog
+      }
+    }
+
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 460,
       builder: (ctx) => AttachmentFileInfoSheet(
         entity: entity,
         decodedResult: decodedResult,
@@ -48,6 +66,17 @@ class AttachmentFileInfoSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isInInspector = onClose != null;
+
+    void handleClose() {
+      if (onClose != null) {
+        onClose!();
+      } else if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
+
     final fileName = entity.fileName;
     final mimeType = entity.mimeType;
     final typeLabel = AttachmentTypeResolver.resolveDisplayName(mimeType: mimeType, fileName: fileName);
@@ -60,7 +89,7 @@ class AttachmentFileInfoSheet extends StatelessWidget {
         ? (entity.sha256.length > 16 ? '${entity.sha256.substring(0, 16)}…' : entity.sha256)
         : 'Not computed';
 
-    return SafeArea(
+    final content = SafeArea(
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -71,6 +100,7 @@ class AttachmentFileInfoSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (!isDesktop && !isInInspector) const AdaptiveSheetDragHandle(),
               // 1. Header
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -104,6 +134,12 @@ class AttachmentFileInfoSheet extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (isInInspector || isDesktop)
+                    QuietIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: 'Close',
+                      onPressed: handleClose,
+                    ),
                 ],
               ),
 
@@ -141,6 +177,15 @@ class AttachmentFileInfoSheet extends StatelessWidget {
         ),
       ),
     );
+
+    if (isInInspector) {
+      return Container(
+        constraints: const BoxConstraints.expand(),
+        color: colors.surface,
+        child: content,
+      );
+    }
+    return content;
   }
 
   String _formatBytes(int bytes) {

@@ -9,7 +9,11 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../features/editor/presentation/active_inspector_provider.dart';
 import '../../database/app_database.dart';
+import '../../utils/platform_layout_helper.dart';
+import '../../widgets/quiet_adaptive_modal.dart';
+import '../../widgets/quiet_icon_button.dart';
 import '../attachment_capability_resolver.dart';
 import '../attachment_icon_resolver.dart';
 import '../attachment_models.dart';
@@ -18,7 +22,7 @@ import '../attachment_provider.dart';
 import '../attachment_type_resolver.dart';
 import 'attachment_viewer_screen.dart';
 
-/// Modal bottom sheet displaying detailed metadata and actions for an attachment.
+/// Modal bottom sheet or right inspector pane displaying detailed metadata and actions for an attachment.
 class AttachmentDetailsSheet extends ConsumerStatefulWidget {
   const AttachmentDetailsSheet({
     super.key,
@@ -26,12 +30,14 @@ class AttachmentDetailsSheet extends ConsumerStatefulWidget {
     required this.initialEntity,
     this.onRenamed,
     this.onDeleted,
+    this.onClose,
   });
 
   final String attachmentId;
   final AttachmentEntity? initialEntity;
   final void Function(String newName)? onRenamed;
   final VoidCallback? onDeleted;
+  final VoidCallback? onClose;
 
   static Future<void> show(
     BuildContext context, {
@@ -40,14 +46,26 @@ class AttachmentDetailsSheet extends ConsumerStatefulWidget {
     void Function(String newName)? onRenamed,
     VoidCallback? onDeleted,
   }) {
-    final colors = context.appColors;
-    return showModalBottomSheet(
+    if (PlatformLayoutHelper.isWidescreen(context)) {
+      try {
+        final container = ProviderScope.containerOf(context, listen: false);
+        container.read(activeInspectorProvider.notifier).openAttachmentDetails(
+          attachmentId: attachmentId,
+          initialEntity: initialEntity,
+          onRenamed: onRenamed,
+          onDeleted: onDeleted,
+        );
+        return Future.value();
+      } catch (_) {
+        // Fallback to dialog
+      }
+    }
+
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 480,
       builder: (ctx) => AttachmentDetailsSheet(
         attachmentId: attachmentId,
         initialEntity: initialEntity,
@@ -80,8 +98,16 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
     }
   }
 
+  void _closeSheet() {
+    if (widget.onClose != null) {
+      widget.onClose!();
+    } else if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _handlePreview() async {
-    Navigator.of(context).pop();
+    _closeSheet();
     await AttachmentViewerScreen.open(
       context,
       attachmentId: widget.attachmentId,
@@ -90,7 +116,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
   }
 
   Future<void> _handleOpen() async {
-    Navigator.of(context).pop();
+    _closeSheet();
     final openService = ref.read(attachmentOpenServiceProvider);
     final res = await openService.openAttachment(
       widget.attachmentId,
@@ -107,7 +133,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
   }
 
   Future<void> _handleShare() async {
-    Navigator.of(context).pop();
+    _closeSheet();
     final shareService = ref.read(attachmentShareServiceProvider);
     final success = await shareService.shareAttachment(
       widget.attachmentId,
@@ -162,7 +188,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
           await f.writeAsBytes(resolution.data!, flush: true);
         }
         if (mounted) {
-          Navigator.of(context).pop();
+          _closeSheet();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Saved: ${p.basename(selectedPath)}'),
@@ -182,7 +208,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
       await targetFile.writeAsBytes(resolution.data!, flush: true);
 
       if (mounted) {
-        Navigator.of(context).pop();
+        _closeSheet();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Saved to ${targetFile.path}'),
@@ -257,7 +283,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
       widget.onRenamed?.call(newName);
       setState(() => _isLoading = false);
       if (mounted) {
-        Navigator.of(context).pop();
+        _closeSheet();
       }
     }
   }
@@ -295,7 +321,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
       await service.deleteAttachment(widget.attachmentId);
       widget.onDeleted?.call();
       if (mounted) {
-        Navigator.of(context).pop();
+        _closeSheet();
       }
     }
   }
@@ -303,6 +329,8 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isInInspector = widget.onClose != null;
     final entity = _entity;
     final fileName = entity?.fileName ?? 'attachment';
     final mimeType = entity?.mimeType ?? 'application/octet-stream';
@@ -320,7 +348,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
         ? '${entity!.sha256.substring(0, 12)}…'
         : 'Not computed';
 
-    return SafeArea(
+    final content = SafeArea(
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -331,6 +359,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (!isDesktop && !isInInspector) const AdaptiveSheetDragHandle(),
               // 1. Header with file icon and filename
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -364,6 +393,12 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
                       ],
                     ),
                   ),
+                  if (isInInspector || isDesktop)
+                    QuietIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: 'Close',
+                      onPressed: _closeSheet,
+                    ),
                 ],
               ),
 
@@ -435,6 +470,15 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
         ),
       ),
     );
+
+    if (isInInspector) {
+      return Container(
+        constraints: const BoxConstraints.expand(),
+        color: colors.surface,
+        child: content,
+      );
+    }
+    return content;
   }
 
   String _formatBytes(int bytes) {

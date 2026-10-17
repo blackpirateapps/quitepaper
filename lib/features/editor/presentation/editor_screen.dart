@@ -96,6 +96,8 @@ import '../../../core/speech/presentation/speech_download_dialog.dart';
 import '../../../core/speech/presentation/speech_recording_bar.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import 'widgets/editor_quick_actions_bar.dart';
+import 'active_inspector_provider.dart';
+import 'widgets/editor_inspector_pane.dart';
 
 enum _OverflowMenuPage { main, insert, share, privacy, editorStyle }
 
@@ -260,6 +262,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void didUpdateWidget(EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.note.id != widget.note.id) {
+      ref.read(activeInspectorProvider.notifier).close();
       _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
       _lastAutoDerivedTitle = widget.note.title.isEmpty
           ? Note.deriveTitle(widget.note.content)
@@ -1524,6 +1527,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void dispose() {
     try {
+      ref.read(activeInspectorProvider.notifier).close();
+    } catch (_) {}
+    try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
     } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
@@ -1895,9 +1901,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 if (isDesktop)
                   _buildToolbarOrSpeechBar(isTopDocked: true),
                 Expanded(
-                  child: PullDownSearchReveal(
-                    enabled: defaultSettings.swipeToSearchEditor,
-                    hintText: 'Find in note',
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: PullDownSearchReveal(
+                          enabled: defaultSettings.swipeToSearchEditor,
+                          hintText: 'Find in note',
                     onOpenSearch: () {
                       if (!_isSearchVisible) {
                         _openSearch();
@@ -2116,6 +2126,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         ),
                       ),
                     ),
+                  ),
+                ),
+                      if (PlatformLayoutHelper.isWidescreen(context) &&
+                          ref.watch(activeInspectorProvider).isOpen)
+                        const EditorInspectorPane(),
+                    ],
                   ),
                 ),
 

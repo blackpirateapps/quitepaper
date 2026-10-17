@@ -37,4 +37,10 @@ class PlatformLayoutHelper {
   static bool isDesktopEditor(BuildContext context) {
     return isDesktop(context);
   }
+
+  /// Whether the screen is wide enough on desktop for multi-pane layouts (e.g. right inspector pane).
+  /// Defaults to 1100dp breakpoint.
+  static bool isWidescreen(BuildContext context, [double breakpoint = 1100]) {
+    return isDesktop(context) && MediaQuery.of(context).size.width >= breakpoint;
+  }
 }

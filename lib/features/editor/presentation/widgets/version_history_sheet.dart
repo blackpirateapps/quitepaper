@@ -6,13 +6,16 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/application/notes_provider.dart';
 import '../../../notes/domain/note_model.dart';
 import '../../../notes/domain/note_version_model.dart';
+import '../active_inspector_provider.dart';
 
-/// Bottom sheet displaying the chronological version history of a note
+/// Bottom sheet or right inspector pane displaying the chronological version history of a note
 /// with visual diffs and non-destructive version restoration.
 class VersionHistorySheet extends ConsumerStatefulWidget {
   const VersionHistorySheet({
@@ -22,6 +25,7 @@ class VersionHistorySheet extends ConsumerStatefulWidget {
     required this.currentContent,
     required this.currentTags,
     required this.onRestoreVersion,
+    this.onClose,
   });
 
   final Note note;
@@ -29,6 +33,7 @@ class VersionHistorySheet extends ConsumerStatefulWidget {
   final String currentContent;
   final List<String> currentTags;
   final Future<void> Function(NoteVersion version) onRestoreVersion;
+  final VoidCallback? onClose;
 
   static Future<void> show(
     BuildContext context, {
@@ -38,10 +43,27 @@ class VersionHistorySheet extends ConsumerStatefulWidget {
     required List<String> currentTags,
     required Future<void> Function(NoteVersion version) onRestoreVersion,
   }) {
-    return showModalBottomSheet(
+    if (PlatformLayoutHelper.isWidescreen(context)) {
+      try {
+        final container = ProviderScope.containerOf(context, listen: false);
+        container.read(activeInspectorProvider.notifier).openVersionHistory(
+          note: note,
+          currentTitle: currentTitle,
+          currentContent: currentContent,
+          currentTags: currentTags,
+          onRestoreVersion: onRestoreVersion,
+        );
+        return Future.value();
+      } catch (_) {
+        // Fallback to dialog if outside ProviderScope
+      }
+    }
+
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 540,
       builder: (_) => VersionHistorySheet(
         note: note,
         currentTitle: currentTitle,
@@ -62,28 +84,28 @@ class _VersionHistorySheetState extends ConsumerState<VersionHistorySheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isInInspector = widget.onClose != null;
     final repository = ref.watch(notesRepositoryProvider);
     final size = MediaQuery.of(context).size;
 
     return Container(
-      constraints: BoxConstraints(maxHeight: size.height * 0.85),
+      constraints: isInInspector
+          ? const BoxConstraints.expand()
+          : (isDesktop
+              ? const BoxConstraints(maxHeight: 640)
+              : BoxConstraints(maxHeight: size.height * 0.85)),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+        borderRadius: (isInInspector || isDesktop)
+            ? BorderRadius.zero
+            : const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Drag handle
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: colors.divider,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          if (!isDesktop) const AdaptiveSheetDragHandle(),
 
           // Header
           Padding(
@@ -113,7 +135,13 @@ class _VersionHistorySheetState extends ConsumerState<VersionHistorySheet> {
                 QuietIconButton(
                   icon: Icons.close_rounded,
                   tooltip: 'Close',
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    if (widget.onClose != null) {
+                      widget.onClose!();
+                    } else {
+                      Navigator.of(context).pop();
+                    }
+                  },
                 ),
               ],
             ),
@@ -335,7 +363,11 @@ class _VersionHistorySheetState extends ConsumerState<VersionHistorySheet> {
                   );
 
                   if (confirm == true && context.mounted) {
-                    Navigator.of(context).pop();
+                    if (widget.onClose != null) {
+                      widget.onClose!();
+                    } else {
+                      Navigator.of(context).pop();
+                    }
                     await widget.onRestoreVersion(version);
                   }
                 },
