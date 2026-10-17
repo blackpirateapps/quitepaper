@@ -11,6 +11,8 @@ import 'ocr_crypto.dart';
 import 'ocr_models.dart';
 import 'ocr_search_service.dart';
 import 'ocr_service.dart';
+import 'ollama_ocr_service.dart';
+import 'ollama_ocr_settings.dart';
 
 /// Notifier managing persisted user OCR language preference.
 class OcrLanguagePreferenceNotifier extends StateNotifier<OcrLanguage> {
@@ -58,10 +60,27 @@ final pdfPageRendererProvider = Provider<PdfPageRenderer>((ref) {
   return const DefaultPdfPageRenderer();
 });
 
+/// Provider for local Ollama OCR service on desktop platforms.
+final ollamaOcrServiceProvider = Provider<OllamaOcrService?>((ref) {
+  final settings = ref.watch(ollamaOcrSettingsProvider);
+  if (!settings.enabled) return null;
+
+  final renderer = ref.watch(pdfPageRendererProvider);
+  return OllamaOcrService(
+    endpoint: settings.endpoint,
+    model: settings.model,
+    pageRenderer: renderer,
+  );
+});
+
 /// Provider for on-device OCR recognition engine.
 final ocrServiceProvider = Provider<OcrService>((ref) {
   final renderer = ref.watch(pdfPageRendererProvider);
-  return DefaultOcrService(pageRenderer: renderer);
+  final ollamaService = ref.watch(ollamaOcrServiceProvider);
+  return DefaultOcrService(
+    pageRenderer: renderer,
+    ollamaOcrService: ollamaService,
+  );
 });
 
 /// Provider for client-side authenticated OCR payload encryption.

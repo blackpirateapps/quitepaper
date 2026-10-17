@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/ocr/ollama_ocr_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
@@ -381,6 +384,284 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       context,
       taskType: MaintenanceTaskType.rebuildSearchIndex,
     );
+  }
+
+  Future<void> _showEditEndpointDialog(
+    BuildContext context,
+    String currentEndpoint,
+  ) async {
+    final colors = context.appColors;
+    final textController = TextEditingController(text: currentEndpoint);
+
+    final newEndpoint = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: Text(
+            'Ollama Endpoint URL',
+            style: AppTypography.headline.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter the local or network HTTP address of your Ollama daemon.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: textController,
+                autofocus: true,
+                style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'http://127.0.0.1:11434',
+                  hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
+                  filled: true,
+                  fillColor: colors.surfaceElevated,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                    borderSide: BorderSide(color: colors.divider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                    borderSide: BorderSide(color: colors.accent, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final trimmed = textController.text.trim();
+                if (trimmed.isNotEmpty) {
+                  Navigator.of(dialogContext).pop(trimmed);
+                }
+              },
+              child: Text(
+                'Save',
+                style: AppTypography.bodySmallMedium.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newEndpoint != null && newEndpoint.isNotEmpty && context.mounted) {
+      await ref.read(ollamaOcrSettingsProvider.notifier).setEndpoint(newEndpoint);
+    }
+  }
+
+  Future<void> _showSelectModelDialog(
+    BuildContext context,
+    String currentModel,
+    List<String> availableModels,
+  ) async {
+    final colors = context.appColors;
+    final textController = TextEditingController(text: currentModel);
+
+    final candidateModels = <String>{
+      ...availableModels,
+      'deepseek-ocr',
+      'deepseek-ocr:latest',
+      'hf.co/ggml-org/DeepSeek-OCR-GGUF:latest',
+      if (currentModel.isNotEmpty) currentModel,
+    }.toList();
+
+    String selected = currentModel;
+
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: colors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              title: Text(
+                'Select OCR Model',
+                style: AppTypography.headline.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose an installed Ollama model or specify a custom tag:',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: candidateModels.map((m) {
+                            final isCur = selected == m;
+                            return InkWell(
+                              onTap: () {
+                                setDialogState(() {
+                                  selected = m;
+                                  textController.text = m;
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(8.0),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                  vertical: 8.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      isCur
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_unchecked,
+                                      size: 18,
+                                      color: isCur
+                                          ? colors.accent
+                                          : colors.textTertiary,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        m,
+                                        style: AppTypography.bodySmall.copyWith(
+                                          color: isCur
+                                              ? colors.accent
+                                              : colors.textPrimary,
+                                          fontWeight: isCur
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Custom model identifier:',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: textController,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'deepseek-ocr',
+                        hintStyle: AppTypography.bodySmall.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                        filled: true,
+                        fillColor: colors.surfaceElevated,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: colors.divider),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: colors.accent, width: 1.5),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selected = val.trim();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: AppTypography.bodySmallMedium.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final chosenModel = textController.text.trim();
+                    if (chosenModel.isNotEmpty) {
+                      Navigator.of(dialogContext).pop(chosenModel);
+                    }
+                  },
+                  child: Text(
+                    'Select',
+                    style: AppTypography.bodySmallMedium.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (chosen != null && chosen.isNotEmpty && context.mounted) {
+      await ref.read(ollamaOcrSettingsProvider.notifier).setModel(chosen);
+    }
   }
 
   @override
@@ -1166,6 +1447,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 const SizedBox(height: 24),
 
                 // ==========================================
+                // Section: Desktop OCR (Ollama)
+                // ==========================================
+                if (!kIsWeb &&
+                    (Platform.isLinux ||
+                        Platform.isMacOS ||
+                        Platform.isWindows)) ...[
+                  _buildSectionHeader(context, 'Desktop OCR (Ollama)'),
+                  _buildOllamaOcrSection(context, colors),
+                  const SizedBox(height: 24),
+                ],
+
+                // ==========================================
                 // Section: Import
                 // ==========================================
                 _buildSectionHeader(context, 'Import'),
@@ -1507,6 +1800,110 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOllamaOcrSection(BuildContext context, AppColors colors) {
+    final ollamaSettings = ref.watch(ollamaOcrSettingsProvider);
+
+    String statusText;
+    Color statusColor;
+    switch (ollamaSettings.status) {
+      case OllamaConnectionStatus.connected:
+        statusText = 'Connected • ${ollamaSettings.model}';
+        statusColor = const Color(0xFF2E7D32);
+        break;
+      case OllamaConnectionStatus.checking:
+        statusText = 'Checking daemon connection…';
+        statusColor = colors.accent;
+        break;
+      case OllamaConnectionStatus.disconnected:
+      case OllamaConnectionStatus.error:
+        statusText = 'Ollama offline (${ollamaSettings.endpoint})';
+        statusColor = colors.error;
+        break;
+      case OllamaConnectionStatus.initial:
+        statusText = 'Status unverified';
+        statusColor = colors.textSecondary;
+        break;
+    }
+
+    return _SettingsGroup(
+      children: [
+        _SettingsRow(
+          icon: Icons.memory_rounded,
+          title: 'Use Local Ollama OCR',
+          subtitle:
+              'Transcribe documents and attachments using local DeepSeek-OCR without cloud upload',
+          trailing: CupertinoSwitch(
+            value: ollamaSettings.enabled,
+            activeTrackColor: colors.accent,
+            onChanged: (v) =>
+                ref.read(ollamaOcrSettingsProvider.notifier).setEnabled(v),
+          ),
+        ),
+        if (ollamaSettings.enabled) ...[
+          _buildDivider(colors),
+          _SettingsRow(
+            icon: Icons.sensors_rounded,
+            iconColor: statusColor,
+            title: 'Daemon Status',
+            subtitle: statusText,
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              color: colors.textSecondary,
+              tooltip: 'Check Connection',
+              onPressed: () async {
+                final success = await ref
+                    .read(ollamaOcrSettingsProvider.notifier)
+                    .checkConnection();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    persist: false,
+                    content: Text(
+                      success
+                          ? 'Connected to Ollama! Found ${ref.read(ollamaOcrSettingsProvider).availableModels.length} models.'
+                          : 'Unable to connect to Ollama at ${ollamaSettings.endpoint}.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          ),
+          _buildDivider(colors),
+          _SettingsRow(
+            icon: Icons.link_rounded,
+            title: 'Ollama Endpoint',
+            subtitle: ollamaSettings.endpoint,
+            trailing: Icon(
+              CupertinoIcons.chevron_forward,
+              size: 14,
+              color: colors.textTertiary,
+            ),
+            onTap: () =>
+                _showEditEndpointDialog(context, ollamaSettings.endpoint),
+          ),
+          _buildDivider(colors),
+          _SettingsRow(
+            icon: Icons.auto_awesome_rounded,
+            title: 'OCR Model',
+            subtitle: ollamaSettings.model,
+            trailing: Icon(
+              CupertinoIcons.chevron_forward,
+              size: 14,
+              color: colors.textTertiary,
+            ),
+            onTap: () => _showSelectModelDialog(
+              context,
+              ollamaSettings.model,
+              ollamaSettings.availableModels,
+            ),
+          ),
+        ],
+      ],
     );
   }
 

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../image_processing/image_processor.dart';
 import '../pdf/pdf_page_renderer.dart';
 import 'ocr_models.dart';
+import 'ollama_ocr_service.dart';
 
 /// Abstract contract for on-device Optical Character Recognition.
 abstract class OcrService {
@@ -32,10 +33,12 @@ class DefaultOcrService implements OcrService {
   const DefaultOcrService({
     PdfPageRenderer? pageRenderer,
     this.enableMlKit = true,
+    this.ollamaOcrService,
   }) : _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer();
 
   final PdfPageRenderer _pageRenderer;
   final bool enableMlKit;
+  final OllamaOcrService? ollamaOcrService;
 
   @override
   Future<OcrPage> recognizePage(
@@ -64,7 +67,28 @@ class DefaultOcrService implements OcrService {
       }
     }
 
-    // 2. Pure Dart CV Fallback (for host testing, desktop VMs, or offline ML Kit fallback)
+    // 2. On Desktop (Linux/macOS/Windows), attempt Ollama OCR if configured/available
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.windows)) {
+      if (ollamaOcrService != null) {
+        try {
+          final ollamaResult = await ollamaOcrService!.recognizePage(
+            imageBytes,
+            pageNumber: pageNumber,
+            language: language,
+          );
+          if (ollamaResult.plainText.isNotEmpty) {
+            return ollamaResult;
+          }
+        } catch (e) {
+          debugPrint('[QuietPaper OCR] Ollama OCR failed or unavailable: $e. Falling back to local CV.');
+        }
+      }
+    }
+
+    // 3. Pure Dart CV Fallback (for host testing, desktop VMs, or offline fallback)
     debugPrint('[QuietPaper OCR] Using Computer Vision fallback for page $pageNumber');
     return _recognizeWithCvFallback(
       imageBytes,
@@ -299,6 +323,22 @@ class DefaultOcrService implements OcrService {
     required String documentId,
     OcrLanguage language = OcrLanguage.english,
   }) async {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.windows) &&
+        ollamaOcrService != null) {
+      try {
+        return await ollamaOcrService!.recognizeDocument(
+          pdfBytes,
+          documentId: documentId,
+          language: language,
+        );
+      } catch (e) {
+        debugPrint('[QuietPaper OCR] Ollama recognizeDocument failed: $e. Falling back to local CV.');
+      }
+    }
+
     final renderedPages = await _pageRenderer.renderPages(pdfBytes, dpi: 150.0);
     final ocrPages = <OcrPage>[];
 

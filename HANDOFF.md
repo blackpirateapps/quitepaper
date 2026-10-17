@@ -8911,6 +8911,40 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
   - All 47 tests across editor, scrollbar, toolbar, and modal suites pass.
   - `flutter analyze` reports **0 issues found**.
 
+---
+
+## 199. Desktop Ollama OCR (DeepSeek-OCR) Integration & Settings Overhaul (October 2026)
+
+- **Motivation & Background**:
+  - Quiet Paper previously utilized Google ML Kit (`google_mlkit_text_recognition`) on Android/iOS, which lacks native desktop support (Linux, macOS, Windows). Desktop builds previously fell back to a heuristic pure-Dart computer-vision line segmentation routine that lacked actual character transcription.
+  - Furthermore, ML Kit struggles with complex multi-column layouts, tables, and formatted mathematical text, whereas modern Vision-Language Models like DeepSeek-OCR offer human-grade document-to-Markdown recognition while preserving zero-knowledge offline privacy when executed locally.
+- **Architectural Enhancements**:
+  1. [`OllamaOcrService`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_service.dart):
+     - Implements [`OcrService`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_service.dart) for desktop targets.
+     - Interacts with local Ollama daemon via `POST /api/generate` with Base64 image payload, target model (`deepseek-ocr`), and Markdown transcription prompt (`<|grounding|>Convert the document to markdown.`).
+     - Maps Markdown responses into structured `OcrPage` containing single full-page `OcrBlock` (`NormalizedRect(x: 0.05, y: 0.05, width: 0.90, height: 0.90)`), enabling full-text search indexing and formatted copying while bypassing word-level highlight snapping.
+  2. [`OllamaOcrSettings` & `OllamaOcrSettingsNotifier`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_settings.dart):
+     - Manages persisted settings in `SharedPreferences` (`quietpaper_ollama_ocr_enabled`, `quietpaper_ollama_ocr_endpoint`, `quietpaper_ollama_ocr_model`).
+     - Features `checkConnection()` querying `GET /api/tags` with 5-second timeout, discovering locally installed models (e.g., `deepseek-ocr:latest`, `hf.co/ggml-org/DeepSeek-OCR-GGUF:latest`).
+  3. [`DefaultOcrService` Delegation & Fallback](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_service.dart):
+     - Mobile platforms (Android/iOS) continue using hardware-accelerated Google ML Kit.
+     - Desktop platforms (Linux/macOS/Windows) delegate to `OllamaOcrService` when enabled and reachable.
+     - On connection failure, daemon timeout, or disabled state, smoothly and quietly falls back to computer-vision fallback without throwing unhandled exceptions.
+  4. [`SettingsScreen` Desktop OCR Section](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart):
+     - Added dedicated `DESKTOP OCR (OLLAMA)` grouped table section visible on desktop platforms.
+     - Features:
+       - "Use Local Ollama OCR" toggle (`CupertinoSwitch`).
+       - Live Daemon Status with status color indicator (Green: Connected, Amber: Checking, Red: Offline) and refresh icon button to trigger on-demand ping with feedback SnackBar.
+       - Tappable "Ollama Endpoint" row opening editorial URL editor dialog.
+       - Tappable "OCR Model" row opening model selector dialog listing discovered Ollama models plus custom model entry.
+- **Verification & Test Coverage**:
+  - Unit tests in [`test/ocr/ollama_ocr_service_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_ocr_service_test.dart): Verified payload generation, markdown mapping, HTTP error handling, document multi-page rasterization, and fallback delegation.
+  - Unit tests in [`test/ocr/ollama_ocr_settings_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_ocr_settings_test.dart): Verified preferences persistence, defaults, and `/api/tags` connection checks.
+  - Widget tests in [`test/settings/desktop_ollama_ocr_settings_test.dart`](file:///home/dog/git/quitepaper/test/settings/desktop_ollama_ocr_settings_test.dart): Verified desktop section rendering, switch toggling, endpoint edit dialog, and model selector dialog.
+  - Zero warnings or errors in static analysis (`flutter analyze` clean).
+  - All OCR and Settings tests pass with 100% success.
+
+
 
 
 
