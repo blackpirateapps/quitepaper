@@ -7,6 +7,7 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../../core/markdown/markdown_helper.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../application/markdown_editing_controller.dart';
 import '../../application/markdown_formatter.dart';
@@ -709,30 +710,16 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         _handleInsertSelection(selected);
       }
     } else {
-      // Mobile bottom action sheet
-      final selected = await showModalBottomSheet<String>(
+      // Mobile bottom action sheet or adaptive fallback
+      final selected = await QuietAdaptiveModal.show<String>(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: colors.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-        ),
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+        type: AdaptiveModalType.popover,
+        anchorKey: _insertButtonKey,
         builder: (ctx) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: const BorderRadius.all(Radius.circular(2)),
-                  ),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
                 child: Row(

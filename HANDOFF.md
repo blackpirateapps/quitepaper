@@ -8876,6 +8876,24 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
   - Verified regression safety with all 5 adaptive modal test suites passing (**27 of 27 tests passed**).
   - Static analysis: `flutter analyze` reports **0 issues found**.
 
+---
+
+## 197. Desktop Adaptive Modals: Comprehensive Verification & 100% Migration Milestone (Phase 6) (October 2026)
+
+- **Exhaustive Migration Milestone**:
+  - Successfully audited all 41 modal occurrences across the entire codebase.
+  - Migrated the final mobile insert sheet in [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart) to `QuietAdaptiveModal.show` with `AdaptiveSheetDragHandle()`.
+  - Result: There are now **zero** raw `showModalBottomSheet` calls anywhere in the product code outside of the core `QuietAdaptiveModal` routing abstraction itself.
+- **Architectural Parity Across All 4 Paradigms**:
+  1. **Context Popovers (`AdaptiveModalType.popover`)**: Editor 3-dot overflow menu, toolbar pickers (heading levels, table actions, insert items, formatting hub), note list tile actions, sidebar menus, tag color pickers, and place action sheets.
+  2. **Spotlight Command Palettes (`AdaptiveModalType.spotlight`)**: Note link picker, syntax language selector, tag browser, typography/font selector, Google Fonts browser, tag icon picker, and journal metadata pickers (activity, moment, mood, place).
+  3. **Centered Editorial Dialogs (`AdaptiveModalType.dialog`)**: Export note sheet, notes sort sheet, notes query filter sheet, saved filters sheet, share note sheet, manage shares screen, device details sheet, web clip preview sheet, and document scanner page adjustment sheet.
+  4. **Multi-Pane Right Inspector (`AdaptiveModalType.inspector`)**: Version history & diff sheet, attachment details & action sheet, and attachment file info sheet docking on widescreen displays ($\ge 1100\text{dp}$) beside the active editor.
+- **Verification & Test Coverage**:
+  - Zero warnings or errors in static analysis (`flutter analyze` clean).
+  - 100% passing across the entire test suite including all modal test suites (`quiet_adaptive_modal_test.dart`, `context_popover_test.dart`, `spotlight_palette_test.dart`, `editorial_dialog_test.dart`, `inspector_pane_test.dart`, `formatting_toolbar_test.dart`, `desktop_toolbar_and_shortcuts_test.dart`, and `editor_overflow_menu_test.dart`).
+
+
 
 
 
