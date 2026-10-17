@@ -94,6 +94,7 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
 
   double _pullOffset = 0.0;
   double _slideBeginOffset = 0.0;
+  double _viewportHeight = 800.0;
 
   /// Whether the *current* drag gesture is allowed to pull. Set on
   /// [ScrollStartNotification] and cleared when the gesture ends.
@@ -107,6 +108,7 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
   bool _isSearchActive = false;
 
   bool get isSearchActive => _isSearchActive;
+  double get pullOffset => _pullOffset;
 
   @override
   void initState() {
@@ -194,16 +196,23 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
     }
 
     setState(() {
-      final double progress =
-          (_pullOffset / widget.effectiveMaxPullOffset).clamp(0.0, 1.0);
-      final double resistance = 0.85 * (1.0 - (progress * 0.5));
-      _pullOffset = math.max(
-        0.0,
-        math.min(
-          widget.effectiveMaxPullOffset,
-          _pullOffset + (rawDeltaY * resistance),
-        ),
-      );
+      if (widget.searchViewBuilder != null) {
+        // Direct 1:1 sliding card mechanics (like sliding a card out from a deck)
+        final double maxOffset = widget.maxPullOffset ?? _viewportHeight;
+        _pullOffset = math.max(0.0, math.min(maxOffset, _pullOffset + rawDeltaY));
+      } else {
+        // Fallback rubber-band mode for single search bar reveal (e.g. editor find-in-note)
+        final double progress =
+            (_pullOffset / widget.effectiveMaxPullOffset).clamp(0.0, 1.0);
+        final double resistance = rawDeltaY > 0 ? 0.85 * (1.0 - (progress * 0.5)) : 1.0;
+        _pullOffset = math.max(
+          0.0,
+          math.min(
+            widget.effectiveMaxPullOffset,
+            _pullOffset + (rawDeltaY * resistance),
+          ),
+        );
+      }
 
       if (_pullOffset >= widget.effectiveThreshold && !_hasTriggeredHaptic) {
         HapticFeedback.lightImpact();
@@ -269,20 +278,19 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
       _committed = false;
     } else if (notification is ScrollUpdateNotification) {
       // Phase 2 — accumulate finger delta while armed at the top boundary.
-      if (_armed &&
-          notification.dragDetails != null &&
-          notification.metrics.pixels <= 0) {
+      if (_armed && notification.dragDetails != null) {
         final double delta = notification.dragDetails!.delta.dy;
-        if (delta > 0) {
+        // If the inner list is scrolled down into items and no card pull is active, disarm.
+        if (notification.metrics.pixels > 0 && _pullOffset == 0.0) {
+          _armed = false;
+        } else if (_pullOffset > 0.0 || (notification.metrics.pixels <= 0 && delta > 0)) {
           _onPullDelta(delta);
         }
       }
     } else if (notification is OverscrollNotification) {
-      if (_armed &&
-          notification.dragDetails != null &&
-          notification.overscroll < 0) {
+      if (_armed && notification.dragDetails != null) {
         final double delta = notification.dragDetails!.delta.dy;
-        if (delta > 0) {
+        if (_pullOffset > 0.0 || (notification.overscroll < 0 && delta > 0)) {
           _onPullDelta(delta);
         }
       }
@@ -308,6 +316,7 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
         final double viewportHeight = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : MediaQuery.sizeOf(context).height;
+        _viewportHeight = viewportHeight;
 
         double translation;
         if (_slideController.isAnimating) {

@@ -348,5 +348,100 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets(
+        'dragging down past threshold then dragging back up below threshold cancels search',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-cancel-note',
+          title: 'Cancel Drag Note',
+          content: 'Dragging back up should cancel search.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cancel Drag Note'), findsOneWidget);
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Start drag at rest from top
+      final gesture = await tester.startGesture(tester.getCenter(find.text('Cancel Drag Note')));
+      // Drag down in small steps past threshold
+      for (int i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, 25));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      // At this point, pull offset has exceeded threshold and SearchScreen underlay is rendering
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      // Now drag back up towards top
+      for (int i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, -25));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      // Release finger
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // SearchScreen must NOT remain open! It should spring back and close
+      expect(find.byType(SearchScreen), findsNothing);
+      expect(find.text('Cancel Drag Note'), findsOneWidget);
+
+      await finishTest(tester);
+    });
+
+    testWidgets(
+        'pulling down past 180px continues tracking smoothly without getting stuck',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-card-deck-note',
+          title: 'Card Deck Note',
+          content: 'Should slide down freely without getting stuck at 180px.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Card Deck Note'), findsOneWidget);
+
+      // Start drag at rest from top
+      final gesture = await tester.startGesture(tester.getCenter(find.text('Card Deck Note')));
+      // Drag down 300px in steps
+      for (int i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(0, 25));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      final state = tester.state<PullDownSearchRevealState>(find.byType(PullDownSearchReveal));
+      // Offset should have tracked past the former 180px ceiling
+      expect(state.pullOffset, greaterThan(220.0));
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Because released well past threshold, SearchScreen opens fully
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      await finishTest(tester);
+    });
   });
 }

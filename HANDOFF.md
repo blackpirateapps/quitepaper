@@ -9136,38 +9136,39 @@ When pulling down to search at the top of the notes list, users previously exper
 
 ### 2. Architectural Solution
 1. **In-Place Search View Underlay (`PullDownSearchReveal`)**:
-   - `PullDownSearchReveal` now supports an optional `SearchViewBuilder` placed in a `Stack` directly behind the sliding content.
-   - During the pull-down gesture (`_pullOffset > 0`), the full `SearchScreen` header block (AppBar with Back and New Note buttons + large editorial "Search" title + 50dp search bar) sits stationary at the top behind the sliding notes list.
+   - `PullDownSearchReveal` supports an in-place `SearchViewBuilder` placed in a `Stack` directly behind the sliding content.
+   - During the pull-down gesture (`_pullOffset > 0`), the full `SearchScreen` header block (AppBar with Back and New Note buttons + large editorial "Search" title + 50dp search bar) sits stationary behind the sliding notes list.
    - Sliding down the notes list physically unveils the exact search interface that rests behind it.
-2. **Zero-Lag Slide Transition on Commit**:
-   - When releasing past `effectiveThreshold` (120dp for full search view unveil, 96dp for compact editor inline find), the notes list does **not** spring back to 0.
-   - Instead, `_slideController` smoothly animates the notes content down and off-screen (from `_pullOffset` to viewport height over 240ms with `Curves.easeOutCubic`).
-   - `SearchScreen` immediately takes full view in-place.
-   - The search input receives immediate focus (`_searchFocusNode.requestFocus()`), raising the software keyboard instantly with zero route delay.
-3. **Subtle Tactile & Visual Feedback**:
-   - When `_pullOffset >= effectiveThreshold`, a light haptic tick (`HapticFeedback.lightImpact()`) triggers.
-   - The search field's border illuminates with a subtle accent border glow (`colors.accent.withValues(alpha: 0.6)`) and soft shadow, providing a calm, minimalist editorial indicator without an intrusive text badge.
-4. **Clean Dismissal**:
-   - Tapping Back (`←`) on `SearchScreen` or triggering the Android system back gesture (`PopScope`) reverses `_slideController`, smoothly sliding the notes list back up from off-screen to `y = 0` and unmounting the search underlay.
+2. **"Card Sliding from a Deck" Gesture Dynamics**:
+   - Direct 1:1 finger tracking: Rather than an artificial ceiling (previously 180dp) with decaying rubber-band resistance, pulling down on the notes list translates the card 1:1 with finger travel up to viewport height. The content never gets stuck or hits an unnatural wall.
+   - Bidirectional finger tracking: If the user changes direction mid-drag and slides their finger upwards (`delta < 0`), the notes list tracks the upward finger movement 1:1 back towards the top.
+   - Gesture Cancellation on Upward Return: If the card is pushed back up below `effectiveThreshold` (120dp), `isPastThreshold` reverts to false and the tactile haptic state resets. Releasing below threshold (or after pushing the card fully back) smoothly springs the notes list back to 0 without opening search.
+3. **Zero-Lag Slide Transition on Commit**:
+   - When releasing past `effectiveThreshold` (120dp), the notes list continues sliding smoothly off-screen (`_slideController` translates from `_pullOffset` to viewport height over 240ms with `Curves.easeOutCubic`).
+   - `SearchScreen` takes full view in-place and search input receives immediate focus (`_searchFocusNode.requestFocus()`) with zero route delay.
+4. **Tactile & Visual Feedback**:
+   - When `_pullOffset >= effectiveThreshold`, a light haptic tick (`HapticFeedback.lightImpact()`) triggers. If pulled back below threshold, `_hasTriggeredHaptic` resets so re-crossing threshold delivers consistent feedback.
+   - The search field's border illuminates with an accent border glow (`colors.accent.withValues(alpha: 0.6)`) and soft shadow while past threshold.
+5. **Clean Dismissal**:
+   - Tapping Back (`←`) on `SearchScreen` or triggering the Android system back gesture (`PopScope`) reverses `_slideController`, smoothly sliding the notes list back up from off-screen to `y = 0`.
    - Releasing before the threshold smoothly springs the notes list back up to resting position.
-5. **Universal Tablet & Phone Integration**:
+6. **Universal Tablet & Phone Integration**:
    - On phone: Unveils full-screen search view under the phone Scaffold.
    - On tablet: Preserves `const ValueKey('tablet_notes_list')` for AnimatedSwitcher and unveils `SearchScreen` inside the middle pane, allowing note selection directly into the right editor pane.
    - In editor: Preserves the compact inline find-in-note preview bar (`hintText: 'Find in note'`).
 
 ### 3. File Inventory
 - **Modified Files**:
-  - `lib/features/notes/presentation/widgets/pull_down_search_reveal.dart`: Added `searchViewBuilder`, `onStateCreated`, `_slideController` for continuous slide-down on commit, `openSearch()`, and `closeSearch()`.
+  - `lib/features/notes/presentation/widgets/pull_down_search_reveal.dart`: Added `searchViewBuilder`, `onStateCreated`, `_slideController` for continuous slide-down on commit, `openSearch()`, `closeSearch()`, 1:1 card-deck tracking without 180dp cap, upward delta handling, and threshold cancellation.
   - `lib/features/search/presentation/search_screen.dart`: Added `onClose`, `isPastThreshold` (accent glow), `autoFocus`, and `onNoteSelected` callbacks.
   - `lib/features/notes/presentation/notes_screen.dart`: Wired `_phonePullDownState` and `_tabletPullDownState`, passed `searchViewBuilder` with `SearchScreen`, wrapped phone and tablet layouts in `PopScope` for back dismissal, and routed `_openSearchScreen` through `openSearch()`.
-  - `test/features/notes/gestures_test.dart`: Added test verifying that tapping Back on unveiled `SearchScreen` smoothly closes search and restores the notes list.
+  - `test/features/notes/gestures_test.dart`: Added tests verifying that tapping Back dismisses search, that dragging down past threshold then dragging back up below threshold cancels search, and that dragging down past 180dp tracks 1:1 without sticking.
 
 ### 4. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
-- `flutter test test/features/notes/gestures_test.dart`: All **10 gesture tests passed**.
+- `flutter test test/features/notes/gestures_test.dart`: All **12 gesture tests passed**.
 - `flutter test test/search/`: All **60 search tests passed**.
 - `flutter test test/tags/tag_workspace_navigation_test.dart`: All **9 tests passed**.
-- `flutter test test/speech/speech_recognition_service_test.dart`: All **4 tests passed**.
 
 
 
