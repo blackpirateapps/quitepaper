@@ -3,6 +3,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Bear-inspired comprehensive formatting sheet displaying all available
@@ -66,18 +67,13 @@ class FormattingHubSheet extends StatelessWidget {
     bool hasScan = false,
     bool hasPdf = false,
     bool hasFile = false,
+    GlobalKey? anchorKey,
   }) {
-    final colors = context.appColors;
-
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
-      constraints: const BoxConstraints(maxWidth: 680),
+      type: AdaptiveModalType.popover,
+      anchorKey: anchorKey,
+      maxWidth: 440,
       builder: (ctx) => FormattingHubSheet(
         onSelectFormat: onSelectFormat,
         isBold: isBold,
@@ -112,18 +108,7 @@ class FormattingHubSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
-              decoration: BoxDecoration(
-                color: colors.divider,
-                borderRadius: const BorderRadius.all(Radius.circular(2)),
-              ),
-            ),
-          ),
+          const AdaptiveSheetDragHandle(),
 
           // Header
           Padding(

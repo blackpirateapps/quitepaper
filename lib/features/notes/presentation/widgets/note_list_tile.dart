@@ -8,6 +8,7 @@ import '../../../../core/search/search_models.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/utils/platform_layout_helper.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../export/presentation/export_note_sheet.dart';
 import '../../../sidebar/presentation/widgets/permanent_delete_dialog.dart';
 import '../../../tags/domain/phosphor_icons.dart';
@@ -678,12 +679,10 @@ class _NoteListTileState extends State<NoteListTile> {
   void _showContextMenu(BuildContext context) {
     final colors = context.appColors;
 
-    showModalBottomSheet(
+    QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      maxWidth: 280,
       builder: (ctx) {
         return SafeArea(
           child: Padding(
@@ -691,6 +690,7 @@ class _NoteListTileState extends State<NoteListTile> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const AdaptiveSheetDragHandle(),
                 if (widget.note.isTrashed) ...[
                   ListTile(
                     leading: Icon(

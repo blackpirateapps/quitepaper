@@ -3,10 +3,11 @@ import '../../../../../app/theme/app_colors.dart';
 import '../../../../../app/theme/app_radii.dart';
 import '../../../../../app/theme/app_spacing.dart';
 import '../../../../../app/theme/app_typography.dart';
+import '../../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../application/markdown_table_controller.dart';
 import '../../../domain/markdown_table_alignment.dart';
 
-/// Modal bottom action sheet presenting complete row, column, and table operations.
+/// Modal action sheet presenting complete row, column, and table operations.
 class MarkdownTableActionSheet extends StatelessWidget {
   const MarkdownTableActionSheet({
     super.key,
@@ -21,15 +22,13 @@ class MarkdownTableActionSheet extends StatelessWidget {
     BuildContext context, {
     required MarkdownTableController controller,
     VoidCallback? onClose,
+    GlobalKey? anchorKey,
   }) {
-    final colors = context.appColors;
-
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      anchorKey: anchorKey,
+      maxWidth: 360,
       builder: (ctx) => MarkdownTableActionSheet(
         controller: controller,
         onClose: onClose,

@@ -6,6 +6,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/domain/journal_place.dart';
 import '../../../../core/widgets/quiet_button.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import 'place_card.dart';
 
 /// Result of the merge dialog: the chosen canonical display name (§2.3).
@@ -343,25 +344,26 @@ Future<PlaceAction?> showPlaceActionsSheet(
   BuildContext context, {
   required JournalPlace place,
   required bool isMerged,
+  GlobalKey? anchorKey,
 }) {
   final colors = context.appColors;
   final name = splitPlaceName(place.displayName).primary;
-  return showModalBottomSheet<PlaceAction>(
+  return QuietAdaptiveModal.show<PlaceAction>(
     context: context,
-    backgroundColor: colors.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-    ),
+    type: AdaptiveModalType.popover,
+    anchorKey: anchorKey,
+    maxWidth: 280,
     builder: (ctx) {
       return SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const AdaptiveSheetDragHandle(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
-                AppSpacing.lg,
+                AppSpacing.sm,
                 AppSpacing.lg,
                 AppSpacing.sm,
               ),

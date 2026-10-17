@@ -8,6 +8,7 @@ import '../../../app/theme/app_typography.dart';
 import '../../../core/utils/platform_layout_helper.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/notes_query_provider.dart';
 import '../../notes/application/saved_filters_provider.dart';
@@ -605,13 +606,17 @@ class SidebarView extends ConsumerWidget {
         ],
       );
     } else {
-      action = await showModalBottomSheet<String>(
+      action = await QuietAdaptiveModal.show<String>(
         context: context,
-        backgroundColor: Colors.transparent,
+        type: AdaptiveModalType.popover,
+        cursorPosition: globalPosition,
+        maxWidth: 280,
         builder: (ctx) {
           return Material(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            borderRadius: PlatformLayoutHelper.isDesktop(context)
+                ? AppRadii.borderMd
+                : const BorderRadius.vertical(top: AppRadii.rLg),
             clipBehavior: Clip.antiAlias,
             child: SafeArea(
               top: false,
@@ -620,16 +625,8 @@ class SidebarView extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Handle bar
-                    Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.divider,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
+                    const AdaptiveSheetDragHandle(),
+                    const SizedBox(height: AppSpacing.xs),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                       child: Align(
@@ -949,28 +946,23 @@ class SidebarView extends ConsumerWidget {
       return;
     }
 
-    showModalBottomSheet(
+    QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.popover,
+      maxWidth: 280,
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+          borderRadius: PlatformLayoutHelper.isDesktop(context)
+              ? AppRadii.borderMd
+              : const BorderRadius.vertical(top: AppRadii.rLg),
         ),
         child: SafeArea(
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: AppSpacing.sm),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,

@@ -3,6 +3,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../domain/tag_colors.dart';
 
@@ -17,11 +19,16 @@ class TagColorPickerSheet extends StatelessWidget {
   final String? selectedColorId;
   final ValueChanged<String?> onColorSelected;
 
-  static Future<String?> show(BuildContext context, {String? currentColorId}) {
-    return showModalBottomSheet<String?>(
+  static Future<String?> show(
+    BuildContext context, {
+    String? currentColorId,
+    GlobalKey? anchorKey,
+  }) {
+    return QuietAdaptiveModal.show<String?>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.popover,
+      anchorKey: anchorKey,
+      maxWidth: 380,
       builder: (ctx) => TagColorPickerSheet(
         selectedColorId: currentColorId,
         onColorSelected: (colorId) => Navigator.of(ctx).pop(colorId),
@@ -33,11 +40,14 @@ class TagColorPickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        borderRadius: isDesktop
+            ? AppRadii.borderMd
+            : const BorderRadius.vertical(top: AppRadii.rLg),
       ),
       child: SafeArea(
         top: false,
@@ -50,18 +60,7 @@ class TagColorPickerSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
 
               // Header
               Row(
@@ -120,23 +119,27 @@ class TagColorPickerSheet extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      Text(
-                        'None (Default Paper Accent)',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: selectedColorId == null
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                      Expanded(
+                        child: Text(
+                          'None (Default Paper Accent)',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: selectedColorId == null
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
-                      if (selectedColorId == null)
+                      if (selectedColorId == null) ...[
+                        const SizedBox(width: AppSpacing.sm),
                         Icon(
                           Icons.check_rounded,
                           size: 18,
                           color: colors.accent,
                         ),
+                      ],
                     ],
                   ),
                 ),

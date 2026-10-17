@@ -12,6 +12,7 @@ import '../../../app/theme/app_typography.dart';
 import '../../../../features/notes/application/notes_provider.dart';
 import '../../ocr/ocr_provider.dart';
 import '../../sync/sync_provider.dart';
+import '../../widgets/quiet_adaptive_modal.dart';
 import '../attachment_provider.dart';
 import '../../uri/quiet_paper_uri.dart';
 import 'image_dimension_reader.dart';
@@ -529,12 +530,10 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
   void _showContextMenu(BuildContext context, Uint8List imageBytes) {
     final colors = context.appColors;
 
-    showModalBottomSheet<void>(
+    QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      ),
+      type: AdaptiveModalType.popover,
+      maxWidth: 280,
       builder: (bottomSheetContext) {
         return SafeArea(
           child: Padding(
@@ -542,15 +541,7 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                const AdaptiveSheetDragHandle(),
                 ListTile(
                   leading: Icon(Icons.fullscreen_rounded, color: colors.accent),
                   title: const Text('View Full Image'),

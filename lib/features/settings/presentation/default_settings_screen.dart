@@ -2,10 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import '../domain/default_settings.dart';
 import '../application/default_settings_provider.dart';
@@ -197,28 +197,16 @@ class DefaultSettingsScreen extends ConsumerWidget {
   ) {
     final colors = context.appColors;
 
-    showModalBottomSheet<void>(
+    QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      maxWidth: 380,
       builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
@@ -289,28 +277,16 @@ class DefaultSettingsScreen extends ConsumerWidget {
   ) {
     final colors = context.appColors;
 
-    showModalBottomSheet<void>(
+    QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      maxWidth: 380,
       builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(

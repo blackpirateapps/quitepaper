@@ -3,6 +3,7 @@ import '../../../../../app/theme/app_colors.dart';
 import '../../../../../app/theme/app_radii.dart';
 import '../../../../../app/theme/app_spacing.dart';
 import '../../../../../app/theme/app_typography.dart';
+import '../../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Modal bottom action sheet presenting heading level operations and semantic actions.
@@ -39,15 +40,13 @@ class MarkdownHeadingActionSheet extends StatelessWidget {
     VoidCallback? onConvertToParagraph,
     VoidCallback? onCycleLevel,
     VoidCallback? onDeleteHeading,
+    GlobalKey? anchorKey,
   }) {
-    final colors = context.appColors;
-
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      anchorKey: anchorKey,
+      maxWidth: 360,
       builder: (ctx) => MarkdownHeadingActionSheet(
         currentLevel: currentLevel,
         onSelectLevel: onSelectLevel,

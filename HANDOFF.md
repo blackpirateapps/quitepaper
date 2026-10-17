@@ -8766,4 +8766,28 @@ To address this, Phase 1 establishes the unified core abstraction and 4 adaptive
 4. **`showQuietDialog` & `QuietEditorialDialogCard`** ([`lib/core/widgets/quiet_editorial_dialog.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_editorial_dialog.dart)):
    - Centered editorial dialog with structured header (title, subtitle, trailing actions), discrete '✕' close button, scrollable body, and `Escape` key dismissal.
 
+## 193. Desktop Adaptive Modals — Context Popovers & Action Menus Migration (Phase 2) (October 2026)
+
+### Overview & Enhancements
+Phase 2 migrates all quick action menus, contextual options, and tool dropdowns from mobile-only `showModalBottomSheet` to `QuietAdaptiveModal.show` with `AdaptiveModalType.popover`:
+
+- **Editor App Bar `⋯` Overflow Menu** ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart)):
+  - Anchored directly to `_overflowButtonKey` on the `QuietIconButton` at the top right of the window.
+  - Opens as a crisp popover immediately beneath the button on desktop with full sub-menu navigation preserved, while maintaining standard modal bottom sheet on mobile devices.
+- **Editor Toolbars & Hubs**:
+  - [`MarkdownHeadingActionSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/heading/markdown_heading_action_sheet.dart): Opens as an anchored popover for 1-tap H1–H6 level selection.
+  - [`MarkdownTableActionSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/table/markdown_table_action_sheet.dart): Opens adjacent to the table toolbar button for row/column operations.
+  - [`FormattingHubSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_hub_sheet.dart): Opens as an anchored formatting popover with `AdaptiveSheetDragHandle` eliminating mobile drag pills on desktop.
+- **Context & Selection Menus**:
+  - Note list tile context actions in [`NoteListTile`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart).
+  - Sidebar section & tag action menus in [`SidebarView`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart).
+  - Inline image attachment context menu in [`QuietAssetImageView`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/quiet_asset_image_view.dart).
+  - Tag browser options in [`TagBrowserView`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart).
+  - Tag color picker in [`TagColorPickerSheet`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_color_picker_sheet.dart) with responsive layout and `maxWidth: 380`.
+  - Default image compression settings sheets in [`DefaultSettingsScreen`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart).
+  - Journal place actions in [`place_edit_dialogs.dart`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_edit_dialogs.dart).
+  - Document viewer PDF share variant picker in [`document_viewer_screen.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart).
+- **Test Coverage**: Added [`test/widgets/context_popover_test.dart`](file:///home/dog/git/quitepaper/test/widgets/context_popover_test.dart) covering Linux popovers, auto-flip positioning, Escape dismissal, and Android bottom sheet fallbacks.
+
+
 

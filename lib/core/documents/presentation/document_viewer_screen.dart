@@ -18,6 +18,7 @@ import '../../ocr/presentation/ocr_text_viewer_screen.dart';
 import '../../uri/quiet_paper_uri.dart';
 import '../../uri/resource_resolver.dart';
 import '../../widgets/quiet_button.dart';
+import '../../widgets/quiet_adaptive_modal.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../annotations/annotation_editing_controller.dart';
 import '../annotations/annotation_flattener.dart';
@@ -625,17 +626,15 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   /// Returns true for annotated, false for original, null if dismissed.
   Future<bool?> _pickShareVariant() {
     final colors = context.appColors;
-    return showModalBottomSheet<bool>(
+    return QuietAdaptiveModal.show<bool>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      ),
+      type: AdaptiveModalType.popover,
+      maxWidth: 360,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: AppSpacing.sm),
+            const AdaptiveSheetDragHandle(),
             ListTile(
               leading: Icon(Icons.description_outlined, color: colors.accent),
               title: const Text('Share with annotations'),

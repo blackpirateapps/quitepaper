@@ -6,6 +6,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/application/notes_provider.dart';
@@ -228,28 +230,23 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = tag.colorDefinition;
 
-    showModalBottomSheet(
+    QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.popover,
+      maxWidth: 280,
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+          borderRadius: PlatformLayoutHelper.isDesktop(context)
+              ? AppRadii.borderMd
+              : const BorderRadius.vertical(top: AppRadii.rLg),
         ),
         child: SafeArea(
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: AppSpacing.sm),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const AdaptiveSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,

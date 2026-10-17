@@ -27,6 +27,7 @@ import '../../../core/web_clipper/link_preview_baker.dart';
 import '../../../core/widgets/intelligent_heading_scrollbar.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
@@ -151,6 +152,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   final _superEditorController = QuietSuperEditorController();
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
+  final _overflowButtonKey = GlobalKey();
 
   @override
   void deactivate() {
@@ -1843,6 +1845,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   },
                 ),
               QuietIconButton(
+                key: _overflowButtonKey,
                 icon: Icons.more_horiz_rounded,
                 tooltip: 'More options',
                 onPressed: () => _showOverflowMenu(context, note, editorNotifier),
@@ -4310,18 +4313,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     Note note,
     EditorNotifier notifier,
   ) {
-    final colors = context.appColors;
     final isPreview = ref.read(editorProviderFamily(_editorParams)).isPreviewMode;
     final isReadOnly = ref.read(editorProviderFamily(_editorParams)).isReadOnly;
     _OverflowMenuPage currentPage = _OverflowMenuPage.main;
 
-    showModalBottomSheet(
+    QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.popover,
+      anchorKey: _overflowButtonKey,
+      maxWidth: 340,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
