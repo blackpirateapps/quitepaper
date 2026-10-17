@@ -148,12 +148,12 @@ abstract final class NoteMetadataExtractor {
     'sh',
   };
 
-  /// Computes a cache key based on note identity, content hash, and optional search snippet.
+  /// Computes a cache key based on note identity, content length, and optional search snippet.
   static String _computeCacheKey(Note note, String? precomputedSnippet) {
     final snippetPart = (precomputedSnippet != null && precomputedSnippet.isNotEmpty)
         ? precomputedSnippet
         : '';
-    return '${note.id}_${note.updatedAt.millisecondsSinceEpoch}_${note.title.hashCode}_${note.content.hashCode}_$snippetPart';
+    return '${note.id}_${note.updatedAt.millisecondsSinceEpoch}_${note.title.hashCode}_${note.content.length}_$snippetPart';
   }
 
   /// Invalidates cached metadata for a specific note ID.

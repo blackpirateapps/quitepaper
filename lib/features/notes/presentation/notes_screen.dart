@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -49,6 +50,8 @@ import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
+import 'widgets/note_thumbnail_view.dart';
+import '../domain/note_metadata_extractor.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../tags/domain/phosphor_icons.dart';
 
@@ -461,6 +464,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
+    _prewarmThumbnails(groups);
+
     final title = _getDestinationTitle(destination);
 
     final phoneKeyboardBindings = {
@@ -836,6 +841,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             )
                                           : DesktopSmoothScroll(
                                               child: ListView.builder(
+                                                scrollCacheExtent: const ScrollCacheExtent.pixels(1200.0),
                                                 padding: const EdgeInsets.only(bottom: 96),
                                                 physics: PlatformLayoutHelper.isDesktopPlatform
                                                     ? const ClampingScrollPhysics(
@@ -1050,6 +1056,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
+    _prewarmThumbnails(groups);
     final title = _getDestinationTitle(destination);
 
     // Watch active note if one is selected in tablet mode
@@ -1498,6 +1505,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                         )
                                       : DesktopSmoothScroll(
                                           child: ListView.builder(
+                                            scrollCacheExtent: const ScrollCacheExtent.pixels(1200.0),
                                             physics: PlatformLayoutHelper.isDesktopPlatform
                                                 ? const ClampingScrollPhysics(
                                                     parent: AlwaysScrollableScrollPhysics(),
@@ -1624,6 +1632,27 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       ),
     ),
   );
+  }
+
+  void _prewarmThumbnails(List<NoteGroup> groups) {
+    if (groups.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final thumbnails = <ThumbnailData>[];
+      for (final group in groups) {
+        for (final note in group.notes) {
+          final metadata = NoteMetadataExtractor.extract(note);
+          if (metadata.thumbnailData != null) {
+            thumbnails.add(metadata.thumbnailData!);
+            if (thumbnails.length >= 25) break;
+          }
+        }
+        if (thumbnails.length >= 25) break;
+      }
+      if (thumbnails.isNotEmpty) {
+        NoteThumbnailCache.prewarm(ref: ref, thumbnails: thumbnails);
+      }
+    });
   }
 
   int _calculateTotalItemCount(List<NoteGroup> groups) {

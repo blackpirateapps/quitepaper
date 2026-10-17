@@ -9070,6 +9070,61 @@ While Quiet Paper supported Linux compilation via Flutter's GTK 3 desktop embedd
 - `flutter test test/widgets/context_popover_test.dart test/widgets/quiet_adaptive_modal_test.dart test/tags/tag_ui_test.dart`: **20/20 tests passed**.
 - Full test suite verified.
 
+---
+
+## 202. Notes List Thumbnail Caching & Fast Scrolling Optimization (October 2026)
+
+### 1. Issue Overview & Root Cause Analysis
+- **Problem**: When rapidly scrolling or flinging through the notes list, the UI stuttered and dropped frames ("jank"). When scrolling back and forth, thumbnail previews constantly re-rendered and flashed placeholders instead of persisting smoothly in memory.
+- **Root Cause Investigation**:
+  1. **Disposal of Offscreen Tiles on Scroll**:
+     - `ListView.builder` in [`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart) used Flutter's default `cacheExtent` of 250px (~2-3 note tiles). Items scrolling slightly offscreen were immediately unmounted and destroyed.
+  2. **Lack of Keep-Alive in `NoteThumbnailView`**:
+     - [`NoteThumbnailView`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart) did not implement `AutomaticKeepAliveClientMixin`. As a result, when a tile scrolled out of view and back into view, the thumbnail widget was recreated from scratch, running `initState` and re-rendering repeatedly.
+  3. **Full-Resolution Image Decoding Bloat**:
+     - In [`NoteThumbnailView.build`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart), `Image.memory` and `Image.network` lacked `cacheWidth` and `cacheHeight` constraints. When a user attached high-resolution camera photos (e.g., 12MP–48MP images, 4000x3000px), Flutter decoded the entire 48MB raw uncompressed bitmap into RAM for a 48x48dp display thumbnail.
+     - Just 2–3 full-size images exceeded Flutter's 100MB internal `ImageCache`, triggering constant cache evictions and 30–100ms CPU image decoding freezes on the UI/raster thread.
+  4. **Redundant Failing Variant Lookups**:
+     - `_loadThumbnail()` first requested `service.resolveAsset(assetId, variant: 'thumbnail')`. Since Quiet Paper stores `'original'`, this lookup always failed, incurring wasted database and filesystem checks before falling back to `'original'`.
+  5. **No In-Flight Request Deduplication**:
+     - Fast scrolling through multiple notes triggered duplicate concurrent disk reads, decryptions, and native PDF rasterizations on the UI thread without deduplication.
+  6. **Expensive String Hashing in Cache Keys**:
+     - `NoteMetadataExtractor._computeCacheKey` computed `note.content.hashCode` across the entire body of large notes during every build.
+
+### 2. Solution & Architectural Enhancements
+1. **Centralized In-Memory `NoteThumbnailCache` Service ([`lib/features/notes/presentation/widgets/note_thumbnail_view.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart))**:
+   - Replaced loose top-level cache maps with `NoteThumbnailCache`:
+     - LRU-bounded cache (up to 500 entries) storing rasterized PDF page-0 PNGs and decrypted image assets.
+     - Synchronous instant retrieval (`get(uri)`) to eliminate placeholder flashing.
+     - In-flight `Future<Uint8List?>` deduplication (`resolve(uri, loader)`) ensuring concurrent requests for the same URI share a single task.
+     - Background pre-warming (`NoteThumbnailCache.prewarm(...)`) to prime upcoming thumbnails ahead of user scroll.
+2. **Preserved Widget State via `AutomaticKeepAliveClientMixin` ([`lib/features/notes/presentation/widgets/note_thumbnail_view.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart))**:
+   - `_NoteThumbnailViewState` now mixes in `AutomaticKeepAliveClientMixin` with `wantKeepAlive => true`.
+   - When note tiles scroll offscreen, their thumbnail elements and textures remain preserved in memory, completely eliminating rebuilds and re-loads when scrolling back.
+3. **Constrained Image Decoding Dimensions**:
+   - Dynamically computes pixel decode dimensions: `(widget.size * (MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.5)).round().clamp(96, 240)` (~120–144px).
+   - Applied `cacheWidth` and `cacheHeight` on `Image.memory` and `Image.network`.
+   - Constrains decoded RGBA textures to ~80KB per thumbnail (down from ~48MB, a >90% memory reduction), fitting hundreds of thumbnails in Flutter's `ImageCache` without evictions.
+4. **Optimized Asset Variant Lookup**:
+   - Direct resolution of `variant: 'original'`, avoiding failing `'thumbnail'` queries and cutting filesystem/DB overhead in half.
+5. **Scroll Cache Extent & Pre-warming ([`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart))**:
+   - Configured `scrollCacheExtent: const ScrollCacheExtent.pixels(1200.0)` in both phone and tablet layouts, ensuring ~10–15 tiles are prepared offscreen in advance.
+   - Added post-frame thumbnail pre-warming when notes collections update.
+6. **Fast O(1) Cache Key Generation ([`lib/features/notes/domain/note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart))**:
+   - Replaced `note.content.hashCode` with `note.content.length` in `_computeCacheKey`.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/notes/presentation/widgets/note_thumbnail_view.dart`: Implemented `NoteThumbnailCache` with LRU bounds, request deduplication, pre-warming, `AutomaticKeepAliveClientMixin`, downscaled `cacheWidth`/`cacheHeight`, and direct variant resolution.
+  - `lib/features/notes/domain/note_metadata_extractor.dart`: Optimized `_computeCacheKey` to use `content.length` for O(1) key generation.
+  - `lib/features/notes/presentation/notes_screen.dart`: Configured `scrollCacheExtent` (1200px) on both phone and tablet `ListView.builder`s and added `_prewarmThumbnails`.
+  - `test/notes/notes_list_redesign_test.dart`: Added unit and widget tests for `NoteThumbnailCache`, request deduplication, LRU capacity, keep-alive, and downscaled image decode constraints.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **2012 tests passed**.
+
+
 
 
 

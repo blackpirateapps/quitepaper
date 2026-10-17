@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -573,6 +574,108 @@ The security vulnerability was discovered during an automated penetration test.
       await tester.pumpAndSettle();
 
       expect(duplicateCalled, isTrue);
+    });
+  });
+
+  group('NoteThumbnailCache & Scrolling Optimization Tests', () {
+    final transparentPng = Uint8List.fromList(<int>[
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+      0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ]);
+
+    setUp(() {
+      NoteThumbnailCache.clear();
+    });
+
+    test('stores, retrieves, and clears thumbnail byte buffers', () {
+      expect(NoteThumbnailCache.get('qp://asset/test-1'), isNull);
+      expect(NoteThumbnailCache.containsKey('qp://asset/test-1'), isFalse);
+
+      final dummyBytes = Uint8List.fromList([1, 2, 3, 4]);
+      NoteThumbnailCache.put('qp://asset/test-1', dummyBytes);
+
+      expect(NoteThumbnailCache.containsKey('qp://asset/test-1'), isTrue);
+      expect(NoteThumbnailCache.get('qp://asset/test-1'), equals(dummyBytes));
+      expect(NoteThumbnailCache.length, 1);
+
+      clearThumbnailCaches();
+      expect(NoteThumbnailCache.get('qp://asset/test-1'), isNull);
+      expect(NoteThumbnailCache.length, 0);
+    });
+
+    test('deduplicates concurrent in-flight thumbnail resolution requests', () async {
+      int loadCount = 0;
+      final dummyBytes = Uint8List.fromList([10, 20, 30]);
+
+      Future<Uint8List?> slowLoader() async {
+        loadCount++;
+        await Future.delayed(const Duration(milliseconds: 20));
+        return dummyBytes;
+      }
+
+      // Fire two concurrent requests for the exact same URI
+      final future1 = NoteThumbnailCache.resolve('qp://asset/concurrent-test', slowLoader);
+      final future2 = NoteThumbnailCache.resolve('qp://asset/concurrent-test', slowLoader);
+
+      final results = await Future.wait([future1, future2]);
+
+      expect(loadCount, 1);
+      expect(results[0], equals(dummyBytes));
+      expect(results[1], equals(dummyBytes));
+      expect(NoteThumbnailCache.get('qp://asset/concurrent-test'), equals(dummyBytes));
+    });
+
+    test('enforces bounded LRU cache capacity when limit is reached', () {
+      for (var i = 0; i < 510; i++) {
+        NoteThumbnailCache.put('qp://asset/lru-$i', Uint8List.fromList([i % 256]));
+      }
+
+      expect(NoteThumbnailCache.length, NoteThumbnailCache.maxEntries);
+      expect(NoteThumbnailCache.get('qp://asset/lru-0'), isNull); // Evicted
+      expect(NoteThumbnailCache.get('qp://asset/lru-509'), isNotNull); // Retained
+    });
+
+    testWidgets('NoteThumbnailView maintains keep-alive and renders with downscaled cacheWidth/cacheHeight', (tester) async {
+      final themeData = AppTheme.light(family: ThemeFamily.classicPaper);
+      NoteThumbnailCache.put('qp://asset/img-keepalive', transparentPng);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: themeData,
+            home: Scaffold(
+              body: ListView(
+                children: const [
+                  NoteThumbnailView(
+                    thumbnailUri: 'qp://asset/img-keepalive',
+                    size: 48.0,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final imageFinder = find.byType(Image);
+      expect(imageFinder, findsOneWidget);
+
+      final imageWidget = tester.widget<Image>(imageFinder);
+      expect(imageWidget.image, isA<ResizeImage>());
+      final resizeImage = imageWidget.image as ResizeImage;
+      expect(resizeImage.width, isNotNull);
+      expect(resizeImage.height, isNotNull);
+      expect(resizeImage.width, greaterThanOrEqualTo(96));
+      expect(resizeImage.height, greaterThanOrEqualTo(96));
+
+      // Verify AutomaticKeepAlive is used
+      final keepAliveFinder = find.byType(AutomaticKeepAlive);
+      expect(keepAliveFinder, findsOneWidget);
     });
   });
 }
