@@ -18,6 +18,8 @@ import '../../../core/backup/backup_provider.dart';
 import '../../../core/flavor/app_flavor.dart';
 import '../../../core/update/update_dialog.dart';
 import '../../../core/update/update_provider.dart';
+import '../../../core/utils/platform_layout_helper.dart';
+import '../../../core/widgets/desktop_smooth_scroll.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_fab.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -832,24 +834,30 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                 ),
                                               ),
                                             )
-                                          : ListView.builder(
-                                              padding: const EdgeInsets.only(bottom: 96),
-                                              physics: const BouncingScrollPhysics(
-                                                parent: AlwaysScrollableScrollPhysics(),
+                                          : DesktopSmoothScroll(
+                                              child: ListView.builder(
+                                                padding: const EdgeInsets.only(bottom: 96),
+                                                physics: PlatformLayoutHelper.isDesktopPlatform
+                                                    ? const ClampingScrollPhysics(
+                                                        parent: AlwaysScrollableScrollPhysics(),
+                                                      )
+                                                    : const BouncingScrollPhysics(
+                                                        parent: AlwaysScrollableScrollPhysics(),
+                                                      ),
+                                                itemCount: _calculateTotalItemCount(groups) + 1,
+                                                itemBuilder: (context, index) {
+                                                  if (index == _calculateTotalItemCount(groups)) {
+                                                    return NotesLoadingMoreIndicator(
+                                                      loadingMore: collectionState.loadingMore,
+                                                      error: collectionState.error,
+                                                      onRetry: () => ref
+                                                          .read(notesCollectionProvider.notifier)
+                                                          .retry(),
+                                                    );
+                                                  }
+                                                  return _buildGroupedItem(context, groups, index);
+                                                },
                                               ),
-                                              itemCount: _calculateTotalItemCount(groups) + 1,
-                                              itemBuilder: (context, index) {
-                                                if (index == _calculateTotalItemCount(groups)) {
-                                                  return NotesLoadingMoreIndicator(
-                                                    loadingMore: collectionState.loadingMore,
-                                                    error: collectionState.error,
-                                                    onRetry: () => ref
-                                                        .read(notesCollectionProvider.notifier)
-                                                        .retry(),
-                                                  );
-                                                }
-                                                return _buildGroupedItem(context, groups, index);
-                                              },
                                             ),
                                 ),
                               ),
@@ -1488,28 +1496,34 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             ),
                                           ),
                                         )
-                                      : ListView.builder(
-                                          physics: const BouncingScrollPhysics(
-                                            parent: AlwaysScrollableScrollPhysics(),
-                                          ),
-                                          itemCount: _calculateTotalItemCount(groups) + 1,
-                                          itemBuilder: (context, index) {
-                                            if (index == _calculateTotalItemCount(groups)) {
-                                              return NotesLoadingMoreIndicator(
-                                                loadingMore: collectionState.loadingMore,
-                                                error: collectionState.error,
-                                                onRetry: () => ref
-                                                    .read(notesCollectionProvider.notifier)
-                                                    .retry(),
+                                      : DesktopSmoothScroll(
+                                          child: ListView.builder(
+                                            physics: PlatformLayoutHelper.isDesktopPlatform
+                                                ? const ClampingScrollPhysics(
+                                                    parent: AlwaysScrollableScrollPhysics(),
+                                                  )
+                                                : const BouncingScrollPhysics(
+                                                    parent: AlwaysScrollableScrollPhysics(),
+                                                  ),
+                                            itemCount: _calculateTotalItemCount(groups) + 1,
+                                            itemBuilder: (context, index) {
+                                              if (index == _calculateTotalItemCount(groups)) {
+                                                return NotesLoadingMoreIndicator(
+                                                  loadingMore: collectionState.loadingMore,
+                                                  error: collectionState.error,
+                                                  onRetry: () => ref
+                                                      .read(notesCollectionProvider.notifier)
+                                                      .retry(),
+                                                );
+                                              }
+                                              return _buildGroupedItem(
+                                                context,
+                                                groups,
+                                                index,
+                                                isTablet: true,
                                               );
-                                            }
-                                            return _buildGroupedItem(
-                                              context,
-                                              groups,
-                                              index,
-                                              isTablet: true,
-                                            );
-                                          },
+                                            },
+                                          ),
                                         ),
                             ),
                           ),

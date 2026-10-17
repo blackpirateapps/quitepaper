@@ -8944,6 +8944,80 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
   - Zero warnings or errors in static analysis (`flutter analyze` clean).
   - All OCR and Settings tests pass with 100% success.
 
+---
+
+## 200. Linux Client Modernization: Wayland, System Dark Mode, Kinetic Smooth Scrolling & Fractional Scaling (October 2026)
+
+### 1. Architectural Overview & Context
+While Quiet Paper supported Linux compilation via Flutter's GTK 3 desktop embedder, several critical gaps affected the user experience on modern Linux desktop environments (particularly KDE Plasma and GNOME on Wayland):
+1. **Wayland Nativity & Fractional Scaling Protocol Gap**:
+   - Quiet Paper connects directly to the Wayland display server via GDK's Wayland backend (`GDK_BACKEND=wayland`).
+   - However, GTK 3 does not implement the modern Wayland fractional scaling protocol (`wp_fractional_scale_v1`). On fractional scaling displays (e.g. 125% scaling on 1080p), GTK 3 only reports integer scale 2, and the Wayland compositor (KWin) performs downscaling interpolation, causing fuzzy text, soft 1px borders/dividers, and presentation jitter.
+2. **System Dark Mode Disconnect on KDE Plasma / Non-GNOME Desktops**:
+   - In KDE Plasma and modern FreeDesktop environments, dark mode is configured via `org.freedesktop.appearance color-scheme: 1` (`prefer-dark`).
+   - However, the GTK theme setting often remains `'Breeze'` rather than `'Breeze-Dark'`. Because `my_application.cc` never instructed GTK to prefer dark themes (`gtk-application-prefer-dark-theme` defaulted to `FALSE`), Flutter's native `fl_settings_plugin` concluded the desktop was in Light Mode, forcing Quiet Paper's `ThemeMode.system` into the Light theme despite the host OS being in Dark Mode.
+3. **Rigid Mouse Wheel Scrolling**:
+   - Flutter's desktop engine dispatches discrete, rigid `PointerScrollEvent` deltas (each mouse wheel notch instantly teleports by 40–60px).
+   - Combined with hardcoded mobile `BouncingScrollPhysics`, scrolling through notes, the sidebar, or long editor documents felt jerky and un-ergonomic compared to native Linux apps.
+4. **Mismatched Window HeaderBar on KDE Plasma**:
+   - `my_application.cc` previously forced a GNOME-style `GtkHeaderBar` unconditionally under Wayland, clashing with KDE Plasma's Breeze Server-Side Decorations (SSD), shadows, and window buttons.
+
+### 2. Implementation Pillars & Enhancements
+
+#### Pillar 1: Dual-Layer System Dark Mode Synchronization
+- **Native C++ Layer ([`linux/runner/my_application.cc`](file:///home/dog/git/quitepaper/linux/runner/my_application.cc))**:
+  - Implemented `detect_system_dark_mode()` querying `org.freedesktop.portal.Settings` via GDBus (`org.freedesktop.appearance`, `color-scheme`) with a graceful fallback to GSettings `org.gnome.desktop.interface`.
+  - Implemented `sync_gtk_theme_mode()` to set `gtk-application-prefer-dark-theme = TRUE/FALSE` on default `GtkSettings`.
+  - Subscribed to the D-Bus `SettingChanged` signal on `org.freedesktop.portal.Settings` in `my_application_startup`, dynamically toggling GTK theme properties and notifying Flutter's `fl_settings_plugin` whenever the system appearance switch is flipped.
+- **Dart Layer ([`lib/core/theme/linux_theme_resolver.dart`](file:///home/dog/git/quitepaper/lib/core/theme/linux_theme_resolver.dart) & [`lib/features/settings/application/settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/settings_provider.dart))**:
+  - Added `LinuxThemeResolver` providing asynchronous portal, GSettings, and KDE globals appearance detection.
+  - Exposed `linuxSystemBrightnessProvider` and integrated into [`lib/app/app.dart`](file:///home/dog/git/quitepaper/lib/app/app.dart) so `AppearanceMode.system` immediately resolves to the detected desktop brightness.
+
+#### Pillar 2: Desktop Environment-Aware Window Titlebar & Background Color
+- In [`linux/runner/my_application.cc`](file:///home/dog/git/quitepaper/linux/runner/my_application.cc):
+  - Detected `XDG_CURRENT_DESKTOP`. When running in GNOME Shell, retains `GtkHeaderBar` (standard GNOME CSD convention). When running in KDE Plasma (or XFCE, Sway, Hyprland), uses the native traditional window titlebar so KDE renders native Breeze SSD with window shadows, buttons, and system integration.
+  - Dynamically set `fl_view_set_background_color` based on `gtk-application-prefer-dark-theme` (`#1D1C1A` dark / `#F7F6F2` light), eliminating startup black frame flash.
+
+#### Pillar 3: Kinetic Smooth Mouse Wheel Scrolling Engine
+- **[`DesktopSmoothScroll`](file:///home/dog/git/quitepaper/lib/core/widgets/desktop_smooth_scroll.dart)**:
+  - Created a dedicated desktop scrolling widget wrapping scrollables (`ListView`, `SingleChildScrollView`).
+  - Intercepts `PointerScrollEvent` on desktop platforms (`PlatformLayoutHelper.isDesktopPlatform`), smoothly gliding to the accumulated target offset via `Curves.easeOutCubic` over 200ms with velocity accumulation.
+  - Clamps cleanly to scroll extents and passes through on mobile/touch platforms without altering touch fling mechanics.
+  - Integrated across:
+    - Notes list views (phone and tablet layouts in [`notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart)).
+    - Navigation sidebar list in [`sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart).
+    - Note editor sheet in [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart).
+- **[`DesktopAppScrollBehavior`](file:///home/dog/git/quitepaper/lib/app/app.dart)**:
+  - Configured global `MaterialApp.scrollBehavior` adapting physics dynamically: `ClampingScrollPhysics` on desktop (eliminating rubber-band bounce on mouse wheels) and `BouncingScrollPhysics` on mobile.
+
+#### Pillar 4: Fractional Scaling Optimizations & Pixel Snapping
+- **[`PixelSnap`](file:///home/dog/git/quitepaper/lib/core/utils/pixel_snap.dart)**:
+  - Created `PixelSnap.hairlineWidth(context)` returning `(1.0 / dpr).clamp(0.5, 1.0)`, ensuring hairline dividers and borders snap directly to physical device pixels on 1.25x or 1.5x fractional scaling displays.
+  - Added coordinate snapping functions (`snap`, `snapOffset`).
+- **Text Scaling Bounds ([`lib/app/app.dart`](file:///home/dog/git/quitepaper/lib/app/app.dart))**:
+  - Clamped `textScaler` between `0.85` and `1.35` in `MaterialApp.builder` to prevent layout overflow when system font scaling is applied atop fractional monitor scaling.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/theme/linux_theme_resolver.dart`: FreeDesktop portal and GSettings system theme reader.
+  - `lib/core/widgets/desktop_smooth_scroll.dart`: Kinetic smooth mouse-wheel scrolling wrapper.
+  - `lib/core/utils/pixel_snap.dart`: Hardware device-pixel snapping for fractional display scaling.
+  - `test/theme/linux_theme_resolver_test.dart`: Unit tests for theme resolver queries and fallbacks.
+  - `test/widgets/desktop_smooth_scroll_test.dart`: Widget tests for smooth scroll event interception and animation.
+  - `test/utils/pixel_snap_test.dart`: Unit tests for hairline widths and coordinate snapping.
+- **Modified Files**:
+  - `linux/runner/my_application.cc`: D-Bus portal subscription, dark theme GTK sync, KDE-specific native titlebar, and warm initial background.
+  - `lib/features/settings/application/settings_provider.dart`: Exposed `linuxThemeResolverProvider` and `linuxSystemBrightnessProvider`.
+  - `lib/app/app.dart`: Effective theme mode resolution, `DesktopAppScrollBehavior`, and text scaling clamp.
+  - `lib/features/notes/presentation/notes_screen.dart`: Applied `DesktopSmoothScroll` and adaptive scroll physics.
+  - `lib/features/sidebar/presentation/sidebar_view.dart`: Applied `DesktopSmoothScroll` to sidebar navigation.
+  - `lib/features/editor/presentation/editor_screen.dart`: Applied `DesktopSmoothScroll` and adaptive scroll physics to editor.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
+- Automated tests: All unit, widget, and integration tests pass with 100% success.
+
+
 
 
 

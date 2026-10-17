@@ -27,6 +27,7 @@ import '../../../core/web_clipper/link_preview_baker.dart';
 import '../../../core/widgets/intelligent_heading_scrollbar.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../../core/widgets/desktop_smooth_scroll.dart';
 import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../../notes/application/notes_provider.dart';
@@ -1970,17 +1971,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                         : _onPreviewMarkdownChanged,
                                     showScrollbar: false,
                                   )
-                                : SingleChildScrollView(
+                                : DesktopSmoothScroll(
                                     controller: _scrollController,
+                                    child: SingleChildScrollView(
+                                      controller: _scrollController,
                               padding: EdgeInsets.only(
                                 left: AppSpacing.lg + typography.paragraphIndent,
                                 right: AppSpacing.lg,
                                 top: AppSpacing.md,
                                 bottom: AppSpacing.md,
                               ),
-                              physics: const BouncingScrollPhysics(
-                                parent: AlwaysScrollableScrollPhysics(),
-                              ),
+                              physics: PlatformLayoutHelper.isDesktopPlatform
+                                  ? const ClampingScrollPhysics(
+                                      parent: AlwaysScrollableScrollPhysics(),
+                                    )
+                                  : const BouncingScrollPhysics(
+                                      parent: AlwaysScrollableScrollPhysics(),
+                                    ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -2121,6 +2128,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   ),
                                 ],
                               ),
+                            ),
                             ),
 
                           ),

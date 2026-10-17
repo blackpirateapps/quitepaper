@@ -6,6 +6,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/utils/platform_layout_helper.dart';
+import '../../../core/widgets/desktop_smooth_scroll.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../../core/widgets/quiet_adaptive_modal.dart';
@@ -157,7 +158,8 @@ class SidebarView extends ConsumerWidget {
 
             // Scrollable navigation list (Library + Tags)
             Expanded(
-              child: SingleChildScrollView(
+              child: DesktopSmoothScroll(
+                child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(0, AppSpacing.xs, 0, AppSpacing.sm),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,6 +484,7 @@ class SidebarView extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
 

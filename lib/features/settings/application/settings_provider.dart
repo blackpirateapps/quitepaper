@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/theme/theme_family.dart';
+import '../../../core/theme/linux_theme_resolver.dart';
 import '../../editor/domain/editor_editing_style.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -116,6 +117,15 @@ final appearanceModeProvider = Provider<AppearanceMode>((ref) {
 
 final themeModeProvider = Provider<ThemeMode>((ref) {
   return ref.watch(themeSettingsProvider).appearance.toThemeMode();
+});
+
+final linuxThemeResolverProvider = Provider<LinuxThemeResolver>((ref) {
+  return LinuxThemeResolver();
+});
+
+final linuxSystemBrightnessProvider = FutureProvider<Brightness?>((ref) async {
+  final resolver = ref.watch(linuxThemeResolverProvider);
+  return await resolver.resolveBrightness();
 });
 
 class EditingStyleNotifier extends StateNotifier<EditorEditingStyle> {
