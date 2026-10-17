@@ -68,6 +68,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   bool _isMultiSelecting = false;
   bool _shouldAutoFocusTablet = false;
 
+  final GlobalKey<PullDownSearchRevealState> _phonePullDownKey =
+      GlobalKey<PullDownSearchRevealState>();
+  PullDownSearchRevealState? _phonePullDownState;
+  PullDownSearchRevealState? _tabletPullDownState;
+
   @override
   void initState() {
     super.initState();
@@ -494,17 +499,31 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     return CallbackShortcuts(
       bindings: phoneKeyboardBindings,
       child: PopScope(
-        canPop: destination == AppDestination.allNotes,
+        canPop: destination == AppDestination.allNotes &&
+            !(_phonePullDownKey.currentState?.isSearchActive ?? false),
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
+          if (_phonePullDownKey.currentState?.isSearchActive ?? false) {
+            _phonePullDownKey.currentState?.closeSearch();
+            return;
+          }
           ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
           ref.read(selectedTagFilterProvider.notifier).state = null;
           ref.read(selectedTagIdProvider.notifier).state = null;
           ref.read(notesQueryProvider.notifier).clearAllFilters();
         },
         child: PullDownSearchReveal(
+          key: _phonePullDownKey,
           enabled: defaultSettings.swipeDownToSearchNotes,
-          onOpenSearch: () => _openSearchScreen(context),
+          onOpenSearch: () {},
+          onStateCreated: (state) => _phonePullDownState = state,
+          searchViewBuilder: (context, isPastThreshold, onClose) {
+            return SearchScreen(
+              onClose: onClose,
+              isPastThreshold: isPastThreshold,
+              autoFocus: _phonePullDownState?.isSearchActive ?? false,
+            );
+          },
           child: Scaffold(
             backgroundColor: colors.background,
             drawerEnableOpenDragGesture: true,
@@ -1123,7 +1142,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     return CallbackShortcuts(
       bindings: tabletKeyboardBindings,
-      child: Scaffold(
+      child: PopScope(
+        canPop: destination == AppDestination.allNotes &&
+            !(_tabletPullDownState?.isSearchActive ?? false),
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (_tabletPullDownState?.isSearchActive ?? false) {
+            _tabletPullDownState?.closeSearch();
+            return;
+          }
+          ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+          ref.read(selectedTagFilterProvider.notifier).state = null;
+          ref.read(selectedTagIdProvider.notifier).state = null;
+          ref.read(notesQueryProvider.notifier).clearAllFilters();
+        },
+        child: Scaffold(
       backgroundColor: colors.background,
       body: SafeArea(
         child: Row(
@@ -1259,7 +1292,20 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   key: const ValueKey('tablet_notes_list'),
                                   isTabletPane: true,
                                   enabled: defaultSettings.swipeDownToSearchNotes,
-                                  onOpenSearch: () => _openSearchScreen(context),
+                                  onOpenSearch: () {},
+                                  onStateCreated: (state) => _tabletPullDownState = state,
+                                  searchViewBuilder: (context, isPastThreshold, onClose) {
+                                    return SearchScreen(
+                                      onClose: onClose,
+                                      isPastThreshold: isPastThreshold,
+                                      autoFocus: _tabletPullDownState?.isSearchActive ?? false,
+                                      onNoteSelected: (note) {
+                                        setState(() {
+                                          _selectedNoteIdForTablet = note.id;
+                                        });
+                                      },
+                                    );
+                                  },
                               child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragEnd: (details) {
@@ -1631,6 +1677,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         ),
       ),
     ),
+    ),
   );
   }
 
@@ -1850,11 +1897,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   void _openSearchScreen(BuildContext context) {
     HapticFeedback.lightImpact();
-    Navigator.of(context).push(
-      SearchPageRoute(
-        builder: (_) => const SearchScreen(),
-      ),
-    );
+    final isTablet = MediaQuery.sizeOf(context).width >= 900.0;
+    if (isTablet && _tabletPullDownState != null) {
+      _tabletPullDownState!.openSearch();
+    } else if (_phonePullDownState != null) {
+      _phonePullDownState!.openSearch();
+    } else {
+      Navigator.of(context).push(
+        SearchPageRoute(
+          builder: (_) => const SearchScreen(),
+        ),
+      );
+    }
   }
 
   void _openNote(BuildContext context, Note note) {

@@ -308,5 +308,45 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets(
+        'tapping back button on unveiled SearchScreen smoothly closes search and restores notes list',
+        (tester) async {
+      setPhoneSize(tester);
+
+      final now = DateTime.now();
+      await repository.saveNote(
+        Note(
+          id: 'gesture-close-note',
+          title: 'Close Search Test',
+          content: 'Search should close cleanly on back tap.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Close Search Test'), findsOneWidget);
+      expect(find.byType(SearchScreen), findsNothing);
+
+      // Pull down to open search
+      await tester.drag(find.text('Close Search Test'), const Offset(0, 400));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      // Tap back button on SearchScreen
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      // SearchScreen should be dismissed and notes list restored
+      expect(find.byType(SearchScreen), findsNothing);
+      expect(find.text('Close Search Test'), findsOneWidget);
+
+      await finishTest(tester);
+    });
   });
 }

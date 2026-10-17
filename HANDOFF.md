@@ -9124,6 +9124,52 @@ While Quiet Paper supported Linux compilation via Flutter's GTK 3 desktop embedd
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2012 tests passed**.
 
+---
+
+## 203. In-Place Pull-Down to Search Unveil & Zero-Lag Transition (October 2026)
+
+### 1. Problem & Motivation
+When pulling down to search at the top of the notes list, users previously experienced a jarring visual mismatch and a noticeable time gap:
+1. **Time gap / Lag feel**: Upon releasing the finger past the threshold, the old implementation began a 280ms spring animation snapping the notes list back UP to offset 0 (hiding the revealed bar), while concurrently pushing `SearchPageRoute` (which had a 260ms fade-in and slide-down transition). This resulted in an awkward snap-shut pause followed by a delayed screen transition.
+2. **Visual Disconnect**: The preview bar shown during the pull was a miniature 44dp proxy widget with a scale animation, custom borders, shadow, and a "Release" badge chip at `top: 0`, whereas the actual search page sat below a 56dp AppBar and a large 30sp "Search" title, with a 50dp search field located ~130dp down the screen with different borders and no shadow.
+3. **Broken Mental Model**: The interaction did not feel like sliding down the notes list physically unveiled the search view resting directly behind it.
+
+### 2. Architectural Solution
+1. **In-Place Search View Underlay (`PullDownSearchReveal`)**:
+   - `PullDownSearchReveal` now supports an optional `SearchViewBuilder` placed in a `Stack` directly behind the sliding content.
+   - During the pull-down gesture (`_pullOffset > 0`), the full `SearchScreen` header block (AppBar with Back and New Note buttons + large editorial "Search" title + 50dp search bar) sits stationary at the top behind the sliding notes list.
+   - Sliding down the notes list physically unveils the exact search interface that rests behind it.
+2. **Zero-Lag Slide Transition on Commit**:
+   - When releasing past `effectiveThreshold` (120dp for full search view unveil, 96dp for compact editor inline find), the notes list does **not** spring back to 0.
+   - Instead, `_slideController` smoothly animates the notes content down and off-screen (from `_pullOffset` to viewport height over 240ms with `Curves.easeOutCubic`).
+   - `SearchScreen` immediately takes full view in-place.
+   - The search input receives immediate focus (`_searchFocusNode.requestFocus()`), raising the software keyboard instantly with zero route delay.
+3. **Subtle Tactile & Visual Feedback**:
+   - When `_pullOffset >= effectiveThreshold`, a light haptic tick (`HapticFeedback.lightImpact()`) triggers.
+   - The search field's border illuminates with a subtle accent border glow (`colors.accent.withValues(alpha: 0.6)`) and soft shadow, providing a calm, minimalist editorial indicator without an intrusive text badge.
+4. **Clean Dismissal**:
+   - Tapping Back (`←`) on `SearchScreen` or triggering the Android system back gesture (`PopScope`) reverses `_slideController`, smoothly sliding the notes list back up from off-screen to `y = 0` and unmounting the search underlay.
+   - Releasing before the threshold smoothly springs the notes list back up to resting position.
+5. **Universal Tablet & Phone Integration**:
+   - On phone: Unveils full-screen search view under the phone Scaffold.
+   - On tablet: Preserves `const ValueKey('tablet_notes_list')` for AnimatedSwitcher and unveils `SearchScreen` inside the middle pane, allowing note selection directly into the right editor pane.
+   - In editor: Preserves the compact inline find-in-note preview bar (`hintText: 'Find in note'`).
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/notes/presentation/widgets/pull_down_search_reveal.dart`: Added `searchViewBuilder`, `onStateCreated`, `_slideController` for continuous slide-down on commit, `openSearch()`, and `closeSearch()`.
+  - `lib/features/search/presentation/search_screen.dart`: Added `onClose`, `isPastThreshold` (accent glow), `autoFocus`, and `onNoteSelected` callbacks.
+  - `lib/features/notes/presentation/notes_screen.dart`: Wired `_phonePullDownState` and `_tabletPullDownState`, passed `searchViewBuilder` with `SearchScreen`, wrapped phone and tablet layouts in `PopScope` for back dismissal, and routed `_openSearchScreen` through `openSearch()`.
+  - `test/features/notes/gestures_test.dart`: Added test verifying that tapping Back on unveiled `SearchScreen` smoothly closes search and restores the notes list.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/features/notes/gestures_test.dart`: All **10 gesture tests passed**.
+- `flutter test test/search/`: All **60 search tests passed**.
+- `flutter test test/tags/tag_workspace_navigation_test.dart`: All **9 tests passed**.
+- `flutter test test/speech/speech_recognition_service_test.dart`: All **4 tests passed**.
+
+
 
 
 

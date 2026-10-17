@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,13 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+
+/// Builder for rendering an in-place search view behind the sliding content.
+typedef SearchViewBuilder = Widget Function(
+  BuildContext context,
+  bool isPastThreshold,
+  VoidCallback onClose,
+);
 
 /// A wrapper widget that provides a deliberate, Bear Notes-inspired pull-down
 /// gesture to reveal and trigger a Search interface.
@@ -24,16 +32,20 @@ import '../../../../app/theme/app_typography.dart';
 ///      scrolls up into the top boundary never arms; a ballistic fling-bounce
 ///      never arms. You must lift and touch again from rest at the top.
 ///   2. **Pull** — while armed, user-driven overscroll translates the content
-///      downward with rubber-band resistance, revealing the search bar.
-///   3. **Commit** — on release, crossing [threshold] navigates; otherwise the
-///      content springs back.
+///      downward with rubber-band resistance, revealing the search view resting
+///      directly behind it.
+///   3. **Commit** — on release, crossing [effectiveThreshold] smoothly slides
+///      the content away, fully unveiling search in-place with zero lag.
+///      If released before threshold, content smoothly springs back.
 class PullDownSearchReveal extends StatefulWidget {
   const PullDownSearchReveal({
     super.key,
     required this.child,
     required this.onOpenSearch,
-    this.threshold = 96.0,
-    this.maxPullOffset = 150.0,
+    this.searchViewBuilder,
+    this.onStateCreated,
+    this.threshold,
+    this.maxPullOffset,
     this.isTabletPane = false,
     this.enabled = true,
     this.hintText,
@@ -42,59 +54,138 @@ class PullDownSearchReveal extends StatefulWidget {
   final Widget child;
   final VoidCallback onOpenSearch;
 
+  /// Optional in-place search view builder rendered directly behind the content.
+  /// When provided, pulling down unveils this view in-place, and committing
+  /// smoothly slides the content away with zero route-push delay.
+  final SearchViewBuilder? searchViewBuilder;
+
+  /// Optional callback invoked when the state is created or updated.
+  final void Function(PullDownSearchRevealState state)? onStateCreated;
+
   /// Pull distance (in logical pixels of revealed offset) that must be exceeded
   /// at release for the gesture to commit.
-  final double threshold;
+  final double? threshold;
 
   /// Maximum revealed offset; the rubber-band asymptotes toward this value.
-  final double maxPullOffset;
+  final double? maxPullOffset;
 
   final bool isTabletPane;
   final bool enabled;
 
-  /// Overrides the placeholder shown in the revealed search bar. Defaults to a
-  /// notes-list oriented hint.
+  /// Overrides the placeholder shown in the fallback revealed search bar.
   final String? hintText;
 
+  double get effectiveThreshold =>
+      threshold ?? (searchViewBuilder != null ? 120.0 : 96.0);
+
+  double get effectiveMaxPullOffset =>
+      maxPullOffset ?? (searchViewBuilder != null ? 180.0 : 150.0);
+
   @override
-  State<PullDownSearchReveal> createState() => _PullDownSearchRevealState();
+  State<PullDownSearchReveal> createState() => PullDownSearchRevealState();
 }
 
-class _PullDownSearchRevealState extends State<PullDownSearchReveal>
-    with SingleTickerProviderStateMixin {
+class PullDownSearchRevealState extends State<PullDownSearchReveal>
+    with TickerProviderStateMixin {
   late final AnimationController _springController;
   late Animation<double> _springAnimation;
 
+  late final AnimationController _slideController;
+
   double _pullOffset = 0.0;
+  double _slideBeginOffset = 0.0;
 
   /// Whether the *current* drag gesture is allowed to pull. Set on
-  /// [ScrollStartNotification] and cleared when the gesture ends. This is the
-  /// core guard against accidental triggering.
+  /// [ScrollStartNotification] and cleared when the gesture ends.
   bool _armed = false;
   bool _hasTriggeredHaptic = false;
 
-  /// Guards against committing twice for a single gesture: a finger lift can
-  /// surface as a [UserScrollNotification] (idle) and then, after the bounce
-  /// settles, a [ScrollEndNotification].
+  /// Guards against committing twice for a single gesture.
   bool _committed = false;
+
+  /// Whether in-place search is currently active.
+  bool _isSearchActive = false;
+
+  bool get isSearchActive => _isSearchActive;
 
   @override
   void initState() {
     super.initState();
+    widget.onStateCreated?.call(this);
     _springController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 280),
+      duration: const Duration(milliseconds: 220),
     )..addListener(() {
         setState(() {
           _pullOffset = _springAnimation.value;
         });
       });
+
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    )..addListener(() {
+        setState(() {});
+      });
+  }
+
+  @override
+  void didUpdateWidget(PullDownSearchReveal oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    widget.onStateCreated?.call(this);
   }
 
   @override
   void dispose() {
     _springController.dispose();
+    _slideController.dispose();
     super.dispose();
+  }
+
+  /// Programmatically opens search with the smooth slide unveil.
+  void openSearch() {
+    if (_isSearchActive) return;
+    if (_slideController.isAnimating) return;
+
+    if (widget.searchViewBuilder == null) {
+      widget.onOpenSearch();
+      return;
+    }
+
+    setState(() {
+      _isSearchActive = true;
+      _committed = true;
+      _slideBeginOffset = 0.0;
+    });
+
+    _slideController.forward(from: 0.0);
+    widget.onOpenSearch();
+  }
+
+  /// Programmatically closes in-place search, smoothly sliding the content back up.
+  void closeSearch() {
+    if (!_isSearchActive && !_committed) return;
+    if (_slideController.isAnimating) return;
+
+    if (widget.searchViewBuilder == null) {
+      setState(() {
+        _isSearchActive = false;
+        _committed = false;
+        _pullOffset = 0.0;
+      });
+      return;
+    }
+
+    _slideBeginOffset = 0.0;
+    _slideController.reverse(from: 1.0).then((_) {
+      if (mounted) {
+        setState(() {
+          _isSearchActive = false;
+          _committed = false;
+          _pullOffset = 0.0;
+        });
+      }
+    });
   }
 
   void _onPullDelta(double rawDeltaY) {
@@ -103,20 +194,22 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
     }
 
     setState(() {
-      // Rubber-band: resistance grows as the pull approaches [maxPullOffset],
-      // so the final stretch toward the threshold takes deliberate effort.
       final double progress =
-          (_pullOffset / widget.maxPullOffset).clamp(0.0, 1.0);
+          (_pullOffset / widget.effectiveMaxPullOffset).clamp(0.0, 1.0);
       final double resistance = 0.85 * (1.0 - (progress * 0.5));
       _pullOffset = math.max(
         0.0,
-        math.min(widget.maxPullOffset, _pullOffset + (rawDeltaY * resistance)),
+        math.min(
+          widget.effectiveMaxPullOffset,
+          _pullOffset + (rawDeltaY * resistance),
+        ),
       );
 
-      if (_pullOffset >= widget.threshold && !_hasTriggeredHaptic) {
+      if (_pullOffset >= widget.effectiveThreshold && !_hasTriggeredHaptic) {
         HapticFeedback.lightImpact();
         _hasTriggeredHaptic = true;
-      } else if (_pullOffset < widget.threshold && _hasTriggeredHaptic) {
+      } else if (_pullOffset < widget.effectiveThreshold &&
+          _hasTriggeredHaptic) {
         _hasTriggeredHaptic = false;
       }
     });
@@ -126,21 +219,43 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
     _armed = false;
     if (_pullOffset == 0.0 || _committed) return;
 
-    final bool shouldCommit = _pullOffset >= widget.threshold;
-
-    _springAnimation = Tween<double>(begin: _pullOffset, end: 0.0).animate(
-      CurvedAnimation(parent: _springController, curve: Curves.easeOutCubic),
-    );
-    _springController.forward(from: 0.0);
-    _hasTriggeredHaptic = false;
+    final bool shouldCommit = _pullOffset >= widget.effectiveThreshold;
 
     if (shouldCommit) {
       _committed = true;
-      widget.onOpenSearch();
+      _hasTriggeredHaptic = false;
+
+      if (widget.searchViewBuilder != null) {
+        // In-place unveil: continue sliding content smoothly down off-screen!
+        _slideBeginOffset = _pullOffset;
+        setState(() {
+          _isSearchActive = true;
+        });
+        _slideController.forward(from: 0.0);
+        widget.onOpenSearch();
+      } else {
+        // Fallback mode without searchViewBuilder (e.g. editor find-in-note):
+        _springAnimation = Tween<double>(begin: _pullOffset, end: 0.0).animate(
+          CurvedAnimation(parent: _springController, curve: Curves.easeOutCubic),
+        );
+        _springController.forward(from: 0.0);
+        widget.onOpenSearch();
+      }
+    } else {
+      // Aborted before threshold: spring back to 0.0
+      _springAnimation = Tween<double>(begin: _pullOffset, end: 0.0).animate(
+        CurvedAnimation(parent: _springController, curve: Curves.easeOutCubic),
+      );
+      _springController.forward(from: 0.0);
+      _hasTriggeredHaptic = false;
     }
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
+    if (_isSearchActive || !widget.enabled) {
+      return false;
+    }
+
     // Ignore horizontal scrollables (e.g. the tags filter bar).
     if (notification.metrics.axis != Axis.vertical) {
       return false;
@@ -148,15 +263,12 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
 
     if (notification is ScrollStartNotification) {
       // Phase 1 — arm only when starting from rest at the very top under a
-      // real finger. A drag that begins mid-list, or any ballistic motion,
-      // leaves us disarmed for the whole gesture.
+      // real finger. Ballistic flings or mid-list drags never arm.
       _armed = notification.metrics.pixels <= 0 &&
           notification.dragDetails != null;
       _committed = false;
     } else if (notification is ScrollUpdateNotification) {
-      // Bouncing physics lets the position travel past the top edge, so the
-      // pull surfaces as negative pixels on a user-driven update. Track the
-      // raw finger delta and ignore ballistic spring-back (dragDetails null).
+      // Phase 2 — accumulate finger delta while armed at the top boundary.
       if (_armed &&
           notification.dragDetails != null &&
           notification.metrics.pixels <= 0) {
@@ -166,7 +278,6 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
         }
       }
     } else if (notification is OverscrollNotification) {
-      // Clamping physics instead reports the unabsorbed overscroll; same intent.
       if (_armed &&
           notification.dragDetails != null &&
           notification.overscroll < 0) {
@@ -179,8 +290,6 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
       _onPullEnd();
     } else if (notification is UserScrollNotification &&
         notification.direction == ScrollDirection.idle) {
-      // Finger lifted without a settling animation — resolve any accumulated
-      // pull.
       if (_pullOffset > 0.0 || _armed) {
         _onPullEnd();
       }
@@ -194,115 +303,146 @@ class _PullDownSearchRevealState extends State<PullDownSearchReveal>
       return widget.child;
     }
 
-    final colors = context.appColors;
-    final double revealRatio = (_pullOffset / widget.threshold).clamp(0.0, 1.0);
-    final bool past = _pullOffset >= widget.threshold;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double viewportHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height;
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _handleScrollNotification,
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
-        children: [
-          // Revealed search header (sits behind the content, exposed as it
-          // slides down).
-          if (_pullOffset > 0.0)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                bottom: false,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+        double translation;
+        if (_slideController.isAnimating) {
+          translation = lerpDouble(
+            _slideBeginOffset,
+            viewportHeight,
+            Curves.easeOutCubic.transform(_slideController.value),
+          )!;
+        } else if (_isSearchActive) {
+          translation = viewportHeight;
+        } else if (_springController.isAnimating) {
+          translation = _springAnimation.value;
+        } else {
+          translation = _pullOffset;
+        }
+
+        final bool showSearchView = widget.searchViewBuilder != null &&
+            (_pullOffset > 0.0 || _isSearchActive || _slideController.isAnimating);
+
+        if (widget.searchViewBuilder != null) {
+          return NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+              children: [
+                if (showSearchView)
+                  Positioned.fill(
+                    child: widget.searchViewBuilder!(
+                      context,
+                      _pullOffset >= widget.effectiveThreshold,
+                      closeSearch,
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Opacity(
-                    opacity: revealRatio,
-                    child: Transform.scale(
-                      scale: 0.90 + (0.10 * revealRatio),
-                      child: Container(
-                        height: 44,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: AppRadii.borderMd,
-                          border: Border.all(
-                            color: past
-                                ? colors.accent.withValues(alpha: 0.5)
-                                : colors.divider,
-                            width: 1.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colors.divider.withValues(alpha: 0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                Transform.translate(
+                  offset: Offset(0.0, translation),
+                  child: Offstage(
+                    offstage: _isSearchActive && !_slideController.isAnimating,
+                    child: widget.child,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Fallback mode without searchViewBuilder (e.g. editor find-in-note).
+        final colors = context.appColors;
+        final double revealRatio =
+            (_pullOffset / widget.effectiveThreshold).clamp(0.0, 1.0);
+        final bool past = _pullOffset >= widget.effectiveThreshold;
+
+        return NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              if (_pullOffset > 0.0)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      alignment: Alignment.center,
+                      child: Opacity(
+                        opacity: revealRatio,
+                        child: Transform.scale(
+                          scale: 0.90 + (0.10 * revealRatio),
+                          child: Container(
+                            height: 44,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.search_rounded,
-                              size: 20,
-                              color: past
-                                  ? colors.accent
-                                  : colors.textSecondary,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(
-                                widget.hintText ??
-                                    (widget.isTabletPane
-                                        ? 'Search notes...'
-                                        : 'Search notes, documents, OCR, tags...'),
-                                style: AppTypography.headline.copyWith(
-                                  color: colors.textTertiary,
-                                  fontSize: 15,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: AppRadii.borderMd,
+                              border: Border.all(
+                                color: past
+                                    ? colors.accent.withValues(alpha: 0.5)
+                                    : colors.divider,
+                                width: 1.0,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.divider.withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            if (past)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  size: 20,
+                                  color: past
+                                      ? colors.accent
+                                      : colors.textSecondary,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: colors.accent.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'Release',
-                                  style: AppTypography.caption.copyWith(
-                                    color: colors.accent,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 11,
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    widget.hintText ??
+                                        (widget.isTabletPane
+                                            ? 'Search notes...'
+                                            : 'Search notes, documents, OCR, tags...'),
+                                    style: AppTypography.headline.copyWith(
+                                      color: colors.textTertiary,
+                                      fontSize: 15,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
+              Transform.translate(
+                offset: Offset(0.0, _pullOffset),
+                child: widget.child,
               ),
-            ),
-
-          // Translating content.
-          Transform.translate(
-            offset: Offset(0.0, _pullOffset),
-            child: widget.child,
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

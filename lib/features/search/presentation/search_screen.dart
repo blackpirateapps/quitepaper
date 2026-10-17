@@ -21,9 +21,20 @@ import 'widgets/document_search_tile.dart';
 import 'widgets/search_filter_bar.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.initialQuery = ''});
+  const SearchScreen({
+    super.key,
+    this.initialQuery = '',
+    this.onClose,
+    this.isPastThreshold = false,
+    this.autoFocus = true,
+    this.onNoteSelected,
+  });
 
   final String initialQuery;
+  final VoidCallback? onClose;
+  final bool isPastThreshold;
+  final bool autoFocus;
+  final ValueChanged<Note>? onNoteSelected;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -50,6 +61,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void didUpdateWidget(SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.autoFocus && widget.autoFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.initialQuery.isEmpty) {
+          _searchFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   void _onSearchChanged() {
@@ -88,7 +111,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           tooltip: 'Back',
           onPressed: () {
             ref.read(searchQueryProvider.notifier).state = '';
-            Navigator.of(context).pop();
+            if (widget.onClose != null) {
+              widget.onClose!();
+            } else {
+              Navigator.of(context).pop();
+            }
           },
         ),
         actions: [
@@ -150,23 +177,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildSearchField(AppColors colors) {
+    final border = widget.isPastThreshold
+        ? Border.all(color: colors.accent.withValues(alpha: 0.6), width: 1.5)
+        : Border.all(color: colors.borderSubtle, width: 1.0);
+    final iconColor = widget.isPastThreshold
+        ? colors.accent
+        : colors.textSecondary;
+
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: AppRadii.borderLg,
-        border: Border.all(color: colors.borderSubtle, width: 1.0),
+        border: border,
+        boxShadow: widget.isPastThreshold
+            ? [
+                BoxShadow(
+                  color: colors.accent.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         children: [
-          Icon(Icons.search_rounded, size: 20, color: colors.textSecondary),
+          Icon(Icons.search_rounded, size: 20, color: iconColor),
           const SizedBox(width: AppSpacing.compact),
           Expanded(
             child: TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
-              autofocus: widget.initialQuery.isEmpty,
+              autofocus: widget.autoFocus && widget.initialQuery.isEmpty,
               cursorColor: colors.accent,
               textInputAction: TextInputAction.search,
               style: AppTypography.body
@@ -717,6 +760,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _openNote(BuildContext context, Note note) {
+    if (widget.onNoteSelected != null) {
+      widget.onNoteSelected!(note);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => EditorScreen(
@@ -742,6 +789,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     await ref.read(notesRepositoryProvider).saveNote(newNote);
 
     if (context.mounted) {
+      if (widget.onNoteSelected != null) {
+        widget.onNoteSelected!(newNote);
+        return;
+      }
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => EditorScreen(
