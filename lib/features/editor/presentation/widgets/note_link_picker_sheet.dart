@@ -7,6 +7,8 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/note_links/note_link_search_service.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 
 /// Result returned from the note link picker.
 sealed class NoteLinkPickerResult {
@@ -50,17 +52,17 @@ class NoteLinkPickerSheet extends StatefulWidget {
   final ValueChanged<NoteLinkPickerSelectResult>? onSelect;
   final ValueChanged<NoteLinkPickerCreateResult>? onCreate;
 
-  /// Shows the note picker as an editorial modal bottom sheet.
+  /// Shows the note picker as an editorial modal bottom sheet (mobile) or spotlight palette (desktop).
   static Future<NoteLinkPickerResult?> show(
     BuildContext context, {
     required NoteLinkSearchService searchService,
     String initialQuery = '',
     String? currentNoteId,
   }) {
-    return showModalBottomSheet<NoteLinkPickerResult>(
+    return QuietAdaptiveModal.show<NoteLinkPickerResult>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 540,
       builder: (ctx) => NoteLinkPickerSheet(
         searchService: searchService,
         initialQuery: initialQuery,
@@ -199,39 +201,13 @@ class _NoteLinkPickerSheetState extends State<NoteLinkPickerSheet> {
     final colors = context.appColors;
     final mediaQuery = MediaQuery.of(context);
     final isKeyboardVisible = mediaQuery.viewInsets.bottom > 0;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
-    return KeyboardListener(
-      focusNode: FocusNode(),
-      onKeyEvent: _handleKeyDown,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Container(
-            margin: EdgeInsets.only(
-              left: AppSpacing.md,
-              right: AppSpacing.md,
-              bottom: isKeyboardVisible ? mediaQuery.viewInsets.bottom + 12 : AppSpacing.xl,
-              top: AppSpacing.lg,
-            ),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: AppRadii.borderLg,
-              border: Border.all(color: colors.divider),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header & Search Input
+    final innerContent = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header & Search Input
                   Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
                     child: Row(
@@ -316,21 +292,60 @@ class _NoteLinkPickerSheetState extends State<NoteLinkPickerSheet> {
 
                   Divider(height: 1, color: colors.divider),
 
-                  // Results list
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      child: _buildListContent(colors),
-                    ),
-                  ),
+        // Results list
+        Flexible(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: isDesktop ? 360 : 280),
+            child: _buildListContent(colors),
+          ),
+        ),
 
-                  // Create action button (at bottom)
-                  if (_canCreate) ...[
-                    Divider(height: 1, color: colors.divider),
-                    _buildCreateTile(colors, _results.length == _selectedIndex),
-                  ],
-                ],
-              ),
+        // Create action button (at bottom)
+        if (_canCreate) ...[
+          Divider(height: 1, color: colors.divider),
+          _buildCreateTile(colors, _results.length == _selectedIndex),
+        ],
+      ],
+    );
+
+    final keyboardListener = KeyboardListener(
+      focusNode: FocusNode(),
+      onKeyEvent: _handleKeyDown,
+      child: innerContent,
+    );
+
+    if (isDesktop) {
+      return keyboardListener;
+    }
+
+    return KeyboardListener(
+      focusNode: FocusNode(),
+      onKeyEvent: _handleKeyDown,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Container(
+            margin: EdgeInsets.only(
+              left: AppSpacing.md,
+              right: AppSpacing.md,
+              bottom: isKeyboardVisible ? mediaQuery.viewInsets.bottom + 12 : AppSpacing.xl,
+              top: AppSpacing.lg,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: AppRadii.borderLg,
+              border: Border.all(color: colors.divider),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: innerContent,
             ),
           ),
         ),

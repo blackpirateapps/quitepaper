@@ -8789,5 +8789,30 @@ Phase 2 migrates all quick action menus, contextual options, and tool dropdowns 
   - Document viewer PDF share variant picker in [`document_viewer_screen.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart).
 - **Test Coverage**: Added [`test/widgets/context_popover_test.dart`](file:///home/dog/git/quitepaper/test/widgets/context_popover_test.dart) covering Linux popovers, auto-flip positioning, Escape dismissal, and Android bottom sheet fallbacks.
 
+## 194. Desktop Adaptive Modals — Spotlight Command Palettes Migration (Phase 3) (October 2026)
+
+### Overview & Enhancements
+Phase 3 migrates all searchable pickers, fast lookup selectors, and command-style prompts from mobile bottom sheets to desktop Spotlight / Command Palette modals (`QuietAdaptiveModal.show` with `AdaptiveModalType.spotlight`):
+
+- **Searchable Pickers & Command Palettes**:
+  - **Note Link Picker** ([`lib/features/editor/presentation/widgets/note_link_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/note_link_picker_sheet.dart)):
+    - Floats in the upper third of the screen with immediate autofocus on the search input, arrow key navigation (Up/Down/Enter), and Escape dismissal.
+    - Expanded height constraint (`360dp` on desktop) displaying more search results comfortably without visual clutter.
+  - **Syntax Language Selector** ([`lib/core/syntax/presentation/language_selector_sheet.dart`](file:///home/dog/git/quitepaper/lib/core/syntax/presentation/language_selector_sheet.dart)):
+    - Adapts to top-third spotlight modal (`maxWidth: 520`) with instant search autofocus, clean divider-less card, and `AdaptiveSheetDragHandle`.
+  - **Tag Browser Palette** ([`lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart)):
+    - Opens as a spotlight palette (`maxWidth: 520`) with keyboard autofocus on tag filter textfield, replacing mobile bottom sheet.
+  - **Font Picker & Google Fonts Browser** ([`lib/features/settings/presentation/widgets/font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart), [`lib/features/settings/presentation/widgets/google_fonts_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/google_fonts_sheet.dart)):
+    - Extracted clean responsive content builders, replacing mobile `DraggableScrollableSheet` with desktop upper-third spotlight modals (`maxWidth: 600-620`), discreet close buttons, and instant search autofocus.
+  - **Tag Icon Picker** ([`lib/features/tags/presentation/widgets/tag_icon_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_icon_picker_sheet.dart)):
+    - Standardized onto `QuietAdaptiveModal.show` with `AdaptiveModalType.spotlight` (`maxWidth: 640`), keyboard autofocus, and category chips.
+  - **Journal Metadata Pickers**:
+    - [`ActivityPickerSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/activity_picker_sheet.dart): Activity multi-selector with `AdaptiveSheetDragHandle` and spotlight eye-level positioning (`maxWidth: 520`).
+    - [`MomentPickerSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/moment_picker_sheet.dart): 10-moment contextual picker (`maxWidth: 480`).
+    - [`MoodPickerSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/mood_picker_sheet.dart): 10-level visual mood grid (`maxWidth: 480`).
+    - [`PlacePickerSheet`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_picker_sheet.dart): Forward-geocoded location search with desktop close button, instant search autofocus, and spotlight centering (`maxWidth: 540`).
+- **Test Coverage**: Added [`test/widgets/spotlight_palette_test.dart`](file:///home/dog/git/quitepaper/test/widgets/spotlight_palette_test.dart) verifying Linux spotlight rendering, search filtering, Escape key dismissal, and mobile bottom sheet fallbacks on Android.
+
+
 
 

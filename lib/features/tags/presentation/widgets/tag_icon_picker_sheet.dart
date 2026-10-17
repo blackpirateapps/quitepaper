@@ -6,6 +6,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../application/phosphor_catalog_service.dart';
 import '../../application/tag_icon_preferences_service.dart';
@@ -29,7 +31,7 @@ class TagIconPickerSheet extends StatefulWidget {
   final PhosphorCatalogService? catalogService;
   final TagIconPreferencesService? preferencesService;
 
-  /// Shows the tag icon picker as an adaptive bottom sheet (phones) or centered dialog (tablets).
+  /// Shows the tag icon picker as an adaptive bottom sheet (mobile) or spotlight palette (desktop).
   static Future<String?> show(
     BuildContext context, {
     String? currentIconId,
@@ -37,35 +39,10 @@ class TagIconPickerSheet extends StatefulWidget {
     PhosphorCatalogService? catalogService,
     TagIconPreferencesService? preferencesService,
   }) {
-    final isTablet = MediaQuery.of(context).size.width >= 600;
-
-    if (isTablet) {
-      return showDialog<String?>(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
-            child: ClipRRect(
-              borderRadius: AppRadii.borderLg,
-              child: TagIconPickerSheet(
-                selectedIconId: currentIconId,
-                tagName: tagName,
-                catalogService: catalogService,
-                preferencesService: preferencesService,
-                onIconSelected: (iconId) => Navigator.of(ctx).pop(iconId),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return showModalBottomSheet<String?>(
+    return QuietAdaptiveModal.show<String?>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 640,
       builder: (ctx) => TagIconPickerSheet(
         selectedIconId: currentIconId,
         tagName: tagName,
@@ -243,11 +220,12 @@ class _TagIconPickerSheetState extends State<TagIconPickerSheet> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final cleanCurrentId = TagIconRegistry.cleanId(widget.selectedIconId);
-    final isTablet = MediaQuery.of(context).size.width >= 600;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isTablet = MediaQuery.of(context).size.width >= 600 || isDesktop;
 
-    final sheetHeight = isTablet
-        ? 680.0
-        : MediaQuery.of(context).size.height * 0.85;
+    final sheetHeight = isDesktop
+        ? 640.0
+        : (isTablet ? 680.0 : MediaQuery.of(context).size.height * 0.85);
 
     return Container(
       height: sheetHeight,
@@ -261,20 +239,23 @@ class _TagIconPickerSheetState extends State<TagIconPickerSheet> {
         top: false,
         child: Column(
           children: [
-            // Drag handle on phones
-            if (!isTablet) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.divider,
-                  borderRadius: BorderRadius.circular(2),
+            if (!isDesktop) ...[
+              if (!isTablet) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.xs),
+              ] else ...[
+                const SizedBox(height: AppSpacing.md),
+              ],
             ] else ...[
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
             ],
 
             // Header row
@@ -343,6 +324,7 @@ class _TagIconPickerSheetState extends State<TagIconPickerSheet> {
                       child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
+                        autofocus: isDesktop,
                         onChanged: _onSearchChanged,
                         style: AppTypography.bodySmall.copyWith(
                           color: colors.textPrimary,

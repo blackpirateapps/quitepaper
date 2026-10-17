@@ -4,6 +4,8 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/domain/journal_mood.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 
 /// Modal bottom sheet allowing users to pick a 1-to-10 mood level or clear it.
 class MoodPickerSheet extends StatelessWidget {
@@ -18,16 +20,17 @@ class MoodPickerSheet extends StatelessWidget {
   final ValueChanged<int> onMoodSelected;
   final VoidCallback onMoodCleared;
 
+  /// Shows the mood picker as a bottom sheet (mobile) or spotlight palette (desktop).
   static Future<void> show({
     required BuildContext context,
     required int? currentMood,
     required ValueChanged<int> onMoodSelected,
     required VoidCallback onMoodCleared,
   }) {
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 480,
       builder: (ctx) => MoodPickerSheet(
         currentMood: currentMood,
         onMoodSelected: onMoodSelected,
@@ -39,37 +42,18 @@ class MoodPickerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-        border: Border(
-          top: BorderSide(color: colors.divider.withValues(alpha: 0.7), width: 1.0),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: colors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+    final body = SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AdaptiveSheetDragHandle(),
 
-            // Header row
-            Row(
+          // Header row
+          Row(
               children: [
                 Icon(Icons.sentiment_satisfied_outlined, size: 18, color: colors.accent),
                 const SizedBox(width: AppSpacing.sm),
@@ -164,7 +148,25 @@ class MoodPickerSheet extends StatelessWidget {
             ),
           ],
         ),
+      );
+
+    if (isDesktop) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: body,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+        border: Border(
+          top: BorderSide(color: colors.divider.withValues(alpha: 0.7), width: 1.0),
+        ),
       ),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
+      child: body,
     );
   }
 }

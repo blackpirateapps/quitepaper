@@ -10,6 +10,8 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../../core/journal/domain/journal_place.dart';
 import '../../../../core/location/location_models.dart';
 import '../../../../core/location/location_service.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../notes/domain/note_metadata_extractor.dart';
 import '../../application/places_providers.dart';
 
@@ -24,10 +26,10 @@ class PlacePickerSheet extends ConsumerStatefulWidget {
 
   /// Shows the sheet and resolves to the picked location, or null if cancelled.
   static Future<JournalLocation?> show(BuildContext context) {
-    return showModalBottomSheet<JournalLocation>(
+    return QuietAdaptiveModal.show<JournalLocation>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 540,
       builder: (_) => const PlacePickerSheet(),
     );
   }
@@ -155,44 +157,29 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
     final colors = context.appColors;
     final places = ref.watch(placeListProvider);
     final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    final body = SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: isDesktop ? 520 : MediaQuery.of(context).size.height * 0.75,
         ),
-        child: SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.75,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Grab handle
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.divider,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.sm,
-                    AppSpacing.lg,
-                    AppSpacing.xs,
-                  ),
-                  child: Text(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AdaptiveSheetDragHandle(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  Text(
                     'ADD A PLACE',
                     style: AppTypography.caption.copyWith(
                       color: colors.textTertiary,
@@ -201,38 +188,62 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
                       fontSize: 11,
                     ),
                   ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg,
-                      0,
-                      AppSpacing.lg,
-                      AppSpacing.lg,
+                  const Spacer(),
+                  if (isDesktop)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () => Navigator.of(context).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      tooltip: 'Close',
                     ),
-                    children: [
-                      _buildTypeOrSearchField(colors),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildCurrentLocation(colors),
-                      if (places.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.lg),
-                        _SectionLabel(label: 'KNOWN PLACES', colors: colors),
-                        const SizedBox(height: AppSpacing.xs),
-                        ...places.map((p) => _buildKnownPlaceRow(colors, p)),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                children: [
+                  _buildTypeOrSearchField(colors, isDesktop: isDesktop),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildCurrentLocation(colors),
+                  if (places.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    _SectionLabel(label: 'KNOWN PLACES', colors: colors),
+                    const SizedBox(height: AppSpacing.xs),
+                    ...places.map((p) => _buildKnownPlaceRow(colors, p)),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+
+    if (isDesktop) {
+      return body;
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+        ),
+        child: body,
       ),
     );
   }
 
-  Widget _buildTypeOrSearchField(AppColors colors) {
+  Widget _buildTypeOrSearchField(AppColors colors, {bool isDesktop = false}) {
     final query = _customController.text.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,6 +267,7 @@ class _PlacePickerSheetState extends ConsumerState<PlacePickerSheet> {
               Expanded(
                 child: TextField(
                   controller: _customController,
+                  autofocus: isDesktop,
                   cursorColor: colors.accent,
                   textInputAction: TextInputAction.search,
                   autocorrect: false,

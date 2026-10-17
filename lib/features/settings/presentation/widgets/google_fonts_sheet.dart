@@ -5,6 +5,8 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/utils/font_family_helper.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 
 /// Modal sheet for browsing, previewing, and selecting from Google Fonts.
 class GoogleFontsSheet extends StatefulWidget {
@@ -17,19 +19,16 @@ class GoogleFontsSheet extends StatefulWidget {
   final String? currentFont;
   final ValueChanged<String> onFontSelected;
 
+  /// Shows the Google Fonts browser as a bottom sheet (mobile) or spotlight palette (desktop).
   static Future<void> show(
     BuildContext context, {
     required String? currentFont,
     required ValueChanged<String> onFontSelected,
   }) {
-    final colors = context.appColors;
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 620,
       builder: (_) => GoogleFontsSheet(
         currentFont: currentFont,
         onFontSelected: onFontSelected,
@@ -83,7 +82,15 @@ class _GoogleFontsSheetState extends State<GoogleFontsSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final filteredFonts = _getFilteredFonts();
+
+    if (isDesktop) {
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 580),
+        child: _buildSheetContent(context, colors, null, isDesktop: true, filteredFonts: filteredFonts),
+      );
+    }
 
     return SafeArea(
       child: DraggableScrollableSheet(
@@ -91,22 +98,28 @@ class _GoogleFontsSheetState extends State<GoogleFontsSheet> {
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
-        builder: (ctx, scrollController) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 8, bottom: 12),
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.textTertiary.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+        builder: (ctx, scrollController) => _buildSheetContent(
+          ctx,
+          colors,
+          scrollController,
+          isDesktop: false,
+          filteredFonts: filteredFonts,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheetContent(
+    BuildContext context,
+    AppColors colors,
+    ScrollController? scrollController, {
+    required bool isDesktop,
+    required List<GoogleFontEntry> filteredFonts,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AdaptiveSheetDragHandle(),
 
               // Header
               Padding(
@@ -147,6 +160,7 @@ class _GoogleFontsSheetState extends State<GoogleFontsSheet> {
                   ),
                   child: TextField(
                     controller: _searchController,
+                    autofocus: isDesktop,
                     cursorColor: colors.accent,
                     style: TextStyle(color: colors.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
@@ -379,8 +393,5 @@ class _GoogleFontsSheetState extends State<GoogleFontsSheet> {
               ),
             ],
           );
-        },
-      ),
-    );
   }
 }

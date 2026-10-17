@@ -3,6 +3,8 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../utils/platform_layout_helper.dart';
+import '../../widgets/quiet_adaptive_modal.dart';
 import '../application/syntax_language_registry.dart';
 import '../domain/syntax_language.dart';
 
@@ -19,16 +21,16 @@ class LanguageSelectorSheet extends StatefulWidget {
   final ValueChanged<SyntaxLanguage>? onSelected;
   final String title;
 
-  /// Shows the language selector modal sheet.
+  /// Shows the language selector modal sheet (mobile) or spotlight palette (desktop).
   static Future<SyntaxLanguage?> show(
     BuildContext context, {
     String? currentLanguageId,
     String title = 'Select Code Language',
   }) {
-    return showModalBottomSheet<SyntaxLanguage>(
+    return QuietAdaptiveModal.show<SyntaxLanguage>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 520,
       builder: (ctx) => LanguageSelectorSheet(
         currentLanguageId: currentLanguageId,
         title: title,
@@ -67,36 +69,15 @@ class _LanguageSelectorSheetState extends State<LanguageSelectorSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final currentClean = widget.currentLanguageId?.toLowerCase().trim();
 
-    return Material(
-      color: colors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.75,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-          border: Border.all(color: colors.divider.withValues(alpha: 0.5), width: 0.8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.textTertiary.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const AdaptiveSheetDragHandle(),
 
-            // Header
+        // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
             child: Row(
@@ -216,8 +197,28 @@ class _LanguageSelectorSheetState extends State<LanguageSelectorSheet> {
                   ),
           ),
         ],
+      );
+
+    if (isDesktop) {
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 520),
+        child: content,
+      );
+    }
+
+    return Material(
+      color: colors.surface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+          border: Border.all(color: colors.divider.withValues(alpha: 0.5), width: 0.8),
+        ),
+        child: content,
       ),
-    ),
-  );
-}
+    );
+  }
 }

@@ -5,6 +5,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/application/notes_provider.dart';
 import '../../../tags/domain/tag_icon_registry.dart';
@@ -13,10 +15,10 @@ class TagBrowserSheet extends ConsumerStatefulWidget {
   const TagBrowserSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 520,
       builder: (ctx) => const TagBrowserSheet(),
     );
   }
@@ -48,29 +50,13 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final tagsAsync = ref.watch(allTagsStreamProvider);
     final selectedTag = ref.watch(selectedTagFilterProvider);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Handle bar
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
+    final content = Column(
+      children: [
+        const AdaptiveSheetDragHandle(),
 
             // Header
             Padding(
@@ -118,6 +104,7 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
+                        autofocus: isDesktop,
                         style: AppTypography.bodySmall.copyWith(
                           color: colors.textPrimary,
                         ),
@@ -232,7 +219,23 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
               ),
             ),
           ],
-        ),
+        );
+
+    if (isDesktop) {
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 520),
+        child: content,
+      );
+    }
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+      ),
+      child: SafeArea(
+        child: content,
       ),
     );
   }

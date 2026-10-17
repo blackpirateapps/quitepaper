@@ -7,7 +7,10 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/fonts/font_cache_manager.dart';
 import '../../../../core/utils/font_family_helper.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../application/typography_provider.dart';
+import '../../domain/typography_settings.dart';
 import 'google_fonts_sheet.dart';
 
 enum FontPickerType {
@@ -32,6 +35,7 @@ class FontPickerSheet extends ConsumerStatefulWidget {
   final FontPickerType type;
   final ValueChanged<String?> onFontSelected;
 
+  /// Shows the font picker as an adaptive bottom sheet (mobile) or spotlight palette (desktop).
   static Future<void> show(
     BuildContext context, {
     required String title,
@@ -39,14 +43,10 @@ class FontPickerSheet extends ConsumerStatefulWidget {
     required FontPickerType type,
     required ValueChanged<String?> onFontSelected,
   }) {
-    final colors = context.appColors;
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.spotlight,
+      maxWidth: 600,
       builder: (_) => FontPickerSheet(
         title: title,
         currentFont: currentFont,
@@ -169,41 +169,73 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
         widget.type != FontPickerType.bengali &&
         !allFonts.any((f) => f.toLowerCase() == _searchQuery.toLowerCase());
 
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+
+    if (isDesktop) {
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 560),
+        child: _buildSheetContent(
+          context,
+          colors,
+          null,
+          isDesktop: true,
+          typography: typography,
+          filtered: filtered,
+          effectiveCurrent: effectiveCurrent,
+          showCustomQueryOption: showCustomQueryOption,
+        ),
+      );
+    }
+
     return SafeArea(
       child: DraggableScrollableSheet(
         initialChildSize: 0.75,
         minChildSize: 0.4,
         maxChildSize: 0.92,
         expand: false,
-        builder: (ctx, scrollController) {
-          return Column(
+        builder: (ctx, scrollController) => _buildSheetContent(
+          ctx,
+          colors,
+          scrollController,
+          isDesktop: false,
+          typography: typography,
+          filtered: filtered,
+          effectiveCurrent: effectiveCurrent,
+          showCustomQueryOption: showCustomQueryOption,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheetContent(
+    BuildContext context,
+    AppColors colors,
+    ScrollController? scrollController, {
+    required bool isDesktop,
+    required TypographySettings typography,
+    required List<String> filtered,
+    required String effectiveCurrent,
+    required bool showCustomQueryOption,
+  }) {
+    return Column(
+      children: [
+        const AdaptiveSheetDragHandle(),
+
+        // Title and Actions
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Row(
             children: [
-              // Drag handle
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.textTertiary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: AppTypography.headline.copyWith(
+                    color: colors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-
-              // Title and Actions
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.title,
-                        style: AppTypography.headline.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                     // View Google Fonts Button
                     if (widget.type != FontPickerType.bengali) ...[
                       TextButton.icon(
@@ -235,6 +267,14 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                         onPressed: _importLocalFont,
                       ),
                     ],
+                    if (isDesktop) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: 'Close',
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -255,6 +295,7 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                   ),
                   child: TextField(
                     controller: _searchController,
+                    autofocus: isDesktop,
                     cursorColor: colors.accent,
                     style: TextStyle(color: colors.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
@@ -549,8 +590,5 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
               ),
             ],
           );
-        },
-      ),
-    );
   }
 }
