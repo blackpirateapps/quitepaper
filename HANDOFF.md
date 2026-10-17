@@ -9017,6 +9017,60 @@ While Quiet Paper supported Linux compilation via Flutter's GTK 3 desktop embedd
 - Static analysis: `flutter analyze` (**0 issues, 0 warnings**).
 - Automated tests: All unit, widget, and integration tests pass with 100% success.
 
+---
+
+## 201. Tag Browser Anchored Popover Context Menu & Trailing Options Fix (October 2026)
+
+### 1. Issue Overview & Root Cause Analysis
+- **Problem**: When clicking the 3-dot vertical action icon (`⋮`) for any tag in the Tag Browser / middle tag pane on desktop (Linux / Wayland / KDE Plasma), the context popover menu opened in the wrong location: floating in the center of the window over the editor pane instead of anchored directly beneath the 3-dot button.
+- **Root Cause Investigation**:
+  1. **Missing Anchor in `TagBrowserView`**:
+     - In [`lib/features/tags/presentation/widgets/tag_browser_view.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart), `_showTagOptions(context, item)` invoked `QuietAdaptiveModal.show` with `AdaptiveModalType.popover`, but did not pass `anchorKey`, `anchorContext`, or `cursorPosition`.
+     - In [`lib/core/widgets/quiet_popover.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_popover.dart), when neither an anchor nor a cursor position was provided, `showQuietPopover` defaulted to `anchorRect = Rect.fromCenter(center: overlay.size.center(Offset.zero))`, placing the popover directly in the center of the entire window (spanning across pane boundaries).
+  2. **Lack of Horizontal End Alignment**:
+     - `_QuietPopoverLayoutDelegate` previously aligned the popover to `anchorRect.left`. For trailing action buttons situated at the right edge of a pane (such as the 3-dot button at the right of a 300px Tag Browser pane), `x = anchorRect.left` caused a 280px wide popover to project rightwards out of the Tag Browser pane and across the adjacent Editor pane.
+  3. **Secondary Tap (Right-Click) Position Loss**:
+     - `InkWell` in `_buildTagItem` used `onSecondaryTap` rather than `onSecondaryTapUp: (details) => ...`, failing to capture `details.globalPosition`.
+  4. **ReorderableListView Default Drag Handle Collision**:
+     - `ReorderableListView.builder` for pinned tags defaulted `buildDefaultDragHandles: true`, which placed Flutter's default Material reorder drag handle over the trailing 3-dot button.
+  5. **Modal Header Layout & Material Ancestor Assertion**:
+     - The modal header `Row` containing `#${tag.name}` and note counts lacked flex constraints, causing overflow on long tag names.
+     - The modal content was wrapped in a `Container(decoration: BoxDecoration(color: colors.surface))` around `ListTile` items, which triggered Flutter framework assertions regarding missing `Material` ancestors.
+
+### 2. Solution & Architectural Enhancements
+1. **Adaptive Popover Alignment Strategy ([`lib/core/widgets/quiet_popover.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_popover.dart))**:
+   - Introduced `enum PopoverAlignment { start, end, center, auto }`.
+   - Updated `_QuietPopoverLayoutDelegate.getPositionForChild`:
+     - `PopoverAlignment.end`: Computes `x = anchorRect.right - childSize.width`, anchoring the top-right of the popover flush with the bottom-right of the anchor button, keeping the menu neatly tucked inside the tag pane.
+     - `PopoverAlignment.start`: Computes `x = anchorRect.left`.
+     - `PopoverAlignment.center`: Aligns `x` to the anchor's horizontal midpoint.
+     - `PopoverAlignment.auto`: Automatically flips to end-alignment if the anchor is on the right half of the screen or would overflow the right viewport boundary.
+   - Enhanced `showQuietPopover` to accept `BuildContext? anchorContext` in addition to `GlobalKey? anchorKey` and `Offset? cursorPosition`, extracting the global bounding rect from `anchorContext.findRenderObject()`. Added fallback to `context.findRenderObject()` if no explicit anchor is specified.
+2. **Modal Controller Routing ([`lib/core/widgets/quiet_adaptive_modal.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_adaptive_modal.dart))**:
+   - Exported `PopoverAlignment` from `quiet_adaptive_modal.dart`.
+   - Added `BuildContext? anchorContext`, `PopoverAlignment alignment = PopoverAlignment.auto`, and `double minWidth = 200` to `QuietAdaptiveModal.show`, seamlessly forwarding to `showQuietPopover`.
+3. **Tag Browser Presentation Refactor ([`lib/features/tags/presentation/widgets/tag_browser_view.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart))**:
+   - Updated `_showTagOptions` to accept `BuildContext? anchorContext`, `Offset? cursorPosition`, and `PopoverAlignment? alignment`.
+   - In `_buildTagItem`:
+     - Wrapped the 3-dot `IconButton` with `Builder(builder: (btnContext) => ...)` and passed `anchorContext: btnContext` and `alignment: PopoverAlignment.end`.
+     - Converted `onSecondaryTap` to `onSecondaryTapUp: (details) => _showTagOptions(context, item, cursorPosition: details.globalPosition)`.
+   - Updated `_showTagOptions` modal builder to use `Material(color: colors.surface)` instead of `Container(decoration: ...)` and wrapped `#${tag.name}` in `Expanded(child: Text(..., overflow: TextOverflow.ellipsis))`.
+   - Configured `buildDefaultDragHandles: false` on `ReorderableListView.builder` for pinned tags, wrapping items in `ReorderableDelayedDragStartListener` so long-press dragging works cleanly without intrusive overlay handles.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/core/widgets/quiet_popover.dart`: Added `PopoverAlignment` enum, `anchorContext` parameter and resolution, and alignment positioning logic in `_QuietPopoverLayoutDelegate`.
+  - `lib/core/widgets/quiet_adaptive_modal.dart`: Exported `PopoverAlignment`, added `anchorContext`, `alignment`, and `minWidth` to `QuietAdaptiveModal.show`.
+  - `lib/features/tags/presentation/widgets/tag_browser_view.dart`: Integrated `anchorContext` on 3-dot button, `onSecondaryTapUp` with `globalPosition`, `buildDefaultDragHandles: false`, and `Material` layout in options modal.
+  - `test/widgets/quiet_adaptive_modal_test.dart`: Added widget tests for `anchorContext` resolution with `PopoverAlignment.end` and `PopoverAlignment.start`.
+  - `test/tags/tag_ui_test.dart`: Added widget test verifying 3-dot options button opens popover anchored directly beneath the button.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/widgets/context_popover_test.dart test/widgets/quiet_adaptive_modal_test.dart test/tags/tag_ui_test.dart`: **20/20 tests passed**.
+- Full test suite verified.
+
+
 
 
 

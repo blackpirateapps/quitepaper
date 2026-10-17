@@ -6,9 +6,11 @@ import 'quiet_editorial_dialog.dart';
 import 'quiet_popover.dart';
 import 'quiet_spotlight_dialog.dart';
 
+export 'quiet_popover.dart' show PopoverAlignment;
+
 /// Modal presentation styles on desktop/mouse platforms.
 enum AdaptiveModalType {
-  /// Anchored to a trigger button (GlobalKey) or mouse cursor position.
+  /// Anchored to a trigger button (GlobalKey, BuildContext) or mouse cursor position.
   popover,
 
   /// Centered spotlight-style command palette (top-third, auto-focused search).
@@ -31,7 +33,7 @@ class QuietAdaptiveModal {
   /// touch drag handles and swipe-to-dismiss.
   ///
   /// On desktop platforms (Linux, macOS, Windows), adapts according to [type]:
-  /// - [AdaptiveModalType.popover]: Position-aware flyout adjacent to [anchorKey] or [cursorPosition].
+  /// - [AdaptiveModalType.popover]: Position-aware flyout adjacent to [anchorKey], [anchorContext], or [cursorPosition].
   /// - [AdaptiveModalType.spotlight]: Floating command palette centered at eye level with instant keyboard focus.
   /// - [AdaptiveModalType.dialog]: Clean, centered card dialog with header and `Escape` key dismissal.
   static Future<T?> show<T>({
@@ -39,11 +41,14 @@ class QuietAdaptiveModal {
     required WidgetBuilder builder,
     AdaptiveModalType type = AdaptiveModalType.dialog,
     GlobalKey? anchorKey,
+    BuildContext? anchorContext,
     Offset? cursorPosition,
+    PopoverAlignment alignment = PopoverAlignment.auto,
     String? title,
     String? subtitle,
     Widget? headerTrailing,
     bool showCloseButton = true,
+    double minWidth = 200,
     double maxWidth = 560,
     double? maxHeight,
     bool isScrollControlled = true,
@@ -80,7 +85,10 @@ class QuietAdaptiveModal {
         return showQuietPopover<T>(
           context: context,
           anchorKey: anchorKey,
+          anchorContext: anchorContext,
           cursorPosition: cursorPosition,
+          alignment: alignment,
+          minWidth: minWidth,
           maxWidth: maxWidth,
           maxHeight: maxHeight,
           barrierColor: barrierColor,

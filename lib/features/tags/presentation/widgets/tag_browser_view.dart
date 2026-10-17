@@ -225,7 +225,13 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     }
   }
 
-  void _showTagOptions(BuildContext context, Tag tag) {
+  void _showTagOptions(
+    BuildContext context,
+    Tag tag, {
+    BuildContext? anchorContext,
+    Offset? cursorPosition,
+    PopoverAlignment? alignment,
+  }) {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = tag.colorDefinition;
@@ -233,14 +239,15 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     QuietAdaptiveModal.show(
       context: context,
       type: AdaptiveModalType.popover,
+      anchorContext: anchorContext,
+      cursorPosition: cursorPosition,
+      alignment: alignment ?? (cursorPosition != null ? PopoverAlignment.auto : PopoverAlignment.end),
       maxWidth: 280,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: PlatformLayoutHelper.isDesktop(context)
-              ? AppRadii.borderMd
-              : const BorderRadius.vertical(top: AppRadii.rLg),
-        ),
+      builder: (ctx) => Material(
+        color: PlatformLayoutHelper.isDesktop(context) ? Colors.transparent : colors.surface,
+        borderRadius: PlatformLayoutHelper.isDesktop(context)
+            ? null
+            : const BorderRadius.vertical(top: AppRadii.rLg),
         child: SafeArea(
           top: false,
           child: Column(
@@ -262,14 +269,17 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                       color: colorDef?.foreground(isDark) ?? colors.accent,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '#${tag.name}',
-                      style: AppTypography.title.copyWith(
-                        color: colors.textPrimary,
-                        fontSize: 18,
+                    Expanded(
+                      child: Text(
+                        '#${tag.name}',
+                        style: AppTypography.title.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 18,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: AppSpacing.sm),
                     Text(
                       '${tag.noteCount} note${tag.noteCount == 1 ? '' : 's'}',
                       style: AppTypography.caption.copyWith(color: colors.textTertiary),
@@ -461,6 +471,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                           child: ReorderableListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
+                            buildDefaultDragHandles: false,
                             itemCount: pinnedTags.length,
                             // ignore: deprecated_member_use
                             onReorder: (oldIdx, newIdx) {
@@ -474,11 +485,14 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                             },
                             itemBuilder: (ctx, index) {
                               final item = pinnedTags[index];
-                              return _buildTagRow(
-                                item,
-                                colors,
+                              return ReorderableDelayedDragStartListener(
                                 key: ValueKey('pinned_${item.id}'),
-                                hidePinGlyph: true,
+                                index: index,
+                                child: _buildTagRow(
+                                  item,
+                                  colors,
+                                  hidePinGlyph: true,
+                                ),
                               );
                             },
                           ),
@@ -950,7 +964,11 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
         child: InkWell(
           onTap: () => _handleTagTap(item),
           onLongPress: () => _showTagOptions(context, item),
-          onSecondaryTap: () => _showTagOptions(context, item),
+          onSecondaryTapUp: (details) => _showTagOptions(
+            context,
+            item,
+            cursorPosition: details.globalPosition,
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
@@ -973,8 +991,8 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                       iconData,
                       size: 15,
                       color: colorDef != null
-                          ? colorDef.foreground(isDark)
-                          : colors.textSecondary,
+                        ? colorDef.foreground(isDark)
+                        : colors.textSecondary,
                     ),
                   ),
                 ),
@@ -1023,15 +1041,22 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                 SizedBox(
                   width: 28,
                   height: 28,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    iconSize: 16,
-                    icon: Icon(
-                      PhosphorIconsRegular.dotsThreeVertical,
-                      color: colors.textTertiary,
+                  child: Builder(
+                    builder: (btnContext) => IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 16,
+                      icon: Icon(
+                        PhosphorIconsRegular.dotsThreeVertical,
+                        color: colors.textTertiary,
+                      ),
+                      tooltip: 'Tag options',
+                      onPressed: () => _showTagOptions(
+                        btnContext,
+                        item,
+                        anchorContext: btnContext,
+                        alignment: PopoverAlignment.end,
+                      ),
                     ),
-                    tooltip: 'Tag options',
-                    onPressed: () => _showTagOptions(context, item),
                   ),
                 ),
               ],

@@ -3,7 +3,22 @@ import 'package:flutter/services.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 
-/// Shows an anchored contextual popover route adjacent to [anchorKey] or [cursorPosition].
+/// Horizontal alignment strategies for [showQuietPopover] and [QuietPopoverRoute].
+enum PopoverAlignment {
+  /// Aligns the leading edge of the popover with the leading edge of the anchor (left in LTR).
+  start,
+
+  /// Aligns the trailing edge of the popover with the trailing edge of the anchor (right in LTR).
+  end,
+
+  /// Centers the popover horizontally relative to the anchor.
+  center,
+
+  /// Automatically picks alignment based on anchor position and viewport boundaries.
+  auto,
+}
+
+/// Shows an anchored contextual popover route adjacent to [anchorKey], [anchorContext], or [cursorPosition].
 ///
 /// Automatically flips between opening below or above the anchor depending on
 /// available screen clearance, and clamps horizontally within the viewport.
@@ -11,7 +26,9 @@ Future<T?> showQuietPopover<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   GlobalKey? anchorKey,
+  BuildContext? anchorContext,
   Offset? cursorPosition,
+  PopoverAlignment alignment = PopoverAlignment.auto,
   double minWidth = 200,
   double maxWidth = 360,
   double? maxHeight,
@@ -34,19 +51,38 @@ Future<T?> showQuietPopover<T>({
         height: 1,
       );
     }
+  } else if (anchorContext != null && anchorContext.findRenderObject() != null) {
+    final box = anchorContext.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+      anchorRect = origin & box.size;
+    } else {
+      anchorRect = Rect.fromCenter(
+        center: overlay.size.center(Offset.zero),
+        width: 1,
+        height: 1,
+      );
+    }
   } else if (cursorPosition != null) {
     anchorRect = Rect.fromLTWH(cursorPosition.dx, cursorPosition.dy, 1, 1);
   } else {
-    anchorRect = Rect.fromCenter(
-      center: overlay.size.center(Offset.zero),
-      width: 1,
-      height: 1,
-    );
+    final box = context.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize && box != overlay) {
+      final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+      anchorRect = origin & box.size;
+    } else {
+      anchorRect = Rect.fromCenter(
+        center: overlay.size.center(Offset.zero),
+        width: 1,
+        height: 1,
+      );
+    }
   }
 
   return Navigator.of(context, rootNavigator: true).push<T>(
     QuietPopoverRoute<T>(
       anchorRect: anchorRect,
+      alignment: alignment,
       builder: builder,
       minWidth: minWidth,
       maxWidth: maxWidth,
@@ -63,6 +99,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
   QuietPopoverRoute({
     required this.anchorRect,
     required this.builder,
+    this.alignment = PopoverAlignment.auto,
     this.minWidth = 200,
     this.maxWidth = 360,
     this.maxHeight,
@@ -74,6 +111,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
 
   final Rect anchorRect;
   final WidgetBuilder builder;
+  final PopoverAlignment alignment;
   final double minWidth;
   final double maxWidth;
   final double? maxHeight;
@@ -101,6 +139,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
     return CustomSingleChildLayout(
       delegate: _QuietPopoverLayoutDelegate(
         anchorRect: anchorRect,
+        alignment: alignment,
         minWidth: minWidth,
         maxWidth: maxWidth,
         maxHeight: maxHeight,
@@ -147,12 +186,14 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
 class _QuietPopoverLayoutDelegate extends SingleChildLayoutDelegate {
   const _QuietPopoverLayoutDelegate({
     required this.anchorRect,
+    this.alignment = PopoverAlignment.auto,
     required this.minWidth,
     required this.maxWidth,
     this.maxHeight,
   });
 
   final Rect anchorRect;
+  final PopoverAlignment alignment;
   final double minWidth;
   final double maxWidth;
   final double? maxHeight;
@@ -189,8 +230,31 @@ class _QuietPopoverLayoutDelegate extends SingleChildLayoutDelegate {
       y = anchorRect.top - childSize.height - _anchorSpacing;
     }
 
-    // Prefer aligning child left with anchor left, but shift if overflowing right
-    double x = anchorRect.left;
+    // Determine horizontal position based on specified alignment
+    double x;
+    switch (alignment) {
+      case PopoverAlignment.start:
+        x = anchorRect.left;
+        break;
+      case PopoverAlignment.end:
+        x = anchorRect.right - childSize.width;
+        break;
+      case PopoverAlignment.center:
+        x = anchorRect.center.dx - (childSize.width / 2);
+        break;
+      case PopoverAlignment.auto:
+        if (anchorRect.right + childSize.width > size.width - _viewportPadding &&
+            anchorRect.right - childSize.width >= _viewportPadding) {
+          x = anchorRect.right - childSize.width;
+        } else if (anchorRect.center.dx > size.width / 2) {
+          x = anchorRect.right - childSize.width;
+        } else {
+          x = anchorRect.left;
+        }
+        break;
+    }
+
+    // Clamp horizontally to stay within viewport padding
     if (x + childSize.width > size.width - _viewportPadding) {
       x = size.width - _viewportPadding - childSize.width;
     }
@@ -207,6 +271,7 @@ class _QuietPopoverLayoutDelegate extends SingleChildLayoutDelegate {
   @override
   bool shouldRelayout(covariant _QuietPopoverLayoutDelegate oldDelegate) {
     return anchorRect != oldDelegate.anchorRect ||
+        alignment != oldDelegate.alignment ||
         minWidth != oldDelegate.minWidth ||
         maxWidth != oldDelegate.maxWidth ||
         maxHeight != oldDelegate.maxHeight;

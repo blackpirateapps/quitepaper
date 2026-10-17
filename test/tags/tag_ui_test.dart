@@ -8,6 +8,7 @@ import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/tags/application/phosphor_catalog_service.dart';
 import 'package:quitepaper/features/tags/application/tag_icon_preferences_service.dart';
 import 'package:quitepaper/features/tags/application/tag_providers.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/features/tags/domain/tag_model.dart';
 import 'package:quitepaper/features/tags/presentation/tag_browser_screen.dart';
 import 'package:quitepaper/features/tags/presentation/tag_detail_screen.dart';
@@ -52,14 +53,21 @@ void main() {
     ),
   ];
 
-  Widget createTestApp(Widget child, {List<Override> overrides = const []}) {
+  Widget createTestApp(
+    Widget child, {
+    List<Override> overrides = const [],
+    TargetPlatform platform = TargetPlatform.linux,
+  }) {
     return ProviderScope(
       overrides: [
         allTagsProvider.overrideWith((ref) => Stream.value(testTags)),
         ...overrides,
       ],
       child: MaterialApp(
-        theme: ThemeData(extensions: const [AppColors.light]),
+        theme: ThemeData(
+          platform: platform,
+          extensions: const [AppColors.light],
+        ),
         home: child,
       ),
     );
@@ -96,6 +104,37 @@ void main() {
 
       expect(find.text('#work'), findsOneWidget);
       expect(find.text('#pinned-tag'), findsNothing);
+    });
+
+    testWidgets('TagBrowserScreen clicking 3-dot options button opens anchored popover', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
+      await tester.pumpAndSettle();
+
+      final optionsButtons = find.byIcon(PhosphorIconsRegular.dotsThreeVertical);
+      expect(optionsButtons, findsWidgets);
+
+      final firstButton = optionsButtons.first;
+      final buttonRect = tester.getRect(firstButton);
+
+      await tester.tap(firstButton);
+      await tester.pumpAndSettle();
+
+      // Tag options modal content: Change color, Change icon
+      expect(find.text('Change color'), findsOneWidget);
+      expect(find.text('Change icon'), findsOneWidget);
+
+      // Verify the popover is anchored directly below the button, NOT centered on the 1200px screen
+      final changeColorRect = tester.getRect(find.text('Change color'));
+      expect(changeColorRect.top, greaterThanOrEqualTo(buttonRect.bottom));
+      expect(changeColorRect.left, lessThan(buttonRect.right));
+
+      // Dismiss with Escape
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Change color'), findsNothing);
     });
 
     testWidgets('TagDetailScreen renders tag header, color, note count, and empty state', (tester) async {

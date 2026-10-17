@@ -263,6 +263,119 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Flipped Popover'), findsNothing);
     });
+
+    testWidgets('Renders anchored popover on Linux with anchorContext and PopoverAlignment.end', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        buildTestApp(
+          platform: TargetPlatform.linux,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 300, top: 100),
+              child: SizedBox(
+                width: 100,
+                height: 48,
+                child: Builder(
+                  builder: (btnCtx) => ElevatedButton(
+                    onPressed: () {
+                      QuietAdaptiveModal.show<void>(
+                        context: btnCtx,
+                        type: AdaptiveModalType.popover,
+                        anchorContext: btnCtx,
+                        alignment: PopoverAlignment.end,
+                        minWidth: 200,
+                        maxWidth: 200,
+                        builder: (popCtx) => const SizedBox(
+                          width: 200,
+                          height: 100,
+                          child: Text('End Aligned Popover'),
+                        ),
+                      );
+                    },
+                    child: const Text('...'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('...'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('End Aligned Popover'), findsOneWidget);
+
+      final buttonRect = tester.getRect(find.byType(ElevatedButton));
+      final popoverRect = tester.getRect(find.text('End Aligned Popover'));
+
+      expect(popoverRect.top, greaterThanOrEqualTo(buttonRect.bottom));
+      expect(popoverRect.right, lessThanOrEqualTo(buttonRect.right));
+      expect(popoverRect.left, closeTo(buttonRect.right - 200, 1.0));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('End Aligned Popover'), findsNothing);
+    });
+
+    testWidgets('Renders anchored popover on Linux with PopoverAlignment.start', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        buildTestApp(
+          platform: TargetPlatform.linux,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 300, top: 100),
+              child: SizedBox(
+                width: 100,
+                height: 48,
+                child: Builder(
+                  builder: (btnCtx) => ElevatedButton(
+                    onPressed: () {
+                      QuietAdaptiveModal.show<void>(
+                        context: btnCtx,
+                        type: AdaptiveModalType.popover,
+                        anchorContext: btnCtx,
+                        alignment: PopoverAlignment.start,
+                        minWidth: 200,
+                        maxWidth: 200,
+                        builder: (popCtx) => const SizedBox(
+                          width: 200,
+                          height: 100,
+                          child: Text('Start Aligned Popover'),
+                        ),
+                      );
+                    },
+                    child: const Text('StartBtn'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('StartBtn'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start Aligned Popover'), findsOneWidget);
+
+      final buttonRect = tester.getRect(find.byType(ElevatedButton));
+      final popoverRect = tester.getRect(find.text('Start Aligned Popover'));
+
+      expect(popoverRect.top, greaterThanOrEqualTo(buttonRect.bottom));
+      expect(popoverRect.left, closeTo(buttonRect.left, 1.0));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Start Aligned Popover'), findsNothing);
+    });
   });
 
   group('AdaptiveSheetDragHandle', () {
