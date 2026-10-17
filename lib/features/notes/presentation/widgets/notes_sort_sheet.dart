@@ -6,6 +6,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../application/notes_query_provider.dart';
 import '../../domain/notes_filter.dart';
@@ -16,10 +18,11 @@ class NotesSortSheet extends ConsumerWidget {
   const NotesSortSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 440,
       builder: (_) => const NotesSortSheet(),
     );
   }
@@ -27,68 +30,38 @@ class NotesSortSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final query = ref.watch(notesQueryProvider);
     final sort = query.sort;
     final isTrash = query.context == NotesContext.trash;
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 540,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-            border: Border.all(color: colors.divider, width: 0.8),
-          ),
-          padding: const EdgeInsets.only(
-            top: AppSpacing.sm,
-            bottom: AppSpacing.xl,
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Subtle Drag Handle
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: colors.divider,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
+    final content = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Subtle Drag Handle
+          if (!isDesktop) const AdaptiveSheetDragHandle(),
 
-                  // Header Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Sort Notes',
-                        style: AppTypography.title.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      QuietIconButton(
-                        icon: Icons.close_rounded,
-                        tooltip: 'Close sort menu',
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Sort Notes',
+                style: AppTypography.title.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              QuietIconButton(
+                icon: Icons.close_rounded,
+                tooltip: 'Close sort menu',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
                   const SizedBox(height: AppSpacing.md),
 
                   if (isTrash) ...[
@@ -241,7 +214,37 @@ class NotesSortSheet extends ConsumerWidget {
                   ],
                 ],
               ),
-            ),
+    );
+
+    if (isDesktop) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: content,
+      );
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 540,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            border: Border.all(color: colors.divider, width: 0.8),
+          ),
+          padding: const EdgeInsets.only(
+            top: AppSpacing.sm,
+            bottom: AppSpacing.xl,
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+          ),
+          child: SafeArea(
+            top: false,
+            child: content,
           ),
         ),
       ),

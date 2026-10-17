@@ -16,6 +16,7 @@ Future<T?> showQuietDialog<T>({
   String? title,
   String? subtitle,
   Widget? headerTrailing,
+  bool showCloseButton = true,
   double maxWidth = 560,
   double? maxHeight,
   bool barrierDismissible = true,
@@ -44,6 +45,7 @@ Future<T?> showQuietDialog<T>({
               title: title,
               subtitle: subtitle,
               headerTrailing: headerTrailing,
+              showCloseButton: showCloseButton,
               child: builder(ctx),
             ),
           ),
@@ -89,7 +91,7 @@ class QuietEditorialDialogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final hasHeader = title != null || subtitle != null || headerTrailing != null || showCloseButton;
+    final hasHeader = title != null || subtitle != null || headerTrailing != null || (showCloseButton && (title != null || subtitle != null));
 
     return Material(
       color: colors.surface,

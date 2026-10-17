@@ -6,6 +6,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../application/share_providers.dart';
 import '../domain/note_share.dart';
@@ -217,12 +218,11 @@ class _ShareCard extends ConsumerWidget {
   }
 
   Future<void> _changeVisibility(BuildContext context, WidgetRef ref) async {
-    final choice = await showModalBottomSheet<ShareVisibility>(
+    final choice = await QuietAdaptiveModal.show<ShareVisibility>(
       context: context,
-      backgroundColor: context.appColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
-      ),
+      type: AdaptiveModalType.dialog,
+      title: 'Share Visibility',
+      maxWidth: 400,
       builder: (ctx) => _VisibilityPicker(current: share.visibility),
     );
     if (choice == null || choice == share.visibility) return;

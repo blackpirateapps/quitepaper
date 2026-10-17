@@ -5,6 +5,8 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/syntax/application/syntax_provider.dart';
+import '../../../core/utils/platform_layout_helper.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/domain/note_model.dart';
@@ -24,12 +26,13 @@ class ExportNoteSheet extends ConsumerStatefulWidget {
 
   final Note note;
 
-  /// Presents the export note sheet modally.
+  /// Presents the export note sheet modally (bottom sheet on mobile, centered dialog on desktop).
   static Future<void> show(BuildContext context, {required Note note}) {
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 620,
       builder: (_) => ExportNoteSheet(note: note),
     );
   }
@@ -212,63 +215,29 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final displayTitle = widget.note.displayTitle.isNotEmpty
         ? widget.note.displayTitle
         : 'Untitled Note';
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 580,
-          maxHeight: MediaQuery.of(context).size.height * 0.90,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 24,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Drag Handle
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(
-                        top: AppSpacing.xs,
-                        bottom: AppSpacing.sm,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.textTertiary.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
+    final content = SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        isDesktop ? AppSpacing.lg : AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Top Drag Handle
+          if (!isDesktop) const AdaptiveSheetDragHandle(),
 
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Row(
+          // Header
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Container(
@@ -611,7 +580,34 @@ class _ExportNoteSheetState extends ConsumerState<ExportNoteSheet> {
                   ),
                 ],
               ),
-            ),
+    );
+
+    if (isDesktop) {
+      return content;
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 580,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.background,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: content,
           ),
         ),
       ),

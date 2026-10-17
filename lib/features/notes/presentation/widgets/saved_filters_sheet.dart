@@ -4,6 +4,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../application/notes_query_provider.dart';
@@ -15,10 +17,11 @@ class SavedFiltersSheet extends ConsumerWidget {
   const SavedFiltersSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 480,
       builder: (_) => const SavedFiltersSheet(),
     );
   }
@@ -26,38 +29,18 @@ class SavedFiltersSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final savedFilters = ref.watch(savedFiltersProvider);
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 540,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-            border: Border.all(color: colors.divider, width: 0.8),
-          ),
-          padding: const EdgeInsets.only(
-            top: AppSpacing.md,
-            bottom: AppSpacing.xl,
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+    final content = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
                       Text(
                         'SAVED SMART VIEWS',
                         style: AppTypography.caption.copyWith(
@@ -146,7 +129,37 @@ class SavedFiltersSheet extends ConsumerWidget {
                   ],
                 ],
               ),
-            ),
+    );
+
+    if (isDesktop) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: content,
+      );
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 540,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            border: Border.all(color: colors.divider, width: 0.8),
+          ),
+          padding: const EdgeInsets.only(
+            top: AppSpacing.md,
+            bottom: AppSpacing.xl,
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+          ),
+          child: SafeArea(
+            top: false,
+            child: content,
           ),
         ),
       ),

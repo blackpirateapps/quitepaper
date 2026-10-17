@@ -8,6 +8,8 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/platform_layout_helper.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/note_security_service.dart';
@@ -26,10 +28,11 @@ class ShareNoteSheet extends ConsumerStatefulWidget {
   final Note note;
 
   static Future<void> show(BuildContext context, {required Note note}) {
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 520,
       builder: (_) => ShareNoteSheet(note: note),
     );
   }
@@ -178,7 +181,30 @@ class _ShareNoteSheetState extends ConsumerState<ShareNoteSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final displayTitle = widget.note.displayTitle;
+
+    final content = SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg, isDesktop ? AppSpacing.lg : AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!isDesktop) const AdaptiveSheetDragHandle(),
+          _buildHeader(colors, displayTitle),
+          const SizedBox(height: AppSpacing.md),
+          if (_createdUrl != null)
+            ..._buildSharedState(colors)
+          else
+            ..._buildCreateForm(colors),
+        ],
+      ),
+    );
+
+    if (isDesktop) {
+      return content;
+    }
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -201,34 +227,7 @@ class _ShareNoteSheetState extends ConsumerState<ShareNoteSheet> {
           ),
           child: SafeArea(
             top: false,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(
-                        top: AppSpacing.xs, bottom: AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: colors.textTertiary.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  _buildHeader(colors, displayTitle),
-                  const SizedBox(height: AppSpacing.md),
-                  if (_createdUrl != null)
-                    ..._buildSharedState(colors)
-                  else
-                    ..._buildCreateForm(colors),
-                ],
-              ),
-            ),
+            child: content,
           ),
         ),
       ),

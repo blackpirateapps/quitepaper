@@ -8813,6 +8813,33 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
     - [`PlacePickerSheet`](file:///home/dog/git/quitepaper/lib/features/journal/presentation/widgets/place_picker_sheet.dart): Forward-geocoded location search with desktop close button, instant search autofocus, and spotlight centering (`maxWidth: 540`).
 - **Test Coverage**: Added [`test/widgets/spotlight_palette_test.dart`](file:///home/dog/git/quitepaper/test/widgets/spotlight_palette_test.dart) verifying Linux spotlight rendering, search filtering, Escape key dismissal, and mobile bottom sheet fallbacks on Android.
 
+---
+
+## 195. Desktop Adaptive Modals: Centered Editorial Dialogs Migration (Phase 4)
+
+- **Architecture & Overview**:
+  - Implemented Phase 4 of the Desktop Adaptive Modals system, migrating complex multi-step modal workflows, editors, and configuration sheets from mobile bottom sheets to centered editorial dialogs (`AdaptiveModalType.dialog`).
+  - Centered dialogs render as elegant card dialogs (`QuietEditorialDialogCard`) constrained by ergonomic widths (`400-680dp`), featuring header rows with dismiss buttons, keyboard `Escape` dismissal, and clean surface backgrounds with elevation and subtle borders.
+  - On mobile and touch platforms, all components smoothly fallback to standard `showModalBottomSheet` with drag handles, rounded top borders, and safe areas via `AdaptiveSheetDragHandle()`.
+  - Enhanced `QuietAdaptiveModal.show` to support `enableDrag` and `barrierDismissible` across both desktop and mobile presentations.
+- **Migrated Modals (11 targets)**:
+  1. [`ExportNoteSheet`](file:///home/dog/git/quitepaper/lib/features/export/presentation/export_note_sheet.dart): Centered editorial dialog (`maxWidth: 620`), adaptive scroll container, suppressed drag handle on desktop, and custom header actions.
+  2. [`NotesSortSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/notes_sort_sheet.dart): Centered sort dialog (`maxWidth: 440`) with close button, active context filters, and ordering controls.
+  3. [`NotesFilterSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/notes_filter_sheet.dart): Centered advanced query filter dialog (`maxWidth: 580`) with tag search, date range pickers, and smart view save actions.
+  4. [`SavedFiltersSheet`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/saved_filters_sheet.dart): Centered smart view manager dialog (`maxWidth: 480`) with rename and delete flows.
+  5. [`ShareNoteSheet`](file:///home/dog/git/quitepaper/lib/features/share/presentation/share_note_sheet.dart): Centered public URL sharing dialog (`maxWidth: 520`) with password protection options, clipboard actions, and external URL launching.
+  6. [`ManageSharesScreen`](file:///home/dog/git/quitepaper/lib/features/share/presentation/manage_shares_screen.dart): Share visibility selector dialog (`maxWidth: 400`) with title and clean list tile choices.
+  7. [`DeviceDetailSheet`](file:///home/dog/git/quitepaper/lib/features/devices/presentation/device_detail_sheet.dart): Centered device management dialog (`maxWidth: 480`) with inline rename dialog and sign-out/erase local vault controls.
+  8. [`WebClipPreviewSheet`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/web_clip_preview_sheet.dart): Centered web clip commit dialog (`maxWidth: 680`) with live storage estimates, HTML snapshot toggle, and encrypted image tray.
+  9. [`WebClipBrowserScreen`](file:///home/dog/git/quitepaper/lib/features/web_clipper/presentation/browser/web_clip_browser_screen.dart): Standardized 3 call sites (lines 98, 190, 214) to `WebClipPreviewSheet.show`, automatically inheriting adaptive dialog behavior.
+  10. [`PageAdjustmentSheet`](file:///home/dog/git/quitepaper/lib/features/scanner/presentation/widgets/page_adjustment_sheet.dart): Centered 60fps GPU document adjustment dialog (`maxWidth: 640`, `maxHeight: 740`) with tone, scan mode, rotation, and 4-corner perspective quad editing.
+  11. [`MaintenanceProgressSheet`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/maintenance_progress_sheet.dart): Centered non-dismissible maintenance progress dialog (`maxWidth: 440`, `barrierDismissible: false`) with cancellation tokens.
+- **Verification & Test Coverage**:
+  - Added [`test/widgets/editorial_dialog_test.dart`](file:///home/dog/git/quitepaper/test/widgets/editorial_dialog_test.dart) testing Linux card dialog rendering, Escape key dismissal, Android bottom sheet fallback, `NotesSortSheet`, `SavedFiltersSheet`, and `MaintenanceProgressSheet` barrier properties.
+  - Verified static analysis with `flutter analyze` (**0 issues, 0 warnings**).
+  - Verified test suite: all widget and regression tests pass (**100% passing**).
+
+
 
 
 

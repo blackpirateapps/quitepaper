@@ -6,6 +6,8 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/maintenance/maintenance_models.dart';
 import '../../../../core/maintenance/maintenance_provider.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_button.dart';
 
 /// Modal bottom sheet presenting real-time progress for batch maintenance tasks
@@ -23,12 +25,13 @@ class MaintenanceProgressSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     required MaintenanceTaskType taskType,
   }) {
-    return showModalBottomSheet<void>(
+    return QuietAdaptiveModal.show<void>(
       context: context,
-      isDismissible: false,
+      type: AdaptiveModalType.dialog,
+      barrierDismissible: false,
       enableDrag: false,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      showCloseButton: false,
+      maxWidth: 440,
       builder: (_) => MaintenanceProgressSheet(taskType: taskType),
     );
   }
@@ -165,49 +168,23 @@ class _MaintenanceProgressSheetState
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final isFinished = _progress.isFinished;
     final isCancelled = _progress.phase == MaintenancePhase.cancelled;
     final isFailed = _progress.phase == MaintenancePhase.failed;
     final isCompleted = _progress.phase == MaintenancePhase.completed;
 
-    return PopScope(
-      canPop: isFinished,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppRadii.xl),
-          ),
-          border: Border(
-            top: BorderSide(color: colors.divider),
-            left: BorderSide(color: colors.divider),
-            right: BorderSide(color: colors.divider),
-          ),
-        ),
-        padding: EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.md,
-          bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Drag Handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Drag Handle
+        if (!isDesktop) ...[
+          const AdaptiveSheetDragHandle(),
+          const SizedBox(height: AppSpacing.md),
+        ],
 
-            // Header Row: Icon + Title
+        // Header Row: Icon + Title
             Row(
               children: [
                 Container(
@@ -359,7 +336,39 @@ class _MaintenanceProgressSheetState
               ),
             ],
           ],
+        );
+
+    if (isDesktop) {
+      return PopScope(
+        canPop: isFinished,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: content,
         ),
+      );
+    }
+
+    return PopScope(
+      canPop: isFinished,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.xl),
+          ),
+          border: Border(
+            top: BorderSide(color: colors.divider),
+            left: BorderSide(color: colors.divider),
+            right: BorderSide(color: colors.divider),
+          ),
+        ),
+        padding: EdgeInsets.only(
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          top: AppSpacing.md,
+          bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        ),
+        child: content,
       ),
     );
   }

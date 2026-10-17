@@ -95,11 +95,9 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
       if (!mounted) return;
 
       // Launch existing WebClipPreviewSheet
-      final savedNote = await showModalBottomSheet<Note?>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => WebClipPreviewSheet(scanResult: scanResult),
+      final savedNote = await WebClipPreviewSheet.show(
+        context,
+        scanResult: scanResult,
       );
 
       if (!mounted) return;
@@ -187,11 +185,9 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
       try {
         final scanResult = await clipperService.scanPayload(payload, allowFallback: true);
         if (!mounted) return;
-        final savedNote = await showModalBottomSheet<Note?>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => WebClipPreviewSheet(scanResult: scanResult),
+        final savedNote = await WebClipPreviewSheet.show(
+          context,
+          scanResult: scanResult,
         );
         if (mounted && savedNote != null) {
           Navigator.of(context).pop(savedNote);
@@ -211,13 +207,9 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
       try {
         final scanResult = await clipperService.scanPayload(payload, allowFallback: true);
         if (!mounted) return;
-        final savedNote = await showModalBottomSheet<Note?>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => WebClipPreviewSheet(
-            scanResult: scanResult.copyWith(isPageContentFallback: true),
-          ),
+        final savedNote = await WebClipPreviewSheet.show(
+          context,
+          scanResult: scanResult.copyWith(isPageContentFallback: true),
         );
         if (mounted && savedNote != null) {
           Navigator.of(context).pop(savedNote);

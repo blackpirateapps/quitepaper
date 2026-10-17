@@ -5,6 +5,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../application/notes_provider.dart';
@@ -18,10 +20,11 @@ class NotesFilterSheet extends ConsumerStatefulWidget {
   const NotesFilterSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 580,
       builder: (_) => const NotesFilterSheet(),
     );
   }
@@ -185,38 +188,18 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final allTagsAsync = ref.watch(allTagsStreamProvider);
     final query = ref.watch(notesQueryProvider);
     final activeCount = _draftFilter.activeFilterCount;
     final isTrash = query.context == NotesContext.trash;
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 580,
-          maxHeight: MediaQuery.of(context).size.height * 0.90,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
-            border: Border.all(color: colors.divider, width: 0.8),
-          ),
-          padding: const EdgeInsets.only(
-            top: AppSpacing.md,
-            bottom: AppSpacing.lg,
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sheet Header
+    final content = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sheet Header
                   Row(
                     children: [
                       Text(
@@ -673,7 +656,37 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
                   ),
                 ],
               ),
-            ),
+    );
+
+    if (isDesktop) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: content,
+      );
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 580,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+            border: Border.all(color: colors.divider, width: 0.8),
+          ),
+          padding: const EdgeInsets.only(
+            top: AppSpacing.md,
+            bottom: AppSpacing.lg,
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+          ),
+          child: SafeArea(
+            top: false,
+            child: content,
           ),
         ),
       ),

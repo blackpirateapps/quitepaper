@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/platform_layout_helper.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../../core/web_clipper/web_clipper_models.dart';
 import '../../../core/web_clipper/web_clipper_provider.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/domain/note_model.dart';
@@ -26,10 +28,11 @@ class WebClipPreviewSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     required WebClipScanResult scanResult,
   }) {
-    return showModalBottomSheet<Note?>(
+    return QuietAdaptiveModal.show<Note?>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 680,
       builder: (_) => WebClipPreviewSheet(scanResult: scanResult),
     );
   }
@@ -159,42 +162,23 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final meta = widget.scanResult.metadata;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    final content = SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
       ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Top drag handle & Navigation Header
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: colors.divider,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top drag handle & Navigation Header
+            if (!isDesktop) const AdaptiveSheetDragHandle(),
+            Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     TextButton(
@@ -597,7 +581,23 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
               ],
             ),
           ),
-        ),
+    );
+
+    if (isDesktop) {
+      return content;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: content,
       ),
     );
   }

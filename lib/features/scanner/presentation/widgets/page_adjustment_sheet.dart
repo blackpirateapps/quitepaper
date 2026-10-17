@@ -8,6 +8,8 @@ import '../../../../core/image_processing/document_quad.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
 import '../../../../core/image_processing/image_processor.dart';
 import '../../../../core/image_processing/scan_mode.dart';
+import '../../../../core/utils/platform_layout_helper.dart';
+import '../../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../domain/scanned_page.dart';
 import 'scanner_preview_canvas.dart';
 
@@ -45,10 +47,12 @@ class PageAdjustmentSheet extends StatefulWidget {
     String? title,
     bool enableDocumentQuad = false,
   }) {
-    return showModalBottomSheet<ScannedPage>(
+    return QuietAdaptiveModal.show<ScannedPage>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 640,
+      maxHeight: 740,
       builder: (_) => PageAdjustmentSheet(
         page: page,
         imageProcessor: imageProcessor ?? const DartImageProcessor(),
@@ -167,16 +171,11 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.90,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      ),
-      child: Column(
-        children: [
-          // 1. Sheet Header
+    final body = Column(
+      children: [
+        // 1. Sheet Header
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
@@ -286,7 +285,22 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
             ),
           ),
         ],
+      );
+
+    if (isDesktop) {
+      return SizedBox(
+        height: 680,
+        child: body,
+      );
+    }
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.90,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
+      child: body,
     );
   }
 

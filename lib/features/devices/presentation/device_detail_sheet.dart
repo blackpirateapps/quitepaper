@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/sync/sync_provider.dart';
+import '../../../core/utils/platform_layout_helper.dart';
 import '../../../core/vault/vault_erase_service.dart';
+import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../notes/application/notes_provider.dart';
@@ -25,10 +27,11 @@ class DeviceDetailSheet extends ConsumerStatefulWidget {
     required Device device,
     required String currentDeviceId,
   }) {
-    return showModalBottomSheet(
+    return QuietAdaptiveModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      type: AdaptiveModalType.dialog,
+      showCloseButton: false,
+      maxWidth: 480,
       builder: (_) => DeviceDetailSheet(
         device: device,
         currentDeviceId: currentDeviceId,
@@ -402,99 +405,93 @@ class _DeviceDetailSheetState extends ConsumerState<DeviceDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
-      ),
-      padding: EdgeInsets.only(
-        top: 12.0,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
-      ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Grab handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
+    final content = SingleChildScrollView(
+      padding: isDesktop
+          ? const EdgeInsets.symmetric(vertical: 16.0)
+          : EdgeInsets.zero,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Grab handle
+          if (!isDesktop) ...[
+            const AdaptiveSheetDragHandle(),
+            const SizedBox(height: 16),
+          ],
 
-              // Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  _device.displayTitle,
-                                  style: AppTypography.headline.copyWith(
-                                    color: colors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                          Flexible(
+                            child: Text(
+                              _device.displayTitle,
+                              style: AppTypography.headline.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w700,
                               ),
-                              if (_isCurrentDevice) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: colors.accent.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'This device',
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.accent,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _device.displaySubtitle,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: colors.textSecondary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (_isCurrentDevice) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'This device',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.accent,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    ),
-                    QuietIconButton(
-                      icon: Icons.edit_outlined,
-                      tooltip: 'Rename device',
-                      onPressed: _isProcessing ? null : _showRenameDialog,
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        _device.displaySubtitle,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                QuietIconButton(
+                  icon: Icons.edit_outlined,
+                  tooltip: 'Rename device',
+                  onPressed: _isProcessing ? null : _showRenameDialog,
+                ),
+                if (isDesktop) ...[
+                  const SizedBox(width: 8),
+                  QuietIconButton(
+                    icon: Icons.close_rounded,
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ],
+            ),
+          ),
 
               const SizedBox(height: 20),
 
@@ -578,7 +575,24 @@ class _DeviceDetailSheetState extends ConsumerState<DeviceDetailSheet> {
               ),
             ],
           ),
-        ),
+    );
+
+    if (isDesktop) {
+      return content;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      padding: EdgeInsets.only(
+        top: 12.0,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
+      ),
+      child: SafeArea(
+        top: false,
+        child: content,
       ),
     );
   }
