@@ -105,7 +105,9 @@ class ActiveInspectorNotifier extends Notifier<ActiveInspectorState> {
   }
 
   void close() {
-    state = ActiveInspectorState.none;
+    if (state.isOpen) {
+      state = ActiveInspectorState.none;
+    }
   }
 
   void toggleVersionHistory({

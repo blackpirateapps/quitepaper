@@ -262,7 +262,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void didUpdateWidget(EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.note.id != widget.note.id) {
-      ref.read(activeInspectorProvider.notifier).close();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(activeInspectorProvider.notifier).close();
+        }
+      });
       _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
       _lastAutoDerivedTitle = widget.note.title.isEmpty
           ? Note.deriveTitle(widget.note.content)
@@ -1526,9 +1530,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
-    try {
-      ref.read(activeInspectorProvider.notifier).close();
-    } catch (_) {}
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
     } catch (_) {}

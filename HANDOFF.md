@@ -8893,6 +8893,25 @@ Phase 3 migrates all searchable pickers, fast lookup selectors, and command-styl
   - Zero warnings or errors in static analysis (`flutter analyze` clean).
   - 100% passing across the entire test suite including all modal test suites (`quiet_adaptive_modal_test.dart`, `context_popover_test.dart`, `spotlight_palette_test.dart`, `editorial_dialog_test.dart`, `inspector_pane_test.dart`, `formatting_toolbar_test.dart`, `desktop_toolbar_and_shortcuts_test.dart`, and `editor_overflow_menu_test.dart`).
 
+---
+
+## 198. Editor Inspector Lifecycle Hardening & Riverpod Build Safety (October 2026)
+
+- **Problem Description**:
+  - In [`EditorScreen.didUpdateWidget`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), switching active notes triggered synchronous `ref.read(activeInspectorProvider.notifier).close()` during the widget build/update phase.
+  - This violated Riverpod's constraint against mutating providers while the widget tree is rebuilding (`Tried to modify a provider while the widget tree was building`), causing CI failures in note-switching integration tests (`editor_scrollbar_test.dart`).
+- **Fix & Enhancements**:
+  1. [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Wrapped note-switch inspector closing in `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) ref.read(activeInspectorProvider.notifier).close(); })`.
+     - Removed synchronous provider mutation from `dispose()`.
+  2. [`lib/features/editor/presentation/active_inspector_provider.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/active_inspector_provider.dart):
+     - Guarded `ActiveInspectorNotifier.close()` with `if (state.isOpen)` to eliminate redundant state updates when the inspector is already closed.
+- **Verification**:
+  - `editor_scrollbar_test.dart` passed completely (**4 of 4 tests passed**).
+  - All 47 tests across editor, scrollbar, toolbar, and modal suites pass.
+  - `flutter analyze` reports **0 issues found**.
+
+
 
 
 
