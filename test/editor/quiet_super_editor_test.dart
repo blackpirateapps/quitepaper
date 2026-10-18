@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/core/attachments/attachment_provider.dart';
+import 'package:quitepaper/core/attachments/attachment_service.dart';
+import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
+import 'package:quitepaper/core/uri/resource_resolver.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/domain/rich_document.dart';
@@ -31,6 +36,18 @@ class _MockSmartWebLinksNotifier extends SmartWebLinksNotifier {
   _MockSmartWebLinksNotifier(bool enabled) : super(null) {
     state = enabled;
   }
+}
+
+class _MissingAttachmentService implements AttachmentService {
+  @override
+  Future<ResourceResolution<Uint8List>> resolveAsset(
+    String assetId, {
+    String variant = 'original',
+  }) async =>
+      ResourceResolution.missing(QuietPaperUri.asset(assetId));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -291,9 +308,12 @@ void main() {
       required ValueChanged<String> onChanged,
       bool stripFrontmatter = false,
       bool smartWebLinks = false,
+      AttachmentService? attachmentService,
     }) {
       return ProviderScope(
         overrides: [
+          if (attachmentService != null)
+            attachmentServiceProvider.overrideWithValue(attachmentService),
           typographySettingsProvider.overrideWith(
             (ref) => _MockTypographyNotifier(const TypographySettings()),
           ),
@@ -362,6 +382,38 @@ void main() {
       expect(find.byType(LinkPreviewComponent), findsOneWidget);
       expect(find.byType(LinkPreviewCard), findsOneWidget);
       expect(find.text('Example Article'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('falls back to a clickable URL when a preview thumbnail is unavailable',
+        (tester) async {
+      final json = jsonEncode(
+        RichDocument(
+          blocks: [
+            LinkPreviewBlock(
+              id: 'preview-with-missing-thumbnail',
+              url: 'https://example.com/article',
+              title: 'Example Article',
+              thumbnailAssetId: 'qp://asset/missing-thumbnail',
+              fetchedAt: DateTime.utc(2026, 10, 18),
+            ),
+          ],
+        ).toJson(),
+      );
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: json,
+          onChanged: (_) {},
+          smartWebLinks: true,
+          attachmentService: _MissingAttachmentService(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LinkPreviewComponent), findsOneWidget);
+      expect(find.text('https://example.com/article'), findsOneWidget);
+      expect(find.byIcon(Icons.image_outlined), findsNothing);
       expect(tester.takeException(), isNull);
     });
 

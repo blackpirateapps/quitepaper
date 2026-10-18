@@ -9252,3 +9252,21 @@ Super Editor; WYSIWYG behavior remains unchanged.
 - `flutter test`: all **2020 tests passed**. The run printed existing environment/test
   warnings for unavailable font downloads, Drift test database reuse, and the optional
   Whisper native library; none caused test failures.
+
+## 206. Super Editor Thumbnail Failure Fallback (October 2026)
+
+Ensures a baked preview whose encrypted thumbnail cannot be resolved does not leave
+Super Editor showing a grey thumbnail placeholder instead of a usable link.
+
+### Changes
+- `link_preview_card.dart`: adds an opt-in fallback that replaces the card with a
+  clickable URL when thumbnail resolution fails or exceeds an eight-second timeout.
+- `quiet_link_preview_component.dart`: enables this fallback for Super Editor only;
+  Markdown preview and Visual Editor keep their existing rendering behavior.
+- `quiet_super_editor_test.dart`: covers an unavailable thumbnail and checks that the
+  URL remains visible and the loading placeholder is removed.
+
+### Verification
+- `flutter analyze`: no issues found.
+- `flutter test`: all **2021 tests passed**.
+- `flutter test test/editor/quiet_super_editor_test.dart`: all **31 tests passed**.

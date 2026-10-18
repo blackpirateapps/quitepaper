@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,23 +22,50 @@ import '../../domain/rich_block.dart';
 ///
 /// This widget always renders the *card*; callers decide (via
 /// `smartWebLinksProvider`) whether to show it or a plain inline link.
-class LinkPreviewCard extends ConsumerWidget {
+class LinkPreviewCard extends ConsumerStatefulWidget {
   const LinkPreviewCard({
     super.key,
     required this.block,
     this.readOnly = false,
     this.onRemove,
     this.onRefresh,
+    this.fallbackToInlineLinkOnThumbnailFailure = false,
   });
 
   final LinkPreviewBlock block;
   final bool readOnly;
   final VoidCallback? onRemove;
   final VoidCallback? onRefresh;
+  final bool fallbackToInlineLinkOnThumbnailFailure;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LinkPreviewCard> createState() => _LinkPreviewCardState();
+}
+
+class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
+  String? _failedThumbnailAssetId;
+
+  @override
+  void didUpdateWidget(LinkPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.block.thumbnailAssetId != widget.block.thumbnailAssetId) {
+      _failedThumbnailAssetId = null;
+    }
+  }
+
+  void _onThumbnailFailed(String assetId) {
+    if (!widget.fallbackToInlineLinkOnThumbnailFailure ||
+        widget.block.thumbnailAssetId != assetId ||
+        _failedThumbnailAssetId == assetId) {
+      return;
+    }
+    setState(() => _failedThumbnailAssetId = assetId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.appColors;
+    final block = widget.block;
 
     final host = LinkLauncherHelper.extractDomain(block.url);
     final effectiveTitle =
@@ -49,7 +77,40 @@ class LinkPreviewCard extends ConsumerWidget {
     final hasThumbnail =
         block.thumbnailAssetId != null && block.thumbnailAssetId!.trim().isNotEmpty;
 
-    final showMenu = !readOnly && (onRemove != null || onRefresh != null);
+    final showMenu = !widget.readOnly && (widget.onRemove != null || widget.onRefresh != null);
+
+    if (widget.fallbackToInlineLinkOnThumbnailFailure &&
+        block.thumbnailAssetId != null &&
+        _failedThumbnailAssetId == block.thumbnailAssetId) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  onTap: () => LinkLauncherHelper.handleLinkTap(context, block.url),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Text(
+                      block.url,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: colors.accent,
+                        decoration: TextDecoration.underline,
+                        decorationColor: colors.accent.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (showMenu)
+              _PreviewOverflowMenu(onRemove: widget.onRemove, onRefresh: widget.onRefresh),
+          ],
+        ),
+      );
+    }
 
     final card = Material(
       color: colors.surface,
@@ -68,7 +129,10 @@ class LinkPreviewCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (hasThumbnail) ...[
-                _LinkPreviewThumbnail(assetId: block.thumbnailAssetId!),
+                _LinkPreviewThumbnail(
+                  assetId: block.thumbnailAssetId!,
+                  onFailed: _onThumbnailFailed,
+                ),
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
@@ -148,8 +212,8 @@ class LinkPreviewCard extends ConsumerWidget {
             top: 2,
             right: 4,
             child: _PreviewOverflowMenu(
-              onRemove: onRemove,
-              onRefresh: onRefresh,
+              onRemove: widget.onRemove,
+              onRefresh: widget.onRefresh,
             ),
           ),
         ],
@@ -219,10 +283,11 @@ class _PreviewOverflowMenu extends StatelessWidget {
 /// through [AttachmentService.resolveAsset] — the same local-first, offline
 /// path [QuietAssetImageView] uses — and renders the decrypted bytes.
 class _LinkPreviewThumbnail extends ConsumerStatefulWidget {
-  const _LinkPreviewThumbnail({required this.assetId});
+  const _LinkPreviewThumbnail({required this.assetId, this.onFailed});
 
   /// Full `qp://asset/<id>` reference to the baked thumbnail.
   final String assetId;
+  final ValueChanged<String>? onFailed;
 
   @override
   ConsumerState<_LinkPreviewThumbnail> createState() => _LinkPreviewThumbnailState();
@@ -259,32 +324,35 @@ class _LinkPreviewThumbnailState extends ConsumerState<_LinkPreviewThumbnail> {
     try {
       final id = QuietPaperUri.tryParse(widget.assetId)?.resourceId ?? widget.assetId;
       if (id.isEmpty) {
-        if (mounted) setState(() { _loading = false; _failed = true; });
+        _markFailed();
         return;
       }
       final service = ref.read(attachmentServiceProvider);
-      final result = await service.resolveAsset(id, variant: 'original');
+      final result = await service.resolveAsset(id, variant: 'original')
+          .timeout(const Duration(seconds: 8));
       if (!mounted) return;
-      if (result.isAvailable && result.data != null) {
+      if (result.isAvailable && result.data != null && result.data!.isNotEmpty) {
         setState(() {
           _bytes = result.data;
           _loading = false;
           _failed = false;
         });
       } else {
-        setState(() {
-          _loading = false;
-          _failed = true;
-        });
+        _markFailed();
       }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _failed = true;
-        });
-      }
+      _markFailed();
     }
+  }
+
+  void _markFailed() {
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _failed = true;
+      _bytes = null;
+    });
+    widget.onFailed?.call(widget.assetId);
   }
 
   @override
@@ -311,13 +379,21 @@ class _LinkPreviewThumbnailState extends ConsumerState<_LinkPreviewThumbnail> {
         width: _size,
         height: _size,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Center(
-          child: Icon(
-            Icons.broken_image_outlined,
-            size: 20,
-            color: colors.textTertiary,
-          ),
-        ),
+        errorBuilder: (context, error, stackTrace) {
+          if (widget.onFailed == null) {
+            return Center(
+              child: Icon(
+                Icons.broken_image_outlined,
+                size: 20,
+                color: colors.textTertiary,
+              ),
+            );
+          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            widget.onFailed?.call(widget.assetId);
+          });
+          return const SizedBox.shrink();
+        },
       );
     }
 
