@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../storage/app_storage_path_resolver.dart';
 import '../../features/notes/application/notes_provider.dart';
 import '../attachments/attachment_storage.dart';
+import '../../features/notes/presentation/widgets/note_thumbnail_view.dart';
 import '../sync/sync_provider.dart';
 
 final vaultEraseServiceProvider = Provider<VaultEraseService>((ref) {
@@ -64,12 +65,18 @@ class VaultEraseService {
       if (await docsDir.exists()) {
         await docsDir.delete(recursive: true);
       }
+
+      final thumbnailsDir = Directory(p.join(appDocDir.path, 'thumbnails'));
+      if (await thumbnailsDir.exists()) {
+        await thumbnailsDir.delete(recursive: true);
+      }
     } catch (e) {
       debugPrint('[VaultEraseService] Error removing disk files: $e');
     }
 
-    // 5. Clear ephemeral in-memory decrypted image & document caches
+    // 5. Clear ephemeral in-memory decrypted image & document caches and persisted thumbnail files
     AttachmentLocalStorage.purgeAllMemoryCache();
+    NoteThumbnailCache.clear(clearDisk: true);
 
     // 6. Erase hardware-backed persisted master key and wrapped key in SecureStorage
     try {

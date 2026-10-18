@@ -9182,3 +9182,44 @@ When pulling down to search at the top of the notes list, users previously exper
 
 
 
+
+
+---
+
+## 204. Note List Thumbnail Preview Persistent Disk Cache Across App Restarts (October 2026)
+
+### 1. Problem & Motivation
+While Section 202 introduced the in-memory L1 LRU thumbnail cache and keep-alive mixin to prevent re-fetching during continuous fast scrolling, previews were lost when terminating the application process or closing the app from the recents menu. On the subsequent cold start:
+1. Every PDF note had to re-invoke `Printing.raster` on its first page, consuming 200–500ms of CPU time per document and causing visible thumbnail loading spinners/flickering.
+2. Encrypted asset attachments had to re-query the SQLite database, read encrypted files from disk, and perform XChaCha20-Poly1305 decryption all over again.
+3. Rapid scrolling immediately after launching the app experienced thumbnail loading delays until each thumbnail was lazily regenerated.
+
+### 2. Architectural Solution
+1. **Two-Tiered Hybrid Cache (`NoteThumbnailCache`)**:
+   - **L1 In-Memory LRU Cache**: Retains up to 500 thumbnail byte arrays in a `LinkedHashMap<String, Uint8List>` for instantaneous 0ms frame-1 UI display during the active session.
+   - **L2 Persistent Disk Cache**: Automatically persists rendered thumbnail byte binaries into the app's local data storage directory (`<app_data>/thumbnails/<sha256(uri)>.thumb`).
+2. **Deterministic & Safe Disk Keying**:
+   - Raw thumbnail source URIs (such as `qp://document/<uuid>` or `qp://asset/<uuid>`) are hashed using SHA-256 (`crypto.sha256.convert(utf8.encode(uri))`).
+   - Generates safe, uniform filenames (`<hash>.thumb`) without special characters, illegal path separators, or operating system filename length constraints.
+3. **Atomic Disk Writes**:
+   - Disk writes write first to a `.tmp` file (`<hash>.thumb.tmp`) before performing an atomic `renameSync` to the final destination file, preventing partially written or corrupted thumbnail files if the app process is terminated during a write.
+4. **Transparent Resolution Hierarchy (`NoteThumbnailCache.resolve`)**:
+   - Step 1: Check L1 memory cache. Return immediately if present.
+   - Step 2: Check L2 disk cache asynchronously (`readFromDisk(uri)`). If found, populate L1 memory cache and return.
+   - Step 3: On a cache miss, invoke the provided `loader()`. Store the resulting byte array in both L1 RAM and L2 disk asynchronously, and return the resolved bytes.
+5. **Vault Erase & Cache Purging Integration**:
+   - `NoteThumbnailCache.clear({bool clearDisk = true})` purges both the in-memory LRU map and asynchronously deletes the `thumbnails` directory on disk.
+   - `NoteThumbnailCache.evict(String uri)` evicts a specific thumbnail from both memory and disk.
+   - Integrated into [`VaultEraseService`](file:///home/dog/git/quitepaper/lib/core/vault/vault_erase_service.dart) to ensure all cached thumbnail image previews on disk are wiped clean when the user erases local vaults or resets data.
+6. **Isolated Testing Support**:
+   - Exposed `@visibleForTesting static Directory? customDirectory` allowing automated unit tests to operate within an isolated `Directory.systemTemp` sandbox with zero interference with host storage or subsequent test runs.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/notes/presentation/widgets/note_thumbnail_view.dart`: Added persistent L2 disk cache logic (`getThumbnailsDirectory`, `readFromDisk`, `writeToDisk`, `evict`, `resolve`, atomic `.tmp` writes, and SHA-256 filename hashing).
+  - `lib/core/vault/vault_erase_service.dart`: Added deletion of the persistent `thumbnails` folder and invoked `NoteThumbnailCache.clear(clearDisk: true)` on vault erase.
+  - `test/notes/notes_list_redesign_test.dart`: Added unit tests verifying persistent disk restoration across memory clears and disk eviction.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **2017 tests passed**.

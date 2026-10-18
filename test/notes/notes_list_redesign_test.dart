@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -676,6 +677,63 @@ The security vulnerability was discovered during an automated penetration test.
       // Verify AutomaticKeepAlive is used
       final keepAliveFinder = find.byType(AutomaticKeepAlive);
       expect(keepAliveFinder, findsOneWidget);
+    });
+
+    test('persists thumbnails to disk and reloads them after RAM cache is cleared (simulating app restart)', () async {
+      final tempDir = Directory.systemTemp.createTempSync('thumb_test_');
+      try {
+        NoteThumbnailCache.customDirectory = tempDir;
+        final dummyBytes = Uint8List.fromList([42, 43, 44, 45, 46]);
+        const testUri = 'qp://asset/persisted-note-preview-1';
+
+        // Put thumbnail in cache (saves to RAM and disk)
+        await NoteThumbnailCache.put(testUri, dummyBytes);
+
+        // Verify disk file is written
+        final diskBytes = await NoteThumbnailCache.readFromDisk(testUri);
+        expect(diskBytes, equals(dummyBytes));
+
+        // Simulate app restart: wipe RAM cache ONLY, leaving disk intact
+        NoteThumbnailCache.clear(clearDisk: false);
+        expect(NoteThumbnailCache.get(testUri), isNull);
+        expect(NoteThumbnailCache.containsKey(testUri), isFalse);
+
+        // Resolve thumbnail with a loader that throws if called
+        // (Must load from disk rather than regenerating!)
+        final resolved = await NoteThumbnailCache.resolve(testUri, () {
+          throw StateError('Should not regenerate preview when cached on disk!');
+        });
+
+        expect(resolved, equals(dummyBytes));
+        // Verify promoted to RAM cache
+        expect(NoteThumbnailCache.get(testUri), equals(dummyBytes));
+      } finally {
+        NoteThumbnailCache.customDirectory = null;
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      }
+    });
+
+    test('evicts thumbnail from both RAM and disk caches', () async {
+      final tempDir = Directory.systemTemp.createTempSync('thumb_evict_test_');
+      try {
+        NoteThumbnailCache.customDirectory = tempDir;
+        final dummyBytes = Uint8List.fromList([99, 98, 97]);
+        const testUri = 'qp://asset/evict-note-preview';
+
+        await NoteThumbnailCache.put(testUri, dummyBytes);
+        expect(await NoteThumbnailCache.readFromDisk(testUri), equals(dummyBytes));
+
+        await NoteThumbnailCache.evict(testUri);
+        expect(NoteThumbnailCache.get(testUri), isNull);
+        expect(await NoteThumbnailCache.readFromDisk(testUri), isNull);
+      } finally {
+        NoteThumbnailCache.customDirectory = null;
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      }
     });
   });
 }

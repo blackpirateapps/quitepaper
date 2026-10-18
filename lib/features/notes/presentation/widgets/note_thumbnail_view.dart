@@ -1,21 +1,28 @@
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:printing/printing.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/attachments/attachment_provider.dart';
 import '../../../../core/documents/document_provider.dart';
 import '../../../../core/pdf/pdf_page_renderer.dart';
+import '../../../../core/storage/app_storage_path_resolver.dart';
 import '../../domain/note_metadata_extractor.dart';
 
-/// High-performance in-memory LRU cache and request deduplicator for note list thumbnails.
+/// High-performance two-tiered (L1 RAM + L2 Persistent Disk) cache and request deduplicator
+/// for note list thumbnails.
 ///
-/// Ensures smooth 60fps/120fps scrolling by:
-/// 1. Caching rasterized PDF first-page PNGs and decrypted image assets in RAM.
-/// 2. Deduplicating concurrent in-flight disk read/decryption/rasterization requests.
-/// 3. Providing synchronous instant access for previously loaded items.
+/// Ensures instant cold starts and smooth 60fps/120fps scrolling by:
+/// 1. Caching rasterized PDF first-page PNGs and decrypted image assets in RAM (L1) and on disk (L2).
+/// 2. Persisting thumbnails across app restarts so previews never have to be re-rasterized or re-decrypted.
+/// 3. Deduplicating concurrent in-flight disk read/decryption/rasterization requests.
+/// 4. Providing synchronous instant access for items already in memory.
 abstract final class NoteThumbnailCache {
   static const int maxEntries = 500;
   static final LinkedHashMap<String, Uint8List> _cache =
@@ -23,7 +30,33 @@ abstract final class NoteThumbnailCache {
   static final Map<String, Future<Uint8List?>> _inFlight =
       <String, Future<Uint8List?>>{};
 
-  /// Retrieves cached thumbnail bytes if present, refreshing LRU position.
+  /// Optional custom directory for tests or overrides.
+  @visibleForTesting
+  static Directory? customDirectory;
+
+  /// Resolves the app-private directory for persisted thumbnails on disk.
+  static Future<Directory> getThumbnailsDirectory() async {
+    if (customDirectory != null) {
+      if (!await customDirectory!.exists()) {
+        await customDirectory!.create(recursive: true);
+      }
+      return customDirectory!;
+    }
+    final dataDir = await AppStoragePathResolver.getDataDirectory();
+    final dir = Directory(p.join(dataDir.path, 'thumbnails'));
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  /// Hashes a URI into a deterministic filesystem-safe filename.
+  static String getDiskFileName(String uri) {
+    final digest = sha256.convert(utf8.encode(uri.trim())).toString();
+    return '$digest.thumb';
+  }
+
+  /// Retrieves cached thumbnail bytes if present in L1 RAM, refreshing LRU position.
   static Uint8List? get(String uri) {
     if (uri.isEmpty) return null;
     final cached = _cache.remove(uri);
@@ -34,23 +67,68 @@ abstract final class NoteThumbnailCache {
     return null;
   }
 
-  /// Whether the cache contains a thumbnail for [uri].
+  /// Whether the L1 in-memory cache contains a thumbnail for [uri].
   static bool containsKey(String uri) => _cache.containsKey(uri);
 
-  /// Stores thumbnail bytes in the LRU cache.
-  static void put(String uri, Uint8List bytes) {
+  /// Stores thumbnail bytes in the L1 RAM cache and persists to L2 disk cache.
+  static Future<void> put(String uri, Uint8List bytes, {bool persistToDisk = true}) async {
     if (uri.isEmpty || bytes.isEmpty) return;
     _cache.remove(uri);
     if (_cache.length >= maxEntries) {
       _cache.remove(_cache.keys.first);
     }
     _cache[uri] = bytes;
+
+    if (persistToDisk) {
+      await _writeToDisk(uri, bytes);
+    }
+  }
+
+  /// Asynchronously writes thumbnail bytes to persistent disk cache.
+  static Future<void> _writeToDisk(String uri, Uint8List bytes) async {
+    try {
+      final dir = await getThumbnailsDirectory();
+      final fileName = getDiskFileName(uri);
+      final file = File(p.join(dir.path, fileName));
+      final tmpFile = File(p.join(dir.path, '$fileName.tmp'));
+      await tmpFile.writeAsBytes(bytes, flush: true);
+      if (await tmpFile.exists()) {
+        await tmpFile.rename(file.path);
+      }
+    } catch (_) {
+      // Non-fatal if disk write fails
+    }
+  }
+
+  /// Asynchronously reads thumbnail bytes from persistent disk cache.
+  static Future<Uint8List?> readFromDisk(String uri) async {
+    try {
+      final dir = await getThumbnailsDirectory();
+      final fileName = getDiskFileName(uri);
+      final file = File(p.join(dir.path, fileName));
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          return bytes;
+        } else {
+          try {
+            await file.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // Ignore read errors
+    }
+    return null;
   }
 
   /// Deduplicates in-flight thumbnail resolution for [uri].
   ///
-  /// If a load is already in-flight for this URI, returns the existing Future.
-  /// Otherwise executes [loader], caches the result on success, and cleans up.
+  /// Execution order:
+  /// 1. Synchronous L1 RAM cache hit -> returns immediately.
+  /// 2. Existing in-flight Future -> joins existing request.
+  /// 3. L2 Persistent Disk cache hit -> loads from disk, promotes to RAM, returns.
+  /// 4. Cache miss -> runs [loader], stores result in RAM and disk, returns.
   static Future<Uint8List?> resolve(
     String uri,
     Future<Uint8List?> Function() loader,
@@ -63,17 +141,32 @@ abstract final class NoteThumbnailCache {
     final existing = _inFlight[uri];
     if (existing != null) return existing;
 
-    final future = loader().then((result) {
-      if (result != null && result.isNotEmpty) {
-        put(uri, result);
-      }
-      return result;
-    }).whenComplete(() {
-      _inFlight.remove(uri);
-    });
-
+    final future = _resolveInternal(uri, loader);
     _inFlight[uri] = future;
     return future;
+  }
+
+  static Future<Uint8List?> _resolveInternal(
+    String uri,
+    Future<Uint8List?> Function() loader,
+  ) async {
+    try {
+      // 1. Check L2 persistent disk cache
+      final diskBytes = await readFromDisk(uri);
+      if (diskBytes != null && diskBytes.isNotEmpty) {
+        await put(uri, diskBytes, persistToDisk: false);
+        return diskBytes;
+      }
+
+      // 2. Not cached on disk: execute loader and persist
+      final result = await loader();
+      if (result != null && result.isNotEmpty) {
+        await put(uri, result, persistToDisk: true);
+      }
+      return result;
+    } finally {
+      _inFlight.remove(uri);
+    }
   }
 
   /// Pre-warms a list of thumbnail URIs in the background without blocking the UI.
@@ -92,7 +185,7 @@ abstract final class NoteThumbnailCache {
       if (item.kind == ThumbnailKind.textFile) {
         continue;
       }
-      // Trigger background resolution
+      // Trigger background resolution (which checks disk cache first!)
       resolve(uri, () => _loadThumbnailBytes(ref, uri, item.kind));
     }
   }
@@ -156,21 +249,66 @@ abstract final class NoteThumbnailCache {
     return null;
   }
 
+  /// Evicts a thumbnail from L1 memory and L2 disk caches.
+  static Future<void> evict(String uri) async {
+    _cache.remove(uri);
+    try {
+      final dir = await getThumbnailsDirectory();
+      final fileName = getDiskFileName(uri);
+      final file = File(p.join(dir.path, fileName));
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
+  }
+
   /// Number of cached items in RAM.
   @visibleForTesting
   static int get length => _cache.length;
 
-  /// Clears in-memory thumbnail cache (for tests and memory management).
-  static void clear() {
+  /// Clears in-memory thumbnail cache, and optionally purges disk cache.
+  static void clear({bool clearDisk = true}) {
     _cache.clear();
     _inFlight.clear();
+    if (clearDisk) {
+      getThumbnailsDirectory().then((dir) async {
+        if (await dir.exists()) {
+          try {
+            await for (final entity in dir.list(recursive: false)) {
+              if (entity is File &&
+                  (entity.path.endsWith('.thumb') ||
+                      entity.path.endsWith('.tmp'))) {
+                await entity.delete();
+              }
+            }
+          } catch (_) {}
+        }
+      }).catchError((_) {});
+    }
+  }
+
+  /// Synchronously clears in-memory cache and asynchronously purges disk cache.
+  @visibleForTesting
+  static Future<void> purgeDiskCache() async {
+    try {
+      final dir = await getThumbnailsDirectory();
+      if (await dir.exists()) {
+        await for (final entity in dir.list(recursive: false)) {
+          if (entity is File &&
+              (entity.path.endsWith('.thumb') ||
+                  entity.path.endsWith('.tmp'))) {
+            await entity.delete();
+          }
+        }
+      }
+    } catch (_) {}
   }
 }
 
 /// Clears in-memory thumbnail caches (for tests and memory management).
 @visibleForTesting
-void clearThumbnailCaches() {
-  NoteThumbnailCache.clear();
+void clearThumbnailCaches({bool clearDisk = true}) {
+  NoteThumbnailCache.clear(clearDisk: clearDisk);
 }
 
 /// Compact, non-blocking image, PDF, and text file thumbnail widget for note list tiles.
