@@ -5,6 +5,8 @@ import 'package:quitepaper/core/attachments/presentation/quiet_asset_image_view.
 import 'package:quitepaper/core/documents/presentation/quiet_document_card.dart';
 import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
 import 'package:quitepaper/features/editor/application/link_preview_metadata.dart';
+import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
+import 'package:quitepaper/features/editor/domain/rich_document.dart';
 import 'package:super_editor/super_editor.dart';
 
 /// Custom [ComponentBuilder] for SuperEditor that renders both encrypted
@@ -173,6 +175,21 @@ String _normalizeInlineSegment(String text) {
 /// from merging them into surrounding text paragraphs and subsequently dropping them.
 String normalizeMarkdownForSuperEditor(String markdown) {
   if (markdown.isEmpty) return markdown;
+
+  // Notes last saved by WYSIWYG use RichDocument JSON. A note opened directly
+  // in SuperEditor (for example, after changing the per-note editor style and
+  // reopening it) bypasses MarkdownEditor's style-switch conversion, so decode
+  // that persisted model here before applying Markdown block normalization.
+  if (RichDocument.isJson(markdown)) {
+    try {
+      final document = RichDocument.fromJson(
+        jsonDecode(markdown) as Map<String, dynamic>,
+      );
+      markdown = const RichDocumentSerializer().serialize(document);
+    } catch (_) {
+      return markdown;
+    }
+  }
 
   final inlineNormalized = normalizeInlineMarkdownSpacing(markdown);
   final lines = const LineSplitter().convert(inlineNormalized);

@@ -9223,3 +9223,32 @@ While Section 202 introduced the in-memory L1 LRU thumbnail cache and keep-alive
 ### 4. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2017 tests passed**.
+
+## 205. Link Preview Baking & Rendering in Super Editor (October 2026)
+
+Fixes Super Editor link previews not being fetched or shown when a note was stored as
+RichDocument JSON by WYSIWYG, and adds active-setting regression coverage for the
+read-only Markdown preview. The link preview baking path is intentionally scoped to
+Super Editor; WYSIWYG behavior remains unchanged.
+
+### Changes
+- `editor_screen.dart`: `_maybeBakeLinkPreviews` now runs only for Super Editor notes.
+  If the persisted body is RichDocument JSON, it serializes that document to Markdown
+  before scanning and baking lone-line links, then updates the note body so the editor
+  and baker use the same representation. The shared Smart Web Links setting still
+  gates all network access.
+- `quiet_image_component.dart`: `normalizeMarkdownForSuperEditor` now decodes persisted
+  RichDocument JSON before block normalization and promotion. This lets notes opened
+  directly in Super Editor render existing `LinkPreviewNode`s even when no explicit
+  editor-style switch performed the JSON-to-Markdown conversion.
+- `quiet_super_editor_test.dart`: added coverage for JSON normalization and rendering a
+  persisted link preview as a card in Super Editor.
+- `markdown_preview_test.dart`: turns Smart Web Links on while exercising baked cards,
+  asserts no Flutter error widget is produced, and covers RichDocument JSON preview
+  input.
+
+### Verification
+- `flutter analyze`: no issues found.
+- `flutter test`: all **2020 tests passed**. The run printed existing environment/test
+  warnings for unavailable font downloads, Drift test database reuse, and the optional
+  Whisper native library; none caused test failures.
