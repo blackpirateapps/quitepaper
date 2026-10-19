@@ -9450,15 +9450,16 @@ When running local OCR on Linux / Desktop using Ollama and Vision-Language Model
    - Extracts and records detected diagram bounding boxes (`detectedImages`) from `image[[...]]` tags.
 2. **Backward-Compatible Non-Grounded Fallback**:
    - For standard Markdown responses without grounding tags (e.g. models like Llama-3.2-Vision or custom prompts), paragraph and line segmentation automatically populates blocks, lines, and words so Live Text selection remains functional.
-3. **`OllamaOcrService` Integration**:
+3. **`OllamaOcrService` Integration & Timeout Adjustment**:
    - `OllamaOcrService.recognizePage` now parses raw responses with `OllamaGroundingParser.parse(rawText)`, passing `parsed.cleanPlainText` and `parsed.blocks` directly to `OcrPage`.
+   - Increased default HTTP timeout from 45s to 180s (3 minutes) to accommodate cold-model loading and CPU-bound Vision-Language Model execution (e.g. 4.7 GB DeepSeek-OCR running via `llamacpp`).
 
 ### 3. File Inventory
 - **New Files**:
   - `lib/core/ocr/ollama_grounding_parser.dart`: Pure-Dart grounding parser for DeepSeek-OCR / Ollama responses with coordinate normalization, tag stripping, and word geometry generation.
   - `test/ocr/ollama_grounding_parser_test.dart`: Comprehensive unit test suite verifying grounded tag stripping, LaTeX/Hindi preservation, line/word geometry, prefix text handling, non-grounded fallbacks, and empty responses.
 - **Modified Files**:
-  - `lib/core/ocr/ollama_ocr_service.dart`: Integrated `OllamaGroundingParser` into `recognizePage`.
+  - `lib/core/ocr/ollama_ocr_service.dart`: Integrated `OllamaGroundingParser` and increased timeout to 180s.
   - `test/ocr/ollama_ocr_service_test.dart`: Updated assertions and added unit tests for grounded DeepSeek-OCR transcription.
 
 ### 4. Verification & Quality

@@ -16,7 +16,7 @@ class OllamaOcrService implements OcrService {
   const OllamaOcrService({
     this.endpoint = defaultEndpoint,
     this.model = defaultModel,
-    this.timeout = const Duration(seconds: 45),
+    this.timeout = const Duration(seconds: 180),
     this.httpClient,
     PdfPageRenderer? pageRenderer,
   })  : _pageRenderer = pageRenderer ?? const DefaultPdfPageRenderer();
