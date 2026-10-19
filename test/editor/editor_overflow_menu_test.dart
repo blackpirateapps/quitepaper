@@ -442,5 +442,35 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets('3-dot overflow menu on mobile renders on a solid surface BottomSheet with rounded top corners',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'surface-bg-test-1',
+        title: 'Surface Note',
+        content: 'Content',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      final bottomSheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      expect(bottomSheet.backgroundColor, isNotNull);
+      expect(bottomSheet.backgroundColor, isNot(Colors.transparent));
+      expect(
+        bottomSheet.shape,
+        isA<RoundedRectangleBorder>(),
+      );
+      expect(bottomSheet.clipBehavior, Clip.antiAlias);
+
+      await finishTest(tester);
+    });
   });
 }

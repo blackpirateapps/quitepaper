@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/app/theme/app_radii.dart';
 import 'package:quitepaper/core/widgets/quiet_adaptive_modal.dart';
 import 'package:quitepaper/core/widgets/quiet_editorial_dialog.dart';
 
@@ -51,6 +52,77 @@ void main() {
       expect(find.text('Sheet Content'), findsOneWidget);
       expect(find.byType(BottomSheet), findsOneWidget);
       expect(find.byType(QuietEditorialDialogCard), findsNothing);
+    });
+
+    testWidgets('AdaptiveModalType.popover on Android renders BottomSheet with colors.surface and rounded top border', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        buildTestApp(
+          platform: TargetPlatform.android,
+          child: Builder(
+            builder: (ctx) => Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  QuietAdaptiveModal.show<void>(
+                    context: ctx,
+                    type: AdaptiveModalType.popover,
+                    builder: (sheetCtx) => const Text('Popover Bottom Sheet Content'),
+                  );
+                },
+                child: const Text('Open Popover'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Popover'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Popover Bottom Sheet Content'), findsOneWidget);
+      final bottomSheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      expect(bottomSheet.backgroundColor, AppColors.light.surface);
+      expect(
+        bottomSheet.shape,
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
+        ),
+      );
+      expect(bottomSheet.clipBehavior, Clip.antiAlias);
+    });
+
+    testWidgets('QuietAdaptiveModal.show with explicit backgroundColor uses specified color on Android', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        buildTestApp(
+          platform: TargetPlatform.android,
+          child: Builder(
+            builder: (ctx) => Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  QuietAdaptiveModal.show<void>(
+                    context: ctx,
+                    backgroundColor: Colors.amber,
+                    builder: (sheetCtx) => const Text('Custom Color Sheet'),
+                  );
+                },
+                child: const Text('Open Custom'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Custom'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Color Sheet'), findsOneWidget);
+      final bottomSheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      expect(bottomSheet.backgroundColor, Colors.amber);
     });
 
     testWidgets('Renders QuietEditorialDialog on Linux with dialog type', (tester) async {

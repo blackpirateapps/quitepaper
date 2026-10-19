@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../utils/platform_layout_helper.dart';
 import 'quiet_editorial_dialog.dart';
@@ -54,6 +55,9 @@ class QuietAdaptiveModal {
     bool isScrollControlled = true,
     bool barrierDismissible = true,
     bool enableDrag = true,
+    Color? backgroundColor,
+    ShapeBorder? shape,
+    bool? showDragHandle,
     Color? barrierColor,
     bool useRootNavigator = false,
     RouteSettings? routeSettings,
@@ -64,12 +68,25 @@ class QuietAdaptiveModal {
       // -----------------------------------------------------------------
       // Mobile / Touch Presentation: Standard Modal Bottom Sheet
       // -----------------------------------------------------------------
+      final colors = context.appColors;
+      final defaultBgColor = (type == AdaptiveModalType.popover)
+          ? colors.surface
+          : Colors.transparent;
+      final defaultShape = (type == AdaptiveModalType.popover)
+          ? const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: AppRadii.rLg),
+            )
+          : null;
+
       return showModalBottomSheet<T>(
         context: context,
         isScrollControlled: isScrollControlled,
         isDismissible: barrierDismissible,
         enableDrag: enableDrag,
-        backgroundColor: Colors.transparent,
+        showDragHandle: showDragHandle,
+        backgroundColor: backgroundColor ?? defaultBgColor,
+        shape: shape ?? defaultShape,
+        clipBehavior: Clip.antiAlias,
         barrierColor: barrierColor ?? Colors.black54,
         useRootNavigator: useRootNavigator,
         routeSettings: routeSettings,
@@ -91,6 +108,7 @@ class QuietAdaptiveModal {
           minWidth: minWidth,
           maxWidth: maxWidth,
           maxHeight: maxHeight,
+          backgroundColor: backgroundColor,
           barrierColor: barrierColor,
           barrierDismissible: barrierDismissible,
           routeSettings: routeSettings,

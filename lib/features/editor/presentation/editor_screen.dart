@@ -4340,6 +4340,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     Note note,
     EditorNotifier notifier,
   ) {
+    final colors = context.appColors;
     final isPreview = ref.read(editorProviderFamily(_editorParams)).isPreviewMode;
     final isReadOnly = ref.read(editorProviderFamily(_editorParams)).isReadOnly;
     _OverflowMenuPage currentPage = _OverflowMenuPage.main;
@@ -4349,6 +4350,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       type: AdaptiveModalType.popover,
       anchorKey: _overflowButtonKey,
       maxWidth: 340,
+      backgroundColor: colors.surface,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {

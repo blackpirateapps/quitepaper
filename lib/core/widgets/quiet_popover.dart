@@ -32,6 +32,7 @@ Future<T?> showQuietPopover<T>({
   double minWidth = 200,
   double maxWidth = 360,
   double? maxHeight,
+  Color? backgroundColor,
   Color? barrierColor,
   bool barrierDismissible = true,
   RouteSettings? routeSettings,
@@ -87,6 +88,7 @@ Future<T?> showQuietPopover<T>({
       minWidth: minWidth,
       maxWidth: maxWidth,
       maxHeight: maxHeight,
+      backgroundColor: backgroundColor,
       barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.12),
       barrierDismissible: barrierDismissible,
       settings: routeSettings,
@@ -103,6 +105,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
     this.minWidth = 200,
     this.maxWidth = 360,
     this.maxHeight,
+    this.backgroundColor,
     this.barrierColor = const Color(0x1F000000),
     this.barrierDismissible = true,
     this.barrierLabel = 'Dismiss popover',
@@ -115,6 +118,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
   final double minWidth;
   final double maxWidth;
   final double? maxHeight;
+  final Color? backgroundColor;
 
   @override
   final Color barrierColor;
@@ -157,7 +161,7 @@ class QuietPopoverRoute<T> extends PopupRoute<T> {
             ),
           ),
           child: Material(
-            color: colors.surface,
+            color: backgroundColor ?? colors.surface,
             elevation: 8,
             shadowColor: colors.textPrimary.withValues(alpha: 0.14),
             shape: RoundedRectangleBorder(

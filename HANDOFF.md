@@ -9299,3 +9299,43 @@ Super Editor link preview cards previously lacked real-time loading feedback whe
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2,036 tests passed** (including 28 Super Editor tests, 18 link preview baker tests, 18 round-trip tests, and 10 link preview loading & debug tests).
 
+---
+
+## 206. Mobile Overflow Menu Surface Background & Adaptive Modal Popover Styling (October 2026)
+
+### 1. Problem & Motivation
+When tapping the 3-dot overflow menu in the note editor on touch/mobile devices (Android/iOS), the bottom sheet rendered with an almost completely transparent background:
+1. Only the 3 quick-action cards at the top (**Pin**, **Archive**, **Delete**) displayed solid container backgrounds (`colors.surfaceSecondary`).
+2. The rest of the sheet—including the drag handle, horizontal divider, and all navigation rows (**Find in note**, **Add tag**, **Share**, **Privacy**, **Edit Visually**, **Editor style**, and **Note details**)—rendered directly over the transparent canvas on top of the darkened modal barrier (`Colors.black54`).
+3. Typography and icons with secondary/tertiary colors appeared faint, ghost-like, and nearly illegible against the dimmed background.
+4. **Root Cause**: In `QuietAdaptiveModal.show`, mobile presentations (`!isDesktop`) delegated to `showModalBottomSheet` with hardcoded `backgroundColor: Colors.transparent`. While desktop popovers (`showQuietPopover`) automatically wrapped children in `Material(color: colors.surface, ...)`, the mobile branch lacked default surface styling, assuming every child widget would draw its own enclosed container.
+
+### 2. Architectural Solution
+1. **Adaptive Modal Popover Surface Default (`QuietAdaptiveModal.show`)**:
+   - Added optional `backgroundColor`, `shape`, and `showDragHandle` parameters to `QuietAdaptiveModal.show`.
+   - On mobile platforms (`!isDesktop`), when `type == AdaptiveModalType.popover`, automatically defaults:
+     - `backgroundColor` to `context.appColors.surface` (solid `#FBFAF7` in Light Paper / `#252422` in Dark Paper).
+     - `shape` to `RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: AppRadii.rLg))`.
+     - `clipBehavior` to `Clip.antiAlias`.
+   - For `AdaptiveModalType.dialog` (e.g., custom sheets with self-contained constrained cards like `NotesSortSheet`, `NotesFilterSheet`, `ExportNoteSheet`), retains `Colors.transparent` default background so existing custom layouts remain intact.
+2. **Desktop Popover Parameter Propagation (`showQuietPopover`)**:
+   - Extended `showQuietPopover` and `QuietPopoverRoute` to accept optional `backgroundColor`, allowing custom background overrides while defaulting to `colors.surface`.
+3. **Editor Overflow Menu Integration (`_showOverflowMenu`)**:
+   - Explicitly configured `_showOverflowMenu` in `editor_screen.dart` with `backgroundColor: colors.surface`, ensuring an opaque, warm editorial sheet backdrop across all screen densities and themes.
+4. **Automated Verification**:
+   - Added widget tests in `test/widgets/quiet_adaptive_modal_test.dart` verifying that `AdaptiveModalType.popover` on Android receives `colors.surface`, rounded vertical top borders, and anti-aliased clipping.
+   - Added test in `test/editor/editor_overflow_menu_test.dart` ensuring the 3-dot overflow menu renders on an opaque surface `BottomSheet`.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/core/widgets/quiet_adaptive_modal.dart`: Added `backgroundColor`, `shape`, and `showDragHandle` parameters; defaulted popovers on mobile to `colors.surface` and rounded top border.
+  - `lib/core/widgets/quiet_popover.dart`: Added `backgroundColor` support in `showQuietPopover` and `QuietPopoverRoute`.
+  - `lib/features/editor/presentation/editor_screen.dart`: Passed `backgroundColor: colors.surface` in `_showOverflowMenu`.
+  - `test/widgets/quiet_adaptive_modal_test.dart`: Added tests verifying popover bottom sheet surface color and shape on Android.
+  - `test/editor/editor_overflow_menu_test.dart`: Added test verifying 3-dot overflow menu renders on opaque `colors.surface` `BottomSheet`.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **2,039 tests passed**.
+
+
