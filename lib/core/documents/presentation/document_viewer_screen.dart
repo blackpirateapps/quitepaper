@@ -88,9 +88,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   ResourceResolution<ResolvedDocumentInfo>? _resolution;
   late final PdfViewerController _pdfViewerController;
   late final UndoHistoryController _undoHistoryController;
-  final GlobalKey _viewerStackKey = GlobalKey();
   GlobalKey<SfPdfViewerState> _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
-  PdfTextSelectionChangedDetails? _selectionDetails;
+  OverlayEntry? _selectionOverlayEntry;
 
   // In-document text search state
   bool _isSearching = false;
@@ -114,7 +113,6 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   void initState() {
     super.initState();
     _pdfViewerController = PdfViewerController();
-    _pdfViewerController.addListener(_onPdfViewerControllerChanged);
     _undoHistoryController = UndoHistoryController();
     _selectedPageIndex = widget.initialPageIndex >= 0
         ? widget.initialPageIndex
@@ -168,7 +166,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       _pageCount = docInfo.pageCount > 0 ? docInfo.pageCount : 1;
       _selectedPageIndex = widget.initialPageIndex.clamp(0, _pageCount - 1);
       _isLoading = false;
-      _selectionDetails = null;
+      _hideFloatingSelectionMenu();
     });
   }
 
@@ -200,40 +198,32 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   }
 
   @override
+  void deactivate() {
+    _hideFloatingSelectionMenu();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
+    _hideFloatingSelectionMenu();
     _searchResult?.removeListener(_onSearchResultUpdated);
-    _pdfViewerController.removeListener(_onPdfViewerControllerChanged);
     _pdfViewerController.dispose();
     _undoHistoryController.dispose();
     super.dispose();
   }
 
-  void _onPdfViewerControllerChanged() {
-    if (_selectionDetails != null && mounted) {
-      setState(() {
-        _selectionDetails = null;
-      });
-    }
-  }
-
   void _handleTextSelectionChanged(PdfTextSelectionChangedDetails details) {
     if (!mounted) return;
-    setState(() {
-      if (details.selectedText == null || details.selectedText!.trim().isEmpty) {
-        _selectionDetails = null;
-      } else {
-        _selectionDetails = details;
-      }
-    });
+    if (details.selectedText == null || details.selectedText!.trim().isEmpty) {
+      _hideFloatingSelectionMenu();
+    } else {
+      _showFloatingSelectionMenu(details);
+    }
   }
 
   void _clearSelectionState() {
+    _hideFloatingSelectionMenu();
     _pdfViewerController.clearSelection();
-    if (mounted) {
-      setState(() {
-        _selectionDetails = null;
-      });
-    }
   }
 
   void _applyTextMarkup(PdfAnnotationMode mode) {
@@ -993,15 +983,20 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final colors = context.appColors;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
       builder: (modalContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + AppSpacing.sm,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             const Center(child: AdaptiveSheetDragHandle()),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
@@ -1091,8 +1086,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1546,61 +1542,47 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ),
           ),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                key: _viewerStackKey,
-                children: [
-                  SfPdfViewer.memory(
-                    _activePdfBytes!,
-                    key: _pdfViewerStateKey,
-                    controller: _pdfViewerController,
-                    undoController: _undoHistoryController,
-                    canShowScrollHead: true,
-                    canShowScrollStatus: true,
-                    enableTextSelection: true,
-                    canShowTextSelectionMenu: false,
-                    enableDoubleTapZooming: true,
-                    canShowPaginationDialog: true,
-                    currentSearchTextHighlightColor:
-                        colors.accent.withValues(alpha: 0.6),
-                    otherSearchTextHighlightColor:
-                        colors.accent.withValues(alpha: 0.25),
-                    initialPageNumber: (widget.initialPageIndex >= 0
-                            ? widget.initialPageIndex
-                            : 0) +
-                        1,
-                    onDocumentLoaded: (details) {
-                      if (mounted) {
-                        setState(() {
-                          _pageCount = details.document.pages.count;
-                        });
-                      }
-                    },
-                    onDocumentLoadFailed: (details) {
-                      debugPrint(
-                          '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}');
-                    },
-                    onPageChanged: (details) {
-                      if (mounted) {
-                        setState(() {
-                          _selectedPageIndex = details.newPageNumber - 1;
-                        });
-                      }
-                    },
-                    onTextSelectionChanged: _handleTextSelectionChanged,
-                    onAnnotationAdded: (_) => _onAnnotationMutated(),
-                    onAnnotationEdited: (_) => _onAnnotationMutated(),
-                    onAnnotationRemoved: (_) => _onAnnotationMutated(),
-                  ),
-                  if (_selectionDetails != null &&
-                      _selectionDetails!.selectedText != null &&
-                      _selectionDetails!.selectedText!.trim().isNotEmpty &&
-                      _selectionDetails!.globalSelectedRegion != null)
-                    _buildFloatingSelectionMenu(colors, constraints),
-                ],
-              );
+          child: SfPdfViewer.memory(
+            _activePdfBytes!,
+            key: _pdfViewerStateKey,
+            controller: _pdfViewerController,
+            undoController: _undoHistoryController,
+            canShowScrollHead: true,
+            canShowScrollStatus: true,
+            enableTextSelection: true,
+            canShowTextSelectionMenu: false,
+            enableDoubleTapZooming: true,
+            canShowPaginationDialog: true,
+            currentSearchTextHighlightColor:
+                colors.accent.withValues(alpha: 0.6),
+            otherSearchTextHighlightColor:
+                colors.accent.withValues(alpha: 0.25),
+            initialPageNumber: (widget.initialPageIndex >= 0
+                    ? widget.initialPageIndex
+                    : 0) +
+                1,
+            onDocumentLoaded: (details) {
+              if (mounted) {
+                setState(() {
+                  _pageCount = details.document.pages.count;
+                });
+              }
             },
+            onDocumentLoadFailed: (details) {
+              debugPrint(
+                  '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}');
+            },
+            onPageChanged: (details) {
+              if (mounted) {
+                setState(() {
+                  _selectedPageIndex = details.newPageNumber - 1;
+                });
+              }
+            },
+            onTextSelectionChanged: _handleTextSelectionChanged,
+            onAnnotationAdded: (_) => _onAnnotationMutated(),
+            onAnnotationEdited: (_) => _onAnnotationMutated(),
+            onAnnotationRemoved: (_) => _onAnnotationMutated(),
           ),
         ),
       ],
@@ -1668,150 +1650,159 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
   }
 
-  Widget _buildFloatingSelectionMenu(
-      AppColors colors, BoxConstraints constraints) {
-    final globalRegion = _selectionDetails?.globalSelectedRegion;
-    if (globalRegion == null) return const SizedBox.shrink();
+  void _showFloatingSelectionMenu(PdfTextSelectionChangedDetails details) {
+    _hideFloatingSelectionMenu();
 
-    final RenderBox? stackBox =
-        _viewerStackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (stackBox == null) return const SizedBox.shrink();
+    final region = details.globalSelectedRegion;
+    final selectedText = details.selectedText;
+    if (region == null || selectedText == null || selectedText.trim().isEmpty) {
+      return;
+    }
 
-    final localTopLeft = stackBox.globalToLocal(globalRegion.topLeft);
-    final localBottomRight = stackBox.globalToLocal(globalRegion.bottomRight);
-    final localRegion = Rect.fromPoints(localTopLeft, localBottomRight);
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+
+    final mediaQuery = MediaQuery.of(context);
+    final screenSize = mediaQuery.size;
 
     const double menuHeight = 44.0;
-    const double verticalMargin = 10.0;
+    final double maxMenuWidth = math.min(540.0, screenSize.width - 24.0);
 
-    double top = localRegion.top - menuHeight - verticalMargin;
-    if (top < 8.0) {
-      top = localRegion.bottom + verticalMargin;
+    // Determine vertical position: prefer above, fallback to below
+    double top = region.top - menuHeight - 10.0;
+    if (top < mediaQuery.padding.top + kToolbarHeight) {
+      top = region.bottom + 10.0;
     }
-    if (top + menuHeight > constraints.maxHeight - 8.0) {
-      top = math.max(8.0, constraints.maxHeight - menuHeight - 8.0);
+    if (top + menuHeight > screenSize.height - mediaQuery.padding.bottom - 10.0) {
+      top = math.max(10.0, screenSize.height - menuHeight - mediaQuery.padding.bottom - 10.0);
     }
 
-    final double fraction =
-        (localRegion.center.dx / constraints.maxWidth).clamp(0.0, 1.0);
-    final double alignX = (fraction * 2.0) - 1.0;
+    // Determine horizontal position: center on selected text, clamp within screen
+    double left = region.center.dx - (maxMenuWidth / 2);
+    left = left.clamp(12.0, math.max(12.0, screenSize.width - maxMenuWidth - 12.0));
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.appColors;
 
-    return Positioned(
-      top: top,
-      left: 12.0,
-      right: 12.0,
-      child: Align(
-        alignment: Alignment(alignX, 0.0),
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            height: menuHeight,
-            constraints: BoxConstraints(
-              maxWidth: math.min(540.0, constraints.maxWidth - 24.0),
-            ),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(24.0),
-              border: Border.all(color: colors.divider, width: 0.8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.12),
-                  blurRadius: 18,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSelectionActionItem(
-                    icon: Icons.copy_rounded,
-                    label: 'Copy',
-                    colors: colors,
-                    onTap: () async {
-                      final text = _selectionDetails?.selectedText ?? '';
-                      await Clipboard.setData(ClipboardData(text: text));
-                      _clearSelectionState();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Text copied to clipboard'),
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  _buildMenuDivider(colors),
-                  _buildSelectionActionItem(
-                    icon: Icons.border_color_rounded,
-                    label: 'Highlight',
-                    iconColor: const Color(0xFFE5A000),
-                    colors: colors,
-                    onTap: () => _applyTextMarkup(PdfAnnotationMode.highlight),
-                  ),
-                  _buildSelectionActionItem(
-                    icon: Icons.format_underlined_rounded,
-                    label: 'Underline',
-                    colors: colors,
-                    onTap: () => _applyTextMarkup(PdfAnnotationMode.underline),
-                  ),
-                  _buildSelectionActionItem(
-                    icon: Icons.format_strikethrough_rounded,
-                    label: 'Strike',
-                    colors: colors,
-                    onTap: () =>
-                        _applyTextMarkup(PdfAnnotationMode.strikethrough),
-                  ),
-                  _buildSelectionActionItem(
-                    icon: Icons.waves_rounded,
-                    label: 'Squiggly',
-                    colors: colors,
-                    onTap: () => _applyTextMarkup(PdfAnnotationMode.squiggly),
-                  ),
-                  _buildMenuDivider(colors),
-                  _buildSelectionActionItem(
-                    icon: Icons.sticky_note_2_outlined,
-                    label: 'Note',
-                    iconColor: colors.accent,
-                    colors: colors,
-                    onTap: () {
-                      final lines =
-                          _pdfViewerStateKey.currentState?.getSelectedTextLines() ??
-                              [];
-                      final selectedText =
-                          _selectionDetails?.selectedText ?? '';
-                      _clearSelectionState();
-                      _promptAddStickyNoteForSelection(lines, selectedText);
-                    },
-                  ),
-                  _buildMenuDivider(colors),
-                  _buildSelectionActionItem(
-                    icon: Icons.search_rounded,
-                    label: 'Search',
-                    colors: colors,
-                    onTap: () {
-                      final query =
-                          (_selectionDetails?.selectedText ?? '').trim();
-                      _clearSelectionState();
-                      if (query.isNotEmpty) {
-                        _activateDocumentSearch(query);
-                      }
-                    },
+    _selectionOverlayEntry = OverlayEntry(
+      maintainState: true,
+      builder: (overlayContext) {
+        return Positioned(
+          top: top,
+          left: left,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              height: menuHeight,
+              constraints: BoxConstraints(maxWidth: maxMenuWidth),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(24.0),
+                border: Border.all(color: colors.divider, width: 0.8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.14),
+                    blurRadius: 18,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSelectionActionItem(
+                      icon: Icons.copy_rounded,
+                      label: 'Copy',
+                      colors: colors,
+                      onTap: () async {
+                        await Clipboard.setData(ClipboardData(text: selectedText));
+                        _clearSelectionState();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Text copied to clipboard'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    _buildMenuDivider(colors),
+                    _buildSelectionActionItem(
+                      icon: Icons.border_color_rounded,
+                      label: 'Highlight',
+                      iconColor: const Color(0xFFE5A000),
+                      colors: colors,
+                      onTap: () => _applyTextMarkup(PdfAnnotationMode.highlight),
+                    ),
+                    _buildSelectionActionItem(
+                      icon: Icons.format_underlined_rounded,
+                      label: 'Underline',
+                      colors: colors,
+                      onTap: () => _applyTextMarkup(PdfAnnotationMode.underline),
+                    ),
+                    _buildSelectionActionItem(
+                      icon: Icons.format_strikethrough_rounded,
+                      label: 'Strike',
+                      colors: colors,
+                      onTap: () =>
+                          _applyTextMarkup(PdfAnnotationMode.strikethrough),
+                    ),
+                    _buildSelectionActionItem(
+                      icon: Icons.waves_rounded,
+                      label: 'Squiggly',
+                      colors: colors,
+                      onTap: () => _applyTextMarkup(PdfAnnotationMode.squiggly),
+                    ),
+                    _buildMenuDivider(colors),
+                    _buildSelectionActionItem(
+                      icon: Icons.sticky_note_2_outlined,
+                      label: 'Note',
+                      iconColor: colors.accent,
+                      colors: colors,
+                      onTap: () {
+                        final lines =
+                            _pdfViewerStateKey.currentState?.getSelectedTextLines() ??
+                                [];
+                        _clearSelectionState();
+                        _promptAddStickyNoteForSelection(lines, selectedText);
+                      },
+                    ),
+                    _buildMenuDivider(colors),
+                    _buildSelectionActionItem(
+                      icon: Icons.search_rounded,
+                      label: 'Search',
+                      colors: colors,
+                      onTap: () {
+                        final query = selectedText.trim();
+                        _clearSelectionState();
+                        if (query.isNotEmpty) {
+                          _activateDocumentSearch(query);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+
+    overlay.insert(_selectionOverlayEntry!);
+  }
+
+  void _hideFloatingSelectionMenu() {
+    if (_selectionOverlayEntry != null) {
+      _selectionOverlayEntry!.remove();
+      _selectionOverlayEntry!.dispose();
+      _selectionOverlayEntry = null;
+    }
   }
 
   Widget _buildMenuDivider(AppColors colors) {

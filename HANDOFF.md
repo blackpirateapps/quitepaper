@@ -9714,11 +9714,10 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
      - `enableTextSelection: true`: Retains high-performance native text selection and handles.
      - `onTextSelectionChanged: _handleTextSelectionChanged`: Receives selection updates with `globalSelectedRegion` and `selectedText`.
 
-2. **Responsive Floating Pill Menu (`_buildFloatingSelectionMenu`)**:
-   - Rendered inside a `Stack` wrapping `SfPdfViewer.memory` within the `Scaffold` body.
-   - Coordinate transformation: Transforms `globalSelectedRegion` into the local coordinate space of the stack via `RenderBox.globalToLocal`.
-   - Vertical collision detection: Floats 10dp above the selection if space permits (`top = localRegion.top - 44 - 10`); flips smoothly below the selection if near top of viewport; clamped against stack boundaries.
-   - Horizontal centering: Proportional alignment `Alignment((centerX / width * 2) - 1, 0.0)` bounded by 12dp screen padding.
+2. **Responsive Floating Pill Menu (`_showFloatingSelectionMenu`)**:
+   - Rendered using an `OverlayEntry` directly inserted into `Overlay.of(context, rootOverlay: true)`, ensuring instantaneous rendering in global coordinates without waiting for widget subtree layout cycles.
+   - Vertical collision detection: Floats 10dp above the selection if space permits (`top = region.top - 44 - 10`); flips smoothly below the selection if near top of viewport; clamped against screen boundaries.
+   - Horizontal centering: Proportional alignment centered over `region.center.dx`, clamped safely within `[12, screenWidth - menuWidth - 12]`.
    - Aesthetics: Rounded pill (`BorderRadius.circular(24.0)`), warm editorial surface (`colors.surface`), 0.8dp divider border (`colors.divider`), and elevation shadows.
    - Horizontal scroll container: `SingleChildScrollView(scrollDirection: Axis.horizontal)` guarantees zero flex overflow across small phones (320-360dp) and desktop screens.
    - Actions provided:
@@ -9727,12 +9726,16 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
      - **Note**: Opens a Quiet Paper modal dialog displaying a truncated quote of the selection with a text editor to attach a `StickyNoteAnnotation` anchored to the selected text.
      - **Search**: Triggers in-document text search with the selected query.
 
-3. **In-Document PDF Search Navigation (`_buildSearchBar`)**:
+3. **Elimination of Bottom Sheet Overflow (`_showAnnotationToolsModal`)**:
+   - Configured `showModalBottomSheet` with `isScrollControlled: true` and wrapped the content in a `SingleChildScrollView`.
+   - Completely resolved the `BOTTOM OVERFLOWED BY 62 PIXELS` error shown on compact screen heights when invoking annotation tools from the AppBar.
+
+4. **In-Document PDF Search Navigation (`_buildSearchBar`)**:
    - Invokes `PdfViewerController.searchText(query)` with live match notifications.
    - Renders a quiet editorial search bar docked below the AppBar with search term, match index (`"1 of 5"`), Previous (`keyboard_arrow_up_rounded`), Next (`keyboard_arrow_down_rounded`), and Close (`close_rounded`) controls.
    - Also integrated a "Search in Document" action inside the overflow menu (`more_vert_rounded`) with an interactive search prompt dialog.
 
-4. **Automated Verification**:
+5. **Automated Verification**:
    - Added widget test in [`test/documents/document_viewer_text_selection_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_viewer_text_selection_test.dart) verifying document viewer rendering and search menu integration.
    - `flutter test test/documents/`: **All 56 tests passing**.
    - `flutter test test/scanner/scanner_ui_test.dart`: **All 3 tests passing**.
@@ -9740,4 +9743,5 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
 ### 3. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All test suites passing.
+
 
