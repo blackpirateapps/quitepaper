@@ -2078,34 +2078,66 @@ class AppDatabase extends _$AppDatabase {
 
       // If a tag with the same name exists with a different ID (e.g. created offline on two devices)
       if (existingByName != null && existingByName.id != id) {
-        // Merge note tags to the canonical remote ID
+        // 1. Temporarily rename the old tag so normalizedName is available for the canonical remote ID without violating UNIQUE(name)
+        final tempName = '${normalizedName}_merging_${existingByName.id}';
+        await (update(tagsTable)..where((t) => t.id.equals(existingByName.id))).write(
+          TagsTableCompanion(name: Value(tempName)),
+        );
+
+        // 2. Insert the canonical remote tag into tagsTable so it exists before referencing it in noteTagsTable
+        await into(tagsTable).insertOnConflictUpdate(
+          TagsTableCompanion(
+            id: Value(id),
+            name: Value(normalizedName),
+            icon: Value(effectiveIcon),
+            color: Value(effectiveColor),
+            isPinned: Value(isPinned),
+            pinnedOrder: Value(pinnedOrder),
+            createdAt: Value(createdAt),
+            updatedAt: Value(updatedAt),
+            isDirty: const Value(false),
+            serverRevision: Value(serverRevision),
+            syncedAt: Value(DateTime.now()),
+            isDeleted: const Value(false),
+            deletedAt: const Value(null),
+          ),
+        );
+
+        // 3. Re-link noteTags to the canonical remote ID, ensuring the referenced note still exists
         final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).get();
         for (final row in noteRows) {
-          await into(noteTagsTable).insertOnConflictUpdate(
-            NoteTagsTableCompanion.insert(noteId: row.noteId, tagId: id),
-          );
+          final noteExists = await (select(notesTable)..where((n) => n.id.equals(row.noteId))).getSingleOrNull();
+          if (noteExists != null) {
+            await into(noteTagsTable).insertOnConflictUpdate(
+              NoteTagsTableCompanion.insert(
+                noteId: row.noteId,
+                tagId: id,
+                isPinned: Value(row.isPinned),
+              ),
+            );
+          }
         }
         await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).go();
         await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
+      } else {
+        await into(tagsTable).insertOnConflictUpdate(
+          TagsTableCompanion(
+            id: Value(id),
+            name: Value(normalizedName),
+            icon: Value(effectiveIcon),
+            color: Value(effectiveColor),
+            isPinned: Value(isPinned),
+            pinnedOrder: Value(pinnedOrder),
+            createdAt: Value(createdAt),
+            updatedAt: Value(updatedAt),
+            isDirty: const Value(false),
+            serverRevision: Value(serverRevision),
+            syncedAt: Value(DateTime.now()),
+            isDeleted: const Value(false),
+            deletedAt: const Value(null),
+          ),
+        );
       }
-
-      await into(tagsTable).insertOnConflictUpdate(
-        TagsTableCompanion(
-          id: Value(id),
-          name: Value(normalizedName),
-          icon: Value(effectiveIcon),
-          color: Value(effectiveColor),
-          isPinned: Value(isPinned),
-          pinnedOrder: Value(pinnedOrder),
-          createdAt: Value(createdAt),
-          updatedAt: Value(updatedAt),
-          isDirty: const Value(false),
-          serverRevision: Value(serverRevision),
-          syncedAt: Value(DateTime.now()),
-          isDeleted: const Value(false),
-          deletedAt: const Value(null),
-        ),
-      );
     });
   }
 

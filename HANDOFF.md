@@ -9465,6 +9465,39 @@ When running local OCR on Linux / Desktop using Ollama and Vision-Language Model
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test test/ocr/`: **All 29 tests passing**.
 
+---
+
+## 210. Tag Sync: Fix SQLite Foreign Key Constraint Failure on Duplicate Tag Merge (`upsertSyncedTag`) (October 2026)
+
+### 1. Problem & Motivation
+When syncing tags created across multiple devices:
+1. Because tags originate from `#hashtags` in Markdown, different devices independently generate different random UUIDs for the same tag name.
+2. In [`upsertSyncedTag`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart#L2032), when reconciling a remote tag whose name matched a local tag with a different ID (`existingByName.id != id`), the method attempted to re-link notes by executing:
+   ```dart
+   into(noteTagsTable).insertOnConflictUpdate(NoteTagsTableCompanion.insert(noteId: row.noteId, tagId: id))
+   ```
+3. However, `id` had not yet been inserted into `tagsTable` (the insert occurred later in the transaction). Because Drift enforces SQLite foreign keys (`PRAGMA foreign_keys = ON;`), referencing `id` before inserting it into `tagsTable` immediately threw:
+   ```text
+   SqliteException(787): while executing statement, FOREIGN KEY constraint failed, constraint failed (code 787)
+   Causing statement: INSERT INTO "note_tags" ("note_id", "tag_id") VALUES (?, ?) ...
+   ```
+4. This rolled back the transaction, leaving tags unmerged and generating repeating sync pull errors in logs.
+
+### 2. Architectural Solution
+1. **Ordered Constraint Resolution**:
+   - In [`AppDatabase.upsertSyncedTag`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart#L2079):
+     1. Temporarily rename `existingByName.name` to `${normalizedName}_merging_${existingByName.id}` to release `normalizedName` without violating `UNIQUE(name)`.
+     2. Insert the canonical remote tag row (`id`, `normalizedName`) into `tagsTable` **first** so it exists to satisfy foreign key constraints.
+     3. Iterate through `noteTagsTable` rows attached to `existingByName.id`, verify that each referenced `noteId` still exists in `notesTable`, and re-link them to `id`.
+     4. Delete the temporary old tag row (which cascades and cleans up obsolete `note_tags`).
+2. **Regression Test**:
+   - Updated [`test/sync/tag_sync_test.dart`](file:///home/dog/git/quitepaper/test/sync/tag_sync_test.dart) to verify note tag re-linking without foreign key constraint errors when merging duplicate offline tag names.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/sync/`: **All 56 tests passing**.
+
+
 
 
 

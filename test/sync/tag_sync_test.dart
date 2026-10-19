@@ -271,13 +271,25 @@ void main() {
       expect(tag.serverRevision, equals(2));
     });
 
-    test('upsertSyncedTag merges offline duplicate tag name to canonical ID', () async {
-      // Local tag created offline with ID A
-      final localTag = await db.createTag('offline-tag');
-      expect(localTag.name, equals('offline-tag'));
+    test('upsertSyncedTag merges offline duplicate tag name to canonical ID with noteTags preserved', () async {
+      final now = DateTime.now();
+      // Local note created offline containing #offline-tag
+      await db.saveNote(
+        id: 'note-1',
+        title: 'Note 1',
+        content: 'Content with #offline-tag',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      final initialNote = await db.getNoteWithTags('note-1');
+      expect(initialNote, isNotNull);
+      expect(initialNote!.tags.length, equals(1));
+      expect(initialNote.tags.first.name, equals('offline-tag'));
+      final localTagId = initialNote.tags.first.id;
 
       // Remote brings tag with same name but canonical ID B
-      final now = DateTime.now();
       await db.upsertSyncedTag(
         id: 'canonical-id-b',
         name: 'offline-tag',
@@ -300,6 +312,13 @@ void main() {
       expect(canonicalTag!.icon, equals('star'));
       expect(canonicalTag.color, equals('amber'));
       expect(canonicalTag.isPinned, isTrue);
+
+      // Verify noteTags was seamlessly re-linked to canonical-id-b without foreign key errors
+      final updatedNote = await db.getNoteWithTags('note-1');
+      expect(updatedNote, isNotNull);
+      expect(updatedNote!.tags.length, equals(1));
+      expect(updatedNote.tags.first.id, equals('canonical-id-b'));
+      expect(canonicalTag.id, isNot(equals(localTagId)));
     });
 
     test('deleteTag creates soft-deletion tombstone when serverRevision > 0', () async {
