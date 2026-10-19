@@ -9640,12 +9640,57 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test test/ocr/`: **All 36 tests passing**.
 
+---
 
+## 215. Feature: Syncfusion Flutter PDF Viewer Migration with Non-Destructive Dual Storage (October 2026)
 
+### 1. Context & Motivation
+1. Previously, QuietPaper rendered PDFs by rasterizing each page to PNG bitmaps using `Printing.raster()` and displaying them within an `InteractiveViewer`. User annotations (freehand drawings) were recorded as screen coordinates in an `AnnotationOverlay` and baked into exported PDFs using `pdf/widgets.dart`.
+2. This approach had critical limitations:
+   - Text inside PDF documents could not be selected, copied, or highlighted natively.
+   - Vector fidelity was degraded upon zooming rasterized images.
+   - Annotations were limited to custom freehand drawing layers rather than industry-standard PDF annotation objects (`/Annots`).
+3. The user requested migrating to `syncfusion_flutter_pdfviewer` on dedicated branch `feature/syncfusion-pdf-viewer`, preserving the original document completely untouched (non-destructive editing), providing native text selection, built-in PDF annotation tools (highlight, underline, strikethrough, squiggly, sticky notes), and export options for both original and annotated versions.
 
+### 2. Architectural Design & Implementation
 
+1. **Dependency Integration**:
+   - Added `syncfusion_flutter_pdfviewer: ^33.2.13` to [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml).
+   - Resolved dependencies cleanly with zero conflicts.
 
+2. **Non-Destructive Dual Storage Invariant**:
+   - The original encrypted PDF document file `<documentId>.qpd` is treated as immutable and is **never** overwritten by user annotation edits.
+   - User annotations are bundled directly into a standard PDF byte stream via `PdfViewerController.saveDocument()` and persisted as a separate encrypted derivative file `<documentId>.annotated.qpd`.
+   - In [`DocumentStorage`](file:///home/dog/git/quitepaper/lib/core/documents/document_storage.dart):
+     - Added `saveEncryptedAnnotatedBytes`, `readEncryptedAnnotatedBytes`, `deleteEncryptedAnnotatedFile`, and `hasEncryptedAnnotatedFile`.
+     - In-memory decrypted cache holds keys `annotated_$id` alongside original `$id` with independent cache invalidation.
+   - In [`DocumentService`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart):
+     - `resolveAnnotatedBytes(id)`: Returns decrypted annotated bytes if available; falls back transparently to original document bytes.
+     - `saveAnnotatedDocument(id, bytes)`: Encrypts and writes to `<documentId>.annotated.qpd` without mutating `<documentId>.qpd`.
+     - `revertToOriginalDocument(id)`: Deletes `<documentId>.annotated.qpd` and evicts the annotated memory cache, safely reverting to the original unmodified document.
+     - `deleteDocument(id)`: Cleans up both original and annotated files and metadata.
 
+3. **Viewer & Annotation Experience (`DocumentViewerScreen`)**:
+   - Replaced rasterized page list and `AnnotationOverlay` with `SfPdfViewer.memory(decryptedBytes, controller: _pdfViewerController, undoController: _undoController)`.
+   - Zero-knowledge security is strictly maintained: `SfPdfViewer.memory` loads decrypted PDF bytes directly from memory without writing plaintext PDF files to disk.
+   - Integrated full annotation toolbar:
+     - Text markup: Highlight, Underline, Strikethrough, Squiggly.
+     - Sticky Notes.
+     - Active annotation mode banner with Undo, Redo, and Done controls.
+   - Implemented non-destructive lifecycle:
+     - Auto-saves annotations on screen pop / back navigation using `PopScope(onPopInvokedWithResult: ...)`.
+     - Added manual Save action in the AppBar (`Icons.save_outlined`).
+     - Added "Revert to Original Document" menu option with user confirmation modal.
+     - Added dual export modal offering "Annotated PDF" and "Original Clean PDF" when saving to device or sharing.
+     - Responsive title subtitle with `SingleChildScrollView(scrollDirection: Axis.horizontal)` to prevent flex overflow across all display widths.
 
+4. **Automated Verification**:
+   - Extended [`test/documents/document_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_service_test.dart) with unit tests for:
+     - Initial resolution fallback to original document bytes.
+     - Saving annotated PDF without modifying original encrypted file.
+     - Reverting annotated PDF to restore original bytes.
+     - Cleanup of both original and annotated files upon document deletion.
 
-
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All test suites passing.

@@ -242,5 +242,51 @@ void main() {
       expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes, mimeType: 'text/html'), isTrue);
       expect(DocumentService.isHtmlDocumentPayload(bytes: pdfBytes, title: 'My Page (Web Snapshot)'), isTrue);
     });
+
+    test('Non-destructive dual storage: saves, resolves, and reverts annotated PDF without mutating original', () async {
+      // 1. Create original document
+      final createResult = await documentService.createDocumentFromPdfBytes(
+        pdfBytes: samplePdfBytes,
+        pageCount: 1,
+        title: 'Admit Card',
+      );
+      final docId = createResult.document.id;
+
+      // Check initial state: no annotated derivative
+      expect(await documentService.hasAnnotatedDocument(docId), isFalse);
+      expect(await documentService.resolveAnnotatedBytes(docId), isNull);
+
+      // 2. Save annotated PDF bytes
+      final annotatedBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 modified with annotations'));
+      await documentService.saveAnnotatedDocument(
+        documentId: docId,
+        annotatedPdfBytes: annotatedBytes,
+      );
+
+      // 3. Verify annotated derivative exists and returns annotated bytes
+      expect(await documentService.hasAnnotatedDocument(docId), isTrue);
+      final resolvedAnnotated = await documentService.resolveAnnotatedBytes(docId);
+      expect(resolvedAnnotated, equals(annotatedBytes));
+
+      // 4. Verify original document remains completely pristine and untouched
+      storage.invalidateDecryptedCache(docId);
+      final resolvedOriginal = await documentService.resolveDocument(docId);
+      expect(resolvedOriginal.isAvailable, isTrue);
+      expect(resolvedOriginal.data!.pdfBytes, equals(samplePdfBytes));
+
+      // 5. Revert to original document
+      await documentService.revertToOriginalDocument(docId);
+      expect(await documentService.hasAnnotatedDocument(docId), isFalse);
+      expect(await documentService.resolveAnnotatedBytes(docId), isNull);
+
+      // 6. Delete document deletes both original and annotated files
+      await documentService.saveAnnotatedDocument(
+        documentId: docId,
+        annotatedPdfBytes: annotatedBytes,
+      );
+      await documentService.deleteDocument(docId);
+      expect(await storage.hasEncryptedFile(documentId: docId), isFalse);
+      expect(await storage.hasEncryptedAnnotatedFile(documentId: docId), isFalse);
+    });
   });
 }

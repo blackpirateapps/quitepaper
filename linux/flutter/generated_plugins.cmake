@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   pasteboard
   printing
   record_linux
+  syncfusion_pdfviewer_linux
   url_launcher_linux
 )
 

@@ -608,9 +608,81 @@ class DocumentService implements DocumentResolver {
     bool enqueueSync = true,
   }) async {
     _storage.invalidateDecryptedCache(documentId);
+    _storage.invalidateDecryptedAnnotatedCache(documentId);
     await database.deleteDocument(documentId, enqueueSync: enqueueSync);
     await database.deleteDocumentOcrPages(documentId);
     await _storage.deleteEncryptedFile(documentId: documentId);
+    await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);
+  }
+
+  /// Checks whether an annotated derivative exists for [documentId].
+  Future<bool> hasAnnotatedDocument(String documentId) async {
+    if (_storage.getDecryptedAnnotatedCache(documentId) != null) return true;
+    return await _storage.hasEncryptedAnnotatedFile(documentId: documentId);
+  }
+
+  /// Resolves decrypted annotated PDF bytes for [documentId] if available;
+  /// returns null if no annotated derivative exists.
+  Future<Uint8List?> resolveAnnotatedBytes(String documentId) async {
+    final cached = _storage.getDecryptedAnnotatedCache(documentId);
+    if (cached != null) return cached;
+
+    if (!await _storage.hasEncryptedAnnotatedFile(documentId: documentId)) {
+      return null;
+    }
+
+    if (!keyManager.isUnlocked) return null;
+    final masterKey = keyManager.getMasterKey();
+
+    final encrypted = await _storage.readEncryptedAnnotatedBytes(
+      documentId: documentId,
+    );
+    if (encrypted == null) return null;
+
+    try {
+      final decrypted = await _crypto.decryptDocument(
+        encryptedEnvelopeBytes: encrypted,
+        masterKeyBytes: masterKey,
+        documentId: documentId,
+      );
+      _storage.putDecryptedAnnotatedCache(documentId, decrypted);
+      return decrypted;
+    } catch (e) {
+      debugPrint('[DocumentService] Decrypting annotated PDF failed: $e');
+      return null;
+    }
+  }
+
+  /// Saves updated annotated PDF bytes as an encrypted derivative layer,
+  /// preserving the original pristine document file untouched.
+  Future<void> saveAnnotatedDocument({
+    required String documentId,
+    required Uint8List annotatedPdfBytes,
+  }) async {
+    if (!keyManager.isUnlocked) {
+      throw StateError('Cannot save annotated document: encryption keys are locked.');
+    }
+    final masterKey = keyManager.getMasterKey();
+
+    final encrypted = await _crypto.encryptDocument(
+      plaintextBytes: annotatedPdfBytes,
+      masterKeyBytes: masterKey,
+      documentId: documentId,
+      keyVersion: 1,
+    );
+
+    await _storage.saveEncryptedAnnotatedBytes(
+      documentId: documentId,
+      encryptedBytes: encrypted,
+    );
+    _storage.putDecryptedAnnotatedCache(documentId, annotatedPdfBytes);
+  }
+
+  /// Reverts document annotations by deleting the annotated derivative layer,
+  /// causing the viewer to reload the pristine original PDF.
+  Future<void> revertToOriginalDocument(String documentId) async {
+    _storage.invalidateDecryptedAnnotatedCache(documentId);
+    await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);
   }
 
   /// Watches all active documents for a note.

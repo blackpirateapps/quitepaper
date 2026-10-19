@@ -61,7 +61,7 @@ app.*.map.json
 !*.env.example
 
 # Local test artifacts
-/test.pdf
+/*.pdf
 .claude/
 backend/Shadhinata.zip
 

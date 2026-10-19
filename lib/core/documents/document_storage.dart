@@ -54,12 +54,29 @@ class DocumentLocalStorage {
     return p.join(dir.path, '$documentId.qpd');
   }
 
+  /// Builds local file path for an encrypted annotated document derivative.
+  Future<String> getEncryptedAnnotatedFilePath(String documentId) async {
+    final dir = await _documentsDir;
+    return p.join(dir.path, '$documentId.annotated.qpd');
+  }
+
   /// Saves encrypted document ciphertext bytes to app-private storage.
   Future<String> saveEncryptedBytes({
     required String documentId,
     required Uint8List encryptedBytes,
   }) async {
     final filePath = await getEncryptedFilePath(documentId);
+    final file = File(filePath);
+    await file.writeAsBytes(encryptedBytes, flush: true);
+    return filePath;
+  }
+
+  /// Saves encrypted annotated derivative ciphertext bytes to app-private storage.
+  Future<String> saveEncryptedAnnotatedBytes({
+    required String documentId,
+    required Uint8List encryptedBytes,
+  }) async {
+    final filePath = await getEncryptedAnnotatedFilePath(documentId);
     final file = File(filePath);
     await file.writeAsBytes(encryptedBytes, flush: true);
     return filePath;
@@ -104,6 +121,36 @@ class DocumentLocalStorage {
     }
   }
 
+  /// Reads encrypted annotated derivative ciphertext bytes from local disk.
+  Future<Uint8List?> readEncryptedAnnotatedBytes({
+    required String documentId,
+  }) async {
+    try {
+      final targetPath = await getEncryptedAnnotatedFilePath(documentId);
+      final file = File(targetPath);
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error reading encrypted annotated document file: $e');
+      return null;
+    }
+  }
+
+  /// Deletes encrypted annotated derivative file from disk.
+  Future<void> deleteEncryptedAnnotatedFile({required String documentId}) async {
+    try {
+      final filePath = await getEncryptedAnnotatedFilePath(documentId);
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('Error deleting encrypted annotated document file: $e');
+    }
+  }
+
   /// Checks whether an encrypted document file exists locally.
   Future<bool> hasEncryptedFile({required String documentId}) async {
     try {
@@ -115,9 +162,22 @@ class DocumentLocalStorage {
     }
   }
 
+  /// Checks whether an encrypted annotated derivative file exists locally.
+  Future<bool> hasEncryptedAnnotatedFile({required String documentId}) async {
+    try {
+      final filePath = await getEncryptedAnnotatedFilePath(documentId);
+      final file = File(filePath);
+      return await file.exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ==========================================
   // IN-MEMORY DECRYPTED BYTE CACHE
   // ==========================================
+
+  final Map<String, Uint8List> _decryptedAnnotatedMemoryCache = {};
 
   void putDecryptedCache(String documentId, Uint8List plaintextBytes) {
     _decryptedMemoryCache[documentId] = plaintextBytes;
@@ -131,8 +191,21 @@ class DocumentLocalStorage {
     _decryptedMemoryCache.remove(documentId);
   }
 
+  void putDecryptedAnnotatedCache(String documentId, Uint8List plaintextBytes) {
+    _decryptedAnnotatedMemoryCache[documentId] = plaintextBytes;
+  }
+
+  Uint8List? getDecryptedAnnotatedCache(String documentId) {
+    return _decryptedAnnotatedMemoryCache[documentId];
+  }
+
+  void invalidateDecryptedAnnotatedCache(String documentId) {
+    _decryptedAnnotatedMemoryCache.remove(documentId);
+  }
+
   void clearDecryptedCache() {
     _decryptedMemoryCache.clear();
+    _decryptedAnnotatedMemoryCache.clear();
   }
 
   // ==========================================
