@@ -86,16 +86,16 @@ class OllamaGroundingParser {
     for (var i = 0; i < matches.length; i++) {
       final match = matches[i];
       final tag = match.group(1)!.toLowerCase();
-      final ymin = int.tryParse(match.group(2)!) ?? 0;
-      final xmin = int.tryParse(match.group(3)!) ?? 0;
-      final ymax = int.tryParse(match.group(4)!) ?? 1000;
-      final xmax = int.tryParse(match.group(5)!) ?? 1000;
+      final xmin = int.tryParse(match.group(2)!) ?? 0;
+      final ymin = int.tryParse(match.group(3)!) ?? 0;
+      final xmax = int.tryParse(match.group(4)!) ?? 1000;
+      final ymax = int.tryParse(match.group(5)!) ?? 1000;
 
       final normRect = _toNormalizedRect(
-        ymin: ymin,
         xmin: xmin,
-        ymax: ymax,
+        ymin: ymin,
         xmax: xmax,
+        ymax: ymax,
       );
 
       final contentStart = match.end;
@@ -252,15 +252,20 @@ class OllamaGroundingParser {
   }
 
   static NormalizedRect _toNormalizedRect({
-    required int ymin,
     required int xmin,
-    required int ymax,
+    required int ymin,
     required int xmax,
+    required int ymax,
   }) {
-    final normX = (xmin / 1000.0).clamp(0.0, 1.0);
-    final normY = (ymin / 1000.0).clamp(0.0, 1.0);
-    final normW = ((xmax - xmin) / 1000.0).clamp(0.005, 1.0 - normX);
-    final normH = ((ymax - ymin) / 1000.0).clamp(0.005, 1.0 - normY);
+    final x1 = xmin < xmax ? xmin : xmax;
+    final x2 = xmin < xmax ? xmax : xmin;
+    final y1 = ymin < ymax ? ymin : ymax;
+    final y2 = ymin < ymax ? ymax : ymin;
+
+    final normX = (x1 / 1000.0).clamp(0.0, 1.0);
+    final normY = (y1 / 1000.0).clamp(0.0, 1.0);
+    final normW = ((x2 - x1) / 1000.0).clamp(0.005, 1.0 - normX);
+    final normH = ((y2 - y1) / 1000.0).clamp(0.005, 1.0 - normY);
 
     return NormalizedRect(
       x: _round(normX),

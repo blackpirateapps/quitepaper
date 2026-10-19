@@ -42,29 +42,29 @@ sides are equal.
       // 3. Verify detected images (2 geometry diagrams)
       expect(result.detectedImages.length, 2);
 
-      // First diagram: [22, 127, 452, 646]
+      // First diagram: [22, 127, 452, 646] -> x: 22, y: 127, w: 430, h: 519
       final img1 = result.detectedImages[0];
-      expect(img1.x, closeTo(0.127, 0.001));
-      expect(img1.y, closeTo(0.022, 0.001));
-      expect(img1.width, closeTo(0.519, 0.001));
-      expect(img1.height, closeTo(0.430, 0.001));
+      expect(img1.x, closeTo(0.022, 0.001));
+      expect(img1.y, closeTo(0.127, 0.001));
+      expect(img1.width, closeTo(0.430, 0.001));
+      expect(img1.height, closeTo(0.519, 0.001));
 
-      // Second diagram: [542, 125, 992, 646]
+      // Second diagram: [542, 125, 992, 646] -> x: 542, y: 125, w: 450, h: 521
       final img2 = result.detectedImages[1];
-      expect(img2.x, closeTo(0.125, 0.001));
-      expect(img2.y, closeTo(0.542, 0.001));
-      expect(img2.width, closeTo(0.521, 0.001));
-      expect(img2.height, closeTo(0.450, 0.001));
+      expect(img2.x, closeTo(0.542, 0.001));
+      expect(img2.y, closeTo(0.125, 0.001));
+      expect(img2.width, closeTo(0.450, 0.001));
+      expect(img2.height, closeTo(0.521, 0.001));
 
       // 4. Verify text blocks
       expect(result.blocks.length, 2);
 
-      // First text block: [4, 641, 450, 789]
+      // First text block: [4, 641, 450, 789] -> x: 4, y: 641, w: 446, h: 148
       final block1 = result.blocks[0];
-      expect(block1.bounds.x, closeTo(0.641, 0.001));
-      expect(block1.bounds.y, closeTo(0.004, 0.001));
-      expect(block1.bounds.width, closeTo(0.148, 0.001));
-      expect(block1.bounds.height, closeTo(0.446, 0.001));
+      expect(block1.bounds.x, closeTo(0.004, 0.001));
+      expect(block1.bounds.y, closeTo(0.641, 0.001));
+      expect(block1.bounds.width, closeTo(0.446, 0.001));
+      expect(block1.bounds.height, closeTo(0.148, 0.001));
       expect(block1.lines.length, 3);
 
       // Verify line bounds & words in block 1
@@ -79,12 +79,12 @@ sides are equal.
         }
       }
 
-      // Second text block: [538, 640, 998, 835]
+      // Second text block: [538, 640, 998, 835] -> x: 538, y: 640, w: 460, h: 195
       final block2 = result.blocks[1];
-      expect(block2.bounds.x, closeTo(0.640, 0.001));
-      expect(block2.bounds.y, closeTo(0.538, 0.001));
-      expect(block2.bounds.width, closeTo(0.195, 0.001));
-      expect(block2.bounds.height, closeTo(0.460, 0.001));
+      expect(block2.bounds.x, closeTo(0.538, 0.001));
+      expect(block2.bounds.y, closeTo(0.640, 0.001));
+      expect(block2.bounds.width, closeTo(0.460, 0.001));
+      expect(block2.bounds.height, closeTo(0.195, 0.001));
       expect(block2.lines.length, 4);
     });
 

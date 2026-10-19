@@ -129,10 +129,10 @@ In cyclic quadrilateral (चक्रीय चतुर्भुज)
 
       expect(page.blocks.length, 1);
       final block = page.blocks.first;
-      expect(block.bounds.x, closeTo(0.641, 0.001));
-      expect(block.bounds.y, closeTo(0.004, 0.001));
-      expect(block.bounds.width, closeTo(0.148, 0.001));
-      expect(block.bounds.height, closeTo(0.446, 0.001));
+      expect(block.bounds.x, closeTo(0.004, 0.001));
+      expect(block.bounds.y, closeTo(0.641, 0.001));
+      expect(block.bounds.width, closeTo(0.446, 0.001));
+      expect(block.bounds.height, closeTo(0.148, 0.001));
       expect(block.lines.length, 2);
       expect(block.lines.first.words, isNotEmpty);
     });

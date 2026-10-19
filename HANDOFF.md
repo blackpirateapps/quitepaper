@@ -9445,8 +9445,8 @@ When running local OCR on Linux / Desktop using Ollama and Vision-Language Model
 1. **Dedicated Grounding Parser (`OllamaGroundingParser`)**:
    - Implemented `OllamaGroundingParser` in `lib/core/ocr/ollama_grounding_parser.dart` to parse grounded VLM responses into structured `ParsedOcrResult`.
    - Strips all `<tag>[[ymin, xmin, ymax, xmax]]` markers from `cleanPlainText`, leaving clean Markdown with math equations (`\( ... \)`) and Unicode/Hindi characters intact.
-   - Converts 1000×1000 coordinate grids into normalized `NormalizedRect` bounding boxes (`x = xmin/1000`, `y = ymin/1000`, `width = (xmax-xmin)/1000`, `height = (ymax-ymin)/1000`).
-   - Slices text blocks into `OcrLine`s and character-weighted `OcrWord`s, giving precise tap and drag targets for desktop Live Text interaction.
+   - Converts 1000×1000 coordinate grids into normalized `NormalizedRect` bounding boxes using DeepSeek-OCR's canonical `[xmin, ymin, xmax, ymax]` (`x1, y1, x2, y2`) order: $x = \frac{\min(x1, x2)}{1000}$, $y = \frac{\min(y1, y2)}{1000}$, $w = \frac{|x2 - x1|}{1000}$, $h = \frac{|y2 - y1|}{1000}$.
+   - Slices text blocks into `OcrLine`s and character-weighted `OcrWord`s, giving precise horizontal word targets for desktop Live Text interaction.
    - Extracts and records detected diagram bounding boxes (`detectedImages`) from `image[[...]]` tags.
 2. **Backward-Compatible Non-Grounded Fallback**:
    - For standard Markdown responses without grounding tags (e.g. models like Llama-3.2-Vision or custom prompts), paragraph and line segmentation automatically populates blocks, lines, and words so Live Text selection remains functional.
