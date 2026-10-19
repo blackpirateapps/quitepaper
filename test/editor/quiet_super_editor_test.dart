@@ -1,20 +1,10 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
-import 'package:quitepaper/core/attachments/attachment_provider.dart';
-import 'package:quitepaper/core/attachments/attachment_service.dart';
-import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
-import 'package:quitepaper/core/uri/resource_resolver.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
-import 'package:quitepaper/features/editor/domain/rich_block.dart';
-import 'package:quitepaper/features/editor/domain/rich_document.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/link_preview_card.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_table_component.dart';
@@ -22,7 +12,6 @@ import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_t
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_link_preview_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
-import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
@@ -30,24 +19,6 @@ class _MockTypographyNotifier extends TypographySettingsNotifier {
   _MockTypographyNotifier(TypographySettings settings) : super(null) {
     state = settings;
   }
-}
-
-class _MockSmartWebLinksNotifier extends SmartWebLinksNotifier {
-  _MockSmartWebLinksNotifier(bool enabled) : super(null) {
-    state = enabled;
-  }
-}
-
-class _MissingAttachmentService implements AttachmentService {
-  @override
-  Future<ResourceResolution<Uint8List>> resolveAsset(
-    String assetId, {
-    String variant = 'original',
-  }) async =>
-      ResourceResolution.missing(QuietPaperUri.asset(assetId));
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -279,27 +250,6 @@ void main() {
       expect(rePreviews[0].url, equals('https://www.ways-of-seeing.com/ch1'));
       expect(rePreviews[1].url, equals('https://nanolathe.gg/'));
     });
-
-    test('normalizes persisted RichDocument JSON before SuperEditor parsing', () {
-      final json = jsonEncode(
-        RichDocument(
-          blocks: [
-            LinkPreviewBlock(
-              id: 'preview-1',
-              url: 'https://example.com/article',
-              title: 'Example Article',
-              fetchedAt: DateTime.utc(2026, 10, 18),
-            ),
-          ],
-        ).toJson(),
-      );
-
-      final normalized = normalizeMarkdownForSuperEditor(json);
-
-      expect(normalized, contains('[Example Article](https://example.com/article)'));
-      expect(normalized, contains(r'\<!-- qp-link-preview:'));
-      expect(normalized, isNot(contains('"blocks"')));
-    });
   });
 
   group('QuietSuperEditor Widget Tests', () {
@@ -307,18 +257,11 @@ void main() {
       required String markdown,
       required ValueChanged<String> onChanged,
       bool stripFrontmatter = false,
-      bool smartWebLinks = false,
-      AttachmentService? attachmentService,
     }) {
       return ProviderScope(
         overrides: [
-          if (attachmentService != null)
-            attachmentServiceProvider.overrideWithValue(attachmentService),
           typographySettingsProvider.overrideWith(
             (ref) => _MockTypographyNotifier(const TypographySettings()),
-          ),
-          smartWebLinksProvider.overrideWith(
-            (ref) => _MockSmartWebLinksNotifier(smartWebLinks),
           ),
         ],
         child: MaterialApp(
@@ -351,70 +294,6 @@ void main() {
       expect(find.byType(SuperEditor), findsOneWidget);
       expect(find.text('Hello World', findRichText: true), findsOneWidget);
       expect(find.text('This is a super editor note.', findRichText: true), findsOneWidget);
-    });
-
-    testWidgets('renders persisted RichDocument previews when opened in SuperEditor',
-        (tester) async {
-      final json = jsonEncode(
-        RichDocument(
-          blocks: [
-            LinkPreviewBlock(
-              id: 'preview-1',
-              url: 'https://example.com/article',
-              title: 'Example Article',
-              description: 'A short summary.',
-              siteName: 'Example',
-              fetchedAt: DateTime.utc(2026, 10, 18),
-            ),
-          ],
-        ).toJson(),
-      );
-
-      await tester.pumpWidget(
-        buildTestWidget(
-          markdown: json,
-          onChanged: (_) {},
-          smartWebLinks: true,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(LinkPreviewComponent), findsOneWidget);
-      expect(find.byType(LinkPreviewCard), findsOneWidget);
-      expect(find.text('Example Article'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('falls back to a clickable URL when a preview thumbnail is unavailable',
-        (tester) async {
-      final json = jsonEncode(
-        RichDocument(
-          blocks: [
-            LinkPreviewBlock(
-              id: 'preview-with-missing-thumbnail',
-              url: 'https://example.com/article',
-              title: 'Example Article',
-              thumbnailAssetId: 'qp://asset/missing-thumbnail',
-              fetchedAt: DateTime.utc(2026, 10, 18),
-            ),
-          ],
-        ).toJson(),
-      );
-
-      await tester.pumpWidget(
-        buildTestWidget(
-          markdown: json,
-          onChanged: (_) {},
-          smartWebLinks: true,
-          attachmentService: _MissingAttachmentService(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(LinkPreviewComponent), findsOneWidget);
-      expect(find.text('https://example.com/article'), findsOneWidget);
-      expect(find.byIcon(Icons.image_outlined), findsNothing);
-      expect(tester.takeException(), isNull);
     });
 
     testWidgets('renders task nodes with QuietTaskComponent and toggles checkboxes', (tester) async {

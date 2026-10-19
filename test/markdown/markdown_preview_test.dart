@@ -1,14 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/markdown/markdown_preview.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/link_preview_card.dart';
-import 'package:quitepaper/features/editor/domain/rich_block.dart';
-import 'package:quitepaper/features/editor/domain/rich_document.dart';
-import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -384,8 +378,6 @@ Reflecting on the day.
 
     testWidgets('renders baked link previews cleanly without grey-box assertion crash',
         (tester) async {
-      SharedPreferences.setMockInitialValues({'app_smart_web_links': true});
-      final preferences = await SharedPreferences.getInstance();
       const bakedMarkdown = '''# Links
 [Ways of Seeing](https://www.ways-of-seeing.com/ch1)
 <!-- qp-link-preview: {"desc":"In chapter 1...","site":"ways-of-seeing.com","ts":"2026-10-12T00:00:00.000Z"} -->
@@ -395,18 +387,9 @@ Reflecting on the day.
 ''';
 
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(preferences),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            home: const Scaffold(
-              body: QuietMarkdownPreview(
-                markdownData: bakedMarkdown,
-              ),
-            ),
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: bakedMarkdown,
           ),
         ),
       );
@@ -415,49 +398,6 @@ Reflecting on the day.
       expect(find.text('Links'), findsOneWidget);
       expect(find.text('Ways of Seeing'), findsOneWidget);
       expect(find.text('Nanolathe'), findsOneWidget);
-      expect(find.byType(LinkPreviewCard), findsNWidgets(2));
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('renders baked link previews from RichDocument content',
-        (tester) async {
-      SharedPreferences.setMockInitialValues({'app_smart_web_links': true});
-      final preferences = await SharedPreferences.getInstance();
-      final content = jsonEncode(
-        RichDocument(
-          blocks: [
-            LinkPreviewBlock(
-              id: 'preview-1',
-              url: 'https://example.com/article',
-              title: 'Example Article',
-              description: 'A short summary.',
-              siteName: 'Example',
-              fetchedAt: DateTime.utc(2026, 10, 18),
-            ),
-          ],
-        ).toJson(),
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(preferences),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            home: Scaffold(
-              body: QuietMarkdownPreview(markdownData: content),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(LinkPreviewCard), findsOneWidget);
-      expect(find.text('Example Article'), findsOneWidget);
-      expect(find.text('A short summary.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
   });
 }

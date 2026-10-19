@@ -463,7 +463,6 @@ class LinkPreviewComponent extends ConsumerWidget {
         block: node.toBlock(),
         readOnly: !showRemove,
         onRemove: showRemove ? () => _remove(ref) : null,
-        fallbackToInlineLinkOnThumbnailFailure: true,
       );
     }
 

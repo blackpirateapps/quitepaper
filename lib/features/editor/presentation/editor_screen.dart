@@ -37,7 +37,6 @@ import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
 import '../application/rich_document_controller.dart';
-import '../application/rich_document_serializer.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -59,7 +58,6 @@ import '../../settings/application/typography_provider.dart';
 import 'widgets/image_compression_dialog.dart';
 import '../domain/editor_editing_style.dart';
 import '../domain/frontmatter_document.dart';
-import '../domain/rich_document.dart';
 import '../application/frontmatter_editor_helper.dart';
 import '../application/quiet_super_editor_controller.dart';
 import 'widgets/frontmatter_properties_section.dart';
@@ -571,39 +569,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   /// fetch leaves the note untouched and is retried on a later open.
   Future<void> _maybeBakeLinkPreviews() async {
     if (!mounted || _isDeactivated) return;
-    // Link preview baking is currently supported by the block-based Super
-    // Editor. Leave the established WYSIWYG persistence/rendering path alone.
-    if (!_isSuperEditor) return;
-
-    var source = _contentController.text;
-    // Visual mode stores RichDocument JSON. A note opened directly in
-    // SuperEditor can therefore arrive in that format without going through
-    // the explicit mode-switch conversion. Convert it before scanning so the
-    // SuperEditor receives Markdown and standalone URLs can be baked.
-    if (RichDocument.isJson(source)) {
-      try {
-        final document = RichDocument.fromJson(
-          jsonDecode(source) as Map<String, dynamic>,
-        );
-        source = const RichDocumentSerializer().serialize(document);
-      } catch (_) {
-        return;
-      }
-      _contentController.text = source;
-      try {
-        ref
-            .read(editorProviderFamily(_editorParams).notifier)
-            .updateContent(source);
-      } catch (_) {}
-    }
-
     if (!ref.read(smartWebLinksProvider)) return;
+
     final LinkPreviewBaker baker;
     try {
       baker = ref.read(linkPreviewBakerProvider);
     } catch (_) {
       return;
     }
+
+    final source = _contentController.text;
     if (baker.findUnbakedLoneLineUrls(source).isEmpty) return;
 
     String baked;
