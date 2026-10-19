@@ -16,6 +16,7 @@ class OllamaOcrService implements OcrService {
   const OllamaOcrService({
     this.endpoint = defaultEndpoint,
     this.model = defaultModel,
+    this.prompt = defaultPrompt,
     this.timeout = const Duration(seconds: 180),
     this.httpClient,
     PdfPageRenderer? pageRenderer,
@@ -24,11 +25,14 @@ class OllamaOcrService implements OcrService {
   static const String defaultEndpoint = 'http://127.0.0.1:11434';
   static const String defaultModel = 'deepseek-ocr';
 
-  /// Standard prompt instructing DeepSeek-OCR to transcribe the page into Markdown.
-  static const String defaultPrompt = '<|grounding|>Convert the document to markdown.';
+  /// Standard prompt instructing DeepSeek-OCR to transcribe the page into Markdown
+  /// with tables formatted as GFM Markdown pipe tables.
+  static const String defaultPrompt =
+      '<|grounding|>Convert the document to markdown. Format all tables as standard Markdown tables using pipe syntax (| Col 1 | Col 2 |). Do not use HTML table tags.';
 
   final String endpoint;
   final String model;
+  final String prompt;
   final Duration timeout;
   final http.Client? httpClient;
   final PdfPageRenderer _pageRenderer;
@@ -54,7 +58,7 @@ class OllamaOcrService implements OcrService {
 
       final payload = jsonEncode({
         'model': model,
-        'prompt': defaultPrompt,
+        'prompt': prompt,
         'images': [base64Image],
         'stream': false,
       });

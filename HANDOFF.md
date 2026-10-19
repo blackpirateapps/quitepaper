@@ -9498,6 +9498,44 @@ When syncing tags created across multiple devices:
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test test/sync/`: **All 56 tests passing**.
 
+---
+
+## 211. DeepSeek-OCR Table Formatting & Native Markdown Table Conversion (October 2026)
+
+### 1. Problem & Context
+When running local DeepSeek-OCR / Ollama on structured documents containing tables (such as test score cards or financial statements):
+1. With unconstrained prompt `<|grounding|>Convert the document to markdown.`, vision models frequently defaulted to raw `<table>` or HTML-like tokens without pipe syntax.
+2. In some responses, cell tokens were grouped inside `<table>...</table>` without row or cell delimiters, or emitted as standard HTML `<table><tr><th>...` elements.
+3. Because Quiet Paper's editor (`QuietSuperEditor`, `MarkdownTableView`, `MarkdownTableEditor`, `MarkdownTableParser`) and markdown preview (`QuietMarkdownPreview`) are strictly built around GitHub-Flavored Markdown (GFM) pipe tables (`| Col 1 | Col 2 |\n|---|---|\n| Val 1 | Val 2 |`), raw HTML `<table>` elements were not parsed into native table components or rendered cleanly.
+
+### 2. Architectural Solution
+1. **Instructed Pipe-Syntax Prompt in `OllamaOcrService`**:
+   - In [`OllamaOcrService.defaultPrompt`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_service.dart#L28-L30):
+     ```dart
+     static const String defaultPrompt =
+         '<|grounding|>Convert the document to markdown. Format all tables as standard Markdown tables using pipe syntax (| Col 1 | Col 2 |). Do not use HTML table tags.';
+     ```
+   - Made `prompt` customizable via the `OllamaOcrService` constructor (`this.prompt = defaultPrompt`) and threaded it to `/api/generate` requests.
+
+2. **Automated HTML Table to GFM Pipe Converter in `OllamaGroundingParser`**:
+   - Added [`convertHtmlTablesToMarkdown`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart#L45-L129):
+     - Scans for `<table[^>]*>([\\s\\S]*?)<\\/table>` elements.
+     - Parses table fragments with `package:html/parser.dart`.
+     - Extracts headers and cell values across `<tr>`, `<th>`, and `<td>`, sanitizing newlines and escaping inner pipes (`\|`).
+     - Formats standard GFM Markdown pipe tables with header rows, alignment dividers (`| --- | --- |`), and data rows.
+     - Automatically handles edge cases: single-row tables, empty cells, and malformed/collapsed HTML5 foster-parented text nodes by cleanly stripping unusable `<table>` wrappers.
+   - Applied table conversion to both grounded content blocks (`_parseGroundedResponse`) and non-grounded paragraphs (`_parseNonGroundedMarkdown`).
+   - Ensured each table block is split line-by-line into `OcrLine` and `OcrWord` hierarchies so that Live Text overlays and visual selection work cleanly over table regions.
+
+3. **Interoperability Validation**:
+   - Added tests in [`test/ocr/ollama_grounding_parser_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_grounding_parser_test.dart) verifying that converted tables are immediately parsed by Quiet Paper's native [`MarkdownTableParser`](file:///home/dog/git/quitepaper/lib/features/editor/application/markdown_table_parser.dart) and rendered cleanly.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/ocr/`: **All 32 tests passing**.
+- `flutter test test/editor/`: **All 563 tests passing**.
+
+
 
 
 

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'ocr_models.dart';
 
 /// Structured result returned by [OllamaGroundingParser].
@@ -23,19 +24,117 @@ class ParsedOcrResult {
 /// Parser for Ollama / DeepSeek-OCR visual grounding output.
 ///
 /// DeepSeek-OCR produces grounded transcriptions with coordinate tags:
-/// `<tag>[[ymin, xmin, ymax, xmax]]` normalized to a `[0, 1000]` integer grid.
+/// `<tag>[[xmin, ymin, xmax, ymax]]` normalized to a `[0, 1000]` integer grid.
 ///
 /// This parser:
 /// 1. Extracts spatial bounding boxes for text blocks, lines, and words.
 /// 2. Records detected image / diagram regions (`image[[...]]`).
 /// 3. Generates clean Markdown free of machine coordinate tags for notes.
-/// 4. Falls back gracefully for models returning standard Markdown without tags.
+/// 4. Converts raw HTML tables into GFM Markdown pipe tables for native rendering.
+/// 5. Falls back gracefully for models returning standard Markdown without tags.
 class OllamaGroundingParser {
   const OllamaGroundingParser._();
 
   static final RegExp _tagRegex = RegExp(
     r'([a-zA-Z0-9_\-]+)\[\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]\]',
   );
+
+  static final RegExp _tableRegex = RegExp(
+    r'<table[^>]*>([\s\S]*?)<\/table>',
+    caseSensitive: false,
+  );
+
+  /// Converts any HTML `<table>...</table>` elements within [input] to standard GFM Markdown pipe tables.
+  ///
+  /// Preserves cell contents while stripping HTML wrappers, formatting columns and separator rows
+  /// so that Quiet Paper's native Markdown table components and preview render the table correctly.
+  static String convertHtmlTablesToMarkdown(String input) {
+    if (!input.toLowerCase().contains('<table')) {
+      return input;
+    }
+
+    return input.replaceAllMapped(_tableRegex, (match) {
+      final fullMatch = match.group(0)!;
+      return _convertSingleHtmlTable(fullMatch);
+    });
+  }
+
+  static String _convertSingleHtmlTable(String tableHtml) {
+    final fragment = html_parser.parseFragment(tableHtml);
+    final tableEl = fragment.querySelector('table');
+    if (tableEl == null) {
+      return tableHtml.replaceAll(RegExp(r'</?table[^>]*>', caseSensitive: false), '').trim();
+    }
+
+    final rows = tableEl.querySelectorAll('tr');
+    if (rows.isEmpty) {
+      final innerText = (fragment.text ?? '').trim();
+      if (innerText.isNotEmpty) {
+        return innerText;
+      }
+      return tableHtml.replaceAll(RegExp(r'</?table[^>]*>', caseSensitive: false), '').trim();
+    }
+
+    final tableData = <List<String>>[];
+    for (final row in rows) {
+      final cells = row.querySelectorAll('th, td');
+      if (cells.isEmpty) continue;
+      final rowData = cells.map((cell) {
+        var text = cell.text.replaceAll(_tagRegex, '').trim();
+        text = text.replaceAll('\n', ' ').replaceAll('|', r'\|').trim();
+        return text;
+      }).toList();
+      tableData.add(rowData);
+    }
+
+    if (tableData.isEmpty) {
+      final innerText = tableEl.text.trim();
+      return innerText;
+    }
+
+    final maxCols = tableData.fold<int>(0, (max, r) => r.length > max ? r.length : max);
+    if (maxCols == 0) return '';
+
+    final buf = StringBuffer('\n');
+
+    // Header row (first row)
+    final header = tableData.first;
+    buf.write('|');
+    for (var i = 0; i < maxCols; i++) {
+      final val = i < header.length ? header[i] : '';
+      buf.write(' ${val.isNotEmpty ? val : " "} |');
+    }
+    buf.writeln();
+
+    // Separator row
+    buf.write('|');
+    for (var i = 0; i < maxCols; i++) {
+      buf.write(' --- |');
+    }
+    buf.writeln();
+
+    // Data rows
+    if (tableData.length == 1) {
+      buf.write('|');
+      for (var i = 0; i < maxCols; i++) {
+        buf.write('   |');
+      }
+      buf.writeln();
+    } else {
+      for (var r = 1; r < tableData.length; r++) {
+        final row = tableData[r];
+        buf.write('|');
+        for (var i = 0; i < maxCols; i++) {
+          final val = i < row.length ? row[i] : '';
+          buf.write(' ${val.isNotEmpty ? val : " "} |');
+        }
+        buf.writeln();
+      }
+    }
+    buf.writeln();
+
+    return buf.toString();
+  }
 
   /// Parses [rawResponse] into structured [ParsedOcrResult].
   static ParsedOcrResult parse(String rawResponse) {
@@ -67,11 +166,12 @@ class OllamaGroundingParser {
     // Check for any text preceding the first grounding tag
     if (matches.first.start > 0) {
       final prefixText = fullText.substring(0, matches.first.start).trim();
-      if (prefixText.isNotEmpty) {
-        cleanTextParts.add(prefixText);
+      final cleanPrefix = convertHtmlTablesToMarkdown(prefixText).trim();
+      if (cleanPrefix.isNotEmpty) {
+        cleanTextParts.add(cleanPrefix);
         blocks.add(
           _createBlock(
-            text: prefixText,
+            text: cleanPrefix,
             bounds: const NormalizedRect(
               x: 0.05,
               y: 0.02,
@@ -101,23 +201,24 @@ class OllamaGroundingParser {
       final contentStart = match.end;
       final contentEnd = (i + 1 < matches.length) ? matches[i + 1].start : fullText.length;
       final content = fullText.substring(contentStart, contentEnd).trim();
+      final cleanContent = convertHtmlTablesToMarkdown(content).trim();
 
       if (tag == 'image' || tag == 'figure') {
         detectedImages.add(normRect);
       }
 
-      if (content.isNotEmpty) {
-        cleanTextParts.add(content);
+      if (cleanContent.isNotEmpty) {
+        cleanTextParts.add(cleanContent);
         blocks.add(
           _createBlock(
-            text: content,
+            text: cleanContent,
             bounds: normRect,
           ),
         );
       }
     }
 
-    final cleanPlainText = cleanTextParts.join('\n\n').trim();
+    final cleanPlainText = convertHtmlTablesToMarkdown(cleanTextParts.join('\n\n')).trim();
 
     return ParsedOcrResult(
       cleanPlainText: cleanPlainText,
@@ -127,12 +228,13 @@ class OllamaGroundingParser {
   }
 
   static ParsedOcrResult _parseNonGroundedMarkdown(String text) {
-    final paragraphs = text.split(RegExp(r'\n{2,}'));
+    final convertedText = convertHtmlTablesToMarkdown(text);
+    final paragraphs = convertedText.split(RegExp(r'\n{2,}'));
     final nonEmpties = paragraphs.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
 
     if (nonEmpties.isEmpty) {
       return ParsedOcrResult(
-        cleanPlainText: text,
+        cleanPlainText: convertedText.trim(),
         blocks: const [],
         detectedImages: const [],
       );
@@ -163,7 +265,7 @@ class OllamaGroundingParser {
     }
 
     return ParsedOcrResult(
-      cleanPlainText: text,
+      cleanPlainText: convertedText.trim(),
       blocks: blocks,
       detectedImages: const [],
     );

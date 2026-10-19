@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/ocr/ollama_grounding_parser.dart';
+import 'package:quitepaper/features/editor/application/markdown_table_parser.dart';
 
 void main() {
   group('OllamaGroundingParser Tests', () {
@@ -141,6 +142,104 @@ Body paragraph under diagram.
       expect(whitespace.cleanPlainText, '');
       expect(whitespace.blocks, isEmpty);
       expect(whitespace.detectedImages, isEmpty);
+    });
+
+    test('converts standard HTML table into GFM pipe table readable by MarkdownTableParser', () {
+      const htmlTableInput = '''
+# Exam Results
+
+<table>
+  <thead>
+    <tr>
+      <th>SUBJECT</th>
+      <th>ATTEMPT</th>
+      <th>MARKS</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>General Intelligence</td>
+      <td>22</td>
+      <td>41.5</td>
+    </tr>
+    <tr>
+      <td>English</td>
+      <td>24</td>
+      <td>38</td>
+    </tr>
+  </tbody>
+</table>
+
+End of report.
+''';
+
+      final result = OllamaGroundingParser.parse(htmlTableInput);
+
+      // Verify HTML table tags are stripped and converted to Markdown pipe table
+      expect(result.cleanPlainText, isNot(contains('<table')));
+      expect(result.cleanPlainText, isNot(contains('</table>')));
+      expect(result.cleanPlainText, isNot(contains('<tr>')));
+      expect(result.cleanPlainText, isNot(contains('<td>')));
+      expect(result.cleanPlainText, contains('| SUBJECT | ATTEMPT | MARKS |'));
+      expect(result.cleanPlainText, contains('| --- | --- | --- |'));
+      expect(result.cleanPlainText, contains('| General Intelligence | 22 | 41.5 |'));
+      expect(result.cleanPlainText, contains('| English | 24 | 38 |'));
+
+      // Verify that Quiet Paper's native MarkdownTableParser can parse the resulting table
+      final tables = const MarkdownTableParser().findTables(result.cleanPlainText);
+      expect(tables.length, 1);
+      final table = tables.first;
+      expect(table.columnCount, 3);
+      expect(table.rowCount, 3); // header + 2 data rows
+      expect(table.getCell(0, 0)?.trimmedText, 'SUBJECT');
+      expect(table.getCell(0, 1)?.trimmedText, 'ATTEMPT');
+      expect(table.getCell(0, 2)?.trimmedText, 'MARKS');
+      expect(table.getCell(1, 0)?.trimmedText, 'General Intelligence');
+      expect(table.getCell(1, 1)?.trimmedText, '22');
+      expect(table.getCell(1, 2)?.trimmedText, '41.5');
+      expect(table.getCell(2, 0)?.trimmedText, 'English');
+      expect(table.getCell(2, 1)?.trimmedText, '24');
+      expect(table.getCell(2, 2)?.trimmedText, '38');
+    });
+
+    test('converts HTML table inside grounded DeepSeek-OCR blocks', () {
+      const groundedHtmlOutput = '''
+text[[10, 20, 950, 100]]
+# Student Score Card
+
+text[[10, 120, 950, 600]]
+<table>
+  <tr><th>Course</th><th>Grade</th></tr>
+  <tr><td>Math</td><td>A</td></tr>
+  <tr><td>Physics</td><td>B+</td></tr>
+</table>
+''';
+
+      final result = OllamaGroundingParser.parse(groundedHtmlOutput);
+
+      expect(result.blocks.length, 2);
+      expect(result.cleanPlainText, contains('| Course | Grade |'));
+      expect(result.cleanPlainText, contains('| Math | A |'));
+      expect(result.cleanPlainText, contains('| Physics | B+ |'));
+      expect(result.cleanPlainText, isNot(contains('<table')));
+
+      // Verify block 1 (table) has generated lines and words
+      final tableBlock = result.blocks[1];
+      expect(tableBlock.lines.length, 4); // header, delimiter, 2 data rows
+      for (final line in tableBlock.lines) {
+        expect(line.words, isNotEmpty);
+      }
+    });
+
+    test('gracefully strips tag-less or collapsed table markup without error', () {
+      const collapsedInput = '''
+<table>SUBJECTATTEMPTNARWMARKSRANKGeneral Intelligence22321141.5--</table>
+''';
+      final result = OllamaGroundingParser.parse(collapsedInput);
+
+      expect(result.cleanPlainText, isNot(contains('<table')));
+      expect(result.cleanPlainText, isNot(contains('</table>')));
+      expect(result.cleanPlainText, contains('SUBJECTATTEMPTNARWMARKSRANKGeneral Intelligence22321141.5--'));
     });
   });
 }
