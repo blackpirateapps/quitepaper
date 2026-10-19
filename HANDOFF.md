@@ -9744,4 +9744,26 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All test suites passing.
 
+---
+
+## 217. Migration: Syncfusion PDF Viewer Promoted to Main & Legacy Viewer Archived (`old-pdf-viewer`) (October 2026)
+
+### 1. Context & Motivation
+Following the successful implementation, text selection styling customization, and automated test verification of the Syncfusion PDF Viewer (`feature/syncfusion-pdf-viewer`), the feature branch was promoted to the canonical `main` branch. 
+
+To ensure complete reversibility and reference integrity for the historical custom raster-based PDF rendering pipeline, the previous state of `main` (commit `05c2b98`) was preserved on branch `old-pdf-viewer`.
+
+### 2. Branch Topology & Details
+- **Archival Branch (`old-pdf-viewer`)**:
+  - Pushed to `origin/old-pdf-viewer` at commit `05c2b98`.
+  - Preserves the legacy custom PDF pipeline (`PdfPageRenderer`, custom vector overlay canvases, manual gesture pinch/zoom, and thumbnail strip).
+- **Primary Branch (`main`)**:
+  - Fast-forward merged with `feature/syncfusion-pdf-viewer` (commits `593c45d`, `d240276`, and `01247cc`).
+  - Active native PDF engine: `syncfusion_flutter_pdfviewer` with non-destructive dual storage (`<docId>.qpd` and `<docId>.annotated.qpd`), floating horizontal pill text selection toolbar, in-document search, and zero-knowledge in-memory loading.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All tests passing.
+
+
 
