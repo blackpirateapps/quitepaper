@@ -625,6 +625,9 @@ export async function runMigrations(db: Client): Promise<void> {
     await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN deleted_at TEXT;');
   } catch (_) {}
   try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN created_at TEXT;');
+  } catch (_) {}
+  try {
     await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN updated_at TEXT;');
   } catch (_) {}
   try {

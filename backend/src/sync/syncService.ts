@@ -1615,9 +1615,9 @@ export async function pushOcrPages(
                 document_id, page_number, user_id, encrypted_payload,
                 ocr_schema_version, ocr_engine, ocr_engine_version, language,
                 processed_at, revision, base_revision, is_deleted, deleted_at,
-                created_at, updated_at, updated_at_ms, created_by_device, updated_by_device
+                updated_at, updated_at_ms, created_by_device, updated_by_device
               )
-              VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(document_id, page_number) DO UPDATE SET
                 encrypted_payload = excluded.encrypted_payload,
                 ocr_engine = excluded.ocr_engine,
@@ -1644,7 +1644,6 @@ export async function pushOcrPages(
           page.baseRevision || 0,
           page.isDeleted ? 1 : 0,
           deletedAt,
-          now,
           now,
           page.updatedAtMs,
           deviceId || null,

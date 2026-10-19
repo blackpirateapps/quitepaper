@@ -5,6 +5,7 @@ ALTER TABLE document_ocr_pages ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE document_ocr_pages ADD COLUMN base_revision INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE document_ocr_pages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE document_ocr_pages ADD COLUMN deleted_at TEXT;
+ALTER TABLE document_ocr_pages ADD COLUMN created_at TEXT;
 ALTER TABLE document_ocr_pages ADD COLUMN updated_at TEXT;
 ALTER TABLE document_ocr_pages ADD COLUMN updated_at_ms INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE document_ocr_pages ADD COLUMN created_by_device TEXT;
