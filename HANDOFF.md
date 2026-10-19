@@ -9535,6 +9535,49 @@ When running local DeepSeek-OCR / Ollama on structured documents containing tabl
 - `flutter test test/ocr/`: **All 32 tests passing**.
 - `flutter test test/editor/`: **All 563 tests passing**.
 
+---
+
+## 212. Ollama OCR: Fix Coordinate Clamping `ArgumentError: 0.005` & Defensive Plaintext Fallback (October 2026)
+
+### 1. Problem & Root Cause
+When running local DeepSeek-OCR / Ollama on document images:
+1. DeepSeek-OCR emits grounded bounding boxes with integer coordinates on a 1000×1000 grid (`[[xmin, ymin, xmax, ymax]]`). For content or diagrams positioned near document edges (e.g. footers with $y \ge 996$, or right-edge text with $x \ge 996$), normalized coordinates approached $1.0$.
+2. In [`OllamaGroundingParser._toNormalizedRect`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart#L369-L370), widths and heights were clamped using `clamp(0.005, 1.0 - normX)`. When `normX > 0.995`, `1.0 - normX < 0.005`. Because Dart's `num.clamp(lowerLimit, upperLimit)` strictly asserts `lowerLimit <= upperLimit`, passing a lower limit greater than upper limit immediately threw:
+   ```text
+   ArgumentError: Invalid argument(s): 0.005
+   ```
+3. A similar failure occurred in [`_createBlock`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart#L320-L324): short words in multi-word sentences were clamped up to `0.005`, causing cumulative `currentX` to advance past `0.995` and triggering `wordWidth.clamp(0.005, 1.0 - currentX)` with `lowerLimit > upperLimit`.
+4. In [`_parseNonGroundedMarkdown`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart#L247), an artificial `0.02` lower bound on block heights caused documents with $>45$ paragraphs to exceed `1.0`, triggering `clamp(0.02, 1.0 - blockY)` with `Invalid argument(s): 0.02`.
+5. When `OllamaGroundingParser.parse` threw `ArgumentError(0.005)`, [`DefaultOcrService`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_service.dart#L86) logged:
+   ```text
+   [QuietPaper OCR] Ollama OCR failed or unavailable: Invalid argument(s): 0.005. Falling back to local CV.
+   ```
+   Because desktop platforms (Linux/macOS/Windows) lack Google ML Kit, the fallback CV pipeline produced 1 block and 0 characters, silently dropping over 1,200 recognized characters from DeepSeek-OCR.
+
+### 2. Architectural Solution
+1. **Safe Normalized Coordinate Rectangles (`OllamaGroundingParser._toNormalizedRect`)**:
+   - Pre-normalize `normX1`, `normX2`, `normY1`, `normY2` into `[0.0, 1.0]`.
+   - Calculate `normW = normX2 - normX1` and `normH = normY2 - normY1`.
+   - For tiny or degenerate boxes ($< 0.005$), expand dimensions up to $0.005$ while shifting origin coordinates leftwards or upwards (`normX = (1.0 - normW).clamp(0.0, 1.0)`) so bounding boxes always remain inside `[0.0, 1.0]`.
+   - Final rounded dimensions clamp safely against `1.0 - roundedOrigin` with lower limit `0.0`, eliminating any possibility of `lowerLimit > upperLimit`.
+2. **Proportional Line and Word Layout (`OllamaGroundingParser._createBlock`)**:
+   - Line heights and word widths are computed strictly proportional to their container bounds and character count fractions without artificial upward clamps.
+   - Cumulative horizontal tracking (`currentX`) advances smoothly along the line, with each word's width clamped against `maxWordW = (1.0 - wordX).clamp(0.0, 1.0)`.
+   - Guaranteed `roundedWordW > 0.0` for non-empty words when space is available.
+3. **Responsive Non-Grounded Paragraph Layout (`_parseNonGroundedMarkdown`)**:
+   - Paragraph height divides available space (`usableHeight / nonEmpties.length`) without an artificial minimum clamp, gracefully handling documents with arbitrarily large paragraph counts.
+4. **Defensive Plaintext Recovery in `OllamaOcrService`**:
+   - Wrapped `OllamaGroundingParser.parse(rawText)` in a `try / catch` block in [`OllamaOcrService.recognizePage`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_service.dart#L85-L101).
+   - If an unexpected parsing error ever occurs on an anomalous model output, the service logs the error and gracefully falls back to returning the recognized plaintext with a full-page bounding box rather than dropping the recognized text or falling back to a 0-character local CV result.
+5. **Regression Unit Tests**:
+   - Added tests in [`test/ocr/ollama_grounding_parser_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_grounding_parser_test.dart) covering boundary coordinates ($x, y \ge 996$, $[1000, 1000, 1000, 1000]$), right-edge multi-word lines, and 60-paragraph non-grounded documents.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/ocr/`: **All 34 tests passing**.
+- `flutter test`: **All 2,064 tests passing** with zero warnings or errors.
+
+
 
 
 

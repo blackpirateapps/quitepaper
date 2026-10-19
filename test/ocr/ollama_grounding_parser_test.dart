@@ -241,5 +241,33 @@ text[[10, 120, 950, 600]]
       expect(result.cleanPlainText, isNot(contains('</table>')));
       expect(result.cleanPlainText, contains('SUBJECTATTEMPTNARWMARKSRANKGeneral Intelligence22321141.5--'));
     });
+
+    test('handles boundary coordinates and right-edge multi-word lines without ArgumentError: 0.005', () {
+      const edgeCaseInput = '''
+image[[996, 996, 1000, 1000]]
+
+text[[10, 996, 50, 1000]]
+Footer note at the very bottom edge of document
+
+text[[850, 100, 1000, 250]]
+This is a long sentence with many words that will advance currentX close to right edge
+
+text[[1000, 1000, 1000, 1000]]
+Degenerate coordinates
+''';
+      expect(() => OllamaGroundingParser.parse(edgeCaseInput), returnsNormally);
+      final result = OllamaGroundingParser.parse(edgeCaseInput);
+      expect(result.blocks.length, 3);
+      expect(result.detectedImages.length, 1);
+    });
+
+    test('handles long non-grounded markdown documents without ArgumentError: 0.02', () {
+      final longMarkdown = List.generate(60, (i) => 'Paragraph $i content here').join('\n\n');
+      expect(() => OllamaGroundingParser.parse(longMarkdown), returnsNormally);
+      final result = OllamaGroundingParser.parse(longMarkdown);
+      expect(result.blocks.length, 60);
+    });
   });
 }
+
+

@@ -82,7 +82,23 @@ class OllamaOcrService implements OcrService {
 
       debugPrint('[QuietPaper Ollama OCR] Page $pageNumber recognition completed (${rawText.length} chars).');
 
-      final parsed = OllamaGroundingParser.parse(rawText);
+      ParsedOcrResult parsed;
+      try {
+        parsed = OllamaGroundingParser.parse(rawText);
+      } catch (e, st) {
+        debugPrint('[QuietPaper Ollama OCR] Error parsing grounding output: $e\n$st');
+        final fallbackText = OllamaGroundingParser.convertHtmlTablesToMarkdown(rawText).trim();
+        parsed = ParsedOcrResult(
+          cleanPlainText: fallbackText,
+          blocks: [
+            OcrBlock(
+              text: fallbackText,
+              bounds: NormalizedRect.full,
+              lines: const [],
+            ),
+          ],
+        );
+      }
 
       return OcrPage(
         pageNumber: pageNumber,

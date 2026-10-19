@@ -244,16 +244,28 @@ class OllamaGroundingParser {
     const topMargin = 0.05;
     const bottomMargin = 0.05;
     final usableHeight = 1.0 - (topMargin + bottomMargin);
-    final blockHeight = (usableHeight / nonEmpties.length).clamp(0.02, 0.90);
+    final rawBlockHeight = usableHeight / nonEmpties.length;
+    final blockHeight = rawBlockHeight.clamp(0.0, 0.90);
 
     for (var i = 0; i < nonEmpties.length; i++) {
       final para = nonEmpties[i];
-      final blockY = topMargin + (i * blockHeight);
+      final rawBlockY = topMargin + (i * blockHeight);
+      final blockY = rawBlockY.clamp(0.0, 1.0);
+      final maxAvailableH = (1.0 - blockY).clamp(0.0, 1.0);
+      final effectiveBlockH = blockHeight.clamp(0.0, maxAvailableH);
+
+      final roundedBlockY = _round(blockY).clamp(0.0, 1.0);
+      var roundedBlockH = _round(effectiveBlockH);
+      if (roundedBlockH == 0.0 && effectiveBlockH > 0.0 && maxAvailableH > 0.0) {
+        roundedBlockH = maxAvailableH < 0.0001 ? maxAvailableH : 0.0001;
+      }
+      roundedBlockH = roundedBlockH.clamp(0.0, 1.0 - roundedBlockY);
+
       final blockBounds = NormalizedRect(
         x: 0.05,
-        y: _round(blockY),
+        y: roundedBlockY,
         width: 0.90,
-        height: _round(blockHeight.clamp(0.02, 1.0 - blockY)),
+        height: roundedBlockH,
       );
 
       blocks.add(
@@ -290,16 +302,35 @@ class OllamaGroundingParser {
     }
 
     final ocrLines = <OcrLine>[];
-    final lineHeight = (bounds.height / lineStrings.length).clamp(0.005, bounds.height);
+    final rawLineHeight = bounds.height / lineStrings.length;
+    final lineHeight = rawLineHeight.clamp(0.0, bounds.height);
 
     for (var i = 0; i < lineStrings.length; i++) {
       final lineStr = lineStrings[i];
-      final lineY = bounds.y + (i * lineHeight);
+      final rawLineY = bounds.y + (i * lineHeight);
+      final lineY = rawLineY.clamp(0.0, 1.0);
+      final maxAvailableH = (1.0 - lineY).clamp(0.0, 1.0);
+      final lineH = lineHeight.clamp(0.0, maxAvailableH);
+
+      final roundedLineY = _round(lineY).clamp(0.0, 1.0);
+      var roundedLineH = _round(lineH);
+      if (roundedLineH == 0.0 && lineH > 0.0 && maxAvailableH > 0.0) {
+        roundedLineH = maxAvailableH < 0.0001 ? maxAvailableH : 0.0001;
+      }
+      roundedLineH = roundedLineH.clamp(0.0, 1.0 - roundedLineY);
+
+      final roundedLineX = _round(bounds.x).clamp(0.0, 1.0);
+      var roundedLineW = _round(bounds.width);
+      if (roundedLineW == 0.0 && bounds.width > 0.0) {
+        roundedLineW = (1.0 - roundedLineX) < 0.0001 ? (1.0 - roundedLineX) : 0.0001;
+      }
+      roundedLineW = roundedLineW.clamp(0.0, 1.0 - roundedLineX);
+
       final lineBounds = NormalizedRect(
-        x: bounds.x,
-        y: _round(lineY),
-        width: bounds.width,
-        height: _round(lineHeight.clamp(0.005, 1.0 - lineY)),
+        x: roundedLineX,
+        y: roundedLineY,
+        width: roundedLineW,
+        height: roundedLineH,
       );
 
       final words = lineStr
@@ -317,11 +348,23 @@ class OllamaGroundingParser {
           final fraction = totalChars > 0
               ? (word.length / totalChars)
               : (1.0 / words.length);
-          final wordWidth = (lineBounds.width * fraction).clamp(0.005, lineBounds.width);
+          final rawWordWidth = lineBounds.width * fraction;
+
+          final wordX = currentX.clamp(0.0, 1.0);
+          final maxWordW = (1.0 - wordX).clamp(0.0, 1.0);
+          final wordW = rawWordWidth.clamp(0.0, maxWordW);
+
+          final roundedWordX = _round(wordX).clamp(0.0, 1.0);
+          var roundedWordW = _round(wordW);
+          if (roundedWordW == 0.0 && wordW > 0.0 && maxWordW > 0.0) {
+            roundedWordW = maxWordW < 0.0001 ? maxWordW : 0.0001;
+          }
+          roundedWordW = roundedWordW.clamp(0.0, 1.0 - roundedWordX);
+
           final wordBounds = NormalizedRect(
-            x: _round(currentX),
+            x: roundedWordX,
             y: lineBounds.y,
-            width: _round(wordWidth.clamp(0.005, 1.0 - currentX)),
+            width: roundedWordW,
             height: lineBounds.height,
           );
 
@@ -333,7 +376,7 @@ class OllamaGroundingParser {
             ),
           );
 
-          currentX = (currentX + wordWidth).clamp(0.0, 1.0);
+          currentX = (wordX + wordW).clamp(0.0, 1.0);
         }
       }
 
@@ -364,16 +407,41 @@ class OllamaGroundingParser {
     final y1 = ymin < ymax ? ymin : ymax;
     final y2 = ymin < ymax ? ymax : ymin;
 
-    final normX = (x1 / 1000.0).clamp(0.0, 1.0);
-    final normY = (y1 / 1000.0).clamp(0.0, 1.0);
-    final normW = ((x2 - x1) / 1000.0).clamp(0.005, 1.0 - normX);
-    final normH = ((y2 - y1) / 1000.0).clamp(0.005, 1.0 - normY);
+    final normX1 = (x1 / 1000.0).clamp(0.0, 1.0);
+    final normX2 = (x2 / 1000.0).clamp(0.0, 1.0);
+    final normY1 = (y1 / 1000.0).clamp(0.0, 1.0);
+    final normY2 = (y2 / 1000.0).clamp(0.0, 1.0);
+
+    var normX = normX1;
+    var normW = normX2 - normX1;
+    if (normW < 0.005) {
+      normW = 0.005;
+    }
+    if (normX + normW > 1.0) {
+      normX = (1.0 - normW).clamp(0.0, 1.0);
+      normW = (1.0 - normX).clamp(0.0, 1.0);
+    }
+
+    var normY = normY1;
+    var normH = normY2 - normY1;
+    if (normH < 0.005) {
+      normH = 0.005;
+    }
+    if (normY + normH > 1.0) {
+      normY = (1.0 - normH).clamp(0.0, 1.0);
+      normH = (1.0 - normY).clamp(0.0, 1.0);
+    }
+
+    final roundedX = _round(normX).clamp(0.0, 1.0);
+    final roundedW = _round(normW).clamp(0.0, 1.0 - roundedX);
+    final roundedY = _round(normY).clamp(0.0, 1.0);
+    final roundedH = _round(normH).clamp(0.0, 1.0 - roundedY);
 
     return NormalizedRect(
-      x: _round(normX),
-      y: _round(normY),
-      width: _round(normW),
-      height: _round(normH),
+      x: roundedX,
+      y: roundedY,
+      width: roundedW,
+      height: roundedH,
     );
   }
 
