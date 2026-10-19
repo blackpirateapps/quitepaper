@@ -5,7 +5,9 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/utils/web_url_helper.dart';
+import '../../../../core/web_clipper/link_title_fetcher.dart';
 import '../../../../core/widgets/quiet_button.dart';
+import '../../../../features/tags/domain/phosphor_icons.dart';
 
 /// Result of a [LinkPromptDialog]: the entered link text and URL. An empty
 /// [url] (only possible in edit mode) signals that the caller should strip the
@@ -19,6 +21,7 @@ class LinkPromptDialog extends StatefulWidget {
     this.initialTitle = '',
     this.initialUrl = '',
     this.isEditing = false,
+    this.titleFetcher,
   });
 
   final String initialTitle;
@@ -29,6 +32,9 @@ class LinkPromptDialog extends StatefulWidget {
   /// offers an explicit "Remove link" action.
   final bool isEditing;
 
+  /// Optional fetcher for unit testing or custom fetch strategies.
+  final LinkTitleFetcher? titleFetcher;
+
   /// Shows the dialog and returns the resulting [LinkPromptResult] or `null` if
   /// cancelled.
   static Future<LinkPromptResult?> show(
@@ -36,6 +42,7 @@ class LinkPromptDialog extends StatefulWidget {
     String initialTitle = '',
     String initialUrl = '',
     bool isEditing = false,
+    LinkTitleFetcher? titleFetcher,
   }) {
     return showDialog<LinkPromptResult>(
       context: context,
@@ -43,6 +50,7 @@ class LinkPromptDialog extends StatefulWidget {
         initialTitle: initialTitle,
         initialUrl: initialUrl,
         isEditing: isEditing,
+        titleFetcher: titleFetcher,
       ),
     );
   }
@@ -122,6 +130,28 @@ class _LinkPromptDialogState extends State<LinkPromptDialog> {
     super.dispose();
   }
 
+  bool _isFetchingTitle = false;
+
+  Future<void> _fetchTitle() async {
+    final rawUrl = _urlController.text.trim();
+    if (!isSingleWebUrl(rawUrl)) return;
+    final url = normalizeWebUrl(rawUrl);
+    if (url == null) return;
+
+    setState(() => _isFetchingTitle = true);
+    try {
+      final fetcher = widget.titleFetcher ?? LinkTitleFetcher();
+      final title = await fetcher.fetchTitle(url);
+      if (title != null && title.isNotEmpty && mounted) {
+        setState(() {
+          _titleController.text = title;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isFetchingTitle = false);
+    }
+  }
+
   void _submit() {
     final title = _titleController.text.trim();
     var url = _urlController.text.trim();
@@ -188,6 +218,26 @@ class _LinkPromptDialogState extends State<LinkPromptDialog> {
               filled: true,
               fillColor: colors.background,
               contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              suffixIcon: Tooltip(
+                message: 'Auto-fetch webpage title',
+                child: IconButton(
+                  icon: _isFetchingTitle
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+                          ),
+                        )
+                      : Icon(
+                          PhosphorIconsRegular.sparkle,
+                          size: 16,
+                          color: colors.accent,
+                        ),
+                  onPressed: _isFetchingTitle ? null : _fetchTitle,
+                ),
+              ),
               border: OutlineInputBorder(
                 borderRadius: AppRadii.borderSm,
                 borderSide: BorderSide(color: colors.divider),

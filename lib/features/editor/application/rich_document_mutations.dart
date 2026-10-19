@@ -159,20 +159,22 @@ abstract final class RichDocumentMutations {
   }
 
   /// Feature 1 (auto-filled titles): replaces the display text of the first
-  /// inline run whose href == [url] AND whose current display text still ==
-  /// [url] (i.e. the user hasn't edited it since paste). No-op if no such run
-  /// exists, so a late-arriving title never clobbers edited content.
+  /// inline run whose href == [url]. When [force] is false, requires current
+  /// display text to still == [url] (i.e. the user hasn't edited it since paste).
+  /// When [force] is true (e.g. manual link enhancement trigger), replaces the
+  /// display text regardless of current label.
   static RichDocument replaceLinkDisplayText(
     RichDocument doc, {
     required String url,
     required String newText,
+    bool force = false,
   }) {
     if (newText.isEmpty) return doc;
     for (var bi = 0; bi < doc.blocks.length; bi++) {
       final block = doc.blocks[bi];
       if (!block.isTextBlock) continue;
       final idx = block.spans.indexWhere(
-        (s) => s.attributes.linkUrl == url && s.text == url,
+        (s) => s.attributes.linkUrl == url && (force || s.text == url),
       );
       if (idx == -1) continue;
       final newSpans = List<RichInlineSpan>.from(block.spans);

@@ -49,16 +49,29 @@ void main() {
       expect(serializer.serialize(patched), 'See [A Great Article](https://a.com) now');
     });
 
-    test('replaceLinkDisplayText is a no-op once the display text was edited', () {
+    test('replaceLinkDisplayText is a no-op once the display text was edited when force is false', () {
       final doc = parser.parse('See [My Site](https://a.com) now');
 
       final patched = RichDocumentMutations.replaceLinkDisplayText(
         doc,
         url: 'https://a.com',
         newText: 'A Great Article',
+        force: false,
       );
       // Display text no longer equals the URL, so the late title is ignored.
       expect(serializer.serialize(patched), 'See [My Site](https://a.com) now');
+    });
+
+    test('replaceLinkDisplayText with force: true updates display text even if previously edited', () {
+      final doc = parser.parse('See [My Site](https://a.com) now');
+
+      final patched = RichDocumentMutations.replaceLinkDisplayText(
+        doc,
+        url: 'https://a.com',
+        newText: 'A Great Article',
+        force: true,
+      );
+      expect(serializer.serialize(patched), 'See [A Great Article](https://a.com) now');
     });
 
     test('linkRunAt coalesces split formatting inside a link into one run', () {

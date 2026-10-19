@@ -9338,4 +9338,57 @@ When tapping the 3-dot overflow menu in the note editor on touch/mobile devices 
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2,039 tests passed**.
 
+---
+
+## 207. Manual Web Link Enhancement Trigger & Multi-Surface Title Automation (October 2026)
+
+### 1. Problem & Motivation
+Under the Link Enhancements specification (`docs/specs/link-enhancements-spec.md`), hyperlinks were intended to automatically resolve human-readable page titles and allow easy editing. However, users encountered several limitations:
+1. **No Manual Trigger**: There was no way to manually trigger link title enhancement. If automatic title fetching did not trigger upon paste (e.g. background smart links disabled, offline, or older bare link text), users had no way to resolve or update the title without manually typing it.
+2. **Redirect Failures in Title Fetcher**: `LinkTitleFetcher` strictly failed on HTTP 3xx redirect status codes (301, 302, 307, 308) because `http.Request` does not follow redirects across scheme boundaries (HTTP to HTTPS) or when location headers are relative, causing frequent title fetch failures on common web URLs. Furthermore, content-type checks rejected `application/xhtml+xml` and other HTML variants.
+3. **Immutability of Edited Links**: `replaceLinkDisplayText` was strictly constrained to only replace text that exactly matched the raw URL (`link.title == link.url`). If a link text was ever previously edited, automated or manual enhancement attempts were ignored.
+4. **Multi-Surface Paste Inconsistency**: When pasting links into Super Editor, pasted single URLs were routed solely to preview cards rather than inline link titles, preventing inline auto-title fetching from occurring.
+
+### 2. Architectural Solution
+1. **Redirect-Following & Resilient Title Fetcher (`LinkTitleFetcher`)**:
+   - Implemented a resilient manual redirect resolution loop (supporting up to 5 consecutive hops) across 301, 302, 307, and 308 response codes.
+   - Handles scheme transitions (e.g., `http://` to `https://`), relative `Location` URI resolution, and relaxed content-type matching (`text/html`, `application/xhtml+xml`, or any content-type containing `html`/`xml`).
+2. **Dedicated Manual Enhancement Button (`LinkEnhanceButton`)**:
+   - Created `LinkEnhanceButton`: A compact, editorial icon button displaying `PhosphorIconsRegular.sparkle` in idle state and transitioning to a micro `CircularProgressIndicator` while fetching.
+   - Provides clear user feedback: success/failure snackbars (`Enhanced link: "Title"` or `Could not fetch title for link`), custom tooltip support, and dependency injection (`titleFetcher`) for testing.
+3. **Link Dialog Manual Sparkle Trigger (`LinkPromptDialog`)**:
+   - Added a sparkle suffix icon button to the `Link Text` input field in `LinkPromptDialog`.
+   - Tapping the sparkle immediately fetches the title of the URL currently in the `URL` input field and populates the `Link Text` field with micro-spinner feedback.
+4. **Forced Replacement Capability (`force: true`)**:
+   - Added `bool force = false` parameter to `replaceLinkDisplayText` across `RichDocumentMutations`, `RichDocumentController`, and `QuietSuperEditorController`.
+   - When triggered manually by explicit user action on the sparkle icon, `force: true` overrides the bare-URL constraint and updates the link display text regardless of prior edits.
+5. **Multi-Surface Editor Integration**:
+   - **WYSIWYG Editor (`_RichTextEditingController`)**: Appends an inline `WidgetSpan` containing `LinkEnhanceButton` directly after each web link run when `!readOnly`.
+   - **Super Editor (`LinkEnhanceDocumentLayer` & `LinkEnhanceDocumentLayerBuilder`)**: Created an overlay layer computing precise bounding boxes using `documentLayout.getEdgeForPosition` for trailing edges of all `LinkAttribution` spans, floating interactive sparkle buttons.
+   - **Markdown Preview (`WebLinkElementBuilder` & `LinkPreviewElementBuilder`)**: Registered custom element builders in `QuietMarkdownPreview` that render `LinkEnhanceButton` alongside web links when `onMarkdownChanged != null` and document is interactive, rewriting `[text](url)` to `[newTitle](url)` upon enhancement.
+   - **Editor Screen (`editor_screen.dart`)**: Updated `_maybeInsertSmartWebLink` and `_fetchAndPatchLinkTitle` to reliably trigger title enhancement across Super Editor, WYSIWYG, and plain Markdown.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/features/editor/presentation/widgets/link_enhance_button.dart`: Standalone link enhancement button with idle sparkle icon, micro-spinner, and feedback snackbars.
+  - `lib/features/editor/presentation/widgets/super_editor/link_enhance_overlay.dart`: Super Editor document layout layer builder and stateful overlay for link enhancement buttons.
+  - `test/editor/link_enhance_button_test.dart`: Widget test suite covering button states, dialog suffix trigger, and markdown preview integration.
+- **Modified Files**:
+  - `lib/core/web_clipper/link_title_fetcher.dart`: Added manual redirect loop (up to 5 hops, HTTP->HTTPS support) and relaxed content-type checks.
+  - `lib/features/editor/application/rich_document_mutations.dart`: Added `force` parameter to `replaceLinkDisplayText`.
+  - `lib/features/editor/application/rich_document_controller.dart`: Exposed `force` parameter on `replaceLinkDisplayText`.
+  - `lib/features/editor/application/quiet_super_editor_controller.dart`: Added `force` parameter to `replaceLinkDisplayText`.
+  - `lib/features/editor/presentation/widgets/link_prompt_dialog.dart`: Added sparkle suffix icon to Link Text field with auto-fetch and injectable `titleFetcher`.
+  - `lib/features/editor/presentation/widgets/rich_text_editor.dart`: Appended `WidgetSpan` holding `LinkEnhanceButton` after web links.
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Registered `LinkEnhanceDocumentLayerBuilder` in `documentOverlayBuilders`.
+  - `lib/core/markdown/markdown_preview.dart`: Added `WebLinkElementBuilder`, updated `LinkPreviewElementBuilder`, wired `handleEnhanceWebLink` and `titleFetcher`.
+  - `lib/features/editor/presentation/editor_screen.dart`: Updated `_maybeInsertSmartWebLink` and `_fetchAndPatchLinkTitle`.
+  - `test/core/web_clipper/link_title_fetcher_test.dart`: Added tests for 301/302 redirects and `application/xhtml+xml`.
+  - `test/editor/web_link_enhancements_test.dart`: Added unit tests for `replaceLinkDisplayText` with `force: true`.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **2,046 tests passed** (including 5 new link enhance widget tests and 2 updated unit tests).
+
+
 

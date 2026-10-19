@@ -8,6 +8,7 @@ import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
+import 'super_editor/link_enhance_overlay.dart';
 import 'super_editor/quiet_attachment_component.dart';
 import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
@@ -404,6 +405,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
                     color: colors.accent,
                   ),
                   displayOnAllPlatforms: true,
+                ),
+                LinkEnhanceDocumentLayerBuilder(
+                  controller: widget.controller,
+                  readOnly: widget.readOnly,
                 ),
               ],
             ),

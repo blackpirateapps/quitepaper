@@ -3052,7 +3052,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     if (_isSuperEditor) {
       if (_superEditorController.hasExpandedSelection) return false;
-      _superEditorController.insertLinkPreview(url: url);
+      _superEditorController.applyLink(url: url);
+      _fetchAndPatchLinkTitle(url);
       return true;
     }
     if (_isWysiwyg && _richDocumentController != null) {
@@ -3061,7 +3062,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _fetchAndPatchLinkTitle(url);
       return true;
     }
-    // Plain-markdown ("raw source") mode is out of scope.
+    if (!_isSuperEditor && !_isWysiwyg) {
+      final targetController = _activeTargetController ?? _contentController;
+      if (targetController.selection.isCollapsed) {
+        final offset = targetController.selection.baseOffset;
+        final linkText = '[$url]($url)';
+        final oldText = targetController.text;
+        final newText = oldText.replaceRange(offset, offset, linkText);
+        targetController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: offset + linkText.length),
+        );
+        _fetchAndPatchLinkTitle(url);
+        return true;
+      }
+    }
     return false;
   }
 
@@ -3070,15 +3085,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   /// matches by href + unchanged display text, so a user edit cancels it.
   void _fetchAndPatchLinkTitle(String url) {
     final isSuper = _isSuperEditor;
+    final isWys = _isWysiwyg;
     final richController = _richDocumentController;
+    final contentCtrl = _activeTargetController ?? _contentController;
     Future.microtask(() async {
       final title = await LinkTitleFetcher().fetchTitle(url);
       if (title == null || title.isEmpty) return;
       if (!mounted) return;
       if (isSuper) {
         _superEditorController.replaceLinkDisplayText(url, title);
-      } else {
+      } else if (isWys) {
         richController?.replaceLinkDisplayText(url, title);
+      } else {
+        final curText = contentCtrl.text;
+        final targetPattern = '[$url]($url)';
+        if (curText.contains(targetPattern)) {
+          final updated = curText.replaceFirst(targetPattern, '[$title]($url)');
+          contentCtrl.value = TextEditingValue(
+            text: updated,
+            selection: contentCtrl.selection,
+          );
+          ref.read(editorProviderFamily(_editorParams).notifier).updateContent(updated);
+        }
       }
     });
   }

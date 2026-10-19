@@ -110,5 +110,28 @@ void main() {
       expect(await fetcher.fetchTitle('qp://note/x'), isNull);
       expect(await fetcher.fetchTitle('mailto:a@b.com'), isNull);
     });
+
+    test('follows 301/302 redirects across schemes and locations', () async {
+      final client = MockClient((request) async {
+        if (request.url.toString() == 'http://example.com') {
+          return http.Response(
+            '',
+            301,
+            headers: {'location': 'https://example.com/blog'},
+          );
+        }
+        if (request.url.toString() == 'https://example.com/blog') {
+          return http.Response(
+            '<html><head><title>Redirected Blog</title></head></html>',
+            200,
+            headers: {'content-type': 'application/xhtml+xml'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final fetcher = LinkTitleFetcher(client: client);
+      expect(await fetcher.fetchTitle('http://example.com'), 'Redirected Blog');
+    });
   });
 }

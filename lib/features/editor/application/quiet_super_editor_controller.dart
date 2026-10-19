@@ -776,10 +776,9 @@ class QuietSuperEditorController extends ChangeNotifier {
   }
 
   /// Feature 1 (auto-filled titles): finds the link whose href == [url] and
-  /// whose display text is still the bare [url] (unchanged since paste) and
-  /// swaps its display text to [newText]. No-op when no such run survives, so a
-  /// late title fetch never overwrites edited content.
-  void replaceLinkDisplayText(String url, String newText) {
+  /// swaps its display text to [newText]. When [force] is true, swaps regardless
+  /// of whether current text equals [url].
+  void replaceLinkDisplayText(String url, String newText, {bool force = false}) {
     if (_editor == null || newText.isEmpty) return;
     final normalized = Uri.tryParse(url)?.toString() ?? url;
     for (final node in _editor!.document) {
@@ -789,7 +788,7 @@ class QuietSuperEditorController extends ChangeNotifier {
         final link = span.attribution as LinkAttribution;
         if (link.plainTextUri != url && link.plainTextUri != normalized) continue;
         if (span.end + 1 > plain.length) continue;
-        if (plain.substring(span.start, span.end + 1) != url) continue;
+        if (!force && plain.substring(span.start, span.end + 1) != url) continue;
 
         final attributed = AttributedText(newText)
           ..addAttribution(

@@ -12,6 +12,7 @@ import '../../domain/rich_document.dart';
 import '../../domain/rich_inline.dart';
 import '../../domain/text_attributes.dart';
 import '../../application/rich_document_controller.dart';
+import 'link_enhance_button.dart';
 
 const _uuid = Uuid();
 
@@ -60,6 +61,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
     _textController = _RichTextEditingController(
       editorController: widget.controller,
       blockIndices: widget.blockIndices,
+      readOnly: widget.readOnly,
       contextGetter: () => context,
       onToggleChecklist: (blockIndex) {
         widget.controller.toggleChecklistItemChecked(blockIndex);
@@ -79,6 +81,10 @@ class _RichTextEditorState extends State<RichTextEditor> {
   @override
   void didUpdateWidget(RichTextEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.readOnly != widget.readOnly) {
+      _textController.readOnly = widget.readOnly;
+      _textController.markNeedsRebuild();
+    }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onDocumentControllerChanged);
       widget.controller.addListener(_onDocumentControllerChanged);
@@ -293,6 +299,7 @@ class _RichTextEditingController extends TextEditingController {
   _RichTextEditingController({
     required this.editorController,
     this.blockIndices,
+    this.readOnly = false,
     required this.contextGetter,
     required this.onToggleChecklist,
   }) {
@@ -302,6 +309,7 @@ class _RichTextEditingController extends TextEditingController {
 
   RichDocumentController editorController;
   List<int>? blockIndices;
+  bool readOnly;
   final BuildContext Function() contextGetter;
   final void Function(int blockIndex) onToggleChecklist;
 
@@ -984,7 +992,8 @@ class _RichTextEditingController extends TextEditingController {
     }
 
     final result = <InlineSpan>[];
-    for (final span in spans) {
+    for (var i = 0; i < spans.length; i++) {
+      final span = spans[i];
       var spanStyle = baseStyle;
       final attr = span.attributes;
 
@@ -1031,6 +1040,32 @@ class _RichTextEditingController extends TextEditingController {
       }
 
       result.add(TextSpan(text: span.text, style: spanStyle));
+
+      // Append an editorial enhance button at the trailing edge of web links
+      if (attr.hasLink &&
+          !readOnly &&
+          attr.linkUrl != null &&
+          (attr.linkUrl!.startsWith('http://') || attr.linkUrl!.startsWith('https://'))) {
+        final isLastInRun =
+            i == spans.length - 1 || spans[i + 1].attributes.linkUrl != attr.linkUrl;
+        if (isLastInRun) {
+          result.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: LinkEnhanceButton(
+                url: attr.linkUrl!,
+                onEnhanced: (newTitle) async {
+                  editorController.replaceLinkDisplayText(
+                    attr.linkUrl!,
+                    newTitle,
+                    force: true,
+                  );
+                },
+              ),
+            ),
+          );
+        }
+      }
     }
 
     return result;

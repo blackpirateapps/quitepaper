@@ -389,12 +389,10 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   /// Feature 1 (auto-filled titles): patches the display text of the link whose
-  /// href == [url] and whose display text is still the bare [url] to [newText].
-  /// No-op when the matching run is gone (user edited it) — safe to call from an
-  /// async title fetch without clobbering later edits.
-  void replaceLinkDisplayText(String url, String newText) {
+  /// href == [url]. When [force] is true, patches regardless of previous label.
+  void replaceLinkDisplayText(String url, String newText, {bool force = false}) {
     _commitMutation(
-      RichDocumentMutations.replaceLinkDisplayText(_document, url: url, newText: newText),
+      RichDocumentMutations.replaceLinkDisplayText(_document, url: url, newText: newText, force: force),
     );
   }
 

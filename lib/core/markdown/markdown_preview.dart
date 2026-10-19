@@ -11,7 +11,9 @@ import '../../app/theme/app_typography.dart';
 import '../../features/editor/application/rich_document_serializer.dart';
 import '../../features/editor/application/link_preview_metadata.dart';
 import '../../features/editor/domain/rich_document.dart';
+import '../../features/editor/presentation/widgets/link_enhance_button.dart';
 import '../../features/editor/presentation/widgets/link_preview_card.dart';
+import '../web_clipper/link_title_fetcher.dart';
 import '../utils/font_family_helper.dart';
 import '../utils/link_launcher_helper.dart';
 import '../journal/application/activity_storage_service.dart';
@@ -71,6 +73,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
     this.showScrollbar = true,
     this.onMarkdownChanged,
     this.interactiveChecklists,
+    this.titleFetcher,
   });
 
   final String markdownData;
@@ -98,6 +101,7 @@ class QuietMarkdownPreview extends ConsumerStatefulWidget {
   final bool showScrollbar;
   final ValueChanged<String>? onMarkdownChanged;
   final bool? interactiveChecklists;
+  final LinkTitleFetcher? titleFetcher;
 
 
   @override
@@ -554,6 +558,28 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final highlighter = ref.watch(syntaxHighlighterProvider);
     final resolver = ref.watch(syntaxLanguageResolverProvider);
 
+    void handleEnhanceWebLink(String url, String newTitle) {
+      if (widget.onMarkdownChanged == null) return;
+      final current = widget.markdownData;
+      final escapedUrl = RegExp.escape(url);
+      final bracketLinkRegex = RegExp(r'\[([^\]]*)\]\((?:<' + escapedUrl + r'>|' + escapedUrl + r')\)');
+      if (bracketLinkRegex.hasMatch(current)) {
+        final updated = current.replaceFirst(bracketLinkRegex, '[$newTitle]($url)');
+        widget.onMarkdownChanged!(updated);
+        return;
+      }
+      final autolinkRegex = RegExp(r'<' + escapedUrl + r'>');
+      if (autolinkRegex.hasMatch(current)) {
+        final updated = current.replaceFirst(autolinkRegex, '[$newTitle]($url)');
+        widget.onMarkdownChanged!(updated);
+        return;
+      }
+      if (current.contains(url)) {
+        final updated = current.replaceFirst(url, '[$newTitle]($url)');
+        widget.onMarkdownChanged!(updated);
+      }
+    }
+
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
       'quietdoc': QuietDocumentElementBuilder(
@@ -566,6 +592,14 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       'linkpreview': LinkPreviewElementBuilder(
         smartWebLinks: smartWebLinks,
         onTapLink: effectiveOnTapLink,
+        onEnhanceLink: widget.onMarkdownChanged != null ? handleEnhanceWebLink : null,
+        titleFetcher: widget.titleFetcher,
+      ),
+      'a': WebLinkElementBuilder(
+        colors: colors,
+        onTapLink: effectiveOnTapLink,
+        onEnhanceLink: widget.onMarkdownChanged != null ? handleEnhanceWebLink : null,
+        titleFetcher: widget.titleFetcher,
       ),
       'pre': QuietCodeBlockElementBuilder(
         colors: colors,
@@ -1425,10 +1459,14 @@ class LinkPreviewElementBuilder extends MarkdownElementBuilder {
   LinkPreviewElementBuilder({
     required this.smartWebLinks,
     this.onTapLink,
+    this.onEnhanceLink,
+    this.titleFetcher,
   });
 
   final bool smartWebLinks;
   final MarkdownTapLinkCallback? onTapLink;
+  final void Function(String url, String newTitle)? onEnhanceLink;
+  final LinkTitleFetcher? titleFetcher;
 
   @override
   bool isBlockElement() => true;
@@ -1455,23 +1493,99 @@ class LinkPreviewElementBuilder extends MarkdownElementBuilder {
     // Fall back to a plain link when decoding fails or Smart Web Links are off.
     if (!smartWebLinks || block == null) {
       final label = title.trim().isNotEmpty ? title.trim() : url;
-      return InkWell(
-        onTap: () => onTapLink?.call(label, url, ''),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text(
-            label,
-            style: AppTypography.bodySmall.copyWith(
-              color: colors.accent,
-              decoration: TextDecoration.underline,
-              decorationColor: colors.accent.withValues(alpha: 0.5),
+      final isWeb = url.startsWith('http://') || url.startsWith('https://');
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            InkWell(
+              onTap: () => onTapLink?.call(label, url, ''),
+              child: Text(
+                label,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.accent,
+                  decoration: TextDecoration.underline,
+                  decorationColor: colors.accent.withValues(alpha: 0.5),
+                ),
+              ),
             ),
-          ),
+            if (isWeb && onEnhanceLink != null)
+              LinkEnhanceButton(
+                url: url,
+                titleFetcher: titleFetcher,
+                onEnhanced: (newTitle) async {
+                  onEnhanceLink?.call(url, newTitle);
+                },
+              ),
+          ],
         ),
       );
     }
 
     return LinkPreviewCard(block: block, readOnly: true);
+  }
+}
+
+/// Builds inline hyperlinks with an adjacent [LinkEnhanceButton] when enhancement
+/// is interactive (e.g. preview mode with markdown change callback).
+class WebLinkElementBuilder extends MarkdownElementBuilder {
+  WebLinkElementBuilder({
+    required this.colors,
+    this.onTapLink,
+    this.onEnhanceLink,
+    this.titleFetcher,
+  });
+
+  final AppColors colors;
+  final MarkdownTapLinkCallback? onTapLink;
+  final void Function(String url, String newTitle)? onEnhanceLink;
+  final LinkTitleFetcher? titleFetcher;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final href = element.attributes['href'] ?? '';
+    final text = element.textContent;
+    final isWeb = href.startsWith('http://') || href.startsWith('https://');
+
+    if (!isWeb || onEnhanceLink == null) {
+      return null;
+    }
+
+    final linkStyle = preferredStyle ??
+        parentStyle?.copyWith(
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.accent.withValues(alpha: 0.5),
+        ) ??
+        TextStyle(
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+        );
+
+    return InkWell(
+      onTap: () => onTapLink?.call(text, href, ''),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(text, style: linkStyle),
+          LinkEnhanceButton(
+            url: href,
+            titleFetcher: titleFetcher,
+            onEnhanced: (newTitle) async {
+              onEnhanceLink?.call(href, newTitle);
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
 

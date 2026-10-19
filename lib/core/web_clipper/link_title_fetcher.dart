@@ -37,26 +37,50 @@ class LinkTitleFetcher {
     }
 
     try {
-      final response = await _client.get(
-        uri,
-        headers: const {
-          'User-Agent': _userAgent,
-          'Accept': 'text/html',
-        },
-      ).timeout(_timeout);
+      var currentUri = uri;
+      http.Response? response;
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      for (var i = 0; i < 5; i++) {
+        final request = http.Request('GET', currentUri)
+          ..headers.addAll(const {
+            'User-Agent': _userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          })
+          ..followRedirects = false;
+
+        final streamed = await _client.send(request).timeout(_timeout);
+        final resp = await http.Response.fromStream(streamed);
+
+        if (resp.statusCode >= 300 &&
+            resp.statusCode < 400 &&
+            resp.headers.containsKey('location')) {
+          final location = resp.headers['location']!;
+          final nextUri = currentUri.resolve(location);
+          if (!nextUri.isScheme('http') && !nextUri.isScheme('https')) {
+            return null;
+          }
+          currentUri = nextUri;
+          continue;
+        }
+
+        response = resp;
+        break;
+      }
+
+      if (response == null || response.statusCode < 200 || response.statusCode >= 300) {
         return null;
       }
 
       final contentType = response.headers['content-type']?.toLowerCase() ?? '';
-      if (!contentType.contains('text/html')) {
+      if (contentType.isNotEmpty &&
+          !contentType.contains('html') &&
+          !contentType.contains('xml')) {
         return null;
       }
 
       const extractor = ArticleExtractor();
       final title =
-          extractor.extractFromHtml(response.body, uri.toString()).metadata.title.trim();
+          extractor.extractFromHtml(response.body, currentUri.toString()).metadata.title.trim();
 
       // Treat the generic fallback as "no title" so callers keep the URL as-is.
       if (title.isEmpty || title == _genericFallbackTitle) {
