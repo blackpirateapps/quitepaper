@@ -9577,6 +9577,37 @@ When running local DeepSeek-OCR / Ollama on document images:
 - `flutter test test/ocr/`: **All 34 tests passing**.
 - `flutter test`: **All 2,064 tests passing** with zero warnings or errors.
 
+---
+
+## 213. Ollama Live Text: Paragraph-Aware Visual Line & Word Partitioning (October 2026)
+
+### 1. Problem & Root Cause
+When inspecting OCR documents with the Live Text layer in the desktop image viewer:
+1. DeepSeek-OCR / Ollama transcribes text blocks as standard Markdown paragraphs without hard visual line breaks (`\n`) for word wrapping (e.g. `text[[350, 380, 900, 630]]` followed by a 10-line, 550-character continuous string).
+2. In [`OllamaGroundingParser._createBlock`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart), lines were previously derived purely by splitting on explicit newline characters (`text.split('\n')`).
+3. For multi-line paragraphs containing no newline characters:
+   - `rawParagraphs.length` evaluated to `1`.
+   - `lineHeight` evaluated to `bounds.height` (the full height of all 10 lines combined, e.g. `0.25`).
+   - All words in the entire paragraph (e.g. 100 words) were assigned to that single line, with `wordBounds.height = bounds.height` and `wordBounds.width` sliced into $\sim 1/100\text{th}$ of the container width ($\sim 0.005$).
+4. This manifested visually as a dense "barcode fence" of tall, razor-thin vertical blue rectangles spanning the full height of the paragraph across the document, severely distorting Live Text hit-testing and word selection.
+
+### 2. Architectural Solution
+1. **Paragraph-Aware Visual Line Estimation**:
+   - In `OllamaGroundingParser._createBlock`, each text paragraph computes its single-line character capacity based on container width (`singleLineCapacity = (wBox * 85).clamp(25.0, 100.0)`).
+   - Paragraphs are partitioned into $L = \text{round}(C_p / \text{singleLineCapacity})$ visual lines. Single-line headings and formula lines remain as 1 line, while multi-line paragraphs cleanly wrap into their visual line count (e.g. 10-12 lines for 550 characters in a 0.55-width column).
+2. **Greedy Word Wrapping**:
+   - Words are wrapped into visual lines using target character capacity with 15% line-balancing flexibility and lookahead to ensure remaining lines are populated.
+3. **Proportional Line & Word Geometry**:
+   - Uniform line height is distributed across all visual lines (`bounds.height / totalLines`).
+   - Words on line $j$ are assigned `wordBounds.y = lineBounds.y` and `wordBounds.height = lineBounds.height`, with horizontal bounds matching the word's position and width on that specific visual line.
+4. **Regression Verification**:
+   - Added unit tests in [`test/ocr/ollama_grounding_parser_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_grounding_parser_test.dart) verifying that 550-character continuous paragraphs wrap into distinct horizontal visual lines ($>8$ lines, each with height $< 0.04$) and properly stepped vertical $Y$ coordinates without vertical stripe distortion.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/ocr/`: **All 35 tests passing**.
+
+
 
 
 

@@ -261,6 +261,44 @@ Degenerate coordinates
       expect(result.detectedImages.length, 1);
     });
 
+    test('wraps long multi-line paragraph without newlines into distinct visual lines and horizontal word boxes', () {
+      const input = '''
+text[[350, 380, 900, 630]]
+Although I am still enjoying very active life with full mental and physical capacity but I am becoming ill and also suffering from mental agony owing inhuman torture of my said husband. Day by day I am becoming weak and feeble. God knows how long shall I remain in this earthly world, man is mortal his or her is easily vulnerable and I am also no exception of it. I have therefore decided to express my desire or will on indicating how my properties will devolve after my death upon whom and in what manner.
+''';
+
+      final result = OllamaGroundingParser.parse(input);
+      expect(result.blocks.length, 1);
+
+      final block = result.blocks.first;
+      expect(block.bounds.width, closeTo(0.55, 0.01));
+      expect(block.bounds.height, closeTo(0.25, 0.01));
+
+      // Paragraph should be partitioned into ~10 to 12 visual lines, NOT a single 10-line-tall line
+      expect(block.lines.length, greaterThanOrEqualTo(8));
+      expect(block.lines.length, lessThanOrEqualTo(14));
+
+      // Each line must have proportional height, NOT the entire block height (0.25)
+      for (var l = 0; l < block.lines.length; l++) {
+        final line = block.lines[l];
+        expect(line.bounds.height, lessThan(0.04));
+        expect(line.words, isNotEmpty);
+
+        // Lines must step down vertically
+        if (l > 0) {
+          final prevLine = block.lines[l - 1];
+          expect(line.bounds.y, greaterThan(prevLine.bounds.y));
+        }
+
+        // Each word must have the line's height, NOT the entire block height
+        for (final word in line.words) {
+          expect(word.bounds.height, lessThan(0.04));
+          expect(word.bounds.width, greaterThan(0.0));
+          expect(word.bounds.right, lessThanOrEqualTo(1.0));
+        }
+      }
+    });
+
     test('handles long non-grounded markdown documents without ArgumentError: 0.02', () {
       final longMarkdown = List.generate(60, (i) => 'Paragraph $i content here').join('\n\n');
       expect(() => OllamaGroundingParser.parse(longMarkdown), returnsNormally);
@@ -269,5 +307,6 @@ Degenerate coordinates
     });
   });
 }
+
 
 

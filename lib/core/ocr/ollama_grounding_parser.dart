@@ -287,13 +287,13 @@ class OllamaGroundingParser {
     required String text,
     required NormalizedRect bounds,
   }) {
-    final rawLines = text.split('\n');
-    final lineStrings = rawLines
-        .map((l) => l.trimRight())
-        .where((l) => l.trim().isNotEmpty)
+    final rawParagraphs = text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
         .toList();
 
-    if (lineStrings.isEmpty) {
+    if (rawParagraphs.isEmpty) {
       return OcrBlock(
         text: text,
         bounds: bounds,
@@ -301,13 +301,72 @@ class OllamaGroundingParser {
       );
     }
 
-    final ocrLines = <OcrLine>[];
-    final rawLineHeight = bounds.height / lineStrings.length;
-    final lineHeight = rawLineHeight.clamp(0.0, bounds.height);
+    final wBox = bounds.width;
+    // Standard document line across full page width (1.0) holds ~85 characters.
+    final singleLineCapacity = (wBox * 85).clamp(25.0, 100.0);
 
-    for (var i = 0; i < lineStrings.length; i++) {
-      final lineStr = lineStrings[i];
-      final rawLineY = bounds.y + (i * lineHeight);
+    // 1. Partition each raw paragraph into visual lines of words
+    final allVisualLinesOfWords = <List<String>>[];
+
+    for (final pText in rawParagraphs) {
+      final words = pText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      if (words.isEmpty) continue;
+
+      int numLines = (pText.length / singleLineCapacity).round();
+      if (numLines < 1) numLines = 1;
+      if (numLines > words.length) numLines = words.length;
+
+      final pVisualLines = <List<String>>[];
+      if (numLines <= 1 || words.length <= 1) {
+        pVisualLines.add(words);
+      } else {
+        final targetCharsPerLine = (pText.length / numLines).ceil();
+        var curLine = <String>[];
+        var curChars = 0;
+
+        for (var w = 0; w < words.length; w++) {
+          final word = words[w];
+          final wordLen = word.length + (curLine.isNotEmpty ? 1 : 0);
+          final remainingLines = numLines - pVisualLines.length;
+          final remainingWords = words.length - w;
+
+          final shouldWrap = pVisualLines.length < numLines - 1 &&
+              curLine.isNotEmpty &&
+              ((curChars + wordLen > targetCharsPerLine * 1.15) || remainingWords <= remainingLines);
+
+          if (shouldWrap) {
+            pVisualLines.add(curLine);
+            curLine = [word];
+            curChars = word.length;
+          } else {
+            curLine.add(word);
+            curChars += wordLen;
+          }
+        }
+        if (curLine.isNotEmpty) {
+          pVisualLines.add(curLine);
+        }
+      }
+      allVisualLinesOfWords.addAll(pVisualLines);
+    }
+
+    if (allVisualLinesOfWords.isEmpty) {
+      return OcrBlock(
+        text: text,
+        bounds: bounds,
+        lines: const [],
+      );
+    }
+
+    // 2. Uniform line height across all visual lines in the block
+    final totalLines = allVisualLinesOfWords.length;
+    final lineHeight = (bounds.height / totalLines).clamp(0.0, bounds.height);
+    final ocrLines = <OcrLine>[];
+
+    for (var l = 0; l < totalLines; l++) {
+      final lineWords = allVisualLinesOfWords[l];
+      final lineStr = lineWords.join(' ');
+      final rawLineY = bounds.y + (l * lineHeight);
       final lineY = rawLineY.clamp(0.0, 1.0);
       final maxAvailableH = (1.0 - lineY).clamp(0.0, 1.0);
       final lineH = lineHeight.clamp(0.0, maxAvailableH);
@@ -333,51 +392,44 @@ class OllamaGroundingParser {
         height: roundedLineH,
       );
 
-      final words = lineStr
-          .split(RegExp(r'\s+'))
-          .where((w) => w.isNotEmpty)
-          .toList();
-
       final ocrWords = <OcrWord>[];
-      if (words.isNotEmpty) {
-        final totalChars = words.fold<int>(0, (sum, w) => sum + w.length);
-        var currentX = lineBounds.x;
+      final lineCharsCount = lineWords.fold<int>(0, (sum, w) => sum + w.length);
+      var currentX = lineBounds.x;
 
-        for (var w = 0; w < words.length; w++) {
-          final word = words[w];
-          final fraction = totalChars > 0
-              ? (word.length / totalChars)
-              : (1.0 / words.length);
-          final rawWordWidth = lineBounds.width * fraction;
+      for (var w = 0; w < lineWords.length; w++) {
+        final word = lineWords[w];
+        final fraction = lineCharsCount > 0
+            ? (word.length / lineCharsCount)
+            : (1.0 / lineWords.length);
+        final rawWordWidth = lineBounds.width * fraction;
 
-          final wordX = currentX.clamp(0.0, 1.0);
-          final maxWordW = (1.0 - wordX).clamp(0.0, 1.0);
-          final wordW = rawWordWidth.clamp(0.0, maxWordW);
+        final wordX = currentX.clamp(0.0, 1.0);
+        final maxWordW = (1.0 - wordX).clamp(0.0, 1.0);
+        final wordW = rawWordWidth.clamp(0.0, maxWordW);
 
-          final roundedWordX = _round(wordX).clamp(0.0, 1.0);
-          var roundedWordW = _round(wordW);
-          if (roundedWordW == 0.0 && wordW > 0.0 && maxWordW > 0.0) {
-            roundedWordW = maxWordW < 0.0001 ? maxWordW : 0.0001;
-          }
-          roundedWordW = roundedWordW.clamp(0.0, 1.0 - roundedWordX);
-
-          final wordBounds = NormalizedRect(
-            x: roundedWordX,
-            y: lineBounds.y,
-            width: roundedWordW,
-            height: lineBounds.height,
-          );
-
-          ocrWords.add(
-            OcrWord(
-              text: word,
-              bounds: wordBounds,
-              confidence: 0.95,
-            ),
-          );
-
-          currentX = (wordX + wordW).clamp(0.0, 1.0);
+        final roundedWordX = _round(wordX).clamp(0.0, 1.0);
+        var roundedWordW = _round(wordW);
+        if (roundedWordW == 0.0 && wordW > 0.0 && maxWordW > 0.0) {
+          roundedWordW = maxWordW < 0.0001 ? maxWordW : 0.0001;
         }
+        roundedWordW = roundedWordW.clamp(0.0, 1.0 - roundedWordX);
+
+        final wordBounds = NormalizedRect(
+          x: roundedWordX,
+          y: lineBounds.y,
+          width: roundedWordW,
+          height: lineBounds.height,
+        );
+
+        ocrWords.add(
+          OcrWord(
+            text: word,
+            bounds: wordBounds,
+            confidence: 0.95,
+          ),
+        );
+
+        currentX = (wordX + wordW).clamp(0.0, 1.0);
       }
 
       ocrLines.add(
