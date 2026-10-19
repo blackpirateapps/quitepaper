@@ -76,9 +76,9 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     promoteQuietAttachmentNodes(document);
 
     // Promote baked two-line `[title](url)` + sentinel-comment pairs into
-    // embedded web-link preview nodes (consuming the sentinel comment). Runs
-    // regardless of the Smart Web Links toggle; the component gates rendering.
-    promoteLinkPreviewNodes(document);
+    // embedded web-link preview nodes, and promote lone unbaked web links into
+    // loading preview nodes with animated skeleton loaders.
+    promoteLinkPreviewNodes(document, promoteUnbaked: true);
 
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(

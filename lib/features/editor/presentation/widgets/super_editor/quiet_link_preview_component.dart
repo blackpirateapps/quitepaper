@@ -5,11 +5,28 @@ import 'package:quitepaper/app/theme/app_typography.dart';
 import 'package:quitepaper/core/attachments/attachment_provider.dart';
 import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
 import 'package:quitepaper/core/utils/link_launcher_helper.dart';
+import 'package:quitepaper/core/web_clipper/link_fetch_diagnostics.dart';
+import 'package:quitepaper/core/web_clipper/link_preview_baker.dart';
 import 'package:quitepaper/features/editor/application/link_preview_metadata.dart';
 import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/link_preview_card.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:super_editor/super_editor.dart';
+
+import 'link_preview_debug_card.dart';
+import 'link_preview_loading_card.dart';
+
+/// The lifecycle state of a web link preview embedded inside SuperEditor.
+enum LinkPreviewStatus {
+  /// The preview was successfully baked and contains rich card metadata.
+  loaded,
+
+  /// The preview's description, metadata, or thumbnail is currently being fetched.
+  loading,
+
+  /// The preview fetch failed; holds detailed [LinkFetchDiagnostics].
+  failed,
+}
 
 /// A block [DocumentNode] that embeds a baked web-link preview as a rich card
 /// inside SuperEditor.
@@ -30,6 +47,8 @@ class LinkPreviewNode extends BlockNode {
     this.siteName,
     this.thumbnailAssetId,
     required this.fetchedAt,
+    this.status = LinkPreviewStatus.loaded,
+    this.diagnostics,
     super.metadata,
   }) {
     initAddToMetadata({NodeMetadata.blockType: const NamedAttribution('linkPreview')});
@@ -56,6 +75,12 @@ class LinkPreviewNode extends BlockNode {
   /// Timestamp at which the preview metadata was fetched.
   final DateTime fetchedAt;
 
+  /// The current resolution status of this preview (loaded, loading, failed).
+  final LinkPreviewStatus status;
+
+  /// Detailed telemetry explaining why link fetching failed, if [status] == [LinkPreviewStatus.failed].
+  final LinkFetchDiagnostics? diagnostics;
+
   /// Rebuilds the shared-domain [LinkPreviewBlock] model this node mirrors.
   LinkPreviewBlock toBlock() => LinkPreviewBlock(
         id: id,
@@ -66,6 +91,33 @@ class LinkPreviewNode extends BlockNode {
         thumbnailAssetId: thumbnailAssetId,
         fetchedAt: fetchedAt,
       );
+
+  LinkPreviewNode copyWith({
+    String? id,
+    String? url,
+    String? title,
+    String? description,
+    String? siteName,
+    String? thumbnailAssetId,
+    DateTime? fetchedAt,
+    LinkPreviewStatus? status,
+    LinkFetchDiagnostics? diagnostics,
+    bool clearDiagnostics = false,
+    Map<String, dynamic>? metadata,
+  }) {
+    return LinkPreviewNode(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      siteName: siteName ?? this.siteName,
+      thumbnailAssetId: thumbnailAssetId ?? this.thumbnailAssetId,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      status: status ?? this.status,
+      diagnostics: clearDiagnostics ? null : (diagnostics ?? this.diagnostics),
+      metadata: metadata ?? Map.from(this.metadata),
+    );
+  }
 
   @override
   String? copyContent(dynamic selection) {
@@ -85,7 +137,9 @@ class LinkPreviewNode extends BlockNode {
         description == other.description &&
         siteName == other.siteName &&
         thumbnailAssetId == other.thumbnailAssetId &&
-        fetchedAt == other.fetchedAt;
+        fetchedAt == other.fetchedAt &&
+        status == other.status &&
+        diagnostics == other.diagnostics;
   }
 
   @override
@@ -98,6 +152,8 @@ class LinkPreviewNode extends BlockNode {
       siteName: siteName,
       thumbnailAssetId: thumbnailAssetId,
       fetchedAt: fetchedAt,
+      status: status,
+      diagnostics: diagnostics,
       metadata: {...metadata, ...newProperties},
     );
   }
@@ -112,6 +168,8 @@ class LinkPreviewNode extends BlockNode {
       siteName: siteName,
       thumbnailAssetId: thumbnailAssetId,
       fetchedAt: fetchedAt,
+      status: status,
+      diagnostics: diagnostics,
       metadata: newMetadata,
     );
   }
@@ -125,6 +183,8 @@ class LinkPreviewNode extends BlockNode {
       siteName: siteName,
       thumbnailAssetId: thumbnailAssetId,
       fetchedAt: fetchedAt,
+      status: status,
+      diagnostics: diagnostics,
       metadata: Map.from(metadata),
     );
   }
@@ -140,7 +200,9 @@ class LinkPreviewNode extends BlockNode {
           description == other.description &&
           siteName == other.siteName &&
           thumbnailAssetId == other.thumbnailAssetId &&
-          fetchedAt == other.fetchedAt;
+          fetchedAt == other.fetchedAt &&
+          status == other.status &&
+          diagnostics == other.diagnostics;
 
   @override
   int get hashCode =>
@@ -150,7 +212,9 @@ class LinkPreviewNode extends BlockNode {
       (description?.hashCode ?? 0) ^
       (siteName?.hashCode ?? 0) ^
       (thumbnailAssetId?.hashCode ?? 0) ^
-      fetchedAt.hashCode;
+      fetchedAt.hashCode ^
+      status.hashCode ^
+      (diagnostics?.hashCode ?? 0);
 }
 
 /// Block type ids that must never be promoted to a preview card even when their
@@ -202,9 +266,10 @@ const Set<String> _nonPromotableBlockTypes = {
 /// (decoded via [decodeLinkPreview]), removing the now-consumed comment node so
 /// the sentinel never renders as text.
 ///
-/// This runs regardless of the Smart Web Links toggle so the sentinel is always
-/// consumed; the component decides whether to render a card or a plain link.
-void promoteLinkPreviewNodes(MutableDocument document) {
+/// If [promoteUnbaked] is true, standalone lone-line web URLs without a sentinel
+/// comment are also promoted to a [LinkPreviewNode] in [LinkPreviewStatus.loading]
+/// state so the loading animation can display while metadata is fetched.
+void promoteLinkPreviewNodes(MutableDocument document, {bool promoteUnbaked = false}) {
   final nodes = document.toList();
   final swaps = <({String linkId, String commentId, LinkPreviewBlock block})>[];
 
@@ -267,6 +332,25 @@ void promoteLinkPreviewNodes(MutableDocument document) {
       document.deleteNode(node.id);
     }
   }
+
+  if (promoteUnbaked) {
+    for (final node in document.toList()) {
+      if (node is! ParagraphNode) continue;
+      final link = _soleHttpLinkOf(node);
+      if (link == null) continue;
+
+      document.replaceNodeById(
+        node.id,
+        LinkPreviewNode(
+          id: node.id,
+          url: link.url,
+          title: link.title,
+          fetchedAt: DateTime.now(),
+          status: LinkPreviewStatus.loading,
+        ),
+      );
+    }
+  }
 }
 
 /// [ComponentBuilder] that renders [LinkPreviewNode]s as embedded preview cards
@@ -301,6 +385,8 @@ class LinkPreviewComponentBuilder implements ComponentBuilder {
       siteName: node.siteName,
       thumbnailAssetId: node.thumbnailAssetId,
       fetchedAt: node.fetchedAt,
+      status: node.status,
+      diagnostics: node.diagnostics,
     );
   }
 
@@ -343,6 +429,8 @@ class LinkPreviewComponentViewModel extends SingleColumnLayoutComponentViewModel
     this.siteName,
     this.thumbnailAssetId,
     required this.fetchedAt,
+    this.status = LinkPreviewStatus.loaded,
+    this.diagnostics,
   });
 
   String url;
@@ -351,6 +439,8 @@ class LinkPreviewComponentViewModel extends SingleColumnLayoutComponentViewModel
   String? siteName;
   String? thumbnailAssetId;
   DateTime fetchedAt;
+  LinkPreviewStatus status;
+  LinkFetchDiagnostics? diagnostics;
 
   @override
   LinkPreviewComponentViewModel copy() {
@@ -366,6 +456,8 @@ class LinkPreviewComponentViewModel extends SingleColumnLayoutComponentViewModel
       siteName: siteName,
       thumbnailAssetId: thumbnailAssetId,
       fetchedAt: fetchedAt,
+      status: status,
+      diagnostics: diagnostics,
     );
   }
 
@@ -381,7 +473,9 @@ class LinkPreviewComponentViewModel extends SingleColumnLayoutComponentViewModel
           description == other.description &&
           siteName == other.siteName &&
           thumbnailAssetId == other.thumbnailAssetId &&
-          fetchedAt == other.fetchedAt;
+          fetchedAt == other.fetchedAt &&
+          status == other.status &&
+          diagnostics == other.diagnostics;
 
   @override
   int get hashCode =>
@@ -392,14 +486,16 @@ class LinkPreviewComponentViewModel extends SingleColumnLayoutComponentViewModel
       (description?.hashCode ?? 0) ^
       (siteName?.hashCode ?? 0) ^
       (thumbnailAssetId?.hashCode ?? 0) ^
-      fetchedAt.hashCode;
+      fetchedAt.hashCode ^
+      status.hashCode ^
+      (diagnostics?.hashCode ?? 0);
 }
 
 /// A document component that renders a [LinkPreviewNode] as an embedded
-/// [LinkPreviewCard] (when Smart Web Links are enabled) or a plain inline link
-/// (when they are disabled). The card's whole-surface tap opens the link; its
-/// overflow menu removes the node and tombstones the baked thumbnail.
-class LinkPreviewComponent extends ConsumerWidget {
+/// [LinkPreviewCard] (when loaded), an animated [LinkPreviewLoadingCard] (when loading),
+/// a detailed [LinkPreviewDebugCard] (when failed and debug setting is enabled),
+/// or a calm inline link (when Smart Web Links or debug mode is disabled).
+class LinkPreviewComponent extends ConsumerStatefulWidget {
   const LinkPreviewComponent({
     super.key,
     required this.componentKey,
@@ -415,59 +511,209 @@ class LinkPreviewComponent extends ConsumerWidget {
   final String? noteId;
   final bool showRemove;
 
-  Future<void> _remove(WidgetRef ref) async {
-    editor.execute([DeleteNodeRequest(nodeId: node.id)]);
-    final assetUri = node.thumbnailAssetId;
-    if (assetUri != null && assetUri.trim().isNotEmpty) {
-      final id = QuietPaperUri.tryParse(assetUri)?.resourceId ??
-          (assetUri.startsWith('qp://asset/')
-              ? assetUri.substring('qp://asset/'.length)
-              : null);
-      if (id != null && id.isNotEmpty) {
-        try {
-          await ref.read(attachmentServiceProvider).deleteAttachment(id);
-        } catch (_) {
-          // Best-effort cleanup.
-        }
-      }
+  @override
+  ConsumerState<LinkPreviewComponent> createState() =>
+      _LinkPreviewComponentState();
+}
+
+class _LinkPreviewComponentState extends ConsumerState<LinkPreviewComponent> {
+  bool _isFetching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.node.status == LinkPreviewStatus.loading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _executeFetch());
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final smartWebLinks = ref.watch(smartWebLinksProvider);
+  void didUpdateWidget(LinkPreviewComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.node.status == LinkPreviewStatus.loading &&
+        (oldWidget.node.status != LinkPreviewStatus.loading ||
+            oldWidget.node.url != widget.node.url)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _executeFetch());
+    }
+  }
 
-    final Widget child;
-    if (!smartWebLinks) {
-      final colors = context.appColors;
-      final label = node.title.trim().isNotEmpty ? node.title.trim() : node.url;
-      child = Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () => LinkLauncherHelper.handleLinkTap(context, node.url),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Text(
-              label,
-              style: AppTypography.bodySmall.copyWith(
-                color: colors.accent,
-                decoration: TextDecoration.underline,
-                decorationColor: colors.accent.withValues(alpha: 0.5),
-              ),
+  Future<void> _executeFetch() async {
+    if (!ref.read(smartWebLinksProvider)) return;
+    if (_isFetching) return;
+    _isFetching = true;
+
+    try {
+      final baker = ref.read(linkPreviewBakerProvider);
+      final result = await baker.bakeUrlWithDiagnostics(
+        widget.node.url,
+        noteId: widget.noteId,
+      );
+
+      if (!mounted) return;
+      if (widget.editor.document.getNodeById(widget.node.id) == null) return;
+
+      if (result.isSuccess && result.block != null) {
+        final block = result.block!;
+        final oldThumb = widget.node.thumbnailAssetId;
+        if (oldThumb != null && oldThumb != block.thumbnailAssetId) {
+          _tombstoneAsset(oldThumb);
+        }
+
+        final successNode = widget.node.copyWith(
+          title: block.title,
+          description: block.description,
+          siteName: block.siteName,
+          thumbnailAssetId: block.thumbnailAssetId,
+          fetchedAt: block.fetchedAt,
+          status: LinkPreviewStatus.loaded,
+          diagnostics: result.diagnostics,
+        );
+
+        widget.editor.execute([
+          ReplaceNodeRequest(
+            existingNodeId: widget.node.id,
+            newNode: successNode,
+          ),
+        ]);
+      } else {
+        final failedNode = widget.node.copyWith(
+          status: LinkPreviewStatus.failed,
+          diagnostics: result.diagnostics,
+        );
+
+        widget.editor.execute([
+          ReplaceNodeRequest(
+            existingNodeId: widget.node.id,
+            newNode: failedNode,
+          ),
+        ]);
+      }
+    } finally {
+      _isFetching = false;
+    }
+  }
+
+  Future<void> _triggerRefresh() async {
+    final loadingNode = widget.node.copyWith(
+      status: LinkPreviewStatus.loading,
+      clearDiagnostics: true,
+    );
+
+    widget.editor.execute([
+      ReplaceNodeRequest(
+        existingNodeId: widget.node.id,
+        newNode: loadingNode,
+      ),
+    ]);
+  }
+
+  Future<void> _tombstoneAsset(String? assetUri) async {
+    if (assetUri == null || assetUri.trim().isEmpty) return;
+    final id = QuietPaperUri.tryParse(assetUri)?.resourceId ??
+        (assetUri.startsWith('qp://asset/')
+            ? assetUri.substring('qp://asset/'.length)
+            : null);
+    if (id != null && id.isNotEmpty) {
+      try {
+        await ref.read(attachmentServiceProvider).deleteAttachment(id);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _remove() async {
+    widget.editor.execute([DeleteNodeRequest(nodeId: widget.node.id)]);
+    await _tombstoneAsset(widget.node.thumbnailAssetId);
+  }
+
+  void _convertToPlainLink() {
+    final text = widget.node.title.isNotEmpty ? widget.node.title : widget.node.url;
+    final paragraphNode = ParagraphNode(
+      id: widget.node.id,
+      text: AttributedText(
+        text,
+        AttributedSpans(
+          attributions: [
+            SpanMarker(
+              attribution: LinkAttribution.fromUri(Uri.parse(widget.node.url)),
+              offset: 0,
+              markerType: SpanMarkerType.start,
+            ),
+            SpanMarker(
+              attribution: LinkAttribution.fromUri(Uri.parse(widget.node.url)),
+              offset: text.length - 1,
+              markerType: SpanMarkerType.end,
+            ),
+          ],
+        ),
+      ),
+    );
+    widget.editor.execute([
+      ReplaceNodeRequest(
+        existingNodeId: widget.node.id,
+        newNode: paragraphNode,
+      ),
+    ]);
+  }
+
+  Widget _buildPlainLink(BuildContext context, AppColors colors) {
+    final label = widget.node.title.trim().isNotEmpty
+        ? widget.node.title.trim()
+        : widget.node.url;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: () => LinkLauncherHelper.handleLinkTap(context, widget.node.url),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.accent,
+              decoration: TextDecoration.underline,
+              decorationColor: colors.accent.withValues(alpha: 0.5),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final smartWebLinks = ref.watch(smartWebLinksProvider);
+    final colors = context.appColors;
+
+    final Widget child;
+    if (!smartWebLinks) {
+      child = _buildPlainLink(context, colors);
+    } else if (widget.node.status == LinkPreviewStatus.loading) {
+      child = LinkPreviewLoadingCard(
+        url: widget.node.url,
+        title: widget.node.title,
       );
+    } else if (widget.node.status == LinkPreviewStatus.failed) {
+      final debugEnabled = ref.watch(linkPreviewDebugProvider);
+      if (debugEnabled && widget.node.diagnostics != null) {
+        child = LinkPreviewDebugCard(
+          diagnostics: widget.node.diagnostics!,
+          onRetry: _triggerRefresh,
+          onConvertToLink: _convertToPlainLink,
+          onRemove: widget.showRemove ? _remove : null,
+        );
+      } else {
+        child = _buildPlainLink(context, colors);
+      }
     } else {
       child = LinkPreviewCard(
-        block: node.toBlock(),
-        readOnly: !showRemove,
-        onRemove: showRemove ? () => _remove(ref) : null,
+        block: widget.node.toBlock(),
+        readOnly: !widget.showRemove,
+        onRemove: widget.showRemove ? _remove : null,
+        onRefresh: _triggerRefresh,
       );
     }
 
     return BoxComponent(
-      key: componentKey,
+      key: widget.componentKey,
       child: child,
     );
   }
@@ -475,8 +721,8 @@ class LinkPreviewComponent extends ConsumerWidget {
 
 /// Serializes a [LinkPreviewNode] back to its canonical two-line baked form —
 /// the visible Markdown link (`[title](url)`) followed by the `qp-link-preview`
-/// sentinel comment — guaranteeing a blank line before any following node so
-/// the block round-trips cleanly through [deserializeMarkdownToDocument].
+/// sentinel comment. If the preview is still loading or failed, it serializes
+/// as a plain link without the sentinel comment to preserve pristine markdown.
 class LinkPreviewNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<LinkPreviewNode> {
   const LinkPreviewNodeSerializer();
 
@@ -486,6 +732,17 @@ class LinkPreviewNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<
     LinkPreviewNode node, {
     NodeSelection? selection,
   }) {
+    if (node.status != LinkPreviewStatus.loaded) {
+      final text = node.title.isNotEmpty ? node.title : node.url;
+      final buffer = StringBuffer('[$text](${node.url})');
+      final nodeIndex = document.getNodeIndexById(node.id);
+      if (nodeIndex != document.nodeCount - 1) {
+        buffer.writeln();
+        buffer.writeln();
+      }
+      return buffer.toString();
+    }
+
     final buffer = StringBuffer('[${node.title}](${node.url})');
     buffer.writeln();
     buffer.write(encodeLinkPreviewComment(node.toBlock()));

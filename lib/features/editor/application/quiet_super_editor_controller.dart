@@ -596,6 +596,92 @@ class QuietSuperEditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Inserts a [LinkPreviewNode] in [status] (default: loading) at the caret.
+  /// If the caret sits in an empty paragraph, that paragraph is replaced.
+  void insertLinkPreview({
+    required String url,
+    String? title,
+    LinkPreviewStatus status = LinkPreviewStatus.loading,
+  }) {
+    if (_editor == null) return;
+    final previewId = Editor.createNodeId();
+    final trailingParaId = Editor.createNodeId();
+    final previewNode = LinkPreviewNode(
+      id: previewId,
+      url: url,
+      title: title ?? url,
+      fetchedAt: DateTime.now(),
+      status: status,
+    );
+
+    final sel = _composer?.selection;
+    if (sel != null) {
+      final currentNode = _editor!.document.getNodeById(sel.extent.nodeId);
+      if (currentNode is ParagraphNode && currentNode.text.toPlainText().trim().isEmpty) {
+        _editor!.execute([
+          ReplaceNodeRequest(
+            existingNodeId: currentNode.id,
+            newNode: previewNode,
+          ),
+          InsertNodeAfterNodeRequest(
+            existingNodeId: previewId,
+            newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+          ),
+          ChangeSelectionRequest(
+            DocumentSelection.collapsed(
+              position: DocumentPosition(
+                nodeId: trailingParaId,
+                nodePosition: const TextNodePosition(offset: 0),
+              ),
+            ),
+            SelectionChangeType.placeCaret,
+            SelectionReason.userInteraction,
+          ),
+        ]);
+        notifyListeners();
+        return;
+      }
+
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: sel.extent.nodeId,
+          newNode: previewNode,
+        ),
+        InsertNodeAfterNodeRequest(
+          existingNodeId: previewId,
+          newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+        ),
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: trailingParaId,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ),
+          SelectionChangeType.placeCaret,
+          SelectionReason.userInteraction,
+        ),
+      ]);
+      notifyListeners();
+      return;
+    }
+
+    if (_editor!.document.isNotEmpty) {
+      final lastNodeId = _editor!.document.last.id;
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: lastNodeId,
+          newNode: previewNode,
+        ),
+        InsertNodeAfterNodeRequest(
+          existingNodeId: previewId,
+          newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+        ),
+      ]);
+      notifyListeners();
+    }
+  }
+
   /// Returns the hyperlink covering the current caret/selection (within a single
   /// text node), or null. [range] spans the full link run so callers can rewrite
   /// it in place. Used to prefill and apply the Edit Link panel (Feature 2).

@@ -182,3 +182,31 @@ final smartWebLinksProvider =
   return SmartWebLinksNotifier(prefs);
 });
 
+class LinkPreviewDebugNotifier extends StateNotifier<bool> {
+  LinkPreviewDebugNotifier(this._prefs) : super(_load(_prefs));
+
+  final SharedPreferences? _prefs;
+  static const String _key = 'app_link_preview_debug';
+
+  /// Defaults to true so failure diagnostics are visible out of the box,
+  /// but can be toggled off in Settings under the Debug section.
+  static bool _load(SharedPreferences? prefs) => prefs?.getBool(_key) ?? true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await _prefs?.setBool(_key, value);
+  }
+}
+
+final linkPreviewDebugProvider =
+    StateNotifierProvider<LinkPreviewDebugNotifier, bool>((ref) {
+  SharedPreferences? prefs;
+  try {
+    prefs = ref.watch(sharedPreferencesProvider);
+  } catch (_) {
+    // If not provided in a test scope, fallback to in-memory defaults
+  }
+  return LinkPreviewDebugNotifier(prefs);
+});
+
+

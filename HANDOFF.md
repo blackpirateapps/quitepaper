@@ -9223,3 +9223,79 @@ While Section 202 introduced the in-memory L1 LRU thumbnail cache and keep-alive
 ### 4. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2017 tests passed**.
+
+---
+
+## 205. Super Editor Link Preview Loading Animation & Failure Diagnostics with Settings Debug Toggle (October 2026)
+
+### 1. Problem & Motivation
+Super Editor link preview cards previously lacked real-time loading feedback when fetching metadata, OpenGraph tags, and lead image thumbnails from external URLs. If fetching failed due to network timeouts, HTTP errors (404, 403, 500), DNS lookup failures, or unparseable HTML payloads, users were left without clear context or actionable recovery options. Furthermore, developers and users troubleshooting failing links had no access to diagnostic telemetry (such as HTTP response codes, redirect chains, fetch stage durations, or raw exceptions), and there was no mechanism to disable verbose technical diagnostics in favor of a quiet editorial presentation.
+
+### 2. Architectural Solution
+1. **Diagnostic Telemetry Model (`LinkFetchDiagnostics` & `LinkBakeResult`)**:
+   - Defined `enum LinkFetchStage` with user-friendly display labels: `dns`, `connect`, `tlsHandshake`, `headers`, `bodyDownload`, `htmlParse`, `metadataExtract`, `thumbnailDownload`, `thumbnailEncrypt`, `complete`.
+   - `LinkFetchDiagnostics` encapsulates:
+     - Target `url` and formatted ISO-8601 `timestamp`.
+     - Failure `stage`.
+     - `httpStatusCode` (e.g. 404, 500) and `httpStatusMessage`.
+     - `contentType` and redirect destination (`resolvedRedirectUri`).
+     - Network / parsing elapsed `duration`.
+     - `rawException` and list of non-fatal warnings / thumbnail errors (`errors`).
+     - Structured export via `toFormattedReport()` formatted for easy copy-pasting to bug trackers.
+   - `LinkBakeResult` cleanly separates successful `metadata` from captured `diagnostics`.
+
+2. **Instrumented Baker (`LinkPreviewBaker.bakeUrlWithDiagnostics`)**:
+   - Enhanced `LinkPreviewBaker` with `bakeUrlWithDiagnostics(String url, {String? noteId})`, tracking elapsed time with `Stopwatch` and capturing stage transitions.
+   - `_getWithRedirectsDetailed` follows redirects up to 5 hops, recording the final URI and handling network errors with `_friendlyNetworkError` to provide human-readable explanations.
+   - `_bakeThumbnailWithDiagnostics` isolates image download and XChaCha20-Poly1305 encryption failures without discarding successfully parsed metadata.
+
+3. **Settings Debug Toggle & State Management**:
+   - Created `LinkPreviewDebugNotifier` (`linkPreviewDebugProvider`) in `settings_provider.dart`, persisted in `SharedPreferences` under key `'app_link_preview_debug'` (default: `true`).
+   - Added a dedicated "Debug" section to `SettingsScreen` featuring a `CupertinoSwitch` for "Link preview debug info" with an explanatory caption.
+
+4. **Warm Editorial Shimmer Loading Card (`LinkPreviewLoadingCard`)**:
+   - Implemented an animated skeleton preview card matching Quiet Paper's warm editorial palette (`#F7F6F2` Light / `#1D1C1A` Dark).
+   - Driven by a looping `CurvedAnimation` controller with smooth linear gradient shimmer over placeholder bars (host domain, title, and description).
+   - Embedded a miniature progress spinner and favicon/link icon placeholder for responsive, non-jarring document layout.
+
+5. **Detailed Failure Diagnostics Card (`LinkPreviewDebugCard`)**:
+   - Renders a quiet editorial error card featuring:
+     - Domain host and failure stage pill badge.
+     - HTTP status code badge (e.g., `404 Not Found`).
+     - Total elapsed duration (e.g., `340ms`).
+     - Human-readable error message.
+     - Collapsible "Technical Details" accordion displaying raw exception, content-type, final redirect URI, and thumbnail errors.
+     - Interactive action bar:
+       - **Retry**: Re-initiates metadata baking.
+       - **Copy Info**: Copies the formatted diagnostics report to the system clipboard with an animated SnackBar confirmation.
+       - **Plain Link**: Converts the block node back to an inline markdown link (`[title](url)`).
+       - **Remove**: Deletes the link preview block node from the document.
+   - If the debug setting is toggled off (`linkPreviewDebugProvider == false`), the card presents a clean, minimalist fallback view without technical internals.
+
+6. **Super Editor In-Situ Node Lifecycle**:
+   - Extended `LinkPreviewNode` with `LinkPreviewStatus { loaded, loading, failed }` and attached `LinkFetchDiagnostics?`.
+   - Updated `LinkPreviewNodeSerializer`: emits markdown comments `<!-- qp-link-preview: ... -->` **only** when `status == LinkPreviewStatus.loaded`. Nodes in `loading` or `failed` state serialize as standard `[title](url)` links, preventing corrupted sentinel comments from contaminating markdown storage, exports, or encrypted sync payloads.
+   - Updated `promoteLinkPreviewNodes(document, promoteUnbaked: true)` and `QuietSuperEditorController.insertLinkPreview` to insert unbaked URLs directly as in-situ `LinkPreviewNode(status: loading)`, eliminating document flashing and cursor disruption.
+   - `QuietLinkPreviewComponent` acts as a reactive `ConsumerStatefulWidget`, automatically initiating baking on mount when in `loading` status and seamlessly transitioning to `loaded` or `failed`.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/web_clipper/link_fetch_diagnostics.dart`: Diagnostic data structures, stage enum, and formatting helpers.
+  - `lib/features/editor/presentation/widgets/super_editor/link_preview_loading_card.dart`: Shimmer skeleton loading widget.
+  - `lib/features/editor/presentation/widgets/super_editor/link_preview_debug_card.dart`: Failure diagnostics card with debug accordion and action bar.
+  - `test/core/web_clipper/link_fetch_diagnostics_test.dart`: Unit tests for diagnostics model and reports.
+  - `test/editor/link_preview_loading_and_debug_test.dart`: Widget and integration tests for loading card, debug card, settings toggle, component lifecycle, and serialization invariants.
+- **Modified Files**:
+  - `lib/core/web_clipper/link_preview_baker.dart`: Added `bakeUrlWithDiagnostics` and stage tracking.
+  - `lib/features/settings/application/settings_provider.dart`: Added `linkPreviewDebugProvider`.
+  - `lib/features/settings/presentation/settings_screen.dart`: Added Debug section with toggle switch.
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_link_preview_component.dart`: Added `LinkPreviewStatus`, diagnostics integration, in-situ fetch execution, and fallback views.
+  - `lib/features/editor/application/quiet_super_editor_controller.dart`: Added `insertLinkPreview` helper.
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Integrated `promoteUnbaked: true`.
+  - `lib/features/editor/presentation/editor_screen.dart`: Updated link paste handling to insert in-situ loading previews.
+  - `test/core/web_clipper/link_preview_baker_test.dart`: Extended with comprehensive diagnostic tests.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **2,036 tests passed** (including 28 Super Editor tests, 18 link preview baker tests, 18 round-trip tests, and 10 link preview loading & debug tests).
+

@@ -182,6 +182,80 @@ void main() {
       expect(block, isNotNull);
       expect(block!.title, 'custom-domain.org');
     });
+
+    test('captures detailed failure diagnostics on HTTP 403 Forbidden', () async {
+      final client = MockClient((_) async => http.Response('Forbidden', 403, headers: {'content-type': 'text/html'}));
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('https://example.com/protected');
+
+      expect(result.isSuccess, isFalse);
+      expect(result.block, isNull);
+      expect(result.diagnostics.httpStatusCode, equals(403));
+      expect(result.diagnostics.stage.displayLabel, equals('Network Request'));
+      expect(result.diagnostics.reason, contains('403'));
+      expect(result.diagnostics.reason, contains('Access denied'));
+    });
+
+    test('captures detailed diagnostics on invalid URL scheme', () async {
+      final client = MockClient((_) async => http.Response('', 200));
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('ftp://files.example.com');
+
+      expect(result.isSuccess, isFalse);
+      expect(result.diagnostics.stage.displayLabel, equals('URL Validation'));
+      expect(result.diagnostics.reason, contains('Unsupported URL scheme "ftp"'));
+    });
+
+    test('captures diagnostics when response Content-Type is not HTML', () async {
+      final client = MockClient((_) async => http.Response('PDF-1.4', 200, headers: {'content-type': 'application/pdf'}));
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('https://example.com/file.pdf');
+
+      expect(result.isSuccess, isFalse);
+      expect(result.diagnostics.stage.displayLabel, equals('HTML Validation'));
+      expect(result.diagnostics.contentType, equals('application/pdf'));
+      expect(result.diagnostics.reason, contains('application/pdf'));
+    });
+
+    test('captures diagnostics when response body is empty', () async {
+      final client = MockClient((_) async => http.Response('   ', 200, headers: {'content-type': 'text/html'}));
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('https://example.com/empty');
+
+      expect(result.isSuccess, isFalse);
+      expect(result.diagnostics.stage.displayLabel, equals('HTML Validation'));
+      expect(result.diagnostics.reason, contains('empty response body'));
+    });
+
+    test('captures network failure exception info', () async {
+      final client = MockClient((_) async => throw const SocketException('Failed host lookup'));
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('https://nonexistent-host.org');
+
+      expect(result.isSuccess, isFalse);
+      expect(result.diagnostics.stage.displayLabel, equals('Network Request'));
+      expect(result.diagnostics.reason, contains('Unable to resolve hostname'));
+      expect(result.diagnostics.rawException, contains('SocketException'));
+    });
+
+    test('records lead image failure telemetry while preserving text preview', () async {
+      final client = MockClient((request) async {
+        if (request.url.toString().endsWith('.png')) {
+          return http.Response('Not Found', 404);
+        }
+        return http.Response(_pageHtml, 200, headers: {'content-type': 'text/html'});
+      });
+
+      final result = await bakerWith(client).bakeUrlWithDiagnostics('https://example.com/post');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.block, isNotNull);
+      expect(result.block!.title, equals('OG Title'));
+      expect(result.block!.thumbnailAssetId, isNull);
+      expect(result.diagnostics.leadImageUrl, equals('https://cdn.example.com/thumb.png'));
+      expect(result.diagnostics.leadImageStatusCode, equals(404));
+      expect(result.diagnostics.leadImageError, contains('404'));
+    });
   });
 
   group('bakeMarkdown', () {

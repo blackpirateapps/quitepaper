@@ -1724,6 +1724,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 const SizedBox(height: 24),
 
                 // ==========================================
+                // Section: Debug
+                // ==========================================
+                _buildSectionHeader(context, 'Debug'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.bug_report_outlined,
+                      title: 'Link preview debug info',
+                      subtitle:
+                          'Show detailed failure diagnostics when link preview fetching fails in the editor.',
+                      trailing: CupertinoSwitch(
+                        value: ref.watch(linkPreviewDebugProvider),
+                        activeTrackColor: colors.accent,
+                        onChanged: (v) =>
+                            ref.read(linkPreviewDebugProvider.notifier).set(v),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
                 // Section: About
                 // ==========================================
                 _buildSectionHeader(context, 'About'),

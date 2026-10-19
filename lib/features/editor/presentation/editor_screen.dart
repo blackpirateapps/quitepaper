@@ -570,6 +570,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Future<void> _maybeBakeLinkPreviews() async {
     if (!mounted || _isDeactivated) return;
     if (!ref.read(smartWebLinksProvider)) return;
+    // Super Editor promotes unbaked lone links into LinkPreviewNodes with
+    // live skeleton loading animations and failure diagnostics in-situ.
+    if (_isSuperEditor) return;
 
     final LinkPreviewBaker baker;
     try {
@@ -3049,8 +3052,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     if (_isSuperEditor) {
       if (_superEditorController.hasExpandedSelection) return false;
-      _superEditorController.insertLinkRun(url: url, displayText: url);
-      _fetchAndPatchLinkTitle(url);
+      _superEditorController.insertLinkPreview(url: url);
       return true;
     }
     if (_isWysiwyg && _richDocumentController != null) {
