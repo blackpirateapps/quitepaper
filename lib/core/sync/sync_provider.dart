@@ -7,6 +7,7 @@ import '../crypto/key_manager.dart';
 import '../device/device_info_service.dart';
 import '../documents/document_provider.dart';
 import '../storage/cloud_storage_provider.dart';
+import '../ocr/ocr_provider.dart';
 import 'conflict/conflict_model.dart';
 import 'conflict/conflict_repository.dart';
 import 'conflict/conflict_resolver.dart';
@@ -58,7 +59,13 @@ final conflictRepositoryProvider = Provider<ConflictRepository>((ref) {
 
 final conflictResolverProvider = Provider<ConflictResolver>((ref) {
   final db = ref.watch(databaseProvider);
-  return ConflictResolver(database: db);
+  final km = ref.watch(keyManagerProvider);
+  final ocrSearchService = ref.watch(ocrSearchServiceProvider);
+  return ConflictResolver(
+    database: db,
+    keyManager: km,
+    ocrSearchService: ocrSearchService,
+  );
 });
 
 final pendingConflictsStreamProvider =
@@ -82,6 +89,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   final documentSync = ref.watch(documentSyncServiceProvider);
   final conflictResolver = ref.watch(conflictResolverProvider);
   final deviceInfo = ref.watch(deviceInfoServiceProvider);
+  final ocrSearchService = ref.watch(ocrSearchServiceProvider);
 
   final engine = SyncEngine(
     database: db,
@@ -93,6 +101,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     documentSyncService: documentSync,
     conflictResolver: conflictResolver,
     deviceInfoService: deviceInfo,
+    ocrSearchService: ocrSearchService,
     onDeviceRevoked: (msg) {
       ref.read(remoteRevocationNoticeProvider.notifier).state = msg;
     },

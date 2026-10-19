@@ -13,8 +13,8 @@ void main() {
   });
 
   group('AppDatabase Journal Schema & Query Tests', () {
-    test('schema version is 18', () {
-      expect(db.schemaVersion, 18);
+    test('schema version is 19', () {
+      expect(db.schemaVersion, 19);
     });
 
     test('saveNote saves journalDate and getJournalEntry finds it', () async {

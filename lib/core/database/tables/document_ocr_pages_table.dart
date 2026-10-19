@@ -33,6 +33,21 @@ class DocumentOcrPagesTable extends Table {
   /// Processing completion timestamp
   DateTimeColumn get processedAt => dateTime()();
 
+  /// Server revision for optimistic sync; 0 until first synced
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Base revision for conflict detection on push
+  IntColumn get baseRevision => integer().withDefault(const Constant(0))();
+
+  /// Whether local changes await push to backend
+  BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
+
+  /// Whether this OCR page is deleted
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+
+  /// Last local mutation timestamp
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
   @override
   Set<Column> get primaryKey => {documentId, pageNumber};
 }

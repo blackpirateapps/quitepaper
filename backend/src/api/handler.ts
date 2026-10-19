@@ -401,6 +401,38 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
       };
     }
 
+    // POST /api/v1/sync/ocr/push (zero-knowledge OCR push with conflict detection)
+    if (pathname === '/api/v1/sync/ocr/push' && method === 'POST') {
+      const { pushOcrPages } = await import('../sync/syncService.js');
+      const pushResult = await pushOcrPages(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pushResult,
+      };
+    }
+
+    // GET or POST /api/v1/sync/ocr/pull (zero-knowledge OCR pull with revision cursor)
+    if (pathname === '/api/v1/sync/ocr/pull') {
+      const { pullOcrPages } = await import('../sync/syncService.js');
+      let cursor = 0;
+      let limit = 100;
+      if (method === 'GET') {
+        const urlObj = new URL(rawUrl, 'http://localhost');
+        cursor = parseInt(urlObj.searchParams.get('cursor') || '0', 10);
+        limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+      } else if (method === 'POST') {
+        cursor = req.body?.cursor ?? 0;
+        limit = req.body?.limit ?? 100;
+      }
+      const pullResult = await pullOcrPages(db, userId, { cursor, limit });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: pullResult,
+      };
+    }
+
     // GET /api/v1/sync/cursor
     if (pathname === '/api/v1/sync/cursor' && method === 'GET') {
       const cursor = await getLatestCursor(db, userId);

@@ -16,39 +16,46 @@ class MarkdownMergeEngine {
       return MergeResult.clean(local);
     }
 
-    // Fast path: base is empty / null
-    if (base == null || base.isEmpty) {
+    // Fast path: base is empty / null - attempt to synthesize virtual base from common lines
+    var effectiveBase = base;
+    if (effectiveBase == null || effectiveBase.isEmpty) {
       if (local.isEmpty) return MergeResult.clean(remote);
       if (remote.isEmpty) return MergeResult.clean(local);
       if (local == remote) return MergeResult.clean(local);
-      return MergeResult.conflicted(
-        mergedValue: local,
-        conflictType: ConflictType.content,
-        conflictRegions: [
-          ConflictRegion(
-            id: 'region_root',
-            baseText: '',
-            localText: local,
-            remoteText: remote,
-            startLine: 1,
-            endLine: math.max(local.split('\n').length, remote.split('\n').length),
-          ),
-        ],
-        explanation: 'Both devices created different initial note contents.',
-      );
+
+      final virtualBase = computeLcsBase(local, remote);
+      if (virtualBase != null && virtualBase.isNotEmpty) {
+        effectiveBase = virtualBase;
+      } else {
+        return MergeResult.conflicted(
+          mergedValue: local,
+          conflictType: ConflictType.content,
+          conflictRegions: [
+            ConflictRegion(
+              id: 'region_root',
+              baseText: '',
+              localText: local,
+              remoteText: remote,
+              startLine: 1,
+              endLine: math.max(local.split('\n').length, remote.split('\n').length),
+            ),
+          ],
+          explanation: 'Both devices created different initial note contents.',
+        );
+      }
     }
 
     // Fast path: local unchanged from base
-    if (base == local) {
+    if (effectiveBase == local) {
       return MergeResult.clean(remote);
     }
 
     // Fast path: remote unchanged from base
-    if (base == remote) {
+    if (effectiveBase == remote) {
       return MergeResult.clean(local);
     }
 
-    final baseLines = _splitLines(base);
+    final baseLines = _splitLines(effectiveBase);
     final localLines = _splitLines(local);
     final remoteLines = _splitLines(remote);
 
@@ -402,6 +409,51 @@ class MarkdownMergeEngine {
       if (a[i] != b[i]) return false;
     }
     return true;
+  }
+
+  /// Computes a synthesized virtual base from the longest common subsequence (LCS)
+  /// of lines between [local] and [remote].
+  ///
+  /// This allows diff3 merge to discover common context even when no ancestor
+  /// base revision is available (e.g. concurrent creation or initial OCR sync).
+  String? computeLcsBase(String local, String remote) {
+    final localLines = _splitLines(local);
+    final remoteLines = _splitLines(remote);
+
+    final n = localLines.length;
+    final m = remoteLines.length;
+    if (n == 0 || m == 0) return null;
+
+    final lcs = List.generate(n + 1, (_) => List.filled(m + 1, 0));
+    for (var i = 1; i <= n; i++) {
+      for (var j = 1; j <= m; j++) {
+        if (localLines[i - 1] == remoteLines[j - 1]) {
+          lcs[i][j] = lcs[i - 1][j - 1] + 1;
+        } else {
+          lcs[i][j] = math.max(lcs[i - 1][j], lcs[i][j - 1]);
+        }
+      }
+    }
+
+    final matches = <String>[];
+    var i = n;
+    var j = m;
+    while (i > 0 && j > 0) {
+      if (localLines[i - 1] == remoteLines[j - 1]) {
+        matches.add(localLines[i - 1]);
+        i--;
+        j--;
+      } else if (lcs[i - 1][j] >= lcs[i][j - 1]) {
+        i--;
+      } else {
+        j--;
+      }
+    }
+
+    if (matches.isEmpty) return null;
+    final common = matches.reversed.toList();
+    if (common.every((line) => line.trim().isEmpty)) return null;
+    return common.join('\n');
   }
 }
 

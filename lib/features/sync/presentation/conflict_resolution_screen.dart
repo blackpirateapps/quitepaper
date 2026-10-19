@@ -100,7 +100,11 @@ class _ConflictResolutionScreenState
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kept local version of note.')),
+        SnackBar(
+          content: Text(widget.conflict.isOcrConflict
+              ? 'Kept local OCR text.'
+              : 'Kept local version of note.'),
+        ),
       );
       Navigator.of(context).pop();
     } catch (e) {
@@ -122,7 +126,11 @@ class _ConflictResolutionScreenState
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Applied remote server version.')),
+        SnackBar(
+          content: Text(widget.conflict.isOcrConflict
+              ? 'Applied remote server OCR text.'
+              : 'Applied remote server version.'),
+        ),
       );
       Navigator.of(context).pop();
     } catch (e) {
@@ -171,7 +179,11 @@ class _ConflictResolutionScreenState
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Successfully merged and saved note.')),
+        SnackBar(
+          content: Text(widget.conflict.isOcrConflict
+              ? 'Successfully merged and saved OCR text.'
+              : 'Successfully merged and saved note.'),
+        ),
       );
       Navigator.of(context).pop();
     } catch (e) {
@@ -258,9 +270,11 @@ class _ConflictResolutionScreenState
                   const SizedBox(height: AppSpacing.md),
 
                   if (_selectedTab == 0) ...[
-                    // Title Editor
-                    _buildTitleEditor(colors, conflict),
-                    const SizedBox(height: AppSpacing.lg),
+                    // Title Editor (only for notes, not OCR page text)
+                    if (!conflict.isOcrConflict) ...[
+                      _buildTitleEditor(colors, conflict),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
 
                     // Conflict Regions Demarcation (if any)
                     if (_regions.isNotEmpty) ...[
@@ -279,7 +293,9 @@ class _ConflictResolutionScreenState
 
                     // Markdown Content Editor
                     Text(
-                      'Merged Note Content',
+                      conflict.isOcrConflict
+                          ? 'Merged OCR Text'
+                          : 'Merged Note Content',
                       style: AppTypography.bodyMedium.copyWith(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.w600,
@@ -410,17 +426,18 @@ class _ConflictResolutionScreenState
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
         ),
-        ElevatedButton.icon(
-          onPressed: _handleKeepBoth,
-          icon: const Icon(Icons.copy_rounded, size: 16),
-          label: const Text('Keep Both'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.elevated,
-            foregroundColor: colors.textPrimary,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        if (!widget.conflict.isOcrConflict)
+          ElevatedButton.icon(
+            onPressed: _handleKeepBoth,
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Keep Both'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.elevated,
+              foregroundColor: colors.textPrimary,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
           ),
-        ),
       ],
     );
   }

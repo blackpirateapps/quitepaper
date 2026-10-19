@@ -1196,3 +1196,227 @@ class PullDocumentAnnotationSyncResponse {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Zero-knowledge OCR page sync & conflict models (documents & image attachments)
+// ---------------------------------------------------------------------------
+
+@immutable
+class OcrPageSyncPayload {
+  const OcrPageSyncPayload({
+    required this.resourceType,
+    required this.resourceId,
+    this.pageNumber = 1,
+    required this.contentCiphertext,
+    this.ocrEngine = 'quietpaper_ocr_v1',
+    this.ocrEngineVersion = '1.0.0',
+    this.language = 'en',
+    this.processedAt,
+    required this.updatedAtMs,
+    this.isDeleted = false,
+    this.baseRevision,
+  });
+
+  final String resourceType; // 'document' | 'attachment'
+  final String resourceId;
+  final int pageNumber;
+  final String contentCiphertext;
+  final String ocrEngine;
+  final String ocrEngineVersion;
+  final String language;
+  final DateTime? processedAt;
+  final int updatedAtMs;
+  final bool isDeleted;
+  final int? baseRevision;
+
+  Map<String, dynamic> toJson() => {
+        'resourceType': resourceType,
+        'resourceId': resourceId,
+        'pageNumber': pageNumber,
+        'contentCiphertext': contentCiphertext,
+        'ocrEngine': ocrEngine,
+        'ocrEngineVersion': ocrEngineVersion,
+        'language': language,
+        if (processedAt != null) 'processedAt': processedAt!.toIso8601String(),
+        'updatedAtMs': updatedAtMs,
+        'isDeleted': isDeleted,
+        if (baseRevision != null) 'baseRevision': baseRevision,
+      };
+}
+
+@immutable
+class OcrConflictServerHead {
+  const OcrConflictServerHead({
+    required this.revision,
+    required this.contentCiphertext,
+    this.ocrEngine = 'quietpaper_ocr_v1',
+    this.ocrEngineVersion = '1.0.0',
+    this.language = 'en',
+    this.isDeleted = false,
+    this.deletedAt,
+    required this.updatedAt,
+  });
+
+  final int revision;
+  final String contentCiphertext;
+  final String ocrEngine;
+  final String ocrEngineVersion;
+  final String language;
+  final bool isDeleted;
+  final String? deletedAt;
+  final DateTime updatedAt;
+
+  factory OcrConflictServerHead.fromJson(Map<String, dynamic> json) =>
+      OcrConflictServerHead(
+        revision: (json['revision'] as num?)?.toInt() ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
+        ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
+        language: json['language'] as String? ?? 'en',
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] as String?,
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+            DateTime.now(),
+      );
+}
+
+@immutable
+class OcrConflictItem {
+  const OcrConflictItem({
+    required this.id,
+    required this.resourceType,
+    required this.resourceId,
+    required this.pageNumber,
+    required this.serverRevision,
+    required this.baseRevision,
+    required this.code,
+    required this.message,
+    required this.serverHead,
+  });
+
+  final String id;
+  final String resourceType; // 'document' | 'attachment'
+  final String resourceId;
+  final int pageNumber;
+  final int serverRevision;
+  final int baseRevision;
+  final String code;
+  final String message;
+  final OcrConflictServerHead serverHead;
+
+  factory OcrConflictItem.fromJson(Map<String, dynamic> json) =>
+      OcrConflictItem(
+        id: json['id'] as String? ?? '',
+        resourceType: json['resourceType'] as String? ?? 'document',
+        resourceId: json['resourceId'] as String? ?? '',
+        pageNumber: (json['pageNumber'] as num?)?.toInt() ?? 1,
+        serverRevision: (json['serverRevision'] as num?)?.toInt() ?? 0,
+        baseRevision: (json['baseRevision'] as num?)?.toInt() ?? 0,
+        code: json['code'] as String? ?? 'SYNC_CONFLICT',
+        message: json['message'] as String? ?? '',
+        serverHead: OcrConflictServerHead.fromJson(
+          json['serverHead'] as Map<String, dynamic>? ?? {},
+        ),
+      );
+}
+
+@immutable
+class PushOcrSyncResponse {
+  const PushOcrSyncResponse({
+    required this.results,
+    required this.conflicts,
+    required this.cursor,
+  });
+
+  final List<PushResultItem> results;
+  final List<OcrConflictItem> conflicts;
+  final int cursor;
+
+  factory PushOcrSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawResults = json['results'] as List? ?? [];
+    final rawConflicts = json['conflicts'] as List? ?? [];
+    return PushOcrSyncResponse(
+      results: rawResults
+          .map((r) => PushResultItem.fromJson(r as Map<String, dynamic>))
+          .toList(),
+      conflicts: rawConflicts
+          .map((c) => OcrConflictItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: (json['cursor'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+@immutable
+class PullOcrPageChangeItem {
+  const PullOcrPageChangeItem({
+    required this.resourceType,
+    required this.resourceId,
+    required this.pageNumber,
+    required this.revision,
+    required this.contentCiphertext,
+    this.ocrEngine = 'quietpaper_ocr_v1',
+    this.ocrEngineVersion = '1.0.0',
+    this.language = 'en',
+    this.processedAt,
+    required this.updatedAtMs,
+    this.isDeleted = false,
+    this.deletedAt,
+  });
+
+  final String resourceType; // 'document' | 'attachment'
+  final String resourceId;
+  final int pageNumber;
+  final int revision;
+  final String contentCiphertext;
+  final String ocrEngine;
+  final String ocrEngineVersion;
+  final String language;
+  final DateTime? processedAt;
+  final int updatedAtMs;
+  final bool isDeleted;
+  final String? deletedAt;
+
+  factory PullOcrPageChangeItem.fromJson(Map<String, dynamic> json) =>
+      PullOcrPageChangeItem(
+        resourceType: json['resourceType'] as String? ?? 'document',
+        resourceId: json['resourceId'] as String? ?? '',
+        pageNumber: (json['pageNumber'] as num?)?.toInt() ?? 1,
+        revision: (json['revision'] as num?)?.toInt() ?? 1,
+        contentCiphertext: json['contentCiphertext'] as String? ?? '',
+        ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
+        ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
+        language: json['language'] as String? ?? 'en',
+        processedAt: json['processedAt'] != null
+            ? DateTime.tryParse(json['processedAt'] as String)
+            : null,
+        updatedAtMs: (json['updatedAtMs'] as num?)?.toInt() ?? 0,
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        deletedAt: json['deletedAt'] as String?,
+      );
+}
+
+@immutable
+class PullOcrSyncResponse {
+  const PullOcrSyncResponse({
+    required this.changes,
+    required this.cursor,
+    required this.hasMore,
+  });
+
+  final List<PullOcrPageChangeItem> changes;
+  final int cursor;
+  final bool hasMore;
+
+  factory PullOcrSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['changes'] as List? ?? [];
+    return PullOcrSyncResponse(
+      changes: rawChanges
+          .map((c) =>
+              PullOcrPageChangeItem.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      cursor: (json['cursor'] as num?)?.toInt() ?? 0,
+      hasMore: json['hasMore'] as bool? ?? false,
+    );
+  }
+}
+

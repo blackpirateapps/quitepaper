@@ -48,6 +48,7 @@ class FakeAttachmentProcessingService extends AttachmentProcessingService {
     required String attachmentId,
     required Uint8List imageBytes,
     OcrLanguage language = OcrLanguage.english,
+    bool force = false,
   }) async {
     processCalls++;
   }

@@ -47,6 +47,7 @@ class SyncConflict {
     this.resolvedTitle,
     this.resolvedTags,
     this.explanation,
+    this.extraData,
   });
 
   final String id;
@@ -72,6 +73,9 @@ class SyncConflict {
   final String? resolvedTitle;
   final List<String>? resolvedTags;
   final String? explanation;
+  final Map<String, dynamic>? extraData;
+
+  bool get isOcrConflict => extraData?['isOcr'] == true;
 
   bool get isResolved => state == ConflictState.resolved || state == ConflictState.autoMerged;
   bool get requiresManualResolution => state == ConflictState.manualRequired;
@@ -114,6 +118,7 @@ class SyncConflict {
     String? resolvedTitle,
     List<String>? resolvedTags,
     String? explanation,
+    Map<String, dynamic>? extraData,
   }) {
     return SyncConflict(
       id: id ?? this.id,
@@ -137,6 +142,7 @@ class SyncConflict {
       resolvedTitle: resolvedTitle ?? this.resolvedTitle,
       resolvedTags: resolvedTags ?? this.resolvedTags,
       explanation: explanation ?? this.explanation,
+      extraData: extraData ?? this.extraData,
     );
   }
 
@@ -164,6 +170,7 @@ class SyncConflict {
         if (resolvedTitle != null) 'resolvedTitle': resolvedTitle,
         if (resolvedTags != null) 'resolvedTags': resolvedTags,
         if (explanation != null) 'explanation': explanation,
+        if (extraData != null) 'extraData': extraData,
       };
 
   factory SyncConflict.fromJson(Map<String, dynamic> json) {
@@ -227,6 +234,7 @@ class SyncConflict {
           ?.map((e) => e.toString())
           .toList(),
       explanation: json['explanation'] as String?,
+      extraData: json['extraData'] as Map<String, dynamic>?,
     );
   }
 

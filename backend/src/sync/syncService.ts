@@ -1481,3 +1481,305 @@ export async function pullDocumentAnnotations(
     hasMore,
   };
 }
+
+// ---------------------------------------------------------------------------
+// OCR Page Sync & 3-Way Conflict Tracking (documents & image attachments)
+// ---------------------------------------------------------------------------
+export interface OcrConflictItem {
+  id: string;
+  resourceType: 'document' | 'attachment';
+  resourceId: string;
+  pageNumber: number;
+  serverRevision: number;
+  baseRevision: number;
+  code: string;
+  message: string;
+  serverHead: {
+    revision: number;
+    contentCiphertext: string;
+    ocrEngine: string;
+    ocrEngineVersion: string;
+    language: string;
+    isDeleted: boolean;
+    deletedAt: string | null;
+    updatedAt: string;
+  };
+}
+
+export interface PushOcrResponse {
+  results: PushResultItem[];
+  conflicts: OcrConflictItem[];
+  cursor: number;
+}
+
+export interface PullOcrPageChangeItem {
+  resourceType: 'document' | 'attachment';
+  resourceId: string;
+  pageNumber: number;
+  revision: number;
+  contentCiphertext: string;
+  ocrEngine: string;
+  ocrEngineVersion: string;
+  language: string;
+  processedAt: string;
+  updatedAtMs: number;
+  isDeleted: boolean;
+  deletedAt: string | null;
+}
+
+export interface PullOcrResponse {
+  changes: PullOcrPageChangeItem[];
+  cursor: number;
+  hasMore: boolean;
+}
+
+export async function pushOcrPages(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<PushOcrResponse> {
+  const { pushOcrPagesSchema } = await import('../validation/schemas.js');
+  const parsed = pushOcrPagesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid OCR push body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { pages, deviceId } = parsed.data;
+  const appliedResults: PushResultItem[] = [];
+  const conflicts: OcrConflictItem[] = [];
+
+  const maxDocRevRes = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM document_ocr_pages WHERE user_id = ?',
+    args: [userId],
+  });
+  const maxAttRevRes = await db.execute({
+    sql: 'SELECT COALESCE(MAX(revision), 0) as max_rev FROM attachment_ocr_pages WHERE user_id = ?',
+    args: [userId],
+  });
+  let currentMaxRev = Math.max(
+    Number(maxDocRevRes.rows[0]?.max_rev || 0),
+    Number(maxAttRevRes.rows[0]?.max_rev || 0)
+  );
+
+  for (const page of pages) {
+    const isDoc = page.resourceType === 'document';
+    const tableName = isDoc ? 'document_ocr_pages' : 'attachment_ocr_pages';
+    const idColumn = isDoc ? 'document_id' : 'attachment_id';
+
+    const existingRes = await db.execute({
+      sql: `SELECT revision, is_deleted, deleted_at, updated_at, encrypted_payload,
+                   ocr_engine, ocr_engine_version, language
+            FROM ${tableName}
+            WHERE ${idColumn} = ? AND user_id = ? AND page_number = ?
+            LIMIT 1`,
+      args: [page.resourceId, userId, page.pageNumber],
+    });
+
+    const existingRow = existingRes.rows[0];
+    const serverRevision = existingRow ? Number(existingRow.revision) : 0;
+    const compositeId = `${page.resourceType}:${page.resourceId}:${page.pageNumber}`;
+
+    // Conflict detection: if client sent baseRevision and server revision is newer
+    if (page.baseRevision != null && serverRevision > 0 && page.baseRevision < serverRevision) {
+      conflicts.push({
+        id: compositeId,
+        resourceType: page.resourceType,
+        resourceId: page.resourceId,
+        pageNumber: page.pageNumber,
+        serverRevision,
+        baseRevision: page.baseRevision,
+        code: 'SYNC_CONFLICT',
+        message: `Conflict detected. Server OCR is at revision ${serverRevision}, client base revision was ${page.baseRevision}.`,
+        serverHead: {
+          revision: serverRevision,
+          contentCiphertext: (existingRow.encrypted_payload as string) || '',
+          ocrEngine: (existingRow.ocr_engine as string) || 'quietpaper_ocr_v1',
+          ocrEngineVersion: (existingRow.ocr_engine_version as string) || '1.0.0',
+          language: (existingRow.language as string) || 'en',
+          isDeleted: Number(existingRow.is_deleted) === 1,
+          deletedAt: existingRow.deleted_at as string | null,
+          updatedAt: (existingRow.updated_at as string) || new Date().toISOString(),
+        },
+      });
+      continue;
+    }
+
+    currentMaxRev += 1;
+    const now = new Date().toISOString();
+    const deletedAt = page.isDeleted ? now : null;
+    const processedAt = page.processedAt || now;
+
+    if (isDoc) {
+      await db.execute({
+        sql: `INSERT INTO document_ocr_pages (
+                document_id, page_number, user_id, encrypted_payload,
+                ocr_schema_version, ocr_engine, ocr_engine_version, language,
+                processed_at, revision, base_revision, is_deleted, deleted_at,
+                created_at, updated_at, updated_at_ms, created_by_device, updated_by_device
+              )
+              VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(document_id, page_number) DO UPDATE SET
+                encrypted_payload = excluded.encrypted_payload,
+                ocr_engine = excluded.ocr_engine,
+                ocr_engine_version = excluded.ocr_engine_version,
+                language = excluded.language,
+                processed_at = excluded.processed_at,
+                revision = excluded.revision,
+                base_revision = excluded.base_revision,
+                is_deleted = excluded.is_deleted,
+                deleted_at = excluded.deleted_at,
+                updated_at = excluded.updated_at,
+                updated_at_ms = excluded.updated_at_ms,
+                updated_by_device = excluded.updated_by_device`,
+        args: [
+          page.resourceId,
+          page.pageNumber,
+          userId,
+          page.contentCiphertext,
+          page.ocrEngine,
+          page.ocrEngineVersion,
+          page.language,
+          processedAt,
+          currentMaxRev,
+          page.baseRevision || 0,
+          page.isDeleted ? 1 : 0,
+          deletedAt,
+          now,
+          now,
+          page.updatedAtMs,
+          deviceId || null,
+          deviceId || null,
+        ],
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO attachment_ocr_pages (
+                user_id, attachment_id, page_number, encrypted_payload,
+                ocr_schema_version, ocr_engine, ocr_engine_version, language,
+                processed_at, revision, base_revision, is_deleted, deleted_at,
+                created_at, updated_at, updated_at_ms, created_by_device, updated_by_device
+              )
+              VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(user_id, attachment_id, page_number) DO UPDATE SET
+                encrypted_payload = excluded.encrypted_payload,
+                ocr_engine = excluded.ocr_engine,
+                ocr_engine_version = excluded.ocr_engine_version,
+                language = excluded.language,
+                processed_at = excluded.processed_at,
+                revision = excluded.revision,
+                base_revision = excluded.base_revision,
+                is_deleted = excluded.is_deleted,
+                deleted_at = excluded.deleted_at,
+                updated_at = excluded.updated_at,
+                updated_at_ms = excluded.updated_at_ms,
+                updated_by_device = excluded.updated_by_device`,
+        args: [
+          userId,
+          page.resourceId,
+          page.pageNumber,
+          page.contentCiphertext,
+          page.ocrEngine,
+          page.ocrEngineVersion,
+          page.language,
+          processedAt,
+          currentMaxRev,
+          page.baseRevision || 0,
+          page.isDeleted ? 1 : 0,
+          deletedAt,
+          now,
+          now,
+          page.updatedAtMs,
+          deviceId || null,
+          deviceId || null,
+        ],
+      });
+    }
+
+    appliedResults.push({
+      id: compositeId,
+      revision: currentMaxRev,
+      status: 'applied',
+      updatedAt: now,
+    });
+  }
+
+  if (deviceId) {
+    await recordDeviceCheckpoint(db, userId, deviceId);
+  }
+
+  return {
+    results: appliedResults,
+    conflicts,
+    cursor: currentMaxRev,
+  };
+}
+
+export async function pullOcrPages(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<PullOcrResponse> {
+  const { pullOcrPagesSchema } = await import('../validation/schemas.js');
+  const parsed = pullOcrPagesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid OCR pull body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { cursor, limit } = parsed.data;
+
+  const docResults = await db.execute({
+    sql: `SELECT 'document' as resource_type, document_id as resource_id, page_number, revision,
+                 encrypted_payload, ocr_engine, ocr_engine_version, language, processed_at,
+                 updated_at_ms, is_deleted, deleted_at
+          FROM document_ocr_pages
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const attResults = await db.execute({
+    sql: `SELECT 'attachment' as resource_type, attachment_id as resource_id, page_number, revision,
+                 encrypted_payload, ocr_engine, ocr_engine_version, language, processed_at,
+                 updated_at_ms, is_deleted, deleted_at
+          FROM attachment_ocr_pages
+          WHERE user_id = ? AND revision > ?
+          ORDER BY revision ASC
+          LIMIT ?`,
+    args: [userId, cursor, limit + 1],
+  });
+
+  const allRows = [...docResults.rows, ...attResults.rows];
+  allRows.sort((a, b) => Number(a.revision) - Number(b.revision));
+
+  const hasMore = allRows.length > limit;
+  const rowsToUse = hasMore ? allRows.slice(0, limit) : allRows;
+
+  const changes: PullOcrPageChangeItem[] = rowsToUse.map(r => ({
+    resourceType: r.resource_type as 'document' | 'attachment',
+    resourceId: r.resource_id as string,
+    pageNumber: Number(r.page_number),
+    revision: Number(r.revision),
+    contentCiphertext: (r.encrypted_payload as string) || '',
+    ocrEngine: (r.ocr_engine as string) || 'quietpaper_ocr_v1',
+    ocrEngineVersion: (r.ocr_engine_version as string) || '1.0.0',
+    language: (r.language as string) || 'en',
+    processedAt: (r.processed_at as string) || new Date().toISOString(),
+    updatedAtMs: Number(r.updated_at_ms || 0),
+    isDeleted: Number(r.is_deleted) === 1,
+    deletedAt: r.deleted_at as string | null,
+  }));
+
+  let nextCursor = cursor;
+  for (const r of rowsToUse) {
+    if (Number(r.revision) > nextCursor) {
+      nextCursor = Number(r.revision);
+    }
+  }
+
+  return {
+    changes,
+    cursor: nextCursor,
+    hasMore,
+  };
+}

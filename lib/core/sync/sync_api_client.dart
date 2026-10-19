@@ -133,6 +133,22 @@ abstract class SyncApiClient {
     return const PullDocumentAnnotationSyncResponse(
         changes: [], cursor: 0, hasMore: false);
   }
+
+  /// Zero-knowledge OCR page sync (documents & image attachments)
+  Future<PushOcrSyncResponse> pushOcrPages(
+    List<OcrPageSyncPayload> pages, {
+    String? deviceId,
+    String? idempotencyKey,
+  }) async {
+    return const PushOcrSyncResponse(results: [], conflicts: [], cursor: 0);
+  }
+
+  Future<PullOcrSyncResponse> pullOcrPages({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    return const PullOcrSyncResponse(changes: [], cursor: 0, hasMore: false);
+  }
   Future<PullChangeItem?> getHistoricalRevision({
     required String noteId,
     required int revision,
@@ -1045,6 +1061,70 @@ class HttpSyncApiClient implements SyncApiClient {
           '[SyncApiClient] pullDocumentAnnotations failed, will retry next sync: $e');
       return const PullDocumentAnnotationSyncResponse(
           changes: [], cursor: 0, hasMore: false);
+    }
+  }
+
+  @override
+  Future<PushOcrSyncResponse> pushOcrPages(
+    List<OcrPageSyncPayload> pages, {
+    String? deviceId,
+    String? idempotencyKey,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/api/v1/sync/ocr/push');
+      final body = {
+        'pages': pages.map((p) => p.toJson()).toList(),
+        'deviceId': ?deviceId,
+        'idempotencyKey': ?idempotencyKey,
+      };
+
+      final res = await _sendWithAuthRetry((headers) => _client.post(
+            url,
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json',
+              'Idempotency-Key': ?idempotencyKey,
+            },
+            body: jsonEncode(body),
+          ));
+
+      if (res.statusCode != 200) {
+        throw Exception(_extractErrorMessage(res, 'Failed to push OCR pages'));
+      }
+
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to push OCR pages: Invalid JSON response');
+      }
+      return PushOcrSyncResponse.fromJson(data);
+    } catch (e) {
+      debugPrint('[SyncApiClient] pushOcrPages failed, will retry next sync: $e');
+      return const PushOcrSyncResponse(results: [], conflicts: [], cursor: 0);
+    }
+  }
+
+  @override
+  Future<PullOcrSyncResponse> pullOcrPages({
+    required int cursor,
+    int limit = 100,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/api/v1/sync/ocr/pull?cursor=$cursor&limit=$limit');
+      final res = await _sendWithAuthRetry(
+          (headers) => _client.get(url, headers: headers));
+
+      if (res.statusCode != 200) {
+        throw Exception(_extractErrorMessage(res, 'Failed to pull OCR pages'));
+      }
+
+      final data = _safeParseJson(res.body);
+      if (data == null) {
+        throw Exception('Failed to pull OCR pages: Invalid JSON response');
+      }
+      return PullOcrSyncResponse.fromJson(data);
+    } catch (e) {
+      debugPrint('[SyncApiClient] pullOcrPages failed, will retry next sync: $e');
+      return const PullOcrSyncResponse(changes: [], cursor: 0, hasMore: false);
     }
   }
 

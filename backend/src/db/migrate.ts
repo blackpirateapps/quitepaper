@@ -143,9 +143,42 @@ CREATE TABLE IF NOT EXISTS document_ocr_pages (
   ocr_engine_version TEXT NOT NULL DEFAULT '1.0.0',
   language TEXT NOT NULL DEFAULT 'en',
   processed_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  base_revision INTEGER NOT NULL DEFAULT 0,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  updated_at_ms INTEGER NOT NULL DEFAULT 0,
+  created_by_device TEXT,
+  updated_by_device TEXT,
   PRIMARY KEY (document_id, page_number),
   FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS attachment_ocr_pages (
+  user_id TEXT NOT NULL,
+  attachment_id TEXT NOT NULL,
+  page_number INTEGER NOT NULL DEFAULT 1,
+  encrypted_payload TEXT NOT NULL,
+  ocr_schema_version INTEGER NOT NULL DEFAULT 1,
+  ocr_engine TEXT NOT NULL DEFAULT 'quietpaper_ocr_v1',
+  ocr_engine_version TEXT NOT NULL DEFAULT '1.0.0',
+  language TEXT NOT NULL DEFAULT 'en',
+  processed_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  base_revision INTEGER NOT NULL DEFAULT 0,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_at_ms INTEGER NOT NULL DEFAULT 0,
+  created_by_device TEXT,
+  updated_by_device TEXT,
+  PRIMARY KEY (user_id, attachment_id, page_number),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS note_versions (
@@ -221,6 +254,10 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_rev ON documents (user_id, server_
 CREATE INDEX IF NOT EXISTS idx_documents_note_id ON documents (note_id);
 CREATE INDEX IF NOT EXISTS idx_document_ocr_doc ON document_ocr_pages (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_ocr_user ON document_ocr_pages (user_id);
+CREATE INDEX IF NOT EXISTS idx_document_ocr_user_rev ON document_ocr_pages (user_id, revision);
+CREATE INDEX IF NOT EXISTS idx_attachment_ocr_att ON attachment_ocr_pages (attachment_id);
+CREATE INDEX IF NOT EXISTS idx_attachment_ocr_user ON attachment_ocr_pages (user_id);
+CREATE INDEX IF NOT EXISTS idx_attachment_ocr_user_rev ON attachment_ocr_pages (user_id, revision);
 CREATE INDEX IF NOT EXISTS idx_sync_changes_user_note_rev ON sync_changes (user_id, note_id, revision);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_note ON note_versions (user_id, note_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_note_versions_user_rev ON note_versions (user_id, revision);
@@ -572,5 +609,69 @@ export async function runMigrations(db: Client): Promise<void> {
   } catch (_) {}
   try {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_note_share_attachments_user ON note_share_attachments (user_id);');
+  } catch (_) {}
+
+  // v15: OCR Sync and Conflict Tracking Schema
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN base_revision INTEGER NOT NULL DEFAULT 0;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN deleted_at TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN updated_at TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN updated_at_ms INTEGER NOT NULL DEFAULT 0;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN created_by_device TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('ALTER TABLE document_ocr_pages ADD COLUMN updated_by_device TEXT;');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_doc_ocr_user_rev ON document_ocr_pages (user_id, revision);');
+  } catch (_) {}
+
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS attachment_ocr_pages (
+      user_id TEXT NOT NULL,
+      attachment_id TEXT NOT NULL,
+      page_number INTEGER NOT NULL DEFAULT 1,
+      encrypted_payload TEXT NOT NULL,
+      ocr_schema_version INTEGER NOT NULL DEFAULT 1,
+      ocr_engine TEXT NOT NULL DEFAULT 'quietpaper_ocr_v1',
+      ocr_engine_version TEXT NOT NULL DEFAULT '1.0.0',
+      language TEXT NOT NULL DEFAULT 'en',
+      processed_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      base_revision INTEGER NOT NULL DEFAULT 0,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_at_ms INTEGER NOT NULL DEFAULT 0,
+      created_by_device TEXT,
+      updated_by_device TEXT,
+      PRIMARY KEY (user_id, attachment_id, page_number),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE CASCADE
+    );`);
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_att_ocr_user ON attachment_ocr_pages (user_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_att_ocr_att ON attachment_ocr_pages (attachment_id);');
+  } catch (_) {}
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_att_ocr_user_rev ON attachment_ocr_pages (user_id, revision);');
   } catch (_) {}
 }

@@ -4663,6 +4663,72 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _baseRevisionMeta = const VerificationMeta(
+    'baseRevision',
+  );
+  @override
+  late final GeneratedColumn<int> baseRevision = GeneratedColumn<int>(
+    'base_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     attachmentId,
@@ -4673,6 +4739,11 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
     ocrEngineVersion,
     language,
     processedAt,
+    revision,
+    baseRevision,
+    isDirty,
+    isDeleted,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4755,6 +4826,39 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
     } else if (isInserting) {
       context.missing(_processedAtMeta);
     }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('base_revision')) {
+      context.handle(
+        _baseRevisionMeta,
+        baseRevision.isAcceptableOrUnknown(
+          data['base_revision']!,
+          _baseRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -4799,6 +4903,26 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}processed_at'],
       )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      baseRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_revision'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
     );
   }
 
@@ -4833,6 +4957,21 @@ class AttachmentOcrPageEntity extends DataClass
 
   /// Processing completion timestamp
   final DateTime processedAt;
+
+  /// Server revision for optimistic sync; 0 until first synced
+  final int revision;
+
+  /// Base revision for conflict detection on push
+  final int baseRevision;
+
+  /// Whether local changes await push to backend
+  final bool isDirty;
+
+  /// Whether this OCR page is deleted
+  final bool isDeleted;
+
+  /// Last local mutation timestamp
+  final DateTime updatedAt;
   const AttachmentOcrPageEntity({
     required this.attachmentId,
     required this.pageNumber,
@@ -4842,6 +4981,11 @@ class AttachmentOcrPageEntity extends DataClass
     required this.ocrEngineVersion,
     required this.language,
     required this.processedAt,
+    required this.revision,
+    required this.baseRevision,
+    required this.isDirty,
+    required this.isDeleted,
+    required this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4854,6 +4998,11 @@ class AttachmentOcrPageEntity extends DataClass
     map['ocr_engine_version'] = Variable<String>(ocrEngineVersion);
     map['language'] = Variable<String>(language);
     map['processed_at'] = Variable<DateTime>(processedAt);
+    map['revision'] = Variable<int>(revision);
+    map['base_revision'] = Variable<int>(baseRevision);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
@@ -4867,6 +5016,11 @@ class AttachmentOcrPageEntity extends DataClass
       ocrEngineVersion: Value(ocrEngineVersion),
       language: Value(language),
       processedAt: Value(processedAt),
+      revision: Value(revision),
+      baseRevision: Value(baseRevision),
+      isDirty: Value(isDirty),
+      isDeleted: Value(isDeleted),
+      updatedAt: Value(updatedAt),
     );
   }
 
@@ -4884,6 +5038,11 @@ class AttachmentOcrPageEntity extends DataClass
       ocrEngineVersion: serializer.fromJson<String>(json['ocrEngineVersion']),
       language: serializer.fromJson<String>(json['language']),
       processedAt: serializer.fromJson<DateTime>(json['processedAt']),
+      revision: serializer.fromJson<int>(json['revision']),
+      baseRevision: serializer.fromJson<int>(json['baseRevision']),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -4898,6 +5057,11 @@ class AttachmentOcrPageEntity extends DataClass
       'ocrEngineVersion': serializer.toJson<String>(ocrEngineVersion),
       'language': serializer.toJson<String>(language),
       'processedAt': serializer.toJson<DateTime>(processedAt),
+      'revision': serializer.toJson<int>(revision),
+      'baseRevision': serializer.toJson<int>(baseRevision),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
@@ -4910,6 +5074,11 @@ class AttachmentOcrPageEntity extends DataClass
     String? ocrEngineVersion,
     String? language,
     DateTime? processedAt,
+    int? revision,
+    int? baseRevision,
+    bool? isDirty,
+    bool? isDeleted,
+    DateTime? updatedAt,
   }) => AttachmentOcrPageEntity(
     attachmentId: attachmentId ?? this.attachmentId,
     pageNumber: pageNumber ?? this.pageNumber,
@@ -4919,6 +5088,11 @@ class AttachmentOcrPageEntity extends DataClass
     ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
     language: language ?? this.language,
     processedAt: processedAt ?? this.processedAt,
+    revision: revision ?? this.revision,
+    baseRevision: baseRevision ?? this.baseRevision,
+    isDirty: isDirty ?? this.isDirty,
+    isDeleted: isDeleted ?? this.isDeleted,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
   AttachmentOcrPageEntity copyWithCompanion(
     AttachmentOcrPagesTableCompanion data,
@@ -4944,6 +5118,13 @@ class AttachmentOcrPageEntity extends DataClass
       processedAt: data.processedAt.present
           ? data.processedAt.value
           : this.processedAt,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      baseRevision: data.baseRevision.present
+          ? data.baseRevision.value
+          : this.baseRevision,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -4957,7 +5138,12 @@ class AttachmentOcrPageEntity extends DataClass
           ..write('ocrEngine: $ocrEngine, ')
           ..write('ocrEngineVersion: $ocrEngineVersion, ')
           ..write('language: $language, ')
-          ..write('processedAt: $processedAt')
+          ..write('processedAt: $processedAt, ')
+          ..write('revision: $revision, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -4972,6 +5158,11 @@ class AttachmentOcrPageEntity extends DataClass
     ocrEngineVersion,
     language,
     processedAt,
+    revision,
+    baseRevision,
+    isDirty,
+    isDeleted,
+    updatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -4984,7 +5175,12 @@ class AttachmentOcrPageEntity extends DataClass
           other.ocrEngine == this.ocrEngine &&
           other.ocrEngineVersion == this.ocrEngineVersion &&
           other.language == this.language &&
-          other.processedAt == this.processedAt);
+          other.processedAt == this.processedAt &&
+          other.revision == this.revision &&
+          other.baseRevision == this.baseRevision &&
+          other.isDirty == this.isDirty &&
+          other.isDeleted == this.isDeleted &&
+          other.updatedAt == this.updatedAt);
 }
 
 class AttachmentOcrPagesTableCompanion
@@ -4997,6 +5193,11 @@ class AttachmentOcrPagesTableCompanion
   final Value<String> ocrEngineVersion;
   final Value<String> language;
   final Value<DateTime> processedAt;
+  final Value<int> revision;
+  final Value<int> baseRevision;
+  final Value<bool> isDirty;
+  final Value<bool> isDeleted;
+  final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const AttachmentOcrPagesTableCompanion({
     this.attachmentId = const Value.absent(),
@@ -5007,6 +5208,11 @@ class AttachmentOcrPagesTableCompanion
     this.ocrEngineVersion = const Value.absent(),
     this.language = const Value.absent(),
     this.processedAt = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AttachmentOcrPagesTableCompanion.insert({
@@ -5018,6 +5224,11 @@ class AttachmentOcrPagesTableCompanion
     this.ocrEngineVersion = const Value.absent(),
     this.language = const Value.absent(),
     required DateTime processedAt,
+    this.revision = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : attachmentId = Value(attachmentId),
        encryptedPayload = Value(encryptedPayload),
@@ -5031,6 +5242,11 @@ class AttachmentOcrPagesTableCompanion
     Expression<String>? ocrEngineVersion,
     Expression<String>? language,
     Expression<DateTime>? processedAt,
+    Expression<int>? revision,
+    Expression<int>? baseRevision,
+    Expression<bool>? isDirty,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5042,6 +5258,11 @@ class AttachmentOcrPagesTableCompanion
       if (ocrEngineVersion != null) 'ocr_engine_version': ocrEngineVersion,
       if (language != null) 'language': language,
       if (processedAt != null) 'processed_at': processedAt,
+      if (revision != null) 'revision': revision,
+      if (baseRevision != null) 'base_revision': baseRevision,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5055,6 +5276,11 @@ class AttachmentOcrPagesTableCompanion
     Value<String>? ocrEngineVersion,
     Value<String>? language,
     Value<DateTime>? processedAt,
+    Value<int>? revision,
+    Value<int>? baseRevision,
+    Value<bool>? isDirty,
+    Value<bool>? isDeleted,
+    Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
     return AttachmentOcrPagesTableCompanion(
@@ -5066,6 +5292,11 @@ class AttachmentOcrPagesTableCompanion
       ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
       language: language ?? this.language,
       processedAt: processedAt ?? this.processedAt,
+      revision: revision ?? this.revision,
+      baseRevision: baseRevision ?? this.baseRevision,
+      isDirty: isDirty ?? this.isDirty,
+      isDeleted: isDeleted ?? this.isDeleted,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5097,6 +5328,21 @@ class AttachmentOcrPagesTableCompanion
     if (processedAt.present) {
       map['processed_at'] = Variable<DateTime>(processedAt.value);
     }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (baseRevision.present) {
+      map['base_revision'] = Variable<int>(baseRevision.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5114,6 +5360,11 @@ class AttachmentOcrPagesTableCompanion
           ..write('ocrEngineVersion: $ocrEngineVersion, ')
           ..write('language: $language, ')
           ..write('processedAt: $processedAt, ')
+          ..write('revision: $revision, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7546,6 +7797,72 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _baseRevisionMeta = const VerificationMeta(
+    'baseRevision',
+  );
+  @override
+  late final GeneratedColumn<int> baseRevision = GeneratedColumn<int>(
+    'base_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isDirtyMeta = const VerificationMeta(
+    'isDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> isDirty = GeneratedColumn<bool>(
+    'is_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     documentId,
@@ -7556,6 +7873,11 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
     ocrEngineVersion,
     language,
     processedAt,
+    revision,
+    baseRevision,
+    isDirty,
+    isDeleted,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7637,6 +7959,39 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
     } else if (isInserting) {
       context.missing(_processedAtMeta);
     }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('base_revision')) {
+      context.handle(
+        _baseRevisionMeta,
+        baseRevision.isAcceptableOrUnknown(
+          data['base_revision']!,
+          _baseRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dirty')) {
+      context.handle(
+        _isDirtyMeta,
+        isDirty.isAcceptableOrUnknown(data['is_dirty']!, _isDirtyMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -7678,6 +8033,26 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}processed_at'],
       )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      baseRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_revision'],
+      )!,
+      isDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dirty'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
     );
   }
 
@@ -7712,6 +8087,21 @@ class DocumentOcrPageEntity extends DataClass
 
   /// Processing completion timestamp
   final DateTime processedAt;
+
+  /// Server revision for optimistic sync; 0 until first synced
+  final int revision;
+
+  /// Base revision for conflict detection on push
+  final int baseRevision;
+
+  /// Whether local changes await push to backend
+  final bool isDirty;
+
+  /// Whether this OCR page is deleted
+  final bool isDeleted;
+
+  /// Last local mutation timestamp
+  final DateTime updatedAt;
   const DocumentOcrPageEntity({
     required this.documentId,
     required this.pageNumber,
@@ -7721,6 +8111,11 @@ class DocumentOcrPageEntity extends DataClass
     required this.ocrEngineVersion,
     required this.language,
     required this.processedAt,
+    required this.revision,
+    required this.baseRevision,
+    required this.isDirty,
+    required this.isDeleted,
+    required this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7733,6 +8128,11 @@ class DocumentOcrPageEntity extends DataClass
     map['ocr_engine_version'] = Variable<String>(ocrEngineVersion);
     map['language'] = Variable<String>(language);
     map['processed_at'] = Variable<DateTime>(processedAt);
+    map['revision'] = Variable<int>(revision);
+    map['base_revision'] = Variable<int>(baseRevision);
+    map['is_dirty'] = Variable<bool>(isDirty);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
@@ -7746,6 +8146,11 @@ class DocumentOcrPageEntity extends DataClass
       ocrEngineVersion: Value(ocrEngineVersion),
       language: Value(language),
       processedAt: Value(processedAt),
+      revision: Value(revision),
+      baseRevision: Value(baseRevision),
+      isDirty: Value(isDirty),
+      isDeleted: Value(isDeleted),
+      updatedAt: Value(updatedAt),
     );
   }
 
@@ -7763,6 +8168,11 @@ class DocumentOcrPageEntity extends DataClass
       ocrEngineVersion: serializer.fromJson<String>(json['ocrEngineVersion']),
       language: serializer.fromJson<String>(json['language']),
       processedAt: serializer.fromJson<DateTime>(json['processedAt']),
+      revision: serializer.fromJson<int>(json['revision']),
+      baseRevision: serializer.fromJson<int>(json['baseRevision']),
+      isDirty: serializer.fromJson<bool>(json['isDirty']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -7777,6 +8187,11 @@ class DocumentOcrPageEntity extends DataClass
       'ocrEngineVersion': serializer.toJson<String>(ocrEngineVersion),
       'language': serializer.toJson<String>(language),
       'processedAt': serializer.toJson<DateTime>(processedAt),
+      'revision': serializer.toJson<int>(revision),
+      'baseRevision': serializer.toJson<int>(baseRevision),
+      'isDirty': serializer.toJson<bool>(isDirty),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
@@ -7789,6 +8204,11 @@ class DocumentOcrPageEntity extends DataClass
     String? ocrEngineVersion,
     String? language,
     DateTime? processedAt,
+    int? revision,
+    int? baseRevision,
+    bool? isDirty,
+    bool? isDeleted,
+    DateTime? updatedAt,
   }) => DocumentOcrPageEntity(
     documentId: documentId ?? this.documentId,
     pageNumber: pageNumber ?? this.pageNumber,
@@ -7798,6 +8218,11 @@ class DocumentOcrPageEntity extends DataClass
     ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
     language: language ?? this.language,
     processedAt: processedAt ?? this.processedAt,
+    revision: revision ?? this.revision,
+    baseRevision: baseRevision ?? this.baseRevision,
+    isDirty: isDirty ?? this.isDirty,
+    isDeleted: isDeleted ?? this.isDeleted,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
   DocumentOcrPageEntity copyWithCompanion(DocumentOcrPagesTableCompanion data) {
     return DocumentOcrPageEntity(
@@ -7821,6 +8246,13 @@ class DocumentOcrPageEntity extends DataClass
       processedAt: data.processedAt.present
           ? data.processedAt.value
           : this.processedAt,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      baseRevision: data.baseRevision.present
+          ? data.baseRevision.value
+          : this.baseRevision,
+      isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -7834,7 +8266,12 @@ class DocumentOcrPageEntity extends DataClass
           ..write('ocrEngine: $ocrEngine, ')
           ..write('ocrEngineVersion: $ocrEngineVersion, ')
           ..write('language: $language, ')
-          ..write('processedAt: $processedAt')
+          ..write('processedAt: $processedAt, ')
+          ..write('revision: $revision, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -7849,6 +8286,11 @@ class DocumentOcrPageEntity extends DataClass
     ocrEngineVersion,
     language,
     processedAt,
+    revision,
+    baseRevision,
+    isDirty,
+    isDeleted,
+    updatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -7861,7 +8303,12 @@ class DocumentOcrPageEntity extends DataClass
           other.ocrEngine == this.ocrEngine &&
           other.ocrEngineVersion == this.ocrEngineVersion &&
           other.language == this.language &&
-          other.processedAt == this.processedAt);
+          other.processedAt == this.processedAt &&
+          other.revision == this.revision &&
+          other.baseRevision == this.baseRevision &&
+          other.isDirty == this.isDirty &&
+          other.isDeleted == this.isDeleted &&
+          other.updatedAt == this.updatedAt);
 }
 
 class DocumentOcrPagesTableCompanion
@@ -7874,6 +8321,11 @@ class DocumentOcrPagesTableCompanion
   final Value<String> ocrEngineVersion;
   final Value<String> language;
   final Value<DateTime> processedAt;
+  final Value<int> revision;
+  final Value<int> baseRevision;
+  final Value<bool> isDirty;
+  final Value<bool> isDeleted;
+  final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const DocumentOcrPagesTableCompanion({
     this.documentId = const Value.absent(),
@@ -7884,6 +8336,11 @@ class DocumentOcrPagesTableCompanion
     this.ocrEngineVersion = const Value.absent(),
     this.language = const Value.absent(),
     this.processedAt = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DocumentOcrPagesTableCompanion.insert({
@@ -7895,6 +8352,11 @@ class DocumentOcrPagesTableCompanion
     this.ocrEngineVersion = const Value.absent(),
     this.language = const Value.absent(),
     required DateTime processedAt,
+    this.revision = const Value.absent(),
+    this.baseRevision = const Value.absent(),
+    this.isDirty = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : documentId = Value(documentId),
        pageNumber = Value(pageNumber),
@@ -7909,6 +8371,11 @@ class DocumentOcrPagesTableCompanion
     Expression<String>? ocrEngineVersion,
     Expression<String>? language,
     Expression<DateTime>? processedAt,
+    Expression<int>? revision,
+    Expression<int>? baseRevision,
+    Expression<bool>? isDirty,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -7920,6 +8387,11 @@ class DocumentOcrPagesTableCompanion
       if (ocrEngineVersion != null) 'ocr_engine_version': ocrEngineVersion,
       if (language != null) 'language': language,
       if (processedAt != null) 'processed_at': processedAt,
+      if (revision != null) 'revision': revision,
+      if (baseRevision != null) 'base_revision': baseRevision,
+      if (isDirty != null) 'is_dirty': isDirty,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -7933,6 +8405,11 @@ class DocumentOcrPagesTableCompanion
     Value<String>? ocrEngineVersion,
     Value<String>? language,
     Value<DateTime>? processedAt,
+    Value<int>? revision,
+    Value<int>? baseRevision,
+    Value<bool>? isDirty,
+    Value<bool>? isDeleted,
+    Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
     return DocumentOcrPagesTableCompanion(
@@ -7944,6 +8421,11 @@ class DocumentOcrPagesTableCompanion
       ocrEngineVersion: ocrEngineVersion ?? this.ocrEngineVersion,
       language: language ?? this.language,
       processedAt: processedAt ?? this.processedAt,
+      revision: revision ?? this.revision,
+      baseRevision: baseRevision ?? this.baseRevision,
+      isDirty: isDirty ?? this.isDirty,
+      isDeleted: isDeleted ?? this.isDeleted,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -7975,6 +8457,21 @@ class DocumentOcrPagesTableCompanion
     if (processedAt.present) {
       map['processed_at'] = Variable<DateTime>(processedAt.value);
     }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (baseRevision.present) {
+      map['base_revision'] = Variable<int>(baseRevision.value);
+    }
+    if (isDirty.present) {
+      map['is_dirty'] = Variable<bool>(isDirty.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7992,6 +8489,11 @@ class DocumentOcrPagesTableCompanion
           ..write('ocrEngineVersion: $ocrEngineVersion, ')
           ..write('language: $language, ')
           ..write('processedAt: $processedAt, ')
+          ..write('revision: $revision, ')
+          ..write('baseRevision: $baseRevision, ')
+          ..write('isDirty: $isDirty, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -13479,6 +13981,11 @@ typedef $$AttachmentOcrPagesTableTableCreateCompanionBuilder =
       Value<String> ocrEngineVersion,
       Value<String> language,
       required DateTime processedAt,
+      Value<int> revision,
+      Value<int> baseRevision,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 typedef $$AttachmentOcrPagesTableTableUpdateCompanionBuilder =
@@ -13491,6 +13998,11 @@ typedef $$AttachmentOcrPagesTableTableUpdateCompanionBuilder =
       Value<String> ocrEngineVersion,
       Value<String> language,
       Value<DateTime> processedAt,
+      Value<int> revision,
+      Value<int> baseRevision,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 
@@ -13540,6 +14052,31 @@ class $$AttachmentOcrPagesTableTableFilterComposer
 
   ColumnFilters<DateTime> get processedAt => $composableBuilder(
     column: $table.processedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -13592,6 +14129,31 @@ class $$AttachmentOcrPagesTableTableOrderingComposer
     column: $table.processedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AttachmentOcrPagesTableTableAnnotationComposer
@@ -13638,6 +14200,23 @@ class $$AttachmentOcrPagesTableTableAnnotationComposer
     column: $table.processedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$AttachmentOcrPagesTableTableTableManager
@@ -13694,6 +14273,11 @@ class $$AttachmentOcrPagesTableTableTableManager
                 Value<String> ocrEngineVersion = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<DateTime> processedAt = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<int> baseRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentOcrPagesTableCompanion(
                 attachmentId: attachmentId,
@@ -13704,6 +14288,11 @@ class $$AttachmentOcrPagesTableTableTableManager
                 ocrEngineVersion: ocrEngineVersion,
                 language: language,
                 processedAt: processedAt,
+                revision: revision,
+                baseRevision: baseRevision,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -13716,6 +14305,11 @@ class $$AttachmentOcrPagesTableTableTableManager
                 Value<String> ocrEngineVersion = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 required DateTime processedAt,
+                Value<int> revision = const Value.absent(),
+                Value<int> baseRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentOcrPagesTableCompanion.insert(
                 attachmentId: attachmentId,
@@ -13726,6 +14320,11 @@ class $$AttachmentOcrPagesTableTableTableManager
                 ocrEngineVersion: ocrEngineVersion,
                 language: language,
                 processedAt: processedAt,
+                revision: revision,
+                baseRevision: baseRevision,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -14917,6 +15516,11 @@ typedef $$DocumentOcrPagesTableTableCreateCompanionBuilder =
       Value<String> ocrEngineVersion,
       Value<String> language,
       required DateTime processedAt,
+      Value<int> revision,
+      Value<int> baseRevision,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 typedef $$DocumentOcrPagesTableTableUpdateCompanionBuilder =
@@ -14929,6 +15533,11 @@ typedef $$DocumentOcrPagesTableTableUpdateCompanionBuilder =
       Value<String> ocrEngineVersion,
       Value<String> language,
       Value<DateTime> processedAt,
+      Value<int> revision,
+      Value<int> baseRevision,
+      Value<bool> isDirty,
+      Value<bool> isDeleted,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 
@@ -14978,6 +15587,31 @@ class $$DocumentOcrPagesTableTableFilterComposer
 
   ColumnFilters<DateTime> get processedAt => $composableBuilder(
     column: $table.processedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -15030,6 +15664,31 @@ class $$DocumentOcrPagesTableTableOrderingComposer
     column: $table.processedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDirty => $composableBuilder(
+    column: $table.isDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DocumentOcrPagesTableTableAnnotationComposer
@@ -15076,6 +15735,23 @@ class $$DocumentOcrPagesTableTableAnnotationComposer
     column: $table.processedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<int> get baseRevision => $composableBuilder(
+    column: $table.baseRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDirty =>
+      $composableBuilder(column: $table.isDirty, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$DocumentOcrPagesTableTableTableManager
@@ -15132,6 +15808,11 @@ class $$DocumentOcrPagesTableTableTableManager
                 Value<String> ocrEngineVersion = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<DateTime> processedAt = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<int> baseRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentOcrPagesTableCompanion(
                 documentId: documentId,
@@ -15142,6 +15823,11 @@ class $$DocumentOcrPagesTableTableTableManager
                 ocrEngineVersion: ocrEngineVersion,
                 language: language,
                 processedAt: processedAt,
+                revision: revision,
+                baseRevision: baseRevision,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -15154,6 +15840,11 @@ class $$DocumentOcrPagesTableTableTableManager
                 Value<String> ocrEngineVersion = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 required DateTime processedAt,
+                Value<int> revision = const Value.absent(),
+                Value<int> baseRevision = const Value.absent(),
+                Value<bool> isDirty = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentOcrPagesTableCompanion.insert(
                 documentId: documentId,
@@ -15164,6 +15855,11 @@ class $$DocumentOcrPagesTableTableTableManager
                 ocrEngineVersion: ocrEngineVersion,
                 language: language,
                 processedAt: processedAt,
+                revision: revision,
+                baseRevision: baseRevision,
+                isDirty: isDirty,
+                isDeleted: isDeleted,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

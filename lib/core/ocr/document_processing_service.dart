@@ -39,7 +39,19 @@ class DocumentProcessingService {
     required Uint8List pdfBytes,
     DocumentSource source = DocumentSource.scanner,
     OcrLanguage language = OcrLanguage.english,
+    bool force = false,
   }) async {
+    // If not explicitly forcing, check if OCR pages already exist
+    if (!force) {
+      final existingPages = await database.getDocumentOcrPages(documentId);
+      if (existingPages.isNotEmpty) {
+        debugPrint(
+          '[QuietPaper OCR] Document $documentId already has OCR text (${existingPages.length} pages). Skipping automatic OCR.',
+        );
+        return;
+      }
+    }
+
     if (source == DocumentSource.importedPdf &&
         PdfRasterPolicy.shouldSkipOcr(pdfBytes)) {
       await database.updateDocumentOcrState(
@@ -204,6 +216,7 @@ class DocumentProcessingService {
       pdfBytes: pdfBytes,
       source: source,
       language: language,
+      force: true,
     );
   }
 
@@ -221,6 +234,7 @@ class DocumentProcessingService {
       pdfBytes: pdfBytes,
       source: source,
       language: language,
+      force: true,
     );
   }
 

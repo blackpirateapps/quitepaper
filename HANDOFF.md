@@ -9765,5 +9765,98 @@ To ensure complete reversibility and reference integrity for the historical cust
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All tests passing.
 
+---
+
+## 218. Feature: Zero-Knowledge OCR Text Sync, Manual-Only Recognition Policy, and 3-Way Conflict Merge Pipeline (October 2026)
+
+### 1. Context & Motivation
+1. Previously, OCR extraction results for PDF documents (`document_ocr_pages`) and image attachments (`attachment_ocr_pages`) remained strictly local to the device that performed the scan or import. Consequently, searching for text within documents or attachments on a secondary synced device returned no matches unless OCR was manually triggered again on that device.
+2. In addition, automatic OCR was prone to redundant re-processing whenever documents or attachments were touched.
+3. The user established three core architectural requirements:
+   - **Zero-Knowledge Cloud Synchronization**: OCR text must synchronize end-to-end encrypted across devices using XChaCha20-Poly1305 and the user's Master Key. The serverless backend must remain completely crypto-blind, storing and forwarding opaque encrypted payloads without possessing plaintext text or master keys.
+   - **Manual-Only OCR Policy**: When a document or attachment already has OCR text (whether from local extraction or cloud sync), OCR must never automatically re-run. OCR only runs automatically on initial local scans/imports where no OCR data exists yet. Any re-processing must be explicitly initiated by the user via "Re-run OCR" (`force: true`).
+   - **3-Way Diff3 Conflict Merge Pipeline**: OCR text sync conflicts must follow the same merge pipeline as notes:
+     - Non-overlapping edits auto-merge cleanly via `MarkdownMergeEngine` (3-way diff3 merge).
+     - When no common ancestor base revision is available, a synthesized virtual base is extracted via Longest Common Subsequence (`computeLcsBase`).
+     - Overlapping collisions flag a `SyncConflict` record (`isOcr: true`) and route to the `ConflictResolutionScreen` for manual resolution ("Keep Mine", "Keep Server", or "Custom Merge"). "Keep Both" is hidden for OCR pages because pages cannot duplicate within a document.
+
+### 2. Architecture & Implementation
+
+#### A. Backend Architecture & Schema Migration (015)
+1. **Schema Migration ([`backend/migrations/015_ocr_sync_and_conflicts_schema.sql`](file:///home/dog/git/quitepaper/backend/migrations/015_ocr_sync_and_conflicts_schema.sql))**:
+   - Added `revision INTEGER NOT NULL DEFAULT 1`, `base_revision INTEGER`, `is_dirty INTEGER NOT NULL DEFAULT 0`, `is_deleted INTEGER NOT NULL DEFAULT 0`, and `updated_at DATETIME` to both `document_ocr_pages` and `attachment_ocr_pages`.
+   - Created cursor tracking index and added migration `015` to [`backend/src/db/migrate.ts`](file:///home/dog/git/quitepaper/backend/src/db/migrate.ts).
+2. **API Endpoints ([`backend/src/api/handler.ts`](file:///home/dog/git/quitepaper/backend/src/api/handler.ts) & [`backend/src/sync/syncService.ts`](file:///home/dog/git/quitepaper/backend/src/sync/syncService.ts))**:
+   - `POST /api/v1/sync/ocr/push`: Validates `OcrPushPayloadSchema` (max 50 pages per batch). Enforces optimistic concurrency: if `baseRevision != null && baseRevision < serverRevision`, returns `status: 'conflict'` with current server payload, revision, and updated timestamp.
+   - `GET /api/v1/sync/ocr/pull`: Validates cursor and limit (max 100). Returns ordered changes past cursor with updated global cursor and `hasMore` pagination.
+3. **Backend Tests ([`backend/tests/ocr_sync.test.ts`](file:///home/dog/git/quitepaper/backend/tests/ocr_sync.test.ts))**:
+   - Verified push, pull, cursor advancement, and revision conflict detection (122 tests passing across backend suite).
+
+#### B. Client Drift Schema & DAOs (Schema v19)
+1. **Schema Bump ([`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart))**:
+   - Bumped `schemaVersion` to **19**.
+   - Added `revision`, `baseRevision`, `isDirty`, `isDeleted`, and `updatedAt` to both `DocumentOcrPagesTable` and `AttachmentOcrPagesTable`.
+   - Migration `from < 19` safely adds all five columns idempotently via `_addColumnSafely`.
+2. **DAO Methods**:
+   - `getDirtyDocumentOcrPages()`, `getDirtyAttachmentOcrPages()`.
+   - `markDocumentOcrPageSynced(docId, pageNumber, revision, updatedAt)`.
+   - `markAttachmentOcrPageSynced(attId, pageNumber, revision, updatedAt)`.
+   - `getAttachmentOcrPage(attId, pageNumber)`.
+   - Added `ocr_sync_cursor` to `resetSyncCursors()` in `app_database.dart`.
+
+#### C. Manual-Only OCR Execution Policy
+1. **PDF Document OCR ([`lib/core/ocr/document_processing_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/document_processing_service.dart))**:
+   - In `processDocument({..., bool force = false})`: checks `db.getDocumentOcrPages(documentId)`.
+   - If pages exist and `!force`, logs `Document <id> already has OCR text (<N> pages). Skipping automatic OCR.` and returns existing data immediately without invoking MLKit or Ollama.
+2. **Image Attachment OCR ([`lib/core/attachments/attachment_processing_service.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_processing_service.dart))**:
+   - In `processAttachment({..., bool force = false})`: checks `db.getAttachmentOcrPages(attachmentId)`.
+   - If pages exist and `!force`, logs `Attachment <id> already has OCR text. Skipping automatic OCR.` and returns immediately.
+3. **Automated Verification ([`test/ocr/ocr_manual_policy_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ocr_manual_policy_test.dart))**:
+   - Unit tests confirm automatic OCR is skipped when OCR pages already exist and `force: false`, and executes properly when `force: true`.
+
+#### D. Sync Engine & 3-Way Diff3 Conflict Merge
+1. **Push Pipeline ([`lib/core/sync/sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart))**:
+   - In `_pushDirtyOcrPages()`: gathers dirty pages from both tables, batches them as `OcrPageSyncPayload`, and sends to `apiClient.pushOcrPages()`.
+   - Applied items are marked clean via `mark...Synced`.
+   - Conflicted items are processed via `_processOcrPushConflicts()`.
+2. **Diff3 Auto-Merge & Virtual LCS Base**:
+   - Decrypts local payload and remote payload using `OcrCrypto`.
+   - If local and remote plain text are identical or non-overlapping, `MarkdownMergeEngine.merge()` auto-resolves cleanly.
+   - When no ancestor base is available (`base == null`), `computeLcsBase(local, remote)` in [`lib/core/sync/conflict/markdown_merge_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/conflict/markdown_merge_engine.dart) extracts the longest common subsequence of lines as a synthesized virtual base.
+   - If clean merge succeeds: re-encrypts the merged text, saves to SQLite with updated `baseRevision = conflict.serverRevision`, and sets `isDirty = true` for the next push pass.
+   - If overlapping collision occurs: constructs a `SyncConflict` record (`isOcr: true`, `extraData` with `resourceType`, `resourceId`, `pageNumber`, and `remoteEncryptedPayload`) and stores it in SQLite via `saveConflict()`.
+   - `_ensureValidNoteId()` ensures foreign key validity against `NotesTable.id`.
+3. **Pull Pipeline**:
+   - In `_pullOcrPages()`: pulls changes past `ocr_sync_cursor`.
+   - If local record is not dirty, applies remote payload directly and updates revision.
+   - If local record is dirty with differing content, invokes the 3-way merge pipeline.
+   - Invalidates `OcrSearchService` in-memory document/attachment cache immediately so search results reflect fresh synced text.
+
+#### E. Conflict Resolution UI & Resolver
+1. **Conflict Model ([`lib/core/sync/conflict/conflict_model.dart`](file:///home/dog/git/quitepaper/lib/core/sync/conflict/conflict_model.dart))**:
+   - Added `extraData` map to `SyncConflict`.
+   - Added `isOcrConflict` getter and dynamic `effectiveDisplayTitle` (`OCR: Page X (<doc/att title>)`).
+2. **Conflict Resolver ([`lib/core/sync/conflict/conflict_resolver.dart`](file:///home/dog/git/quitepaper/lib/core/sync/conflict/conflict_resolver.dart))**:
+   - Implemented `resolveOcrKeepMine`: keeps local OCR text, updates `baseRevision` to remote revision, marks `isDirty = true`, and deletes conflict record.
+   - Implemented `resolveOcrKeepTheirs`: overwrites local page with remote encrypted payload, updates revision, marks `isDirty = false`, and deletes conflict record.
+   - Implemented `resolveOcrManual`: takes user's edited plaintext, encrypts with Master Key, sets `baseRevision` to remote revision, marks `isDirty = true`, and deletes conflict record.
+   - Routed seamlessly from `resolveKeepMine`, `resolveKeepTheirs`, and `resolveWithCustomMerge`.
+3. **Conflict Resolution Screen ([`lib/features/sync/presentation/conflict_resolution_screen.dart`](file:///home/dog/git/quitepaper/lib/features/sync/presentation/conflict_resolution_screen.dart))**:
+   - Hides the "Keep Both" button when `conflict.isOcrConflict` is true.
+   - Hides the title editing field for OCR page conflicts (only body text is editable).
+   - Tailored toast messages ("Local OCR text retained", "Remote OCR text accepted", "OCR text merged successfully").
+
+### 3. Verification & Quality
+- **Backend Quality**:
+  - `npm test`: 19 test files, 122 tests passing (100%).
+  - `npm run build`: Clean TypeScript compilation with zero errors.
+- **Client Quality**:
+  - `flutter analyze`: **0 issues found**.
+  - `flutter test test/ocr/ocr_manual_policy_test.dart`: All tests passing.
+  - `flutter test test/sync/ocr_sync_test.dart`: All 7 tests passing.
+  - `flutter test test/sync/conflict_merge_engine_test.dart`: All 13 tests passing.
+  - `flutter test test/journal/journal_database_test.dart`: All 9 tests passing.
+
+
 
 

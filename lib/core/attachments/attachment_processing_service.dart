@@ -33,7 +33,19 @@ class AttachmentProcessingService {
     required String attachmentId,
     required Uint8List imageBytes,
     OcrLanguage language = OcrLanguage.english,
+    bool force = false,
   }) async {
+    // If not explicitly forcing, check if OCR pages already exist
+    if (!force) {
+      final existingPages = await database.getAttachmentOcrPages(attachmentId);
+      if (existingPages.isNotEmpty) {
+        debugPrint(
+          '[QuietPaper Image OCR] Attachment $attachmentId already has OCR text. Skipping automatic OCR.',
+        );
+        return;
+      }
+    }
+
     if (_inFlightJobIds.contains(attachmentId)) {
       debugPrint(
         '[QuietPaper Image OCR] Attachment $attachmentId is already being processed. Skipping duplicate.',
@@ -143,6 +155,7 @@ class AttachmentProcessingService {
       attachmentId: attachmentId,
       imageBytes: imageBytes,
       language: language,
+      force: true,
     );
   }
 }

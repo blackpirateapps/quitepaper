@@ -87,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
 
   @override
@@ -213,6 +213,20 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnSafely(m, notesTable, notesTable.pinnedTags);
             await _addColumnSafely(m, noteTagsTable, noteTagsTable.isPinned);
           }
+          if (from < 19) {
+            // OCR synchronization & conflict detection columns
+            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.revision);
+            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.baseRevision);
+            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.isDirty);
+            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.isDeleted);
+            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.updatedAt);
+
+            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.revision);
+            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.baseRevision);
+            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDirty);
+            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDeleted);
+            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.updatedAt);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON;');
@@ -294,6 +308,9 @@ class AppDatabase extends _$AppDatabase {
             'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
           );
           await customStatement(
+            'CREATE INDEX IF NOT EXISTS document_ocr_dirty_idx ON document_ocr_pages (is_dirty);',
+          );
+          await customStatement(
             'CREATE INDEX IF NOT EXISTS document_annotations_doc_idx ON document_annotations (document_id);',
           );
           await customStatement(
@@ -301,6 +318,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS attachment_ocr_att_idx ON attachment_ocr_pages (attachment_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS attachment_ocr_dirty_idx ON attachment_ocr_pages (is_dirty);',
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS sync_conflicts_note_idx ON sync_conflicts (note_id, state);',
@@ -1588,7 +1608,8 @@ class AppDatabase extends _$AppDatabase {
               t.key.equals('sync_cursor') |
               t.key.equals('version_sync_cursor') |
               t.key.equals('tag_sync_cursor') |
-              t.key.equals('place_alias_sync_cursor')))
+              t.key.equals('place_alias_sync_cursor') |
+              t.key.equals('ocr_sync_cursor')))
         .go();
   }
 
@@ -3137,7 +3158,13 @@ class AppDatabase extends _$AppDatabase {
     String ocrEngineVersion = '1.0.0',
     String language = 'en',
     required DateTime processedAt,
+    int revision = 0,
+    int baseRevision = 0,
+    bool isDirty = true,
+    bool isDeleted = false,
+    DateTime? updatedAt,
   }) async {
+    final now = updatedAt ?? DateTime.now();
     await into(documentOcrPagesTable).insertOnConflictUpdate(
       DocumentOcrPagesTableCompanion.insert(
         documentId: documentId,
@@ -3148,6 +3175,34 @@ class AppDatabase extends _$AppDatabase {
         ocrEngineVersion: Value(ocrEngineVersion),
         language: Value(language),
         processedAt: processedAt,
+        revision: Value(revision),
+        baseRevision: Value(baseRevision),
+        isDirty: Value(isDirty),
+        isDeleted: Value(isDeleted),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// All document OCR page rows awaiting push to the backend
+  Future<List<DocumentOcrPageEntity>> getDirtyDocumentOcrPages() async {
+    return (select(documentOcrPagesTable)..where((p) => p.isDirty.equals(true))).get();
+  }
+
+  /// Mark a document OCR page synced at [revision] and clear its dirty flag
+  Future<void> markDocumentOcrPageSynced({
+    required String documentId,
+    required int pageNumber,
+    required int revision,
+  }) async {
+    await (update(documentOcrPagesTable)
+          ..where((p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+        .write(
+      DocumentOcrPagesTableCompanion(
+        revision: Value(revision),
+        baseRevision: Value(revision),
+        isDirty: const Value(false),
       ),
     );
   }
@@ -3321,7 +3376,13 @@ class AppDatabase extends _$AppDatabase {
     String ocrEngineVersion = '1.0.0',
     String language = 'en',
     required DateTime processedAt,
+    int revision = 0,
+    int baseRevision = 0,
+    bool isDirty = true,
+    bool isDeleted = false,
+    DateTime? updatedAt,
   }) async {
+    final now = updatedAt ?? DateTime.now();
     await into(attachmentOcrPagesTable).insertOnConflictUpdate(
       AttachmentOcrPagesTableCompanion.insert(
         attachmentId: attachmentId,
@@ -3332,6 +3393,34 @@ class AppDatabase extends _$AppDatabase {
         ocrEngineVersion: Value(ocrEngineVersion),
         language: Value(language),
         processedAt: processedAt,
+        revision: Value(revision),
+        baseRevision: Value(baseRevision),
+        isDirty: Value(isDirty),
+        isDeleted: Value(isDeleted),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// All attachment OCR page rows awaiting push to the backend
+  Future<List<AttachmentOcrPageEntity>> getDirtyAttachmentOcrPages() async {
+    return (select(attachmentOcrPagesTable)..where((p) => p.isDirty.equals(true))).get();
+  }
+
+  /// Mark an attachment OCR page synced at [revision] and clear its dirty flag
+  Future<void> markAttachmentOcrPageSynced({
+    required String attachmentId,
+    required int pageNumber,
+    required int revision,
+  }) async {
+    await (update(attachmentOcrPagesTable)
+          ..where((p) =>
+              p.attachmentId.equals(attachmentId) & p.pageNumber.equals(pageNumber)))
+        .write(
+      AttachmentOcrPagesTableCompanion(
+        revision: Value(revision),
+        baseRevision: Value(revision),
+        isDirty: const Value(false),
       ),
     );
   }
@@ -3342,6 +3431,16 @@ class AppDatabase extends _$AppDatabase {
           ..where((p) => p.attachmentId.equals(attachmentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
         .get();
+  }
+
+  /// Get a single OCR page record for an attachment by page number
+  Future<AttachmentOcrPageEntity?> getAttachmentOcrPage(
+      String attachmentId, int pageNumber) async {
+    return (select(attachmentOcrPagesTable)
+          ..where((p) =>
+              p.attachmentId.equals(attachmentId) &
+              p.pageNumber.equals(pageNumber)))
+        .getSingleOrNull();
   }
 
   /// Watch all OCR page records for an attachment ordered by page number

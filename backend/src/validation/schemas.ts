@@ -252,6 +252,35 @@ export const pullDocumentAnnotationsSchema = z.object({
   limit: z.number().int().min(1).max(500).default(100),
 });
 
+// ---------------------------------------------------------------------------
+// OCR Page sync — crypto-blind per-document and per-attachment encrypted QPOC
+// blobs. Tracks revisions and detects stale baseRevision conflicts.
+// ---------------------------------------------------------------------------
+export const ocrPageSyncPayloadSchema = z.object({
+  resourceType: z.enum(['document', 'attachment']),
+  resourceId: z.string().min(1).max(256),
+  pageNumber: z.number().int().min(1).default(1),
+  contentCiphertext: z.string().max(16 * 1024 * 1024),
+  ocrEngine: z.string().max(128).default('quietpaper_ocr_v1'),
+  ocrEngineVersion: z.string().max(64).default('1.0.0'),
+  language: z.string().max(32).default('en'),
+  processedAt: z.string().datetime({ offset: true }).or(z.string()).optional(),
+  updatedAtMs: z.number().int().min(0).default(0),
+  isDeleted: z.boolean().default(false),
+  baseRevision: z.number().int().min(0).optional().nullable(),
+});
+
+export const pushOcrPagesSchema = z.object({
+  deviceId: z.string().max(128).optional(),
+  idempotencyKey: z.string().max(256).optional(),
+  pages: z.array(ocrPageSyncPayloadSchema).min(1).max(500),
+});
+
+export const pullOcrPagesSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(500).default(100),
+});
+
 export const registerDeviceSchema = z.object({
   deviceId: z.string().min(1).max(128),
   deviceName: z.string().max(128).optional(),

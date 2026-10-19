@@ -12,6 +12,9 @@ import '../documents/annotations/annotation_models.dart';
 import '../documents/annotations/annotation_service.dart';
 import '../documents/document_sync_service.dart';
 import '../utils/debouncer.dart';
+import '../ocr/ocr_crypto.dart';
+import '../ocr/ocr_models.dart';
+import '../ocr/ocr_search_service.dart';
 import 'conflict/conflict_model.dart';
 import 'conflict/conflict_resolver.dart';
 import 'conflict/merge_result.dart';
@@ -31,9 +34,12 @@ class SyncEngine {
     this.documentSyncService,
     ConflictResolver? conflictResolver,
     this.deviceInfoService,
+    this.ocrSearchService,
+    OcrCrypto? ocrCrypto,
     this.onDeviceRevoked,
     this.onSyncCompleted,
-  })  : conflictResolver = conflictResolver ?? ConflictResolver(database: database) {
+  })  : conflictResolver = conflictResolver ?? ConflictResolver(database: database),
+        _ocrCrypto = ocrCrypto ?? OcrCrypto() {
     _init();
   }
 
@@ -46,6 +52,8 @@ class SyncEngine {
   final DocumentSyncService? documentSyncService;
   final ConflictResolver conflictResolver;
   final DeviceInfoService? deviceInfoService;
+  final OcrSearchService? ocrSearchService;
+  final OcrCrypto _ocrCrypto;
   final void Function(String message)? onDeviceRevoked;
   final void Function()? onSyncCompleted;
 
@@ -379,6 +387,13 @@ class SyncEngine {
         }
       } catch (annPushErr) {
         debugPrint('Document annotation push error: $annPushErr');
+      }
+
+      // 2d. OCR PAGES PUSH: Upload dirty document and attachment OCR pages
+      try {
+        await _pushDirtyOcrPages(deviceId, masterKey);
+      } catch (ocrPushErr) {
+        debugPrint('OCR pages push warning: $ocrPushErr');
       }
 
       // 3. PULL PHASE: Fetch server changes after cursor
@@ -1041,6 +1056,13 @@ class SyncEngine {
         }
       }
 
+      // 4c. OCR PAGES PULL: Fetch remote OCR page updates after cursor
+      try {
+        await _pullOcrPages(masterKey);
+      } catch (ocrPullErr) {
+        debugPrint('OCR pages pull warning: $ocrPullErr');
+      }
+
       // 5. ATTACHMENT & DOCUMENT SYNC: Upload any pending encrypted attachments/documents to Cloudinary
       var attachmentsUploaded = 0;
       var attachmentsFailed = 0;
@@ -1375,6 +1397,691 @@ class SyncEngine {
     }
 
     return null;
+  }
+
+  Future<void> _pushDirtyOcrPages(String deviceId, Uint8List masterKey) async {
+    final dirtyDocPages = await database.getDirtyDocumentOcrPages();
+    final dirtyAttPages = await database.getDirtyAttachmentOcrPages();
+
+    final ocrPushPayloads = <OcrPageSyncPayload>[];
+
+    for (final p in dirtyDocPages) {
+      ocrPushPayloads.add(OcrPageSyncPayload(
+        resourceType: 'document',
+        resourceId: p.documentId,
+        pageNumber: p.pageNumber,
+        contentCiphertext: p.encryptedPayload,
+        ocrEngine: p.ocrEngine,
+        ocrEngineVersion: p.ocrEngineVersion,
+        language: p.language,
+        processedAt: p.processedAt,
+        updatedAtMs: p.updatedAt.millisecondsSinceEpoch,
+        isDeleted: p.isDeleted,
+        baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
+      ));
+    }
+
+    for (final p in dirtyAttPages) {
+      ocrPushPayloads.add(OcrPageSyncPayload(
+        resourceType: 'attachment',
+        resourceId: p.attachmentId,
+        pageNumber: p.pageNumber,
+        contentCiphertext: p.encryptedPayload,
+        ocrEngine: p.ocrEngine,
+        ocrEngineVersion: p.ocrEngineVersion,
+        language: p.language,
+        processedAt: p.processedAt,
+        updatedAtMs: p.updatedAt.millisecondsSinceEpoch,
+        isDeleted: p.isDeleted,
+        baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
+      ));
+    }
+
+    if (ocrPushPayloads.isEmpty) return;
+
+    const pushBatchSize = 100;
+    for (var i = 0; i < ocrPushPayloads.length; i += pushBatchSize) {
+      final end = (i + pushBatchSize < ocrPushPayloads.length)
+          ? i + pushBatchSize
+          : ocrPushPayloads.length;
+      final batch = ocrPushPayloads.sublist(i, end);
+
+      const uuid = Uuid();
+      final ocrPushRes = await apiClient.pushOcrPages(
+        batch,
+        deviceId: deviceId,
+        idempotencyKey: 'ocrpush_${uuid.v4()}',
+      );
+
+      for (final res in ocrPushRes.results) {
+        final parts = res.id.split(':');
+        if (parts.length >= 3) {
+          final resType = parts[0];
+          final resId = parts[1];
+          final pageNum = int.tryParse(parts[2]) ?? 1;
+
+          if (resType == 'document') {
+            await database.markDocumentOcrPageSynced(
+              documentId: resId,
+              pageNumber: pageNum,
+              revision: res.revision,
+            );
+          } else if (resType == 'attachment') {
+            await database.markAttachmentOcrPageSynced(
+              attachmentId: resId,
+              pageNumber: pageNum,
+              revision: res.revision,
+            );
+          }
+        }
+      }
+
+      if (ocrPushRes.conflicts.isNotEmpty) {
+        await _processOcrPushConflicts(ocrPushRes.conflicts, masterKey);
+      }
+    }
+  }
+
+  Future<void> _processOcrPushConflicts(
+    List<OcrConflictItem> conflicts,
+    Uint8List masterKey,
+  ) async {
+    for (final c in conflicts) {
+      String remoteText = '';
+      if (!c.serverHead.isDeleted && c.serverHead.contentCiphertext.isNotEmpty) {
+        try {
+          final envelopeBytes = base64Decode(c.serverHead.contentCiphertext);
+          final doc = await _ocrCrypto.decryptOcrDocument(
+            encryptedEnvelopeBytes: envelopeBytes,
+            masterKeyBytes: masterKey,
+            documentId: c.resourceId,
+          );
+          remoteText = doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+        } catch (e) {
+          debugPrint('Failed to decrypt remote OCR conflict head: $e');
+        }
+      }
+
+      String localText = '';
+      int localRev = 0;
+      final isDoc = c.resourceType == 'document';
+      if (isDoc) {
+        final localRow =
+            await database.getDocumentOcrPage(c.resourceId, c.pageNumber);
+        if (localRow != null) {
+          localRev = localRow.revision;
+          try {
+            final envelopeBytes = base64Decode(localRow.encryptedPayload);
+            final doc = await _ocrCrypto.decryptOcrDocument(
+              encryptedEnvelopeBytes: envelopeBytes,
+              masterKeyBytes: masterKey,
+              documentId: c.resourceId,
+            );
+            localText = doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+          } catch (_) {}
+        }
+      } else {
+        final localRow =
+            await database.getAttachmentOcrPage(c.resourceId, c.pageNumber);
+        if (localRow != null) {
+          localRev = localRow.revision;
+          try {
+            final envelopeBytes = base64Decode(localRow.encryptedPayload);
+            final doc = await _ocrCrypto.decryptOcrDocument(
+              encryptedEnvelopeBytes: envelopeBytes,
+              masterKeyBytes: masterKey,
+              documentId: c.resourceId,
+            );
+            localText = doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+          } catch (_) {}
+        }
+      }
+
+      final mergeResult = conflictResolver.markdownMergeEngine.merge(
+        base: null,
+        local: localText,
+        remote: remoteText,
+      );
+
+      if (!mergeResult.hasConflicts) {
+        final mergedPage = OcrPage(
+          pageNumber: c.pageNumber,
+          plainText: mergeResult.mergedValue,
+          width: 0,
+          height: 0,
+        );
+        final mergedDoc = OcrDocument(
+          documentId: c.resourceId,
+          language: OcrLanguage.fromCode(c.serverHead.language),
+          engine: c.serverHead.ocrEngine,
+          engineVersion: c.serverHead.ocrEngineVersion,
+          processedAt: DateTime.now(),
+          pages: [mergedPage],
+        );
+        final encBytes = await _ocrCrypto.encryptOcrDocument(
+          ocrDocument: mergedDoc,
+          masterKeyBytes: masterKey,
+        );
+        final payloadBase64 = base64Encode(encBytes);
+
+        if (isDoc) {
+          await database.saveDocumentOcrPage(
+            documentId: c.resourceId,
+            pageNumber: c.pageNumber,
+            encryptedPayload: payloadBase64,
+            ocrEngine: mergedDoc.engine,
+            ocrEngineVersion: mergedDoc.engineVersion,
+            language: mergedDoc.language.code,
+            processedAt: DateTime.now(),
+            revision: c.serverRevision,
+            baseRevision: c.serverRevision,
+            isDirty: true,
+            updatedAt: DateTime.now(),
+          );
+          await database.updateDocumentOcrState(c.resourceId, 'available');
+          ocrSearchService?.invalidateDocumentCache(c.resourceId);
+        } else {
+          await database.saveAttachmentOcrPage(
+            attachmentId: c.resourceId,
+            pageNumber: c.pageNumber,
+            encryptedPayload: payloadBase64,
+            ocrEngine: mergedDoc.engine,
+            ocrEngineVersion: mergedDoc.engineVersion,
+            language: mergedDoc.language.code,
+            processedAt: DateTime.now(),
+            revision: c.serverRevision,
+            baseRevision: c.serverRevision,
+            isDirty: true,
+            updatedAt: DateTime.now(),
+          );
+          await database.updateAttachmentOcrState(c.resourceId, 'available');
+          ocrSearchService?.invalidateAttachmentCache(c.resourceId);
+        }
+      } else {
+        String? preferredNoteId;
+        if (isDoc) {
+          final doc = await database.getDocument(c.resourceId);
+          preferredNoteId = doc?.noteId;
+        } else {
+          final att = await database.getAttachment(c.resourceId);
+          preferredNoteId = att?.noteId;
+        }
+        final noteId = await _ensureValidNoteId(preferredNoteId);
+
+        const uuid = Uuid();
+        final conflict = SyncConflict(
+          id: uuid.v4(),
+          noteId: noteId,
+          baseRevision: c.baseRevision,
+          localRevision: localRev,
+          remoteRevision: c.serverRevision,
+          conflictType: ConflictType.content,
+          state: ConflictState.manualRequired,
+          createdAt: DateTime.now(),
+          localPlaintext: NotePlaintext(
+            title:
+                '${isDoc ? "Document" : "Attachment"} OCR Page ${c.pageNumber}',
+            body: localText,
+            tags: const [],
+          ),
+          remotePlaintext: NotePlaintext(
+            title:
+                '${isDoc ? "Document" : "Attachment"} OCR Page ${c.pageNumber}',
+            body: remoteText,
+            tags: const [],
+          ),
+          remoteIsDeleted: c.serverHead.isDeleted,
+          conflictRegions: mergeResult.conflictRegions,
+          resolvedTitle:
+              '${isDoc ? "Document" : "Attachment"} OCR Page ${c.pageNumber}',
+          resolvedContent: mergeResult.mergedValue,
+          explanation: mergeResult.explanation ??
+              'Conflicting edits in OCR text on page ${c.pageNumber}.',
+          extraData: {
+            'isOcr': true,
+            'resourceType': c.resourceType,
+            'resourceId': c.resourceId,
+            'pageNumber': c.pageNumber,
+            'noteId': noteId,
+            'remoteEncryptedPayload': c.serverHead.contentCiphertext,
+          },
+        );
+
+        await database.saveConflict(
+          id: conflict.id,
+          noteId: conflict.noteId,
+          baseRevision: conflict.baseRevision,
+          localRevision: conflict.localRevision,
+          remoteRevision: conflict.remoteRevision,
+          conflictType: conflict.conflictType.name,
+          state: conflict.state.name,
+          createdAt: conflict.createdAt,
+          dataJson: conflict.toDataJson(),
+        );
+
+        if (isDoc) {
+          final localRow =
+              await database.getDocumentOcrPage(c.resourceId, c.pageNumber);
+          if (localRow != null) {
+            await database.saveDocumentOcrPage(
+              documentId: c.resourceId,
+              pageNumber: c.pageNumber,
+              encryptedPayload: localRow.encryptedPayload,
+              ocrSchemaVersion: localRow.ocrSchemaVersion,
+              ocrEngine: localRow.ocrEngine,
+              ocrEngineVersion: localRow.ocrEngineVersion,
+              language: localRow.language,
+              processedAt: localRow.processedAt,
+              revision: localRow.revision,
+              baseRevision: localRow.baseRevision,
+              isDirty: false,
+              updatedAt: localRow.updatedAt,
+            );
+          }
+        } else {
+          final localRow =
+              await database.getAttachmentOcrPage(c.resourceId, c.pageNumber);
+          if (localRow != null) {
+            await database.saveAttachmentOcrPage(
+              attachmentId: c.resourceId,
+              pageNumber: c.pageNumber,
+              encryptedPayload: localRow.encryptedPayload,
+              ocrSchemaVersion: localRow.ocrSchemaVersion,
+              ocrEngine: localRow.ocrEngine,
+              ocrEngineVersion: localRow.ocrEngineVersion,
+              language: localRow.language,
+              processedAt: localRow.processedAt,
+              revision: localRow.revision,
+              baseRevision: localRow.baseRevision,
+              isDirty: false,
+              updatedAt: localRow.updatedAt,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _pullOcrPages(Uint8List masterKey) async {
+    final ocrCursorStr = await database.getSyncMetadata('ocr_sync_cursor');
+    var currentOcrCursor = int.tryParse(ocrCursorStr ?? '0') ?? 0;
+    var hasMoreOcr = true;
+
+    while (hasMoreOcr) {
+      PullOcrSyncResponse ocrPullResponse;
+      try {
+        ocrPullResponse = await apiClient.pullOcrPages(
+          cursor: currentOcrCursor,
+          limit: 50,
+        );
+      } catch (ocrPullErr) {
+        debugPrint('OCR pull error: $ocrPullErr');
+        break;
+      }
+
+      for (final change in ocrPullResponse.changes) {
+        await _applyPulledOcrChange(change, masterKey);
+      }
+
+      currentOcrCursor = ocrPullResponse.cursor;
+      await database.setSyncMetadata(
+        'ocr_sync_cursor',
+        currentOcrCursor.toString(),
+      );
+      hasMoreOcr = ocrPullResponse.hasMore;
+    }
+  }
+
+  Future<void> _applyPulledOcrChange(
+    PullOcrPageChangeItem change,
+    Uint8List masterKey,
+  ) async {
+    final isDoc = change.resourceType == 'document';
+
+    // 1. Check if there is an active conflict for this OCR page
+    final pendingConflicts = await database.getPendingConflicts();
+    SyncConflict? existingConflict;
+    for (final pc in pendingConflicts) {
+      final conflict = SyncConflict.fromEntity(pc);
+      if (conflict.isOcrConflict &&
+          conflict.extraData?['resourceType'] == change.resourceType &&
+          conflict.extraData?['resourceId'] == change.resourceId &&
+          conflict.extraData?['pageNumber'] == change.pageNumber) {
+        existingConflict = conflict;
+        break;
+      }
+    }
+
+    if (existingConflict != null) {
+      if (change.revision > existingConflict.remoteRevision) {
+        String newRemoteText = '';
+        if (!change.isDeleted && change.contentCiphertext.isNotEmpty) {
+          try {
+            final envelopeBytes = base64Decode(change.contentCiphertext);
+            final doc = await _ocrCrypto.decryptOcrDocument(
+              encryptedEnvelopeBytes: envelopeBytes,
+              masterKeyBytes: masterKey,
+              documentId: change.resourceId,
+            );
+            newRemoteText =
+                doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+          } catch (_) {}
+        }
+
+        final rebaseResult = conflictResolver.markdownMergeEngine.merge(
+          base: null,
+          local: existingConflict.localPlaintext?.body ?? '',
+          remote: newRemoteText,
+        );
+
+        final updatedConflict = existingConflict.copyWith(
+          remoteRevision: change.revision,
+          remotePlaintext: NotePlaintext(
+            title:
+                '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
+            body: newRemoteText,
+            tags: const [],
+          ),
+          remoteIsDeleted: change.isDeleted,
+          conflictRegions: rebaseResult.conflictRegions,
+          resolvedTitle:
+              '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
+          resolvedContent: rebaseResult.mergedValue,
+          explanation: rebaseResult.explanation,
+          extraData: {
+            ...?existingConflict.extraData,
+            'remoteEncryptedPayload': change.contentCiphertext,
+          },
+        );
+
+        await database.saveConflict(
+          id: updatedConflict.id,
+          noteId: updatedConflict.noteId,
+          baseRevision: updatedConflict.baseRevision,
+          localRevision: updatedConflict.localRevision,
+          remoteRevision: updatedConflict.remoteRevision,
+          conflictType: updatedConflict.conflictType.name,
+          state: updatedConflict.state.name,
+          createdAt: updatedConflict.createdAt,
+          dataJson: updatedConflict.toDataJson(),
+        );
+      }
+      return;
+    }
+
+    // 2. Check local row dirty status
+    final localDocPage = isDoc
+        ? await database.getDocumentOcrPage(
+            change.resourceId, change.pageNumber)
+        : null;
+    final localAttPage = !isDoc
+        ? await database.getAttachmentOcrPage(
+            change.resourceId, change.pageNumber)
+        : null;
+
+    final isLocalDirty = isDoc
+        ? (localDocPage?.isDirty == true)
+        : (localAttPage?.isDirty == true);
+
+    if (!isLocalDirty) {
+      final updatedAt = change.updatedAtMs > 0
+          ? DateTime.fromMillisecondsSinceEpoch(change.updatedAtMs)
+          : DateTime.now();
+
+      if (isDoc) {
+        await database.saveDocumentOcrPage(
+          documentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: change.contentCiphertext,
+          ocrEngine: change.ocrEngine,
+          ocrEngineVersion: change.ocrEngineVersion,
+          language: change.language,
+          processedAt: change.processedAt ?? DateTime.now(),
+          revision: change.revision,
+          baseRevision: change.revision,
+          isDirty: false,
+          isDeleted: change.isDeleted,
+          updatedAt: updatedAt,
+        );
+        if (!change.isDeleted) {
+          await database.updateDocumentOcrState(change.resourceId, 'available');
+        }
+        ocrSearchService?.invalidateDocumentCache(change.resourceId);
+      } else {
+        await database.saveAttachmentOcrPage(
+          attachmentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: change.contentCiphertext,
+          ocrEngine: change.ocrEngine,
+          ocrEngineVersion: change.ocrEngineVersion,
+          language: change.language,
+          processedAt: change.processedAt ?? DateTime.now(),
+          revision: change.revision,
+          baseRevision: change.revision,
+          isDirty: false,
+          isDeleted: change.isDeleted,
+          updatedAt: updatedAt,
+        );
+        if (!change.isDeleted) {
+          await database.updateAttachmentOcrState(
+              change.resourceId, 'available');
+        }
+        ocrSearchService?.invalidateAttachmentCache(change.resourceId);
+      }
+      return;
+    }
+
+    // 3. Local row is dirty: concurrent edit! Run 3-way merge!
+    String localText = '';
+    String remoteText = '';
+
+    if (!change.isDeleted && change.contentCiphertext.isNotEmpty) {
+      try {
+        final envelopeBytes = base64Decode(change.contentCiphertext);
+        final doc = await _ocrCrypto.decryptOcrDocument(
+          encryptedEnvelopeBytes: envelopeBytes,
+          masterKeyBytes: masterKey,
+          documentId: change.resourceId,
+        );
+        remoteText = doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+      } catch (_) {}
+    }
+
+    final localPayload = isDoc
+        ? localDocPage?.encryptedPayload
+        : localAttPage?.encryptedPayload;
+
+    if (localPayload != null && localPayload.isNotEmpty) {
+      try {
+        final envelopeBytes = base64Decode(localPayload);
+        final doc = await _ocrCrypto.decryptOcrDocument(
+          encryptedEnvelopeBytes: envelopeBytes,
+          masterKeyBytes: masterKey,
+          documentId: change.resourceId,
+        );
+        localText = doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+      } catch (_) {}
+    }
+
+    final mergeResult = conflictResolver.markdownMergeEngine.merge(
+      base: null,
+      local: localText,
+      remote: remoteText,
+    );
+
+    if (!mergeResult.hasConflicts) {
+      final mergedPage = OcrPage(
+        pageNumber: change.pageNumber,
+        plainText: mergeResult.mergedValue,
+        width: 0,
+        height: 0,
+      );
+      final mergedDoc = OcrDocument(
+        documentId: change.resourceId,
+        language: OcrLanguage.fromCode(change.language),
+        engine: change.ocrEngine,
+        engineVersion: change.ocrEngineVersion,
+        processedAt: DateTime.now(),
+        pages: [mergedPage],
+      );
+      final encBytes = await _ocrCrypto.encryptOcrDocument(
+        ocrDocument: mergedDoc,
+        masterKeyBytes: masterKey,
+      );
+      final payloadBase64 = base64Encode(encBytes);
+
+      if (isDoc) {
+        await database.saveDocumentOcrPage(
+          documentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: payloadBase64,
+          ocrEngine: mergedDoc.engine,
+          ocrEngineVersion: mergedDoc.engineVersion,
+          language: mergedDoc.language.code,
+          processedAt: DateTime.now(),
+          revision: change.revision,
+          baseRevision: change.revision,
+          isDirty: true,
+          updatedAt: DateTime.now(),
+        );
+        await database.updateDocumentOcrState(change.resourceId, 'available');
+        ocrSearchService?.invalidateDocumentCache(change.resourceId);
+      } else {
+        await database.saveAttachmentOcrPage(
+          attachmentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: payloadBase64,
+          ocrEngine: mergedDoc.engine,
+          ocrEngineVersion: mergedDoc.engineVersion,
+          language: mergedDoc.language.code,
+          processedAt: DateTime.now(),
+          revision: change.revision,
+          baseRevision: change.revision,
+          isDirty: true,
+          updatedAt: DateTime.now(),
+        );
+        await database.updateAttachmentOcrState(change.resourceId, 'available');
+        ocrSearchService?.invalidateAttachmentCache(change.resourceId);
+      }
+    } else {
+      String? preferredNoteId;
+      if (isDoc) {
+        final doc = await database.getDocument(change.resourceId);
+        preferredNoteId = doc?.noteId;
+      } else {
+        final att = await database.getAttachment(change.resourceId);
+        preferredNoteId = att?.noteId;
+      }
+      final noteId = await _ensureValidNoteId(preferredNoteId);
+
+      const uuid = Uuid();
+      final conflict = SyncConflict(
+        id: uuid.v4(),
+        noteId: noteId,
+        baseRevision: isDoc
+            ? (localDocPage?.baseRevision ?? 0)
+            : (localAttPage?.baseRevision ?? 0),
+        localRevision: isDoc
+            ? (localDocPage?.revision ?? 0)
+            : (localAttPage?.revision ?? 0),
+        remoteRevision: change.revision,
+        conflictType: ConflictType.content,
+        state: ConflictState.manualRequired,
+        createdAt: DateTime.now(),
+        localPlaintext: NotePlaintext(
+          title:
+              '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
+          body: localText,
+          tags: const [],
+        ),
+        remotePlaintext: NotePlaintext(
+          title:
+              '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
+          body: remoteText,
+          tags: const [],
+        ),
+        remoteIsDeleted: change.isDeleted,
+        conflictRegions: mergeResult.conflictRegions,
+        resolvedTitle:
+            '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
+        resolvedContent: mergeResult.mergedValue,
+        explanation: mergeResult.explanation ??
+            'Conflicting edits in OCR text on page ${change.pageNumber}.',
+        extraData: {
+          'isOcr': true,
+          'resourceType': change.resourceType,
+          'resourceId': change.resourceId,
+          'pageNumber': change.pageNumber,
+          'noteId': noteId,
+          'remoteEncryptedPayload': change.contentCiphertext,
+        },
+      );
+
+      await database.saveConflict(
+        id: conflict.id,
+        noteId: conflict.noteId,
+        baseRevision: conflict.baseRevision,
+        localRevision: conflict.localRevision,
+        remoteRevision: conflict.remoteRevision,
+        conflictType: conflict.conflictType.name,
+        state: conflict.state.name,
+        createdAt: conflict.createdAt,
+        dataJson: conflict.toDataJson(),
+      );
+
+      if (isDoc && localDocPage != null) {
+        await database.saveDocumentOcrPage(
+          documentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: localDocPage.encryptedPayload,
+          ocrSchemaVersion: localDocPage.ocrSchemaVersion,
+          ocrEngine: localDocPage.ocrEngine,
+          ocrEngineVersion: localDocPage.ocrEngineVersion,
+          language: localDocPage.language,
+          processedAt: localDocPage.processedAt,
+          revision: localDocPage.revision,
+          baseRevision: localDocPage.baseRevision,
+          isDirty: false,
+          updatedAt: localDocPage.updatedAt,
+        );
+      } else if (!isDoc && localAttPage != null) {
+        await database.saveAttachmentOcrPage(
+          attachmentId: change.resourceId,
+          pageNumber: change.pageNumber,
+          encryptedPayload: localAttPage.encryptedPayload,
+          ocrSchemaVersion: localAttPage.ocrSchemaVersion,
+          ocrEngine: localAttPage.ocrEngine,
+          ocrEngineVersion: localAttPage.ocrEngineVersion,
+          language: localAttPage.language,
+          processedAt: localAttPage.processedAt,
+          revision: localAttPage.revision,
+          baseRevision: localAttPage.baseRevision,
+          isDirty: false,
+          updatedAt: localAttPage.updatedAt,
+        );
+      }
+    }
+  }
+
+  Future<String> _ensureValidNoteId(String? preferredNoteId) async {
+    if (preferredNoteId != null) {
+      final noteWithTags = await database.getNoteWithTags(preferredNoteId);
+      if (noteWithTags != null) return noteWithTags.note.id;
+    }
+    final allNotes = await database.getAllNotesRaw();
+    if (allNotes.isNotEmpty) return allNotes.first.id;
+    const uuid = Uuid();
+    final fallbackId = uuid.v4();
+    await database.saveNote(
+      id: fallbackId,
+      title: 'Documents & Attachments',
+      content: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isPinned: false,
+      isDirty: false,
+    );
+    return fallbackId;
   }
 
   void dispose() {
