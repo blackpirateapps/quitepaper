@@ -46,6 +46,10 @@ void main() {
       testImageBytes = Uint8List.fromList(img.encodePng(image));
     });
 
+    test('defaultPrompt uses canonical DeepSeek-OCR grounding prompt without conversational instructions', () {
+      expect(OllamaOcrService.defaultPrompt, '<|grounding|>Convert the document to markdown.');
+    });
+
     test('recognizePage successfully queries Ollama /api/generate and returns structured OcrPage', () async {
       final mockClient = MockClient((request) async {
         expect(request.url.path, '/api/generate');

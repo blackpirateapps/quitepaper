@@ -9607,6 +9607,40 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test test/ocr/`: **All 35 tests passing**.
 
+---
+
+## 214. Ollama Live Text: DeepSeek-OCR Prompt Canonicalization & Elimination of Tutorial Hallucinations (October 2026)
+
+### 1. Problem & Root Cause
+1. During document OCR processing with local Ollama (`DeepSeek-OCR-GGUF`), extraneous hallucinated text was appended or prepended to the OCR output:
+   ```text
+   For a complete guide on table syntax, see the [W3Schools](http://www.w3schools.com/table.asp) documentation. For more information on the Markdown syntax, see the [Markdown documentation](http://daringfireball.net/projects/markdown).
+   ```
+   None of this text was present in the scanned document image.
+2. In commit `794983e`, [`OllamaOcrService.defaultPrompt`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_service.dart#L28) had been modified to:
+   ```text
+   <|grounding|>Convert the document to markdown. Format all tables as standard Markdown tables using pipe syntax (| Col 1 | Col 2 |). Do not use HTML table tags.
+   ```
+3. DeepSeek-OCR is a specialized vision-language grounding model fine-tuned on rigid special tokens (`<|grounding|>Convert the document to markdown.`). Injecting free-form conversational or imperative text instructions (`Format all tables as standard Markdown tables...`) triggers the model's language completion priors, causing it to produce explanatory web tutorial references (such as links to W3Schools and Daring Fireball) rather than strict grounded document transcription.
+4. Furthermore, HTML `<table>` elements emitted by DeepSeek-OCR are already automatically parsed and converted into GitHub Flavored Markdown (GFM) pipe tables in pure Dart by [`OllamaGroundingParser.convertHtmlTablesToMarkdown`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_grounding_parser.dart#L286), making natural language table formatting prompts completely redundant.
+
+### 2. Architectural Solution
+1. **Restored Canonical DeepSeek-OCR Prompt**:
+   - In [`OllamaOcrService.defaultPrompt`](file:///home/dog/git/quitepaper/lib/core/ocr/ollama_ocr_service.dart#L28), reverted the prompt to the exact official model preset:
+     ```dart
+     static const String defaultPrompt = '<|grounding|>Convert the document to markdown.';
+     ```
+   - This prevents conversational mode activation and completely eliminates hallucinated documentation and markdown tutorial links.
+2. **Deterministic Downstream HTML-to-GFM Pipeline**:
+   - Confirmed that all HTML table syntax conversions remain handled deterministically by `OllamaGroundingParser.convertHtmlTablesToMarkdown` and unit tests in `ollama_grounding_parser_test.dart`.
+3. **Automated Verification**:
+   - Added a regression test in [`test/ocr/ollama_ocr_service_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ollama_ocr_service_test.dart) asserting `OllamaOcrService.defaultPrompt` matches the canonical `<|grounding|>Convert the document to markdown.` token string without conversational instructions.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/ocr/`: **All 36 tests passing**.
+
+
 
 
 

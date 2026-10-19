@@ -25,10 +25,8 @@ class OllamaOcrService implements OcrService {
   static const String defaultEndpoint = 'http://127.0.0.1:11434';
   static const String defaultModel = 'deepseek-ocr';
 
-  /// Standard prompt instructing DeepSeek-OCR to transcribe the page into Markdown
-  /// with tables formatted as GFM Markdown pipe tables.
-  static const String defaultPrompt =
-      '<|grounding|>Convert the document to markdown. Format all tables as standard Markdown tables using pipe syntax (| Col 1 | Col 2 |). Do not use HTML table tags.';
+  /// Canonical preset prompt instructing DeepSeek-OCR to transcribe the page into Markdown.
+  static const String defaultPrompt = '<|grounding|>Convert the document to markdown.';
 
   final String endpoint;
   final String model;
