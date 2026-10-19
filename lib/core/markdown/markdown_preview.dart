@@ -1422,15 +1422,21 @@ class LinkPreviewBlockSyntax extends md.BlockSyntax {
       );
 
   @override
+  bool canParse(md.BlockParser parser) {
+    final line = parser.current.content;
+    if (!pattern.hasMatch(line)) {
+      return false;
+    }
+    final next = parser.next;
+    return next != null && isLinkPreviewComment(next.content);
+  }
+
+  @override
   md.Node? parse(md.BlockParser parser) {
     final line = parser.current.content;
     final match = pattern.firstMatch(line);
-    if (match == null) {
-      return null;
-    }
     final next = parser.next;
-    if (next == null || !isLinkPreviewComment(next.content)) {
-      // Not a baked preview; let the paragraph syntax handle this line.
+    if (match == null || next == null || !isLinkPreviewComment(next.content)) {
       return null;
     }
 

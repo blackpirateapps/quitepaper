@@ -9366,6 +9366,8 @@ Under the Link Enhancements specification (`docs/specs/link-enhancements-spec.md
    - **WYSIWYG Editor (`_RichTextEditingController`)**: Appends an inline `WidgetSpan` containing `LinkEnhanceButton` directly after each web link run when `!readOnly`.
    - **Super Editor (`LinkEnhanceDocumentLayer` & `LinkEnhanceDocumentLayerBuilder`)**: Created an overlay layer computing precise bounding boxes using `documentLayout.getEdgeForPosition` for trailing edges of all `LinkAttribution` spans, floating interactive sparkle buttons.
    - **Markdown Preview (`WebLinkElementBuilder` & `LinkPreviewElementBuilder`)**: Registered custom element builders in `QuietMarkdownPreview` that render `LinkEnhanceButton` alongside web links when `onMarkdownChanged != null` and document is interactive, rewriting `[text](url)` to `[newTitle](url)` upon enhancement.
+   - **Link Preview Block Syntax Guard (`LinkPreviewBlockSyntax.canParse`)**: Overrode `canParse` in `LinkPreviewBlockSyntax` to verify both the regex pattern AND the presence of a trailing `isLinkPreviewComment` sentinel. Previously, standard single-line markdown links without a sentinel matched `pattern`, causing `parse` to return `null` without advancing the parser and throwing a `BlockParser did not advance` assertion error in preview mode.
+   - **Linux Desktop Build Hardening (`linux/CMakeLists.txt`)**: Added `-Wno-deprecated-literal-operator` to `APPLY_STANDARD_SETTINGS` to prevent third-party C++ header warnings from breaking builds as `-Werror`, and hardened `CMAKE_INSTALL_PREFIX` assignment against stale cache paths.
    - **Editor Screen (`editor_screen.dart`)**: Updated `_maybeInsertSmartWebLink` and `_fetchAndPatchLinkTitle` to reliably trigger title enhancement across Super Editor, WYSIWYG, and plain Markdown.
 
 ### 3. File Inventory
@@ -9381,14 +9383,15 @@ Under the Link Enhancements specification (`docs/specs/link-enhancements-spec.md
   - `lib/features/editor/presentation/widgets/link_prompt_dialog.dart`: Added sparkle suffix icon to Link Text field with auto-fetch and injectable `titleFetcher`.
   - `lib/features/editor/presentation/widgets/rich_text_editor.dart`: Appended `WidgetSpan` holding `LinkEnhanceButton` after web links.
   - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Registered `LinkEnhanceDocumentLayerBuilder` in `documentOverlayBuilders`.
-  - `lib/core/markdown/markdown_preview.dart`: Added `WebLinkElementBuilder`, updated `LinkPreviewElementBuilder`, wired `handleEnhanceWebLink` and `titleFetcher`.
+  - `lib/core/markdown/markdown_preview.dart`: Added `WebLinkElementBuilder`, updated `LinkPreviewElementBuilder`, fixed `LinkPreviewBlockSyntax.canParse`, wired `handleEnhanceWebLink` and `titleFetcher`.
   - `lib/features/editor/presentation/editor_screen.dart`: Updated `_maybeInsertSmartWebLink` and `_fetchAndPatchLinkTitle`.
+  - `linux/CMakeLists.txt`: Added `-Wno-deprecated-literal-operator` and guarded `CMAKE_INSTALL_PREFIX`.
   - `test/core/web_clipper/link_title_fetcher_test.dart`: Added tests for 301/302 redirects and `application/xhtml+xml`.
   - `test/editor/web_link_enhancements_test.dart`: Added unit tests for `replaceLinkDisplayText` with `force: true`.
 
 ### 4. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
-- `flutter test`: All **2,046 tests passed** (including 5 new link enhance widget tests and 2 updated unit tests).
+- `flutter test`: All **2,047 tests passed** (including 6 link enhance widget and regression tests).
 
 
 

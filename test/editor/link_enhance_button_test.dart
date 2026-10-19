@@ -178,5 +178,23 @@ void main() {
 
       expect(updatedMarkdown, equals('Check out [Flutter Awesome](https://flutter.dev) for details.'));
     });
+
+    testWidgets('lone link without preview sentinel does not trigger block parser not advancing assertion', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: const Scaffold(
+              body: QuietMarkdownPreview(
+                markdownData: 'Check out this link:\n\n[Google](https://google.com)\n\nAnd more text.',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Google'), findsOneWidget);
+    });
   });
 }
