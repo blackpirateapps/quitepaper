@@ -9796,7 +9796,7 @@ To ensure complete reversibility and reference integrity for the historical cust
 1. **Schema Bump ([`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart))**:
    - Bumped `schemaVersion` to **19**.
    - Added `revision`, `baseRevision`, `isDirty`, `isDeleted`, and `updatedAt` to both `DocumentOcrPagesTable` and `AttachmentOcrPagesTable`.
-   - Migration `from < 19` safely adds all five columns idempotently via `_addColumnSafely`.
+   - SQLite migration constraint fix: in SQLite, `ALTER TABLE ... ADD COLUMN` strictly forbids non-constant default expressions (such as `CURRENT_TIMESTAMP` or `strftime(...)`). `updatedAt` was made a nullable `dateTime().nullable()()`, allowing clean `ADD COLUMN "updated_at" INTEGER;` execution during migration. Existing rows are safely backfilled from `processed_at` via an idempotent `UPDATE ... WHERE updated_at IS NULL`.
 2. **DAO Methods**:
    - `getDirtyDocumentOcrPages()`, `getDirtyAttachmentOcrPages()`.
    - `markDocumentOcrPageSynced(docId, pageNumber, revision, updatedAt)`.

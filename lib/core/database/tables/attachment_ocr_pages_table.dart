@@ -46,7 +46,7 @@ class AttachmentOcrPagesTable extends Table {
   BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
 
   /// Last local mutation timestamp
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {attachmentId, pageNumber};

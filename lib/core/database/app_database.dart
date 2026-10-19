@@ -226,6 +226,14 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDirty);
             await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDeleted);
             await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.updatedAt);
+
+            // Backfill existing OCR page records with processed_at if updated_at is null
+            await customStatement(
+              'UPDATE document_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
+            );
+            await customStatement(
+              'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
+            );
           }
         },
         beforeOpen: (details) async {

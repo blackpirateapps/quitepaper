@@ -1415,7 +1415,7 @@ class SyncEngine {
         ocrEngineVersion: p.ocrEngineVersion,
         language: p.language,
         processedAt: p.processedAt,
-        updatedAtMs: p.updatedAt.millisecondsSinceEpoch,
+        updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
         isDeleted: p.isDeleted,
         baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
       ));
@@ -1431,7 +1431,7 @@ class SyncEngine {
         ocrEngineVersion: p.ocrEngineVersion,
         language: p.language,
         processedAt: p.processedAt,
-        updatedAtMs: p.updatedAt.millisecondsSinceEpoch,
+        updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
         isDeleted: p.isDeleted,
         baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
       ));

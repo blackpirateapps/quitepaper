@@ -4724,10 +4724,9 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
     'updated_at',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
-    defaultValue: currentDateAndTime,
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -4922,7 +4921,7 @@ class $AttachmentOcrPagesTableTable extends AttachmentOcrPagesTable
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
-      )!,
+      ),
     );
   }
 
@@ -4971,7 +4970,7 @@ class AttachmentOcrPageEntity extends DataClass
   final bool isDeleted;
 
   /// Last local mutation timestamp
-  final DateTime updatedAt;
+  final DateTime? updatedAt;
   const AttachmentOcrPageEntity({
     required this.attachmentId,
     required this.pageNumber,
@@ -4985,7 +4984,7 @@ class AttachmentOcrPageEntity extends DataClass
     required this.baseRevision,
     required this.isDirty,
     required this.isDeleted,
-    required this.updatedAt,
+    this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5002,7 +5001,9 @@ class AttachmentOcrPageEntity extends DataClass
     map['base_revision'] = Variable<int>(baseRevision);
     map['is_dirty'] = Variable<bool>(isDirty);
     map['is_deleted'] = Variable<bool>(isDeleted);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
     return map;
   }
 
@@ -5020,7 +5021,9 @@ class AttachmentOcrPageEntity extends DataClass
       baseRevision: Value(baseRevision),
       isDirty: Value(isDirty),
       isDeleted: Value(isDeleted),
-      updatedAt: Value(updatedAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
     );
   }
 
@@ -5042,7 +5045,7 @@ class AttachmentOcrPageEntity extends DataClass
       baseRevision: serializer.fromJson<int>(json['baseRevision']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
   }
   @override
@@ -5061,7 +5064,7 @@ class AttachmentOcrPageEntity extends DataClass
       'baseRevision': serializer.toJson<int>(baseRevision),
       'isDirty': serializer.toJson<bool>(isDirty),
       'isDeleted': serializer.toJson<bool>(isDeleted),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
   }
 
@@ -5078,7 +5081,7 @@ class AttachmentOcrPageEntity extends DataClass
     int? baseRevision,
     bool? isDirty,
     bool? isDeleted,
-    DateTime? updatedAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
   }) => AttachmentOcrPageEntity(
     attachmentId: attachmentId ?? this.attachmentId,
     pageNumber: pageNumber ?? this.pageNumber,
@@ -5092,7 +5095,7 @@ class AttachmentOcrPageEntity extends DataClass
     baseRevision: baseRevision ?? this.baseRevision,
     isDirty: isDirty ?? this.isDirty,
     isDeleted: isDeleted ?? this.isDeleted,
-    updatedAt: updatedAt ?? this.updatedAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
   AttachmentOcrPageEntity copyWithCompanion(
     AttachmentOcrPagesTableCompanion data,
@@ -5197,7 +5200,7 @@ class AttachmentOcrPagesTableCompanion
   final Value<int> baseRevision;
   final Value<bool> isDirty;
   final Value<bool> isDeleted;
-  final Value<DateTime> updatedAt;
+  final Value<DateTime?> updatedAt;
   final Value<int> rowid;
   const AttachmentOcrPagesTableCompanion({
     this.attachmentId = const Value.absent(),
@@ -5280,7 +5283,7 @@ class AttachmentOcrPagesTableCompanion
     Value<int>? baseRevision,
     Value<bool>? isDirty,
     Value<bool>? isDeleted,
-    Value<DateTime>? updatedAt,
+    Value<DateTime?>? updatedAt,
     Value<int>? rowid,
   }) {
     return AttachmentOcrPagesTableCompanion(
@@ -7858,10 +7861,9 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
     'updated_at',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
-    defaultValue: currentDateAndTime,
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -8052,7 +8054,7 @@ class $DocumentOcrPagesTableTable extends DocumentOcrPagesTable
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
-      )!,
+      ),
     );
   }
 
@@ -8101,7 +8103,7 @@ class DocumentOcrPageEntity extends DataClass
   final bool isDeleted;
 
   /// Last local mutation timestamp
-  final DateTime updatedAt;
+  final DateTime? updatedAt;
   const DocumentOcrPageEntity({
     required this.documentId,
     required this.pageNumber,
@@ -8115,7 +8117,7 @@ class DocumentOcrPageEntity extends DataClass
     required this.baseRevision,
     required this.isDirty,
     required this.isDeleted,
-    required this.updatedAt,
+    this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -8132,7 +8134,9 @@ class DocumentOcrPageEntity extends DataClass
     map['base_revision'] = Variable<int>(baseRevision);
     map['is_dirty'] = Variable<bool>(isDirty);
     map['is_deleted'] = Variable<bool>(isDeleted);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
     return map;
   }
 
@@ -8150,7 +8154,9 @@ class DocumentOcrPageEntity extends DataClass
       baseRevision: Value(baseRevision),
       isDirty: Value(isDirty),
       isDeleted: Value(isDeleted),
-      updatedAt: Value(updatedAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
     );
   }
 
@@ -8172,7 +8178,7 @@ class DocumentOcrPageEntity extends DataClass
       baseRevision: serializer.fromJson<int>(json['baseRevision']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
   }
   @override
@@ -8191,7 +8197,7 @@ class DocumentOcrPageEntity extends DataClass
       'baseRevision': serializer.toJson<int>(baseRevision),
       'isDirty': serializer.toJson<bool>(isDirty),
       'isDeleted': serializer.toJson<bool>(isDeleted),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
   }
 
@@ -8208,7 +8214,7 @@ class DocumentOcrPageEntity extends DataClass
     int? baseRevision,
     bool? isDirty,
     bool? isDeleted,
-    DateTime? updatedAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
   }) => DocumentOcrPageEntity(
     documentId: documentId ?? this.documentId,
     pageNumber: pageNumber ?? this.pageNumber,
@@ -8222,7 +8228,7 @@ class DocumentOcrPageEntity extends DataClass
     baseRevision: baseRevision ?? this.baseRevision,
     isDirty: isDirty ?? this.isDirty,
     isDeleted: isDeleted ?? this.isDeleted,
-    updatedAt: updatedAt ?? this.updatedAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
   DocumentOcrPageEntity copyWithCompanion(DocumentOcrPagesTableCompanion data) {
     return DocumentOcrPageEntity(
@@ -8325,7 +8331,7 @@ class DocumentOcrPagesTableCompanion
   final Value<int> baseRevision;
   final Value<bool> isDirty;
   final Value<bool> isDeleted;
-  final Value<DateTime> updatedAt;
+  final Value<DateTime?> updatedAt;
   final Value<int> rowid;
   const DocumentOcrPagesTableCompanion({
     this.documentId = const Value.absent(),
@@ -8409,7 +8415,7 @@ class DocumentOcrPagesTableCompanion
     Value<int>? baseRevision,
     Value<bool>? isDirty,
     Value<bool>? isDeleted,
-    Value<DateTime>? updatedAt,
+    Value<DateTime?>? updatedAt,
     Value<int>? rowid,
   }) {
     return DocumentOcrPagesTableCompanion(
@@ -13985,7 +13991,7 @@ typedef $$AttachmentOcrPagesTableTableCreateCompanionBuilder =
       Value<int> baseRevision,
       Value<bool> isDirty,
       Value<bool> isDeleted,
-      Value<DateTime> updatedAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 typedef $$AttachmentOcrPagesTableTableUpdateCompanionBuilder =
@@ -14002,7 +14008,7 @@ typedef $$AttachmentOcrPagesTableTableUpdateCompanionBuilder =
       Value<int> baseRevision,
       Value<bool> isDirty,
       Value<bool> isDeleted,
-      Value<DateTime> updatedAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 
@@ -14277,7 +14283,7 @@ class $$AttachmentOcrPagesTableTableTableManager
                 Value<int> baseRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentOcrPagesTableCompanion(
                 attachmentId: attachmentId,
@@ -14309,7 +14315,7 @@ class $$AttachmentOcrPagesTableTableTableManager
                 Value<int> baseRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttachmentOcrPagesTableCompanion.insert(
                 attachmentId: attachmentId,
@@ -15520,7 +15526,7 @@ typedef $$DocumentOcrPagesTableTableCreateCompanionBuilder =
       Value<int> baseRevision,
       Value<bool> isDirty,
       Value<bool> isDeleted,
-      Value<DateTime> updatedAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 typedef $$DocumentOcrPagesTableTableUpdateCompanionBuilder =
@@ -15537,7 +15543,7 @@ typedef $$DocumentOcrPagesTableTableUpdateCompanionBuilder =
       Value<int> baseRevision,
       Value<bool> isDirty,
       Value<bool> isDeleted,
-      Value<DateTime> updatedAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 
@@ -15812,7 +15818,7 @@ class $$DocumentOcrPagesTableTableTableManager
                 Value<int> baseRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentOcrPagesTableCompanion(
                 documentId: documentId,
@@ -15844,7 +15850,7 @@ class $$DocumentOcrPagesTableTableTableManager
                 Value<int> baseRevision = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentOcrPagesTableCompanion.insert(
                 documentId: documentId,
