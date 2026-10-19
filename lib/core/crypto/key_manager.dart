@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/quiet_secure_storage.dart';
 import 'crypto_service.dart';
 
 /// Key Manager interface managing secure key storage and lifecycle
@@ -62,7 +63,7 @@ class SecureKeyManager implements KeyManager {
     FlutterSecureStorage? secureStorage,
   })  : _crypto = cryptoService ?? DefaultCryptoService(),
         _storage = secureStorage ??
-            const FlutterSecureStorage(
+            const QuietSecureStorage(
               aOptions: AndroidOptions(encryptedSharedPreferences: true),
             );
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import '../storage/quiet_secure_storage.dart';
 
 @immutable
 class AuthUser {
@@ -105,7 +106,7 @@ class FirebaseAuthService implements AuthService {
                 : defaultFirebaseApiKey),
         _client = httpClient ?? http.Client(),
         _storage = secureStorage ??
-            const FlutterSecureStorage(
+            const QuietSecureStorage(
               aOptions: AndroidOptions(encryptedSharedPreferences: true),
             );
 

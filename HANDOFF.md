@@ -9393,5 +9393,45 @@ Under the Link Enhancements specification (`docs/specs/link-enhancements-spec.md
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **2,047 tests passed** (including 6 link enhance widget and regression tests).
 
+---
+
+## 208. Resilient Secure Storage & Encrypted Local Fallback for Linux (Disabled KDE Wallet) (October 2026)
+
+### 1. Problem & Motivation
+On Linux desktop environments (e.g. Fedora with KDE Plasma, GNOME with disabled keyring, or minimalist window managers), users who disable KDE Wallet or lack an active Secret Service daemon (`org.freedesktop.secrets`) experienced session amnesia:
+1. When signing in or unlocking the local vault, calls to `flutter_secure_storage`'s Linux plugin failed with `libsecret_error: Failed to unlock the keyring` / `The name is not activatable` / `PlatformException`.
+2. `AuthService._saveUserSession`, `SecureKeyManager.setupNewKeys`, and `SecureKeyManager.storeWrappedKeyData` caught and discarded the platform exception.
+3. Consequently, neither the user authentication session (`quietpaper_auth_session_v1`) nor the master encryption key (`quietpaper_master_key_v1` / `quietpaper_wrapped_master_key_v1`) were persisted to disk.
+4. On every application launch, `AuthService.initialize()` and `SecureKeyManager.initialize()` failed to read the keys, resetting `_currentUser` to `null` and requiring the user to re-enter credentials and encryption passwords on every single launch.
+
+### 2. Architectural Solution
+1. **Resilient Secure Storage Wrapper (`QuietSecureStorage`)**:
+   - Implemented `QuietSecureStorage extends FlutterSecureStorage` in `lib/core/storage/quiet_secure_storage.dart`.
+   - On all operations (`read`, `write`, `delete`, `deleteAll`, `containsKey`, `readAll`), `QuietSecureStorage` first attempts to delegate to the platform's native secure storage (e.g. Android Keystore, iOS Keychain, macOS Keychain, Linux Secret Service).
+   - If the platform secure storage throws an error (e.g. `PlatformException` with `Libsecret error: Failed to unlock the keyring` or `The name is not activatable`), it transparently falls back to an encrypted, device-bound local store (`.secure_storage_fallback.enc`).
+2. **Device & User-Bound AES-256-GCM Encryption**:
+   - The fallback store is encrypted with AES-256-GCM using a cryptographically random 256-bit salt (`.secure_storage_key`) combined via SHA-256 with `/etc/machine-id` (systemd machine ID) and the local `$USER` username.
+   - On Linux/macOS, strict POSIX permissions (`0600`, read/write by the current user only) are applied to both `.secure_storage_key` and `.secure_storage_fallback.enc`.
+   - File writes are atomic (written to `.tmp` first, then atomically renamed) and serialized with an asynchronous lock to prevent concurrency corruption.
+   - Decrypted entries are cached in memory for zero-overhead subsequent reads.
+3. **Multi-Service Integration**:
+   - Configured `FirebaseAuthService`, `SecureKeyManager`, and `BackupService` to default to `QuietSecureStorage`.
+   - When platform secure storage is available, writes update platform storage and remove any stale fallback copies.
+   - When platform secure storage is disabled or locked, credentials and keys persist securely and reliably across app restarts.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/storage/quiet_secure_storage.dart`: Drop-in resilient `FlutterSecureStorage` wrapper with AES-256-GCM device-bound fallback.
+  - `test/core/storage/quiet_secure_storage_test.dart`: Unit and integration test suite verifying fallback behavior under simulated keyring failure, disk encryption verification, and persistence across `FirebaseAuthService` and `SecureKeyManager` restarts.
+- **Modified Files**:
+  - `lib/core/auth/auth_service.dart`: Defaulted `_storage` to `QuietSecureStorage`.
+  - `lib/core/crypto/key_manager.dart`: Defaulted `_storage` to `QuietSecureStorage`.
+  - `lib/core/backup/backup_service.dart`: Defaulted `_secureStorage` to `QuietSecureStorage`.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All **34 targeted tests passed** (including 7 new `QuietSecureStorage` fallback tests, all crypto tests, and auth resiliency tests).
+
+
 
 
