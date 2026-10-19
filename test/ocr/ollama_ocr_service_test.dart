@@ -84,10 +84,57 @@ void main() {
       expect(page.source, OcrSource.onDeviceOcr);
       expect(page.plainText, contains('# Scanned Title'));
       expect(page.plainText, contains('| Col A | Col B |'));
-      expect(page.blocks.length, 1);
-      expect(page.blocks.first.text, page.plainText);
+      expect(page.blocks.length, 3);
+      expect(page.blocks.first.text, '# Scanned Title');
       expect(page.blocks.first.bounds.width, 0.90);
-      expect(page.blocks.first.bounds.height, 0.90);
+      expect(page.blocks.first.lines, isNotEmpty);
+      expect(page.blocks.first.lines.first.words, isNotEmpty);
+    });
+
+    test('recognizePage parses grounded DeepSeek-OCR output into clean plain text and structured blocks', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({
+            'model': 'deepseek-ocr',
+            'response': '''
+image[[22, 127, 452, 646]]
+text[[4, 641, 450, 789]]
+In cyclic quadrilateral (चक्रीय चतुर्भुज)
+\\(a + c = b + d = 180^\\circ\\)
+''',
+            'done': true,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final service = OllamaOcrService(
+        httpClient: mockClient,
+        endpoint: 'http://127.0.0.1:11434',
+        model: 'deepseek-ocr',
+      );
+
+      final page = await service.recognizePage(
+        testImageBytes,
+        pageNumber: 1,
+        language: OcrLanguage.english,
+      );
+
+      expect(page.pageNumber, 1);
+      expect(page.plainText, isNot(contains('image[[')));
+      expect(page.plainText, isNot(contains('text[[')));
+      expect(page.plainText, contains('In cyclic quadrilateral (चक्रीय चतुर्भुज)'));
+      expect(page.plainText, contains(r'\(a + c = b + d = 180^\circ\)'));
+
+      expect(page.blocks.length, 1);
+      final block = page.blocks.first;
+      expect(block.bounds.x, closeTo(0.641, 0.001));
+      expect(block.bounds.y, closeTo(0.004, 0.001));
+      expect(block.bounds.width, closeTo(0.148, 0.001));
+      expect(block.bounds.height, closeTo(0.446, 0.001));
+      expect(block.lines.length, 2);
+      expect(block.lines.first.words, isNotEmpty);
     });
 
     test('recognizePage throws OllamaOcrException on HTTP error', () async {

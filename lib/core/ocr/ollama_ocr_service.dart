@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import '../pdf/pdf_page_renderer.dart';
 import 'ocr_models.dart';
 import 'ocr_service.dart';
+import 'ollama_grounding_parser.dart';
 
 /// Implementation of [OcrService] powered by a local Ollama daemon running DeepSeek-OCR.
 ///
@@ -77,28 +78,15 @@ class OllamaOcrService implements OcrService {
 
       debugPrint('[QuietPaper Ollama OCR] Page $pageNumber recognition completed (${rawText.length} chars).');
 
-      final blocks = rawText.isNotEmpty
-          ? [
-              OcrBlock(
-                text: rawText,
-                bounds: const NormalizedRect(
-                  x: 0.05,
-                  y: 0.05,
-                  width: 0.90,
-                  height: 0.90,
-                ),
-                lines: const [],
-              ),
-            ]
-          : <OcrBlock>[];
+      final parsed = OllamaGroundingParser.parse(rawText);
 
       return OcrPage(
         pageNumber: pageNumber,
-        plainText: rawText,
+        plainText: parsed.cleanPlainText,
         width: width,
         height: height,
         source: OcrSource.onDeviceOcr,
-        blocks: blocks,
+        blocks: parsed.blocks,
       );
     } finally {
       if (shouldCloseClient) {

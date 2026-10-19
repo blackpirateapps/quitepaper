@@ -9432,6 +9432,40 @@ On Linux desktop environments (e.g. Fedora with KDE Plasma, GNOME with disabled 
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All **34 targeted tests passed** (including 7 new `QuietSecureStorage` fallback tests, all crypto tests, and auth resiliency tests).
 
+---
+
+## 209. Ollama Grounding Parser: Clean Note Insertion & Desktop Live Text Selection (October 2026)
+
+### 1. Problem & Motivation
+When running local OCR on Linux / Desktop using Ollama and Vision-Language Models like DeepSeek-OCR:
+1. **Machine Coordinate Clutter**: With the standard grounding transcription prompt (`<|grounding|>Convert the document to markdown.`), DeepSeek-OCR emits spatial bounding boxes: `<tag>[[ymin, xmin, ymax, xmax]]` (e.g. `image[[22, 127, 452, 646]]` and `text[[4, 641, 450, 789]]`). Because `OllamaOcrService` previously dumped the raw response directly into `plainText`, copying OCR text or clicking "Insert into Note" injected machine coordinates and empty image tags into user notes.
+2. **Disabled Image Text Selection**: `OllamaOcrService` previously returned a single full-page `OcrBlock` with `lines: const []`. Because the desktop image viewer's Live Text selection layer (`_LiveTextLayer`) and painter (`_LiveTextPainter`) rely on iterating through `block.lines` and `line.words` to hit-test pointer gestures, dragging or tapping on images failed to select any text on Linux desktop.
+
+### 2. Architectural Solution
+1. **Dedicated Grounding Parser (`OllamaGroundingParser`)**:
+   - Implemented `OllamaGroundingParser` in `lib/core/ocr/ollama_grounding_parser.dart` to parse grounded VLM responses into structured `ParsedOcrResult`.
+   - Strips all `<tag>[[ymin, xmin, ymax, xmax]]` markers from `cleanPlainText`, leaving clean Markdown with math equations (`\( ... \)`) and Unicode/Hindi characters intact.
+   - Converts 1000×1000 coordinate grids into normalized `NormalizedRect` bounding boxes (`x = xmin/1000`, `y = ymin/1000`, `width = (xmax-xmin)/1000`, `height = (ymax-ymin)/1000`).
+   - Slices text blocks into `OcrLine`s and character-weighted `OcrWord`s, giving precise tap and drag targets for desktop Live Text interaction.
+   - Extracts and records detected diagram bounding boxes (`detectedImages`) from `image[[...]]` tags.
+2. **Backward-Compatible Non-Grounded Fallback**:
+   - For standard Markdown responses without grounding tags (e.g. models like Llama-3.2-Vision or custom prompts), paragraph and line segmentation automatically populates blocks, lines, and words so Live Text selection remains functional.
+3. **`OllamaOcrService` Integration**:
+   - `OllamaOcrService.recognizePage` now parses raw responses with `OllamaGroundingParser.parse(rawText)`, passing `parsed.cleanPlainText` and `parsed.blocks` directly to `OcrPage`.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/ocr/ollama_grounding_parser.dart`: Pure-Dart grounding parser for DeepSeek-OCR / Ollama responses with coordinate normalization, tag stripping, and word geometry generation.
+  - `test/ocr/ollama_grounding_parser_test.dart`: Comprehensive unit test suite verifying grounded tag stripping, LaTeX/Hindi preservation, line/word geometry, prefix text handling, non-grounded fallbacks, and empty responses.
+- **Modified Files**:
+  - `lib/core/ocr/ollama_ocr_service.dart`: Integrated `OllamaGroundingParser` into `recognizePage`.
+  - `test/ocr/ollama_ocr_service_test.dart`: Updated assertions and added unit tests for grounded DeepSeek-OCR transcription.
+
+### 4. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/ocr/`: **All 29 tests passing**.
+
+
 
 
 
