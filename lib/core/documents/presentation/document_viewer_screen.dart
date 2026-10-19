@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -87,6 +88,14 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   ResourceResolution<ResolvedDocumentInfo>? _resolution;
   late final PdfViewerController _pdfViewerController;
   late final UndoHistoryController _undoHistoryController;
+  final GlobalKey _viewerStackKey = GlobalKey();
+  GlobalKey<SfPdfViewerState> _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
+  PdfTextSelectionChangedDetails? _selectionDetails;
+
+  // In-document text search state
+  bool _isSearching = false;
+  String _searchQuery = '';
+  PdfTextSearchResult? _searchResult;
 
   Uint8List? _activePdfBytes;
   bool _isLoading = true;
@@ -105,6 +114,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   void initState() {
     super.initState();
     _pdfViewerController = PdfViewerController();
+    _pdfViewerController.addListener(_onPdfViewerControllerChanged);
     _undoHistoryController = UndoHistoryController();
     _selectedPageIndex = widget.initialPageIndex >= 0
         ? widget.initialPageIndex
@@ -152,11 +162,13 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     if (!mounted) return;
 
     setState(() {
+      _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
       _hasAnnotatedDerivative = annotatedBytes != null;
       _activePdfBytes = annotatedBytes ?? docInfo.pdfBytes;
       _pageCount = docInfo.pageCount > 0 ? docInfo.pageCount : 1;
       _selectedPageIndex = widget.initialPageIndex.clamp(0, _pageCount - 1);
       _isLoading = false;
+      _selectionDetails = null;
     });
   }
 
@@ -189,9 +201,290 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   @override
   void dispose() {
+    _searchResult?.removeListener(_onSearchResultUpdated);
+    _pdfViewerController.removeListener(_onPdfViewerControllerChanged);
     _pdfViewerController.dispose();
     _undoHistoryController.dispose();
     super.dispose();
+  }
+
+  void _onPdfViewerControllerChanged() {
+    if (_selectionDetails != null && mounted) {
+      setState(() {
+        _selectionDetails = null;
+      });
+    }
+  }
+
+  void _handleTextSelectionChanged(PdfTextSelectionChangedDetails details) {
+    if (!mounted) return;
+    setState(() {
+      if (details.selectedText == null || details.selectedText!.trim().isEmpty) {
+        _selectionDetails = null;
+      } else {
+        _selectionDetails = details;
+      }
+    });
+  }
+
+  void _clearSelectionState() {
+    _pdfViewerController.clearSelection();
+    if (mounted) {
+      setState(() {
+        _selectionDetails = null;
+      });
+    }
+  }
+
+  void _applyTextMarkup(PdfAnnotationMode mode) {
+    final lines = _pdfViewerStateKey.currentState?.getSelectedTextLines() ?? [];
+    _clearSelectionState();
+    if (lines.isEmpty) return;
+
+    Annotation annotation;
+    switch (mode) {
+      case PdfAnnotationMode.highlight:
+        annotation = HighlightAnnotation(textBoundsCollection: lines);
+        break;
+      case PdfAnnotationMode.underline:
+        annotation = UnderlineAnnotation(textBoundsCollection: lines);
+        break;
+      case PdfAnnotationMode.strikethrough:
+        annotation = StrikethroughAnnotation(textBoundsCollection: lines);
+        break;
+      case PdfAnnotationMode.squiggly:
+        annotation = SquigglyAnnotation(textBoundsCollection: lines);
+        break;
+      default:
+        return;
+    }
+    _pdfViewerController.addAnnotation(annotation);
+    _onAnnotationMutated();
+  }
+
+  Future<void> _promptAddStickyNoteForSelection(
+    List<PdfTextLine> lines,
+    String selectedText,
+  ) async {
+    final colors = context.appColors;
+    final textController = TextEditingController();
+
+    final noteText = await QuietAdaptiveModal.show<String>(
+      context: context,
+      type: AdaptiveModalType.dialog,
+      maxWidth: 420,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          side: BorderSide(color: colors.divider, width: 0.8),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.sticky_note_2_outlined, color: colors.accent, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Add Note to Selection',
+              style: AppTypography.headline.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (selectedText.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border(left: BorderSide(color: colors.accent, width: 3)),
+                ),
+                child: Text(
+                  selectedText.length > 120
+                      ? '${selectedText.substring(0, 120)}…'
+                      : selectedText,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.caption.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            TextField(
+              controller: textController,
+              autofocus: true,
+              maxLines: 4,
+              minLines: 2,
+              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Write a note or annotation…',
+                hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
+                filled: true,
+                fillColor: colors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  borderSide: BorderSide(color: colors.divider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  borderSide: BorderSide(color: colors.accent, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.all(AppSpacing.sm),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          QuietButton(
+            label: 'Cancel',
+            variant: QuietButtonVariant.secondary,
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+          QuietButton(
+            label: 'Save Note',
+            variant: QuietButtonVariant.primary,
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(textController.text.trim()),
+          ),
+        ],
+      ),
+    );
+
+    if (noteText == null || noteText.isEmpty) return;
+
+    final pageNumber = lines.isNotEmpty
+        ? lines.first.pageNumber
+        : _pdfViewerController.pageNumber;
+    final position = lines.isNotEmpty
+        ? Offset(lines.last.bounds.right + 4, lines.last.bounds.top)
+        : const Offset(72, 72);
+
+    final annotation = StickyNoteAnnotation(
+      pageNumber: pageNumber,
+      text: noteText,
+      position: position,
+      icon: PdfStickyNoteIcon.note,
+    );
+    _pdfViewerController.addAnnotation(annotation);
+    _onAnnotationMutated();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Note added to document'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _activateDocumentSearch(String query) {
+    _searchResult?.removeListener(_onSearchResultUpdated);
+    _searchResult?.clear();
+
+    final result = _pdfViewerController.searchText(query);
+    result.addListener(_onSearchResultUpdated);
+
+    setState(() {
+      _isSearching = true;
+      _searchQuery = query;
+      _searchResult = result;
+    });
+  }
+
+  void _onSearchResultUpdated() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _closeSearch() {
+    _searchResult?.removeListener(_onSearchResultUpdated);
+    _searchResult?.clear();
+    if (mounted) {
+      setState(() {
+        _isSearching = false;
+        _searchQuery = '';
+        _searchResult = null;
+      });
+    }
+  }
+
+  Future<void> _showSearchPrompt() async {
+    final colors = context.appColors;
+    final controller = TextEditingController(text: _searchQuery);
+
+    final query = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            side: BorderSide(color: colors.divider, width: 0.8),
+          ),
+          title: Text(
+            'Search in Document',
+            style: AppTypography.headline.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colors.textPrimary,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Search term…',
+              filled: true,
+              fillColor: colors.background,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                borderSide: BorderSide(color: colors.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                borderSide: BorderSide(color: colors.accent, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+            onSubmitted: (val) => Navigator.of(dialogContext).pop(val.trim()),
+          ),
+          actions: [
+            QuietButton(
+              label: 'Cancel',
+              variant: QuietButtonVariant.secondary,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            QuietButton(
+              label: 'Search',
+              variant: QuietButtonVariant.primary,
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (query != null && query.isNotEmpty) {
+      _activateDocumentSearch(query);
+    }
   }
 
   void _setAnnotationMode(PdfAnnotationMode mode) {
@@ -1007,6 +1300,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   case 'language':
                     _openLanguageDialog();
                     break;
+                  case 'search':
+                    _showSearchPrompt();
+                    break;
                   case 'save_annotations':
                     _manualSaveAnnotations();
                     break;
@@ -1035,6 +1331,16 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       Icon(Icons.edit_outlined, size: 18),
                       SizedBox(width: 12),
                       Expanded(child: Text('Rename Document')),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'search',
+                  child: Row(
+                    children: [
+                      Icon(Icons.search_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Search in Document')),
                     ],
                   ),
                 ),
@@ -1184,6 +1490,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
     return Column(
       children: [
+        if (_isSearching && _searchResult != null) _buildSearchBar(colors),
         if (_activeAnnotationMode != PdfAnnotationMode.none)
           Container(
             padding: const EdgeInsets.symmetric(
@@ -1239,41 +1546,314 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ),
           ),
         Expanded(
-          child: SfPdfViewer.memory(
-            _activePdfBytes!,
-            key: ValueKey('pdf_${widget.documentId}_$_hasAnnotatedDerivative'),
-            controller: _pdfViewerController,
-            undoController: _undoHistoryController,
-            canShowScrollHead: true,
-            canShowScrollStatus: true,
-            enableTextSelection: true,
-            canShowTextSelectionMenu: true,
-            enableDoubleTapZooming: true,
-            canShowPaginationDialog: true,
-            initialPageNumber: (widget.initialPageIndex >= 0 ? widget.initialPageIndex : 0) + 1,
-            onDocumentLoaded: (details) {
-              if (mounted) {
-                setState(() {
-                  _pageCount = details.document.pages.count;
-                });
-              }
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                key: _viewerStackKey,
+                children: [
+                  SfPdfViewer.memory(
+                    _activePdfBytes!,
+                    key: _pdfViewerStateKey,
+                    controller: _pdfViewerController,
+                    undoController: _undoHistoryController,
+                    canShowScrollHead: true,
+                    canShowScrollStatus: true,
+                    enableTextSelection: true,
+                    canShowTextSelectionMenu: false,
+                    enableDoubleTapZooming: true,
+                    canShowPaginationDialog: true,
+                    currentSearchTextHighlightColor:
+                        colors.accent.withValues(alpha: 0.6),
+                    otherSearchTextHighlightColor:
+                        colors.accent.withValues(alpha: 0.25),
+                    initialPageNumber: (widget.initialPageIndex >= 0
+                            ? widget.initialPageIndex
+                            : 0) +
+                        1,
+                    onDocumentLoaded: (details) {
+                      if (mounted) {
+                        setState(() {
+                          _pageCount = details.document.pages.count;
+                        });
+                      }
+                    },
+                    onDocumentLoadFailed: (details) {
+                      debugPrint(
+                          '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}');
+                    },
+                    onPageChanged: (details) {
+                      if (mounted) {
+                        setState(() {
+                          _selectedPageIndex = details.newPageNumber - 1;
+                        });
+                      }
+                    },
+                    onTextSelectionChanged: _handleTextSelectionChanged,
+                    onAnnotationAdded: (_) => _onAnnotationMutated(),
+                    onAnnotationEdited: (_) => _onAnnotationMutated(),
+                    onAnnotationRemoved: (_) => _onAnnotationMutated(),
+                  ),
+                  if (_selectionDetails != null &&
+                      _selectionDetails!.selectedText != null &&
+                      _selectionDetails!.selectedText!.trim().isNotEmpty &&
+                      _selectionDetails!.globalSelectedRegion != null)
+                    _buildFloatingSelectionMenu(colors, constraints),
+                ],
+              );
             },
-            onDocumentLoadFailed: (details) {
-              debugPrint('[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}');
-            },
-            onPageChanged: (details) {
-              if (mounted) {
-                setState(() {
-                  _selectedPageIndex = details.newPageNumber - 1;
-                });
-              }
-            },
-            onAnnotationAdded: (_) => _onAnnotationMutated(),
-            onAnnotationEdited: (_) => _onAnnotationMutated(),
-            onAnnotationRemoved: (_) => _onAnnotationMutated(),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchBar(AppColors colors) {
+    final result = _searchResult;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.divider)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, size: 18, color: colors.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Search: "$_searchQuery"',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (result != null)
+            Text(
+              result.totalInstanceCount > 0
+                  ? '${result.currentInstanceIndex} of ${result.totalInstanceCount}'
+                  : (result.isSearchCompleted ? '0 results' : 'Searching…'),
+              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_up_rounded),
+            tooltip: 'Previous match',
+            visualDensity: VisualDensity.compact,
+            onPressed: (result != null && result.hasResult)
+                ? () => result.previousInstance()
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            tooltip: 'Next match',
+            visualDensity: VisualDensity.compact,
+            onPressed: (result != null && result.hasResult)
+                ? () => result.nextInstance()
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded),
+            tooltip: 'Close search',
+            visualDensity: VisualDensity.compact,
+            onPressed: _closeSearch,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingSelectionMenu(
+      AppColors colors, BoxConstraints constraints) {
+    final globalRegion = _selectionDetails?.globalSelectedRegion;
+    if (globalRegion == null) return const SizedBox.shrink();
+
+    final RenderBox? stackBox =
+        _viewerStackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null) return const SizedBox.shrink();
+
+    final localTopLeft = stackBox.globalToLocal(globalRegion.topLeft);
+    final localBottomRight = stackBox.globalToLocal(globalRegion.bottomRight);
+    final localRegion = Rect.fromPoints(localTopLeft, localBottomRight);
+
+    const double menuHeight = 44.0;
+    const double verticalMargin = 10.0;
+
+    double top = localRegion.top - menuHeight - verticalMargin;
+    if (top < 8.0) {
+      top = localRegion.bottom + verticalMargin;
+    }
+    if (top + menuHeight > constraints.maxHeight - 8.0) {
+      top = math.max(8.0, constraints.maxHeight - menuHeight - 8.0);
+    }
+
+    final double fraction =
+        (localRegion.center.dx / constraints.maxWidth).clamp(0.0, 1.0);
+    final double alignX = (fraction * 2.0) - 1.0;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Positioned(
+      top: top,
+      left: 12.0,
+      right: 12.0,
+      child: Align(
+        alignment: Alignment(alignX, 0.0),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: menuHeight,
+            constraints: BoxConstraints(
+              maxWidth: math.min(540.0, constraints.maxWidth - 24.0),
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(24.0),
+              border: Border.all(color: colors.divider, width: 0.8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.12),
+                  blurRadius: 18,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildSelectionActionItem(
+                    icon: Icons.copy_rounded,
+                    label: 'Copy',
+                    colors: colors,
+                    onTap: () async {
+                      final text = _selectionDetails?.selectedText ?? '';
+                      await Clipboard.setData(ClipboardData(text: text));
+                      _clearSelectionState();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Text copied to clipboard'),
+                            duration: Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  _buildMenuDivider(colors),
+                  _buildSelectionActionItem(
+                    icon: Icons.border_color_rounded,
+                    label: 'Highlight',
+                    iconColor: const Color(0xFFE5A000),
+                    colors: colors,
+                    onTap: () => _applyTextMarkup(PdfAnnotationMode.highlight),
+                  ),
+                  _buildSelectionActionItem(
+                    icon: Icons.format_underlined_rounded,
+                    label: 'Underline',
+                    colors: colors,
+                    onTap: () => _applyTextMarkup(PdfAnnotationMode.underline),
+                  ),
+                  _buildSelectionActionItem(
+                    icon: Icons.format_strikethrough_rounded,
+                    label: 'Strike',
+                    colors: colors,
+                    onTap: () =>
+                        _applyTextMarkup(PdfAnnotationMode.strikethrough),
+                  ),
+                  _buildSelectionActionItem(
+                    icon: Icons.waves_rounded,
+                    label: 'Squiggly',
+                    colors: colors,
+                    onTap: () => _applyTextMarkup(PdfAnnotationMode.squiggly),
+                  ),
+                  _buildMenuDivider(colors),
+                  _buildSelectionActionItem(
+                    icon: Icons.sticky_note_2_outlined,
+                    label: 'Note',
+                    iconColor: colors.accent,
+                    colors: colors,
+                    onTap: () {
+                      final lines =
+                          _pdfViewerStateKey.currentState?.getSelectedTextLines() ??
+                              [];
+                      final selectedText =
+                          _selectionDetails?.selectedText ?? '';
+                      _clearSelectionState();
+                      _promptAddStickyNoteForSelection(lines, selectedText);
+                    },
+                  ),
+                  _buildMenuDivider(colors),
+                  _buildSelectionActionItem(
+                    icon: Icons.search_rounded,
+                    label: 'Search',
+                    colors: colors,
+                    onTap: () {
+                      final query =
+                          (_selectionDetails?.selectedText ?? '').trim();
+                      _clearSelectionState();
+                      if (query.isNotEmpty) {
+                        _activateDocumentSearch(query);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuDivider(AppColors colors) {
+    return Container(
+      width: 0.8,
+      height: 18,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: colors.divider,
+    );
+  }
+
+  Widget _buildSelectionActionItem({
+    required IconData icon,
+    required String label,
+    required AppColors colors,
+    required VoidCallback onTap,
+    Color? iconColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: iconColor ?? colors.textPrimary),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

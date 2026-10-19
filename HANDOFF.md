@@ -9694,3 +9694,50 @@ When inspecting OCR documents with the Live Text layer in the desktop image view
 ### 3. Verification & Quality
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test`: All test suites passing.
+
+---
+
+## 216. Feature: Quiet Paper Custom Floating Text Selection Menu & In-Document PDF Search (October 2026)
+
+### 1. Context & Motivation
+1. After migrating to `syncfusion_flutter_pdfviewer` on `feature/syncfusion-pdf-viewer`, text selection triggered Syncfusion's default Material 3 context menu (a dark rectangular overlay with default styling and icons).
+2. The user requested authentic **Quiet Paper styling** for the text selection experience.
+3. User preferences aligned on:
+   - Form Factor: **Floating Horizontal Pill** toolbar floating directly above or below the selected text.
+   - Core Actions: **Copy**, **Highlight** (amber/gold markup), **Underline**, **Strike** (strikethrough), **Squiggly**, **Note** (add sticky note to selection), and **Search** (search selected text in document).
+
+### 2. Architectural Design & Implementation
+
+1. **Suppression of Default Context Menu**:
+   - In [`DocumentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart), configured `SfPdfViewer.memory` with:
+     - `canShowTextSelectionMenu: false`: Completely disables Syncfusion's internal dark overlay.
+     - `enableTextSelection: true`: Retains high-performance native text selection and handles.
+     - `onTextSelectionChanged: _handleTextSelectionChanged`: Receives selection updates with `globalSelectedRegion` and `selectedText`.
+
+2. **Responsive Floating Pill Menu (`_buildFloatingSelectionMenu`)**:
+   - Rendered inside a `Stack` wrapping `SfPdfViewer.memory` within the `Scaffold` body.
+   - Coordinate transformation: Transforms `globalSelectedRegion` into the local coordinate space of the stack via `RenderBox.globalToLocal`.
+   - Vertical collision detection: Floats 10dp above the selection if space permits (`top = localRegion.top - 44 - 10`); flips smoothly below the selection if near top of viewport; clamped against stack boundaries.
+   - Horizontal centering: Proportional alignment `Alignment((centerX / width * 2) - 1, 0.0)` bounded by 12dp screen padding.
+   - Aesthetics: Rounded pill (`BorderRadius.circular(24.0)`), warm editorial surface (`colors.surface`), 0.8dp divider border (`colors.divider`), and elevation shadows.
+   - Horizontal scroll container: `SingleChildScrollView(scrollDirection: Axis.horizontal)` guarantees zero flex overflow across small phones (320-360dp) and desktop screens.
+   - Actions provided:
+     - **Copy**: Writes text to clipboard and displays confirmation toast.
+     - **Highlight / Underline / Strike / Squiggly**: Fetches vector text line bounds from `SfPdfViewerState.getSelectedTextLines()` and creates standard PDF markup annotations.
+     - **Note**: Opens a Quiet Paper modal dialog displaying a truncated quote of the selection with a text editor to attach a `StickyNoteAnnotation` anchored to the selected text.
+     - **Search**: Triggers in-document text search with the selected query.
+
+3. **In-Document PDF Search Navigation (`_buildSearchBar`)**:
+   - Invokes `PdfViewerController.searchText(query)` with live match notifications.
+   - Renders a quiet editorial search bar docked below the AppBar with search term, match index (`"1 of 5"`), Previous (`keyboard_arrow_up_rounded`), Next (`keyboard_arrow_down_rounded`), and Close (`close_rounded`) controls.
+   - Also integrated a "Search in Document" action inside the overflow menu (`more_vert_rounded`) with an interactive search prompt dialog.
+
+4. **Automated Verification**:
+   - Added widget test in [`test/documents/document_viewer_text_selection_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_viewer_text_selection_test.dart) verifying document viewer rendering and search menu integration.
+   - `flutter test test/documents/`: **All 56 tests passing**.
+   - `flutter test test/scanner/scanner_ui_test.dart`: **All 3 tests passing**.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test`: All test suites passing.
+
