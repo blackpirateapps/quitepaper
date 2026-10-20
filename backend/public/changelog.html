@@ -476,6 +476,170 @@
   <main class="timeline">
     <div class="wrap">
 
+      <!-- ITEM: Version 1.6.1 -->
+      <article class="release-entry major" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.6.1</span>
+          <span class="status-badge stable">Feature Release</span>
+          <span class="release-date">October 20, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Visual Editor V5, Desktop Polish &amp; Zero-Knowledge OCR</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/b383041" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                b383041
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/593c45d" target="_blank" class="commit-hash">593c45d</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/5c5ae6b" target="_blank" class="commit-hash">5c5ae6b</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/9c63a3b" target="_blank" class="commit-hash">9c63a3b</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/520d2d9" target="_blank" class="commit-hash">520d2d9</a>
+              <span class="category-chip">Visual Editor</span>
+              <span class="category-chip">OCR Sync</span>
+              <span class="category-chip">PDF Viewer</span>
+              <span class="category-chip">Desktop</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              The October milestone release unifies three things that are normally mutually exclusive: a rich, continuous writing surface, local-first privacy, and serious document tooling. Markdown remains the canonical interchange format, while an in-memory rich-text AST powers the visual editor, encrypted OCR search, and PDF annotation workflows entirely on-device.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>RichDocument Visual Engine</strong>: Replaced the legacy per-block WYSIWYG with a single continuous paper surface. Rich text is held as an in-memory AST and saved as polymorphic JSON in Visual mode, converting to Markdown only on mode switches and export. Full selection, undo/redo, tables, checklists, code blocks, images, and frontmatter properties are preserved.</li>
+            <li><strong>Super Editor &amp; Attachments</strong>: Added a third editing mode backed by <code>super_editor</code> with native task checklists, encrypted inline images, embedded document cards, and dark-mode caret fixes.</li>
+            <li><strong>Image &amp; Sharing Workflows</strong>: Images above 500 KB now offer isolated background compression with a "remember my choice" setting, and notes can be exported or shared as a full-length branded screenshot.</li>
+            <li><strong>Syncfusion PDF Workspace</strong>: Migrated the document viewer to Syncfusion with encrypted, non-destructive vector annotations (highlight, ink, redaction), a custom floating text-selection pill menu, and in-document search.</li>
+            <li><strong>Zero-Knowledge OCR Sync</strong>: OCR text is encrypted client-side and synced with a manual-only recognition policy and a 3-way merge pipeline. Conflicts surface in a dedicated resolver with keep-mine, keep-theirs, and manual merge options.</li>
+            <li><strong>Desktop &amp; Linux</strong>: Adaptive modals, popovers, command palettes, and a right inspector pane for desktop widths; Wayland titlebars, system dark-mode sync, kinetic scrolling, fractional scaling, and an encrypted local secure-storage fallback for Linux systems without a keyring.</li>
+            <li><strong>Journal, Bengali &amp; Navigation</strong>: Places pages with grouping/merging, calendar travel markers, historical backfill, mood/weather/activity properties, opt-in Bengali typography and dates, Bear-style link previews, per-tag pins, and persistent note-list thumbnails.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM: Version 1.6.0 -->
+      <article class="release-entry major" data-category="sync">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.6.0</span>
+          <span class="status-badge stable">Stable</span>
+          <span class="release-date">October 2, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Public Note Sharing &amp; Automated Release Versioning</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/b641a23" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                b641a23
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/ff3c7d0" target="_blank" class="commit-hash">ff3c7d0</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/eb58b8a" target="_blank" class="commit-hash">eb58b8a</a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/5aee802" target="_blank" class="commit-hash">5aee802</a>
+              <span class="category-chip">Public Sharing</span>
+              <span class="category-chip">Release Pipeline</span>
+              <span class="category-chip">Privacy</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Sharing a note used to mean exporting a file. Version 1.6.0 introduced server-rendered public share pages that feel like the app itself, plus a release pipeline that can no longer ship a stale Android <code>versionCode</code> and silently block updates.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Public Share Reader</strong>: Responsive server-rendered note pages with light/dark themes, table of contents, syntax highlighting, copy buttons, and canonical metadata.</li>
+            <li><strong>In-App Sharing Client</strong>: Native Flutter flow for creating and revoking share links, backed by the server-rendered reader and branded Open Graph unfurl cards.</li>
+            <li><strong>Dynamic Runtime Versions</strong>: Version and build metadata now resolve through <code>package_info_plus</code> at startup, keeping Settings, backups, device registration, exports, and update checks in sync automatically.</li>
+            <li><strong>Commit-Counted CI Builds</strong>: GitHub Actions derives <code>versionCode</code> from the git commit count, guaranteeing monotonic Android upgrades without manual build-number bumps.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM: Version 1.5.9 -->
+      <article class="release-entry" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.9</span>
+          <span class="status-badge stable">Performance</span>
+          <span class="release-date">September 29, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Non-Blocking Attachments &amp; Linux Desktop File Input</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/81a970e" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                81a970e
+              </a>
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/384c21d" target="_blank" class="commit-hash">384c21d</a>
+              <span class="category-chip">Attachments</span>
+              <span class="category-chip">Linux</span>
+              <span class="category-chip">Performance</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              Encrypting a multi-megabyte photo used to block the Flutter UI isolate, freezing the app for seconds with no feedback. Version 1.5.9 moves large cryptographic work off the main thread and makes desktop file input feel native.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Isolate-Based Encryption</strong>: Attachment payloads of 256 KB or more are encrypted and decrypted through background isolates, keeping scrolling, typing, and animation fluid.</li>
+            <li><strong>Progress Overlay</strong>: A non-dismissible overlay with spinner and status text now covers image, PDF, and generic file imports so large files never look like a freeze.</li>
+            <li><strong>Linux Copy-Paste &amp; Drag-and-Drop</strong>: Integrated <code>pasteboard</code> for native file and image clipboard access, plus <code>desktop_drop</code> with a visual target overlay and RFC 2483 <code>text/uri-list</code> fallback.</li>
+            <li><strong>Scoped Tablet Drops</strong>: Dropping files on the sidebar or note list creates a titled note, while drops inside an editor attach to the active note.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ITEM: Version 1.5.8 -->
+      <article class="release-entry" data-category="editor">
+        <div class="timeline-dot"></div>
+        <div class="release-meta">
+          <span class="version-tag">Version 1.5.8</span>
+          <span class="status-badge stable">Stability</span>
+          <span class="release-date">September 10, 2026</span>
+        </div>
+        <div class="entry-card">
+          <div class="entry-header">
+            <h2 class="entry-title">Editor Stability: Selection Retention &amp; Caret Fixes</h2>
+            <div class="commit-row">
+              <a href="https://github.com/blackpirateapps/quitepaper/commit/7e9cbf6" target="_blank" class="commit-hash">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                7e9cbf6
+              </a>
+              <span class="category-chip">Editor Fixes</span>
+              <span class="category-chip">Caret</span>
+              <span class="category-chip">Autocomplete</span>
+            </div>
+          </div>
+
+          <div class="explanation-box">
+            <div class="explanation-heading">Why it matters</div>
+            <p class="explanation-text">
+              A focused release for the paper-writing loop: fewer cursor jumps, fewer lost selections, and predictable behavior around tables, lists, wiki links, and tags.
+            </p>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Table Cursor Stability</strong>: Cell edits no longer reset the caret or trigger parent rebuilds while typing.</li>
+            <li><strong>Empty List Exit</strong>: Pressing Enter on an empty list item cleanly converts it back to a paragraph without leaving stray markers.</li>
+            <li><strong>Autocomplete Backspace</strong>: <code>[[</code> note links and <code>#</code> tag suggestions now dismiss and edit predictably when deleting characters.</li>
+            <li><strong>Selection Retention</strong>: Focus and selection survive toolbar formatting and preview toggles more reliably.</li>
+          </ul>
+        </div>
+      </article>
+
       <!-- ITEM 1: Accent Color Alignment -->
       <article class="release-entry major" data-category="typography">
         <div class="timeline-dot"></div>
@@ -809,7 +973,7 @@
         <li><a href="index.html#download">Download APK</a></li>
         <li><a href="index.html#faq">FAQ</a></li>
       </ul>
-      <div class="footer-meta">v1.5.8 · Free &amp; open source notes</div>
+      <div class="footer-meta">v1.6.1 · Free &amp; open source notes</div>
     </div>
   </footer>
 

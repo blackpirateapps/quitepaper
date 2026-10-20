@@ -414,6 +414,8 @@ When releasing a new version of Quiet Paper, ensure the version string (and incr
 | [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L12) | `this._appVersion = 'X.Y.Z'` | Default version written into `.qpnote` package manifests and encrypted envelopes (production injects the dynamic version). |
 
 > Note: `update_provider.dart`, `backup_provider.dart`, and `settings_screen.dart` no longer hardcode the version. They read `appVersionInfoProvider` (backed by `package_info_plus`), so only the fallback defaults above plus `pubspec.yaml` must be edited on release.
+>
+> Also refresh the public site version badges: `vX.Y.Z` appears in the hero badge and footer of [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html), plus the footers of [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html), [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html), and [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html). Mirror the edited files into `backend/public/` (the two directories are kept byte-identical).
 
 ---
 
@@ -9882,9 +9884,18 @@ Bumped the official application version from `1.6.0+18` to `1.6.1+19` to package
 - `update_provider.dart`, `backup_provider.dart`, and `settings_screen.dart` required no edits because they resolve the version dynamically via `appVersionInfoProvider` (`package_info_plus`).
 
 ### 3. Documentation
-- Section 17's **App Version Bump Checklist** was refreshed: it now lists the actual current hardcoded fallback locations and notes which consumers read the version dynamically.
+- Section 17's **App Version Bump Checklist** was refreshed: it now lists the actual current hardcoded fallback locations, notes which consumers read the version dynamically, and includes the mirrored public-site version badges.
 
-### 4. Verification & Quality
+### 4. Public Site Refresh
+- Updated the version badge and footer to `v1.6.1` in [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html) and the footers of [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html), [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html), and [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html).
+- Added the four missing release entries to the public changelog, newest first:
+  - **1.6.1 (October 20, 2026)** — visual editor V5/RichDocument, Super Editor attachments, image compression, screenshot export, Syncfusion PDF viewer + annotations/search, zero-knowledge OCR sync + 3-way merge, desktop adaptive modals, Linux modernization, journal places, and Bengali support.
+  - **1.6.0 (October 2, 2026)** — server-rendered public note sharing, in-app share client, branded OG cards, dynamic runtime versions, and commit-counted CI build numbers.
+  - **1.5.9 (September 29, 2026)** — background-isolate attachment encryption with progress overlay, plus Linux clipboard file paste and drag-and-drop.
+  - **1.5.8 (September 10, 2026)** — table caret stability, empty-list exit, `[[`/`#` autocomplete backspace fixes, and selection retention.
+- Mirrored all four edited pages into `backend/public/` so both served copies remain byte-identical.
+
+### 5. Verification & Quality
 - Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
 - Automated tests: `flutter test` (**full suite passing**).
 - Repository sanity check: no remaining `1.6.0` app-version fallbacks outside `test/version/app_version_test.dart` (arbitrary fixture values) and `pubspec.lock` (third-party dependency version).
