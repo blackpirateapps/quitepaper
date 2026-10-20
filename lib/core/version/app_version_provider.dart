@@ -15,7 +15,7 @@ class AppVersionInfo {
   final String appName;
   final String packageName;
 
-  /// User-facing display string, e.g. "Version 1.6.0 (264)" or "Version 1.6.0".
+  /// User-facing display string, e.g. "Version 1.6.1 (264)" or "Version 1.6.1".
   String get displayVersion {
     if (buildNumber.isEmpty || buildNumber == '0') {
       return 'Version $version';
@@ -23,7 +23,7 @@ class AppVersionInfo {
     return 'Version $version ($buildNumber)';
   }
 
-  /// Full SemVer string with build metadata, e.g. "1.6.0+264".
+  /// Full SemVer string with build metadata, e.g. "1.6.1+264".
   String get fullVersion {
     if (buildNumber.isEmpty || buildNumber == '0') {
       return version;
@@ -51,7 +51,7 @@ final packageInfoProvider = Provider<PackageInfo>((ref) {
   return PackageInfo(
     appName: 'Quite Paper',
     packageName: 'com.blackpirate.quitepaper',
-    version: '1.6.0',
+    version: '1.6.1',
     buildNumber: '0',
     buildSignature: '',
   );
@@ -61,7 +61,7 @@ final packageInfoProvider = Provider<PackageInfo>((ref) {
 final appVersionInfoProvider = Provider<AppVersionInfo>((ref) {
   final packageInfo = ref.watch(packageInfoProvider);
   return AppVersionInfo(
-    version: packageInfo.version.isNotEmpty ? packageInfo.version : '1.6.0',
+    version: packageInfo.version.isNotEmpty ? packageInfo.version : '1.6.1',
     buildNumber: packageInfo.buildNumber.isNotEmpty ? packageInfo.buildNumber : '0',
     appName: packageInfo.appName.isNotEmpty ? packageInfo.appName : 'Quite Paper',
     packageName: packageInfo.packageName.isNotEmpty ? packageInfo.packageName : 'com.blackpirate.quitepaper',

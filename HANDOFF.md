@@ -404,11 +404,16 @@ When releasing a new version of Quiet Paper, ensure the version string (and incr
 
 | File | Parameter / Location | Description & Purpose |
 |---|---|---|
-| [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19) | `version: X.Y.Z+N` | Flutter build version name (`X.Y.Z`) and Android/iOS build number / `versionCode` (`N`). |
-| [`lib/core/update/update_provider.dart`](file:///home/dog/git/quitepaper/lib/core/update/update_provider.dart#L10) | `currentVersion: 'X.Y.Z'` | Used by `UpdateService` to compare with GitHub Release tags (`vX.Y.Z`) and trigger in-app update prompts. |
-| [`lib/core/backup/backup_provider.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_provider.dart#L17) | `appVersion: 'X.Y.Z'` | Stored in Riverpod `backupServiceProvider` and written to backup manifest headers. |
-| [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L19) | `this.appVersion = 'X.Y.Z'` | Default constructor parameter for `BackupService` manifest generation. |
-| [`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart#L783) | `'Version X.Y.Z • ...'` | Displayed to the user under **Settings → About**. |
+| [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19) | `version: X.Y.Z+N` | Flutter build version name (`X.Y.Z`) and Android/iOS build number / `versionCode` (`N`). CI overrides the build number with `git rev-list --count HEAD`. |
+| [`lib/core/version/app_version_provider.dart`](file:///home/dog/git/quitepaper/lib/core/version/app_version_provider.dart#L54) | fallback `version: 'X.Y.Z'` | Safe fallback when `PackageInfo` platform channels are unavailable (tests / desktop). Also referenced in `appVersionInfoProvider`'s empty-string fallback and doc comments. |
+| [`lib/main.dart`](file:///home/dog/git/quitepaper/lib/main.dart#L31) | fallback `version: 'X.Y.Z'` | Fallback `PackageInfo` supplied to `packageInfoProvider` if `PackageInfo.fromPlatform()` throws at startup. |
+| [`lib/core/location/location_service.dart`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart#L19) | `this._appVersion = 'X.Y.Z'` | Default `User-Agent` version for geocoding requests (production injects the dynamic version). |
+| [`lib/core/device/device_info_service.dart`](file:///home/dog/git/quitepaper/lib/core/device/device_info_service.dart#L28) | `this.appVersion = 'X.Y.Z'` | Default app version for device registration metadata (production injects the dynamic version). |
+| [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L25) | `this.appVersion = 'X.Y.Z'` | Default constructor parameter for `.qpbackup` manifest generation (production injects `fullVersion`). |
+| [`lib/core/journal/application/weather_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/weather_service.dart#L30) | `'User-Agent': 'QuitePaper/X.Y.Z'` | Static `User-Agent` header for Open-Meteo weather requests. |
+| [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L12) | `this._appVersion = 'X.Y.Z'` | Default version written into `.qpnote` package manifests and encrypted envelopes (production injects the dynamic version). |
+
+> Note: `update_provider.dart`, `backup_provider.dart`, and `settings_screen.dart` no longer hardcode the version. They read `appVersionInfoProvider` (backed by `package_info_plus`), so only the fallback defaults above plus `pubspec.yaml` must be edited on release.
 
 ---
 
@@ -9857,6 +9862,33 @@ To ensure complete reversibility and reference integrity for the historical cust
   - `flutter test test/sync/ocr_sync_test.dart`: All 7 tests passing.
   - `flutter test test/sync/conflict_merge_engine_test.dart`: All 13 tests passing.
   - `flutter test test/journal/journal_database_test.dart`: All 9 tests passing.
+
+---
+
+## 219. Release Version Bump to 1.6.1 (Build 19) (October 2026)
+
+### 1. Overview & Motivation
+Bumped the official application version from `1.6.0+18` to `1.6.1+19` to package the accumulated editor, OCR, PDF-viewer, and sync fixes since the last release. The build suffix increments `versionCode` from `18` to `19`, so Android Package Manager and the in-app GitHub Releases update checker recognize the new build as an upgrade (CI additionally overrides the build number with the git commit count).
+
+### 2. File Updates (per Section 17)
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19): `version: 1.6.0+18` → `version: 1.6.1+19`.
+- [`lib/core/version/app_version_provider.dart`](file:///home/dog/git/quitepaper/lib/core/version/app_version_provider.dart): `packageInfoProvider` fallback version and `appVersionInfoProvider` empty-string fallback updated to `'1.6.1'`; doc-comment examples refreshed.
+- [`lib/main.dart`](file:///home/dog/git/quitepaper/lib/main.dart#L31): startup `PackageInfo` fallback updated to `'1.6.1'`.
+- [`lib/core/location/location_service.dart`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart#L19): default `_appVersion` updated to `'1.6.1'`.
+- [`lib/core/device/device_info_service.dart`](file:///home/dog/git/quitepaper/lib/core/device/device_info_service.dart#L28): default `appVersion` updated to `'1.6.1'`.
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L25): default `appVersion` updated to `'1.6.1'`.
+- [`lib/core/journal/application/weather_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/weather_service.dart#L30): `User-Agent` updated to `QuitePaper/1.6.1`.
+- [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L12): default `_appVersion` updated to `'1.6.1'`.
+- `update_provider.dart`, `backup_provider.dart`, and `settings_screen.dart` required no edits because they resolve the version dynamically via `appVersionInfoProvider` (`package_info_plus`).
+
+### 3. Documentation
+- Section 17's **App Version Bump Checklist** was refreshed: it now lists the actual current hardcoded fallback locations and notes which consumers read the version dynamically.
+
+### 4. Verification & Quality
+- Static analysis: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- Automated tests: `flutter test` (**full suite passing**).
+- Repository sanity check: no remaining `1.6.0` app-version fallbacks outside `test/version/app_version_test.dart` (arbitrary fixture values) and `pubspec.lock` (third-party dependency version).
+
 
 
 

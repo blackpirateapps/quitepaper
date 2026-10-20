@@ -27,7 +27,7 @@ class WeatherService {
         url,
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'QuitePaper/1.6.0',
+          'User-Agent': 'QuitePaper/1.6.1',
         },
       ).timeout(const Duration(seconds: 8));
 
