@@ -66,9 +66,12 @@ class SyncEngine {
   Stream<SyncState> get stateStream => _stateController.stream;
 
   bool _isSyncing = false;
+  bool _isDisposed = false;
+  StreamSubscription<AuthUser?>? _authSubscription;
 
   void _init() {
-    authService.authStateChanges.listen((user) {
+    _authSubscription = authService.authStateChanges.listen((user) {
+      if (_isDisposed) return;
       if (user == null) {
         _updateState(const SyncState(status: SyncStatus.localOnly));
       } else if (!keyManager.isUnlocked) {
@@ -80,14 +83,17 @@ class SyncEngine {
   }
 
   void _updateState(SyncState newState) {
+    if (_isDisposed || _stateController.isClosed) return;
     _state = newState;
     _stateController.add(newState);
   }
 
   /// Triggers a debounced sync in the background
   void triggerSyncDebounced() {
+    if (_isDisposed) return;
     if (authService.currentUser == null || !keyManager.isUnlocked) return;
     _syncDebouncer.run(() {
+      if (_isDisposed) return;
       syncNow();
     });
   }
@@ -105,7 +111,7 @@ class SyncEngine {
 
   /// Runs immediate push & pull synchronization
   Future<void> syncNow() async {
-    if (_isSyncing) return;
+    if (_isDisposed || _isSyncing) return;
     if (authService.currentUser == null) {
       _updateState(_state.copyWith(status: SyncStatus.localOnly));
       return;
@@ -259,10 +265,16 @@ class SyncEngine {
       if (dirtyTags.isNotEmpty) {
         final tagPayloads = <TagSyncPayload>[];
         for (final tag in dirtyTags) {
+          final renamedFrom = await database.getSyncMetadata('tag_renamed_from_${tag.id}');
+          final renamedTo = await database.getSyncMetadata('tag_renamed_to_${tag.id}');
           final tagPlaintext = TagPlaintext(
             name: tag.name,
+            renamedFrom: renamedFrom,
+            renamedTo: renamedTo,
             icon: tag.icon,
             color: tag.color,
+            clearIcon: tag.icon == null,
+            clearColor: tag.color == null,
           );
           final envelope = await cryptoService.encryptTagPayload(
             plaintext: tagPlaintext,
@@ -297,6 +309,8 @@ class SyncEngine {
               serverRevision: res.revision,
               syncedAt: DateTime.now(),
             );
+            await database.deleteSyncMetadata('tag_renamed_from_${res.id}');
+            await database.deleteSyncMetadata('tag_renamed_to_${res.id}');
           }
         } catch (tagPushErr) {
           debugPrint('Tag push error: $tagPushErr');
@@ -394,6 +408,99 @@ class SyncEngine {
         await _pushDirtyOcrPages(deviceId, masterKey);
       } catch (ocrPushErr) {
         debugPrint('OCR pages push warning: $ocrPushErr');
+      }
+
+      // 2e. TAGS PULL: Fetch server tags before notes pull so canonical tag IDs and
+      // accents exist before note Markdown is parsed and saved.
+      final tagCursorStr = await database.getSyncMetadata('tag_sync_cursor');
+      var currentTagCursor = int.tryParse(tagCursorStr ?? '0') ?? 0;
+      var hasMoreTags = true;
+
+      while (hasMoreTags) {
+        try {
+          final tagPullRes = await apiClient.pullTags(cursor: currentTagCursor, limit: 50);
+          for (final change in tagPullRes.changes) {
+            try {
+              if (change.isDeleted) {
+                String tagName = '';
+                String? renamedTo;
+                if (change.contentCiphertext.isNotEmpty) {
+                  try {
+                    final envelope = EncryptedEnvelope(
+                      version: change.contentVersion,
+                      algorithm: 'xchacha20-poly1305',
+                      keyVersion: change.encryptionKeyVersion,
+                      nonce: change.contentNonce,
+                      ciphertext: change.contentCiphertext,
+                    );
+                    final decrypted = await cryptoService.decryptTagPayload(
+                      envelope: envelope,
+                      masterKeyBytes: masterKey,
+                      tagId: change.id,
+                    );
+                    tagName = decrypted.name;
+                    renamedTo = decrypted.renamedTo;
+                  } catch (e) {
+                    debugPrint('Could not decrypt tombstone tag payload: $e');
+                  }
+                }
+
+                await database.upsertSyncedTag(
+                  id: change.id,
+                  name: tagName,
+                  renamedTo: renamedTo,
+                  icon: null,
+                  color: null,
+                  isPinned: false,
+                  pinnedOrder: 0,
+                  createdAt: change.createdAt,
+                  updatedAt: change.updatedAt,
+                  serverRevision: change.revision,
+                  isDeleted: true,
+                  deletedAt: change.deletedAt,
+                );
+              } else {
+                final envelope = EncryptedEnvelope(
+                  version: change.contentVersion,
+                  algorithm: 'xchacha20-poly1305',
+                  keyVersion: change.encryptionKeyVersion,
+                  nonce: change.contentNonce,
+                  ciphertext: change.contentCiphertext,
+                );
+
+                final decrypted = await cryptoService.decryptTagPayload(
+                  envelope: envelope,
+                  masterKeyBytes: masterKey,
+                  tagId: change.id,
+                );
+
+                await database.upsertSyncedTag(
+                  id: change.id,
+                  name: decrypted.name,
+                  renamedFrom: decrypted.renamedFrom,
+                  icon: decrypted.icon,
+                  color: decrypted.color,
+                  clearIcon: decrypted.clearIcon,
+                  clearColor: decrypted.clearColor,
+                  isPinned: change.isPinned,
+                  pinnedOrder: change.pinnedOrder,
+                  createdAt: change.createdAt,
+                  updatedAt: change.updatedAt,
+                  serverRevision: change.revision,
+                  isDeleted: false,
+                );
+              }
+            } catch (tagDecErr) {
+              debugPrint('Failed to decrypt/apply pulled tag ${change.id}: $tagDecErr');
+            }
+          }
+          currentTagCursor = tagPullRes.cursor;
+          await database.setSyncMetadata('tag_sync_cursor', currentTagCursor.toString());
+          hasMoreTags = tagPullRes.hasMore;
+        } catch (tagPullErr) {
+          debugPrint('Tags pull error: $tagPullErr');
+          hasMoreTags = false;
+        }
       }
 
       // 3. PULL PHASE: Fetch server changes after cursor
@@ -868,71 +975,6 @@ class SyncEngine {
         } catch (vPullErr) {
           debugPrint('Note versions pull error: $vPullErr');
           hasMoreVersions = false;
-        }
-      }
-
-      // 4c. TAGS PULL: Fetch server tags after cursor
-      final tagCursorStr = await database.getSyncMetadata('tag_sync_cursor');
-      var currentTagCursor = int.tryParse(tagCursorStr ?? '0') ?? 0;
-      var hasMoreTags = true;
-
-      while (hasMoreTags) {
-        try {
-          final tagPullRes = await apiClient.pullTags(cursor: currentTagCursor, limit: 50);
-          for (final change in tagPullRes.changes) {
-            try {
-              if (change.isDeleted) {
-                await database.upsertSyncedTag(
-                  id: change.id,
-                  name: '',
-                  icon: null,
-                  color: null,
-                  isPinned: false,
-                  pinnedOrder: 0,
-                  createdAt: change.createdAt,
-                  updatedAt: change.updatedAt,
-                  serverRevision: change.revision,
-                  isDeleted: true,
-                  deletedAt: change.deletedAt,
-                );
-              } else {
-                final envelope = EncryptedEnvelope(
-                  version: change.contentVersion,
-                  algorithm: 'xchacha20-poly1305',
-                  keyVersion: change.encryptionKeyVersion,
-                  nonce: change.contentNonce,
-                  ciphertext: change.contentCiphertext,
-                );
-
-                final decrypted = await cryptoService.decryptTagPayload(
-                  envelope: envelope,
-                  masterKeyBytes: masterKey,
-                  tagId: change.id,
-                );
-
-                await database.upsertSyncedTag(
-                  id: change.id,
-                  name: decrypted.name,
-                  icon: decrypted.icon,
-                  color: decrypted.color,
-                  isPinned: change.isPinned,
-                  pinnedOrder: change.pinnedOrder,
-                  createdAt: change.createdAt,
-                  updatedAt: change.updatedAt,
-                  serverRevision: change.revision,
-                  isDeleted: false,
-                );
-              }
-            } catch (tagDecErr) {
-              debugPrint('Failed to decrypt/apply pulled tag ${change.id}: $tagDecErr');
-            }
-          }
-          currentTagCursor = tagPullRes.cursor;
-          await database.setSyncMetadata('tag_sync_cursor', currentTagCursor.toString());
-          hasMoreTags = tagPullRes.hasMore;
-        } catch (tagPullErr) {
-          debugPrint('Tags pull error: $tagPullErr');
-          hasMoreTags = false;
         }
       }
 
@@ -2085,6 +2127,8 @@ class SyncEngine {
   }
 
   void dispose() {
+    _isDisposed = true;
+    _authSubscription?.cancel();
     _syncDebouncer.dispose();
     _stateController.close();
   }

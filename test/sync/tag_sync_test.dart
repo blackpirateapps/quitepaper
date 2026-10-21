@@ -114,7 +114,7 @@ class FakeAuthService implements AuthService {
   );
 
   @override
-  Stream<AuthUser?> get authStateChanges => Stream.value(currentUser);
+  Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
   Future<String?> getIdToken({bool forceRefresh = false}) async => 'mock-token';
@@ -445,8 +445,8 @@ void main() {
     });
 
     test(
-        'tags born from note Markdown get an independent id per device '
-        '(documents why entity sync cannot match by id)', () async {
+        'tags born from note Markdown get deterministic convergent IDs across devices',
+        () async {
       final dbOther = AppDatabase(NativeDatabase.memory());
       addTearDown(() async => dbOther.close());
 
@@ -472,9 +472,9 @@ void main() {
       final there = await dbOther.getTagByName('work');
       expect(here, isNotNull);
       expect(there, isNotNull);
-      // Same name, different random ids -> the tag-entity sync (keyed by id) can
-      // only reconcile them by NAME, which is exactly where icon/color were lost.
-      expect(here!.id, isNot(equals(there!.id)));
+      // Same name, deterministic UUID v5 -> the tag-entity sync (keyed by id)
+      // matches by id directly across devices.
+      expect(here!.id, equals(there!.id));
       expect(here.name, equals(there.name));
     });
   });
@@ -519,6 +519,8 @@ void main() {
     });
 
     tearDown(() async {
+      engineA.dispose();
+      engineB.dispose();
       await dbA.close();
       await dbB.close();
     });
@@ -572,6 +574,143 @@ void main() {
 
       // Device B tag should be gone
       expect(await dbB.getTagById(tag.id), isNull);
+    });
+
+    test(
+        'Tag deletion on Device A removes tag from notes on Device B and does not resurrect on subsequent save/sync',
+        () async {
+      final now = DateTime.now();
+      // Device A creates note with #flutter
+      await dbA.saveNote(
+        id: 'note-flutter-1',
+        title: 'Flutter Note',
+        content: 'Building with #flutter is fast',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      final tagA = await dbA.getTagByName('flutter');
+      expect(tagA, isNotNull);
+
+      // Device B also has a note with #flutter
+      await dbB.saveNote(
+        id: 'note-flutter-2',
+        title: 'Dart and Flutter',
+        content: 'Another note with #flutter in it',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      // Initial sync of tags
+      await engineA.syncNow();
+      await engineB.syncNow();
+
+      final tagB = await dbB.getTagByName('flutter');
+      expect(tagB, isNotNull);
+
+      // User deletes tag on Device A
+      await dbA.deleteTag(tagA!.id);
+      expect(await dbA.getTagByName('flutter'), isNull);
+
+      // Device A pushes deletion tombstone
+      await engineA.syncNow();
+
+      // Device B pulls deletion tombstone
+      await engineB.syncNow();
+
+      // 1. Tag should be deleted from tagsTable on Device B
+      expect(await dbB.getTagById(tagA.id), isNull);
+      expect(await dbB.getTagByName('flutter'), isNull);
+
+      // 2. Note markdown on Device B must have #flutter removed
+      final noteWithTagsB = await dbB.getNoteWithTags('note-flutter-2');
+      expect(noteWithTagsB, isNotNull);
+      final noteB = noteWithTagsB!.note;
+      expect(noteB.content.contains('#flutter'), isFalse);
+
+      // 3. Subsequent note save on Device B must NOT resurrect the tag
+      await dbB.saveNote(
+        id: noteB.id,
+        title: noteB.title,
+        content: noteB.content,
+        createdAt: noteB.createdAt,
+        updatedAt: DateTime.now(),
+        isPinned: noteB.isPinned,
+      );
+
+      expect(await dbB.getTagByName('flutter'), isNull);
+      final dirtyTagsB = await dbB.getDirtyTags();
+      expect(dirtyTagsB.isEmpty, isTrue);
+    });
+
+    test('Tag rename on Device A propagates to Device B and updates note Markdown on Device B', () async {
+      final now = DateTime.now();
+      final tag = await dbA.createTag('alpha', icon: 'star', color: 'indigo');
+      await dbA.saveNote(
+        id: 'note-alpha-1',
+        title: 'Project Alpha',
+        content: 'Working on #alpha',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      await engineA.syncNow();
+      await engineB.syncNow();
+
+      // Device B has a note referencing #alpha
+      await dbB.saveNote(
+        id: 'note-alpha-2',
+        title: 'Alpha Docs',
+        content: 'Referencing #alpha in local note',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      );
+
+      // Device A renames alpha to beta
+      await dbA.renameTag(tag.id, 'beta');
+      await engineA.syncNow();
+
+      // Device B pulls tag rename
+      await engineB.syncNow();
+
+      // 1. Device B tag should be renamed to beta
+      final updatedTagB = await dbB.getTagById(tag.id);
+      expect(updatedTagB, isNotNull);
+      expect(updatedTagB!.name, equals('beta'));
+      expect(await dbB.getTagByName('alpha'), isNull);
+
+      // 2. Note markdown on Device B should now contain #beta instead of #alpha
+      final noteWithTagsB = await dbB.getNoteWithTags('note-alpha-2');
+      expect(noteWithTagsB, isNotNull);
+      final noteB = noteWithTagsB!.note;
+      expect(noteB.content.contains('#beta'), isTrue);
+      expect(noteB.content.contains('#alpha'), isFalse);
+    });
+
+    test('Clearing tag color and icon on Device A clears accent on Device B', () async {
+      final tag = await dbA.createTag('styled', icon: 'heart', color: 'ruby');
+      await engineA.syncNow();
+      await engineB.syncNow();
+
+      var tagB = await dbB.getTagById(tag.id);
+      expect(tagB!.icon, equals('heart'));
+      expect(tagB.color, equals('ruby'));
+
+      // Clear icon and color on Device A
+      await dbA.setTagIcon(tag.id, null);
+      await dbA.setTagColor(tag.id, null);
+
+      await engineA.syncNow();
+      await engineB.syncNow();
+
+      tagB = await dbB.getTagById(tag.id);
+      expect(tagB, isNotNull);
+      expect(tagB!.icon, isNull);
+      expect(tagB.color, isNull);
     });
   });
 }

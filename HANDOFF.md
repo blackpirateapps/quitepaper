@@ -10100,3 +10100,72 @@ Implemented an end-to-end, production-ready Quick Capture feature for Android, a
   - `test/audio/audio_sharing_privacy_test.dart` (4 tests): Public share audio exclusion, link rewrite to omission notice, private URI stripping, share warning dialog.
 - **Regression Tests**:
   - `test/attachments/`, `test/speech/`, `test/share/`: 184 tests passing with zero regressions.
+
+
+---
+
+## 222. Cross-Device Tag Synchronization Architecture: Deletions, Renames, Convergent Deterministic IDs & Accent Lifecycle (October 2026)
+
+### 1. Problem Statement & Root Cause Analysis
+Users reported that tags were not synchronizing correctly across devices:
+- **Remote Tag Deletion Failure**: Deleting a tag on Device A did not delete it on Device B. Even if Device B processed a delete, note contents still contained `#tag` strings, causing SQLite/Drift's note tag detection (`_syncNoteTags`) to immediately resurrect the deleted tag upon opening or saving the note.
+- **Tombstone Decryption Omission**: When syncing deleted tags, `sync_engine.dart` skipped decrypting the payload and passed `name: ''`, preventing `upsertSyncedTag` from knowing the tag name to clean up note Markdown references.
+- **Premature Hard Deletes**: `deleteTag` immediately hard-deleted tags whenever `serverRevision == 0`, ignoring active sync sessions where `serverRevision` hadn't yet been returned or where `syncCursor`/`syncedAt` indicated existing synchronization history.
+- **Rename Propagation Failure**: Renaming a tag on Device A was not propagating the Markdown note updates to Device B.
+- **Accents (Color/Icon) Clearing**: Clearing a tag's color or icon on Device A didn't reflect on Device B because `TagPlaintext.toJson()` omitted null entries and `upsertSyncedTag` defaulted to existing accents when fields were absent.
+- **Non-Deterministic Tag IDs**: Devices independently minted random UUID v4s for tags extracted from note Markdown, resulting in duplicate tag entries on the crypto-blind backend.
+- **Missing Sync Debounce Triggers**: Tag mutation methods in `TagService` did not trigger debounced sync.
+- **Pull Phase Inversion**: Notes were pulled before tags in `SyncEngine`, so incoming note text triggered tag insertion before remote tag metadata and accents arrived.
+
+### 2. Architectural Solution & Changes
+
+#### A. Convergent RFC 4122 UUID v5 Tag Identifiers (`lib/core/utils/tag_parser.dart`)
+- Implemented `TagParser.deterministicTagId(String name)` using RFC 4122 UUID v5 rooted in a dedicated Quiet Paper namespace:
+  ```dart
+  static String deterministicTagId(String name) {
+    final normalized = normalize(name);
+    return const Uuid().v5(Namespace.url.value, 'quitepaper:tag:$normalized');
+  }
+  ```
+- Both `createTag` and `_syncNoteTags` in `AppDatabase` now use `TagParser.deterministicTagId`. When a user types `#tag` on any device, all devices generate the exact same canonical UUID for the same normalized tag name without requiring server coordination.
+
+#### B. TagPlaintext Schema Expansion (`lib/core/crypto/crypto_service.dart`)
+- Expanded `TagPlaintext` to carry explicit clearing flags and rename lineage:
+  - `clearColor: bool`
+  - `clearIcon: bool`
+  - `renamedFrom: String?`
+  - `renamedTo: String?`
+- Proper JSON serialization and SHA-256 payload hashing ensure zero-knowledge integrity across clients.
+
+#### C. Full Remote Deletion & Anti-Resurrection Pipeline (`lib/core/database/app_database.dart`)
+- **Tombstone Decryption**: In `sync_engine.dart`, deleted tag payloads are decrypted with the master key before calling `upsertSyncedTag`.
+- **Note Markdown Cleansing**: When `isDeleted: true` arrives in `upsertSyncedTag`:
+  - Locates all notes containing the tag.
+  - Strips `#tag` from titles and note bodies using `TagParser.removeTagFromText`.
+  - Saves cleansed notes with `isDirty: false` to avoid echoing unnecessary updates back to the cloud.
+  - Deletes all associations from `noteTagsTable` and removes the tag from `tagsTable`.
+- **Resilient Tombstoning**: `deleteTag` preserves a soft-deletion tombstone whenever `serverRevision > 0 || syncedAt != null || syncCursor != null`.
+
+#### D. Remote Tag Renaming & Markdown Rewriting (`lib/core/database/app_database.dart`)
+- Renaming a tag on Device A writes `renamedFrom` and `renamedTo` in the encrypted payload.
+- In `upsertSyncedTag`:
+  - Atomically updates `tagsTable` first with the new name to satisfy foreign keys and avoid unique constraint collisions.
+  - Rewrites occurrences of `#oldTag` to `#newTag` across all local notes using `TagParser.replaceTagInText` (with `isDirty: false`).
+  - Cleans up legacy tag IDs and associates note tags with the canonical ID.
+
+#### E. Accent Lifecycle & Explicit Clearing
+- When `clearIcon` or `clearColor` is true, `upsertSyncedTag` explicitly resets the column to `null`.
+- When an icon or color is provided, it updates the existing tag.
+
+#### F. Sync Engine Ordering & Debounce Hooks
+- **Pull Ordering**: Tag Pull is executed *before* Note Pull in `SyncEngine.syncNow()`, ensuring tag metadata and styling arrive before notes parse tags from text.
+- **Mutation Debounce**: Wired `onTagMutation: engine.triggerSyncDebounced` in `TagService` across create, update, delete, rename, pin, and unpin operations.
+- **Engine Lifecycle**: `SyncEngine` tracks `_isDisposed` and cancels `_authSubscription` and `_syncDebouncer` upon disposal, eliminating race conditions against closed SQLite databases during test teardown and app backgrounding.
+
+### 3. Verification & Quality
+- `flutter analyze`: **0 issues found**.
+- `flutter test`: **100% passing across all 2,160+ tests**:
+  - `test/sync/tag_sync_test.dart` (14 end-to-end integration tests).
+  - `test/tags/tag_database_test.dart` (7 tests).
+  - `test/tags/tag_service_test.dart` (8 tests).
+  - `test/tags/tag_ui_test.dart` and `test/tags/tag_icon_picker_sheet_test.dart` (all passing).

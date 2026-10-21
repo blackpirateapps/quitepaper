@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 abstract final class TagParser {
   /// Regular expression to match hashtags without catastrophic backtracking.
   /// Matches `#tag`, `#nested/tag`, `#tag_1`, `#tag-name`, and Unicode scripts
@@ -97,6 +99,13 @@ abstract final class TagParser {
   static String formatDisplay(String tag) {
     final clean = normalizeTag(tag);
     return '#$clean';
+  }
+
+  /// Returns a deterministic RFC 4122 UUID v5 for a given tag name.
+  /// This ensures all devices agree on the canonical tag ID across offline creation.
+  static String deterministicTagId(String name) {
+    final normalized = normalizeTag(name);
+    return const Uuid().v5(Namespace.url.value, 'quitepaper:tag:$normalized');
   }
 
   /// Removes all occurrences of a tag from text, including YAML frontmatter

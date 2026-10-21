@@ -1184,7 +1184,12 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      await _syncNoteTags(id, extractedTags, pinnedNames: effectivePinned);
+      await _syncNoteTags(
+        id,
+        extractedTags,
+        pinnedNames: effectivePinned,
+        isSyncIngestion: !isDirty,
+      );
 
       // Atomic FTS5 Search Index Maintenance
       await customStatement(
@@ -1563,6 +1568,11 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Deletes a sync metadata value by key
+  Future<void> deleteSyncMetadata(String key) async {
+    await (delete(syncMetadataTable)..where((t) => t.key.equals(key))).go();
+  }
+
   /// Gets the persistent installation device ID, or creates and stores one if absent.
   Future<String> getOrCreateDeviceId() async {
     final existing = await getSyncMetadata('device_id');
@@ -1769,13 +1779,13 @@ class AppDatabase extends _$AppDatabase {
 
   /// Retrieves a tag by its stable ID
   Future<TagEntity?> getTagById(String id) {
-    return (select(tagsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+    return (select(tagsTable)..where((t) => t.id.equals(id) & t.isDeleted.equals(false))).getSingleOrNull();
   }
 
   /// Retrieves a tag by its textual name
   Future<TagEntity?> getTagByName(String name) {
     final normalized = TagParser.normalizeTag(name);
-    return (select(tagsTable)..where((t) => t.name.equals(normalized))).getSingleOrNull();
+    return (select(tagsTable)..where((t) => t.name.equals(normalized) & t.isDeleted.equals(false))).getSingleOrNull();
   }
 
   /// Creates a new tag or restores/updates existing
@@ -1785,7 +1795,6 @@ class AppDatabase extends _$AppDatabase {
     String? color,
     bool isPinned = false,
   }) async {
-    const uuid = Uuid();
     final normalized = TagParser.normalizeTag(name);
     if (!TagParser.isValidTag(normalized)) {
       throw ArgumentError('Invalid tag name: $name');
@@ -1811,7 +1820,7 @@ class AppDatabase extends _$AppDatabase {
       return existing;
     }
 
-    final newId = uuid.v4();
+    final newId = TagParser.deterministicTagId(normalized);
     await into(tagsTable).insert(
       TagsTableCompanion.insert(
         id: newId,
@@ -1843,13 +1852,16 @@ class AppDatabase extends _$AppDatabase {
       final oldName = tag.name;
       if (oldName == normalizedNew) return;
 
-      final existingWithNewName = await (select(tagsTable)..where((t) => t.name.equals(normalizedNew))).getSingleOrNull();
+      final existingWithNewName = await (select(tagsTable)
+            ..where((t) => t.name.equals(normalizedNew) & t.isDeleted.equals(false)))
+          .getSingleOrNull();
       if (existingWithNewName != null && existingWithNewName.id != tagId) {
         throw StateError('A tag with name "$normalizedNew" already exists.');
       }
 
       final now = DateTime.now();
 
+      // 1. Update tag name in tagsTable first so _syncNoteTags finds it during saveNote
       await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
         TagsTableCompanion(
           name: Value(normalizedNew),
@@ -1858,10 +1870,15 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+      // 2. Propagate rename to all notes containing oldName
       final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(tagId))).get();
-      final noteIds = noteRows.map((r) => r.noteId).toList();
+      final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
+      final textNotes = await (select(notesTable)
+            ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
+          .get();
+      final allNoteIds = taggedNoteIds.union(textNotes.map((n) => n.id).toSet());
 
-      for (final noteId in noteIds) {
+      for (final noteId in allNoteIds) {
         final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
         if (note == null) continue;
 
@@ -1915,7 +1932,8 @@ class AppDatabase extends _$AppDatabase {
         );
       }
 
-      if (tag.serverRevision > 0) {
+      final syncCursor = await getSyncMetadata('tag_sync_cursor');
+      if (tag.serverRevision > 0 || tag.syncedAt != null || syncCursor != null) {
         await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
           TagsTableCompanion(
             isDeleted: const Value(true),
@@ -1964,7 +1982,8 @@ class AppDatabase extends _$AppDatabase {
         );
       }
 
-      if (sourceTag.serverRevision > 0) {
+      final syncCursor = await getSyncMetadata('tag_sync_cursor');
+      if (sourceTag.serverRevision > 0 || sourceTag.syncedAt != null || syncCursor != null) {
         await (update(tagsTable)..where((t) => t.id.equals(sourceTagId))).write(
           TagsTableCompanion(
             isDeleted: const Value(true),
@@ -2070,8 +2089,12 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertSyncedTag({
     required String id,
     required String name,
+    String? renamedFrom,
+    String? renamedTo,
     String? icon,
     String? color,
+    bool clearIcon = false,
+    bool clearColor = false,
     required bool isPinned,
     required int pinnedOrder,
     required DateTime createdAt,
@@ -2083,12 +2106,110 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       final normalizedName = TagParser.normalizeTag(name);
       final existingById = await (select(tagsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
-      final existingByName = await (select(tagsTable)..where((t) => t.name.equals(normalizedName))).getSingleOrNull();
+      final existingByName = normalizedName.isNotEmpty
+          ? await (select(tagsTable)..where((t) => t.name.equals(normalizedName))).getSingleOrNull()
+          : null;
+
+      // If the incoming tag is an explicit rename of a previous tag name
+      if (renamedFrom != null && renamedFrom.isNotEmpty && renamedFrom != normalizedName) {
+        final oldName = TagParser.normalizeTag(renamedFrom);
+        final oldTag = await (select(tagsTable)..where((t) => t.name.equals(oldName))).getSingleOrNull();
+
+        final noteRows = oldTag != null
+            ? await (select(noteTagsTable)..where((nt) => nt.tagId.equals(oldTag.id))).get()
+            : <NoteTagEntity>[];
+        final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
+
+        final notesWithText = await (select(notesTable)
+              ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
+            .get();
+        final textNoteIds = notesWithText.map((n) => n.id).toSet();
+        final allNoteIds = taggedNoteIds.union(textNoteIds);
+
+        final now = DateTime.now();
+        for (final noteId in allNoteIds) {
+          final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+          if (note == null) continue;
+
+          final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedName);
+          final newContent = TagParser.renameTagInText(note.content, oldName, normalizedName);
+
+          if (newTitle != note.title || newContent != note.content) {
+            await saveNote(
+              id: note.id,
+              title: newTitle,
+              content: newContent,
+              createdAt: note.createdAt,
+              updatedAt: now,
+              isPinned: note.isPinned,
+              isArchived: note.isArchived,
+              isTrashed: note.isTrashed,
+              deletedAt: note.deletedAt,
+              isDirty: false,
+            );
+          }
+        }
+
+        if (oldTag != null) {
+          await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(oldTag.id))).go();
+          await (delete(tagsTable)..where((t) => t.id.equals(oldTag.id))).go();
+        }
+      }
 
       if (isDeleted) {
+        final targetTag = existingById ?? existingByName;
+        final targetName = (targetTag?.name.isNotEmpty == true) ? targetTag!.name : normalizedName;
+        final targetId = targetTag?.id ?? id;
+
+        // 1. Remove or rename this tag in all notes in Markdown and search index on this device
+        if (targetName.isNotEmpty) {
+          final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(targetId))).get();
+          final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
+
+          final notesWithText = await (select(notesTable)
+                ..where((n) => n.title.like('%$targetName%') | n.content.like('%$targetName%')))
+              .get();
+          final textNoteIds = notesWithText.map((n) => n.id).toSet();
+          final allNoteIds = taggedNoteIds.union(textNoteIds);
+
+          final now = DateTime.now();
+          for (final noteId in allNoteIds) {
+            final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+            if (note == null) continue;
+
+            final String newTitle;
+            final String newContent;
+            if (renamedTo != null && renamedTo.isNotEmpty) {
+              newTitle = TagParser.renameTagInText(note.title, targetName, renamedTo);
+              newContent = TagParser.renameTagInText(note.content, targetName, renamedTo);
+            } else {
+              newTitle = TagParser.removeTagFromText(note.title, targetName);
+              newContent = TagParser.removeTagFromText(note.content, targetName);
+            }
+
+            if (newTitle != note.title || newContent != note.content) {
+              await saveNote(
+                id: note.id,
+                title: newTitle,
+                content: newContent,
+                createdAt: note.createdAt,
+                updatedAt: now,
+                isPinned: note.isPinned,
+                isArchived: note.isArchived,
+                isTrashed: note.isTrashed,
+                deletedAt: note.deletedAt,
+                isDirty: false, // Pulled change: do not mark dirty
+              );
+            }
+          }
+        }
+
+        // 2. Cascade delete tag and noteTags relations
+        await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(targetId))).go();
         if (existingById != null) {
-          await (delete(tagsTable)..where((t) => t.id.equals(id))).go();
-        } else if (existingByName != null) {
+          await (delete(tagsTable)..where((t) => t.id.equals(existingById.id))).go();
+        }
+        if (existingByName != null && existingByName.id != (existingById?.id ?? '')) {
           await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
         }
         return;
@@ -2101,18 +2222,29 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
-      // Tags are born from #hashtags in note Markdown, so each device independently
-      // mints its OWN random tag id for the same name (see _syncNoteTags). Those
-      // duplicate rows reconcile here by name. A tag's icon/color only ever live on
-      // the row of the device that chose them, so an icon-less duplicate pulled from
-      // another device must NEVER erase an icon/color we already hold for this tag --
-      // otherwise the accent can never propagate across devices. When the incoming
-      // change omits icon/color, fall back to whatever we already have for this
-      // logical tag. (The wire format cannot distinguish "unset" from "cleared":
-      // TagPlaintext.toJson drops null fields, so preserving is the safe choice.)
+      // Propagate remote rename to local notes if existing tag had a different name
+      final oldName = (existingById != null &&
+              existingById.name.isNotEmpty &&
+              existingById.name != normalizedName &&
+              normalizedName.isNotEmpty)
+          ? existingById.name
+          : null;
+
+      // Compute effective icon and color considering explicit clearing flags
       final priorForTag = existingById ?? existingByName;
-      final effectiveIcon = icon ?? priorForTag?.icon;
-      final effectiveColor = color ?? priorForTag?.color;
+      final String? effectiveIcon;
+      if (clearIcon) {
+        effectiveIcon = null;
+      } else {
+        effectiveIcon = icon ?? priorForTag?.icon;
+      }
+
+      final String? effectiveColor;
+      if (clearColor) {
+        effectiveColor = null;
+      } else {
+        effectiveColor = color ?? priorForTag?.color;
+      }
 
       // If a tag with the same name exists with a different ID (e.g. created offline on two devices)
       if (existingByName != null && existingByName.id != id) {
@@ -2175,6 +2307,40 @@ class AppDatabase extends _$AppDatabase {
             deletedAt: const Value(null),
           ),
         );
+      }
+
+      // Propagate remote rename to local notes if existing tag had a different name
+      if (oldName != null) {
+        final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(id))).get();
+        final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
+        final notesWithText = await (select(notesTable)
+              ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
+            .get();
+        final allNoteIds = taggedNoteIds.union(notesWithText.map((n) => n.id).toSet());
+
+        final now = DateTime.now();
+        for (final noteId in allNoteIds) {
+          final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+          if (note == null) continue;
+
+          final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedName);
+          final newContent = TagParser.renameTagInText(note.content, oldName, normalizedName);
+
+          if (newTitle != note.title || newContent != note.content) {
+            await saveNote(
+              id: note.id,
+              title: newTitle,
+              content: newContent,
+              createdAt: note.createdAt,
+              updatedAt: now,
+              isPinned: note.isPinned,
+              isArchived: note.isArchived,
+              isTrashed: note.isTrashed,
+              deletedAt: note.deletedAt,
+              isDirty: false,
+            );
+          }
+        }
       }
     });
   }
@@ -2382,8 +2548,8 @@ class AppDatabase extends _$AppDatabase {
     String noteId,
     List<String> tagNames, {
     Set<String> pinnedNames = const {},
+    bool isSyncIngestion = false,
   }) async {
-    const uuid = Uuid();
     final normalized = tagNames
         .map(TagParser.normalizeTag)
         .where(TagParser.isValidTag)
@@ -2401,7 +2567,7 @@ class AppDatabase extends _$AppDatabase {
           .getSingleOrNull();
 
       if (tag == null) {
-        final newTagId = uuid.v4();
+        final newTagId = TagParser.deterministicTagId(tagName);
         final now = DateTime.now();
         await into(tagsTable).insert(
           TagsTableCompanion.insert(
@@ -2411,7 +2577,7 @@ class AppDatabase extends _$AppDatabase {
             updatedAt: Value(now),
             isPinned: const Value(false),
             pinnedOrder: const Value(0),
-            isDirty: const Value(true),
+            isDirty: Value(!isSyncIngestion),
           ),
         );
         tag = TagEntity(
@@ -2421,7 +2587,7 @@ class AppDatabase extends _$AppDatabase {
           pinnedOrder: 0,
           createdAt: now,
           updatedAt: now,
-          isDirty: true,
+          isDirty: !isSyncIngestion,
           serverRevision: 0,
           isDeleted: false,
         );

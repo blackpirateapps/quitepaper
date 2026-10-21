@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/sync/sync_provider.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
@@ -7,9 +8,10 @@ import '../domain/tag_model.dart';
 
 /// Service managing first-class tag domain operations.
 class TagService {
-  TagService(this._repository);
+  TagService(this._repository, {this.onTagMutation});
 
   final NotesRepository _repository;
+  final void Function()? onTagMutation;
 
   Future<Tag> createTag(
     String name, {
@@ -23,6 +25,7 @@ class TagService {
       color: color,
       isPinned: isPinned,
     );
+    onTagMutation?.call();
     return Tag(
       id: entity.id,
       name: entity.name,
@@ -35,39 +38,51 @@ class TagService {
     );
   }
 
-  Future<void> renameTag(String tagId, String newName) {
-    return _repository.renameTag(tagId, newName);
+  Future<void> renameTag(String tagId, String newName) async {
+    await _repository.renameTag(tagId, newName);
+    onTagMutation?.call();
   }
 
-  Future<void> deleteTag(String tagId) {
-    return _repository.deleteTag(tagId);
+  Future<void> deleteTag(String tagId) async {
+    await _repository.deleteTag(tagId);
+    onTagMutation?.call();
   }
 
-  Future<void> mergeTags(String sourceTagId, String destinationTagId) {
-    return _repository.mergeTags(sourceTagId, destinationTagId);
+  Future<void> mergeTags(String sourceTagId, String destinationTagId) async {
+    await _repository.mergeTags(sourceTagId, destinationTagId);
+    onTagMutation?.call();
   }
 
-  Future<void> pinTag(String tagId, bool isPinned) {
-    return _repository.pinTag(tagId, isPinned);
+  Future<void> pinTag(String tagId, bool isPinned) async {
+    await _repository.pinTag(tagId, isPinned);
+    onTagMutation?.call();
   }
 
-  Future<void> reorderPinnedTags(List<String> orderedTagIds) {
-    return _repository.reorderPinnedTags(orderedTagIds);
+  Future<void> reorderPinnedTags(List<String> orderedTagIds) async {
+    await _repository.reorderPinnedTags(orderedTagIds);
+    onTagMutation?.call();
   }
 
-  Future<void> setTagIcon(String tagId, String? icon) {
-    return _repository.setTagIcon(tagId, icon);
+  Future<void> setTagIcon(String tagId, String? icon) async {
+    await _repository.setTagIcon(tagId, icon);
+    onTagMutation?.call();
   }
 
-  Future<void> setTagColor(String tagId, String? color) {
-    return _repository.setTagColor(tagId, color);
+  Future<void> setTagColor(String tagId, String? color) async {
+    await _repository.setTagColor(tagId, color);
+    onTagMutation?.call();
   }
 }
 
 /// Provider for the TagService.
 final tagServiceProvider = Provider<TagService>((ref) {
   final repo = ref.watch(notesRepositoryProvider);
-  return TagService(repo);
+  void Function()? onMutation;
+  try {
+    final engine = ref.read(syncEngineProvider);
+    onMutation = engine.triggerSyncDebounced;
+  } catch (_) {}
+  return TagService(repo, onTagMutation: onMutation);
 });
 
 /// Stream of all tags mapped to domain Tag objects.

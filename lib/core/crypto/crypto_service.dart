@@ -129,25 +129,45 @@ class NotePlaintext {
 class TagPlaintext {
   const TagPlaintext({
     required this.name,
+    this.renamedFrom,
+    this.renamedTo,
     this.icon,
     this.color,
+    this.clearIcon = false,
+    this.clearColor = false,
   });
 
   final String name;
+  final String? renamedFrom;
+  final String? renamedTo;
   final String? icon;
   final String? color;
+  final bool clearIcon;
+  final bool clearColor;
 
   Map<String, dynamic> toJson() => {
         'name': name,
-        if (icon != null) 'icon': icon,
-        if (color != null) 'color': color,
+        if (renamedFrom != null) 'renamedFrom': renamedFrom,
+        if (renamedTo != null) 'renamedTo': renamedTo,
+        'icon': icon,
+        'color': color,
+        if (clearIcon || icon == null) 'clearIcon': true,
+        if (clearColor || color == null) 'clearColor': true,
       };
 
-  factory TagPlaintext.fromJson(Map<String, dynamic> json) => TagPlaintext(
-        name: json['name'] as String? ?? '',
-        icon: json['icon'] as String?,
-        color: json['color'] as String?,
-      );
+  factory TagPlaintext.fromJson(Map<String, dynamic> json) {
+    final clearIcon = json['clearIcon'] as bool? ?? false;
+    final clearColor = json['clearColor'] as bool? ?? false;
+    return TagPlaintext(
+      name: json['name'] as String? ?? '',
+      renamedFrom: json['renamedFrom'] as String?,
+      renamedTo: json['renamedTo'] as String?,
+      icon: clearIcon ? null : json['icon'] as String?,
+      color: clearColor ? null : json['color'] as String?,
+      clearIcon: clearIcon,
+      clearColor: clearColor,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -155,11 +175,22 @@ class TagPlaintext {
       other is TagPlaintext &&
           runtimeType == other.runtimeType &&
           name == other.name &&
+          renamedFrom == other.renamedFrom &&
+          renamedTo == other.renamedTo &&
           icon == other.icon &&
-          color == other.color;
+          color == other.color &&
+          clearIcon == other.clearIcon &&
+          clearColor == other.clearColor;
 
   @override
-  int get hashCode => name.hashCode ^ icon.hashCode ^ color.hashCode;
+  int get hashCode =>
+      name.hashCode ^
+      (renamedFrom?.hashCode ?? 0) ^
+      (renamedTo?.hashCode ?? 0) ^
+      icon.hashCode ^
+      color.hashCode ^
+      clearIcon.hashCode ^
+      clearColor.hashCode;
 }
 
 /// Plaintext place-alias content object before encryption (§2.3).
