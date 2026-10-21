@@ -14,6 +14,7 @@ import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
 import 'super_editor/quiet_table_component.dart';
 import 'super_editor/quiet_task_component.dart';
+import 'super_editor/typewriter_document_layer.dart';
 
 /// Embedded block-based document editor surface powered by SuperEditor.
 ///
@@ -34,6 +35,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
     this.stripFrontmatter = false,
     this.hintText,
     this.noteId,
+    this.onCaretPositionChanged,
   });
 
   final String initialMarkdown;
@@ -44,6 +46,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   final bool stripFrontmatter;
   final String? hintText;
   final String? noteId;
+  final ValueChanged<Offset>? onCaretPositionChanged;
 
   @override
   ConsumerState<QuietSuperEditor> createState() => _QuietSuperEditorState();
@@ -410,6 +413,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
                   controller: widget.controller,
                   readOnly: widget.readOnly,
                 ),
+                if (widget.onCaretPositionChanged != null)
+                  TypewriterDocumentLayerBuilder(
+                    onCaretGlobalPosition: widget.onCaretPositionChanged!,
+                  ),
               ],
             ),
           ),

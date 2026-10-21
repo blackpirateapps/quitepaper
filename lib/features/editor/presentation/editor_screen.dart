@@ -37,6 +37,7 @@ import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
 import '../application/rich_document_controller.dart';
+import '../application/typewriter_scroll_coordinator.dart';
 import '../application/undo_redo_manager.dart';
 import '../application/version_session_tracker.dart';
 import 'widgets/editor_stats_dialog.dart';
@@ -158,6 +159,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
   final _superEditorController = QuietSuperEditorController();
+  late final TypewriterScrollCoordinator _typewriterCoordinator;
+  final GlobalKey _viewportKey = GlobalKey();
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
   final _overflowButtonKey = GlobalKey();
@@ -195,6 +198,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _activeTargetFocusNode = _contentFocusNode;
     _activeTargetController?.addListener(_onTargetChanged);
     _scrollController = ScrollController();
+    _typewriterCoordinator = TypewriterScrollCoordinator(
+      scrollController: _scrollController,
+      viewportKey: _viewportKey,
+    );
 
     _undoRedoManager = UndoRedoManager();
     _undoRedoManager.initialize(_contentController.value);
@@ -356,6 +363,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
     }
     _checkAutocompleteTrigger();
+    _typewriterCoordinator.onTypingActivity(
+      activeFocusNode: _activeTargetFocusNode ?? _contentFocusNode,
+    );
   }
 
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
@@ -530,6 +540,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           .read(editorProviderFamily(_editorParams).notifier)
           .updateTitle(currentTitle);
     } catch (_) {}
+
+    if (_titleFocusNode.hasFocus) {
+      _typewriterCoordinator.onTypingActivity(
+        activeFocusNode: _titleFocusNode,
+      );
+    }
   }
 
   void _onContentChanged() {
@@ -562,6 +578,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _checkAutocompleteTrigger();
+    _typewriterCoordinator.onTypingActivity(
+      activeFocusNode: _activeTargetFocusNode ?? _contentFocusNode,
+    );
   }
 
   /// Link previews — "bake on open" (only when Smart web links is ON).
@@ -1951,14 +1970,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             }
                           }
                         },
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: typography.paragraphWidth.maxWidth,
-                            ),
-                            child: editorState.isPreviewMode
-                                ? QuietMarkdownPreview(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final viewportHeight = constraints.maxHeight.isFinite
+                                ? constraints.maxHeight
+                                : (isDesktop ? 700.0 : 500.0);
+                            final bottomScrollPadding = max(
+                              isDesktop ? 220.0 : 300.0,
+                              viewportHeight * 0.55,
+                            );
+
+                            return Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: typography.paragraphWidth.maxWidth,
+                                ),
+                                child: editorState.isPreviewMode
+                                    ? QuietMarkdownPreview(
                                     markdownData: _contentController.text.isNotEmpty
                                         ? _contentController.text
                                         : note.content,
@@ -1985,6 +2014,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     showScrollbar: false,
                                   )
                                 : DesktopSmoothScroll(
+                                    key: _viewportKey,
                                     controller: _scrollController,
                                     child: SingleChildScrollView(
                                       controller: _scrollController,
@@ -2126,6 +2156,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     noteId: widget.note.id,
                                     onKeyEvent: _handleEditorKeyEvent,
                                     onPaste: _handlePaste,
+                                    onCaretPositionChanged: (pos) {
+                                      _typewriterCoordinator.onTypingActivity(
+                                        customGlobalCaretPos: pos,
+                                      );
+                                    },
                                   ),
 
                                   // Audio recordings summary footer if note has recordings
@@ -2143,16 +2178,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                         _contentFocusNode.requestFocus();
                                       }
                                     },
-                                    child: SizedBox(height: isDesktop ? 120 : 280),
+                                    child: SizedBox(height: bottomScrollPadding),
                                   ),
                                 ],
                               ),
                             ),
-                            ),
-
                           ),
                         ),
-                      ),
+                      );
+                    },
+                  ),
+                ),
                     ),
                   ),
                 ),

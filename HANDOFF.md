@@ -10169,3 +10169,80 @@ Users reported that tags were not synchronizing correctly across devices:
   - `test/tags/tag_database_test.dart` (7 tests).
   - `test/tags/tag_service_test.dart` (8 tests).
   - `test/tags/tag_ui_test.dart` and `test/tags/tag_icon_picker_sheet_test.dart` (all passing).
+
+
+---
+
+## 223. Typewriter Scrolling: Ambient Cursor Vertical Centering Across All Editor Modes (October 2026)
+
+### 1. Problem Statement & Writing Ergonomics
+In digital note applications, writing extensive documents naturally pushes the active cursor down toward the bottom boundary of the screen. On mobile devices (Android & iOS), the cursor ends up pinned directly against the top edge of the virtual software keyboard or `FormattingToolbar`, forcing the user's line of sight down and causing neck strain. On desktop environments, the cursor similarly collides with the window bottom.
+
+In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aesthetic, Exceptional Core Writing Loop*), **Typewriter Scrolling** was implemented to keep the active cursor line vertically anchored at approximately **45% from the top of the viewport** as the user types.
+
+### 2. Architectural Design & Behavior
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        EditorScreen (Viewport)                         │
+│                                                                        │
+│   [AppBar / Top Search / Docked Toolbar]                               │
+│   ──────────────────────────────────────────────────────────────────   │
+│   ▲                                                                    │
+│   │ 45% of Visible Viewport (Natural Eye Level)                        │
+│   ▼                                                                    │
+│   ══════════════════════ [Active Cursor Line] ══════════════════════   │
+│   ▲                                                                    │
+│   │ 55% Breathing Room                                                 │
+│   ▼                                                                    │
+│   ──────────────────────────────────────────────────────────────────   │
+│   [Bottom FormattingToolbar / Software Keyboard]                       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### A. Core Principles
+1. **Always-On Ambient Ergonomics**: Typewriter scrolling is active by default across all editors with zero settings clutter or extraneous UI switches.
+2. **Natural Document Start**: New notes and short documents start naturally with line 1 at the top of the sheet. The viewport begins scrolling only once writing progresses down to the 45% waterline.
+3. **Manual Scrolling Invariant**: When a user drags with touch or uses the mouse wheel to review earlier text, `scrollController.position.isScrollingNotifier.value` prevents auto-scrolling so reading is never interrupted. As soon as typing resumes, the editor smoothly glides to anchor the cursor at 45%.
+4. **Jitter-Free Typing**: Moving horizontally within the same line produces $\Delta y = 0$, requiring no scroll. Vertical adjustments use a 2px deadband tolerance and a 120ms `Curves.easeOutCubic` animation for seamless visual stability.
+
+#### B. Architectural Components
+
+1. **`TypewriterScrollCoordinator` ([`lib/features/editor/application/typewriter_scroll_coordinator.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/typewriter_scroll_coordinator.dart))**:
+   - Manages viewport geometry and executes scroll animations.
+   - Calculates the target waterline: $Y_{\text{target}} = Y_{\text{viewport\_top}} + (H_{\text{viewport}} \times 0.45)$.
+   - Traverses active focus trees to locate `RenderEditable` instances in `TextField`-based editors (Markdown mode, Visual / WYSIWYG mode, note title).
+   - Resolves global caret positions via `renderEditable.getLocalRectForCaret(TextPosition(offset: selection.extentOffset))`.
+   - Coalesces rapid keystrokes within the same animation frame via `WidgetsBinding.instance.addPostFrameCallback`.
+
+2. **`TypewriterDocumentLayer` ([`lib/features/editor/presentation/widgets/super_editor/typewriter_document_layer.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/typewriter_document_layer.dart))**:
+   - SuperEditor layer builder integrated into `QuietSuperEditor.documentOverlayBuilders`.
+   - Queries `DocumentLayout.getEdgeForPosition(selection.extent)` on composer selection updates.
+   - Maps document coordinates to global screen coordinates via the overlay's `RenderBox.localToGlobal` and notifies `TypewriterScrollCoordinator`.
+
+3. **Editor Screen & Dynamic Bottom Spacer ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart))**:
+   - Maintains `_viewportKey` on the `DesktopSmoothScroll` / `SingleChildScrollView` container.
+   - Wires typing listeners in `_onContentChanged`, `_onTargetChanged`, and `_onTitleChanged`.
+   - Embeds a dynamic bottom scroll spacer:
+     ```dart
+     final bottomScrollPadding = max(
+       isDesktop ? 220.0 : 300.0,
+       viewportHeight * 0.55,
+     );
+     ```
+     This guarantees that even the very last line of any document has at least 55% of the viewport height beneath it, enabling it to reach the 45% centerline on any display resolution.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- **Automated Tests**:
+  - `test/editor/typewriter_scrolling_test.dart` (7 tests passing):
+    - Viewport math & 45% waterline calculation.
+    - 2px deadband tolerance to prevent redundant scroll calls.
+    - Clamping within `[minScrollExtent, maxScrollExtent]`.
+    - Manual touch/drag gesture protection via `isScrollingNotifier`.
+    - Coalescing and post-frame scheduling for rapid keystrokes.
+    - `RenderEditable` global caret coordinate extraction.
+    - `SuperEditor` `TypewriterDocumentLayer` position reporting.
+    - Full `EditorScreen` integration test verifying body typing glides to 45%.
+- **Regression Tests**:
+  - `test/editor/dual_mode_editor_screen_test.dart`, `test/editor/quiet_super_editor_test.dart`, and `test/editor/markdown_editor_widget_test.dart` (63 tests passing with 0 regressions).

@@ -52,6 +52,7 @@ class MarkdownEditor extends StatefulWidget {
     this.noteId,
     this.onKeyEvent,
     this.onPaste,
+    this.onCaretPositionChanged,
   });
 
   final MarkdownEditingController controller;
@@ -69,6 +70,9 @@ class MarkdownEditor extends StatefulWidget {
   final VoidCallback? onNoteLinkPrompt;
   final FocusOnKeyEventCallback? onKeyEvent;
   final VoidCallback? onPaste;
+
+  /// Optional callback invoked when the active caret position changes (e.g., from SuperEditor).
+  final ValueChanged<Offset>? onCaretPositionChanged;
 
   /// Called when the [RichDocumentController] is created or disposed.
   final ValueChanged<RichDocumentController?>? onRichControllerChanged;
@@ -490,6 +494,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         stripFrontmatter: widget.stripFrontmatter,
         hintText: widget.hintText,
         noteId: widget.noteId,
+        onCaretPositionChanged: widget.onCaretPositionChanged,
         onChanged: (newMarkdown) {
           widget.controller.text = newMarkdown;
           widget.onChanged?.call(newMarkdown);
