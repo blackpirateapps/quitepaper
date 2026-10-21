@@ -2589,6 +2589,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final session = audioService.session;
     final capturedNodeId = session.capturedNodeId;
     final startTime = session.recordingStartTime ?? DateTime.now();
+    final recordedWaveform = audioService.getRecordedWaveform(count: 32);
 
     final file = await audioService.stopRecording();
     if (file == null || !await file.exists()) {
@@ -2604,6 +2605,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         userTitle: defaultTitle,
         noteId: widget.note.id,
       );
+
+      // Cache the recorded real waveform locally so the audio remains encrypted on disk
+      // while displaying the true audio waveform on the note card immediately.
+      if (recordedWaveform.isNotEmpty) {
+        try {
+          await ref.read(audioWaveformCacheServiceProvider).cacheWaveform(
+            result.attachment.id,
+            recordedWaveform,
+          );
+        } catch (e) {
+          debugPrint('[AudioJournal] Failed to cache waveform: $e');
+        }
+      }
 
       // Clean up temporary recording file
       try {

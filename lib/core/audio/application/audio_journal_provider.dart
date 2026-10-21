@@ -1,7 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../features/settings/application/settings_provider.dart';
 import '../domain/audio_journal_models.dart';
 import '../infrastructure/audio_journal_recording_service.dart';
 import '../infrastructure/audio_playback_service.dart';
+import '../infrastructure/audio_waveform_cache_service.dart';
+
+/// Provider for the local audio waveform cache.
+final audioWaveformCacheServiceProvider = Provider<AudioWaveformCacheService>((ref) {
+  SharedPreferences? prefs;
+  try {
+    prefs = ref.watch(sharedPreferencesProvider);
+  } catch (_) {
+    // In unit test contexts where sharedPreferencesProvider is uninitialized
+  }
+  return AudioWaveformCacheService(prefs: prefs);
+});
 
 /// Provider for the singleton audio recording service.
 final audioJournalRecordingServiceProvider = Provider<AudioJournalRecordingService>((ref) {

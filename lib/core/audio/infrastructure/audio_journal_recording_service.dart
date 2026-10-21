@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
 
+import '../application/audio_duration_helper.dart';
 import '../domain/audio_journal_models.dart';
 
 /// Service managing the audio capture pipeline for journal voice memos.
@@ -49,6 +50,7 @@ class AudioJournalRecordingService {
   DateTime? _segmentStartTime;
   Duration _accumulatedPastDuration = Duration.zero;
   final List<double> _liveAmplitudes = [];
+  final List<double> _fullSessionAmplitudes = [];
 
   bool _isDisposed = false;
 
@@ -190,6 +192,7 @@ class AudioJournalRecordingService {
   File _initActiveRecording(File targetFile, void Function()? onMaxDurationReached) {
     final now = DateTime.now();
     _segmentStartTime = now;
+    _fullSessionAmplitudes.clear();
 
     _emit(_session.copyWith(
       status: AudioJournalStatus.recording,
@@ -197,6 +200,7 @@ class AudioJournalRecordingService {
       recordingStartTime: now,
       elapsedDuration: Duration.zero,
       liveAmplitudes: const [],
+      sessionAmplitudes: const [],
       errorMessage: null,
     ));
 
@@ -254,10 +258,12 @@ class AudioJournalRecordingService {
             _liveAmplitudes.removeAt(0);
           }
           _liveAmplitudes.add(smoothed);
+          _fullSessionAmplitudes.add(smoothed);
 
           _emit(_session.copyWith(
             currentDecibels: currentDb,
             liveAmplitudes: List.unmodifiable(_liveAmplitudes),
+            sessionAmplitudes: List.unmodifiable(_fullSessionAmplitudes),
           ));
         }
       }, onError: (_) {});
@@ -355,9 +361,16 @@ class AudioJournalRecordingService {
       status: AudioJournalStatus.completed,
       elapsedDuration: _accumulatedPastDuration,
       workingFile: resultFile,
+      sessionAmplitudes: List.unmodifiable(_fullSessionAmplitudes),
     ));
 
     return resultFile;
+  }
+
+  /// Returns a normalized downsampled [count]-bar waveform representing the entire recorded session.
+  List<double> getRecordedWaveform({int count = 32}) {
+    if (_fullSessionAmplitudes.isEmpty) return const [];
+    return AudioDurationHelper.downsampleAmplitudes(_fullSessionAmplitudes, count);
   }
 
   /// Cancels the recording session and immediately deletes the temporary audio file.

@@ -70,5 +70,105 @@ void main() {
         expect(bar, lessThanOrEqualTo(0.95));
       }
     });
+
+    test('extracts genuine PCM waveform from WAV audio container', () {
+      final header = ByteData(44);
+      // 'RIFF'
+      header.setUint8(0, 0x52);
+      header.setUint8(1, 0x49);
+      header.setUint8(2, 0x46);
+      header.setUint8(3, 0x46);
+      header.setUint32(4, 36 + 200 * 2, Endian.little);
+      // 'WAVE'
+      header.setUint8(8, 0x57);
+      header.setUint8(9, 0x41);
+      header.setUint8(10, 0x56);
+      header.setUint8(11, 0x45);
+      // 'fmt '
+      header.setUint8(12, 0x66);
+      header.setUint8(13, 0x6D);
+      header.setUint8(14, 0x74);
+      header.setUint8(15, 0x20);
+      header.setUint32(16, 16, Endian.little);
+      header.setUint16(20, 1, Endian.little); // PCM
+      header.setUint16(22, 1, Endian.little); // 1 channel
+      header.setUint32(24, 16000, Endian.little); // 16kHz
+      header.setUint32(28, 32000, Endian.little); // byte rate
+      header.setUint16(32, 2, Endian.little); // block align
+      header.setUint16(34, 16, Endian.little); // 16-bit
+      // 'data'
+      header.setUint8(36, 0x64);
+      header.setUint8(37, 0x61);
+      header.setUint8(38, 0x74);
+      header.setUint8(39, 0x61);
+      header.setUint32(40, 200 * 2, Endian.little);
+
+      final pcmBytes = ByteData(200 * 2);
+      // First 100 samples silence (0)
+      for (var i = 0; i < 100; i++) {
+        pcmBytes.setInt16(i * 2, 0, Endian.little);
+      }
+      // Next 100 samples loud voice/signal (+25000)
+      for (var i = 100; i < 200; i++) {
+        pcmBytes.setInt16(i * 2, 25000, Endian.little);
+      }
+
+      final completeWav = Uint8List(44 + 400);
+      completeWav.setRange(0, 44, header.buffer.asUint8List());
+      completeWav.setRange(44, 444, pcmBytes.buffer.asUint8List());
+
+      final waveform = AudioDurationHelper.extractAmplitudesFromBytes(
+        completeWav,
+        count: 16,
+        fileName: 'test.wav',
+      );
+
+      expect(waveform.length, equals(16));
+      // First half (silence) must be quiet (~0.15)
+      expect(waveform[0], closeTo(0.15, 0.01));
+      // Second half (loud signal) must be high (> 0.5)
+      expect(waveform[15], greaterThan(0.5));
+    });
+
+    test('extracts genuine frame-size amplitude envelope from MP4/M4A stsz box', () {
+      final buffer = ByteData(100);
+      // 'ftyp' at offset 4
+      buffer.setUint32(0, 20, Endian.big);
+      buffer.setUint8(4, 0x66);
+      buffer.setUint8(5, 0x74);
+      buffer.setUint8(6, 0x79);
+      buffer.setUint8(7, 0x70);
+
+      // 'stsz' at offset 20
+      buffer.setUint32(20, 60, Endian.big); // size
+      buffer.setUint8(24, 0x73); // s
+      buffer.setUint8(25, 0x74); // t
+      buffer.setUint8(26, 0x73); // s
+      buffer.setUint8(27, 0x7A); // z
+      buffer.setUint32(28, 0, Endian.big); // version + flags
+      buffer.setUint32(32, 0, Endian.big); // default sample size = 0 (variable)
+      buffer.setUint32(36, 8, Endian.big); // sample count = 8
+
+      // Frame sizes: 4 quiet frames (15 bytes), 4 loud speech frames (300 bytes)
+      buffer.setUint32(40, 15, Endian.big);
+      buffer.setUint32(44, 15, Endian.big);
+      buffer.setUint32(48, 15, Endian.big);
+      buffer.setUint32(52, 15, Endian.big);
+      buffer.setUint32(56, 300, Endian.big);
+      buffer.setUint32(60, 300, Endian.big);
+      buffer.setUint32(64, 300, Endian.big);
+      buffer.setUint32(68, 300, Endian.big);
+
+      final waveform = AudioDurationHelper.extractAmplitudesFromBytes(
+        buffer.buffer.asUint8List(),
+        count: 8,
+        fileName: 'memo.m4a',
+      );
+
+      expect(waveform.length, equals(8));
+      // Quiet frames mapped to low value, loud frames mapped to high value
+      expect(waveform[0], lessThan(waveform[7]));
+      expect(waveform[7], closeTo(0.95, 0.05));
+    });
   });
 }

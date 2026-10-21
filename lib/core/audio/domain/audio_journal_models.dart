@@ -24,6 +24,7 @@ class AudioJournalRecordingSession {
     this.elapsedDuration = Duration.zero,
     this.currentDecibels = -160.0,
     this.liveAmplitudes = const [],
+    this.sessionAmplitudes = const [],
     this.activeNoteId,
     this.workingFile,
     this.recordingStartTime,
@@ -43,6 +44,9 @@ class AudioJournalRecordingSession {
 
   /// Live normalized amplitude values (0.0 to 1.0) for real-time waveform visualization.
   final List<double> liveAmplitudes;
+
+  /// Complete normalized amplitude values across the entire recording session.
+  final List<double> sessionAmplitudes;
 
   /// The note ID where the recording was started.
   final String? activeNoteId;
@@ -83,6 +87,7 @@ class AudioJournalRecordingSession {
     Duration? elapsedDuration,
     double? currentDecibels,
     List<double>? liveAmplitudes,
+    List<double>? sessionAmplitudes,
     String? activeNoteId,
     File? workingFile,
     DateTime? recordingStartTime,
@@ -95,6 +100,7 @@ class AudioJournalRecordingSession {
       elapsedDuration: elapsedDuration ?? this.elapsedDuration,
       currentDecibels: currentDecibels ?? this.currentDecibels,
       liveAmplitudes: liveAmplitudes ?? this.liveAmplitudes,
+      sessionAmplitudes: sessionAmplitudes ?? this.sessionAmplitudes,
       activeNoteId: activeNoteId ?? this.activeNoteId,
       workingFile: workingFile ?? this.workingFile,
       recordingStartTime: recordingStartTime ?? this.recordingStartTime,

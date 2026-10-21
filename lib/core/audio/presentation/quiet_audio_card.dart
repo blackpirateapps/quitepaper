@@ -174,24 +174,65 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
   Future<void> _computeWaveformPreview() async {
     try {
+      final waveformCache = ref.read(audioWaveformCacheServiceProvider);
+
+      // 1. Check local persistent waveform cache first (instant synchronous lookup, no decryption needed)
+      final cached = waveformCache.getWaveform(widget.attachmentId);
+      if (cached != null && cached.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _waveformBars = cached;
+          });
+        }
+        return;
+      }
+
+      // 2. Check if decrypted bytes are in memory cache
       final service = ref.read(attachmentServiceProvider);
-      final cache = service.getDecryptedCache(widget.attachmentId);
-      if (cache != null && cache.isNotEmpty) {
-        final bars = AudioDurationHelper.extractAmplitudesFromBytes(cache, count: 32);
+      final memCache = service.getDecryptedCache(widget.attachmentId);
+      if (memCache != null && memCache.isNotEmpty) {
+        final bars = AudioDurationHelper.extractAmplitudesFromBytes(
+          memCache,
+          count: 32,
+          mimeType: _entity?.mimeType,
+          fileName: _entity?.fileName,
+        );
+        await waveformCache.cacheWaveform(widget.attachmentId, bars);
         if (mounted) {
           setState(() {
             _waveformBars = bars;
           });
         }
-      } else {
-        if (mounted && _waveformBars.isEmpty) {
+        return;
+      }
+
+      // 3. Resolve the attachment locally on-device once in the background
+      // to extract and cache the real waveform so the audio file stays encrypted on disk.
+      final resolution = await service.resolveAsset(widget.attachmentId);
+      if (resolution.isAvailable && resolution.data != null && resolution.data!.isNotEmpty) {
+        final bars = AudioDurationHelper.extractAmplitudesFromBytes(
+          resolution.data!,
+          count: 32,
+          mimeType: _entity?.mimeType,
+          fileName: _entity?.fileName,
+        );
+        await waveformCache.cacheWaveform(widget.attachmentId, bars);
+        if (mounted) {
           setState(() {
-            _waveformBars = AudioDurationHelper.extractAmplitudesFromBytes(
-              Uint8List(0),
-              count: 32,
-            );
+            _waveformBars = bars;
           });
         }
+        return;
+      }
+
+      // 4. Fallback if resolution fails or asset not found
+      if (mounted && _waveformBars.isEmpty) {
+        setState(() {
+          _waveformBars = AudioDurationHelper.extractAmplitudesFromBytes(
+            Uint8List(0),
+            count: 32,
+          );
+        });
       }
     } catch (_) {}
   }
@@ -238,8 +279,15 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
       final mimeType = _entity?.mimeType ?? 'audio/mp4';
 
       if (mounted) {
+        final bars = AudioDurationHelper.extractAmplitudesFromBytes(
+          bytes,
+          count: 32,
+          mimeType: mimeType,
+          fileName: _entity?.fileName,
+        );
+        ref.read(audioWaveformCacheServiceProvider).cacheWaveform(widget.attachmentId, bars);
         setState(() {
-          _waveformBars = AudioDurationHelper.extractAmplitudesFromBytes(bytes, count: 32);
+          _waveformBars = bars;
           _isLoading = false;
         });
       }
@@ -482,6 +530,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   }
 
   void _handleDelete() {
+    ref.read(audioWaveformCacheServiceProvider).removeWaveform(widget.attachmentId);
     widget.onAttachmentDeleted?.call(widget.attachmentId);
   }
 

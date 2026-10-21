@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/audio/application/audio_journal_provider.dart';
 import 'package:quitepaper/core/audio/application/audio_transcription_provider.dart';
 import 'package:quitepaper/core/audio/domain/audio_transcript_models.dart';
 import 'package:quitepaper/core/audio/infrastructure/audio_file_transcription_service.dart';
+import 'package:quitepaper/core/audio/infrastructure/audio_waveform_cache_service.dart';
 import 'package:quitepaper/core/audio/presentation/quiet_audio_card.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/speech/application/speech_model_manager.dart';
@@ -347,6 +349,32 @@ void main() {
       expect(find.text('Transcribing on device…'), findsNothing);
       expect(find.text('This is the completed transcript.'), findsOneWidget);
       expect(find.text('Transcript'), findsOneWidget);
+    });
+
+    testWidgets('renders genuine cached waveform bars instead of static fallback curve', (tester) async {
+      final customBars = List.generate(32, (i) => i < 16 ? 0.2 : 0.85);
+      final cacheService = AudioWaveformCacheService();
+      await cacheService.cacheWaveform(audioEntity.id, customBars);
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Waveform Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+          ),
+          overrides: [
+            audioWaveformCacheServiceProvider.overrideWithValue(cacheService),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.byType(QuietAudioCard), findsOneWidget);
+      expect(cacheService.getWaveform(audioEntity.id), equals(customBars));
     });
   });
 }
