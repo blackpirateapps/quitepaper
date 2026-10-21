@@ -30,6 +30,9 @@ class AudioFileTranscriptionService {
   /// Currently running jobs keyed by attachment ID to prevent duplicate requests.
   final Map<String, Future<AudioTranscriptData?>> _activeJobs = {};
 
+  /// Current/last job states per attachment ID.
+  final Map<String, AudioTranscriptionJobState> _jobStates = {};
+
   /// Cancelled job identifiers.
   final Set<String> _cancelledJobs = {};
 
@@ -37,17 +40,24 @@ class AudioFileTranscriptionService {
   final _progressControllers =
       <String, StreamController<AudioTranscriptionJobState>>{};
 
+  /// Returns current job state for [attachmentId] if known.
+  AudioTranscriptionJobState? getJobState(String attachmentId) => _jobStates[attachmentId];
+
   /// Returns a progress stream for a specific attachment transcription job.
-  Stream<AudioTranscriptionJobState> watchJob(String attachmentId) {
-    return _progressControllers
-        .putIfAbsent(
-          attachmentId,
-          () => StreamController<AudioTranscriptionJobState>.broadcast(),
-        )
-        .stream;
+  Stream<AudioTranscriptionJobState> watchJob(String attachmentId) async* {
+    final controller = _progressControllers.putIfAbsent(
+      attachmentId,
+      () => StreamController<AudioTranscriptionJobState>.broadcast(),
+    );
+    final current = _jobStates[attachmentId];
+    if (current != null) {
+      yield current;
+    }
+    yield* controller.stream;
   }
 
   void _emit(String attachmentId, AudioTranscriptionJobState state) {
+    _jobStates[attachmentId] = state;
     final controller = _progressControllers[attachmentId];
     if (controller != null && !controller.isClosed) {
       controller.add(state);
@@ -299,6 +309,7 @@ class AudioFileTranscriptionService {
   void dispose() {
     _cancelledJobs.addAll(_activeJobs.keys);
     _activeJobs.clear();
+    _jobStates.clear();
     for (final controller in _progressControllers.values) {
       if (!controller.isClosed) {
         controller.close();

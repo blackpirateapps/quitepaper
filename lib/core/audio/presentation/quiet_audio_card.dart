@@ -123,11 +123,16 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
   void _subscribeToTranscriptionJobs() {
     final transcriptionService = ref.read(audioFileTranscriptionServiceProvider);
+    final active = transcriptionService.getJobState(widget.attachmentId);
+    if (active != null && active.isBusy) {
+      _jobState = active;
+    }
     _jobSubscription = transcriptionService.watchJob(widget.attachmentId).listen((state) {
       if (!mounted) return;
       setState(() {
         _jobState = state;
         if (state.isCompleted && state.transcriptData != null) {
+          _jobState = null;
           _transcript = state.transcriptData!.text;
           _transcriptLanguage = state.transcriptData!.language;
           _isTranscriptEdited = state.transcriptData!.isEdited;
@@ -135,6 +140,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
           _isTranscriptExpanded = true;
           _isExpanded = true;
           widget.onTranscriptChanged?.call(_transcript!, _isTranscriptEdited);
+        } else if (state.hasFailed || state.isCancelled) {
+          _jobState = null;
         }
       });
     });
@@ -258,7 +265,13 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   }
 
   Future<void> _startTranscription({bool isRegeneration = false}) async {
-    setState(() => _isExpanded = true);
+    setState(() {
+      _isExpanded = true;
+      _jobState = const AudioTranscriptionJobState(
+        status: AudioTranscriptionStatus.checkingModel,
+        stageLabel: 'Checking speech model…',
+      );
+    });
 
     final transcriptionService = ref.read(audioFileTranscriptionServiceProvider);
     final modelManager = transcriptionService.speechModelManager;
@@ -271,6 +284,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
         modelDescriptor: modelManager.descriptor,
       );
       if (downloaded != true) {
+        if (mounted) {
+          setState(() {
+            _jobState = null;
+          });
+        }
         return;
       }
     }
@@ -278,10 +296,18 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     try {
       final result = await transcriptionService.transcribeAttachment(
         attachmentId: widget.attachmentId,
+        onStateChange: (state) {
+          if (mounted) {
+            setState(() {
+              _jobState = state;
+            });
+          }
+        },
       );
 
       if (result != null && mounted) {
         setState(() {
+          _jobState = null;
           _transcript = result.text;
           _transcriptLanguage = result.language;
           _isTranscriptEdited = false;
@@ -289,9 +315,16 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
           _isTranscriptExpanded = true;
         });
         widget.onTranscriptChanged?.call(result.text, false);
+      } else if (mounted) {
+        setState(() {
+          _jobState = null;
+        });
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _jobState = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Transcription error: $e'),
@@ -304,6 +337,9 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   }
 
   void _cancelTranscription() {
+    setState(() {
+      _jobState = null;
+    });
     ref
         .read(audioFileTranscriptionServiceProvider)
         .cancelTranscription(widget.attachmentId);
@@ -495,7 +531,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
     // Check if in-flight transcription is actively busy for this attachment
     final jobAsync = ref.watch(audioTranscriptionJobStateProvider(widget.attachmentId));
-    final activeJob = jobAsync.valueOrNull ?? _jobState;
+    final activeJob = _jobState ?? jobAsync.valueOrNull;
     final isTranscribingBusy = activeJob?.isBusy == true;
     if (isTranscribingBusy) {
       return _buildProcessingInterface(

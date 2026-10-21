@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,8 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/audio/application/audio_transcription_provider.dart';
 import 'package:quitepaper/core/audio/domain/audio_transcript_models.dart';
+import 'package:quitepaper/core/audio/infrastructure/audio_file_transcription_service.dart';
 import 'package:quitepaper/core/audio/presentation/quiet_audio_card.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/speech/application/speech_model_manager.dart';
+import 'package:quitepaper/core/speech/domain/speech_model.dart';
+import 'package:quitepaper/core/speech/domain/speech_model_status.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
@@ -293,5 +298,108 @@ void main() {
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
     });
+
+    testWidgets('tapping Transcribe audio enters processing loading screen and updates to transcript', (tester) async {
+      final completer = Completer<AudioTranscriptData?>();
+      final fakeService = _FakeAudioFileTranscriptionService(
+        speechModelManager: _FakeSpeechModelManager(),
+        onTranscribeCompleter: completer,
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Test Voice Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+          ),
+          overrides: [
+            audioFileTranscriptionServiceProvider.overrideWithValue(fakeService),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.text('Transcribe audio'), findsOneWidget);
+      await tester.tap(find.text('Transcribe audio'));
+      await tester.pump();
+
+      // Verify that the processing interface (loading screen) is active
+      expect(find.text('Transcribing on device…'), findsOneWidget);
+      expect(find.text('40%'), findsOneWidget);
+      expect(find.text('Whisper Base · English'), findsOneWidget);
+      expect(find.text('Your audio stays on this device during transcription.'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+      // Now complete the transcription job
+      completer.complete(const AudioTranscriptData(
+        text: 'This is the completed transcript.',
+        language: 'en',
+      ));
+      await tester.pumpAndSettle();
+
+      // Verify loading screen is gone and transcript is shown
+      expect(find.text('Transcribing on device…'), findsNothing);
+      expect(find.text('This is the completed transcript.'), findsOneWidget);
+      expect(find.text('Transcript'), findsOneWidget);
+    });
   });
+}
+
+class _FakeSpeechModelManager implements SpeechModelManager {
+  @override
+  SpeechModelDescriptor get descriptor => const FutoEnglishSpeechModel39();
+
+  @override
+  Future<SpeechModelStatus> checkStatus() async => const SpeechModelStatus(
+        status: SpeechModelInstallationStatus.installed,
+        modelPath: '/fake/model.bin',
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeAudioFileTranscriptionService implements AudioFileTranscriptionService {
+  _FakeAudioFileTranscriptionService({
+    required this.speechModelManager,
+    required this.onTranscribeCompleter,
+  });
+
+  @override
+  final SpeechModelManager speechModelManager;
+  final Completer<AudioTranscriptData?> onTranscribeCompleter;
+  final StreamController<AudioTranscriptionJobState> _controller =
+      StreamController<AudioTranscriptionJobState>.broadcast();
+
+  @override
+  Stream<AudioTranscriptionJobState> watchJob(String attachmentId) => _controller.stream;
+
+  @override
+  AudioTranscriptionJobState? getJobState(String attachmentId) => null;
+
+  @override
+  Future<AudioTranscriptData?> transcribeAttachment({
+    required String attachmentId,
+    String? preferredLanguage,
+    void Function(AudioTranscriptionJobState state)? onStateChange,
+  }) {
+    onStateChange?.call(const AudioTranscriptionJobState(
+      status: AudioTranscriptionStatus.transcribing,
+      stageLabel: 'Transcribing on device…',
+      progressPercent: 40,
+    ));
+    return onTranscribeCompleter.future;
+  }
+
+  @override
+  void cancelTranscription(String attachmentId) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

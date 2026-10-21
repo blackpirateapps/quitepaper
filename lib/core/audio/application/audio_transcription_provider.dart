@@ -9,7 +9,8 @@ import '../infrastructure/audio_file_transcription_service.dart';
 final audioFileTranscriptionServiceProvider =
     Provider<AudioFileTranscriptionService>((ref) {
   final attachmentService = ref.watch(attachmentServiceProvider);
-  final modelManager = ref.watch(speechModelManagerProvider);
+  ref.watch(selectedSpeechModelProvider);
+  final modelManager = ref.read(speechModelManagerProvider);
   final engine = ref.watch(speechRecognitionEngineProvider);
 
   final service = AudioFileTranscriptionService(
