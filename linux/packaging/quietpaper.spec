@@ -17,6 +17,9 @@ Requires:       gtk3 >= 3.24
 Requires:       glib2 >= 2.64
 Requires:       libsecret
 Requires:       hicolor-icon-theme
+Requires:       gstreamer1 >= 1.16
+Requires:       gstreamer1-plugins-base >= 1.16
+Requires:       gstreamer1-plugins-good
 
 %description
 Quiet Paper is an elegant, distraction-free markdown note-taking app and daily journal

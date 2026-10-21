@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
+import '../../../../core/attachments/attachment_provider.dart';
 import '../../../../core/attachments/presentation/quiet_attachment_card.dart';
 import '../../../../core/documents/presentation/quiet_document_card.dart';
 import '../../../../core/uri/quiet_paper_uri.dart';
@@ -13,7 +15,7 @@ import '../../application/rich_document_controller.dart';
 /// Renders a document ([QuietDocumentCard]) or generic file ([QuietAttachmentCard])
 /// card whose own tap gesture opens the resource, with a small remove control that
 /// deletes the block from the document (mirroring [RichImageBlock]).
-class RichAttachmentBlock extends StatelessWidget {
+class RichAttachmentBlock extends ConsumerWidget {
   const RichAttachmentBlock({
     super.key,
     required this.block,
@@ -27,8 +29,20 @@ class RichAttachmentBlock extends StatelessWidget {
   final RichDocumentController controller;
   final bool readOnly;
 
+  void _remove(WidgetRef ref) {
+    controller.convertBlockToParagraph(blockIndex);
+    final uri = QuietPaperUri.tryParse(block.uri);
+    if (uri != null && uri.isAsset) {
+      try {
+        ref.read(attachmentServiceProvider).deleteAttachment(uri.resourceId);
+      } catch (e) {
+        debugPrint('[RichAttachmentBlock] Failed to delete attachment ${uri.resourceId}: $e');
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final uri = QuietPaperUri.tryParse(block.uri);
     final resourceId = uri?.resourceId ?? '';
@@ -58,7 +72,7 @@ class RichAttachmentBlock extends StatelessWidget {
           controller.updateAttachmentBlockName(blockIndex, newTitle);
         },
         onAttachmentDeleted: (id) {
-          controller.convertBlockToParagraph(blockIndex);
+          _remove(ref);
         },
       );
     }
@@ -86,7 +100,7 @@ class RichAttachmentBlock extends StatelessWidget {
               size: 16,
               padding: const EdgeInsets.all(6.0),
               onPressed: () {
-                controller.convertBlockToParagraph(blockIndex);
+                _remove(ref);
               },
             ),
           ),

@@ -10283,12 +10283,15 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
 
 ### 3. Verification & Quality
 - **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
-- **Automated Audio Test Suites** (54 tests passing across `test/audio/`):
+- **Automated Audio Test Suites** (56 tests passing across `test/audio/`):
   - `test/audio/audio_file_transcription_service_test.dart` (4 tests): Transcribes WAV attachment, fails safely if speech model missing, deduplicates concurrent requests, cancellation safeguards.
-  - `test/audio/super_editor_audio_test.dart` (10 tests): Standalone link promotion, link serialization round-trips, consecutive blocks, insertAttachment at cursor, rename without URI mutation, transcript persistence, manual edits (`edited=1`), consecutive transcript blocks, Visual mode round-tripping, preview blockquote stripping.
-  - `test/audio/quiet_audio_card_test.dart` (9 tests): Compact view, tap-to-expand, rich player controls, dark theme, transcript display (Image 0), edited manually badge, inline transcript editing, insert into note, in-progress processing UI (Image 1).
+  - `test/audio/super_editor_audio_test.dart` (12 tests): Standalone link promotion, link serialization round-trips, consecutive blocks, insertAttachment at cursor, rename without URI mutation, transcript persistence, manual edits (`edited=1`), consecutive transcript blocks, Visual mode round-tripping, preview blockquote stripping, cross deletion tombstone and file deletion via `AttachmentService` in Super Editor and Visual mode.
+  - `test/audio/quiet_audio_card_test.dart` (9 tests): Compact view, tap-to-expand, rich player controls, dark theme, transcript display (Image 0), edited manually badge, inline transcript editing, insert into note, in-progress processing UI (Image 1), overflow-free footer with `Encrypted attachment` label.
   - `test/audio/audio_sharing_privacy_test.dart` (5 tests): Public share audio exclusion, companion transcript blockquote exclusion, image upload with audio exclusion, share warning dialogs.
   - `test/audio/audio_duration_helper_test.dart` (4 tests), `test/audio/audio_journal_recording_service_test.dart` (11 tests), `test/audio/audio_playback_service_test.dart` (7 tests), `test/audio/audio_attachment_crypto_test.dart` (4 tests).
 - **Search Verification**:
   - `test/search/search_index_projection_test.dart`: Spoken audio transcript text indexed while stripping internal URI and query parameters.
+- **Bug Fixes (Post-Verification)**:
+  - **Audio Card Footer Overflow**: Removed ` · Available offline` suffix from the footer label in `QuietAudioCard` so `Transcribe audio` never overflows on narrow screens, and wrapped the label in `Expanded`/`Flexible` with `TextOverflow.ellipsis`.
+  - **Cross (X) / Delete Button Asset Purging**: Connected the cross button and delete action in both `QuietAttachmentComponent` and `RichAttachmentBlock` to `AttachmentService.deleteAttachment()`. This invalidates the decrypted cache, marks the record deleted, enqueues a sync tombstone for the cloud garbage collector, and deletes the local encrypted file (`.enc`) from storage.
 

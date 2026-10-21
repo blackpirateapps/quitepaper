@@ -85,13 +85,13 @@ void main() {
       );
 
       await tester.pump();
-      expect(find.text('Encrypted attachment · Available offline'), findsNothing);
+      expect(find.text('Encrypted attachment'), findsNothing);
 
       // Tap on card to expand
       await tester.tap(find.text('Morning thoughts'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Encrypted attachment · Available offline'), findsOneWidget);
+      expect(find.text('Encrypted attachment'), findsOneWidget);
     });
 
     testWidgets('expanded view renders title, lock badge, and overflow menu button', (tester) async {
@@ -110,7 +110,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Ideas for Quiet Paper'), findsOneWidget);
-      expect(find.text('Encrypted attachment · Available offline'), findsOneWidget);
+      expect(find.text('Encrypted attachment'), findsOneWidget);
       expect(find.byIcon(PhosphorIconsRegular.dotsThree), findsOneWidget);
     });
 
@@ -131,7 +131,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Night thoughts'), findsOneWidget);
-      expect(find.text('Encrypted attachment · Available offline'), findsOneWidget);
+      expect(find.text('Encrypted attachment'), findsOneWidget);
     });
 
     testWidgets('renders transcript section in expanded mode when transcript exists (Mockup 0)', (tester) async {

@@ -1037,27 +1037,34 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
               _buildTranscriptSection(colors: colors),
             ] else ...[
               const SizedBox(height: 16),
-              // Bottom Row fallback: Lock icon + "Encrypted attachment · Available offline"
+              // Bottom Row fallback: Lock icon + "Encrypted attachment"
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        PhosphorIconsRegular.lock,
-                        size: 14,
-                        color: colors.textTertiary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Encrypted attachment · Available offline',
-                        style: AppTypography.caption.copyWith(
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          PhosphorIconsRegular.lock,
+                          size: 14,
                           color: colors.textTertiary,
-                          fontSize: 12,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Encrypted attachment',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textTertiary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   if (!widget.isReadOnly)
                     InkWell(
                       onTap: _startTranscription,

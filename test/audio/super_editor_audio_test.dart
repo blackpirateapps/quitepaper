@@ -1,12 +1,61 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:super_editor/super_editor.dart';
+import 'package:quitepaper/core/attachments/attachment_provider.dart';
+import 'package:quitepaper/core/attachments/attachment_service.dart';
 import 'package:quitepaper/core/audio/application/audio_transcript_markdown_helper.dart';
+import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
+import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
 import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
 import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
 import 'package:quitepaper/features/editor/domain/rich_block.dart';
+import 'package:quitepaper/features/editor/domain/rich_document.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_attachment_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
+import 'package:super_editor/super_editor.dart';
+
+class _TestAppDatabase implements AppDatabase {
+  @override
+  Future<AttachmentEntity?> getAttachment(String id) async => AttachmentEntity(
+        id: id,
+        fileName: 'recording.m4a',
+        mimeType: 'audio/mp4',
+        byteSize: 100,
+        sha256: 'abc',
+        kind: 'file',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        encryptionKeyVersion: 1,
+        isDirty: false,
+        isDeleted: false,
+        serverRevision: 0,
+        uploadState: 'local_only',
+        ocrState: 'not_requested',
+        ocrLanguage: 'en',
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestAttachmentService implements AttachmentService {
+  _TestAttachmentService({this.onDelete});
+  final void Function(String id)? onDelete;
+
+  @override
+  final AppDatabase database = _TestAppDatabase();
+
+  @override
+  Future<void> deleteAttachment(String assetId, {bool enqueueSync = true}) async {
+    onDelete?.call(assetId);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -290,6 +339,89 @@ void main() {
       expect(stripped, isNot(contains('> Transcript line 2')));
       expect(stripped, contains('> Standalone user blockquote'));
       expect(stripped, contains('Body text'));
+    });
+
+    testWidgets('clicking cross on QuietAttachmentComponent deletes node and calls deleteAttachment on AttachmentService', (tester) async {
+      String? deletedAssetId;
+      final mockAttachmentService = _TestAttachmentService(onDelete: (id) => deletedAssetId = id);
+
+      final doc = MutableDocument(nodes: [
+        QuietAttachmentNode(
+          id: 'audio_node_1',
+          uri: audioUri1,
+          displayText: 'Audio Recording',
+        ),
+      ]);
+      final editor = createDefaultDocumentEditor(document: doc, composer: MutableDocumentComposer());
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentServiceProvider.overrideWithValue(mockAttachmentService),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: QuietAttachmentComponent(
+                componentKey: GlobalKey(),
+                node: doc.getNodeAt(0) as QuietAttachmentNode,
+                editor: editor,
+                showRemove: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(find.byIcon(PhosphorIconsRegular.x), findsOneWidget);
+
+      await tester.tap(find.byIcon(PhosphorIconsRegular.x));
+      await tester.pump();
+
+      expect(doc.nodeCount, equals(0));
+      expect(deletedAssetId, equals('11111111-1111-4111-8111-111111111111'));
+    });
+
+    testWidgets('clicking remove button on RichAttachmentBlock calls deleteAttachment on AttachmentService', (tester) async {
+      String? deletedAssetId;
+      final mockAttachmentService = _TestAttachmentService(onDelete: (id) => deletedAssetId = id);
+
+      final block = AttachmentBlock(
+        id: 'b1',
+        uri: audioUri1,
+        name: 'Voice Memo',
+        kind: AttachmentBlockKind.file,
+      );
+      final doc = RichDocument(blocks: [block]);
+      final controller = RichDocumentController(
+        initialMarkdown: const RichDocumentSerializer().serialize(doc),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentServiceProvider.overrideWithValue(mockAttachmentService),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: RichAttachmentBlock(
+                block: block,
+                blockIndex: 0,
+                controller: controller,
+                readOnly: false,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+      await tester.pump();
+
+      expect(deletedAssetId, equals('11111111-1111-4111-8111-111111111111'));
     });
   });
 }

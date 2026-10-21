@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/core/attachments/attachment_provider.dart';
 import 'package:quitepaper/core/attachments/presentation/quiet_attachment_card.dart';
 import 'package:quitepaper/core/audio/application/audio_transcript_markdown_helper.dart';
 import 'package:quitepaper/core/documents/presentation/quiet_document_card.dart';
@@ -413,7 +415,7 @@ class QuietAttachmentComponentViewModel extends SingleColumnLayoutComponentViewM
 /// [QuietDocumentCard] or [QuietAttachmentCard]. Tapping the card opens it
 /// (handled by the cards themselves); a small corner control removes the block
 /// from the note.
-class QuietAttachmentComponent extends StatelessWidget {
+class QuietAttachmentComponent extends ConsumerWidget {
   const QuietAttachmentComponent({
     super.key,
     required this.componentKey,
@@ -429,8 +431,16 @@ class QuietAttachmentComponent extends StatelessWidget {
   final String? noteId;
   final bool showRemove;
 
-  void _remove() {
+  void _remove(WidgetRef ref) {
     editor.execute([DeleteNodeRequest(nodeId: node.id)]);
+    final qp = QuietPaperUri.tryParse(node.uri);
+    if (qp != null && qp.isAsset) {
+      try {
+        ref.read(attachmentServiceProvider).deleteAttachment(qp.resourceId);
+      } catch (e) {
+        debugPrint('[QuietAttachmentComponent] Failed to delete attachment ${qp.resourceId}: $e');
+      }
+    }
   }
 
   void _insertTranscriptAfterCard(String transcriptText) {
@@ -463,7 +473,7 @@ class QuietAttachmentComponent extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final qp = QuietPaperUri.tryParse(node.uri);
 
@@ -505,7 +515,7 @@ class QuietAttachmentComponent extends StatelessWidget {
           ]);
         },
         onAttachmentDeleted: (id) {
-          _remove();
+          _remove(ref);
         },
       );
     } else {
@@ -529,7 +539,7 @@ class QuietAttachmentComponent extends StatelessWidget {
                   elevation: 1,
                   child: InkWell(
                     customBorder: const CircleBorder(),
-                    onTap: _remove,
+                    onTap: () => _remove(ref),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Icon(PhosphorIconsRegular.x, size: 13, color: colors.textSecondary),
