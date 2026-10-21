@@ -5,6 +5,7 @@ import '../core/utils/platform_layout_helper.dart';
 import '../core/web_clipper/share_intent_handler.dart';
 import '../features/notes/application/notes_provider.dart';
 import '../features/notes/presentation/notes_screen.dart';
+import '../features/quick_capture/application/quick_capture_coordinator.dart';
 import '../features/settings/application/settings_provider.dart';
 import '../features/settings/application/typography_provider.dart';
 import 'theme/app_theme.dart';
@@ -44,6 +45,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
   void initState() {
     super.initState();
     ShareIntentHandler.initialize(rootNavigatorKey);
+    QuickCaptureCoordinator.initialize(rootNavigatorKey);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkSearchIndexIntegrity();
     });
@@ -65,6 +67,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
 
   @override
   void dispose() {
+    QuickCaptureCoordinator.dispose();
     ShareIntentHandler.dispose();
     super.dispose();
   }

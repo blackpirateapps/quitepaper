@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
-import '../../features/web_clipper/presentation/web_clip_dialog.dart';
+import '../../features/quick_capture/application/quick_capture_coordinator.dart';
+import '../../features/quick_capture/application/quick_capture_normalizer.dart';
+import '../../features/quick_capture/domain/quick_capture_payload.dart';
 import '../sharing/shared_file_importer.dart';
 
 /// Handler for content received from other apps via Android share / "Open with"
@@ -72,10 +74,11 @@ class ShareIntentHandler {
             navigatorKey: navigatorKey,
           );
         } else {
-          final url = _extractUrl(raw);
-          if (url != null) {
-            WebClipDialog.show(context, initialUrl: url);
-          }
+          final payload = QuickCaptureNormalizer.normalize(
+            origin: CaptureOrigin.share,
+            rawText: raw,
+          );
+          QuickCaptureCoordinator.openCapture(payload);
         }
       });
       return; // Handle only the first shareable item.
@@ -88,13 +91,5 @@ class ShareIntentHandler {
     } catch (_) {
       return false;
     }
-  }
-
-  static String? _extractUrl(String text) {
-    if (text.startsWith('http://') || text.startsWith('https://')) {
-      return text.split(RegExp(r'\s+')).first;
-    }
-    final match = RegExp(r'https?://[^\s]+').firstMatch(text);
-    return match?.group(0);
   }
 }

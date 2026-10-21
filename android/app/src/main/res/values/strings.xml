@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Quiet Paper</string>
+    <string name="widget_quick_capture_name">Quiet Paper Quick Capture</string>
+    <string name="widget_quick_capture_desc">A place for your thoughts. Capture a note instantly.</string>
+    <string name="widget_subtitle">A place for your thoughts.</string>
+    <string name="widget_button_label">+ Capture a thought</string>
+</resources>

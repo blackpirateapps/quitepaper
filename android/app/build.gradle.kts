@@ -91,4 +91,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.2.0")
 }

@@ -94,7 +94,11 @@ void main() {
           deleted_at INTEGER,
           server_revision INTEGER NOT NULL DEFAULT 0,
           is_dirty INTEGER NOT NULL DEFAULT 1,
-          synced_at INTEGER
+          synced_at INTEGER,
+          journal_date TEXT,
+          share_id TEXT,
+          share_url TEXT,
+          pinned_tags TEXT
         );
         CREATE TABLE tags (
           id TEXT NOT NULL PRIMARY KEY,
@@ -228,7 +232,11 @@ void main() {
           deleted_at INTEGER,
           server_revision INTEGER NOT NULL DEFAULT 0,
           is_dirty INTEGER NOT NULL DEFAULT 1,
-          synced_at INTEGER
+          synced_at INTEGER,
+          journal_date TEXT,
+          share_id TEXT,
+          share_url TEXT,
+          pinned_tags TEXT
         );
         CREATE TABLE tags (
           id TEXT NOT NULL PRIMARY KEY,
@@ -367,7 +375,11 @@ void main() {
           deleted_at INTEGER,
           server_revision INTEGER NOT NULL DEFAULT 0,
           is_dirty INTEGER NOT NULL DEFAULT 1,
-          synced_at INTEGER
+          synced_at INTEGER,
+          journal_date TEXT,
+          share_id TEXT,
+          share_url TEXT,
+          pinned_tags TEXT
         );
         CREATE TABLE tags (
           id TEXT NOT NULL PRIMARY KEY,
@@ -489,6 +501,56 @@ void main() {
             ..addColumns([db.syncConflictsTable.id.count()]))
           .getSingle();
       expect(count.read(db.syncConflictsTable.id.count()), 0);
+
+      await db.close();
+    });
+
+    test('Upgrade to Schema v20 creates quick_capture_drafts table and supports CRUD', () async {
+      final dbFile = getNextDbFile();
+      final setupDb = NativeDatabase(dbFile);
+      // Setup v1 schema: notes (basic), tags, note_tags
+      await setupDb.ensureOpen(_FakeDbUser(1));
+      await setupDb.runCustom('''
+        CREATE TABLE notes (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          is_pinned INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE tags (
+          id TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE note_tags (
+          note_id TEXT NOT NULL,
+          tag_id TEXT NOT NULL,
+          PRIMARY KEY (note_id, tag_id)
+        );
+        PRAGMA user_version = 1;
+      ''');
+      await setupDb.close();
+
+      final db = AppDatabase(NativeDatabase(dbFile));
+      // Trigger migration to v20
+      final notes = await db.watchNotes().first;
+      expect(notes, isEmpty);
+
+      // Verify quick_capture_drafts table exists and operates correctly
+      final now = DateTime.now();
+      await db.saveQuickCaptureDraft(
+        id: 'draft-migration-test',
+        targetNoteId: 'note-migration-test',
+        content: 'Testing schema v20 migration',
+        source: 'widget',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final draft = await db.getQuickCaptureDraft('draft-migration-test');
+      expect(draft, isNotNull);
+      expect(draft!.content, 'Testing schema v20 migration');
 
       await db.close();
     });

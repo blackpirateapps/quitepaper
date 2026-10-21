@@ -10966,6 +10966,579 @@ class PlaceAliasesTableCompanion extends UpdateCompanion<PlaceAliasEntity> {
   }
 }
 
+class $QuickCaptureDraftsTableTable extends QuickCaptureDraftsTable
+    with TableInfo<$QuickCaptureDraftsTableTable, QuickCaptureDraftEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $QuickCaptureDraftsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetNoteIdMeta = const VerificationMeta(
+    'targetNoteId',
+  );
+  @override
+  late final GeneratedColumn<String> targetNoteId = GeneratedColumn<String>(
+    'target_note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('widget'),
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleHintMeta = const VerificationMeta(
+    'titleHint',
+  );
+  @override
+  late final GeneratedColumn<String> titleHint = GeneratedColumn<String>(
+    'title_hint',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cursorPositionMeta = const VerificationMeta(
+    'cursorPosition',
+  );
+  @override
+  late final GeneratedColumn<int> cursorPosition = GeneratedColumn<int>(
+    'cursor_position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    targetNoteId,
+    content,
+    source,
+    sourceUrl,
+    titleHint,
+    cursorPosition,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'quick_capture_drafts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<QuickCaptureDraftEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('target_note_id')) {
+      context.handle(
+        _targetNoteIdMeta,
+        targetNoteId.isAcceptableOrUnknown(
+          data['target_note_id']!,
+          _targetNoteIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_targetNoteIdMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    }
+    if (data.containsKey('title_hint')) {
+      context.handle(
+        _titleHintMeta,
+        titleHint.isAcceptableOrUnknown(data['title_hint']!, _titleHintMeta),
+      );
+    }
+    if (data.containsKey('cursor_position')) {
+      context.handle(
+        _cursorPositionMeta,
+        cursorPosition.isAcceptableOrUnknown(
+          data['cursor_position']!,
+          _cursorPositionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  QuickCaptureDraftEntity map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return QuickCaptureDraftEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      targetNoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_note_id'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      ),
+      titleHint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title_hint'],
+      ),
+      cursorPosition: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cursor_position'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $QuickCaptureDraftsTableTable createAlias(String alias) {
+    return $QuickCaptureDraftsTableTable(attachedDatabase, alias);
+  }
+}
+
+class QuickCaptureDraftEntity extends DataClass
+    implements Insertable<QuickCaptureDraftEntity> {
+  final String id;
+  final String targetNoteId;
+  final String content;
+  final String source;
+  final String? sourceUrl;
+  final String? titleHint;
+  final int cursorPosition;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const QuickCaptureDraftEntity({
+    required this.id,
+    required this.targetNoteId,
+    required this.content,
+    required this.source,
+    this.sourceUrl,
+    this.titleHint,
+    required this.cursorPosition,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['target_note_id'] = Variable<String>(targetNoteId);
+    map['content'] = Variable<String>(content);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || sourceUrl != null) {
+      map['source_url'] = Variable<String>(sourceUrl);
+    }
+    if (!nullToAbsent || titleHint != null) {
+      map['title_hint'] = Variable<String>(titleHint);
+    }
+    map['cursor_position'] = Variable<int>(cursorPosition);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  QuickCaptureDraftsTableCompanion toCompanion(bool nullToAbsent) {
+    return QuickCaptureDraftsTableCompanion(
+      id: Value(id),
+      targetNoteId: Value(targetNoteId),
+      content: Value(content),
+      source: Value(source),
+      sourceUrl: sourceUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceUrl),
+      titleHint: titleHint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(titleHint),
+      cursorPosition: Value(cursorPosition),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory QuickCaptureDraftEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return QuickCaptureDraftEntity(
+      id: serializer.fromJson<String>(json['id']),
+      targetNoteId: serializer.fromJson<String>(json['targetNoteId']),
+      content: serializer.fromJson<String>(json['content']),
+      source: serializer.fromJson<String>(json['source']),
+      sourceUrl: serializer.fromJson<String?>(json['sourceUrl']),
+      titleHint: serializer.fromJson<String?>(json['titleHint']),
+      cursorPosition: serializer.fromJson<int>(json['cursorPosition']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'targetNoteId': serializer.toJson<String>(targetNoteId),
+      'content': serializer.toJson<String>(content),
+      'source': serializer.toJson<String>(source),
+      'sourceUrl': serializer.toJson<String?>(sourceUrl),
+      'titleHint': serializer.toJson<String?>(titleHint),
+      'cursorPosition': serializer.toJson<int>(cursorPosition),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  QuickCaptureDraftEntity copyWith({
+    String? id,
+    String? targetNoteId,
+    String? content,
+    String? source,
+    Value<String?> sourceUrl = const Value.absent(),
+    Value<String?> titleHint = const Value.absent(),
+    int? cursorPosition,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => QuickCaptureDraftEntity(
+    id: id ?? this.id,
+    targetNoteId: targetNoteId ?? this.targetNoteId,
+    content: content ?? this.content,
+    source: source ?? this.source,
+    sourceUrl: sourceUrl.present ? sourceUrl.value : this.sourceUrl,
+    titleHint: titleHint.present ? titleHint.value : this.titleHint,
+    cursorPosition: cursorPosition ?? this.cursorPosition,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  QuickCaptureDraftEntity copyWithCompanion(
+    QuickCaptureDraftsTableCompanion data,
+  ) {
+    return QuickCaptureDraftEntity(
+      id: data.id.present ? data.id.value : this.id,
+      targetNoteId: data.targetNoteId.present
+          ? data.targetNoteId.value
+          : this.targetNoteId,
+      content: data.content.present ? data.content.value : this.content,
+      source: data.source.present ? data.source.value : this.source,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      titleHint: data.titleHint.present ? data.titleHint.value : this.titleHint,
+      cursorPosition: data.cursorPosition.present
+          ? data.cursorPosition.value
+          : this.cursorPosition,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QuickCaptureDraftEntity(')
+          ..write('id: $id, ')
+          ..write('targetNoteId: $targetNoteId, ')
+          ..write('content: $content, ')
+          ..write('source: $source, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('titleHint: $titleHint, ')
+          ..write('cursorPosition: $cursorPosition, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    targetNoteId,
+    content,
+    source,
+    sourceUrl,
+    titleHint,
+    cursorPosition,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is QuickCaptureDraftEntity &&
+          other.id == this.id &&
+          other.targetNoteId == this.targetNoteId &&
+          other.content == this.content &&
+          other.source == this.source &&
+          other.sourceUrl == this.sourceUrl &&
+          other.titleHint == this.titleHint &&
+          other.cursorPosition == this.cursorPosition &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class QuickCaptureDraftsTableCompanion
+    extends UpdateCompanion<QuickCaptureDraftEntity> {
+  final Value<String> id;
+  final Value<String> targetNoteId;
+  final Value<String> content;
+  final Value<String> source;
+  final Value<String?> sourceUrl;
+  final Value<String?> titleHint;
+  final Value<int> cursorPosition;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const QuickCaptureDraftsTableCompanion({
+    this.id = const Value.absent(),
+    this.targetNoteId = const Value.absent(),
+    this.content = const Value.absent(),
+    this.source = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.titleHint = const Value.absent(),
+    this.cursorPosition = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  QuickCaptureDraftsTableCompanion.insert({
+    required String id,
+    required String targetNoteId,
+    required String content,
+    this.source = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.titleHint = const Value.absent(),
+    this.cursorPosition = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       targetNoteId = Value(targetNoteId),
+       content = Value(content),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<QuickCaptureDraftEntity> custom({
+    Expression<String>? id,
+    Expression<String>? targetNoteId,
+    Expression<String>? content,
+    Expression<String>? source,
+    Expression<String>? sourceUrl,
+    Expression<String>? titleHint,
+    Expression<int>? cursorPosition,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (targetNoteId != null) 'target_note_id': targetNoteId,
+      if (content != null) 'content': content,
+      if (source != null) 'source': source,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (titleHint != null) 'title_hint': titleHint,
+      if (cursorPosition != null) 'cursor_position': cursorPosition,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  QuickCaptureDraftsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? targetNoteId,
+    Value<String>? content,
+    Value<String>? source,
+    Value<String?>? sourceUrl,
+    Value<String?>? titleHint,
+    Value<int>? cursorPosition,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return QuickCaptureDraftsTableCompanion(
+      id: id ?? this.id,
+      targetNoteId: targetNoteId ?? this.targetNoteId,
+      content: content ?? this.content,
+      source: source ?? this.source,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      titleHint: titleHint ?? this.titleHint,
+      cursorPosition: cursorPosition ?? this.cursorPosition,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (targetNoteId.present) {
+      map['target_note_id'] = Variable<String>(targetNoteId.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (titleHint.present) {
+      map['title_hint'] = Variable<String>(titleHint.value);
+    }
+    if (cursorPosition.present) {
+      map['cursor_position'] = Variable<int>(cursorPosition.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QuickCaptureDraftsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('targetNoteId: $targetNoteId, ')
+          ..write('content: $content, ')
+          ..write('source: $source, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('titleHint: $titleHint, ')
+          ..write('cursorPosition: $cursorPosition, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -10994,6 +11567,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $NoteLinksTableTable noteLinksTable = $NoteLinksTableTable(this);
   late final $PlaceAliasesTableTable placeAliasesTable =
       $PlaceAliasesTableTable(this);
+  late final $QuickCaptureDraftsTableTable quickCaptureDraftsTable =
+      $QuickCaptureDraftsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11014,6 +11589,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncConflictsTable,
     noteLinksTable,
     placeAliasesTable,
+    quickCaptureDraftsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -17367,6 +17943,305 @@ typedef $$PlaceAliasesTableTableProcessedTableManager =
       PlaceAliasEntity,
       PrefetchHooks Function()
     >;
+typedef $$QuickCaptureDraftsTableTableCreateCompanionBuilder =
+    QuickCaptureDraftsTableCompanion Function({
+      required String id,
+      required String targetNoteId,
+      required String content,
+      Value<String> source,
+      Value<String?> sourceUrl,
+      Value<String?> titleHint,
+      Value<int> cursorPosition,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$QuickCaptureDraftsTableTableUpdateCompanionBuilder =
+    QuickCaptureDraftsTableCompanion Function({
+      Value<String> id,
+      Value<String> targetNoteId,
+      Value<String> content,
+      Value<String> source,
+      Value<String?> sourceUrl,
+      Value<String?> titleHint,
+      Value<int> cursorPosition,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$QuickCaptureDraftsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $QuickCaptureDraftsTableTable> {
+  $$QuickCaptureDraftsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetNoteId => $composableBuilder(
+    column: $table.targetNoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get titleHint => $composableBuilder(
+    column: $table.titleHint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cursorPosition => $composableBuilder(
+    column: $table.cursorPosition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$QuickCaptureDraftsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $QuickCaptureDraftsTableTable> {
+  $$QuickCaptureDraftsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetNoteId => $composableBuilder(
+    column: $table.targetNoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get titleHint => $composableBuilder(
+    column: $table.titleHint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cursorPosition => $composableBuilder(
+    column: $table.cursorPosition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$QuickCaptureDraftsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $QuickCaptureDraftsTableTable> {
+  $$QuickCaptureDraftsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get targetNoteId => $composableBuilder(
+    column: $table.targetNoteId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get titleHint =>
+      $composableBuilder(column: $table.titleHint, builder: (column) => column);
+
+  GeneratedColumn<int> get cursorPosition => $composableBuilder(
+    column: $table.cursorPosition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$QuickCaptureDraftsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $QuickCaptureDraftsTableTable,
+          QuickCaptureDraftEntity,
+          $$QuickCaptureDraftsTableTableFilterComposer,
+          $$QuickCaptureDraftsTableTableOrderingComposer,
+          $$QuickCaptureDraftsTableTableAnnotationComposer,
+          $$QuickCaptureDraftsTableTableCreateCompanionBuilder,
+          $$QuickCaptureDraftsTableTableUpdateCompanionBuilder,
+          (
+            QuickCaptureDraftEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $QuickCaptureDraftsTableTable,
+              QuickCaptureDraftEntity
+            >,
+          ),
+          QuickCaptureDraftEntity,
+          PrefetchHooks Function()
+        > {
+  $$QuickCaptureDraftsTableTableTableManager(
+    _$AppDatabase db,
+    $QuickCaptureDraftsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$QuickCaptureDraftsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$QuickCaptureDraftsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$QuickCaptureDraftsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> targetNoteId = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
+                Value<String?> titleHint = const Value.absent(),
+                Value<int> cursorPosition = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => QuickCaptureDraftsTableCompanion(
+                id: id,
+                targetNoteId: targetNoteId,
+                content: content,
+                source: source,
+                sourceUrl: sourceUrl,
+                titleHint: titleHint,
+                cursorPosition: cursorPosition,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String targetNoteId,
+                required String content,
+                Value<String> source = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
+                Value<String?> titleHint = const Value.absent(),
+                Value<int> cursorPosition = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => QuickCaptureDraftsTableCompanion.insert(
+                id: id,
+                targetNoteId: targetNoteId,
+                content: content,
+                source: source,
+                sourceUrl: sourceUrl,
+                titleHint: titleHint,
+                cursorPosition: cursorPosition,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$QuickCaptureDraftsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $QuickCaptureDraftsTableTable,
+      QuickCaptureDraftEntity,
+      $$QuickCaptureDraftsTableTableFilterComposer,
+      $$QuickCaptureDraftsTableTableOrderingComposer,
+      $$QuickCaptureDraftsTableTableAnnotationComposer,
+      $$QuickCaptureDraftsTableTableCreateCompanionBuilder,
+      $$QuickCaptureDraftsTableTableUpdateCompanionBuilder,
+      (
+        QuickCaptureDraftEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $QuickCaptureDraftsTableTable,
+          QuickCaptureDraftEntity
+        >,
+      ),
+      QuickCaptureDraftEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -17410,4 +18285,9 @@ class $AppDatabaseManager {
       $$NoteLinksTableTableTableManager(_db, _db.noteLinksTable);
   $$PlaceAliasesTableTableTableManager get placeAliasesTable =>
       $$PlaceAliasesTableTableTableManager(_db, _db.placeAliasesTable);
+  $$QuickCaptureDraftsTableTableTableManager get quickCaptureDraftsTable =>
+      $$QuickCaptureDraftsTableTableTableManager(
+        _db,
+        _db.quickCaptureDraftsTable,
+      );
 }

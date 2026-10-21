@@ -3,20 +3,54 @@ package com.blackpiratex.quietpaper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.blackpiratex.quietpaper.widget.QuickCaptureWidgetProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.blackpiratex.quietpaper/updater"
+    private val CHANNEL_UPDATER = "com.blackpiratex.quietpaper/updater"
+    private val CHANNEL_QUICK_CAPTURE = "com.blackpiratex.quietpaper/quick_capture"
+
+    private var initialCaptureData: Map<String, Any?>? = null
+    private var quickCaptureChannel: MethodChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleCaptureIntent(intent, isInitial = true)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleCaptureIntent(intent, isInitial = false)
+    }
+
+    private fun handleCaptureIntent(intent: Intent?, isInitial: Boolean) {
+        if (intent == null) return
+        val isWidgetCapture = intent.action == QuickCaptureWidgetProvider.ACTION_QUICK_CAPTURE ||
+                intent.getStringExtra("origin") == "widget"
+
+        if (isWidgetCapture) {
+            val data = mapOf(
+                "origin" to "widget"
+            )
+            if (isInitial) {
+                initialCaptureData = data
+            } else {
+                quickCaptureChannel?.invokeMethod("onQuickCaptureRequested", data)
+            }
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_UPDATER).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getDeviceAbis" -> {
                     val abis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -111,6 +145,23 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 else -> result.notImplemented()
+            }
+        }
+
+        quickCaptureChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_QUICK_CAPTURE).apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInitialCaptureRequest" -> {
+                        val data = initialCaptureData
+                        initialCaptureData = null
+                        result.success(data)
+                    }
+                    "moveTaskToBack" -> {
+                        val moved = moveTaskToBack(true)
+                        result.success(moved)
+                    }
+                    else -> result.notImplemented()
+                }
             }
         }
     }

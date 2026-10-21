@@ -20,6 +20,7 @@ import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
 import 'tables/place_aliases_table.dart';
+import 'tables/quick_capture_drafts_table.dart';
 import 'tables/sync_conflicts_table.dart';
 import 'tables/sync_metadata_table.dart';
 import 'tables/sync_queue_table.dart';
@@ -79,6 +80,7 @@ class TagWithCount {
   SyncConflictsTable,
   NoteLinksTable,
   PlaceAliasesTable,
+  QuickCaptureDraftsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
@@ -87,7 +89,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
 
   @override
@@ -235,6 +237,9 @@ class AppDatabase extends _$AppDatabase {
               'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
             );
           }
+          if (from < 20) {
+            await _createTableSafely(m, quickCaptureDraftsTable);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON;');
@@ -344,6 +349,9 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS note_links_target_source_idx ON note_links (target_note_id, source_note_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS quick_capture_drafts_updated_idx ON quick_capture_drafts (updated_at DESC);',
           );
         },
       );
@@ -1596,6 +1604,7 @@ class AppDatabase extends _$AppDatabase {
       await delete(noteTagsTable).go();
       await delete(tagsTable).go();
       await delete(placeAliasesTable).go();
+      await delete(quickCaptureDraftsTable).go();
       await delete(notesTable).go();
       try {
         await customStatement('DELETE FROM note_search_prefix;');
@@ -3610,6 +3619,83 @@ class AppDatabase extends _$AppDatabase {
           ..where((nl) => nl.sourceNoteId.equals(sourceNoteId))
           ..orderBy([(nl) => OrderingTerm.asc(nl.sourceOffset)]))
         .watch();
+  }
+
+  // ==========================================
+  // QUICK CAPTURE DRAFTS OPERATIONS
+  // ==========================================
+
+  /// Saves or updates a quick capture draft.
+  Future<void> saveQuickCaptureDraft({
+    required String id,
+    required String targetNoteId,
+    required String content,
+    String source = 'widget',
+    String? sourceUrl,
+    String? titleHint,
+    int cursorPosition = 0,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) async {
+    await into(quickCaptureDraftsTable).insertOnConflictUpdate(
+      QuickCaptureDraftsTableCompanion.insert(
+        id: id,
+        targetNoteId: targetNoteId,
+        content: content,
+        source: Value(source),
+        sourceUrl: Value(sourceUrl),
+        titleHint: Value(titleHint),
+        cursorPosition: Value(cursorPosition),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      ),
+    );
+  }
+
+  /// Retrieves a quick capture draft by its session ID.
+  Future<QuickCaptureDraftEntity?> getQuickCaptureDraft(String id) {
+    return (select(quickCaptureDraftsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  /// Returns all active quick capture drafts ordered newest first.
+  Future<List<QuickCaptureDraftEntity>> getAllQuickCaptureDrafts() {
+    return (select(quickCaptureDraftsTable)..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).get();
+  }
+
+  /// Watches all active quick capture drafts ordered newest first.
+  Stream<List<QuickCaptureDraftEntity>> watchQuickCaptureDrafts() {
+    return (select(quickCaptureDraftsTable)..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).watch();
+  }
+
+  /// Deletes a specific quick capture draft by ID.
+  Future<void> deleteQuickCaptureDraft(String id) async {
+    await (delete(quickCaptureDraftsTable)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// Purges all quick capture drafts.
+  Future<void> deleteAllQuickCaptureDrafts() async {
+    await delete(quickCaptureDraftsTable).go();
+  }
+
+  /// Atomically commits a quick capture note and deletes the associated draft session.
+  Future<void> commitQuickCaptureNote({
+    required Note note,
+    required String draftSessionId,
+  }) async {
+    await transaction(() async {
+      await saveNote(
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+        isPinned: note.isPinned,
+        isArchived: note.isArchived,
+        isTrashed: note.isTrashed,
+        tags: note.tags,
+      );
+      await deleteQuickCaptureDraft(draftSessionId);
+    });
   }
 }
 

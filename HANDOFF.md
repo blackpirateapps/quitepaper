@@ -9939,6 +9939,87 @@ In practice, scanned documents (contracts, receipts, books, multi-page paper sca
    - `test/ocr/ocr_adaptive_enhancement_test.dart`: verifies `DartImageProcessor.enhanceForOcr` clamps oversized bitmaps to 1600px while preserving smaller images.
    - **Full Suite**: `flutter test` (**2,083 tests passing, 0 failures**).
 
+---
+
+## 221. Android Quick Capture & Home-Screen Widget (October 2026)
+
+### 1. Overview & Motivation
+Implemented an end-to-end, production-ready Quick Capture feature for Android, allowing users to save thoughts or shared content nearly instantaneously:
+- **Core Philosophy**: "Capture the thought. Save it locally. Close immediately. Let the user organize it later, if ever."
+- **Home-Screen Widget**: Compact 3x2 / 4x1 Android home-screen widget with Quiet Paper branding and a single prominent action button (`+ Capture a thought`) styled in the warm editorial aesthetic (`#F7F6F2` Light / `#1D1C1A` Dark, `#D26753` Coral Accent).
+- **Dedicated Quick Capture Screen**: Lightweight distraction-free interface matching the editorial design with automatic keyboard focus, multiline editing, live auto-titling, local draft recovery, and source-aware navigation.
+- **Android Share Sheet Integration**: Plain-text, quoted text, and URL shares route into Quick Capture with content prefilled, while preserving full webpage clipping via an inline "Clip full article" action.
+- **Local Draft Recovery**: Dedicated SQLite draft table (`quick_capture_drafts`, Schema v20) with 300ms debounce and lifecycle flushes, completely isolated from cloud sync and note queries.
+
+### 2. Architecture & Components
+
+#### A. Native Android Widget & AppWidgetProvider
+1. **Layout & Visuals ([`android/app/src/main/res/layout/widget_quick_capture.xml`](file:///home/dog/git/quitepaper/android/app/src/main/res/layout/widget_quick_capture.xml))**:
+   - Matches the compact home-screen widget design with warm rounded background (`widget_background.xml`), branded notepad/pencil icon (`ic_widget_note.xml`), `Quiet Paper` title, `A place for your thoughts.` subtitle, and a prominent coral button (`widget_button_background.xml`) labeled `+ Capture a thought`.
+   - Supports light and dark mode through `res/values/colors.xml` and `res/values-night/colors.xml`.
+2. **Provider & Intent Delivery ([`android/app/src/main/kotlin/com/blackpiratex/quietpaper/widget/QuickCaptureWidgetProvider.kt`](file:///home/dog/git/quitepaper/android/app/src/main/kotlin/com/blackpiratex/quietpaper/widget/QuickCaptureWidgetProvider.kt))**:
+   - Inherits `AppWidgetProvider`. In `onUpdate()`, attaches an explicit `PendingIntent` for `ACTION_QUICK_CAPTURE` (`com.blackpiratex.quietpaper.QUICK_CAPTURE`) targeting `MainActivity` with `FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE`.
+   - Registered in [`android/app/src/main/AndroidManifest.xml`](file:///home/dog/git/quitepaper/android/app/src/main/AndroidManifest.xml) with metadata [`@xml/widget_quick_capture_info`](file:///home/dog/git/quitepaper/android/app/src/main/res/xml/widget_quick_capture_info.xml).
+
+#### B. Native-to-Flutter Launch Bridge & MethodChannel
+1. **Activity Handling ([`android/app/src/main/kotlin/com/blackpiratex/quietpaper/MainActivity.kt`](file:///home/dog/git/quitepaper/android/app/src/main/kotlin/com/blackpiratex/quietpaper/MainActivity.kt))**:
+   - `com.blackpiratex.quietpaper/quick_capture` channel manages capture launches and source-aware navigation.
+   - **Cold Start**: On `onCreate()`, caches initial widget intent. Flutter retrieves it via `getInitialCaptureRequest` on startup.
+   - **Warm Start**: On `onNewIntent()`, sets the latest intent and pushes an event to Flutter via `onQuickCaptureRequested`.
+   - **Task Return (`moveTaskToBack`)**: Provides a native method channel call to `moveTaskToBack(true)`, returning the user to the launcher (for widget-origin captures) or the originating app (for share-origin captures) without destroying app state.
+
+#### C. Share Normalization & Coordinator
+1. **Normalizer ([`lib/features/quick_capture/application/quick_capture_normalizer.dart`](file:///home/dog/git/quitepaper/lib/features/quick_capture/application/quick_capture_normalizer.dart))**:
+   - Sanitizes and normalizes untrusted input per Section 5.3 rules:
+     - Handles plain text, quotations, and URLs.
+     - Preserves line breaks, unicode, and emoji.
+     - Detects embedded URLs and prevents duplicating URLs when separate URI fields are provided.
+     - Caps oversized payloads at 500,000 characters safely.
+     - Derives title hints from email/browser subjects when distinct from the body.
+2. **Coordinator ([`lib/features/quick_capture/application/quick_capture_coordinator.dart`](file:///home/dog/git/quitepaper/lib/features/quick_capture/application/quick_capture_coordinator.dart))**:
+   - Listens to the native quick capture channel and initial launch requests.
+   - Prevents duplicate routes if a capture is already open, and delivers subsequent share intents to the active session.
+   - Integrated with [`ShareIntentHandler`](file:///home/dog/git/quitepaper/lib/core/web_clipper/share_intent_handler.dart) so shared text and URLs open Quick Capture while preserving file imports for documents.
+
+#### D. Local Draft Storage & Drift Schema v20
+1. **Table Schema ([`lib/core/database/tables/quick_capture_drafts_table.dart`](file:///home/dog/git/quitepaper/lib/core/database/tables/quick_capture_drafts_table.dart))**:
+   - Stores `id` (UUID session ID), `target_note_id` (stable note ID), `content`, `source`, `source_url`, `title_hint`, `cursor_position`, `created_at`, `updated_at`.
+   - Index on `updated_at DESC`.
+2. **Schema Upgrade & DAOs ([`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart))**:
+   - Bumped `schemaVersion` to **20**.
+   - Safe migration: `if (from < 20) await _createTableSafely(m, quickCaptureDraftsTable);`.
+   - `saveQuickCaptureDraft()`, `getQuickCaptureDraft()`, `getAllQuickCaptureDrafts()`, `deleteQuickCaptureDraft()`, `deleteAllQuickCaptureDrafts()`.
+   - `commitQuickCaptureNote()`: Atomically commits the canonical note to SQLite and deletes the active draft session inside a single database transaction.
+   - Erased cleanly by `eraseAllLocalVaultData()`.
+   - Invariant: Drafts are completely excluded from notes queries, FTS search index, and cloud sync dirty queues.
+
+#### E. Capture UI & State Management
+1. **State & Controller ([`lib/features/quick_capture/application/quick_capture_controller.dart`](file:///home/dog/git/quitepaper/lib/features/quick_capture/application/quick_capture_controller.dart))**:
+   - Auto-saves draft with 300ms debounce.
+   - Flushes draft on `AppLifecycleState` transitions (paused, hidden, inactive) and on close if non-empty.
+   - Manages concurrent share arrival: preserves active draft and presents a nonintrusive switch action so no typing is lost.
+   - Auto-derives title from content via `Note.deriveTitle(content)` with fallback to `titleHint`.
+2. **Capture Screen ([`lib/features/quick_capture/presentation/quick_capture_screen.dart`](file:///home/dog/git/quitepaper/lib/features/quick_capture/presentation/quick_capture_screen.dart))**:
+   - Warm editorial design matching the spec and Image 1:
+     - Top bar: Close icon `✕ Quick Capture` and coral `Save` button (opacity 0.45 when empty, animated spinner when saving).
+     - Divider line.
+     - Editorial title: `What's on your mind?`.
+     - Multiline text field with hint: `The idea goes here. Start typing immediately, without a title or any extra setup.`.
+     - Automatic keyboard focus on mount.
+     - Secondary actions: `Clip full article` (if URL present, launches `WebClipDialog`) and `Resume unfinished capture (N)` (shows bottom sheet of earlier drafts).
+     - Footer: `Saved on your device first` with lock icon.
+     - Responsive constraints (max-width 680dp on tablets; flex layout for narrow 320dp phones).
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- **Automated Tests**:
+  - `test/quick_capture/quick_capture_normalizer_test.dart`: 9 tests passing (empty input, unicode/line breaks, URL-only, distinct subject hints, duplicate URL prevention, payload limits, stable session IDs).
+  - `test/quick_capture/quick_capture_database_test.dart`: 6 tests passing (draft CRUD, ordering by updatedAt, exclusion from search/sync/notes queries, atomic commit transaction, idempotent save retry, erase vault data).
+  - `test/quick_capture/quick_capture_service_test.dart`: 6 tests passing (empty init, prefilled session, debounced draft persistence, save commit, concurrent incoming share preservation, draft resume).
+  - `test/quick_capture/quick_capture_screen_test.dart`: 6 tests passing (visual elements hierarchy, auto keyboard focus, save button enablement & commit, URL prefill & Clip action, resume draft sheet, narrow viewport layout).
+  - `test/web_clipper/`: 42 tests passing with zero regressions.
+  - Android unit tests: `QuickCaptureWidgetTest` passing.
+
 
 
 
