@@ -10336,3 +10336,57 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
   - **Transcription Loading Screen Lifecycle**: Resolved missing loading screen when transcription begins. Immediate processing UI (`_buildProcessingInterface` matching Image 1) now activates upon tapping "Transcribe audio" with stage-by-stage status ("Checking speech model…", "Preparing audio…", "Transcribing on device…"), linear & circular progress indicators, and cancellation. Stabilized `audioFileTranscriptionServiceProvider` by decoupling from `speechModelManagerProvider` listener churn, caching active job states, and passing direct `onStateChange` callbacks to eliminate stream delivery latency. Verified with dedicated automated widget test (57 audio tests passing).
   - **Real Audio Waveform Extraction & Local Cache**: Replaced the static synthetic sine curve with real audio waveform rendering backed by a local on-device cache (`AudioWaveformCacheService`). Extended `AudioJournalRecordingService` to record all incoming microphone decibels across the full session into `sessionAmplitudes`, downsampling to 32 normalized bars and caching immediately upon finishing a recording. Enhanced `AudioDurationHelper.extractAmplitudesFromBytes()` with genuine WAV 16-bit PCM RMS extraction and pure-Dart MP4/M4A `stsz` (sample size box) frame energy parsing. `QuietAudioCard` loads cached waveforms instantly without decrypting the vault file; if uncomputed, it decrypts locally once in the background, extracts the true waveform, and persists it locally. Automated verification expanded to 64 passing tests across `test/audio/`.
 
+---
+
+## 225. Audio Card & Companion Component Typography Settings Integration (October 2026)
+
+### 1. Problem Statement & Design Requirements
+- **Context**: The audio card (`QuietAudioCard`) and its companion components (the floating recording dock `AudioRecordingBar`, audio attachment `AudioRenameDialog`, and the note editor's `_AudioSummaryFooter`) previously relied on static, hardcoded font sizes (e.g., 15.0, 13.0, 12.0, 11.0) and unstyled system text themes.
+- **Defect**: When users customized typography preferences in Appearance Settings (adjusting base font size, heading or body font families, line height, or letter spacing), audio cards and associated voice memo UI elements failed to reflect the chosen typography, breaking visual harmony and accessibility for users relying on larger font scales.
+
+### 2. Architectural Design & Implementation
+
+#### A. Proportional Scaling & Legibility Bounds in `TypographySettings` ([`lib/features/settings/domain/typography_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/typography_settings.dart))
+- Extended `TypographySettings` with proportional scaling logic relative to the canonical editor base body font size (18.0pt):
+  ```dart
+  double scaleFontSize(double baseSize, {double min = 9.0}) {
+    final scale = fontSize / 18.0;
+    return (baseSize * scale).clamp(min, double.infinity);
+  }
+  ```
+- Provided ergonomic getters for standard typography hierarchy tiers:
+  - `scaledBodyLargeSize`: Proportional size for large body and title elements (base: 18.0).
+  - `scaledBodyMediumSize`: Proportional size for standard body text, transcript content, and text input fields (base: 16.0).
+  - `scaledBodySmallSize`: Proportional size for subheadings and secondary metadata (base: 14.0).
+  - `scaledCaptionSize`: Proportional size for badges, timestamps, waveform durations, and footers (base: 12.0, clamped to min 9.0).
+
+#### B. Dynamic Styling in `QuietAudioCard` ([`lib/core/audio/presentation/quiet_audio_card.dart`](file:///home/dog/git/quitepaper/lib/core/audio/presentation/quiet_audio_card.dart))
+- Replaced static text styles with reactive watchers of `typographySettingsProvider`.
+- Implemented typography helper methods leveraging `FontFamilyHelper.resolveFont()`:
+  - `_headingStyle()`: Applies `typography.headingFontFamily`, scaled font sizes, and letter spacing to card titles and section headers.
+  - `_bodyStyle()`: Applies `typography.bodyFontFamily`, `scaledBodyMediumSize`, user-configured line height, and letter spacing to transcript bodies, action labels, and descriptions.
+  - `_captionStyle()`: Applies `typography.bodyFontFamily`, `scaledCaptionSize`, and letter spacing to duration timestamps, waveform labels, security badges, and transcript metadata.
+- Integrated across all audio card view states:
+  - Compact player: Title, duration labels, play/pause controls.
+  - Expanded player: Title, encrypted attachment lock badge, live waveform elapsed and total duration markers, overflow actions.
+  - In-flight transcription loading screen: Stage label ("Transcribing on device…"), progress percentage, model descriptor badge, privacy notice ("Your audio stays on this device…"), and cancel button.
+  - Transcript view: Section header ("Transcript"), status badge ("Available · English" / "Edited manually · English"), transcript body (`SelectableText`), inline edit mode (`TextField` preserving cursor, font size, and line height), and footer action buttons.
+
+#### C. Companion Audio Components Integration
+- **`AudioRecordingBar` ([`lib/core/audio/presentation/audio_recording_bar.dart`](file:///home/dog/git/quitepaper/lib/core/audio/presentation/audio_recording_bar.dart))**: Converted to `ConsumerStatefulWidget` to watch `typographySettingsProvider`. Elapsed recording timer, status text ("Recording voice memo..."), and permission/error messages now dynamically scale with `scaledCaptionSize` and `bodyFontFamily`.
+- **`AudioRenameDialog` ([`lib/core/audio/presentation/audio_rename_dialog.dart`](file:///home/dog/git/quitepaper/lib/core/audio/presentation/audio_rename_dialog.dart))**: Converted to `ConsumerStatefulWidget` to watch `typographySettingsProvider`. The dialog title scales with `scaledBodyLargeSize` and `headingFontFamily`, while the title edit `TextField` scales with `scaledBodyMediumSize` and `bodyFontFamily`.
+- **`_AudioSummaryFooter` ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart))**: Applied `typography.scaleFontSize(12.5)` and `typography.bodyFontFamily` with dynamic line height to the note editor's sticky audio attachment summary footer.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` completed with **0 issues found**.
+- **Unit & Widget Test Suites**:
+  - `test/settings/typography_settings_test.dart` (12 tests passed): Proportional scaling accuracy, minimum clamping behavior, serialization roundtrip.
+  - `test/audio/quiet_audio_card_test.dart` (16 tests passed):
+    - Scaled font size verification under large font preferences (27pt base size).
+    - Minimum legible bound clamping under small font preferences (12pt base size).
+    - Encrypted lock badge scaling when no transcript is present.
+    - Custom heading (`Playfair Display`) and body (`Lora`) font family inheritance.
+    - Inline transcript editor `TextField` typography inheritance.
+  - Full audio test suite `test/audio/` (69 tests passed with 100% success rate).
+
+

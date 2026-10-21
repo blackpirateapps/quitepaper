@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
-import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/font_family_helper.dart';
+import '../../../features/settings/application/typography_provider.dart';
 import '../../../features/tags/domain/phosphor_icons.dart';
 import '../application/audio_duration_helper.dart';
 import '../domain/audio_journal_models.dart';
@@ -14,7 +16,7 @@ import '../domain/audio_journal_models.dart';
 /// - Live amplitude audio-level visualization bars
 /// - Pause / Resume controls
 /// - Finish recording (check) and Discard (trash/cancel) actions
-class AudioRecordingBar extends StatefulWidget {
+class AudioRecordingBar extends ConsumerStatefulWidget {
   const AudioRecordingBar({
     super.key,
     required this.session,
@@ -33,10 +35,10 @@ class AudioRecordingBar extends StatefulWidget {
   final VoidCallback? onErrorDismiss;
 
   @override
-  State<AudioRecordingBar> createState() => _AudioRecordingBarState();
+  ConsumerState<AudioRecordingBar> createState() => _AudioRecordingBarState();
 }
 
-class _AudioRecordingBarState extends State<AudioRecordingBar>
+class _AudioRecordingBarState extends ConsumerState<AudioRecordingBar>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -63,19 +65,21 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final typography = ref.watch(typographySettingsProvider);
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(typography.bodyFontFamily);
     final session = widget.session;
 
     // Error State
     if (session.status == AudioJournalStatus.failed) {
       return Container(
-        height: 44,
+        constraints: const BoxConstraints(minHeight: 44),
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border(
             top: BorderSide(color: colors.divider, width: 0.8),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
         child: Row(
           children: [
             Icon(
@@ -87,7 +91,14 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
             Expanded(
               child: Text(
                 session.errorMessage ?? 'Voice recording failed.',
-                style: AppTypography.caption.copyWith(color: colors.error),
+                style: FontFamilyHelper.getTextStyle(
+                  fontFamily: bodyFont,
+                  baseStyle: TextStyle(
+                    color: colors.error,
+                    fontSize: typography.scaleFontSize(12.0),
+                    letterSpacing: typography.letterSpacing,
+                  ),
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -113,14 +124,14 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
                   : 'Saving voice memo…';
 
       return Container(
-        height: 44,
+        constraints: const BoxConstraints(minHeight: 44),
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border(
             top: BorderSide(color: colors.divider, width: 0.8),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 4),
         child: Row(
           children: [
             SizedBox(
@@ -135,9 +146,14 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
             Expanded(
               child: Text(
                 label,
-                style: AppTypography.bodySmall.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w500,
+                style: FontFamilyHelper.getTextStyle(
+                  fontFamily: bodyFont,
+                  baseStyle: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: typography.scaleFontSize(13.0),
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: typography.letterSpacing,
+                  ),
                 ),
               ),
             ),
@@ -156,7 +172,7 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
 
     // Active Recording / Paused Panel
     return Container(
-      height: 46,
+      constraints: const BoxConstraints(minHeight: 46),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
@@ -197,10 +213,15 @@ class _AudioRecordingBarState extends State<AudioRecordingBar>
           // Elapsed recording timer
           Text(
             timerText,
-            style: AppTypography.bodySmall.copyWith(
-              color: isPaused ? colors.textSecondary : colors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontFeatures: const [FontFeature.tabularFigures()],
+            style: FontFamilyHelper.getTextStyle(
+              fontFamily: bodyFont,
+              baseStyle: TextStyle(
+                color: isPaused ? colors.textSecondary : colors.textPrimary,
+                fontSize: typography.scaleFontSize(14.0),
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                letterSpacing: typography.letterSpacing,
+              ),
             ),
           ),
 

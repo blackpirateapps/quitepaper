@@ -15,6 +15,8 @@ import 'package:quitepaper/core/speech/application/speech_model_manager.dart';
 import 'package:quitepaper/core/speech/domain/speech_model.dart';
 import 'package:quitepaper/core/speech/domain/speech_model_status.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/settings/application/typography_provider.dart';
+import 'package:quitepaper/features/settings/domain/typography_settings.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
 void main() {
@@ -376,7 +378,183 @@ void main() {
       expect(find.byType(QuietAudioCard), findsOneWidget);
       expect(cacheService.getWaveform(audioEntity.id), equals(customBars));
     });
+
+    testWidgets('respects scaled font size from typographySettingsProvider (large)', (tester) async {
+      const customTypography = TypographySettings(fontSize: 27.0);
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Large Typography Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Large transcript content.',
+            initialTranscriptLanguage: 'en',
+          ),
+          overrides: [
+            typographySettingsProvider.overrideWith((ref) => _CustomTypographyNotifier(customTypography)),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      // Card Title Text: scaledBodyLargeSize = (27 * 18 / 18) = 27.0
+      final titleWidget = tester.widget<Text>(find.text('Large Typography Memo'));
+      expect(titleWidget.style?.fontSize, equals(27.0));
+
+      // Transcript Caption: scaledCaptionSize = (27 * 12 / 18) = 18.0
+      final badgeWidget = tester.widget<Text>(find.text('Available · English'));
+      expect(badgeWidget.style?.fontSize, equals(18.0));
+
+      // Transcript Header: scaledBodyMediumSize = (27 * 16 / 18) = 24.0
+      final headerWidget = tester.widget<Text>(find.text('Transcript'));
+      expect(headerWidget.style?.fontSize, equals(24.0));
+
+      // Transcript Text (SelectableText): scaledBodyMediumSize = 24.0
+      final transcriptWidget = tester.widget<SelectableText>(find.widgetWithText(SelectableText, 'Large transcript content.'));
+      expect(transcriptWidget.style?.fontSize, equals(24.0));
+    });
+
+    testWidgets('respects scaled font size with min legible clamp (small)', (tester) async {
+      const smallTypography = TypographySettings(fontSize: 12.0);
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Small Typography Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Small transcript content.',
+            initialTranscriptLanguage: 'en',
+          ),
+          overrides: [
+            typographySettingsProvider.overrideWith((ref) => _CustomTypographyNotifier(smallTypography)),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      // Card Title Text: scaledBodyLargeSize = (12 * 18 / 18) = 12.0
+      final titleWidget = tester.widget<Text>(find.text('Small Typography Memo'));
+      expect(titleWidget.style?.fontSize, equals(12.0));
+
+      // Transcript Caption: scaledCaptionSize = (12 * 12 / 18) = 8.0, clamped to min 9.0
+      final badgeWidget = tester.widget<Text>(find.text('Available · English'));
+      expect(badgeWidget.style?.fontSize, equals(9.0));
+
+      // Transcript Header: scaledBodyMediumSize = (12 * 16 / 18) = 11.0
+      final headerWidget = tester.widget<Text>(find.text('Transcript'));
+      expect(headerWidget.style?.fontSize, equals(11.0));
+
+      // Transcript Text: scaledBodyMediumSize = 11.0
+      final transcriptWidget = tester.widget<SelectableText>(find.widgetWithText(SelectableText, 'Small transcript content.'));
+      expect(transcriptWidget.style?.fontSize, equals(11.0));
+    });
+
+    testWidgets('respects scaled font size on encrypted lock badge when no transcript exists', (tester) async {
+      const customTypography = TypographySettings(fontSize: 27.0);
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'No Transcript Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+          ),
+          overrides: [
+            typographySettingsProvider.overrideWith((ref) => _CustomTypographyNotifier(customTypography)),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      final badgeWidget = tester.widget<Text>(find.text('Encrypted attachment'));
+      expect(badgeWidget.style?.fontSize, equals(18.0));
+    });
+
+    testWidgets('respects custom heading and body font families', (tester) async {
+      const customTypography = TypographySettings(
+        headingFontFamily: 'Playfair Display',
+        bodyFontFamily: 'Lora',
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Font Family Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Custom font transcript.',
+            initialTranscriptLanguage: 'en',
+          ),
+          overrides: [
+            typographySettingsProvider.overrideWith((ref) => _CustomTypographyNotifier(customTypography)),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      final titleWidget = tester.widget<Text>(find.text('Font Family Memo'));
+      expect(titleWidget.style?.fontFamily, contains('Playfair'));
+
+      final transcriptWidget = tester.widget<SelectableText>(find.widgetWithText(SelectableText, 'Custom font transcript.'));
+      expect(transcriptWidget.style?.fontFamily, contains('Lora'));
+    });
+
+    testWidgets('inline transcript editing TextField inherits scaled typography', (tester) async {
+      const customTypography = TypographySettings(
+        fontSize: 27.0,
+        lineHeight: 1.8,
+        bodyFontFamily: 'Lora',
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Editable Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Edit me',
+            initialTranscriptLanguage: 'en',
+          ),
+          overrides: [
+            typographySettingsProvider.overrideWith((ref) => _CustomTypographyNotifier(customTypography)),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      // Tap Edit transcript
+      await tester.tap(find.text('Edit transcript'));
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.style?.fontSize, equals(24.0));
+      expect(textField.style?.height, equals(1.8));
+      expect(textField.style?.fontFamily, contains('Lora'));
+    });
   });
+}
+
+class _CustomTypographyNotifier extends TypographySettingsNotifier {
+  _CustomTypographyNotifier(TypographySettings settings) : super() {
+    state = settings;
+  }
 }
 
 class _FakeSpeechModelManager implements SpeechModelManager {

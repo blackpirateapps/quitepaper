@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
-import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/font_family_helper.dart';
+import '../../../features/settings/application/typography_provider.dart';
 import '../../widgets/quiet_button.dart';
 
 /// Minimal editorial dialog for renaming an audio journal recording.
-class AudioRenameDialog extends StatefulWidget {
+class AudioRenameDialog extends ConsumerStatefulWidget {
   const AudioRenameDialog({
     super.key,
     required this.currentTitle,
@@ -22,10 +24,10 @@ class AudioRenameDialog extends StatefulWidget {
   }
 
   @override
-  State<AudioRenameDialog> createState() => _AudioRenameDialogState();
+  ConsumerState<AudioRenameDialog> createState() => _AudioRenameDialogState();
 }
 
-class _AudioRenameDialogState extends State<AudioRenameDialog> {
+class _AudioRenameDialogState extends ConsumerState<AudioRenameDialog> {
   late final TextEditingController _controller;
   final _focusNode = FocusNode();
 
@@ -59,6 +61,13 @@ class _AudioRenameDialogState extends State<AudioRenameDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final typography = ref.watch(typographySettingsProvider);
+    final headingFont = FontFamilyHelper.resolveHeadingFontFamily(
+      typography.headingFontFamily ?? typography.bodyFontFamily,
+    );
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(
+      typography.bodyFontFamily,
+    );
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -78,19 +87,38 @@ class _AudioRenameDialogState extends State<AudioRenameDialog> {
             children: [
               Text(
                 'Rename Voice Memo',
-                style: AppTypography.headline.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
+                style: FontFamilyHelper.getTextStyle(
+                  fontFamily: headingFont,
+                  baseStyle: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: typography.scaleFontSize(20.0),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: typography.letterSpacing,
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _controller,
                 focusNode: _focusNode,
-                style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+                style: FontFamilyHelper.getTextStyle(
+                  fontFamily: bodyFont,
+                  baseStyle: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: typography.scaleFontSize(16.0),
+                    letterSpacing: typography.letterSpacing,
+                  ),
+                ),
                 decoration: InputDecoration(
                   hintText: 'Enter title…',
-                  hintStyle: AppTypography.bodyMedium.copyWith(color: colors.textTertiary),
+                  hintStyle: FontFamilyHelper.getTextStyle(
+                    fontFamily: bodyFont,
+                    baseStyle: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: typography.scaleFontSize(16.0),
+                      letterSpacing: typography.letterSpacing,
+                    ),
+                  ),
                   filled: true,
                   fillColor: colors.background,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

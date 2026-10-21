@@ -82,6 +82,23 @@ class TypographySettings {
   double get scaledHeading6Size => (fontSize * (16.0 / 18.0)).roundToDouble();
   double get scaledCodeSize => (fontSize * (15.0 / 18.0)).roundToDouble();
 
+  /// Scales an arbitrary baseline font size [baseSize] proportionally with [fontSize]
+  /// (relative to the default 18.0 pt body size), clamped to a minimum legible size.
+  double scaleFontSize(double baseSize, {double min = 9.0}) =>
+      (fontSize * (baseSize / 18.0)).roundToDouble().clamp(min, double.infinity);
+
+  /// Scaled size for large body / card titles (baseline 18pt).
+  double get scaledBodyLargeSize => scaleFontSize(18.0);
+
+  /// Scaled size for medium body / compact titles / section headers (baseline 16pt).
+  double get scaledBodyMediumSize => scaleFontSize(16.0);
+
+  /// Scaled size for small body / labels (baseline 14pt).
+  double get scaledBodySmallSize => scaleFontSize(14.0);
+
+  /// Scaled size for captions, timestamps, badges, metadata (baseline 12pt).
+  double get scaledCaptionSize => scaleFontSize(12.0);
+
   TypographySettings copyWith({
     String? headingFontFamily,
     bool clearHeadingFont = false,

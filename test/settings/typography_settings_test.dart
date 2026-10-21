@@ -30,6 +30,23 @@ void main() {
       expect(settings.scaledHeading6Size, equals(16.0));
       expect(settings.scaledTitleSize, equals(30.0));
       expect(settings.scaledCodeSize, equals(15.0));
+
+      expect(settings.scaledBodyLargeSize, equals(18.0));
+      expect(settings.scaledBodyMediumSize, equals(16.0));
+      expect(settings.scaledBodySmallSize, equals(14.0));
+      expect(settings.scaledCaptionSize, equals(12.0));
+      expect(settings.scaleFontSize(12.5), equals(13.0));
+    });
+
+    test('scaleFontSize scales proportionally and respects min legible bound', () {
+      const largeSettings = TypographySettings(fontSize: 27.0);
+      expect(largeSettings.scaledBodyLargeSize, equals(27.0));
+      expect(largeSettings.scaledBodyMediumSize, equals(24.0));
+      expect(largeSettings.scaledCaptionSize, equals(18.0));
+
+      const tinySettings = TypographySettings(fontSize: 10.0);
+      // 10 * 12 / 18 = 6.67, clamped to min 9.0
+      expect(tinySettings.scaleFontSize(12.0), equals(9.0));
     });
 
     test('serialization and deserialization roundtrip preserves all values', () {

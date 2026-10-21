@@ -4850,15 +4850,21 @@ class _AudioSummaryFooterState extends ConsumerState<_AudioSummaryFooter> {
     final durStr = AudioDurationHelper.formatDurationHuman(Duration(seconds: totalSeconds));
     final countStr = '$count ${count == 1 ? "recording" : "recordings"}';
     final summaryText = '$countStr · $durStr total';
+    final typography = ref.watch(typographySettingsProvider);
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(typography.bodyFontFamily);
 
     return Padding(
       padding: const EdgeInsets.only(top: 18.0, bottom: 8.0),
       child: Text(
         summaryText,
-        style: AppTypography.caption.copyWith(
-          color: widget.colors.textTertiary,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w500,
+        style: FontFamilyHelper.getTextStyle(
+          fontFamily: bodyFont,
+          baseStyle: TextStyle(
+            color: widget.colors.textTertiary,
+            fontSize: typography.scaleFontSize(12.5),
+            fontWeight: FontWeight.w500,
+            letterSpacing: typography.letterSpacing,
+          ),
         ),
       ),
     );

@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
-import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/utils/font_family_helper.dart';
+import '../../../features/settings/application/typography_provider.dart';
+import '../../../features/settings/domain/typography_settings.dart';
 import '../../../features/tags/domain/phosphor_icons.dart';
 import '../../speech/presentation/speech_download_dialog.dart';
 import '../application/audio_duration_helper.dart';
@@ -399,21 +401,50 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
         context: context,
         builder: (ctx) {
           final colors = ctx.appColors;
+          final typography = ref.read(typographySettingsProvider);
           return AlertDialog(
             backgroundColor: colors.surface,
             shape: RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
-            title: const Text('Regenerate transcript?'),
-            content: const Text(
+            title: Text(
+              'Regenerate transcript?',
+              style: _headingStyle(
+                typography: typography,
+                baseSize: 18.0,
+                color: colors.textPrimary,
+              ),
+            ),
+            content: Text(
               'This transcript was edited manually. Regenerating will replace your edited text with a newly generated transcript.\n\nYour original voice recording is never modified.',
+              style: _bodyStyle(
+                typography: typography,
+                baseSize: 14.0,
+                color: colors.textPrimary,
+                height: typography.lineHeight,
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
+                child: Text(
+                  'Cancel',
+                  style: _captionStyle(
+                    typography: typography,
+                    baseSize: 14.0,
+                    color: colors.textSecondary,
+                  ),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: Text('Regenerate', style: TextStyle(color: colors.error)),
+                child: Text(
+                  'Regenerate',
+                  style: _captionStyle(
+                    typography: typography,
+                    baseSize: 14.0,
+                    color: colors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           );
@@ -560,9 +591,76 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     }
   }
 
+  TextStyle _headingStyle({
+    required TypographySettings typography,
+    required double baseSize,
+    FontWeight fontWeight = FontWeight.w600,
+    Color? color,
+  }) {
+    final headingFont = FontFamilyHelper.resolveHeadingFontFamily(
+      typography.headingFontFamily ?? typography.bodyFontFamily,
+    );
+    return FontFamilyHelper.getTextStyle(
+      fontFamily: headingFont,
+      baseStyle: TextStyle(
+        fontSize: typography.scaleFontSize(baseSize),
+        fontWeight: fontWeight,
+        letterSpacing: typography.letterSpacing,
+        color: color,
+      ),
+    );
+  }
+
+  TextStyle _bodyStyle({
+    required TypographySettings typography,
+    required double baseSize,
+    FontWeight fontWeight = FontWeight.normal,
+    Color? color,
+    double? height,
+    List<FontFeature>? fontFeatures,
+  }) {
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(
+      typography.bodyFontFamily,
+    );
+    return FontFamilyHelper.getTextStyle(
+      fontFamily: bodyFont,
+      baseStyle: TextStyle(
+        fontSize: typography.scaleFontSize(baseSize),
+        fontWeight: fontWeight,
+        height: height,
+        letterSpacing: typography.letterSpacing,
+        color: color,
+        fontFeatures: fontFeatures,
+      ),
+    );
+  }
+
+  TextStyle _captionStyle({
+    required TypographySettings typography,
+    double baseSize = 12.0,
+    FontWeight fontWeight = FontWeight.normal,
+    Color? color,
+    List<FontFeature>? fontFeatures,
+  }) {
+    final bodyFont = FontFamilyHelper.resolveBodyFontFamily(
+      typography.bodyFontFamily,
+    );
+    return FontFamilyHelper.getTextStyle(
+      fontFamily: bodyFont,
+      baseStyle: TextStyle(
+        fontSize: typography.scaleFontSize(baseSize),
+        fontWeight: fontWeight,
+        letterSpacing: typography.letterSpacing,
+        color: color,
+        fontFeatures: fontFeatures,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final typography = ref.watch(typographySettingsProvider);
     final playbackSnapshot = ref.watch(audioPlaybackSnapshotProvider);
     final isThisActive = playbackSnapshot.activeAttachmentId == widget.attachmentId;
     final isPlaying = isThisActive && playbackSnapshot.isPlaying;
@@ -585,6 +683,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     if (isTranscribingBusy) {
       return _buildProcessingInterface(
         colors: colors,
+        typography: typography,
         effectiveDuration: effectiveDuration,
         jobState: activeJob,
       );
@@ -596,6 +695,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     if (!shouldShowExpanded) {
       return _buildCompactView(
         colors: colors,
+        typography: typography,
         effectiveDuration: effectiveDuration,
         isPlaying: isPlaying,
       );
@@ -603,6 +703,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
     return _buildExpandedCard(
       colors: colors,
+      typography: typography,
       position: position,
       effectiveDuration: effectiveDuration,
       isPlaying: isPlaying,
@@ -614,6 +715,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   /// In-flight processing interface (matches Image 1).
   Widget _buildProcessingInterface({
     required AppColors colors,
+    required TypographySettings typography,
     required Duration effectiveDuration,
     AudioTranscriptionJobState? jobState,
   }) {
@@ -662,9 +764,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     children: [
                       Text(
                         widget.title,
-                        style: AppTypography.bodyLarge.copyWith(
-                          color: colors.textPrimary,
+                        style: _headingStyle(
+                          typography: typography,
+                          baseSize: 18.0,
                           fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -672,7 +776,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: AppTypography.caption.copyWith(
+                        style: _captionStyle(
+                          typography: typography,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -698,14 +803,16 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
               children: [
                 Text(
                   stageLabel,
-                  style: AppTypography.caption.copyWith(
+                  style: _captionStyle(
+                    typography: typography,
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 Text(
                   progressLabel,
-                  style: AppTypography.caption.copyWith(
+                  style: _captionStyle(
+                    typography: typography,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -739,9 +846,9 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                 Expanded(
                   child: Text(
                     'Your audio stays on this device during transcription.',
-                    style: AppTypography.caption.copyWith(
+                    style: _captionStyle(
+                      typography: typography,
                       color: colors.textTertiary,
-                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -752,7 +859,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Text(
                       'Cancel',
-                      style: AppTypography.caption.copyWith(
+                      style: _captionStyle(
+                        typography: typography,
                         color: colors.accent,
                         fontWeight: FontWeight.w600,
                       ),
@@ -770,6 +878,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   /// Compact inline row.
   Widget _buildCompactView({
     required AppColors colors,
+    required TypographySettings typography,
     required Duration effectiveDuration,
     required bool isPlaying,
   }) {
@@ -812,9 +921,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     children: [
                       Text(
                         widget.title,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
+                        style: _headingStyle(
+                          typography: typography,
+                          baseSize: 16.0,
                           fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -822,7 +933,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: AppTypography.caption.copyWith(
+                        style: _captionStyle(
+                          typography: typography,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -864,6 +976,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   /// Full / expanded audio player card with Transcript section (matches Image 0).
   Widget _buildExpandedCard({
     required AppColors colors,
+    required TypographySettings typography,
     required Duration position,
     required Duration effectiveDuration,
     required bool isPlaying,
@@ -916,9 +1029,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     children: [
                       Text(
                         widget.title,
-                        style: AppTypography.bodyLarge.copyWith(
-                          color: colors.textPrimary,
+                        style: _headingStyle(
+                          typography: typography,
+                          baseSize: 18.0,
                           fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -926,7 +1041,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                       const SizedBox(height: 2),
                       Text(
                         headerSubtitle,
-                        style: AppTypography.caption.copyWith(
+                        style: _captionStyle(
+                          typography: typography,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -981,43 +1097,67 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                   },
                   itemBuilder: (context) => [
                     if (!hasTranscript && !widget.isReadOnly)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'transcribe',
-                        child: Text('Transcribe audio'),
+                        child: Text(
+                          'Transcribe audio',
+                          style: _bodyStyle(typography: typography, baseSize: 14.0),
+                        ),
                       ),
                     if (hasTranscript) ...[
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'copy_transcript',
-                        child: Text('Copy transcript'),
+                        child: Text(
+                          'Copy transcript',
+                          style: _bodyStyle(typography: typography, baseSize: 14.0),
+                        ),
                       ),
                       if (!widget.isReadOnly) ...[
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'edit_transcript',
-                          child: Text('Edit transcript'),
+                          child: Text(
+                            'Edit transcript',
+                            style: _bodyStyle(typography: typography, baseSize: 14.0),
+                          ),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'insert_transcript',
-                          child: Text('Insert into note'),
+                          child: Text(
+                            'Insert into note',
+                            style: _bodyStyle(typography: typography, baseSize: 14.0),
+                          ),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'regenerate',
-                          child: Text('Regenerate transcript…'),
+                          child: Text(
+                            'Regenerate transcript…',
+                            style: _bodyStyle(typography: typography, baseSize: 14.0),
+                          ),
                         ),
                       ],
                       const PopupMenuDivider(),
                     ],
                     if (!widget.isReadOnly)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'rename',
-                        child: Text('Rename'),
+                        child: Text(
+                          'Rename',
+                          style: _bodyStyle(typography: typography, baseSize: 14.0),
+                        ),
                       ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'export',
-                      child: Text('Export audio…'),
+                      child: Text(
+                        'Export audio…',
+                        style: _bodyStyle(typography: typography, baseSize: 14.0),
+                      ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'collapse',
-                      child: Text('Compact view'),
+                      child: Text(
+                        'Compact view',
+                        style: _bodyStyle(typography: typography, baseSize: 14.0),
+                      ),
                     ),
                     if (!widget.isReadOnly) ...[
                       const PopupMenuDivider(),
@@ -1025,7 +1165,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                         value: 'delete',
                         child: Text(
                           'Remove from note',
-                          style: TextStyle(color: colors.error),
+                          style: _bodyStyle(
+                            typography: typography,
+                            baseSize: 14.0,
+                            color: colors.error,
+                          ),
                         ),
                       ),
                     ],
@@ -1079,7 +1223,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
                 Text(
                   positionStr,
-                  style: AppTypography.caption.copyWith(
+                  style: _captionStyle(
+                    typography: typography,
                     color: colors.textSecondary,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -1108,7 +1253,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
                 Text(
                   durationStr,
-                  style: AppTypography.caption.copyWith(
+                  style: _captionStyle(
+                    typography: typography,
                     color: colors.textSecondary,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -1119,7 +1265,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
             // 3. Transcript Section (Image 0)
             if (hasTranscript) ...[
               const SizedBox(height: 18),
-              _buildTranscriptSection(colors: colors),
+              _buildTranscriptSection(colors: colors, typography: typography),
             ] else ...[
               const SizedBox(height: 16),
               // Bottom Row fallback: Lock icon + "Encrypted attachment"
@@ -1139,9 +1285,9 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                         Flexible(
                           child: Text(
                             'Encrypted attachment',
-                            style: AppTypography.caption.copyWith(
+                            style: _captionStyle(
+                              typography: typography,
                               color: colors.textTertiary,
-                              fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1158,7 +1304,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         child: Text(
                           'Transcribe audio',
-                          style: AppTypography.caption.copyWith(
+                          style: _captionStyle(
+                            typography: typography,
                             color: colors.accent,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1175,7 +1322,10 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   }
 
   /// Transcript section (collapsible container with header, body, and actions matching Image 0).
-  Widget _buildTranscriptSection({required AppColors colors}) {
+  Widget _buildTranscriptSection({
+    required AppColors colors,
+    required TypographySettings typography,
+  }) {
     final langLabel = _formatLanguageLabel(_transcriptLanguage);
     final statusSubtitle = _isTranscriptEdited
         ? 'Edited manually · $langLabel'
@@ -1210,15 +1360,18 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     children: [
                       Text(
                         'Transcript',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: colors.textPrimary,
+                        style: _headingStyle(
+                          typography: typography,
+                          baseSize: 16.0,
                           fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 1),
                       Text(
                         statusSubtitle,
-                        style: AppTypography.caption.copyWith(
+                        style: _captionStyle(
+                          typography: typography,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -1261,16 +1414,23 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     controller: _transcriptEditController,
                     maxLines: null,
                     autofocus: true,
-                    style: AppTypography.bodyMedium.copyWith(
+                    style: _bodyStyle(
+                      typography: typography,
+                      baseSize: 16.0,
                       color: colors.textPrimary,
-                      height: 1.5,
+                      height: typography.lineHeight,
                     ),
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
                       hintText: 'Edit transcript…',
-                      hintStyle: TextStyle(color: colors.textTertiary),
+                      hintStyle: _bodyStyle(
+                        typography: typography,
+                        baseSize: 16.0,
+                        color: colors.textTertiary,
+                        height: typography.lineHeight,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1284,14 +1444,23 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                             _isEditingTranscript = false;
                           });
                         },
-                        child: const Text('Cancel'),
+                        child: Text(
+                          'Cancel',
+                          style: _captionStyle(
+                            typography: typography,
+                            baseSize: 13.0,
+                            color: colors.textSecondary,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: _saveEditedTranscript,
                         child: Text(
                           'Save',
-                          style: TextStyle(
+                          style: _captionStyle(
+                            typography: typography,
+                            baseSize: 13.0,
                             color: colors.accent,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1303,9 +1472,11 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                   // Read / Display Mode
                   SelectableText(
                     _transcript ?? '',
-                    style: AppTypography.bodyMedium.copyWith(
+                    style: _bodyStyle(
+                      typography: typography,
+                      baseSize: 16.0,
                       color: colors.textPrimary,
-                      height: 1.5,
+                      height: typography.lineHeight,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -1315,9 +1486,9 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     children: [
                       Text(
                         _isTranscriptEdited ? 'Edited manually' : 'Generated on device',
-                        style: AppTypography.caption.copyWith(
+                        style: _captionStyle(
+                          typography: typography,
                           color: colors.textTertiary,
-                          fontSize: 12,
                         ),
                       ),
                       if (!widget.isReadOnly)
@@ -1336,7 +1507,8 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                             ),
                             child: Text(
                               'Edit transcript',
-                              style: AppTypography.caption.copyWith(
+                              style: _captionStyle(
+                                typography: typography,
                                 color: colors.accent,
                                 fontWeight: FontWeight.w600,
                               ),
