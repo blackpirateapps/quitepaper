@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/attachments/attachment_service.dart';
 import '../../../core/attachments/attachment_type_resolver.dart';
 import '../../../core/attachments/cloudinary_client.dart';
+import '../../../core/audio/application/audio_transcript_markdown_helper.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/sync/share_models.dart';
 import '../../../core/sync/sync_api_client.dart';
@@ -229,7 +231,25 @@ class ShareService {
 
       if (isAudio) {
         const omissionNotice = '> *[Voice memo excluded from public share]*';
-        rewritten = rewritten.replaceAll(ref.fullMatch, omissionNotice);
+        final parsedAudio = AudioTranscriptMarkdownHelper.parseAudioLink(ref.fullMatch);
+        if (parsedAudio != null && parsedAudio.hasTranscriptParam) {
+          final lines = const LineSplitter().convert(rewritten);
+          final buffer = <String>[];
+          for (int i = 0; i < lines.length; i++) {
+            final line = lines[i];
+            if (line.trim() == ref.fullMatch.trim()) {
+              buffer.add(omissionNotice);
+              while (i + 1 < lines.length && lines[i + 1].trim().startsWith('>')) {
+                i++;
+              }
+            } else {
+              buffer.add(line);
+            }
+          }
+          rewritten = buffer.join('\n');
+        } else {
+          rewritten = rewritten.replaceAll(ref.fullMatch, omissionNotice);
+        }
         continue;
       }
 

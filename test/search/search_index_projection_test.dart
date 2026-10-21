@@ -71,5 +71,34 @@ void main() {
         false,
       );
     });
+
+    test('Indexes spoken audio transcript text while stripping internal URI and query parameters', () {
+      const markdown = '# Morning Walk\n\n'
+          '[Voice Memo: 2026-10-21](qp://asset/96ad766e-646b-4f65-bd12-8c21874f1127?transcript=1&lang=en&edited=0)\n'
+          '> Today I noticed the autumn leaves falling by the river.\n'
+          '> Need to remember to buy fresh apples later.\n\n'
+          'Final written reflection.';
+
+      final projection = SearchIndexProjection.project(
+        noteId: 'note-audio-1',
+        title: 'Morning Walk',
+        content: markdown,
+        tags: ['audio', 'journal'],
+        isTrashed: false,
+      );
+
+      expect(projection.title, 'Morning Walk');
+      expect(projection.bodyText, contains('Voice Memo: 2026-10-21'));
+      expect(projection.bodyText, contains('Today I noticed the autumn leaves falling by the river'));
+      expect(projection.bodyText, contains('Need to remember to buy fresh apples later'));
+      expect(projection.bodyText, contains('Final written reflection'));
+
+      // Ensure zero leakage of internal query parameters or URIs in search index
+      expect(projection.bodyText, isNot(contains('qp://asset')));
+      expect(projection.bodyText, isNot(contains('transcript=1')));
+      expect(projection.bodyText, isNot(contains('lang=en')));
+      expect(projection.bodyText, isNot(contains('edited=0')));
+      expect(projection.bodyText, isNot(contains('96ad766e-646b-4f65-bd12-8c21874f1127')));
+    });
   });
 }

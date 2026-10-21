@@ -1,3 +1,4 @@
+import '../../../core/audio/application/audio_transcript_markdown_helper.dart';
 import '../domain/markdown_table.dart';
 import '../domain/markdown_table_alignment.dart';
 import '../domain/rich_block.dart';
@@ -84,7 +85,13 @@ class RichDocumentSerializer {
     if (block is AttachmentBlock) {
       // Link form (no leading `!`): keeps documents and generic files
       // byte-compatible with the Markdown preview and the other editors.
-      return '[${block.name}](${block.uri})';
+      return AudioTranscriptMarkdownHelper.serializeAudioMarkdown(
+        displayText: block.name,
+        uri: block.uri,
+        transcript: block.transcript,
+        language: block.transcriptLanguage,
+        isEdited: block.isTranscriptEdited,
+      );
     }
 
     if (block is LinkPreviewBlock) {

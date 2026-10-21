@@ -1,6 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_editor/super_editor.dart';
+import 'package:quitepaper/core/audio/application/audio_transcript_markdown_helper.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
+import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
+import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_image_component.dart';
 
@@ -153,6 +157,139 @@ void main() {
       final updatedNode = doc.getNodeById('audio_node_1') as QuietAttachmentNode;
       expect(updatedNode.displayText, equals('Renamed Memo'));
       expect(updatedNode.uri, equals(audioUri1));
+    });
+
+    test('serializes and deserializes QuietAttachmentNode with transcript', () {
+      final doc = MutableDocument(nodes: [
+        QuietAttachmentNode(
+          id: 'audio1',
+          uri: audioUri1,
+          displayText: 'Audio: 2026-04-19 14:32',
+          transcript: 'First line of spoken audio.\nSecond line of spoken audio.',
+          transcriptLanguage: 'en',
+          isTranscriptEdited: false,
+        ),
+      ]);
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: const [QuietAttachmentNodeSerializer()],
+      );
+
+      expect(serialized, contains('[Audio: 2026-04-19 14:32]($audioUri1?transcript=1&lang=en&edited=0)'));
+      expect(serialized, contains('> First line of spoken audio.'));
+      expect(serialized, contains('> Second line of spoken audio.'));
+
+      // Now deserialize back
+      final deserialized = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized));
+      promoteQuietAttachmentNodes(deserialized);
+
+      expect(deserialized.nodeCount, equals(1));
+      final node = deserialized.first as QuietAttachmentNode;
+      expect(node.displayText, equals('Audio: 2026-04-19 14:32'));
+      expect(node.uri, equals(audioUri1));
+      expect(node.transcript, equals('First line of spoken audio.\nSecond line of spoken audio.'));
+      expect(node.transcriptLanguage, equals('en'));
+      expect(node.isTranscriptEdited, isFalse);
+    });
+
+    test('serializes and deserializes manually edited transcript (edited=1)', () {
+      final doc = MutableDocument(nodes: [
+        QuietAttachmentNode(
+          id: 'audio1',
+          uri: audioUri1,
+          displayText: 'Audio: 2026-04-19 14:32',
+          transcript: 'User corrected transcript line.',
+          transcriptLanguage: 'en',
+          isTranscriptEdited: true,
+        ),
+      ]);
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: const [QuietAttachmentNodeSerializer()],
+      );
+
+      expect(serialized, contains('[Audio: 2026-04-19 14:32]($audioUri1?transcript=1&lang=en&edited=1)'));
+      expect(serialized, contains('> User corrected transcript line.'));
+
+      final deserialized = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(serialized));
+      promoteQuietAttachmentNodes(deserialized);
+
+      expect(deserialized.nodeCount, equals(1));
+      final node = deserialized.first as QuietAttachmentNode;
+      expect(node.transcript, equals('User corrected transcript line.'));
+      expect(node.isTranscriptEdited, isTrue);
+    });
+
+    test('deserializes multiple consecutive audio blocks with transcripts', () {
+      final markdown = '[First Memo]($audioUri1?transcript=1&lang=en&edited=0)\n'
+          '> Audio one transcript.\n\n'
+          '[Second Memo]($audioUri2?transcript=1&lang=es&edited=1)\n'
+          '> Audio dos transcripción.';
+
+      final doc = deserializeMarkdownToDocument(normalizeMarkdownForSuperEditor(markdown));
+      promoteQuietAttachmentNodes(doc);
+
+      final audioNodes = doc.whereType<QuietAttachmentNode>().toList();
+      expect(audioNodes.length, equals(2));
+      expect(audioNodes[0].displayText, equals('First Memo'));
+      expect(audioNodes[0].uri, equals(audioUri1));
+      expect(audioNodes[0].transcript, equals('Audio one transcript.'));
+      expect(audioNodes[0].transcriptLanguage, equals('en'));
+      expect(audioNodes[0].isTranscriptEdited, isFalse);
+
+      expect(audioNodes[1].displayText, equals('Second Memo'));
+      expect(audioNodes[1].uri, equals(audioUri2));
+      expect(audioNodes[1].transcript, equals('Audio dos transcripción.'));
+      expect(audioNodes[1].transcriptLanguage, equals('es'));
+      expect(audioNodes[1].isTranscriptEdited, isTrue);
+    });
+
+    test('Visual mode RichDocumentParser and RichDocumentSerializer round trip with transcript', () {
+      final markdown = '# Note With Voice\n\n'
+          '[Audio Journal]($audioUri1?transcript=1&lang=en&edited=1)\n'
+          '> Captured reflection here.\n'
+          '> Second sentence.\n\n'
+          'Final paragraph.';
+
+      final doc = const RichDocumentParser().parse(markdown);
+      final audioBlock = doc.blocks.whereType<AttachmentBlock>().first;
+      expect(audioBlock.name, equals('Audio Journal'));
+      expect(audioBlock.uri, equals(audioUri1));
+      expect(audioBlock.transcript, equals('Captured reflection here.\nSecond sentence.'));
+      expect(audioBlock.transcriptLanguage, equals('en'));
+      expect(audioBlock.isTranscriptEdited, isTrue);
+
+      final reserialized = const RichDocumentSerializer().serialize(doc);
+      expect(reserialized, contains('[Audio Journal]($audioUri1?transcript=1&lang=en&edited=1)'));
+      expect(reserialized, contains('> Captured reflection here.'));
+      expect(reserialized, contains('> Second sentence.'));
+
+      // Round-trip parse again
+      final doc2 = const RichDocumentParser().parse(reserialized);
+      final audioBlock2 = doc2.blocks.whereType<AttachmentBlock>().first;
+      expect(audioBlock2.name, equals('Audio Journal'));
+      expect(audioBlock2.transcript, equals('Captured reflection here.\nSecond sentence.'));
+      expect(audioBlock2.isTranscriptEdited, isTrue);
+    });
+
+    test('AudioTranscriptMarkdownHelper preview blockquote stripper removes companion blockquotes', () {
+      final markdown = '# Meeting Notes\n\n'
+          '[Audio Memo]($audioUri1?transcript=1&lang=en&edited=0)\n'
+          '> Transcript line 1\n'
+          '> Transcript line 2\n\n'
+          '> Standalone user blockquote\n\n'
+          'Body text';
+
+      final stripped = AudioTranscriptMarkdownHelper.stripTranscriptBlockquotesForPreview(markdown);
+      expect(stripped, contains('[Audio Memo]($audioUri1?transcript=1&lang=en&edited=0)'));
+      expect(stripped, isNot(contains('> Transcript line 1')));
+      expect(stripped, isNot(contains('> Transcript line 2')));
+      expect(stripped, contains('> Standalone user blockquote'));
+      expect(stripped, contains('Body text'));
     });
   });
 }

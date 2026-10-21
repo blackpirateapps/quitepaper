@@ -203,8 +203,9 @@ void main() {
   test('multilingual model automatically passes lang: auto to engine', () async {
     const multiDescriptor = FutoMultilingualSpeechModel244();
     final multiModelFile = await storageService.getModelFile(multiDescriptor);
-    final dummyBytes = List<int>.filled(multiDescriptor.sizeBytes, 0);
-    await multiModelFile.writeAsBytes(dummyBytes);
+    final raf = await multiModelFile.open(mode: FileMode.write);
+    await raf.truncate(multiDescriptor.sizeBytes);
+    await raf.close();
     final metadata = SpeechModelMetadata(
       modelId: multiDescriptor.id,
       version: multiDescriptor.version,

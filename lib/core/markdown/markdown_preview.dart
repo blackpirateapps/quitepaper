@@ -4,6 +4,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:markdown/markdown.dart' as md;
+import '../audio/application/audio_transcript_markdown_helper.dart';
+import '../audio/domain/audio_transcript_models.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
@@ -120,6 +122,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   late List<String> _chunks;
   List<int> _chunkChecklistBaseIndices = const [];
   List<ViewerImageItem> _documentImages = [];
+  Map<String, AudioTranscriptData> _audioTranscripts = const {};
 
   @override
   void initState() {
@@ -143,9 +146,13 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         rawText = const RichDocumentSerializer().serialize(doc);
       } catch (_) {}
     }
+    _audioTranscripts = AudioTranscriptMarkdownHelper.extractAllTranscripts(rawText);
     _parsedMarkdown = MarkdownFrontmatterParser.parse(rawText);
-    _chunks = MarkdownChunker.split(_parsedMarkdown.contentBody);
-    _documentImages = _extractDocumentImages(_parsedMarkdown.contentBody);
+    final previewBody = AudioTranscriptMarkdownHelper.stripTranscriptBlockquotesForPreview(
+      _parsedMarkdown.contentBody,
+    );
+    _chunks = MarkdownChunker.split(previewBody);
+    _documentImages = _extractDocumentImages(previewBody);
 
     final baseIndices = <int>[];
     int currentBase = 0;
@@ -588,6 +595,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       'quietattachment': QuietAttachmentElementBuilder(
         onAttachmentRenamed: widget.onAttachmentRenamed,
         onAttachmentDeleted: widget.onAttachmentDeleted,
+        transcripts: _audioTranscripts,
       ),
       'linkpreview': LinkPreviewElementBuilder(
         smartWebLinks: smartWebLinks,

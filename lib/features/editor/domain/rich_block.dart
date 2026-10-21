@@ -94,6 +94,9 @@ abstract class RichBlock {
           uri: json['uri'] as String? ?? '',
           name: json['name'] as String? ?? '',
           kind: AttachmentBlockKind.fromName(json['kind'] as String?),
+          transcript: json['transcript'] as String?,
+          transcriptLanguage: json['transcriptLanguage'] as String?,
+          isTranscriptEdited: json['isTranscriptEdited'] as bool? ?? false,
         );
       case 'link_preview':
         return LinkPreviewBlock(
@@ -729,6 +732,9 @@ class AttachmentBlock extends RichBlock {
     required this.uri,
     required this.name,
     required this.kind,
+    this.transcript,
+    this.transcriptLanguage,
+    this.isTranscriptEdited = false,
   });
 
   /// The canonical `qp://document/<UUID>` or `qp://asset/<UUID>` URI.
@@ -740,20 +746,40 @@ class AttachmentBlock extends RichBlock {
   /// Whether this card represents a document or a generic file.
   final AttachmentBlockKind kind;
 
+  /// Associated transcript text if this is a voice recording.
+  final String? transcript;
+
+  /// Language code of the recognized transcript (e.g. 'en').
+  final String? transcriptLanguage;
+
+  /// Whether the transcript was modified manually by the user.
+  final bool isTranscriptEdited;
+
   @override
-  String get plainText => name;
+  String get plainText => (transcript != null && transcript!.trim().isNotEmpty)
+      ? '$name\n$transcript'
+      : name;
 
   AttachmentBlock copyWith({
     String? id,
     String? uri,
     String? name,
     AttachmentBlockKind? kind,
+    String? transcript,
+    String? transcriptLanguage,
+    bool? isTranscriptEdited,
+    bool clearTranscript = false,
   }) {
     return AttachmentBlock(
       id: id ?? this.id,
       uri: uri ?? this.uri,
       name: name ?? this.name,
       kind: kind ?? this.kind,
+      transcript: clearTranscript ? null : (transcript ?? this.transcript),
+      transcriptLanguage:
+          clearTranscript ? null : (transcriptLanguage ?? this.transcriptLanguage),
+      isTranscriptEdited:
+          clearTranscript ? false : (isTranscriptEdited ?? this.isTranscriptEdited),
     );
   }
 
@@ -767,6 +793,9 @@ class AttachmentBlock extends RichBlock {
         'uri': uri,
         'name': name,
         'kind': kind.name,
+        if (transcript != null) 'transcript': transcript,
+        if (transcriptLanguage != null) 'transcriptLanguage': transcriptLanguage,
+        'isTranscriptEdited': isTranscriptEdited,
       };
 
   @override
@@ -777,13 +806,25 @@ class AttachmentBlock extends RichBlock {
           id == other.id &&
           uri == other.uri &&
           name == other.name &&
-          kind == other.kind;
+          kind == other.kind &&
+          transcript == other.transcript &&
+          transcriptLanguage == other.transcriptLanguage &&
+          isTranscriptEdited == other.isTranscriptEdited;
 
   @override
-  int get hashCode => Object.hash(id, uri, name, kind);
+  int get hashCode => Object.hash(
+        id,
+        uri,
+        name,
+        kind,
+        transcript,
+        transcriptLanguage,
+        isTranscriptEdited,
+      );
 
   @override
-  String toString() => 'AttachmentBlock($id, kind: ${kind.name}, uri: "$uri")';
+  String toString() =>
+      'AttachmentBlock($id, kind: ${kind.name}, uri: "$uri", hasTranscript: ${transcript != null})';
 }
 
 /// A baked web-link preview card rendered from fetched page metadata.

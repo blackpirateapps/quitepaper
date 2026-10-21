@@ -202,6 +202,58 @@ void main() {
       expect(apiClient.capturedMarkdown, contains('Wrap up.'));
     });
 
+    test('excludes companion audio transcript blockquote when audio is stripped from share', () async {
+      const audioId = '33333333-3333-4333-8333-333333333333';
+      final now = DateTime.now();
+
+      db.attachments[audioId] = AttachmentEntity(
+        id: audioId,
+        fileName: 'confidential_journal.m4a',
+        mimeType: 'audio/mp4',
+        byteSize: 1200,
+        sha256: 'abc333',
+        kind: 'file',
+        createdAt: now,
+        updatedAt: now,
+        encryptionKeyVersion: 1,
+        isDirty: false,
+        isDeleted: false,
+        serverRevision: 0,
+        uploadState: 'local_only',
+        ocrState: 'not_requested',
+        ocrLanguage: 'en',
+      );
+
+      final content = '# Secret Diary\n\n'
+          '[Audio Journal](qp://asset/$audioId?transcript=1&lang=en&edited=0)\n'
+          '> Highly sensitive spoken reflection line 1.\n'
+          '> Highly sensitive spoken reflection line 2.\n\n'
+          'Publicly visible conclusion paragraph.';
+
+      final note = _buildNote(content: content);
+
+      await shareService.createShare(
+        note: note,
+        decryptedContent: content,
+        visibility: ShareVisibility.public,
+      );
+
+      expect(cloudinaryClient.uploadCount, equals(0));
+      expect(apiClient.capturedMarkdown, isNot(contains(audioId)));
+      expect(apiClient.capturedMarkdown, isNot(contains('qp://asset/')));
+      expect(apiClient.capturedMarkdown, isNot(contains('transcript=1')));
+
+      // Voice memo omission notice
+      expect(apiClient.capturedMarkdown, contains('> *[Voice memo excluded from public share]*'));
+
+      // Sensitive spoken transcript MUST NOT leak
+      expect(apiClient.capturedMarkdown, isNot(contains('Highly sensitive spoken reflection line 1')));
+      expect(apiClient.capturedMarkdown, isNot(contains('Highly sensitive spoken reflection line 2')));
+
+      // Public text remains intact
+      expect(apiClient.capturedMarkdown, contains('Publicly visible conclusion paragraph.'));
+    });
+
     test('mixed note uploads image but excludes audio', () async {
       const audioId = '11111111-1111-4111-8111-111111111111';
       const imageId = '22222222-2222-4222-8222-222222222222';

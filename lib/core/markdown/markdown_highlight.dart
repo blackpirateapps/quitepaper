@@ -3,6 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../app/theme/app_colors.dart';
 import '../attachments/presentation/quiet_attachment_card.dart';
+import '../audio/domain/audio_transcript_models.dart';
 import '../documents/presentation/quiet_document_card.dart';
 
 /// Markdown syntax rule to match `==highlighted text==` and parse into `<mark>` AST nodes.
@@ -140,7 +141,7 @@ class QuietDocumentElementBuilder extends MarkdownElementBuilder {
 /// Markdown syntax rule to match `[Title](qp://asset/<UUID>)` and parse into `<quietattachment>` AST nodes.
 class QuietAttachmentSyntax extends md.InlineSyntax {
   QuietAttachmentSyntax()
-    : super(r'(?<!!)\[([^\]\n]+)\]\((qp:\/\/asset\/([0-9a-fA-F\-]{36}))\)');
+      : super(r'(?<!!)\[([^\]\n]+)\]\((qp:\/\/asset\/([0-9a-fA-F\-]{36})(\?[^)\s]*)?)\)');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -161,11 +162,12 @@ class QuietAttachmentElementBuilder extends MarkdownElementBuilder {
   QuietAttachmentElementBuilder({
     this.onAttachmentRenamed,
     this.onAttachmentDeleted,
+    this.transcripts,
   });
 
-  final void Function(String attachmentId, String newTitle)?
-  onAttachmentRenamed;
+  final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
+  final Map<String, AudioTranscriptData>? transcripts;
 
   @override
   Widget? visitElementAfterWithContext(
@@ -177,11 +179,15 @@ class QuietAttachmentElementBuilder extends MarkdownElementBuilder {
     final assetId = element.attributes['assetId'] ?? '';
     final title = element.attributes['title'] ?? element.textContent;
     final url = element.attributes['url'] ?? 'qp://asset/$assetId';
+    final transcript = transcripts?[assetId];
 
     return QuietAttachmentCard(
       attachmentId: assetId,
       title: title.isNotEmpty ? title : 'Attachment',
       uriString: url,
+      initialTranscript: transcript?.text,
+      initialTranscriptLanguage: transcript?.language,
+      initialIsTranscriptEdited: transcript?.isEdited ?? false,
       onAttachmentRenamed: onAttachmentRenamed,
       onAttachmentDeleted: onAttachmentDeleted,
     );

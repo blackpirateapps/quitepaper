@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import '../../../core/audio/application/audio_transcript_markdown_helper.dart';
 import '../../../core/uri/quiet_paper_uri.dart';
 import '../domain/rich_block.dart';
 import '../domain/rich_document.dart';
@@ -96,7 +97,32 @@ class RichDocumentParser {
       // Inline links inside a larger paragraph remain regular inline links.
       final standaloneAttachment = _parseStandaloneAttachment(line);
       if (standaloneAttachment != null) {
-        blocks.add(standaloneAttachment);
+        final parsedAudio = AudioTranscriptMarkdownHelper.parseAudioLink(line);
+        if (parsedAudio != null && parsedAudio.hasTranscriptParam) {
+          final transcriptLines = <String>[];
+          while (i + 1 < rawLines.length) {
+            final nextLine = rawLines[i + 1];
+            final trimmed = nextLine.trim();
+            if (trimmed.startsWith('>')) {
+              var quoteContent = trimmed.substring(1);
+              if (quoteContent.startsWith(' ')) {
+                quoteContent = quoteContent.substring(1);
+              }
+              transcriptLines.add(quoteContent);
+              i++;
+            } else {
+              break;
+            }
+          }
+          final text = transcriptLines.join('\n').trim();
+          blocks.add(standaloneAttachment.copyWith(
+            transcript: text.isNotEmpty ? text : null,
+            transcriptLanguage: parsedAudio.language,
+            isTranscriptEdited: parsedAudio.isEdited,
+          ));
+        } else {
+          blocks.add(standaloneAttachment);
+        }
         i++;
         continue;
       }
@@ -331,10 +357,14 @@ class RichDocumentParser {
     if (parsed == null) {
       return null;
     }
+    final cleanUri = QuietPaperUri(
+      resourceType: parsed.resourceType,
+      resourceId: parsed.resourceId,
+    ).toUriString();
     if (parsed.isDocument) {
       return AttachmentBlock(
         id: _uuid.v4(),
-        uri: uri,
+        uri: cleanUri,
         name: name,
         kind: AttachmentBlockKind.document,
       );
@@ -342,7 +372,7 @@ class RichDocumentParser {
     if (parsed.isAsset) {
       return AttachmentBlock(
         id: _uuid.v4(),
-        uri: uri,
+        uri: cleanUri,
         name: name,
         kind: AttachmentBlockKind.file,
       );

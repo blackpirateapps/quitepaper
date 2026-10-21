@@ -45,6 +45,15 @@ class RichAttachmentBlock extends StatelessWidget {
         attachmentId: resourceId,
         title: block.name.isNotEmpty ? block.name : 'Attachment',
         uriString: block.uri,
+        initialTranscript: block.transcript,
+        initialTranscriptLanguage: block.transcriptLanguage,
+        initialIsTranscriptEdited: block.isTranscriptEdited,
+        onTranscriptChanged: (newTranscript, isEdited) {
+          controller.updateAttachmentBlockTranscript(blockIndex, newTranscript, isEdited);
+        },
+        onInsertTranscript: (text) {
+          controller.insertParagraphAfterBlock(blockIndex, text);
+        },
         onAttachmentRenamed: (id, newTitle) {
           controller.updateAttachmentBlockName(blockIndex, newTitle);
         },

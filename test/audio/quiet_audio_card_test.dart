@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/audio/application/audio_transcription_provider.dart';
+import 'package:quitepaper/core/audio/domain/audio_transcript_models.dart';
 import 'package:quitepaper/core/audio/presentation/quiet_audio_card.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
@@ -16,14 +18,16 @@ void main() {
     Widget child, {
     ThemeData? theme,
     AppDatabase? db,
+    List<dynamic>? overrides,
   }) {
     return ProviderScope(
       overrides: [
         if (db != null) databaseProvider.overrideWithValue(db),
+        if (overrides != null) ...overrides.cast<Override>(),
       ],
       child: MaterialApp(
         theme: theme ?? AppTheme.light(),
-        home: Scaffold(body: child),
+        home: Scaffold(body: SingleChildScrollView(child: child)),
       ),
     );
   }
@@ -128,6 +132,166 @@ void main() {
 
       expect(find.text('Night thoughts'), findsOneWidget);
       expect(find.text('Encrypted attachment · Available offline'), findsOneWidget);
+    });
+
+    testWidgets('renders transcript section in expanded mode when transcript exists (Mockup 0)', (tester) async {
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Meeting Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'This is the transcribed audio memo content.',
+            initialTranscriptLanguage: 'en',
+            initialIsTranscriptEdited: false,
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.text('Transcript'), findsOneWidget);
+      expect(find.text('Available · English'), findsOneWidget);
+      expect(find.text('This is the transcribed audio memo content.'), findsOneWidget);
+      expect(find.text('Generated on device'), findsOneWidget);
+      expect(find.text('Edit transcript'), findsOneWidget);
+    });
+
+    testWidgets('shows Edited manually badge when isTranscriptEdited is true', (tester) async {
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Edited Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Corrected transcript line.',
+            initialTranscriptLanguage: 'en',
+            initialIsTranscriptEdited: true,
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.text('Edited manually · English'), findsOneWidget);
+      expect(find.text('Edited manually'), findsOneWidget);
+    });
+
+    testWidgets('allows editing transcript inline and invokes onTranscriptChanged', (tester) async {
+      String? changedTranscript;
+      bool? changedEdited;
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Editable Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Original text',
+            initialTranscriptLanguage: 'en',
+            initialIsTranscriptEdited: false,
+            onTranscriptChanged: (newText, isEdited) {
+              changedTranscript = newText;
+              changedEdited = isEdited;
+            },
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Tap Edit transcript
+      await tester.tap(find.text('Edit transcript'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+
+      // Enter new text
+      await tester.enterText(find.byType(TextField), 'Modified text by user');
+      await tester.pump();
+
+      // Tap Save
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(changedTranscript, equals('Modified text by user'));
+      expect(changedEdited, isTrue);
+      expect(find.text('Modified text by user'), findsOneWidget);
+      expect(find.text('Edited manually'), findsOneWidget);
+    });
+
+    testWidgets('overflow menu provides insert into note callback', (tester) async {
+      String? insertedText;
+
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Insertable Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: true,
+            initialTranscript: 'Text to insert into editor',
+            initialTranscriptLanguage: 'en',
+            onInsertTranscript: (text) {
+              insertedText = text;
+            },
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Open overflow menu
+      await tester.tap(find.byIcon(PhosphorIconsRegular.dotsThree));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Insert into note'), findsOneWidget);
+      await tester.tap(find.text('Insert into note'));
+      await tester.pumpAndSettle();
+
+      expect(insertedText, equals('Text to insert into editor'));
+    });
+
+    testWidgets('renders on-device transcribing in-progress state (Mockup 1)', (tester) async {
+      await tester.pumpWidget(
+        buildTestApp(
+          QuietAudioCard(
+            attachmentId: audioEntity.id,
+            title: 'Processing Memo',
+            uriString: 'qp://asset/${audioEntity.id}',
+            initialEntity: audioEntity,
+            initialExpanded: false,
+          ),
+          overrides: [
+            audioTranscriptionJobStateProvider(audioEntity.id).overrideWith(
+              (ref) => Stream.value(
+                const AudioTranscriptionJobState(
+                  status: AudioTranscriptionStatus.transcribing,
+                  progressPercent: 55,
+                  stageLabel: 'Transcribing on device…',
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.text('Transcribing on device…'), findsOneWidget);
+      expect(find.text('Whisper Base · English'), findsOneWidget);
+      expect(find.text('Your audio stays on this device during transcription.'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
     });
   });
 }

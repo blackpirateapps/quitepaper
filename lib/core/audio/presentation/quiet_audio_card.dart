@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -9,19 +10,25 @@ import '../../../app/theme/app_typography.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/database/app_database.dart';
 import '../../../features/tags/domain/phosphor_icons.dart';
+import '../../speech/presentation/speech_download_dialog.dart';
 import '../application/audio_duration_helper.dart';
 import '../application/audio_journal_provider.dart';
+import '../application/audio_transcription_provider.dart';
+import '../domain/audio_transcript_models.dart';
 import 'audio_rename_dialog.dart';
 
 /// Embedded interactive audio presentation card for voice memos and recordings.
 ///
-/// Supports both:
-/// 1. Compact inline mode (Image 0):
+/// Supports:
+/// 1. Compact inline mode:
 ///    Microphone icon + Title + Subtitle ("9:05 AM · 03:18") + Play button.
-/// 2. Expanded rich player card (Image 1):
-///    Waveform icon + Title + Subtitle ("21 Oct 2026 · 4:12 PM") + Overflow menu,
-///    Play/Pause button + Elapsed time ("00:08") + Seekable waveform + Duration ("04:36"),
-///    Lock badge ("Encrypted attachment · Available offline").
+/// 2. Expanded rich player card with Transcript section (Image 0):
+///    Waveform icon + Title + Subtitle ("21 October · 9:05 AM · 03:18") + Overflow menu,
+///    Play/Pause button + Elapsed time ("00:45 / 03:18") + Seekable waveform,
+///    Collapsible transcript container with on-device badge & "Edit transcript" action.
+/// 3. In-flight processing interface (Image 1):
+///    Header with spinner, status stage ("Transcribing on device…"), progress bar,
+///    on-device privacy guarantee badge, and "Cancel" action.
 class QuietAudioCard extends ConsumerStatefulWidget {
   const QuietAudioCard({
     super.key,
@@ -30,6 +37,11 @@ class QuietAudioCard extends ConsumerStatefulWidget {
     required this.uriString,
     this.initialEntity,
     this.initialExpanded = false,
+    this.initialTranscript,
+    this.initialTranscriptLanguage,
+    this.initialIsTranscriptEdited = false,
+    this.onTranscriptChanged,
+    this.onInsertTranscript,
     this.onAttachmentRenamed,
     this.onAttachmentDeleted,
     this.isReadOnly = false,
@@ -40,6 +52,11 @@ class QuietAudioCard extends ConsumerStatefulWidget {
   final String uriString;
   final AttachmentEntity? initialEntity;
   final bool initialExpanded;
+  final String? initialTranscript;
+  final String? initialTranscriptLanguage;
+  final bool initialIsTranscriptEdited;
+  final void Function(String newTranscript, bool isEdited)? onTranscriptChanged;
+  final void Function(String transcriptText)? onInsertTranscript;
   final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
   final bool isReadOnly;
@@ -55,11 +72,28 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   List<double> _waveformBars = const [];
   bool _isLoading = false;
 
+  // Transcript state
+  String? _transcript;
+  String? _transcriptLanguage;
+  bool _isTranscriptEdited = false;
+  bool _isTranscriptExpanded = true;
+  bool _isEditingTranscript = false;
+  late TextEditingController _transcriptEditController;
+
+  AudioTranscriptionJobState? _jobState;
+  StreamSubscription<AudioTranscriptionJobState>? _jobSubscription;
+
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.initialExpanded;
+    _isExpanded = widget.initialExpanded || widget.initialTranscript != null;
     _entity = widget.initialEntity;
+    _transcript = widget.initialTranscript;
+    _transcriptLanguage = widget.initialTranscriptLanguage;
+    _isTranscriptEdited = widget.initialIsTranscriptEdited;
+    _transcriptEditController = TextEditingController(text: _transcript ?? '');
+
+    _subscribeToTranscriptionJobs();
     _loadAttachment();
   }
 
@@ -67,8 +101,43 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   void didUpdateWidget(QuietAudioCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.attachmentId != widget.attachmentId) {
+      _jobSubscription?.cancel();
+      _subscribeToTranscriptionJobs();
       _loadAttachment();
     }
+    if (oldWidget.initialTranscript != widget.initialTranscript &&
+        widget.initialTranscript != null) {
+      _transcript = widget.initialTranscript;
+      _transcriptLanguage = widget.initialTranscriptLanguage;
+      _isTranscriptEdited = widget.initialIsTranscriptEdited;
+      _transcriptEditController.text = _transcript ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _jobSubscription?.cancel();
+    _transcriptEditController.dispose();
+    super.dispose();
+  }
+
+  void _subscribeToTranscriptionJobs() {
+    final transcriptionService = ref.read(audioFileTranscriptionServiceProvider);
+    _jobSubscription = transcriptionService.watchJob(widget.attachmentId).listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _jobState = state;
+        if (state.isCompleted && state.transcriptData != null) {
+          _transcript = state.transcriptData!.text;
+          _transcriptLanguage = state.transcriptData!.language;
+          _isTranscriptEdited = state.transcriptData!.isEdited;
+          _transcriptEditController.text = _transcript ?? '';
+          _isTranscriptExpanded = true;
+          _isExpanded = true;
+          widget.onTranscriptChanged?.call(_transcript!, _isTranscriptEdited);
+        }
+      });
+    });
   }
 
   Future<void> _loadAttachment() async {
@@ -87,7 +156,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
   }
 
   Duration _estimateDuration(AttachmentEntity entity) {
-    // If M4A AAC (128 kbps mono ~ 16,000 bytes/sec)
     final isWav = entity.mimeType.contains('wav') || entity.fileName.endsWith('.wav');
     final bytesPerSec = isWav ? 32000 : 16000;
     if (entity.byteSize > 0) {
@@ -136,7 +204,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
       return;
     }
 
-    // Start playing this clip
     setState(() {
       _isLoading = true;
       _isExpanded = true;
@@ -187,6 +254,133 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _startTranscription({bool isRegeneration = false}) async {
+    setState(() => _isExpanded = true);
+
+    final transcriptionService = ref.read(audioFileTranscriptionServiceProvider);
+    final modelManager = transcriptionService.speechModelManager;
+    final modelStatus = await modelManager.checkStatus();
+
+    if (!modelStatus.isInstalled) {
+      if (!mounted) return;
+      final downloaded = await SpeechDownloadDialog.show(
+        context,
+        modelDescriptor: modelManager.descriptor,
+      );
+      if (downloaded != true) {
+        return;
+      }
+    }
+
+    try {
+      final result = await transcriptionService.transcribeAttachment(
+        attachmentId: widget.attachmentId,
+      );
+
+      if (result != null && mounted) {
+        setState(() {
+          _transcript = result.text;
+          _transcriptLanguage = result.language;
+          _isTranscriptEdited = false;
+          _transcriptEditController.text = _transcript ?? '';
+          _isTranscriptExpanded = true;
+        });
+        widget.onTranscriptChanged?.call(result.text, false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transcription error: $e'),
+            behavior: SnackBarBehavior.floating,
+            persist: false,
+          ),
+        );
+      }
+    }
+  }
+
+  void _cancelTranscription() {
+    ref
+        .read(audioFileTranscriptionServiceProvider)
+        .cancelTranscription(widget.attachmentId);
+  }
+
+  Future<void> _handleRegenerate() async {
+    if (_isTranscriptEdited) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final colors = ctx.appColors;
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
+            title: const Text('Regenerate transcript?'),
+            content: const Text(
+              'This transcript was edited manually. Regenerating will replace your edited text with a newly generated transcript.\n\nYour original voice recording is never modified.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Regenerate', style: TextStyle(color: colors.error)),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true) return;
+    }
+
+    await _startTranscription(isRegeneration: true);
+  }
+
+  void _copyTranscript() {
+    if (_transcript == null || _transcript!.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: _transcript!));
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Transcript copied to clipboard.'),
+        behavior: SnackBarBehavior.floating,
+        persist: false,
+      ),
+    );
+  }
+
+  void _insertTranscriptIntoNote() {
+    if (_transcript == null || _transcript!.isEmpty) return;
+    widget.onInsertTranscript?.call(_transcript!);
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Transcript inserted into note.'),
+        behavior: SnackBarBehavior.floating,
+        persist: false,
+      ),
+    );
+  }
+
+  void _saveEditedTranscript() {
+    final updated = _transcriptEditController.text.trim();
+    if (updated.isNotEmpty && updated != _transcript) {
+      setState(() {
+        _transcript = updated;
+        _isTranscriptEdited = true;
+        _isEditingTranscript = false;
+      });
+      widget.onTranscriptChanged?.call(updated, true);
+    } else {
+      setState(() {
+        _isEditingTranscript = false;
+      });
     }
   }
 
@@ -255,6 +449,32 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     widget.onAttachmentDeleted?.call(widget.attachmentId);
   }
 
+  String _formatLanguageLabel(String? code) {
+    if (code == null || code.isEmpty) return 'English';
+    switch (code.toLowerCase()) {
+      case 'en':
+        return 'English';
+      case 'auto':
+        return 'Auto-detected';
+      case 'es':
+        return 'Spanish';
+      case 'fr':
+        return 'French';
+      case 'de':
+        return 'German';
+      case 'it':
+        return 'Italian';
+      case 'pt':
+        return 'Portuguese';
+      case 'zh':
+        return 'Chinese';
+      case 'ja':
+        return 'Japanese';
+      default:
+        return code.toUpperCase();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -263,7 +483,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     final isPlaying = isThisActive && playbackSnapshot.isPlaying;
     final isPaused = isThisActive && playbackSnapshot.isPaused;
 
-    // Cache actual duration from player when available
     if (isThisActive && playbackSnapshot.duration > Duration.zero) {
       _cachedDuration = playbackSnapshot.duration;
     }
@@ -274,8 +493,20 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
     final position = isThisActive ? playbackSnapshot.position : Duration.zero;
 
-    // If active playback starts, automatically expand to show waveform
-    final shouldShowExpanded = _isExpanded || isPlaying || isPaused;
+    // Check if in-flight transcription is actively busy for this attachment
+    final jobAsync = ref.watch(audioTranscriptionJobStateProvider(widget.attachmentId));
+    final activeJob = jobAsync.valueOrNull ?? _jobState;
+    final isTranscribingBusy = activeJob?.isBusy == true;
+    if (isTranscribingBusy) {
+      return _buildProcessingInterface(
+        colors: colors,
+        effectiveDuration: effectiveDuration,
+        jobState: activeJob,
+      );
+    }
+
+    final shouldShowExpanded =
+        _isExpanded || isPlaying || isPaused || (_transcript != null && _transcript!.isNotEmpty);
 
     if (!shouldShowExpanded) {
       return _buildCompactView(
@@ -295,7 +526,163 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     );
   }
 
-  /// Compact inline row (Image 0).
+  /// In-flight processing interface (matches Image 1).
+  Widget _buildProcessingInterface({
+    required AppColors colors,
+    required Duration effectiveDuration,
+    AudioTranscriptionJobState? jobState,
+  }) {
+    final state = jobState ?? _jobState;
+    const subtitle = 'Whisper Base · English';
+
+    final stageLabel = (state?.stageLabel.isNotEmpty == true)
+        ? state!.stageLabel
+        : 'Transcribing on device…';
+
+    final progressValue = state?.progressPercent != null
+        ? (state!.progressPercent! / 100.0).clamp(0.0, 1.0)
+        : null;
+
+    final progressLabel = state?.progressPercent != null
+        ? '${state!.progressPercent}%'
+        : 'Processing';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: AppRadii.borderMd,
+        border: Border.all(color: colors.divider, width: 0.8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top Row: Waveform icon + Title / Subtitle + Loading spinner
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  PhosphorIconsRegular.waveform,
+                  size: 22,
+                  color: colors.textPrimary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.accent,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Middle status row: "Transcribing on device..." + "Processing"
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  stageLabel,
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  progressLabel,
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Horizontal Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: progressValue,
+                minHeight: 3,
+                backgroundColor: colors.divider.withValues(alpha: 0.4),
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Bottom row: Shield badge + Cancel button
+            Row(
+              children: [
+                Icon(
+                  PhosphorIconsRegular.shieldCheck,
+                  size: 15,
+                  color: colors.textTertiary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Your audio stays on this device during transcription.',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textTertiary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: _cancelTranscription,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      'Cancel',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Compact inline row.
   Widget _buildCompactView({
     required AppColors colors,
     required Duration effectiveDuration,
@@ -327,14 +714,12 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                // Microphone icon in accent color
                 Icon(
                   PhosphorIconsFill.microphone,
                   size: 20,
                   color: colors.accent,
                 ),
                 const SizedBox(width: 14),
-                // Title & Subtitle column
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,7 +744,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     ],
                   ),
                 ),
-                // Circular Play Button
                 if (_isLoading)
                   SizedBox(
                     width: 32,
@@ -392,7 +776,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     );
   }
 
-  /// Full / expanded audio player card (Image 1).
+  /// Full / expanded audio player card with Transcript section (matches Image 0).
   Widget _buildExpandedCard({
     required AppColors colors,
     required Duration position,
@@ -401,16 +785,21 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
     required bool isPaused,
     required bool isThisActive,
   }) {
-    final dateTimeStr = _entity != null
+    final dateStr = _entity != null
         ? AudioDurationHelper.formatDateTime(_entity!.createdAt)
         : '';
+    final durationStr = AudioDurationHelper.formatDuration(effectiveDuration);
+    final headerSubtitle = dateStr.isNotEmpty
+        ? '$dateStr · $durationStr'
+        : durationStr;
 
     final positionStr = AudioDurationHelper.formatDuration(position);
-    final durationStr = AudioDurationHelper.formatDuration(effectiveDuration);
 
     final progressFraction = effectiveDuration > Duration.zero
         ? (position.inMilliseconds / effectiveDuration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
+
+    final hasTranscript = _transcript != null && _transcript!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -425,7 +814,7 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Top Row: Waveform icon + Title / Subtitle + ⋯ Menu
+            // 1. Top Row: Waveform icon + Title / Subtitle + ⋯ Menu
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -449,19 +838,16 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (dateTimeStr.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          dateTimeStr,
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textSecondary,
-                          ),
+                      const SizedBox(height: 2),
+                      Text(
+                        headerSubtitle,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textSecondary,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-                // Overflow menu
                 PopupMenuButton<String>(
                   icon: Icon(
                     PhosphorIconsRegular.dotsThree,
@@ -476,6 +862,24 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                   ),
                   onSelected: (value) {
                     switch (value) {
+                      case 'transcribe':
+                        _startTranscription();
+                        break;
+                      case 'edit_transcript':
+                        setState(() {
+                          _isTranscriptExpanded = true;
+                          _isEditingTranscript = true;
+                        });
+                        break;
+                      case 'copy_transcript':
+                        _copyTranscript();
+                        break;
+                      case 'insert_transcript':
+                        _insertTranscriptIntoNote();
+                        break;
+                      case 'regenerate':
+                        _handleRegenerate();
+                        break;
                       case 'rename':
                         _handleRename();
                         break;
@@ -491,6 +895,32 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
                     }
                   },
                   itemBuilder: (context) => [
+                    if (!hasTranscript && !widget.isReadOnly)
+                      const PopupMenuItem(
+                        value: 'transcribe',
+                        child: Text('Transcribe audio'),
+                      ),
+                    if (hasTranscript) ...[
+                      const PopupMenuItem(
+                        value: 'copy_transcript',
+                        child: Text('Copy transcript'),
+                      ),
+                      if (!widget.isReadOnly) ...[
+                        const PopupMenuItem(
+                          value: 'edit_transcript',
+                          child: Text('Edit transcript'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'insert_transcript',
+                          child: Text('Insert into note'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'regenerate',
+                          child: Text('Regenerate transcript…'),
+                        ),
+                      ],
+                      const PopupMenuDivider(),
+                    ],
                     if (!widget.isReadOnly)
                       const PopupMenuItem(
                         value: 'rename',
@@ -521,11 +951,10 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
             const SizedBox(height: 16),
 
-            // Middle Row: Play/Pause button + Position + Waveform + Duration
+            // 2. Middle Row: Play/Pause button + Position + Waveform + Duration
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Play / Pause outline button
                 if (_isLoading)
                   SizedBox(
                     width: 36,
@@ -563,7 +992,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
                 const SizedBox(width: 14),
 
-                // Position timestamp
                 Text(
                   positionStr,
                   style: AppTypography.caption.copyWith(
@@ -574,7 +1002,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
                 const SizedBox(width: 12),
 
-                // Center seekable waveform bars
                 Expanded(
                   child: _WaveformSeeker(
                     bars: _waveformBars,
@@ -594,7 +1021,6 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
 
                 const SizedBox(width: 12),
 
-                // Duration timestamp
                 Text(
                   durationStr,
                   style: AppTypography.caption.copyWith(
@@ -605,29 +1031,234 @@ class _QuietAudioCardState extends ConsumerState<QuietAudioCard> {
               ],
             ),
 
-            const SizedBox(height: 16),
-
-            // Bottom Row: Lock icon + "Encrypted attachment · Available offline"
-            Row(
-              children: [
-                Icon(
-                  PhosphorIconsRegular.lock,
-                  size: 14,
-                  color: colors.textTertiary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Encrypted attachment · Available offline',
-                  style: AppTypography.caption.copyWith(
-                    color: colors.textTertiary,
-                    fontSize: 12,
+            // 3. Transcript Section (Image 0)
+            if (hasTranscript) ...[
+              const SizedBox(height: 18),
+              _buildTranscriptSection(colors: colors),
+            ] else ...[
+              const SizedBox(height: 16),
+              // Bottom Row fallback: Lock icon + "Encrypted attachment · Available offline"
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        PhosphorIconsRegular.lock,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Encrypted attachment · Available offline',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
+                  if (!widget.isReadOnly)
+                    InkWell(
+                      onTap: _startTranscription,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          'Transcribe audio',
+                          style: AppTypography.caption.copyWith(
+                            color: colors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// Transcript section (collapsible container with header, body, and actions matching Image 0).
+  Widget _buildTranscriptSection({required AppColors colors}) {
+    final langLabel = _formatLanguageLabel(_transcriptLanguage);
+    final statusSubtitle = _isTranscriptEdited
+        ? 'Edited manually · $langLabel'
+        : 'Available · $langLabel';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Transcript Header Row with chevron
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isTranscriptExpanded = !_isTranscriptExpanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  PhosphorIconsRegular.fileText,
+                  size: 18,
+                  color: colors.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Transcript',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        statusSubtitle,
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _isTranscriptExpanded
+                      ? PhosphorIconsRegular.caretUp
+                      : PhosphorIconsRegular.caretDown,
+                  size: 16,
+                  color: colors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Expanded transcript body container
+        if (_isTranscriptExpanded) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: colors.divider.withValues(alpha: 0.5),
+                width: 0.8,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isEditingTranscript) ...[
+                  // Inline Text Editing Interface
+                  TextField(
+                    controller: _transcriptEditController,
+                    maxLines: null,
+                    autofocus: true,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                      height: 1.5,
+                    ),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: 'Edit transcript…',
+                      hintStyle: TextStyle(color: colors.textTertiary),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _transcriptEditController.text = _transcript ?? '';
+                            _isEditingTranscript = false;
+                          });
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _saveEditedTranscript,
+                        child: Text(
+                          'Save',
+                          style: TextStyle(
+                            color: colors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // Read / Display Mode
+                  SelectableText(
+                    _transcript ?? '',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Footer Row: "Generated on device" / "Edited manually" + "Edit transcript"
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _isTranscriptEdited ? 'Edited manually' : 'Generated on device',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (!widget.isReadOnly)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _transcriptEditController.text = _transcript ?? '';
+                              _isEditingTranscript = true;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              'Edit transcript',
+                              style: AppTypography.caption.copyWith(
+                                color: colors.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

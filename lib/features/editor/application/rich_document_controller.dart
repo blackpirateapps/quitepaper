@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../domain/document_selection.dart';
 import '../domain/markdown_styles.dart';
 import '../domain/markdown_table.dart';
@@ -12,6 +13,8 @@ import 'frontmatter_editor_helper.dart';
 import 'rich_document_mutations.dart';
 import 'rich_document_parser.dart';
 import 'rich_document_serializer.dart';
+
+const _uuid = Uuid();
 
 /// Controller coordinating the authoritative [RichDocument] editing state in Visual mode.
 ///
@@ -470,6 +473,33 @@ class RichDocumentController extends ChangeNotifier {
       newBlocks[blockIndex] = updated;
       _commitMutation(_document.copyWith(blocks: newBlocks));
     }
+  }
+
+  /// Updates the transcript text and edited state of the attachment block at [blockIndex].
+  void updateAttachmentBlockTranscript(int blockIndex, String newTranscript, bool isEdited) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
+    final block = _document.blocks[blockIndex];
+    if (block is AttachmentBlock) {
+      final updated = block.copyWith(
+        transcript: newTranscript,
+        isTranscriptEdited: isEdited,
+      );
+      final newBlocks = List<RichBlock>.from(_document.blocks);
+      newBlocks[blockIndex] = updated;
+      _commitMutation(_document.copyWith(blocks: newBlocks));
+    }
+  }
+
+  /// Inserts a new paragraph block containing [text] immediately after [blockIndex].
+  void insertParagraphAfterBlock(int blockIndex, String text) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
+    final newParagraph = ParagraphBlock(
+      id: _uuid.v4(),
+      spans: [RichInlineSpan(text: text)],
+    );
+    final newBlocks = List<RichBlock>.from(_document.blocks);
+    newBlocks.insert(blockIndex + 1, newParagraph);
+    _commitMutation(_document.copyWith(blocks: newBlocks));
   }
 
   /// Replaces the table at [blockIndex] with [newTable] in place (inline table

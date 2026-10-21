@@ -25,6 +25,11 @@ class QuietAttachmentCard extends ConsumerStatefulWidget {
     required this.title,
     required this.uriString,
     this.initialEntity,
+    this.initialTranscript,
+    this.initialTranscriptLanguage,
+    this.initialIsTranscriptEdited = false,
+    this.onTranscriptChanged,
+    this.onInsertTranscript,
     this.onAttachmentRenamed,
     this.onAttachmentDeleted,
   });
@@ -33,6 +38,11 @@ class QuietAttachmentCard extends ConsumerStatefulWidget {
   final String title;
   final String uriString;
   final AttachmentEntity? initialEntity;
+  final String? initialTranscript;
+  final String? initialTranscriptLanguage;
+  final bool initialIsTranscriptEdited;
+  final void Function(String newTranscript, bool isEdited)? onTranscriptChanged;
+  final void Function(String transcriptText)? onInsertTranscript;
   final void Function(String attachmentId, String newTitle)? onAttachmentRenamed;
   final void Function(String attachmentId)? onAttachmentDeleted;
 
@@ -135,6 +145,11 @@ class _QuietAttachmentCardState extends ConsumerState<QuietAttachmentCard> {
         title: widget.title.isNotEmpty ? widget.title : displayTitle,
         uriString: widget.uriString,
         initialEntity: _entity,
+        initialTranscript: widget.initialTranscript,
+        initialTranscriptLanguage: widget.initialTranscriptLanguage,
+        initialIsTranscriptEdited: widget.initialIsTranscriptEdited,
+        onTranscriptChanged: widget.onTranscriptChanged,
+        onInsertTranscript: widget.onInsertTranscript,
         onAttachmentRenamed: widget.onAttachmentRenamed,
         onAttachmentDeleted: widget.onAttachmentDeleted,
       );

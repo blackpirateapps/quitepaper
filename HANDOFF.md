@@ -10246,3 +10246,49 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
     - Full `EditorScreen` integration test verifying body typing glides to 45%.
 - **Regression Tests**:
   - `test/editor/dual_mode_editor_screen_test.dart`, `test/editor/quiet_super_editor_test.dart`, and `test/editor/markdown_editor_widget_test.dart` (63 tests passing with 0 regressions).
+
+---
+
+## 37. On-Device Audio Journal Transcription (prompts/transcriptionforaudio.md)
+
+### 1. Overview & Experience Design
+- **Local On-Device Inference**: Offline transcription powered by Whisper GGML models managed by `SpeechModelManager`. Voice memos and spoken thoughts never leave the user's local device.
+- **Audio Attachment Source of Truth**: The encrypted audio attachment file (`.enc`) is never mutated, re-encoded, or altered when transcripts are generated, regenerated, edited, or deleted.
+- **Visual Design Parity**:
+  - **In-Progress Transcription State (`QuietAudioCard`, Image 1)**: Waveform icon, memo title, subtitle (`Whisper Base · English`), loading spinner, stage status (`Transcribing on device…`), progress percentage (`55%`), linear progress indicator, privacy assurance badge (`Your audio stays on this device during transcription.` with shield icon), and `Cancel` button.
+  - **Collapsible Transcript Card (`QuietAudioCard`, Image 0)**: Document text icon (`PhosphorIconsRegular.fileText`), "Transcript" title, subtitle (`Available · English` or `Edited manually · English`), chevron expand/collapse toggle (`caretDown`/`caretUp`), rounded transcript container (`SelectableText`), origin badge (`Generated on device` or `Edited manually`), inline text editing (`Edit transcript`, `Save`, `Cancel`), and overflow menu options (*Copy transcript*, *Edit transcript*, *Insert into note*, *Regenerate transcript…* with confirmation dialog).
+
+### 2. Architecture & Service Boundaries
+
+#### A. Audio File Transcription Infrastructure ([`lib/core/audio/infrastructure/audio_file_transcription_service.dart`](file:///home/dog/git/quitepaper/lib/core/audio/infrastructure/audio_file_transcription_service.dart))
+1. **Decrypted Lifecycle**: Decrypts audio bytes into an ephemeral working file only during inference; securely deletes both the temporary decrypted file and 16kHz mono WAV conversion immediately upon completion, error, or cancellation.
+2. **Deduplication**: Concurrent transcription requests for the same attachment ID are deduplicated against in-flight jobs.
+3. **Cancellation**: Safe cancellation aborts execution and discards partial outputs without corrupting note content or attachment storage.
+
+#### B. Canonical Markdown Representation ([`lib/core/audio/application/audio_transcript_markdown_helper.dart`](file:///home/dog/git/quitepaper/lib/core/audio/application/audio_transcript_markdown_helper.dart))
+1. **Canonical Link Format**: `[Title](qp://asset/<UUID>?transcript=1&lang=en&edited=0)` followed by companion blockquote lines (`> Spoken text line 1\n> Spoken text line 2`).
+2. **Manual Edits Marked**: `edited=1` marks user-edited transcripts and preserves edits during reloads.
+3. **Clean Asset URI**: `qp://asset/<UUID>` is maintained as the canonical reference without leaking query parameters into internal node URIs.
+4. **Standalone Quote Preservation**: Standalone user blockquotes are preserved; only immediately consecutive companion blockquote lines following an audio link with `transcript=1` are absorbed.
+
+#### C. Multi-Mode Editor Support
+1. **Super Editor (`QuietAttachmentNode`)**: Absorbs companion blockquotes on deserialization; serializes back to canonical link with parameters and companion blockquotes; `insertParagraphAfterBlock` affordance for inserting transcript text directly into the note.
+2. **Visual Mode (`AttachmentBlock`)**: `RichDocumentParser` and `RichDocumentSerializer` round-trip audio attachments with transcripts and edit markers across mode transitions.
+3. **Preview & Reading Modes (`QuietMarkdownPreview`)**: `stripTranscriptBlockquotesForPreview` prevents duplicate rendering so companion quotes appear only inside the audio card.
+
+#### D. FTS5 Search & Privacy
+1. **Full-Text Indexing**: Companion blockquote text naturally indexes into SQLite FTS5 for full-text search.
+2. **Metadata Sanitization**: `MarkdownOffsetMapper` strips `>` and internal `qp://asset/...` links/parameters to prevent metadata leaks in snippets and search results.
+3. **Public Share Safeguard ([`lib/features/share/application/share_service.dart`](file:///home/dog/git/quitepaper/lib/features/share/application/share_service.dart))**: `ShareService` automatically strips audio links and their companion transcript blockquotes from public shares unless explicitly opted in.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- **Automated Audio Test Suites** (54 tests passing across `test/audio/`):
+  - `test/audio/audio_file_transcription_service_test.dart` (4 tests): Transcribes WAV attachment, fails safely if speech model missing, deduplicates concurrent requests, cancellation safeguards.
+  - `test/audio/super_editor_audio_test.dart` (10 tests): Standalone link promotion, link serialization round-trips, consecutive blocks, insertAttachment at cursor, rename without URI mutation, transcript persistence, manual edits (`edited=1`), consecutive transcript blocks, Visual mode round-tripping, preview blockquote stripping.
+  - `test/audio/quiet_audio_card_test.dart` (9 tests): Compact view, tap-to-expand, rich player controls, dark theme, transcript display (Image 0), edited manually badge, inline transcript editing, insert into note, in-progress processing UI (Image 1).
+  - `test/audio/audio_sharing_privacy_test.dart` (5 tests): Public share audio exclusion, companion transcript blockquote exclusion, image upload with audio exclusion, share warning dialogs.
+  - `test/audio/audio_duration_helper_test.dart` (4 tests), `test/audio/audio_journal_recording_service_test.dart` (11 tests), `test/audio/audio_playback_service_test.dart` (7 tests), `test/audio/audio_attachment_crypto_test.dart` (4 tests).
+- **Search Verification**:
+  - `test/search/search_index_projection_test.dart`: Spoken audio transcript text indexed while stripping internal URI and query parameters.
+
