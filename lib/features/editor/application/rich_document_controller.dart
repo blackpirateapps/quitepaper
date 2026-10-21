@@ -459,6 +459,19 @@ class RichDocumentController extends ChangeNotifier {
     _commitMutation(RichDocumentMutations.convertToParagraph(_document, blockIndex));
   }
 
+  /// Updates the label/title of the attachment block at [blockIndex] without
+  /// mutating the underlying URI or attachment ID.
+  void updateAttachmentBlockName(int blockIndex, String newName) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
+    final block = _document.blocks[blockIndex];
+    if (block is AttachmentBlock) {
+      final updated = block.copyWith(name: newName);
+      final newBlocks = List<RichBlock>.from(_document.blocks);
+      newBlocks[blockIndex] = updated;
+      _commitMutation(_document.copyWith(blocks: newBlocks));
+    }
+  }
+
   /// Replaces the table at [blockIndex] with [newTable] in place (inline table
   /// editing). The block id is preserved so the surface does not rebuild it.
   void updateTable(int blockIndex, MarkdownTable newTable) {

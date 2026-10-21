@@ -91,6 +91,11 @@ import '../../export/domain/export_models.dart';
 import '../../export/presentation/export_note_sheet.dart';
 import '../../share/presentation/share_note_sheet.dart';
 import '../../share/presentation/share_warning_dialog.dart';
+import '../../../core/attachments/attachment_type_resolver.dart';
+import '../../../core/audio/application/audio_duration_helper.dart';
+import '../../../core/audio/application/audio_journal_provider.dart';
+import '../../../core/audio/presentation/audio_recording_bar.dart';
+import '../../../core/uri/quiet_paper_uri.dart';
 import '../../../core/speech/application/speech_provider.dart';
 import '../../../core/speech/application/speech_text_insertion_helper.dart';
 import '../../../core/speech/presentation/speech_download_dialog.dart';
@@ -1536,6 +1541,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void dispose() {
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
+      ref.read(audioPlaybackServiceProvider).stop();
+      final audioRecService = ref.read(audioJournalRecordingServiceProvider);
+      if (audioRecService.session.isActive) {
+        audioRecService.cancelRecording();
+      }
     } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
     _searchQueryController.removeListener(_onSearchQueryChanged);
@@ -2118,6 +2128,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onPaste: _handlePaste,
                                   ),
 
+                                  // Audio recordings summary footer if note has recordings
+                                  _AudioSummaryFooter(
+                                    noteId: widget.note.id,
+                                    colors: colors,
+                                  ),
+
                                   // Generous bottom scroll area for comfortable typing above keyboard
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
@@ -2165,6 +2181,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Widget _buildToolbarOrSpeechBar({required bool isTopDocked}) {
     final editorState = ref.watch(editorProviderFamily(_editorParams));
     final speechSession = ref.watch(speechSessionProvider);
+    final audioSession = ref.watch(audioRecordingSessionProvider);
     final globalEditingStyle = ref.watch(editorEditingStyleProvider);
     final effectiveEditingStyle = editorState.effectiveEditingStyle(globalEditingStyle);
     final isWysiwyg = effectiveEditingStyle == EditorEditingStyle.wysiwyg;
@@ -2173,6 +2190,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (editorState.isPreviewMode ||
         editorState.isReadOnly) {
       return const SizedBox.shrink();
+    }
+
+    if (!audioSession.isIdle) {
+      return AudioRecordingBar(
+        session: audioSession,
+        onPause: _handlePauseAudioRecording,
+        onResume: _handleResumeAudioRecording,
+        onFinish: _handleFinishAudioRecording,
+        onCancel: _handleCancelAudioRecording,
+        onErrorDismiss: _handleDismissAudioError,
+      );
     }
 
     if (!speechSession.isIdle) {
@@ -2198,6 +2226,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       onRedo: isSuperEditor ? _superEditorController.redo : _redo,
       onNoteLinkPressed: _handleNoteLinkPrompt,
       onDictatePressed: _handleStartDictation,
+      onRecordAudioPressed: _handleStartAudioRecording,
       onApplyAtomicEdit: (val) {
         if ((_activeTargetController ?? _contentController) != _contentController) {
           _undoRedoManager.pushAtomicEdit(_contentController.value);
@@ -2463,6 +2492,127 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void _handleDismissSpeechError() {
     final speechService = ref.read(speechRecognitionServiceProvider);
     speechService.clearError();
+  }
+
+  Future<void> _handleStartAudioRecording() async {
+    final editorState = ref.read(editorProviderFamily(_editorParams));
+    if (editorState.isReadOnly || !editorState.isUnlocked) {
+      return;
+    }
+
+    final speechSession = ref.read(speechSessionProvider);
+    if (!speechSession.isIdle) {
+      await _handleCancelDictation();
+    }
+
+    // Capture cursor / logical anchor before keyboard is dismissed
+    final capturedNodeId = _isSuperEditor
+        ? _superEditorController.selectedNodeId
+        : null;
+
+    final capturedOffset = (_activeTargetController ?? _contentController).selection.baseOffset;
+
+    // Dismiss software keyboard so recording panel is visible and undisturbed
+    _contentFocusNode.unfocus();
+    _activeTargetFocusNode?.unfocus();
+
+    try {
+      final audioService = ref.read(audioJournalRecordingServiceProvider);
+      await audioService.startRecording(
+        noteId: widget.note.id,
+        capturedNodeId: capturedNodeId,
+        capturedCaretOffset: capturedOffset,
+        onMaxDurationReached: _handleFinishAudioRecording,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not start recording: $e'),
+            behavior: SnackBarBehavior.floating,
+            persist: false,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handlePauseAudioRecording() async {
+    final audioService = ref.read(audioJournalRecordingServiceProvider);
+    await audioService.pauseRecording();
+  }
+
+  Future<void> _handleResumeAudioRecording() async {
+    final audioService = ref.read(audioJournalRecordingServiceProvider);
+    await audioService.resumeRecording();
+  }
+
+  Future<void> _handleFinishAudioRecording() async {
+    final audioService = ref.read(audioJournalRecordingServiceProvider);
+    final session = audioService.session;
+    final capturedNodeId = session.capturedNodeId;
+    final startTime = session.recordingStartTime ?? DateTime.now();
+
+    final file = await audioService.stopRecording();
+    if (file == null || !await file.exists()) {
+      return;
+    }
+
+    try {
+      final attachmentService = ref.read(attachmentServiceProvider);
+      final defaultTitle = AudioDurationHelper.generateDefaultTitle(startTime);
+
+      final result = await attachmentService.importAudioRecording(
+        file: file,
+        userTitle: defaultTitle,
+        noteId: widget.note.id,
+      );
+
+      // Clean up temporary recording file
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (_isSuperEditor) {
+        _superEditorController.insertAttachment(
+          uri: QuietPaperUri.asset(result.attachment.id).toUriString(),
+          displayText: defaultTitle,
+          targetNodeId: capturedNodeId,
+        );
+      } else {
+        _insertSnippetAtCursor('\n\n${result.markdownSnippet}\n\n');
+      }
+
+      audioService.reset();
+      _onContentChanged();
+    } catch (e) {
+      debugPrint('[AudioJournal] Ingestion error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save audio recording: $e'),
+            behavior: SnackBarBehavior.floating,
+            persist: false,
+          ),
+        );
+      }
+      audioService.reset();
+    }
+  }
+
+  Future<void> _handleCancelAudioRecording() async {
+    final audioService = ref.read(audioJournalRecordingServiceProvider);
+    await audioService.cancelRecording();
+    audioService.reset();
+  }
+
+  void _handleDismissAudioError() {
+    final audioService = ref.read(audioJournalRecordingServiceProvider);
+    audioService.reset();
   }
 
   Future<void> _handleInsertTable() async {
@@ -3470,6 +3620,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 _handleAttachFile();
               },
             ),
+            ListTile(
+              leading: Icon(
+                PhosphorIconsRegular.waveform,
+                color: colors.textSecondary,
+              ),
+              title: Text(
+                'Record voice memo',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _handleStartAudioRecording();
+              },
+            ),
           ],
         );
 
@@ -3575,7 +3741,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ShareNoteSheet.show(context, note: currentNoteSnapshot);
                   return;
                 }
-                final accepted = await ShareWarningDialog.show(context);
+                final atts = await ref.read(databaseProvider).getAttachmentsForNote(note.id);
+                if (!mounted) return;
+                final hasAudio = atts.any((a) => !a.isDeleted && AttachmentTypeResolver.isAudio(a.mimeType, a.fileName));
+                final accepted = await ShareWarningDialog.show(context, hasAudio: hasAudio);
                 if (!accepted || !mounted) return;
                 ShareNoteSheet.show(context, note: currentNoteSnapshot);
               },
@@ -4567,6 +4736,81 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
         );
       },
+    );
+  }
+}
+
+class _AudioSummaryFooter extends ConsumerStatefulWidget {
+  const _AudioSummaryFooter({required this.noteId, required this.colors});
+
+  final String noteId;
+  final AppColors colors;
+
+  @override
+  ConsumerState<_AudioSummaryFooter> createState() => _AudioSummaryFooterState();
+}
+
+class _AudioSummaryFooterState extends ConsumerState<_AudioSummaryFooter> {
+  List<AttachmentEntity> _audioAttachments = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_AudioSummaryFooter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.noteId != widget.noteId) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final db = ref.read(databaseProvider);
+      final atts = await db.getAttachmentsForNote(widget.noteId);
+      if (!mounted) return;
+      final audioList = atts
+          .where((a) =>
+              !a.isDeleted &&
+              AttachmentTypeResolver.isAudio(a.mimeType, a.fileName))
+          .toList();
+      setState(() {
+        _audioAttachments = audioList;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_audioAttachments.isEmpty) return const SizedBox.shrink();
+
+    final count = _audioAttachments.length;
+    int totalSeconds = 0;
+    for (final att in _audioAttachments) {
+      final isWav = att.mimeType.contains('wav') || att.fileName.endsWith('.wav');
+      final bytesPerSec = isWav ? 32000 : 16000;
+      if (att.byteSize > 0) {
+        totalSeconds += (att.byteSize / bytesPerSec).round();
+      }
+    }
+
+    final durStr = AudioDurationHelper.formatDurationHuman(Duration(seconds: totalSeconds));
+    final countStr = '$count ${count == 1 ? "recording" : "recordings"}';
+    final summaryText = '$countStr · $durStr total';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18.0, bottom: 8.0),
+      child: Text(
+        summaryText,
+        style: AppTypography.caption.copyWith(
+          color: widget.colors.textTertiary,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 }

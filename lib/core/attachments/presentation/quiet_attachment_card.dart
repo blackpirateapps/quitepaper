@@ -10,6 +10,7 @@ import '../attachment_open_service.dart';
 import '../attachment_provider.dart';
 import '../attachment_type_resolver.dart';
 import '../attachment_capability_resolver.dart';
+import '../../audio/presentation/quiet_audio_card.dart';
 import 'attachment_details_sheet.dart';
 import 'attachment_viewer_screen.dart';
 
@@ -127,6 +128,18 @@ class _QuietAttachmentCardState extends ConsumerState<QuietAttachmentCard> {
     final rawName = entity?.fileName ?? widget.title;
     final displayTitle = rawName.isNotEmpty ? rawName : 'Attachment';
     final mimeType = entity?.mimeType ?? AttachmentTypeResolver.inferMimeType(displayTitle);
+
+    if (AttachmentTypeResolver.isAudio(mimeType, displayTitle)) {
+      return QuietAudioCard(
+        attachmentId: widget.attachmentId,
+        title: widget.title.isNotEmpty ? widget.title : displayTitle,
+        uriString: widget.uriString,
+        initialEntity: _entity,
+        onAttachmentRenamed: widget.onAttachmentRenamed,
+        onAttachmentDeleted: widget.onAttachmentDeleted,
+      );
+    }
+
     final typeLabel = AttachmentTypeResolver.resolveDisplayName(mimeType: mimeType, fileName: displayTitle);
     final byteSize = entity?.byteSize ?? 0;
     final sizeLabel = _formatBytes(byteSize);

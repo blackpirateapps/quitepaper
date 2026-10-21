@@ -28,6 +28,7 @@ class FormattingHubSheet extends StatelessWidget {
     this.hasScan = false,
     this.hasPdf = false,
     this.hasFile = false,
+    this.hasAudio = false,
   });
 
   final void Function(FormattingOption option) onSelectFormat;
@@ -47,6 +48,7 @@ class FormattingHubSheet extends StatelessWidget {
   final bool hasScan;
   final bool hasPdf;
   final bool hasFile;
+  final bool hasAudio;
 
   static Future<void> show(
     BuildContext context, {
@@ -67,6 +69,7 @@ class FormattingHubSheet extends StatelessWidget {
     bool hasScan = false,
     bool hasPdf = false,
     bool hasFile = false,
+    bool hasAudio = false,
     GlobalKey? anchorKey,
   }) {
     return QuietAdaptiveModal.show<void>(
@@ -92,6 +95,7 @@ class FormattingHubSheet extends StatelessWidget {
         hasScan: hasScan,
         hasPdf: hasPdf,
         hasFile: hasFile,
+        hasAudio: hasAudio,
       ),
     );
   }
@@ -371,6 +375,13 @@ class FormattingHubSheet extends StatelessWidget {
                       title: 'Attach File',
                       syntax: 'File picker',
                     ),
+                  if (hasAudio)
+                    _FormattingTileData(
+                      option: FormattingOption.audio,
+                      icon: PhosphorIconsRegular.waveform,
+                      title: 'Voice Memo',
+                      syntax: 'Record audio',
+                    ),
                 ], colors),
                 const SizedBox(height: AppSpacing.xl),
               ],
@@ -449,6 +460,7 @@ enum FormattingOption {
   scan,
   pdf,
   file,
+  audio,
 }
 
 class _FormattingTileData {

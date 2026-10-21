@@ -11,12 +11,14 @@ import '../../../core/widgets/quiet_button.dart';
 /// explicitly accept that its content and attachments are uploaded UNENCRYPTED
 /// to the app owner's server. Returns `true` if the user accepts.
 class ShareWarningDialog extends StatelessWidget {
-  const ShareWarningDialog({super.key});
+  const ShareWarningDialog({super.key, this.hasAudio = false});
 
-  static Future<bool> show(BuildContext context) async {
+  final bool hasAudio;
+
+  static Future<bool> show(BuildContext context, {bool hasAudio = false}) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => const ShareWarningDialog(),
+      builder: (ctx) => ShareWarningDialog(hasAudio: hasAudio),
     );
     return result ?? false;
   }
@@ -73,6 +75,32 @@ class ShareWarningDialog extends StatelessWidget {
               height: 1.45,
             ),
           ),
+          if (hasAudio) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: colors.background,
+                borderRadius: AppRadii.borderSm,
+                border: Border.all(color: colors.divider),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.mic_off_rounded, size: 16, color: colors.accent),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Voice recordings will be excluded from the public link to protect your privacy.',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
       actions: [

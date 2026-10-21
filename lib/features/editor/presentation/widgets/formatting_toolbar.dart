@@ -35,6 +35,7 @@ class FormattingToolbar extends StatefulWidget {
     this.onScanPressed,
     this.onPdfPressed,
     this.onFilePressed,
+    this.onRecordAudioPressed,
     this.onNoteLinkPressed,
     this.onDictatePressed,
     this.focusNode,
@@ -59,6 +60,7 @@ class FormattingToolbar extends StatefulWidget {
   final VoidCallback? onScanPressed;
   final VoidCallback? onPdfPressed;
   final VoidCallback? onFilePressed;
+  final VoidCallback? onRecordAudioPressed;
   final VoidCallback? onNoteLinkPressed;
   final VoidCallback? onDictatePressed;
   final FocusNode? focusNode;
@@ -439,6 +441,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       hasScan: widget.onScanPressed != null,
       hasPdf: widget.onPdfPressed != null,
       hasFile: widget.onFilePressed != null,
+      hasAudio: widget.onRecordAudioPressed != null,
       onSelectFormat: (option) => _handleFormatOption(context, option),
     );
   }
@@ -594,6 +597,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.file:
         widget.onFilePressed?.call();
         break;
+      case FormattingOption.audio:
+        widget.onRecordAudioPressed?.call();
+        break;
     }
   }
 
@@ -672,7 +678,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
           if (widget.onImagePressed != null ||
               widget.onScanPressed != null ||
               widget.onPdfPressed != null ||
-              widget.onFilePressed != null) ...[
+              widget.onFilePressed != null ||
+              widget.onRecordAudioPressed != null) ...[
             const PopupMenuDivider(height: 1),
             if (widget.onImagePressed != null)
               _buildInsertMenuItem(
@@ -701,6 +708,13 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                 value: 'file',
                 icon: PhosphorIconsRegular.paperclip,
                 label: 'Attach File',
+              ),
+            if (widget.onRecordAudioPressed != null)
+              _buildInsertMenuItem(
+                context,
+                value: 'audio',
+                icon: PhosphorIconsRegular.waveform,
+                label: 'Record Voice Memo',
               ),
           ],
         ],
@@ -796,6 +810,12 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                         title: const Text('Attach File'),
                         onTap: () => Navigator.of(ctx).pop('file'),
                       ),
+                    if (widget.onRecordAudioPressed != null)
+                      ListTile(
+                        leading: Icon(PhosphorIconsRegular.waveform, color: colors.textPrimary),
+                        title: const Text('Record Voice Memo'),
+                        onTap: () => Navigator.of(ctx).pop('audio'),
+                      ),
                     const SizedBox(height: AppSpacing.sm),
                   ],
                 ),
@@ -888,6 +908,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         break;
       case 'file':
         widget.onFilePressed?.call();
+        break;
+      case 'audio':
+        widget.onRecordAudioPressed?.call();
         break;
     }
   }
@@ -1285,7 +1308,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                 if (widget.onImagePressed != null ||
                     widget.onScanPressed != null ||
                     widget.onPdfPressed != null ||
-                    widget.onFilePressed != null) ...[
+                    widget.onFilePressed != null ||
+                    widget.onRecordAudioPressed != null) ...[
                   _ToolbarPillGroup(
                     children: [
                       if (widget.onImagePressed != null)
@@ -1311,6 +1335,12 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                           icon: PhosphorIconsRegular.paperclip,
                           tooltip: 'Attach File',
                           onPressed: widget.onFilePressed!,
+                        ),
+                      if (widget.onRecordAudioPressed != null)
+                        _ToolbarButton(
+                          icon: PhosphorIconsRegular.waveform,
+                          tooltip: 'Record Voice Memo',
+                          onPressed: widget.onRecordAudioPressed!,
                         ),
                     ],
                   ),

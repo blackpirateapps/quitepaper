@@ -296,6 +296,39 @@ class AttachmentService implements AssetResolver {
     return (attachment: entity!, markdownSnippet: markdownSnippet);
   }
 
+  /// Ingests a finalized audio journal recording file into the encrypted notebook.
+  ///
+  /// Uses a technical neutral filename to prevent leaking the user's title in plaintext cloud metadata,
+  /// encrypts the payload with client-side authenticated XChaCha20-Poly1305, and returns the entity
+  /// and canonical markdown snippet with the user-facing title.
+  Future<({AttachmentEntity attachment, String markdownSnippet})> importAudioRecording({
+    required File file,
+    required String userTitle,
+    String? noteId,
+  }) async {
+    final bytes = await file.readAsBytes();
+    final isWav = file.path.toLowerCase().endsWith('.wav');
+    final ext = isWav ? 'wav' : 'm4a';
+    final mimeType = isWav ? 'audio/wav' : 'audio/mp4';
+
+    // Technical neutral filename to keep user's title private
+    final technicalName = 'recording_${_uuid.v4().substring(0, 8)}.$ext';
+
+    final result = await importGenericFileFromBytes(
+      bytes,
+      fileName: technicalName,
+      mimeType: mimeType,
+      noteId: noteId,
+    );
+
+    // Format markdown snippet with user's private title
+    final cleanTitle = userTitle.replaceAll('[', '').replaceAll(']', '').trim();
+    final uri = QuietPaperUri.asset(result.attachment.id).toUriString();
+    final markdownSnippet = '[$cleanTitle]($uri)';
+
+    return (attachment: result.attachment, markdownSnippet: markdownSnippet);
+  }
+
   /// Renames an attachment (updates metadata only; preserves bytes and cryptographic hash).
   Future<void> renameAttachment(String attachmentId, String newFileName) async {
     final sanitizedName = AttachmentTypeResolver.sanitizeFileName(
@@ -425,6 +458,11 @@ class AttachmentService implements AssetResolver {
     final cached = _storage.getDecryptedCache(assetId);
     if (cached != null) return true;
     return _storage.hasEncryptedFile(attachmentId: assetId);
+  }
+
+  /// Retrieves cached plaintext bytes from memory, if already decrypted.
+  Uint8List? getDecryptedCache(String assetId, {String variant = 'original'}) {
+    return _storage.getDecryptedCache(assetId, variant: variant);
   }
 
   @override

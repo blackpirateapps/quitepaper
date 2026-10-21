@@ -293,6 +293,22 @@ class QuietAttachmentComponent extends StatelessWidget {
         attachmentId: qp.resourceId,
         title: node.displayText,
         uriString: node.uri,
+        onAttachmentRenamed: (id, newTitle) {
+          editor.execute([
+            ReplaceNodeRequest(
+              existingNodeId: node.id,
+              newNode: QuietAttachmentNode(
+                id: node.id,
+                uri: node.uri,
+                displayText: newTitle,
+                metadata: Map.from(node.metadata),
+              ),
+            ),
+          ]);
+        },
+        onAttachmentDeleted: (id) {
+          _remove();
+        },
       );
     } else {
       card = _FallbackAttachmentCard(displayText: node.displayText, uri: node.uri);

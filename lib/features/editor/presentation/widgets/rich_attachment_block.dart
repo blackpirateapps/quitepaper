@@ -45,6 +45,12 @@ class RichAttachmentBlock extends StatelessWidget {
         attachmentId: resourceId,
         title: block.name.isNotEmpty ? block.name : 'Attachment',
         uriString: block.uri,
+        onAttachmentRenamed: (id, newTitle) {
+          controller.updateAttachmentBlockName(blockIndex, newTitle);
+        },
+        onAttachmentDeleted: (id) {
+          controller.convertBlockToParagraph(blockIndex);
+        },
       );
     }
 

@@ -10025,3 +10025,78 @@ Implemented an end-to-end, production-ready Quick Capture feature for Android, a
 
 
 
+---
+
+## 36. Audio Journaling & In-Editor Voice Memos (prompts/audio.md)
+
+### 1. Overview & Experience Design
+- **In-Editor Voice Capture**: First-class voice memos recorded directly inside Quiet Paper notes from Super Editor, toolbar formatting hub, and keyboard accessory row.
+- **Visual Design Parity**:
+  - **Compact Inline Audio Row (Image 0)**: Warm surface container with coral microphone icon (`PhosphorIconsFill.microphone`), bold private title, timestamp and duration subtitle (`9:05 AM · 03:18`), and circular play/expand button.
+  - **Expanded Rich Player Card (`QuietAudioCard`, Image 1)**: Waveform icon, title, datetime header (`21 Oct 2026 · 4:12 PM`), overflow menu (`⋯` with *Rename*, *Export audio*, and *Delete*), circular play/pause control, elapsed timer (`00:08`), seekable 32-bar interactive waveform (coral active progress, muted remaining), duration (`04:36`), and security badge (`Encrypted attachment · Available offline` with lock icon).
+  - **Audio Recording Dock Bar (`AudioRecordingBar`)**: Compact docked recording panel anchored above the toolbar during recording with pulsing recording dot, live elapsed duration timer, live decibel-driven normalized amplitude visualizer, pause/resume, cancel/discard, and finish.
+  - **Note Footer Summary (Image 0)**: Displays memo count and combined runtime (`2 recordings · 7 min 54 sec total`).
+- **Dictation Isolation**: Whisper speech transcription (`AudioRecorderService` / `WhisperRecognitionEngine`) remains completely isolated and untouched.
+
+### 2. Architecture & Service Boundaries
+
+#### A. Domain & State Machine (`lib/core/audio/`)
+1. **Lifecycle States ([`lib/core/audio/domain/audio_journal_models.dart`](file:///home/dog/git/quitepaper/lib/core/audio/domain/audio_journal_models.dart))**:
+   - `AudioJournalStatus`: `idle`, `requestingPermission`, `preparing`, `recording`, `paused`, `finalizing`, `encrypting`, `saving`, `completed`, `failed`, `cancelled`.
+   - `AudioJournalRecordingSession`: Immutable snapshot containing status, exact elapsed duration, instantaneous decibels, 120-sample visualizer buffer, working file reference, and captured Super Editor cursor anchor (`capturedNodeId`, `capturedCaretOffset`).
+   - `AudioJournalConfig`: Configurable max duration (default 1 hour), max file size (default 50 MB), sample rate (44.1 kHz), and bit rate (128 kbps).
+2. **Helpers ([`lib/core/audio/application/audio_duration_helper.dart`](file:///home/dog/git/quitepaper/lib/core/audio/application/audio_duration_helper.dart))**:
+   - Formats `MM:SS`, `H:MM:SS`, human summary totals (`X recordings · Y min Z sec total`), and timestamps.
+   - Extracts 32-bar normalized amplitude envelopes from audio bytes for playback visualization.
+
+#### B. Capture & Recording Infrastructure
+1. **Recording Service ([`lib/core/audio/infrastructure/audio_journal_recording_service.dart`](file:///home/dog/git/quitepaper/lib/core/audio/infrastructure/audio_journal_recording_service.dart))**:
+   - Encodes AAC LC `.m4a` with automatic `.wav` fallback for platforms with limited AAC container support.
+   - Precise elapsed time accumulation excluding paused intervals.
+   - Live decibel stream (`150ms`) normalized to `[0.0..1.0]` with smooth power curve.
+   - Automatic cleanup of stale temporary sessions (`>24h`) and file-size/duration limit guards.
+   - Concurrent recording guard (`throws StateError`).
+   - Supports dependency injection of `customTempDirectory` for isolated test runners.
+
+#### C. Playback Infrastructure
+1. **Playback Service ([`lib/core/audio/infrastructure/audio_playback_service.dart`](file:///home/dog/git/quitepaper/lib/core/audio/infrastructure/audio_playback_service.dart))**:
+   - Coordinates `audioplayers: ^6.8.1`.
+   - Enforces a strict single-active-player policy across the application (starting a second audio clip stops any active playback).
+   - Direct in-memory `BytesSource` playback with fallback to ephemeral decrypted cache file.
+   - Reactive streams for position, duration, and playback state (`AudioPlaybackSnapshot`).
+
+#### D. Encrypted Attachment & Zero-Leak Sync Model
+1. **Subsystem Reuse**: Reuses existing generic attachment infrastructure (`AttachmentService`, `AttachmentCrypto`, `qp://asset/<UUID>`). Zero database migrations or new schema tables introduced.
+2. **Title Privacy Protection**: Persists a technical neutral filename (`recording_<UUID>.m4a`) in SQLite `attachments` records and cloud sync headers. The user-assigned voice memo title lives exclusively inside the client-side encrypted note body Markdown link: `[User Title](qp://asset/<UUID>)`.
+3. **Encryption Standard**: Audio is encrypted before persistence using client-side authenticated XChaCha20-Poly1305 (`QPA1`).
+4. **OCR Pipeline Exclusion**: `AttachmentTypeResolver.isAudio` strictly excludes audio attachments from OCR processing (`ocrState: not_requested`).
+
+#### E. Super Editor & Document Integration
+1. **Node Promotion ([`lib/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_attachment_component.dart))**:
+   - Standalone `[Title](qp://asset/<UUID>)` links promote to `QuietAttachmentNode`.
+   - `QuietAttachmentCard` detects audio via `AttachmentTypeResolver.isAudio` and renders `QuietAudioCard`.
+   - `QuietAttachmentNodeSerializer` guarantees serializing back to standard link syntax `[Title](qp://asset/<UUID>)`.
+2. **Caret & Anchor Preservation**:
+   - `QuietSuperEditorController.insertAttachment` captures the logical anchor/caret node ID before launching the recording bar.
+   - Replaces empty paragraph or inserts immediately after anchor with trailing paragraph for continuous writing.
+   - Renaming voice memo updates node `displayText` without mutating underlying UUID or `qp://asset/` URI.
+
+#### F. Public Sharing Privacy Safeguards (Section 10.4)
+1. **Cloudinary Upload Exclusion ([`lib/features/share/application/share_service.dart`](file:///home/dog/git/quitepaper/lib/features/share/application/share_service.dart))**:
+   - Audio attachments are strictly excluded from public Cloudinary uploads.
+   - Markdown links are rewritten to `> *[Voice memo excluded from public share]*` and private `qp://asset/<UUID>` URIs are completely stripped.
+2. **User Heads-Up Warning ([`lib/features/share/presentation/share_warning_dialog.dart`](file:///home/dog/git/quitepaper/lib/features/share/presentation/share_warning_dialog.dart))**:
+   - If a shared note contains audio attachments, `ShareWarningDialog` renders an explicit disclaimer: `Voice recordings will be excluded from the public link to protect your privacy.`.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found**).
+- **Automated Audio Test Suites** (39 tests total):
+  - `test/audio/audio_duration_helper_test.dart` (4 tests): MM:SS formatting, human totals, timestamp labels, amplitude byte extraction.
+  - `test/audio/audio_journal_recording_service_test.dart` (11 tests): Permissions, session lifecycle, pause/resume duration accumulation, finish, cancel cleanup, stale file pruning, amplitude stream.
+  - `test/audio/audio_playback_service_test.dart` (7 tests): Play, pause, seek, single active player enforcement, onPlayerComplete.
+  - `test/audio/audio_attachment_crypto_test.dart` (4 tests): Ingest audio, neutral technical filenames, QPA1 encryption envelopes, authenticated decryption, tampered ciphertext rejection, audio type resolver.
+  - `test/audio/super_editor_audio_test.dart` (5 tests): Standalone link promotion, link serialization round-trips, consecutive blocks, insertAttachment at cursor, rename without URI mutation.
+  - `test/audio/quiet_audio_card_test.dart` (4 tests): Compact view, tap-to-expand, rich player controls, dark theme rendering.
+  - `test/audio/audio_sharing_privacy_test.dart` (4 tests): Public share audio exclusion, link rewrite to omission notice, private URI stripping, share warning dialog.
+- **Regression Tests**:
+  - `test/attachments/`, `test/speech/`, `test/share/`: 184 tests passing with zero regressions.

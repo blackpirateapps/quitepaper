@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/attachments/attachment_service.dart';
+import '../../../core/attachments/attachment_type_resolver.dart';
 import '../../../core/attachments/cloudinary_client.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/sync/share_models.dart';
@@ -218,6 +219,20 @@ class ShareService {
       if (qpUri == null || !qpUri.isAsset) continue;
       final assetId = qpUri.resourceId;
 
+      // Audio privacy safeguard (Section 10.4):
+      // Voice recordings must NEVER be uploaded publicly without explicit intent.
+      // By default, exclude audio attachments from public shares, strip private qp:// URI,
+      // and replace with an omission note.
+      final entity = await database.getAttachment(assetId);
+      final isAudio = entity != null &&
+          AttachmentTypeResolver.isAudio(entity.mimeType, entity.fileName);
+
+      if (isAudio) {
+        const omissionNotice = '> *[Voice memo excluded from public share]*';
+        rewritten = rewritten.replaceAll(ref.fullMatch, omissionNotice);
+        continue;
+      }
+
       var publicUrl = uploadedUrls[assetId];
 
       if (publicUrl == null && seenAssetIds.add(assetId)) {
@@ -258,6 +273,13 @@ class ShareService {
       final Uint8List bytes = resolution.data!;
       final entity = await database.getAttachment(assetId);
       final mimeType = entity?.mimeType ?? 'image/png';
+
+      // Defensive guard: never upload audio files as public attachments
+      if (entity != null && AttachmentTypeResolver.isAudio(mimeType, entity.fileName)) {
+        debugPrint('[ShareService] Audio attachment $assetId excluded from public upload.');
+        return null;
+      }
+
       final kind = mimeType.startsWith('image/') ? 'image' : 'file';
 
       final auth = await apiClient.getShareUploadAuth(

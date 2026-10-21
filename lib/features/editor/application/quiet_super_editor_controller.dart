@@ -30,6 +30,9 @@ class QuietSuperEditorController extends ChangeNotifier {
   @visibleForTesting
   MutableDocumentComposer? get composer => _composer;
 
+  /// Current selected node ID, if any.
+  String? get selectedNodeId => _composer?.selection?.extent.nodeId;
+
   /// Attaches this controller to an active [Editor] and [MutableDocumentComposer].
   void attach(Editor editor, MutableDocumentComposer composer) {
     if (_editor == editor && _composer == composer) return;
@@ -680,6 +683,101 @@ class QuietSuperEditorController extends ChangeNotifier {
       ]);
       notifyListeners();
     }
+  }
+
+  /// Inserts a [QuietAttachmentNode] (for audio, document, or generic file) at
+  /// [targetNodeId] or at the current selection caret.
+  void insertAttachment({
+    required String uri,
+    required String displayText,
+    String? targetNodeId,
+  }) {
+    if (_editor == null) return;
+    final attachmentNodeId = Editor.createNodeId();
+    final trailingParaId = Editor.createNodeId();
+    final attachmentNode = QuietAttachmentNode(
+      id: attachmentNodeId,
+      uri: uri,
+      displayText: displayText,
+    );
+
+    final effectiveTargetId = targetNodeId ?? _composer?.selection?.extent.nodeId;
+    if (effectiveTargetId != null) {
+      final currentNode = _editor!.document.getNodeById(effectiveTargetId);
+      if (currentNode != null) {
+        if (currentNode is ParagraphNode && currentNode.text.toPlainText().trim().isEmpty) {
+          _editor!.execute([
+            ReplaceNodeRequest(
+              existingNodeId: currentNode.id,
+              newNode: attachmentNode,
+            ),
+            InsertNodeAfterNodeRequest(
+              existingNodeId: attachmentNodeId,
+              newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+            ),
+            ChangeSelectionRequest(
+              DocumentSelection.collapsed(
+                position: DocumentPosition(
+                  nodeId: trailingParaId,
+                  nodePosition: const TextNodePosition(offset: 0),
+                ),
+              ),
+              SelectionChangeType.placeCaret,
+              SelectionReason.userInteraction,
+            ),
+          ]);
+          notifyListeners();
+          return;
+        }
+
+        _editor!.execute([
+          InsertNodeAfterNodeRequest(
+            existingNodeId: effectiveTargetId,
+            newNode: attachmentNode,
+          ),
+          InsertNodeAfterNodeRequest(
+            existingNodeId: attachmentNodeId,
+            newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+          ),
+          ChangeSelectionRequest(
+            DocumentSelection.collapsed(
+              position: DocumentPosition(
+                nodeId: trailingParaId,
+                nodePosition: const TextNodePosition(offset: 0),
+              ),
+            ),
+            SelectionChangeType.placeCaret,
+            SelectionReason.userInteraction,
+          ),
+        ]);
+        notifyListeners();
+        return;
+      }
+    }
+
+    // Fallback: append at end of document
+    if (_editor!.document.isNotEmpty) {
+      final lastNode = _editor!.document.last;
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: lastNode.id,
+          newNode: attachmentNode,
+        ),
+        InsertNodeAfterNodeRequest(
+          existingNodeId: attachmentNodeId,
+          newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+        ),
+      ]);
+    } else {
+      _editor!.execute([
+        InsertNodeAtEndOfDocumentRequest(attachmentNode),
+        InsertNodeAfterNodeRequest(
+          existingNodeId: attachmentNodeId,
+          newNode: ParagraphNode(id: trailingParaId, text: AttributedText()),
+        ),
+      ]);
+    }
+    notifyListeners();
   }
 
   /// Returns the hyperlink covering the current caret/selection (within a single

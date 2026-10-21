@@ -382,4 +382,24 @@ class AttachmentTypeResolver {
         lower == 'application/typescript' ||
         lower == 'application/vnd.dart';
   }
+
+  /// Checks if MIME type or filename represents an audio recording.
+  static bool isAudio(String? mimeType, [String? fileName]) {
+    if (mimeType != null) {
+      final lower = mimeType.toLowerCase().trim();
+      if (lower.startsWith('audio/')) return true;
+    }
+    if (fileName != null) {
+      final f = fileName.toLowerCase().trim();
+      if (f.endsWith('.m4a') ||
+          f.endsWith('.mp3') ||
+          f.endsWith('.wav') ||
+          f.endsWith('.aac') ||
+          f.endsWith('.ogg') ||
+          f.endsWith('.flac')) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
