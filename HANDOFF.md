@@ -10291,6 +10291,45 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
   - `test/audio/audio_duration_helper_test.dart` (4 tests), `test/audio/audio_journal_recording_service_test.dart` (11 tests), `test/audio/audio_playback_service_test.dart` (7 tests), `test/audio/audio_attachment_crypto_test.dart` (4 tests).
 - **Search Verification**:
   - `test/search/search_index_projection_test.dart`: Spoken audio transcript text indexed while stripping internal URI and query parameters.
+
+---
+
+## 224. Linux App Build Pipeline & GStreamer Dependency Resolution (October 2026)
+
+### 1. Overview & Root Cause Analysis
+- **Problem Statement**: The GitHub Actions Linux application building workflow failed during release compilation with CMake error:
+  ```text
+  CMake Error at /usr/local/share/cmake-4.4/Modules/FindPkgConfig.cmake:1093 (message):
+    The following required packages were not found:
+
+     - gstreamer-1.0
+
+  Call Stack (most recent call first):
+    flutter/ephemeral/.plugin_symlinks/audioplayers_linux/linux/CMakeLists.txt:24 (pkg_check_modules)
+  ```
+- **Root Cause**: The addition of `audioplayers: ^6.8.1` for audio journaling introduced `audioplayers_linux` on Linux desktop. The plugin CMake configuration requires `gstreamer-1.0`, `gstreamer-app-1.0`, and `gstreamer-audio-1.0` via `pkg-config`. The runner environment lacked `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev`.
+- **Trigger Limitation**: The `.github/workflows/build_linux.yml` workflow was previously restricted to `workflow_dispatch` only, meaning pushes to `main` did not automatically build and package the Linux release artifacts (tarball, RPM, AppImage).
+
+### 2. Implementation Details
+- **Automated Workflow Push Trigger ([`.github/workflows/build_linux.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_linux.yml))**:
+  - Added `push` and `pull_request` triggers targeting `main`, aligning the Linux build pipeline with the Android APK pipeline (`build_apk.yml`).
+  - Retained `workflow_dispatch` for manual runs.
+- **GStreamer Development & Runtime Package Installation**:
+  - Extended the `Install Linux build dependencies` step to install:
+    - Development headers: `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` (satisfying `gstreamer-1.0`, `gstreamer-app-1.0`, and `gstreamer-audio-1.0` pkg-config dependencies).
+    - Codec and plugin libraries: `gstreamer1.0-plugins-base`, `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad`, `gstreamer1.0-libav` (ensuring comprehensive audio playback and decoding support for AAC, MP3, WAV, etc.).
+- **RPM Packaging Specification ([`linux/packaging/quietpaper.spec`](file:///home/dog/git/quitepaper/linux/packaging/quietpaper.spec))**:
+  - Added runtime package requirements to `quietpaper.spec`:
+    - `Requires: gstreamer1 >= 1.16`
+    - `Requires: gstreamer1-plugins-base >= 1.16`
+    - `Requires: gstreamer1-plugins-good`
+  - Ensures clean runtime execution and audio playback when installed on Fedora, openSUSE, and RHEL-based distributions without manual package discovery.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found, ran in 8.1s**).
+- **Automated Tests**: `flutter test` (**2,184 passed, 0 failures, 0 regressions**).
+- **Native Release Build**: `flutter build linux --release` verified successfully (`Built build/linux/x64/release/bundle/quitepaper`).
+
 - **Bug Fixes (Post-Verification)**:
   - **Audio Card Footer Overflow**: Removed ` · Available offline` suffix from the footer label in `QuietAudioCard` so `Transcribe audio` never overflows on narrow screens, and wrapped the label in `Expanded`/`Flexible` with `TextOverflow.ellipsis`.
   - **Cross (X) / Delete Button Asset Purging**: Connected the cross button and delete action in both `QuietAttachmentComponent` and `RichAttachmentBlock` to `AttachmentService.deleteAttachment()`. This invalidates the decrypted cache, marks the record deleted, enqueues a sync tombstone for the cloud garbage collector, and deletes the local encrypted file (`.enc`) from storage.
