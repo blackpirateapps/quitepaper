@@ -71,7 +71,11 @@ abstract class ImageProcessor {
       normalizePage(Uint8List rawBytes);
 
   /// Pre-processes and enhances an image bitmap specifically for Optical Character Recognition.
-  Future<Uint8List> enhanceForOcr(Uint8List rawBytes);
+  /// If the image exceeds [maxDimension], it is downscaled proportionally to bound memory and CPU.
+  Future<Uint8List> enhanceForOcr(
+    Uint8List rawBytes, {
+    int maxDimension = 1600,
+  });
 
   /// Heuristically evaluates document boundary confidence score `[0.0 - 1.0]` for live camera overlays.
   double estimateDocumentConfidence(Uint8List frameBytes);
@@ -527,12 +531,32 @@ class DartImageProcessor implements ImageProcessor {
   }
 
   @override
-  Future<Uint8List> enhanceForOcr(Uint8List rawBytes) async {
+  Future<Uint8List> enhanceForOcr(
+    Uint8List rawBytes, {
+    int maxDimension = 1600,
+  }) async {
     try {
       final decoded = img.decodeImage(rawBytes);
       if (decoded == null) return rawBytes;
 
-      final oriented = img.bakeOrientation(decoded);
+      var oriented = img.bakeOrientation(decoded);
+
+      // Downscale if image exceeds max OCR dimension
+      if (oriented.width > maxDimension || oriented.height > maxDimension) {
+        if (oriented.width >= oriented.height) {
+          oriented = img.copyResize(
+            oriented,
+            width: maxDimension,
+            interpolation: img.Interpolation.linear,
+          );
+        } else {
+          oriented = img.copyResize(
+            oriented,
+            height: maxDimension,
+            interpolation: img.Interpolation.linear,
+          );
+        }
+      }
 
       // Route through the B&W text pipeline: flatten uneven lighting and
       // adaptively threshold to crisp black-on-white, the ideal ML Kit input.

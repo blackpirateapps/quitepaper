@@ -86,9 +86,10 @@ class DocumentProcessingService {
 
       final pdfSha256 = DocumentCrypto.computeSha256(pdfBytes);
 
-      // Rasterize PDF pages at 150 DPI and run on-device OCR for all documents
+      // Rasterize PDF pages using adaptive DPI (lower DPI for large/scanned documents)
+      final ocrDpi = PdfRasterPolicy.ocrDpi(pdfBytes);
       debugPrint(
-        '[QuietPaper OCR] Rasterizing PDF pages at 150 DPI for OCR...',
+        '[QuietPaper OCR] Rasterizing PDF pages at ${ocrDpi.toStringAsFixed(1)} DPI for OCR...',
       );
       final ocrPages = <OcrPage>[];
       final document = await database.getDocument(documentId);
@@ -101,7 +102,7 @@ class DocumentProcessingService {
         final rendered = await _pageRenderer.renderSinglePage(
           pdfBytes,
           pageIndex,
-          dpi: 150.0,
+          dpi: ocrDpi,
         );
         if (rendered == null) continue;
         final ocrPage = await _ocrService.recognizePage(
@@ -113,6 +114,11 @@ class DocumentProcessingService {
         debugPrint(
           '[QuietPaper OCR] Page ${rendered.pageNumber} recognized (${ocrPage.blocks.length} blocks, ${ocrPage.plainText.length} chars).',
         );
+
+        // Yield to event loop periodically for responsive UI on large multi-page scans
+        if ((pageIndex + 1) % 2 == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
       }
 
       final ocrResult = OcrDocument(

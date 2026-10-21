@@ -9,6 +9,10 @@ class PdfRasterPolicy {
 
   static const int maxPixelsPerPage = 4 * 1024 * 1024;
   static const double maxOcrDpi = 150;
+  static const double lowResOcrDpi = 90;
+  static const int largePdfBytesThreshold = 8 * 1024 * 1024;
+  static const int maxAllowedPdfBytes = 100 * 1024 * 1024;
+  static const int maxOcrDimension = 1600;
 
   /// Reads page MediaBox dimensions from ordinary, uncompressed PDF page
   /// dictionaries. Returns null when dimensions cannot be safely determined.
@@ -30,6 +34,17 @@ class PdfRasterPolicy {
         .toList();
   }
 
+  /// Whether the PDF byte payload is considered large (e.g. scanned document).
+  static bool isLarge(Uint8List bytes) => bytes.length > largePdfBytesThreshold;
+
+  /// Determines the optimal raster DPI for OCR text recognition.
+  /// Large PDFs (> 8MB) or documents with large page dimensions are rasterized
+  /// at a lower DPI (72–90 DPI) bounded by [safeDpi] to minimize RAM usage.
+  static double ocrDpi(Uint8List bytes) {
+    final baseDpi = isLarge(bytes) ? lowResOcrDpi : maxOcrDpi;
+    return safeDpi(bytes, baseDpi);
+  }
+
   static double safeDpi(Uint8List bytes, double requestedDpi) {
     var dpi = requestedDpi;
     for (final size in pageSizes(bytes)) {
@@ -41,16 +56,10 @@ class PdfRasterPolicy {
     return dpi;
   }
 
+  /// Extreme safety guard: returns true only if the document exceeds the maximum
+  /// allowable ceiling (100MB) where rasterization would risk out-of-memory.
   static bool shouldSkipOcr(Uint8List bytes) {
-    const maxOcrPdfBytes = 8 * 1024 * 1024;
-    if (bytes.length > maxOcrPdfBytes) return true;
-    final sizes = pageSizes(bytes);
-    if (sizes.isEmpty) return false;
-    return sizes.any(
-      (size) =>
-          size.width * size.height * maxOcrDpi * maxOcrDpi / (72 * 72) >
-          maxPixelsPerPage,
-    );
+    return bytes.length > maxAllowedPdfBytes;
   }
 }
 

@@ -107,7 +107,10 @@ class DefaultOcrService implements OcrService {
 
     try {
       debugPrint('[QuietPaper OCR] Pre-processing page $pageNumber for ML Kit recognition...');
-      final enhancedBytes = await const DartImageProcessor().enhanceForOcr(imageBytes);
+      final enhancedBytes = await const DartImageProcessor().enhanceForOcr(
+        imageBytes,
+        maxDimension: PdfRasterPolicy.maxOcrDimension,
+      );
       if (enhancedBytes.isEmpty) {
         debugPrint('[QuietPaper OCR] Enhanced image bytes empty for page $pageNumber. Aborting ML Kit.');
         return null;
@@ -238,7 +241,24 @@ class DefaultOcrService implements OcrService {
     OcrLanguage language = OcrLanguage.english,
   }) async {
     try {
-      final decoded = img.decodeImage(imageBytes);
+      var decoded = img.decodeImage(imageBytes);
+      if (decoded != null &&
+          (decoded.width > PdfRasterPolicy.maxOcrDimension ||
+              decoded.height > PdfRasterPolicy.maxOcrDimension)) {
+        if (decoded.width >= decoded.height) {
+          decoded = img.copyResize(
+            decoded,
+            width: PdfRasterPolicy.maxOcrDimension,
+            interpolation: img.Interpolation.linear,
+          );
+        } else {
+          decoded = img.copyResize(
+            decoded,
+            height: PdfRasterPolicy.maxOcrDimension,
+            interpolation: img.Interpolation.linear,
+          );
+        }
+      }
       final width = decoded?.width ?? 1000;
       final height = decoded?.height ?? 1414;
 
@@ -339,7 +359,8 @@ class DefaultOcrService implements OcrService {
       }
     }
 
-    final renderedPages = await _pageRenderer.renderPages(pdfBytes, dpi: 150.0);
+    final ocrDpi = PdfRasterPolicy.ocrDpi(pdfBytes);
+    final renderedPages = await _pageRenderer.renderPages(pdfBytes, dpi: ocrDpi);
     final ocrPages = <OcrPage>[];
 
     for (final page in renderedPages) {

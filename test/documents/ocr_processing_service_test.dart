@@ -206,7 +206,7 @@ void main() {
       },
     );
 
-    test('skips OCR for oversized imported PDF without rasterizing', () async {
+    test('skips OCR for extreme >100MB imported PDF without rasterizing', () async {
       final renderer = FakePdfPageRenderer();
       processingService = DocumentProcessingService(
         database: database,
@@ -218,13 +218,37 @@ void main() {
 
       await processingService.processDocument(
         documentId: testDocId,
-        pdfBytes: Uint8List(8 * 1024 * 1024 + 1),
+        pdfBytes: Uint8List(100 * 1024 * 1024 + 1),
         source: DocumentSource.importedPdf,
       );
 
       final doc = await database.getDocument(testDocId);
       expect(doc?.ocrState, equals(OcrProcessingState.skipped.identifier));
       expect(renderer.renderCalls, 0);
+    });
+
+    test('processes large imported PDF (>8MB) at adaptive lower DPI rather than skipping', () async {
+      final renderer = FakePdfPageRenderer();
+      processingService = DocumentProcessingService(
+        database: database,
+        keyManager: keyManager,
+        ocrCrypto: OcrCrypto(cryptoService: cryptoService),
+        pageRenderer: renderer,
+        ocrService: FakeOcrService(mockText: 'Large PDF Recognized Text'),
+      );
+
+      await processingService.processDocument(
+        documentId: testDocId,
+        pdfBytes: Uint8List(8 * 1024 * 1024 + 1),
+        source: DocumentSource.importedPdf,
+      );
+
+      final doc = await database.getDocument(testDocId);
+      expect(doc?.ocrState, equals(OcrProcessingState.available.identifier));
+      expect(renderer.renderCalls, 1);
+
+      final decryptedDoc = await processingService.getDecryptedOcrDocument(testDocId);
+      expect(decryptedDoc?.fullPlainText, contains('Large PDF Recognized Text'));
     });
 
     test(

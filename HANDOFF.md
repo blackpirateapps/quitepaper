@@ -9900,6 +9900,46 @@ Bumped the official application version from `1.6.0+18` to `1.6.1+19` to package
 - Automated tests: `flutter test` (**full suite passing**).
 - Repository sanity check: no remaining `1.6.0` app-version fallbacks outside `test/version/app_version_test.dart` (arbitrary fixture values) and `pubspec.lock` (third-party dependency version).
 
+---
+
+## 220. Adaptive Lower-Resolution OCR for Large PDF and Scanned Documents (October 2026)
+
+### 1. Problem & Motivation
+Prior to this enhancement, imported PDF documents exceeding 8 MiB or whose declared page dimensions exceeded 4 megapixels at 150 DPI unconditionally skipped on-device OCR (`ocrState: 'skipped'`). In the Document Viewer, the OCR action was disabled with tooltip *"OCR skipped for this large PDF"*, and manual retries were blocked with a toast.
+
+In practice, scanned documents (contracts, receipts, books, multi-page paper scans) routinely exceed 8 MiB (often 10–50 MiB) because each page embeds high-resolution camera or scanner bitmaps. Bounding memory by completely abandoning OCR prevented full-text search and OCR text viewing for the very documents that needed it most.
+
+### 2. Architectural Solution
+1. **Adaptive Raster DPI Policy ([`lib/core/pdf/pdf_page_renderer.dart`](file:///home/dog/git/quitepaper/lib/core/pdf/pdf_page_renderer.dart))**:
+   - Replaced the hard 8 MiB skip limit with an extreme memory safety ceiling of 100 MiB (`maxAllowedPdfBytes = 100 * 1024 * 1024`).
+   - Added `PdfRasterPolicy.isLarge(bytes)` (`> 8 MiB`) and `PdfRasterPolicy.ocrDpi(bytes)`.
+   - Small documents (< 8 MiB, standard page sizes) rasterize at high-fidelity `150.0 DPI` bounded by `safeDpi`.
+   - Large documents (> 8 MiB or oversized page bounds) rasterize at lower-resolution `90.0 DPI` (yielding ~750x1050 px for A4), saving ~65% memory and CPU during native rendering.
+   - Oversized page dimensions no longer skip OCR; `safeDpi` scales down DPI so that pixel budget per page is guaranteed $\le 4\text{ MP}$.
+2. **Two-Stage Downscaling Pipeline ([`lib/core/image_processing/image_processor.dart`](file:///home/dog/git/quitepaper/lib/core/image_processing/image_processor.dart) & [`lib/core/ocr/ocr_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/ocr_service.dart))**:
+   - Added `maxDimension` parameter (default 1600px) to `ImageProcessor.enhanceForOcr`.
+   - `DartImageProcessor.enhanceForOcr` clamps rendered bitmaps exceeding 1600px to max dimension 1600px before grayscale and adaptive binarization thresholding.
+   - Binarization and ML Kit text recognition execute dramatically faster and consume minimal RAM.
+   - Because bounding box coordinates in `OcrWord`, `OcrLine`, and `OcrBlock` are normalized ratios ($0.0 \dots 1.0$), scaling the bitmap uniformly preserves geometry and search highlighting on the original PDF pages.
+   - `DefaultOcrService.recognizeDocument` and CV fallback automatically utilize `PdfRasterPolicy.ocrDpi` and 1600px dimension clamping.
+3. **Background Document Processing Service ([`lib/core/ocr/document_processing_service.dart`](file:///home/dog/git/quitepaper/lib/core/ocr/document_processing_service.dart) & [`lib/core/documents/document_service.dart`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart))**:
+   - `processDocument` uses `PdfRasterPolicy.ocrDpi(pdfBytes)` to render each page at the adaptive resolution.
+   - Processes multi-page documents page-by-page, periodically yielding to the event loop (`await Future.delayed(Duration.zero)`) every 2 pages to keep the UI thread responsive during long scans.
+   - `DocumentService.saveDocument` enqueues background OCR for scanned documents without skipping.
+4. **Document Viewer UI Unlocking ([`lib/core/documents/presentation/document_viewer_screen.dart`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart))**:
+   - Removed the guard in `_regenerateOcr` that blocked execution when `ocrState == 'skipped'`.
+   - Unlocked the AppBar OCR button for previously skipped documents, providing tooltip `"Run OCR (adaptive resolution)"`.
+
+### 3. Automated Verification & Quality
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- **Automated Tests**:
+   - `test/documents/pdf_raster_policy_test.dart`: verifies `ocrDpi` adapts to 90 DPI for large PDFs, safe DPI scales oversized pages, and extreme >100MB ceiling skips safely.
+   - `test/documents/ocr_processing_service_test.dart`: verifies 8MB+ imported PDFs are processed at adaptive DPI rather than skipped.
+   - `test/documents/document_viewer_ocr_menu_test.dart`: verifies "Run OCR" action is enabled with adaptive tooltip on skipped documents.
+   - `test/ocr/ocr_adaptive_enhancement_test.dart`: verifies `DartImageProcessor.enhanceForOcr` clamps oversized bitmaps to 1600px while preserving smaller images.
+   - **Full Suite**: `flutter test` (**2,083 tests passing, 0 failures**).
+
+
 
 
 

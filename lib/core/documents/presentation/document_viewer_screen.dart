@@ -654,17 +654,6 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   Future<void> _regenerateOcr({OcrLanguage? language}) async {
     final docInfo = _resolution?.data;
     if (docInfo == null) return;
-    if (docInfo.ocrState == OcrProcessingState.skipped.identifier) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'OCR is skipped for this large PDF to protect device memory.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -1250,8 +1239,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             else if (isOcrSkipped)
               IconButton(
                 icon: const Icon(Icons.document_scanner_outlined),
-                tooltip: 'OCR skipped for this large PDF',
-                onPressed: null,
+                tooltip: 'Run OCR (adaptive resolution)',
+                onPressed: _regenerateOcr,
               )
             else
               IconButton(

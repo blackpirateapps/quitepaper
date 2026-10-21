@@ -226,5 +226,49 @@ void main() {
 
       expect(find.text('Run / Regenerate OCR'), findsOneWidget);
     });
+
+    testWidgets('Shows enabled Run OCR action for skipped document with adaptive resolution tooltip', (tester) async {
+      final resolution = ResourceResolution.available(
+        QuietPaperUri.document(testDocId),
+        ResolvedDocumentInfo(
+          documentId: testDocId,
+          pdfBytes: samplePdfBytes,
+          pageCount: 1,
+          byteSize: samplePdfBytes.length,
+          sha256: 'mocksha',
+          title: 'Large Skipped Document',
+          ocrState: 'skipped',
+          ocrLanguage: 'en',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            documentProcessingServiceProvider.overrideWithValue(processingService),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: DocumentViewerScreen(
+              documentId: testDocId,
+              title: 'Large Skipped Document',
+              initialResolution: resolution,
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('OCR skipped (large PDF)'), findsOneWidget);
+
+      final iconBtnFinder = find.widgetWithIcon(IconButton, Icons.document_scanner_outlined);
+      expect(iconBtnFinder, findsOneWidget);
+
+      final iconBtn = tester.widget<IconButton>(iconBtnFinder);
+      expect(iconBtn.tooltip, 'Run OCR (adaptive resolution)');
+      expect(iconBtn.onPressed, isNotNull);
+    });
   });
 }
