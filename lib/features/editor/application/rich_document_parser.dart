@@ -47,41 +47,10 @@ class RichDocumentParser {
           codeLines.add(rawLines[i]);
           i++;
         }
-        final langLower = lang.trim().toLowerCase();
-        final codeContent = codeLines.join('\n');
-        if (langLower == 'whatsapp' || langLower == 'chat') {
-          blocks.add(WhatsAppChatBlock(
-            id: _uuid.v4(),
-            rawText: codeContent,
-          ));
-          continue;
-        }
         blocks.add(CodeBlock(
           id: _uuid.v4(),
           language: lang,
-          code: codeContent,
-        ));
-        continue;
-      }
-
-      // 1b. Wrapped WhatsApp block: <!-- qp-whatsapp:start -->
-      if (line.trim().startsWith('<!-- qp-whatsapp:start') ||
-          line.trim().startsWith('<!-- qp-whatsapp-chat:start')) {
-        final chatLines = <String>[];
-        i++;
-        while (i < rawLines.length) {
-          final cur = rawLines[i].trim();
-          if (cur.startsWith('<!-- qp-whatsapp:end') ||
-              cur.startsWith('<!-- qp-whatsapp-chat:end')) {
-            i++;
-            break;
-          }
-          chatLines.add(rawLines[i]);
-          i++;
-        }
-        blocks.add(WhatsAppChatBlock(
-          id: _uuid.v4(),
-          rawText: chatLines.join('\n'),
+          code: codeLines.join('\n'),
         ));
         continue;
       }

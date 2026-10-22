@@ -13,8 +13,6 @@ import '../syntax/domain/highlight_result.dart';
 import '../syntax/domain/syntax_theme.dart';
 import '../syntax/presentation/syntax_text_spans.dart';
 import '../utils/font_family_helper.dart';
-import '../../features/whatsapp_formatter/application/whatsapp_parser.dart';
-import '../../features/whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart';
 
 /// A custom MarkdownElementBuilder for `<pre>` elements in [QuietMarkdownPreview].
 /// Renders syntax-highlighted code blocks styled according to Quiet Paper's
@@ -75,14 +73,6 @@ class QuietCodeBlockElementBuilder extends MarkdownElementBuilder {
     // 3. Extract source text (stripping single trailing newline if present)
     final rawSource = codeElement != null ? codeElement.textContent : element.textContent;
     final source = rawSource.replaceAll(RegExp(r'\n$'), '');
-
-    // Check for WhatsApp chat block
-    final langLower = rawLanguage.trim().toLowerCase();
-    if (langLower == 'whatsapp' ||
-        langLower == 'chat' ||
-        (langLower.isEmpty && WhatsAppParser.isWhatsAppChat(source))) {
-      return WhatsAppChatCard(source: source);
-    }
 
     // 4. Resolve language and highlight tokens
     final resolvedLang = resolver.resolveFromFence(rawLanguage.isNotEmpty ? rawLanguage : null);

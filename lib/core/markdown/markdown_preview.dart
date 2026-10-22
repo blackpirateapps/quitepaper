@@ -46,7 +46,6 @@ import '../../features/settings/application/default_settings_provider.dart';
 import '../../features/settings/application/settings_provider.dart';
 import '../../features/tags/domain/phosphor_icons.dart';
 import 'markdown_checklist_helper.dart';
-import '../../features/whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart';
 
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
@@ -562,7 +561,6 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     ];
     final blockSyntaxes = <md.BlockSyntax>[
       const LinkPreviewBlockSyntax(),
-      const WhatsAppBlockSyntax(),
     ];
     final highlighter = ref.watch(syntaxHighlighterProvider);
     final resolver = ref.watch(syntaxLanguageResolverProvider);
@@ -618,7 +616,6 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         resolver: resolver,
         searchQuery: widget.searchQuery,
       ),
-      'whatsappchat': WhatsAppChatElementBuilder(),
     };
 
     if (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty) {
@@ -1603,59 +1600,6 @@ class WebLinkElementBuilder extends MarkdownElementBuilder {
         ],
       ),
     );
-  }
-}
-
-/// Block syntax that recognizes a wrapped WhatsApp chat block:
-/// e.g. `<!-- qp-whatsapp:start -->` ... `<!-- qp-whatsapp:end -->`
-class WhatsAppBlockSyntax extends md.BlockSyntax {
-  const WhatsAppBlockSyntax();
-
-  @override
-  RegExp get pattern => RegExp(r'^\s*<!--\s*qp-whatsapp(?:-chat)?:start.*-->\s*$');
-
-  @override
-  bool canParse(md.BlockParser parser) {
-    return pattern.hasMatch(parser.current.content);
-  }
-
-  @override
-  md.Node? parse(md.BlockParser parser) {
-    final startLine = parser.current.content;
-    parser.advance();
-    final buffer = StringBuffer();
-    final endPattern = RegExp(r'^\s*<!--\s*qp-whatsapp(?:-chat)?:end\s*-->\s*$');
-    while (!parser.isDone) {
-      final line = parser.current.content;
-      if (endPattern.hasMatch(line)) {
-        parser.advance();
-        break;
-      }
-      buffer.writeln(line);
-      parser.advance();
-    }
-    return md.Element.empty('whatsappchat')
-      ..attributes['content'] = buffer.toString()
-      ..attributes['start'] = startLine;
-  }
-}
-
-/// Markdown element builder for `<whatsappchat>` elements.
-class WhatsAppChatElementBuilder extends MarkdownElementBuilder {
-  WhatsAppChatElementBuilder();
-
-  @override
-  bool isBlockElement() => true;
-
-  @override
-  Widget? visitElementAfterWithContext(
-    BuildContext context,
-    md.Element element,
-    TextStyle? preferredStyle,
-    TextStyle? parentStyle,
-  ) {
-    final content = element.attributes['content'] ?? '';
-    return WhatsAppChatCard(source: content);
   }
 }
 

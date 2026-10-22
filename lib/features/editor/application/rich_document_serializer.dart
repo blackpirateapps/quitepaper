@@ -71,11 +71,6 @@ class RichDocumentSerializer {
       return '```$lang\n$codeNormalized```';
     }
 
-    if (block is WhatsAppChatBlock) {
-      final code = block.rawText.trim();
-      return '```whatsapp\n$code\n```';
-    }
-
     if (block is HorizontalRuleBlock) {
       return '---';
     }

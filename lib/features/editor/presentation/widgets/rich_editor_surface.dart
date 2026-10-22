@@ -9,7 +9,6 @@ import 'rich_image_block.dart';
 import 'rich_link_preview_block.dart';
 import 'rich_table_editor.dart';
 import 'rich_text_editor.dart';
-import '../../../whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart';
 
 /// Complete editorial continuous writing surface for Quiet Paper's Visual mode.
 ///
@@ -180,24 +179,6 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
               key: ValueKey(block.id),
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               child: Divider(color: colors.divider, thickness: 1.0),
-            ),
-          );
-        } else if (block is WhatsAppChatBlock) {
-          segments.add(
-            WhatsAppChatCard(
-              key: ValueKey(block.id),
-              source: block.rawText,
-              options: block.options,
-              readOnly: widget.readOnly,
-              onRemove: widget.readOnly
-                  ? null
-                  : () {
-                      final blocks = List<RichBlock>.from(widget.controller.document.blocks);
-                      blocks.removeAt(i);
-                      widget.controller.setDocument(
-                        widget.controller.document.copyWith(blocks: blocks),
-                      );
-                    },
             ),
           );
         }
