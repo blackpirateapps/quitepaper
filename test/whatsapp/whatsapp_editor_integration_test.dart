@@ -8,7 +8,9 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/features/whatsapp_formatter/application/whatsapp_preferences_provider.dart';
+import 'package:quitepaper/features/whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart';
 import 'package:quitepaper/features/whatsapp_formatter/presentation/widgets/whatsapp_inline_suggestion_banner.dart';
 import 'package:quitepaper/features/whatsapp_formatter/presentation/whatsapp_preview_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -211,33 +213,30 @@ void main() {
       final titleFinder = find.byType(TextField).first;
       expect((tester.widget(titleFinder) as TextField).controller!.text, equals('Conversation with Sam 3 & BlackPirate'));
 
-      final contentFinder = find.byType(TextField).last;
-      final contentText = (tester.widget(contentFinder) as TextField).controller!.text;
-      expect(contentText, contains('21/10'));
-      expect(contentText, contains('Sam 3'));
-      expect(contentText, contains('11:04 pm · Yeshh'));
+      // Formatted chat is rendered as an embedded WhatsAppChatCard block
+      expect(find.byType(WhatsAppChatCard), findsOneWidget);
+      expect(find.text('Sam 3'), findsWidgets);
+      expect(find.text('Yeshh'), findsWidgets);
 
-      // Undo reverts to unformatted text
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      // Undo reverts to unformatted text via Toolbar button
+      final undoFinder = find.byIcon(PhosphorIconsRegular.arrowUUpLeft);
+      expect(undoFinder, findsWidgets);
+      await tester.tap(undoFinder.first);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 100));
 
-      final revertedText = (tester.widget(contentFinder) as TextField).controller!.text;
-      expect(revertedText, contains('Sam 3: Yeshh'));
+      expect(find.byType(WhatsAppChatCard), findsNothing);
+      final editableTexts = tester.widgetList<EditableText>(find.byType(EditableText));
+      expect(editableTexts.any((e) => e.controller.text.contains('Yeshh')), isTrue);
 
-      // Redo restores formatted text
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      // Redo restores formatted block via Toolbar button
+      final redoFinder = find.byIcon(PhosphorIconsRegular.arrowUUpRight);
+      expect(redoFinder, findsWidgets);
+      await tester.tap(redoFinder.first);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 100));
 
-      final redoneText = (tester.widget(contentFinder) as TextField).controller!.text;
-      expect(redoneText, contains('21/10'));
+      expect(find.byType(WhatsAppChatCard), findsOneWidget);
 
       await drainTimers(tester);
     });

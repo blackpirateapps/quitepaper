@@ -7,6 +7,7 @@ import '../application/rich_document_serializer.dart';
 import 'markdown_table.dart';
 import 'rich_inline.dart';
 import 'text_attributes.dart';
+import '../../whatsapp_formatter/domain/whatsapp_format_options.dart';
 
 const _uuid = Uuid();
 
@@ -124,6 +125,8 @@ abstract class RichBlock {
           id: id,
           table: const MarkdownTableParser().findTables(initial.text).first,
         );
+      case 'whatsapp_chat':
+        return WhatsAppChatBlock.fromJson(json);
       case 'paragraph':
       default:
         return ParagraphBlock(
@@ -975,3 +978,57 @@ class TableBlock extends RichBlock {
   @override
   String toString() => 'TableBlock($id, cols: ${table.columnCount}, rows: ${table.rowCount})';
 }
+
+/// A structured block representing an embedded WhatsApp conversation.
+class WhatsAppChatBlock extends RichBlock {
+  const WhatsAppChatBlock({
+    required super.id,
+    required this.rawText,
+    this.options,
+  });
+
+  final String rawText;
+  final WhatsAppFormatOptions? options;
+
+  @override
+  String get plainText => rawText;
+
+  @override
+  WhatsAppChatBlock copyWithId(String newId) => WhatsAppChatBlock(
+        id: newId,
+        rawText: rawText,
+        options: options,
+      );
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'whatsapp_chat',
+        'id': id,
+        'rawText': rawText,
+        if (options != null) 'options': options!.toJson(),
+      };
+
+  factory WhatsAppChatBlock.fromJson(Map<String, dynamic> json) => WhatsAppChatBlock(
+        id: json['id'] as String? ?? _uuid.v4(),
+        rawText: json['rawText'] as String? ?? '',
+        options: json['options'] is Map<String, dynamic>
+            ? WhatsAppFormatOptions.fromJson(json['options'] as Map<String, dynamic>)
+            : null,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WhatsAppChatBlock &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          rawText == other.rawText &&
+          options == other.options;
+
+  @override
+  int get hashCode => Object.hash(id, rawText, options);
+
+  @override
+  String toString() => 'WhatsAppChatBlock($id, length: ${rawText.length})';
+}
+

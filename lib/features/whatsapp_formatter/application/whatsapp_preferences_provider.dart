@@ -10,8 +10,12 @@ const String _kWhatsAppOptionsPrefKey = 'quietpaper_whatsapp_format_options_v1';
 final whatsappFormatOptionsProvider =
     StateNotifierProvider<WhatsAppFormatOptionsNotifier, WhatsAppFormatOptions>(
   (ref) {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    return WhatsAppFormatOptionsNotifier(prefs);
+    try {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return WhatsAppFormatOptionsNotifier(prefs);
+    } catch (_) {
+      return WhatsAppFormatOptionsNotifier(null);
+    }
   },
 );
 
@@ -19,9 +23,10 @@ class WhatsAppFormatOptionsNotifier
     extends StateNotifier<WhatsAppFormatOptions> {
   WhatsAppFormatOptionsNotifier(this._prefs) : super(_loadInitial(_prefs));
 
-  final SharedPreferences _prefs;
+  final SharedPreferences? _prefs;
 
-  static WhatsAppFormatOptions _loadInitial(SharedPreferences prefs) {
+  static WhatsAppFormatOptions _loadInitial(SharedPreferences? prefs) {
+    if (prefs == null) return const WhatsAppFormatOptions();
     try {
       final raw = prefs.getString(_kWhatsAppOptionsPrefKey);
       if (raw != null && raw.isNotEmpty) {
@@ -55,8 +60,10 @@ class WhatsAppFormatOptionsNotifier
   }
 
   Future<void> _persist() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
     try {
-      await _prefs.setString(
+      await prefs.setString(
         _kWhatsAppOptionsPrefKey,
         jsonEncode(state.toJson()),
       );

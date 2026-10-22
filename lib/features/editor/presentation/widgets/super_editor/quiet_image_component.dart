@@ -197,6 +197,20 @@ String normalizeMarkdownForSuperEditor(String markdown) {
     final isWebLink = webLinkLineRegex.hasMatch(line);
     final isLinkPreview = isLinkPreviewComment(trimmed) ||
         trimmed.startsWith(r'\<!-- qp-link-preview:');
+    final isWhatsAppFence = trimmed.startsWith('```whatsapp') ||
+        trimmed.startsWith('<!-- qp-whatsapp:start');
+
+    if (isWhatsAppFence) {
+      if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
+        if (!buffer.toString().endsWith('\n')) {
+          buffer.write('\n');
+        }
+        buffer.write('\n');
+      }
+      buffer.write(line);
+      buffer.write('\n');
+      continue;
+    }
 
     if (isImage || isQpLink || isWebLink) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {

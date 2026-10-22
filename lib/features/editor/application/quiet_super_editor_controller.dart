@@ -5,6 +5,8 @@ import '../../../core/utils/web_url_helper.dart';
 import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
 import '../presentation/widgets/super_editor/quiet_link_preview_component.dart';
+import '../presentation/widgets/super_editor/quiet_table_component.dart';
+import '../presentation/widgets/super_editor/whatsapp_chat_component.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
@@ -32,6 +34,22 @@ class QuietSuperEditorController extends ChangeNotifier {
 
   /// Current selected node ID, if any.
   String? get selectedNodeId => _composer?.selection?.extent.nodeId;
+
+  /// Serializes the underlying document to Markdown.
+  String toMarkdown() {
+    if (_editor == null) return '';
+    return serializeDocumentToMarkdown(
+      _editor!.document,
+      syntax: MarkdownSyntax.normal,
+      customNodeSerializers: const [
+        QuietImageNodeSerializer(),
+        QuietAttachmentNodeSerializer(),
+        LinkPreviewNodeSerializer(),
+        QuietTableBlockNodeSerializer(),
+        WhatsAppChatNodeSerializer(),
+      ],
+    );
+  }
 
   /// Attaches this controller to an active [Editor] and [MutableDocumentComposer].
   void attach(Editor editor, MutableDocumentComposer composer) {
@@ -503,6 +521,47 @@ class QuietSuperEditorController extends ChangeNotifier {
           blockType: isCode ? null : codeAttribution,
         ),
       ]);
+    }
+  }
+
+  /// Inserts or replaces with a [WhatsAppChatNode] in the document.
+  void insertWhatsAppChat(String rawText, {String? targetNodeId}) {
+    if (_editor == null) return;
+    final chatNodeId = Editor.createNodeId();
+    final chatNode = WhatsAppChatNode(
+      id: chatNodeId,
+      rawText: rawText,
+    );
+
+    if (targetNodeId != null && _editor!.document.getNodeById(targetNodeId) != null) {
+      _editor!.execute([
+        ReplaceNodeRequest(
+          existingNodeId: targetNodeId,
+          newNode: chatNode,
+        ),
+      ]);
+      return;
+    }
+
+    final sel = _composer?.selection;
+    if (sel != null) {
+      final currentNodeId = sel.extent.nodeId;
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: currentNodeId,
+          newNode: chatNode,
+        ),
+      ]);
+    } else if (_editor!.document.isNotEmpty) {
+      final lastNode = _editor!.document.last;
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: lastNode.id,
+          newNode: chatNode,
+        ),
+      ]);
+    } else {
+      _editor!.document.insertNodeAt(0, chatNode);
     }
   }
 
@@ -980,12 +1039,16 @@ class QuietSuperEditorController extends ChangeNotifier {
       final hasBlockLinkPreview =
           trimmed.contains('<!-- qp-link-preview:') ||
           trimmed.contains(r'\<!-- qp-link-preview:');
+      final hasBlockWhatsApp =
+          trimmed.contains('```whatsapp') ||
+          trimmed.contains('<!-- qp-whatsapp');
 
-      if (hasBlockImage || hasBlockTable || hasBlockAttachment || hasBlockLinkPreview) {
+      if (hasBlockImage || hasBlockTable || hasBlockAttachment || hasBlockLinkPreview || hasBlockWhatsApp) {
         final normalized = normalizeMarkdownForSuperEditor(trimmed);
         final structuredDoc = deserializeMarkdownToDocument(normalized);
         promoteQuietAttachmentNodes(structuredDoc);
         promoteLinkPreviewNodes(structuredDoc);
+        promoteWhatsAppChatNodes(structuredDoc);
         if (structuredDoc.isNotEmpty) {
           _editor!.execute([
             PasteStructuredContentEditorRequest(

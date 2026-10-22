@@ -10596,10 +10596,36 @@ This release implements a production-grade **WhatsApp Chat Formatter & Editorial
   - Responsive inline banner and 3-pane tablet preview integration.
   - Range-specific replacement with atomic undo snapshotting and autosave.
 
-### 3. Automated Verification & Quality
+### 3. Editorial Block Rendering Across Super Editor, Markdown Preview & WYSIWYG
+To ensure applied WhatsApp conversations retain their polished visual appearance (terracotta sender names, date dividers, timestamps, and card container) and are treated as a unified block rather than fragmented paragraphs:
+
+1. **Embedded Visual Card (`lib/features/whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart`)**:
+   - Renders a styled surface container with a header bar featuring a WhatsApp green badge, message count badge, a `Copy` action button, and an optional remove button.
+   - Embeds `WhatsAppConversationPreview` directly on the editor surface so the applied chat looks identical to the preview modal.
+
+2. **Super Editor Block Node (`lib/features/editor/presentation/widgets/super_editor/whatsapp_chat_component.dart`)**:
+   - `WhatsAppChatNode extends BlockNode`: Treats the entire WhatsApp chat as a single atomic block element in Super Editor.
+   - `WhatsAppChatComponentBuilder`: Renders `WhatsAppChatCard` within Super Editor's component pipeline.
+   - `WhatsAppChatNodeSerializer`: Serializes `WhatsAppChatNode` back into standard ```` ```whatsapp\n...\n``` ```` markdown fences.
+   - `promoteWhatsAppChatNodes`: Post-processes deserialized documents to promote ```` ```whatsapp ```` and ```` ```chat ```` code blocks into first-class `WhatsAppChatNode`s.
+
+3. **Markdown Preview Code Block Interceptor (`lib/core/markdown/quiet_code_block_element_builder.dart`)**:
+   - Detects `whatsapp` or `chat` language tags on code blocks and parses the content into `WhatsAppChatCard`.
+   - Also supports `<!-- qp-whatsapp:start -->` and `<!-- qp-whatsapp:end -->` custom comment blocks in `QuietMarkdownPreview`.
+
+4. **Visual (WYSIWYG) Mode AST Block (`lib/features/editor/domain/rich_block.dart`)**:
+   - Added `WhatsAppChatBlock extends RichBlock` with JSON serialization.
+   - Supported in `RichDocumentParser`, `RichDocumentSerializer`, and rendered natively in `RichEditorSurface`.
+
+5. **Atomic Undo/Redo Invariant**:
+   - Pushes atomic edits to `_undoRedoManager` prior to setting controller values, preventing rapid input debounce from replacing the raw chat text snapshot in history.
+   - Undo instantly restores the original unformatted chat, and redo cleanly re-applies the formatted visual card.
+
+### 4. Automated Verification & Quality
 - Added comprehensive test suite in `test/whatsapp/`:
   - `whatsapp_parser_test.dart` (10 tests): iOS bracketed exports with `\u202F`, Android dash, 24-hour time, multiline messages, punctuation/URLs preservation, system notices, CRLF line endings.
   - `whatsapp_formatter_test.dart` (7 tests): Date headings, sender grouping, timestamp preservation toggles, Markdown character escaping, and system message styling.
+  - `whatsapp_block_rendering_test.dart` (5 tests): Full styled card rendering in Markdown preview, wrapped comment syntax, Super Editor single `BlockNode` promotion & serialization, WYSIWYG `RichDocument` roundtrip, and JSON serialization.
   - `whatsapp_note_list_tile_test.dart` (3 tests): Badge visibility on note cards with unformatted chat and disappearance when formatted.
   - `whatsapp_editor_integration_test.dart` (7 tests): Paste detection, inline banner trigger, preview navigation, format application, WYSIWYG and Markdown undo/redo, and preferences persistence.
 - Static analysis: `flutter analyze` (**0 issues found, 0 errors, 0 warnings**).

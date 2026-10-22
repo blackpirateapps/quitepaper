@@ -7,6 +7,7 @@ abstract final class WhatsAppMarkdownFormatter {
   static String format(
     WhatsAppParseResult parseResult, {
     WhatsAppFormatOptions options = const WhatsAppFormatOptions(),
+    bool asBlock = true,
   }) {
     if (parseResult.messages.isEmpty) {
       return '';
@@ -89,7 +90,11 @@ abstract final class WhatsAppMarkdownFormatter {
       }
     }
 
-    return buffer.toString().trim();
+    final formatted = buffer.toString().trim();
+    if (asBlock) {
+      return '```whatsapp\n$formatted\n```';
+    }
+    return formatted;
   }
 
   /// Escapes Markdown-sensitive leading characters to prevent chat text

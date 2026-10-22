@@ -421,6 +421,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final result = _undoRedoManager.undo(_contentController.value);
     if (result != null) {
       _contentController.value = result;
+      if (_isWysiwyg && _richDocumentController != null) {
+        _setActiveTarget(_contentController, _contentFocusNode);
+        _richDocumentController!.setContent(result.text);
+      }
       _onContentChanged();
     }
   }
@@ -429,6 +433,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final result = _undoRedoManager.redo(_contentController.value);
     if (result != null) {
       _contentController.value = result;
+      if (_isWysiwyg && _richDocumentController != null) {
+        _setActiveTarget(_contentController, _contentFocusNode);
+        _richDocumentController!.setContent(result.text);
+      }
       _onContentChanged();
     }
   }
@@ -3411,8 +3419,33 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _isTitleManuallySet = true;
     }
 
-    // 2. Wysiwyg mode document update
+    // 2. SuperEditor mode document update
+    if (_isSuperEditor) {
+      _superEditorController.insertWhatsAppChat(
+        originalText ?? formattedMd,
+      );
+      final fullMd = _superEditorController.toMarkdown();
+      final updatedVal = TextEditingValue(
+        text: fullMd,
+        selection: TextSelection.collapsed(offset: fullMd.length),
+      );
+      _undoRedoManager.pushAtomicEdit(updatedVal);
+      _contentController.value = updatedVal;
+      _onContentChanged();
+      editorNotifier.updateContent(fullMd);
+      editorNotifier.saveNow();
+
+      setState(() {
+        _pendingWhatsAppSuggestion = null;
+        _isWhatsAppPreviewActive = false;
+        _whatsAppParseResult = null;
+      });
+      return;
+    }
+
+    // 3. Wysiwyg mode document update
     if (_isWysiwyg && _richDocumentController != null) {
+      _setActiveTarget(_contentController, _contentFocusNode);
       final rc = _richDocumentController!;
       final currentMd = rc.toMarkdown();
       String newMd;
@@ -3427,8 +3460,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         text: newJson,
         selection: TextSelection.collapsed(offset: newJson.length),
       );
-      _contentController.value = updatedValue;
       _undoRedoManager.pushAtomicEdit(updatedValue);
+      _contentController.value = updatedValue;
       _onContentChanged();
       editorNotifier.updateContent(newJson);
       editorNotifier.saveNow();
@@ -3472,8 +3505,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       selection: TextSelection.collapsed(offset: newCursor),
     );
 
-    _contentController.value = updatedValue;
     _undoRedoManager.pushAtomicEdit(updatedValue);
+    _contentController.value = updatedValue;
     _onContentChanged();
     editorNotifier.updateContent(newContent);
     editorNotifier.saveNow();
@@ -3730,11 +3763,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
       rc.setMarkdown(newMarkdown);
       final newJson = rc.toJsonString();
-      _contentController.value = TextEditingValue(
+      final updatedVal = TextEditingValue(
         text: newJson,
         selection: TextSelection.collapsed(offset: newJson.length),
       );
-      _undoRedoManager.pushAtomicEdit(_contentController.value);
+      _undoRedoManager.pushAtomicEdit(updatedVal);
+      _contentController.value = updatedVal;
       _onContentChanged();
       return;
     }

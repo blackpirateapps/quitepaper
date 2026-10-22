@@ -381,17 +381,6 @@ class _WhatsAppPreviewScreenState extends ConsumerState<WhatsAppPreviewScreen> {
                       : null;
 
                   widget.onApply(formattedMd, suggestedTitle);
-
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Formatted Markdown copied. Paste it into your note or anywhere else.',
-                      ),
-                      duration: Duration(seconds: 3),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colors.textPrimary,

@@ -14,6 +14,7 @@ import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
 import 'super_editor/quiet_table_component.dart';
 import 'super_editor/quiet_task_component.dart';
+import 'super_editor/whatsapp_chat_component.dart';
 import 'super_editor/typewriter_document_layer.dart';
 
 /// Embedded block-based document editor surface powered by SuperEditor.
@@ -83,6 +84,9 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // embedded web-link preview nodes, and promote lone unbaked web links into
     // loading preview nodes with animated skeleton loaders.
     promoteLinkPreviewNodes(document, promoteUnbaked: true);
+
+    // Promote WhatsApp chat blocks into embedded conversation card nodes.
+    promoteWhatsAppChatNodes(document);
 
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
@@ -167,6 +171,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietAttachmentNodeSerializer(),
           LinkPreviewNodeSerializer(),
           QuietTableBlockNodeSerializer(),
+          WhatsAppChatNodeSerializer(),
         ],
       );
       final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
@@ -386,6 +391,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
                   showRemove: !widget.readOnly,
                 ),
                 QuietTableComponentBuilder(editor: _editor),
+                WhatsAppChatComponentBuilder(
+                  editor: _editor,
+                  showRemove: !widget.readOnly,
+                ),
                 ...defaultComponentBuilders,
               ],
               selectionStyle: SelectionStyles(
