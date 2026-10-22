@@ -287,10 +287,11 @@ class _NoteListTileState extends State<NoteListTile> {
                           ),
                         ],
 
-                        // 3. Metadata Row (Tags, Distinct Doc Pill Badge, and Time when thumbnail present)
+                        // 3. Metadata Row (Tags, Distinct Doc Pill Badge, WhatsApp Formatting Badge, and Time when thumbnail present)
                         if (widget.note.tags.isNotEmpty ||
                             metadata.attachmentSummary != null ||
                             metadata.thumbnailData != null ||
+                            metadata.hasWhatsAppFormattingAvailable ||
                             widget.note.isTrashed) ...[
                           const SizedBox(height: 6.0),
                           Row(
@@ -333,6 +334,30 @@ class _NoteListTileState extends State<NoteListTile> {
                                             height: 1.2,
                                           ),
                                         ),
+                                      ),
+                                    ],
+
+                                    // WhatsApp Formatting Available Badge (Image 0 mockup)
+                                    if (metadata.hasWhatsAppFormattingAvailable) ...[
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.chat_bubble_outline_rounded,
+                                            size: 13,
+                                            color: colors.accent,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Formatting available',
+                                            style: AppTypography.caption.copyWith(
+                                              color: colors.accent,
+                                              fontSize: 12.0,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ],

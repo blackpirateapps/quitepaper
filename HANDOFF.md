@@ -10507,4 +10507,102 @@ On mobile viewports (Android/iOS), several modal presentation sheets rendered wi
    - Synchronized legacy Settings navigation journeys in [`test/widget_test.dart`](file:///home/dog/git/quitepaper/test/widget_test.dart) to reflect the sub-page structure ("Appearance" and "Backup and import").
    - Verified 0 issues with `flutter analyze`.
 
+---
+
+## 25. WhatsApp Chat Formatter, Editorial Preview & Markdown Conversion Subsystem
+
+### 1. Feature Motivation & Architectural Overview
+Exporting and pasting WhatsApp conversations into note-taking tools commonly leaves raw, noisy text cluttered with bracketed timestamps, narrow non-breaking spaces (`\u202F`), repeated sender names, and system messages that disrupt the document hierarchy.
+
+This release implements a production-grade **WhatsApp Chat Formatter & Editorial Preview Subsystem** following Quiet Paper’s minimalist editorial design language (inspired by Bear Notes and the user design mockups):
+1. **High-Performance Non-Intrusive Detection**:
+   - Evaluates pasted text or note bodies against compiled regular expressions to detect WhatsApp export patterns without freezing the UI.
+   - Provides an LRU-cached detector (`hasWhatsAppFormattingAvailable`) for note cards on the home screen.
+   - Never modifies note content automatically without explicit user review and confirmation (`Apply format`).
+2. **Editorial Conversation Preview (Mockup Compliance)**:
+   - Designed in exact compliance with Mockup 0 (`whatsapp_options_card`) and Mockup 1 (`whatsapp_preview_screen`).
+   - **Document Header**: Displays chat title (e.g., `Conversation with Sam 3 & BlackPirate`), dynamic date range subtitle (e.g., `OCTOBER 21–22`), and total message count.
+   - **Detected Export Card**: Shows green WhatsApp badge pill, total message count, and `[View source]` toggle button.
+   - **Options Card**: Custom circular checkbox rows (`AppColors.accentPrimary` checkmark rings) for:
+     - *Show sender names*: Toggle participant labels.
+     - *Preserve timestamps*: Display inline time stamps or clean minimalist bubbles.
+     - *Group consecutive messages*: Collapse sequential messages from the same sender into cohesive message groups.
+   - **Dual Segmented Views**:
+     - `Formatted conversation`: Visual editorial chat preview with centered date headings, terracotta accent sender names, aligned timestamps, and unrecognized line warning cards.
+     - `Original text`: High-contrast monospaced code preview showing raw unparsed WhatsApp export text.
+   - **Responsive Sticky Footer**:
+     - `[Copy original]`: Copies raw chat export to device clipboard with snackbar feedback.
+     - `[Apply format]`: Replaces the detected WhatsApp range in the active note, updates the note title (if untitled), triggers autosave, registers an atomic undo state, and closes preview.
+3. **Non-Destructive Range Replacement & Dual-Mode Editor Integration**:
+   - Preserves all surrounding text in the active note document when formatting a pasted WhatsApp chat snippet.
+   - Handles both Quiet Paper editing modes seamlessly:
+     - **WYSIWYG Mode**: Updates the `RichDocumentController` AST representation, re-serializes JSON to `_contentController`, and updates the undo stack.
+     - **Markdown Mode**: Replaces the exact character range in `TextEditingController` with updated selection.
+   - Full **Atomic Undo/Redo**: Pushes an atomic edit snapshot to `_undoRedoManager`. A single Undo tap restores the raw unformatted WhatsApp chat, and Redo re-applies the formatted Markdown.
+   - **Smart Titling**: Proposes a clean conversation title (e.g., `Conversation with Alice & Bob`) if the note is untitled (`!_isTitleManuallySet`), strictly preserving existing custom titles.
+4. **Preferences Persistence**:
+   - Formatting preferences persist in `SharedPreferences` under key `quietpaper_whatsapp_format_options_v1` via Riverpod (`whatsappPreferencesProvider`), remembering user choices across application sessions.
+
+### 2. Component Breakdown
+
+#### A. Domain Layer (`lib/features/whatsapp_formatter/domain/`)
+- [`whatsapp_message.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/domain/whatsapp_message.dart):
+  - Immutable representation of a parsed WhatsApp message.
+  - Captures `date`, `time`, `sender`, multiline `text`, `isSystemMessage`, `isMediaOmitted`, `rawText`, and source range indices.
+- [`whatsapp_format_options.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/domain/whatsapp_format_options.dart):
+  - Model for `showSenderNames`, `preserveTimestamps`, and `groupConsecutiveMessages`.
+  - Includes JSON serialization (`toJson`, `fromJson`) for disk persistence.
+- [`whatsapp_parse_result.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/domain/whatsapp_parse_result.dart):
+  - Container for parsed messages, participants set, date range string (e.g. `OCTOBER 21–22`), unrecognized lines, raw text, and smart title derivation.
+
+#### B. Application Layer (`lib/features/whatsapp_formatter/application/`)
+- [`whatsapp_parser.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/application/whatsapp_parser.dart):
+  - `isWhatsAppChat(String text)`: High-performance pre-flight detection testing for consecutive timestamp headers without allocating full message objects.
+  - `parse(String text)`: Deterministic parser supporting:
+    - iOS bracketed format with narrow non-breaking spaces (`[\d{1,2}/\d{1,2}/(?:\d{2}|\d{4}),?\s\d{1,2}:\d{2}(?::\d{2})?(?:[\s\u202F]?[AaPp][Mm])?]`).
+    - Android dash format (`\d{1,2}/\d{1,2}/(?:\d{2}|\d{4}),?\s\d{1,2}:\d{2}\s*-\s*`).
+    - 12-hour and 24-hour timestamp variants.
+    - Multiline message continuation preserving internal paragraph breaks.
+    - System message detection (encryption notices, security code changes, member join/leave).
+    - Media omission markers (`<Media omitted>`, `image omitted`, `audio omitted`, etc.).
+    - Pre-message and post-message unrecognized line preservation.
+- [`whatsapp_markdown_formatter.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/application/whatsapp_markdown_formatter.dart):
+  - Transforms parsed messages into clean Markdown.
+  - Outputs centered uppercase date subheadings (`### OCTOBER 21, 2026`).
+  - Groups consecutive messages under single sender headers (`**Sender Name**`).
+  - Formats timestamps with subtle italic styling (`*(10:14 AM)*`).
+  - Escapes Markdown control characters (`#`, `- [ ]`, `*`, `1.`, `>`, ```` ``` ````) in message bodies to prevent user text from breaking the note's structural Markdown hierarchy.
+- [`whatsapp_preferences_provider.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/application/whatsapp_preferences_provider.dart):
+  - Riverpod `StateNotifierProvider<WhatsAppPreferencesNotifier, WhatsAppFormatOptions>` backed by `SharedPreferences`.
+
+#### C. Presentation Layer (`lib/features/whatsapp_formatter/presentation/`)
+- [`whatsapp_preview_screen.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/whatsapp_preview_screen.dart):
+  - Main preview screen matching Mockups 0 and 1.
+  - Document header, detected summary card, segmented tab controller, options card, and sticky action footer.
+- [`whatsapp_options_card.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/widgets/whatsapp_options_card.dart):
+  - Custom circular checkbox option card with subtext descriptions.
+- [`whatsapp_conversation_preview.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/widgets/whatsapp_conversation_preview.dart):
+  - Visual message bubble rendering with sender avatars, names, timestamps, and unrecognized text warning banners.
+- [`whatsapp_inline_suggestion_banner.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/widgets/whatsapp_inline_suggestion_banner.dart):
+  - Non-intrusive banner shown in `EditorScreen` upon pasting unformatted WhatsApp chat (`💬 WhatsApp conversation detected (N messages) [Preview] [×]`).
+
+#### D. Integrated System Components
+- [`note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart):
+  - Added `hasWhatsAppFormattingAvailable` detection in the note metadata cache.
+- [`note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart):
+  - Displays `💬 Formatting available` badge pill in `AppColors.accentPrimary` on note list cards when unformatted WhatsApp chat is present.
+- [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - Integrated paste interceptor hook detecting WhatsApp exports.
+  - Responsive inline banner and 3-pane tablet preview integration.
+  - Range-specific replacement with atomic undo snapshotting and autosave.
+
+### 3. Automated Verification & Quality
+- Added comprehensive test suite in `test/whatsapp/`:
+  - `whatsapp_parser_test.dart` (10 tests): iOS bracketed exports with `\u202F`, Android dash, 24-hour time, multiline messages, punctuation/URLs preservation, system notices, CRLF line endings.
+  - `whatsapp_formatter_test.dart` (7 tests): Date headings, sender grouping, timestamp preservation toggles, Markdown character escaping, and system message styling.
+  - `whatsapp_note_list_tile_test.dart` (3 tests): Badge visibility on note cards with unformatted chat and disappearance when formatted.
+  - `whatsapp_editor_integration_test.dart` (7 tests): Paste detection, inline banner trigger, preview navigation, format application, WYSIWYG and Markdown undo/redo, and preferences persistence.
+- Static analysis: `flutter analyze` (**0 issues found, 0 errors, 0 warnings**).
+- Test suite: `flutter test` (**all tests passing**).
+
 

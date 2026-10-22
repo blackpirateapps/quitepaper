@@ -6,6 +6,7 @@ import '../../editor/application/frontmatter_editor_helper.dart';
 import '../../editor/domain/frontmatter_document.dart';
 import '../../editor/domain/rich_document.dart';
 import '../../import/application/markdown_frontmatter_parser.dart';
+import '../../whatsapp_formatter/application/whatsapp_parser.dart';
 import 'note_model.dart';
 
 /// Representation of a compact parsed Markdown table for note list previews.
@@ -67,6 +68,7 @@ class NoteMetadata {
     this.tablePreview,
     this.hasCustomTitle = false,
     this.isPasswordProtected = false,
+    this.hasWhatsAppFormattingAvailable = false,
     this.location,
     this.moment,
     this.mood,
@@ -82,6 +84,7 @@ class NoteMetadata {
   final NoteTablePreview? tablePreview;
   final bool hasCustomTitle;
   final bool isPasswordProtected;
+  final bool hasWhatsAppFormattingAvailable;
 
   /// Cached journal location parsed from frontmatter (null when absent/empty or locked).
   final JournalLocation? location;
@@ -230,6 +233,9 @@ abstract final class NoteMetadataExtractor {
       }
     }
 
+    final hasWhatsAppFormatting = !note.isPasswordProtected &&
+        WhatsAppParser.isWhatsAppChat(note.content);
+
     final metadata = NoteMetadata(
       displayTitle: effectiveTitle,
       previewSnippet: preview,
@@ -240,6 +246,7 @@ abstract final class NoteMetadataExtractor {
       tablePreview: tablePreview,
       hasCustomTitle: hasCustomTitle,
       isPasswordProtected: note.isPasswordProtected,
+      hasWhatsAppFormattingAvailable: hasWhatsAppFormatting,
       location: location,
       moment: moment,
       mood: mood,

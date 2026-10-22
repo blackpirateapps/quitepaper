@@ -105,6 +105,10 @@ import '../../tags/domain/phosphor_icons.dart';
 import 'widgets/editor_quick_actions_bar.dart';
 import 'active_inspector_provider.dart';
 import 'widgets/editor_inspector_pane.dart';
+import '../../whatsapp_formatter/application/whatsapp_parser.dart';
+import '../../whatsapp_formatter/domain/whatsapp_parse_result.dart';
+import '../../whatsapp_formatter/presentation/widgets/whatsapp_inline_suggestion_banner.dart';
+import '../../whatsapp_formatter/presentation/whatsapp_preview_screen.dart';
 
 enum _OverflowMenuPage { main, insert, share, privacy, editorStyle }
 
@@ -164,6 +168,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
   final _overflowButtonKey = GlobalKey();
+  ({WhatsAppParseResult result, int rangeStart, int rangeEnd, String pastedText})? _pendingWhatsAppSuggestion;
+  String? _dismissedWhatsAppText;
+  WhatsAppParseResult? _whatsAppParseResult;
+  bool _isWhatsAppPreviewActive = false;
 
   @override
   void deactivate() {
@@ -240,6 +248,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _contentFocusNode.addListener(_onFocusChanged);
 
     _contentFocusNode.onKeyEvent = (node, event) => _handleEditorKeyEvent(node, event);
+
+    final isChat = WhatsAppParser.isWhatsAppChat(widget.note.content);
+    if (isChat) {
+      final res = WhatsAppParser.parse(widget.note.content);
+      if (res.isWhatsAppChat) {
+        _whatsAppParseResult = res;
+        _isWhatsAppPreviewActive = widget.initialPreviewMode;
+      }
+    }
 
     if (widget.autoFocusBody) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1876,12 +1893,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
               if (!note.isTrashed)
                 QuietIconButton(
-                  icon: editorState.isPreviewMode
+                  icon: (_isWhatsAppPreviewActive || editorState.isPreviewMode)
                       ? Icons.edit_outlined
                       : Icons.remove_red_eye_outlined,
-                  tooltip: editorState.isPreviewMode ? 'Edit note' : 'Preview note',
+                  tooltip: (_isWhatsAppPreviewActive || editorState.isPreviewMode)
+                      ? 'Edit note'
+                      : 'Preview note',
                   onPressed: () {
-                    editorNotifier.togglePreviewMode();
+                    if (_isWhatsAppPreviewActive) {
+                      setState(() {
+                        _isWhatsAppPreviewActive = false;
+                      });
+                      if (editorState.isPreviewMode) {
+                        editorNotifier.togglePreviewMode();
+                      }
+                    } else {
+                      editorNotifier.togglePreviewMode();
+                    }
                   },
                 ),
               QuietIconButton(
@@ -1934,9 +1962,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 // Top-docked formatting toolbar or speech recording bar (desktop mode)
                 if (isDesktop)
                   _buildToolbarOrSpeechBar(isTopDocked: true),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                if (_isWhatsAppPreviewActive && _whatsAppParseResult != null)
+                  Expanded(
+                    child: WhatsAppPreviewScreen(
+                      parseResult: _whatsAppParseResult!,
+                      noteTitle: _isTitleManuallySet ? _titleController.text : '',
+                      isEmbedded: true,
+                      onClose: () {
+                        setState(() {
+                          _isWhatsAppPreviewActive = false;
+                        });
+                      },
+                      onSwitchToEdit: () {
+                        setState(() {
+                          _isWhatsAppPreviewActive = false;
+                        });
+                        if (editorState.isPreviewMode) {
+                          editorNotifier.togglePreviewMode();
+                        }
+                      },
+                      onApply: (formattedMd, suggestedTitle) {
+                        _applyWhatsAppFormat(
+                          formattedMd: formattedMd,
+                          suggestedTitle: suggestedTitle,
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
                         child: PullDownSearchReveal(
@@ -2127,6 +2183,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                        },
                                      ),
                                    ],
+
+                                  // WhatsApp Inline Suggestion Banner
+                                  if (_pendingWhatsAppSuggestion != null) ...[
+                                    WhatsAppInlineSuggestionBanner(
+                                      result: _pendingWhatsAppSuggestion!.result,
+                                      onPreview: () => _openWhatsAppPreview(
+                                        _pendingWhatsAppSuggestion!.result,
+                                        start: _pendingWhatsAppSuggestion!.rangeStart,
+                                        end: _pendingWhatsAppSuggestion!.rangeEnd,
+                                        pastedText: _pendingWhatsAppSuggestion!.pastedText,
+                                      ),
+                                      onDismiss: () {
+                                        setState(() {
+                                          _dismissedWhatsAppText =
+                                              _pendingWhatsAppSuggestion!.pastedText;
+                                          _pendingWhatsAppSuggestion = null;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 8.0),
+                                  ],
 
                                   // Attached web snapshots / documents bar
                                   _buildAttachedResourcesBar(context, colors),
@@ -3230,8 +3307,182 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       // selections fall through to _insertSnippetAtCursor, which wraps the
       // selection as a titled link (Feature 4).
       if (await _maybeInsertSmartWebLink(plainText)) return;
+
+      final targetCtrl = _activeTargetController ?? _contentController;
+      final sel = targetCtrl.selection;
+      final text = targetCtrl.text;
+      final start = sel.isValid ? min(sel.start, sel.end) : text.length;
+
       _insertSnippetAtCursor(plainText);
+
+      _checkAndOfferWhatsAppFormatting(
+        pastedText: plainText,
+        startIndex: start,
+        endIndex: start + plainText.length,
+      );
     }
+  }
+
+  void _checkAndOfferWhatsAppFormatting({
+    required String pastedText,
+    required int startIndex,
+    required int endIndex,
+  }) {
+    if (_dismissedWhatsAppText == pastedText) return;
+    final parseResult = WhatsAppParser.parse(
+      pastedText,
+      sourceStartIndex: startIndex,
+      sourceEndIndex: endIndex,
+    );
+    if (parseResult.isWhatsAppChat) {
+      setState(() {
+        _pendingWhatsAppSuggestion = (
+          result: parseResult,
+          rangeStart: startIndex,
+          rangeEnd: endIndex,
+          pastedText: pastedText,
+        );
+      });
+    }
+  }
+
+  void _openWhatsAppPreview(
+    WhatsAppParseResult result, {
+    int? start,
+    int? end,
+    String? pastedText,
+  }) {
+    if (pastedText != null) {
+      final currentDoc = _isWysiwyg && _richDocumentController != null
+          ? _richDocumentController!.toMarkdown()
+          : _contentController.text;
+      if (!currentDoc.contains(pastedText)) {
+        setState(() {
+          _pendingWhatsAppSuggestion = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pasted text was modified or removed.')),
+        );
+        return;
+      }
+    }
+
+    if (isTabletEditor) {
+      setState(() {
+        _whatsAppParseResult = result;
+        _isWhatsAppPreviewActive = true;
+      });
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (ctx) => WhatsAppPreviewScreen(
+          parseResult: result,
+          noteTitle: _isTitleManuallySet ? _titleController.text : '',
+          onApply: (formattedMd, suggestedTitle) {
+            _applyWhatsAppFormat(
+              formattedMd: formattedMd,
+              suggestedTitle: suggestedTitle,
+              rangeStart: start,
+              rangeEnd: end,
+              originalText: pastedText,
+            );
+            Navigator.of(ctx).pop();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _applyWhatsAppFormat({
+    required String formattedMd,
+    String? suggestedTitle,
+    int? rangeStart,
+    int? rangeEnd,
+    String? originalText,
+  }) {
+    final editorNotifier = ref.read(editorProviderFamily(_editorParams).notifier);
+
+    // 1. Propose / update title if untitled
+    if (suggestedTitle != null && suggestedTitle.trim().isNotEmpty && !_isTitleManuallySet) {
+      _titleController.text = suggestedTitle;
+      editorNotifier.updateTitle(suggestedTitle);
+      _isTitleManuallySet = true;
+    }
+
+    // 2. Wysiwyg mode document update
+    if (_isWysiwyg && _richDocumentController != null) {
+      final rc = _richDocumentController!;
+      final currentMd = rc.toMarkdown();
+      String newMd;
+      if (originalText != null && currentMd.contains(originalText)) {
+        newMd = currentMd.replaceFirst(originalText, formattedMd);
+      } else {
+        newMd = formattedMd;
+      }
+      rc.setMarkdown(newMd);
+      final newJson = rc.toJsonString();
+      final updatedValue = TextEditingValue(
+        text: newJson,
+        selection: TextSelection.collapsed(offset: newJson.length),
+      );
+      _contentController.value = updatedValue;
+      _undoRedoManager.pushAtomicEdit(updatedValue);
+      _onContentChanged();
+      editorNotifier.updateContent(newJson);
+      editorNotifier.saveNow();
+
+      setState(() {
+        _pendingWhatsAppSuggestion = null;
+        _isWhatsAppPreviewActive = false;
+        _whatsAppParseResult = null;
+      });
+      return;
+    }
+
+    // 3. Markdown mode document update
+    final currentText = _contentController.text;
+    String newContent;
+    int newCursor;
+
+    if (rangeStart != null && rangeEnd != null && originalText != null) {
+      if (rangeStart <= currentText.length &&
+          rangeEnd <= currentText.length &&
+          currentText.substring(rangeStart, rangeEnd) == originalText) {
+        newContent = currentText.replaceRange(rangeStart, rangeEnd, formattedMd);
+        newCursor = rangeStart + formattedMd.length;
+      } else {
+        final idx = currentText.indexOf(originalText);
+        if (idx != -1) {
+          newContent = currentText.replaceRange(idx, idx + originalText.length, formattedMd);
+          newCursor = idx + formattedMd.length;
+        } else {
+          newContent = formattedMd;
+          newCursor = formattedMd.length;
+        }
+      }
+    } else {
+      newContent = formattedMd;
+      newCursor = formattedMd.length;
+    }
+
+    final updatedValue = TextEditingValue(
+      text: newContent,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+
+    _contentController.value = updatedValue;
+    _undoRedoManager.pushAtomicEdit(updatedValue);
+    _onContentChanged();
+    editorNotifier.updateContent(newContent);
+    editorNotifier.saveNow();
+
+    setState(() {
+      _pendingWhatsAppSuggestion = null;
+      _isWhatsAppPreviewActive = false;
+      _whatsAppParseResult = null;
+    });
   }
 
   /// Feature 1 — Auto-filled titles on paste. When the smart-web-links toggle is
