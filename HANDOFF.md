@@ -10527,5 +10527,30 @@ Reverted repository state to commit `9138944b1c748f3fad5619011ee67d8ab95791be` (
 - Static analysis: `flutter analyze` (**0 issues found**).
 - Test suite: `flutter test` (**2208/2208 tests passed**).
 
+---
+
+## 26. Markdown Preview Web Link & Bullet List RenderFlex Overflow Fix
+
+### Problem & Root Cause
+In `QuietMarkdownPreview`, `WebLinkElementBuilder` and `LinkPreviewElementBuilder` (fallback path when smart web links are disabled or decode fails) paired the link display text with an interactive manual enhancement button (`LinkEnhanceButton`) inside a horizontal `Row(mainAxisSize: MainAxisSize.min, children: [Text(text), LinkEnhanceButton(...)])`:
+1. **Unconstrained Child Layout in `Row`**: In Flutter's `Row` flex container, non-flexible children (such as `Text(text)` without `Flexible` or `Expanded`) are measured with unbounded horizontal constraints (`maxWidth: double.infinity`).
+2. **Long URLs in Bullet Lists**: When notes contained long URLs (e.g. social sharing links with lengthy query parameters like `https://www.facebook.com/sharer/sharer.php?u=...` or `https://twitter.com/intent/tweet?url=...` inside markdown bulleted lists `* https://...`), the single-word URL string exceeded the available width of the list item.
+3. **RenderFlex Overflow Assertion**: Because `Text` was unconstrained, the total width of `Text` + `LinkEnhanceButton` exceeded the available layout width, causing Flutter's `RenderFlex` to throw layout overflow exceptions (e.g., `A RenderFlex overflowed by 50 pixels on the right`, `A RenderFlex overflowed by 34 pixels on the right`) and display yellow-and-black diagonal hazard striping.
+
+### Solution
+1. **Flexible Text Constraints in `WebLinkElementBuilder` ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart))**:
+   - Wrapped `Text(text, style: linkStyle)` inside `Flexible(child: Text(...))` within `WebLinkElementBuilder`'s `Row`.
+   - On narrow mobile viewports and inside constrained list-item containers, the link text is properly constrained to the remaining available space after reserving room for `LinkEnhanceButton`.
+2. **Defensive Flexible Wrapper in `LinkPreviewElementBuilder` ([`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart))**:
+   - Wrapped `InkWell(child: Text(label, ...))` inside `Flexible(child: ...)` within `LinkPreviewElementBuilder`'s fallback row for unbaked or disabled preview links with long titles/URLs.
+3. **Automated Regression Test Suite ([`test/markdown/markdown_link_overflow_test.dart`](file:///home/dog/git/quitepaper/test/markdown/markdown_link_overflow_test.dart))**:
+   - Added automated widget tests parameterized for narrow mobile viewports (360dp width) reproducing the exact note structure with multi-query URL bullet points and unbaked link fallbacks, verifying zero `RenderFlex` overflow assertions.
+
+### Automated Verification
+- Static analysis: `flutter analyze` (**0 issues found**).
+- Full Flutter test suite: `flutter test` (**2210/2210 tests passed**).
+- Backend test suite: `cd backend && npm test` (**122/122 tests passed across 19 suites**).
+
+
 
 

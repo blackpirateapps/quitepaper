@@ -1514,14 +1514,16 @@ class LinkPreviewElementBuilder extends MarkdownElementBuilder {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            InkWell(
-              onTap: () => onTapLink?.call(label, url, ''),
-              child: Text(
-                label,
-                style: AppTypography.bodySmall.copyWith(
-                  color: colors.accent,
-                  decoration: TextDecoration.underline,
-                  decorationColor: colors.accent.withValues(alpha: 0.5),
+            Flexible(
+              child: InkWell(
+                onTap: () => onTapLink?.call(label, url, ''),
+                child: Text(
+                  label,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.accent,
+                    decoration: TextDecoration.underline,
+                    decorationColor: colors.accent.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
             ),
@@ -1589,7 +1591,12 @@ class WebLinkElementBuilder extends MarkdownElementBuilder {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(text, style: linkStyle),
+          Flexible(
+            child: Text(
+              text,
+              style: linkStyle,
+            ),
+          ),
           LinkEnhanceButton(
             url: href,
             titleFetcher: titleFetcher,
