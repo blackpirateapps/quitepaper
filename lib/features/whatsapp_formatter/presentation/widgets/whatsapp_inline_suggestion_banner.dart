@@ -10,11 +10,13 @@ class WhatsAppInlineSuggestionBanner extends StatelessWidget {
     required this.result,
     required this.onPreview,
     required this.onDismiss,
+    this.onApply,
   });
 
   final WhatsAppParseResult result;
   final VoidCallback onPreview;
   final VoidCallback onDismiss;
+  final VoidCallback? onApply;
 
   @override
   Widget build(BuildContext context) {
@@ -63,11 +65,36 @@ class WhatsAppInlineSuggestionBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          if (onApply != null) ...[
+            ElevatedButton(
+              onPressed: onApply,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: colors.textPrimary,
+                foregroundColor: colors.background,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              child: Text(
+                'Apply format',
+                style: AppTypography.caption.copyWith(
+                  color: colors.background,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           TextButton(
             onPressed: onPreview,
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: const Size(0, 30),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               backgroundColor: colors.accent.withValues(alpha: 0.12),
               shape: RoundedRectangleBorder(
@@ -79,7 +106,7 @@ class WhatsAppInlineSuggestionBanner extends StatelessWidget {
               style: AppTypography.caption.copyWith(
                 color: colors.accent,
                 fontWeight: FontWeight.w600,
-                fontSize: 12.5,
+                fontSize: 12,
               ),
             ),
           ),

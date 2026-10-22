@@ -10584,7 +10584,7 @@ This release implements a production-grade **WhatsApp Chat Formatter & Editorial
 - [`whatsapp_conversation_preview.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/widgets/whatsapp_conversation_preview.dart):
   - Visual message bubble rendering with sender avatars, names, timestamps, and unrecognized text warning banners.
 - [`whatsapp_inline_suggestion_banner.dart`](file:///home/dog/git/quitepaper/lib/features/whatsapp_formatter/presentation/widgets/whatsapp_inline_suggestion_banner.dart):
-  - Non-intrusive banner shown in `EditorScreen` upon pasting unformatted WhatsApp chat (`💬 WhatsApp conversation detected (N messages) [Preview] [×]`).
+  - Non-intrusive banner shown in `EditorScreen` upon detecting unformatted WhatsApp chat. Provides both direct 1-tap `[Apply format]` and customized `[Preview]` actions, with easy dismissal (`[×]`).
 
 #### D. Integrated System Components
 - [`note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart):
@@ -10592,15 +10592,16 @@ This release implements a production-grade **WhatsApp Chat Formatter & Editorial
 - [`note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart):
   - Displays `💬 Formatting available` badge pill in `AppColors.accentPrimary` on note list cards when unformatted WhatsApp chat is present.
 - [`editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
-  - Integrated paste interceptor hook detecting WhatsApp exports.
-  - Responsive inline banner and 3-pane tablet preview integration.
+  - Integrated paste interceptor hook and live content change detector (`_maybeDetectWhatsAppChat`) detecting WhatsApp exports across Super Editor, WYSIWYG, and Markdown modes.
+  - Automatic detection on note initialization (`initState`) so opening any note with unformatted chat instantly offers the banner.
+  - Resilient preview match validation avoiding false dismissals from space (`\u202F`) or CRLF normalization.
   - Range-specific replacement with atomic undo snapshotting and autosave.
 
 ### 3. Editorial Block Rendering Across Super Editor, Markdown Preview & WYSIWYG
 To ensure applied WhatsApp conversations retain their polished visual appearance (terracotta sender names, date dividers, timestamps, and card container) and are treated as a unified block rather than fragmented paragraphs:
 
 1. **Embedded Visual Card (`lib/features/whatsapp_formatter/presentation/widgets/whatsapp_chat_card.dart`)**:
-   - Renders a styled surface container with a header bar featuring a WhatsApp green badge, message count badge, a `Copy` action button, and an optional remove button.
+   - Renders a styled surface container with a header bar featuring a WhatsApp green badge, message count badge, an `Options` action (to reconfigure formatting options in preview), a `Copy` action button, and an optional remove button.
    - Embeds `WhatsAppConversationPreview` directly on the editor surface so the applied chat looks identical to the preview modal.
 
 2. **Super Editor Block Node (`lib/features/editor/presentation/widgets/super_editor/whatsapp_chat_component.dart`)**:
@@ -10608,6 +10609,7 @@ To ensure applied WhatsApp conversations retain their polished visual appearance
    - `WhatsAppChatComponentBuilder`: Renders `WhatsAppChatCard` within Super Editor's component pipeline.
    - `WhatsAppChatNodeSerializer`: Serializes `WhatsAppChatNode` back into standard ```` ```whatsapp\n...\n``` ```` markdown fences.
    - `promoteWhatsAppChatNodes`: Post-processes deserialized documents to promote ```` ```whatsapp ```` and ```` ```chat ```` code blocks into first-class `WhatsAppChatNode`s.
+   - `insertWhatsAppChat`: Replaces matched raw text paragraphs with the unified `WhatsAppChatNode`.
 
 3. **Markdown Preview Code Block Interceptor (`lib/core/markdown/quiet_code_block_element_builder.dart`)**:
    - Detects `whatsapp` or `chat` language tags on code blocks and parses the content into `WhatsAppChatCard`.
@@ -10627,7 +10629,7 @@ To ensure applied WhatsApp conversations retain their polished visual appearance
   - `whatsapp_formatter_test.dart` (7 tests): Date headings, sender grouping, timestamp preservation toggles, Markdown character escaping, and system message styling.
   - `whatsapp_block_rendering_test.dart` (5 tests): Full styled card rendering in Markdown preview, wrapped comment syntax, Super Editor single `BlockNode` promotion & serialization, WYSIWYG `RichDocument` roundtrip, and JSON serialization.
   - `whatsapp_note_list_tile_test.dart` (3 tests): Badge visibility on note cards with unformatted chat and disappearance when formatted.
-  - `whatsapp_editor_integration_test.dart` (7 tests): Paste detection, inline banner trigger, preview navigation, format application, WYSIWYG and Markdown undo/redo, and preferences persistence.
+  - `whatsapp_editor_integration_test.dart` (8 tests): Paste detection, inline banner trigger, direct Apply format from banner, opening existing chat note detection, preview navigation, format application, WYSIWYG and Markdown undo/redo, and preferences persistence.
 - Static analysis: `flutter analyze` (**0 issues found, 0 errors, 0 warnings**).
 - Test suite: `flutter test` (**all tests passing**).
 

@@ -106,9 +106,14 @@ import 'widgets/editor_quick_actions_bar.dart';
 import 'active_inspector_provider.dart';
 import 'widgets/editor_inspector_pane.dart';
 import '../../whatsapp_formatter/application/whatsapp_parser.dart';
+import '../../whatsapp_formatter/application/whatsapp_preferences_provider.dart';
+import '../../whatsapp_formatter/application/whatsapp_markdown_formatter.dart';
 import '../../whatsapp_formatter/domain/whatsapp_parse_result.dart';
 import '../../whatsapp_formatter/presentation/widgets/whatsapp_inline_suggestion_banner.dart';
 import '../../whatsapp_formatter/presentation/whatsapp_preview_screen.dart';
+import '../domain/rich_document.dart';
+import '../application/rich_document_parser.dart';
+import '../application/rich_document_serializer.dart';
 
 enum _OverflowMenuPage { main, insert, share, privacy, editorStyle }
 
@@ -249,12 +254,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     _contentFocusNode.onKeyEvent = (node, event) => _handleEditorKeyEvent(node, event);
 
-    final isChat = WhatsAppParser.isWhatsAppChat(widget.note.content);
-    if (isChat) {
-      final res = WhatsAppParser.parse(widget.note.content);
+    final initialContent = widget.note.content;
+    final effectiveInitialText = RichDocument.isJson(initialContent)
+        ? const RichDocumentSerializer().serialize(const RichDocumentParser().parse(initialContent))
+        : initialContent;
+    final isChat = WhatsAppParser.isWhatsAppChat(effectiveInitialText);
+    if (isChat &&
+        !effectiveInitialText.contains('```whatsapp') &&
+        !effectiveInitialText.contains('<!-- qp-whatsapp')) {
+      final res = WhatsAppParser.parse(effectiveInitialText);
       if (res.isWhatsAppChat) {
         _whatsAppParseResult = res;
         _isWhatsAppPreviewActive = widget.initialPreviewMode;
+        if (!_isWhatsAppPreviewActive) {
+          _pendingWhatsAppSuggestion = (
+            result: res,
+            rangeStart: 0,
+            rangeEnd: effectiveInitialText.length,
+            pastedText: effectiveInitialText,
+          );
+        }
       }
     }
 
@@ -606,6 +625,52 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _typewriterCoordinator.onTypingActivity(
       activeFocusNode: _activeTargetFocusNode ?? _contentFocusNode,
     );
+    _maybeDetectWhatsAppChat(newContent);
+  }
+
+  void _maybeDetectWhatsAppChat(String newContent) {
+    if (!mounted || _isDeactivated) return;
+    final effectiveText = _isWysiwyg && _richDocumentController != null
+        ? _richDocumentController!.toMarkdown()
+        : newContent;
+
+    if (effectiveText.contains('```whatsapp') || effectiveText.contains('<!-- qp-whatsapp')) {
+      if (_pendingWhatsAppSuggestion != null) {
+        setState(() {
+          _pendingWhatsAppSuggestion = null;
+        });
+      }
+      return;
+    }
+
+    if (_dismissedWhatsAppText != null &&
+        (effectiveText == _dismissedWhatsAppText || effectiveText.contains(_dismissedWhatsAppText!))) {
+      return;
+    }
+
+    if (WhatsAppParser.isWhatsAppChat(effectiveText)) {
+      final res = WhatsAppParser.parse(effectiveText);
+      if (res.isWhatsAppChat) {
+        if (_pendingWhatsAppSuggestion?.result.messageCount != res.messageCount ||
+            _pendingWhatsAppSuggestion?.pastedText != effectiveText) {
+          setState(() {
+            _pendingWhatsAppSuggestion = (
+              result: res,
+              rangeStart: 0,
+              rangeEnd: effectiveText.length,
+              pastedText: effectiveText,
+            );
+          });
+        }
+        return;
+      }
+    }
+
+    if (_pendingWhatsAppSuggestion != null) {
+      setState(() {
+        _pendingWhatsAppSuggestion = null;
+      });
+    }
   }
 
   /// Link previews — "bake on open" (only when Smart web links is ON).
@@ -2202,6 +2267,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                         end: _pendingWhatsAppSuggestion!.rangeEnd,
                                         pastedText: _pendingWhatsAppSuggestion!.pastedText,
                                       ),
+                                      onApply: () {
+                                        final options = ref.read(whatsappFormatOptionsProvider);
+                                        final formattedMd = WhatsAppMarkdownFormatter.format(
+                                          _pendingWhatsAppSuggestion!.result,
+                                          options: options,
+                                        );
+                                        final suggestedTitle = _titleController.text.trim().isEmpty ||
+                                                _titleController.text.trim() == 'Untitled'
+                                            ? _pendingWhatsAppSuggestion!.result.suggestedTitle
+                                            : null;
+                                        _applyWhatsAppFormat(
+                                          formattedMd: formattedMd,
+                                          suggestedTitle: suggestedTitle,
+                                          rangeStart: _pendingWhatsAppSuggestion!.rangeStart,
+                                          rangeEnd: _pendingWhatsAppSuggestion!.rangeEnd,
+                                          originalText: _pendingWhatsAppSuggestion!.pastedText,
+                                        );
+                                      },
                                       onDismiss: () {
                                         setState(() {
                                           _dismissedWhatsAppText =
@@ -3360,16 +3443,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     int? end,
     String? pastedText,
   }) {
-    if (pastedText != null) {
+    if (pastedText != null && result.messages.isNotEmpty) {
       final currentDoc = _isWysiwyg && _richDocumentController != null
           ? _richDocumentController!.toMarkdown()
           : _contentController.text;
-      if (!currentDoc.contains(pastedText)) {
+      final cleanDoc = currentDoc.replaceAll('\u202F', ' ').replaceAll('\r\n', '\n');
+      final cleanPasted = pastedText.replaceAll('\u202F', ' ').replaceAll('\r\n', '\n');
+      final firstMsgBody = result.messages.first.body.trim();
+      final hasMatch = cleanDoc.contains(cleanPasted.trim()) ||
+          (firstMsgBody.isNotEmpty && cleanDoc.contains(firstMsgBody));
+      if (!hasMatch) {
         setState(() {
           _pendingWhatsAppSuggestion = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pasted text was modified or removed.')),
+          const SnackBar(content: Text('Chat text was modified or removed.')),
         );
         return;
       }

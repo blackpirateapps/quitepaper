@@ -540,6 +540,33 @@ class QuietSuperEditorController extends ChangeNotifier {
           newNode: chatNode,
         ),
       ]);
+      notifyListeners();
+      return;
+    }
+
+    final doc = _editor!.document;
+    final nodesToRemove = <String>[];
+    for (var i = 0; i < doc.nodeCount; i++) {
+      final node = doc.getNodeAt(i);
+      if (node is TextNode) {
+        final nodeText = node.text.toPlainText().trim();
+        if (nodeText.isNotEmpty && (rawText.contains(nodeText) || rawText == nodeText)) {
+          nodesToRemove.add(node.id);
+        }
+      }
+    }
+
+    if (nodesToRemove.isNotEmpty) {
+      final firstId = nodesToRemove.first;
+      final insertIndex = doc.getNodeIndexById(firstId);
+      for (final id in nodesToRemove) {
+        final idx = doc.getNodeIndexById(id);
+        if (idx != -1) {
+          doc.deleteNodeAt(idx);
+        }
+      }
+      doc.insertNodeAt(insertIndex.clamp(0, doc.nodeCount), chatNode);
+      notifyListeners();
       return;
     }
 
@@ -563,6 +590,7 @@ class QuietSuperEditorController extends ChangeNotifier {
     } else {
       _editor!.document.insertNodeAt(0, chatNode);
     }
+    notifyListeners();
   }
 
   /// Inserts a horizontal rule (divider) after the current node.

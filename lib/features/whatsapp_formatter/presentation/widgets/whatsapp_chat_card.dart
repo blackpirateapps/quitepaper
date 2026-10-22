@@ -20,6 +20,7 @@ class WhatsAppChatCard extends ConsumerStatefulWidget {
     this.options,
     this.readOnly = false,
     this.onRemove,
+    this.onOptions,
   });
 
   /// Raw or formatted chat text (parsed via [WhatsAppChatHelper]).
@@ -36,6 +37,9 @@ class WhatsAppChatCard extends ConsumerStatefulWidget {
 
   /// Optional callback to delete/remove this block in an active editor.
   final VoidCallback? onRemove;
+
+  /// Optional callback to reconfigure options in preview screen.
+  final VoidCallback? onOptions;
 
   @override
   ConsumerState<WhatsAppChatCard> createState() => _WhatsAppChatCardState();
@@ -133,6 +137,36 @@ class _WhatsAppChatCardState extends ConsumerState<WhatsAppChatCard> {
                   ),
                 ),
                 const Spacer(),
+                // Options Action (re-open preview options)
+                if (widget.onOptions != null) ...[
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: widget.onOptions,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 13,
+                            color: colors.textTertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Options',
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textTertiary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 // Copy Action
                 InkWell(
                   borderRadius: BorderRadius.circular(6),

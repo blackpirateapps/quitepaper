@@ -301,6 +301,35 @@ void main() {
       await drainTimers(tester);
     });
 
+    testWidgets('Opening existing note with WhatsApp chat displays inline suggestion banner with Apply format', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'existing-chat-note',
+        title: '',
+        content: sampleChat,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(WhatsAppInlineSuggestionBanner), findsOneWidget);
+      expect(find.text('Apply format'), findsOneWidget);
+      expect(find.text('Preview'), findsOneWidget);
+
+      // Tap Apply format directly on the banner
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Apply format'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(WhatsAppChatCard), findsOneWidget);
+      expect(find.byType(WhatsAppInlineSuggestionBanner), findsNothing);
+
+      await drainTimers(tester);
+    });
+
     testWidgets('Format options persist across provider rebuilds in SharedPreferences', (tester) async {
       final container = ProviderContainer(
         overrides: [
