@@ -18,7 +18,7 @@ import 'package:quitepaper/core/update/update_provider.dart';
 import 'package:quitepaper/core/update/update_service.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
-import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/general_advanced_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeSyncEngine implements SyncEngine {
@@ -89,7 +89,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const SettingsScreen(),
+          home: const GeneralAdvancedSettingsScreen(),
         ),
       );
     }

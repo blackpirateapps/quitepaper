@@ -19,8 +19,13 @@ import 'package:quitepaper/core/sync/sync_models.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/settings/presentation/about_app_screen.dart';
+import 'package:quitepaper/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/backup_import_settings_screen.dart';
 import 'package:quitepaper/features/settings/presentation/default_settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/general_advanced_settings_screen.dart';
 import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/sync_advanced_settings_screen.dart';
 import 'package:quitepaper/features/sync/presentation/change_account_password_dialog.dart';
 import 'package:quitepaper/features/sync/presentation/change_encryption_password_screen.dart';
 import 'package:quitepaper/core/flavor/app_flavor.dart';
@@ -193,8 +198,8 @@ void main() {
 
   testWidgets('SettingsScreen renders unauthenticated Cloud Sync card',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -208,20 +213,20 @@ void main() {
     expect(find.text('CLOUD SYNC & ENCRYPTION'), findsOneWidget);
     expect(find.text('End-to-End Encrypted Cloud Sync'), findsOneWidget);
     expect(find.text('Set up Encrypted Sync'), findsOneWidget);
-    expect(find.text('THEME FAMILY'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('APPEARANCE'),
-      100.0,
-      scrollable: find.byType(Scrollable),
-    );
-    expect(find.text('APPEARANCE'), findsOneWidget);
+    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.text('Default Settings'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Themes and typography'), findsOneWidget);
+    expect(find.text('Backup and import'), findsOneWidget);
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(find.text('ABOUT'), findsOneWidget);
   });
 
   testWidgets(
-      'SettingsScreen renders authenticated Cloud Sync card with all 6 rows in exact order when email is unverified',
+      'SettingsScreen renders authenticated Cloud Sync card with only 3 rows and opens SyncAdvancedSettingsScreen',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -242,50 +247,45 @@ void main() {
     expect(find.text('writer@quietpaper.app'), findsOneWidget);
     expect(find.text('All notes synced'), findsOneWidget);
 
-    // 2. Conditional Email Verification Row
-    expect(find.text('Verify Email Address'), findsOneWidget);
-    expect(find.text('Verification required for account recovery.'), findsOneWidget);
-    expect(find.text('Resend Link'), findsOneWidget);
-
-    // 3. Sync Now Row
+    // 2. Sync Now Row
     expect(find.text('Sync Now'), findsOneWidget);
 
-    // 4. Devices & Sessions Row
-    expect(find.text('Devices & Sessions'), findsOneWidget);
+    // 3. Advanced Row
+    expect(find.text('Passwords, devices, sessions & storage'), findsOneWidget);
 
-    // 5. Account Password Row
-    expect(find.text('Account Password'), findsOneWidget);
-    expect(find.text('Login & cloud account credentials'), findsOneWidget);
-
-    // 6. Encryption Password Row
-    expect(find.text('Encryption Password'), findsOneWidget);
-    expect(find.text('Zero-knowledge note vault key'), findsOneWidget);
-
-    // 7. Sign Out Row
-    expect(find.text('Sign Out'), findsOneWidget);
+    // Other options should NOT be directly on SettingsScreen
+    expect(find.text('Verify Email Address'), findsNothing);
+    expect(find.text('Devices & Sessions'), findsNothing);
+    expect(find.text('Account Password'), findsNothing);
+    expect(find.text('Encryption Password'), findsNothing);
+    expect(find.text('Sign Out'), findsNothing);
 
     // Verify vertical ordering: Top-to-bottom Y offsets
     final userProfileOffset = tester.getTopLeft(find.text('writer@quietpaper.app')).dy;
-    final verifyEmailOffset = tester.getTopLeft(find.text('Verify Email Address')).dy;
     final syncNowOffset = tester.getTopLeft(find.text('Sync Now')).dy;
-    final devicesOffset = tester.getTopLeft(find.text('Devices & Sessions')).dy;
-    final accountPassOffset = tester.getTopLeft(find.text('Account Password')).dy;
-    final encPassOffset = tester.getTopLeft(find.text('Encryption Password')).dy;
-    final signOutOffset = tester.getTopLeft(find.text('Sign Out')).dy;
+    final advancedOffset = tester.getTopLeft(find.text('Passwords, devices, sessions & storage')).dy;
 
-    expect(userProfileOffset < verifyEmailOffset, isTrue);
-    expect(verifyEmailOffset < syncNowOffset, isTrue);
-    expect(syncNowOffset < devicesOffset, isTrue);
-    expect(devicesOffset < accountPassOffset, isTrue);
-    expect(accountPassOffset < encPassOffset, isTrue);
-    expect(encPassOffset < signOutOffset, isTrue);
+    expect(userProfileOffset < syncNowOffset, isTrue);
+    expect(syncNowOffset < advancedOffset, isTrue);
+
+    // Tap Advanced to open SyncAdvancedSettingsScreen
+    await tester.tap(find.text('Passwords, devices, sessions & storage'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SyncAdvancedSettingsScreen), findsOneWidget);
+    expect(find.text('Verify Email Address'), findsOneWidget);
+    expect(find.text('Devices & Sessions'), findsOneWidget);
+    expect(find.text('Account Password'), findsOneWidget);
+    expect(find.text('Encryption Password'), findsOneWidget);
+    expect(find.text('Sign Out'), findsOneWidget);
+    expect(find.text('Cloud Storage'), findsOneWidget);
   });
 
   testWidgets(
-      'SettingsScreen hides Email Verification row when emailVerified is true',
+      'SyncAdvancedSettingsScreen hides Email Verification row when emailVerified is true',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -295,14 +295,13 @@ void main() {
     await mockAuth.signInWithEmailAndPassword('verified@quietpaper.app', 'password123');
 
     await tester.pumpWidget(
-      createTestWidget(child: const SettingsScreen()),
+      createTestWidget(child: const SyncAdvancedSettingsScreen()),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('verified@quietpaper.app'), findsOneWidget);
     expect(find.text('Verify Email Address'), findsNothing);
     expect(find.text('Resend Link'), findsNothing);
-    expect(find.text('Sync Now'), findsOneWidget);
+    expect(find.text('Devices & Sessions'), findsOneWidget);
     expect(find.text('Account Password'), findsOneWidget);
     expect(find.text('Encryption Password'), findsOneWidget);
     expect(find.text('Sign Out'), findsOneWidget);
@@ -311,8 +310,8 @@ void main() {
   testWidgets(
       'Email verification row triggers resend and starts 60-second cooldown',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -322,7 +321,7 @@ void main() {
     await mockAuth.signInWithEmailAndPassword('writer@quietpaper.app', 'password123');
 
     await tester.pumpWidget(
-      createTestWidget(child: const SettingsScreen()),
+      createTestWidget(child: const SyncAdvancedSettingsScreen()),
     );
     await tester.pumpAndSettle();
 
@@ -348,8 +347,8 @@ void main() {
 
   testWidgets('Sync Now row triggers sync and shows completion feedback',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -376,8 +375,8 @@ void main() {
   testWidgets(
       'Account Password row opens ChangeAccountPasswordDialog with validation and update',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -386,7 +385,7 @@ void main() {
     await mockAuth.signInWithEmailAndPassword('writer@quietpaper.app', 'password123');
 
     await tester.pumpWidget(
-      createTestWidget(child: const SettingsScreen()),
+      createTestWidget(child: const SyncAdvancedSettingsScreen()),
     );
     await tester.pumpAndSettle();
 
@@ -454,8 +453,8 @@ void main() {
   testWidgets(
       'Encryption Password row opens ChangeEncryptionPasswordScreen',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -464,7 +463,7 @@ void main() {
     await mockAuth.signInWithEmailAndPassword('writer@quietpaper.app', 'password123');
 
     await tester.pumpWidget(
-      createTestWidget(child: const SettingsScreen()),
+      createTestWidget(child: const SyncAdvancedSettingsScreen()),
     );
     await tester.pumpAndSettle();
 
@@ -482,8 +481,8 @@ void main() {
   testWidgets(
       'Sign Out row shows confirmation dialog and signs out on confirm',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -492,11 +491,9 @@ void main() {
     await mockAuth.signInWithEmailAndPassword('writer@quietpaper.app', 'password123');
 
     await tester.pumpWidget(
-      createTestWidget(child: const SettingsScreen()),
+      createTestWidget(child: const SyncAdvancedSettingsScreen()),
     );
     await tester.pumpAndSettle();
-
-    expect(find.text('writer@quietpaper.app'), findsOneWidget);
 
     // Ensure Sign Out row is visible
     await tester.scrollUntilVisible(
@@ -523,9 +520,6 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    // User is still logged in
-    expect(find.text('writer@quietpaper.app'), findsOneWidget);
-
     // Tap Sign Out again and confirm
     await tester.ensureVisible(find.text('Sign Out'));
     await tester.tap(find.text('Sign Out'));
@@ -534,15 +528,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
     await tester.pumpAndSettle();
 
-    // Scroll back to top to verify unauthenticated card is shown
-    await tester.scrollUntilVisible(
-      find.text('Set up Encrypted Sync'),
-      -200.0,
-      scrollable: find.byType(Scrollable),
-    );
-
-    expect(find.text('Set up Encrypted Sync'), findsOneWidget);
-    expect(find.text('End-to-End Encrypted Cloud Sync'), findsOneWidget);
+    expect(mockAuth.currentUser, isNull);
   });
 
   testWidgets(
@@ -573,16 +559,17 @@ void main() {
 
   testWidgets('tapping Default Settings navigates to DefaultSettingsScreen',
       (tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       createTestWidget(child: const SettingsScreen()),
     );
     await tester.pumpAndSettle();
-
-    await tester.scrollUntilVisible(
-      find.text('Default Settings'),
-      200.0,
-      scrollable: find.byType(Scrollable),
-    );
 
     expect(find.text('GENERAL'), findsOneWidget);
     expect(find.text('Default Settings'), findsOneWidget);
@@ -594,6 +581,100 @@ void main() {
     expect(find.text('GESTURES & SEARCH'), findsOneWidget);
     expect(find.text('Swipe to Search in Editor'), findsOneWidget);
     expect(find.text('Swipe Down to Search in Notes List'), findsOneWidget);
+  });
+
+  testWidgets('tapping Appearance navigates to AppearanceSettingsScreen',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Themes and typography'), findsOneWidget);
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppearanceSettingsScreen), findsOneWidget);
+    expect(find.text('THEME FAMILY'), findsOneWidget);
+    expect(find.text('APPEARANCE'), findsOneWidget);
+    expect(find.text('TYPOGRAPHY'), findsOneWidget);
+  });
+
+  testWidgets('tapping Backup and import navigates to BackupImportSettingsScreen',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Markdown import and local backups'), findsOneWidget);
+    await tester.tap(find.text('Backup and import'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackupImportSettingsScreen), findsOneWidget);
+    expect(find.text('IMPORT'), findsOneWidget);
+    expect(find.text('LOCAL BACKUP & RESTORE'), findsOneWidget);
+  });
+
+  testWidgets('tapping Advanced under General navigates to GeneralAdvancedSettingsScreen',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Maintenance, debug tools, and sample notes'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GeneralAdvancedSettingsScreen), findsOneWidget);
+    expect(find.text('ADVANCED MAINTENANCE'), findsOneWidget);
+    expect(find.text('SAMPLE NOTES'), findsOneWidget);
+    expect(find.text('DEBUG'), findsOneWidget);
+  });
+
+  testWidgets('tapping app name in About navigates to AboutAppScreen',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      createTestWidget(child: const SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Quiet Paper'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AboutAppScreen), findsOneWidget);
+    expect(find.text('Designed and developed by Sudip Mandal'), findsOneWidget);
+    expect(find.text('blackpiratex.com'), findsNWidgets(2));
+    expect(find.text('Author Blog'), findsOneWidget);
+    expect(find.text('GitHub Repository'), findsOneWidget);
   });
 
   testWidgets(

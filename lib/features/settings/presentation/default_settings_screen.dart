@@ -1,14 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app/theme/app_colors.dart';
-import '../../../app/theme/app_spacing.dart';
-import '../../../app/theme/app_typography.dart';
-import '../../../core/widgets/quiet_icon_button.dart';
-import '../../../core/widgets/quiet_adaptive_modal.dart';
+import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/app/theme/app_spacing.dart';
+import 'package:quitepaper/app/theme/app_typography.dart';
+import 'package:quitepaper/core/speech/presentation/speech_settings_view.dart';
+import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
+import 'package:quitepaper/core/widgets/quiet_adaptive_modal.dart';
+import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import '../../tags/domain/phosphor_icons.dart';
+import '../application/settings_provider.dart';
 import '../domain/default_settings.dart';
 import '../application/default_settings_provider.dart';
+import 'widgets/settings_shared_widgets.dart';
 
 /// Screen allowing the user to configure default behaviors and gestures.
 class DefaultSettingsScreen extends ConsumerWidget {
@@ -19,6 +23,8 @@ class DefaultSettingsScreen extends ConsumerWidget {
     final colors = context.appColors;
     final settings = ref.watch(defaultSettingsProvider);
     final notifier = ref.read(defaultSettingsProvider.notifier);
+    final editingStyle = ref.watch(editorEditingStyleProvider);
+    final smartWebLinks = ref.watch(smartWebLinksProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -52,6 +58,82 @@ class DefaultSettingsScreen extends ConsumerWidget {
                 bottom: AppSpacing.xxl,
               ),
               children: [
+                _buildSectionHeader('EDITOR', colors),
+                SettingsGroup(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'Super Editor',
+                      subtitle:
+                          'Block-based editor with native task checkboxes',
+                      isSelected: editingStyle == EditorEditingStyle.superEditor,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.superEditor);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    SettingsRow(
+                      icon: Icons.edit_note_rounded,
+                      title: 'WYSIWYG',
+                      badge: const BetaBadge(),
+                      subtitle:
+                          'Hide Markdown syntax for a cleaner writing experience',
+                      isSelected: editingStyle == EditorEditingStyle.wysiwyg,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.wysiwyg);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    SettingsRow(
+                      icon: Icons.code_rounded,
+                      title: 'Markdown',
+                      subtitle: 'Show Markdown syntax while editing',
+                      isSelected: editingStyle == EditorEditingStyle.markdown,
+                      onTap: () {
+                        ref
+                            .read(editorEditingStyleProvider.notifier)
+                            .setEditingStyle(EditorEditingStyle.markdown);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    SettingsRow(
+                      icon: Icons.mic_none_rounded,
+                      title: 'Speech Recognition',
+                      subtitle: 'Offline voice input and model management',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        SpeechSettingsView.show(context);
+                      },
+                    ),
+                    _buildDivider(colors),
+                    SettingsRow(
+                      icon: Icons.link_rounded,
+                      title: 'Smart web links',
+                      subtitle:
+                          'Fetch titles and preview cards for pasted links. Makes network requests to linked URLs.',
+                      trailing: CupertinoSwitch(
+                        value: smartWebLinks,
+                        activeTrackColor: colors.accent,
+                        onChanged: (v) =>
+                            ref.read(smartWebLinksProvider.notifier).set(v),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 _buildSectionHeader('EDITOR & PREVIEW', colors),
                 _buildGroupCard(
                   colors: colors,

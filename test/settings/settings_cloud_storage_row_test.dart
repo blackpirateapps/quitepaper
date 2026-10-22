@@ -16,7 +16,7 @@ import 'package:quitepaper/core/update/update_service.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/settings/presentation/cloud_storage_screen.dart';
-import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/sync_advanced_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockSyncApiClient extends SyncApiClient {
@@ -103,7 +103,7 @@ void main() {
         theme: ThemeData.light().copyWith(
           extensions: [AppColors.light],
         ),
-        home: const SettingsScreen(),
+        home: const SyncAdvancedSettingsScreen(),
       ),
     );
   }

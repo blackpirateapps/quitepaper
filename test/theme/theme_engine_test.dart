@@ -13,7 +13,7 @@ import 'package:quitepaper/core/widgets/intelligent_heading_scrollbar.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
-import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:quitepaper/features/sidebar/presentation/widgets/sidebar_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -297,7 +297,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.classicLight(),
-            home: const SettingsScreen(),
+            home: const AppearanceSettingsScreen(),
           ),
         ),
       );

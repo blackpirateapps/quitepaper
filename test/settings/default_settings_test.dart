@@ -257,6 +257,13 @@ void main() {
 
     testWidgets('renders all headers, titles, subtitles, and switches',
         (tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
 
@@ -264,6 +271,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Default Settings'), findsOneWidget);
+      expect(find.text('EDITOR'), findsOneWidget);
+      expect(find.text('Super Editor'), findsOneWidget);
+      expect(find.text('WYSIWYG'), findsOneWidget);
+      expect(find.text('Markdown'), findsOneWidget);
+      expect(find.text('Speech Recognition'), findsOneWidget);
+      expect(find.text('Smart web links'), findsOneWidget);
+
       expect(find.text('EDITOR & PREVIEW'), findsOneWidget);
       expect(find.text('Interactive Checklists in Preview'), findsOneWidget);
       expect(
@@ -283,10 +297,6 @@ void main() {
         findsOneWidget,
       );
 
-      // Scroll to view Image attachments section
-      await tester.scrollUntilVisible(find.text('IMAGE ATTACHMENTS'), 100);
-      await tester.pumpAndSettle();
-
       expect(find.text('IMAGE ATTACHMENTS'), findsOneWidget);
       expect(find.text('Image Compression'), findsOneWidget);
       expect(find.text('Ask every time'), findsOneWidget);
@@ -296,52 +306,95 @@ void main() {
         findsOneWidget,
       );
 
-      // Scroll back up to verify switches
-      await tester.scrollUntilVisible(find.text('EDITOR & PREVIEW'), -100);
-      await tester.pumpAndSettle();
+      final checklistSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Interactive Checklists in Preview'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
+      final swipeEditorSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Swipe to Search in Editor'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
+      final swipeNotesSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Swipe Down to Search in Notes List'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
 
-      final switches = find.byType(CupertinoSwitch);
-      expect(switches, findsNWidgets(3));
-      expect(tester.widget<CupertinoSwitch>(switches.at(0)).value, isTrue);
-      expect(tester.widget<CupertinoSwitch>(switches.at(1)).value, isTrue);
-      expect(tester.widget<CupertinoSwitch>(switches.at(2)).value, isTrue);
+      expect(tester.widget<CupertinoSwitch>(checklistSwitch).value, isTrue);
+      expect(tester.widget<CupertinoSwitch>(swipeEditorSwitch).value, isTrue);
+      expect(tester.widget<CupertinoSwitch>(swipeNotesSwitch).value, isTrue);
     });
 
     testWidgets('toggling switches updates values in provider and SharedPreferences',
         (tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
 
       await tester.pumpWidget(buildScreen(prefs: prefs));
       await tester.pumpAndSettle();
 
-      final switches = find.byType(CupertinoSwitch);
+      final checklistSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Interactive Checklists in Preview'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
+      final swipeEditorSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Swipe to Search in Editor'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
+      final swipeNotesSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('Swipe Down to Search in Notes List'),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
 
       // Toggle first switch (Interactive Checklists)
-      await tester.tap(switches.at(0));
+      await tester.tap(checklistSwitch);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<CupertinoSwitch>(switches.at(0)).value, isFalse);
+      expect(tester.widget<CupertinoSwitch>(checklistSwitch).value, isFalse);
       expect(
         prefs.getBool(DefaultSettingsNotifier.interactiveChecklistsInPreviewKey),
         isFalse,
       );
 
       // Toggle second switch (Editor Swipe)
-      await tester.tap(switches.at(1));
+      await tester.tap(swipeEditorSwitch);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<CupertinoSwitch>(switches.at(1)).value, isFalse);
+      expect(tester.widget<CupertinoSwitch>(swipeEditorSwitch).value, isFalse);
       expect(
         prefs.getBool(DefaultSettingsNotifier.swipeToSearchEditorKey),
         isFalse,
       );
 
       // Toggle third switch (Notes Swipe)
-      await tester.tap(switches.at(2));
+      await tester.tap(swipeNotesSwitch);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<CupertinoSwitch>(switches.at(2)).value, isFalse);
+      expect(tester.widget<CupertinoSwitch>(swipeNotesSwitch).value, isFalse);
       expect(
         prefs.getBool(DefaultSettingsNotifier.swipeDownToSearchNotesKey),
         isFalse,

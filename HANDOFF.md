@@ -10389,4 +10389,91 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
     - Inline transcript editor `TextField` typography inheritance.
   - Full audio test suite `test/audio/` (69 tests passed with 100% success rate).
 
+---
+
+## 226. Settings Hierarchy Reorganization & Dedicated Author Showcase Screen (October 2026)
+
+### 1. Problem Statement & Design Requirements
+- **Settings Clutter**: The primary [settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart) had accumulated numerous long, vertically scrolling sections (Cloud Sync with password/session controls, Editor styling choices, Storage & Attachments, Import/Export, and Maintenance actions), making discovery difficult and degrading the quiet, restrained editorial aesthetic.
+- **Hierarchy Simplification**:
+  - **Cloud Sync & Encryption**: Streamlined to 3 rows when authenticated (Email/Status, Sync Now, Advanced).
+  - **Sync Advanced**: Offload account/encryption passwords, devices & active sessions, sign out, and the entire **Storage and Attachments** section (5 options) into a dedicated sub-page ([sync_advanced_settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/sync_advanced_settings_screen.dart)).
+  - **General Settings**:
+    - Retain **Default Settings** and migrate all **Editor** options (Super Editor, WYSIWYG with Beta pill, Markdown, Speech Recognition, Smart web links) into [default_settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart).
+    - Add **Appearance** (subtitle: *"Themes and typography"*), opening [appearance_settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/appearance_settings_screen.dart) containing Theme Family swatches, Appearance mode (System, Light, Dark), and Typography navigation.
+    - Add **Backup and import**, opening [backup_import_settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/backup_import_settings_screen.dart) containing Markdown Import and Local Backup & Restore.
+    - Add **Advanced**, opening [general_advanced_settings_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/general_advanced_settings_screen.dart) containing the 3 maintenance options (Download Attachments, Rerun OCR, Rebuild Index), Desktop OCR (Ollama), Sample Notes, and Debug tools.
+  - **About Section & Author Showcase**:
+    - Make the app title and version tile clickable in the About section, navigating to a new [about_app_screen.dart](file:///home/dog/git/quitepaper/lib/features/settings/presentation/about_app_screen.dart).
+    - Serve the author hero image remotely from the backend static asset directory (`backend/public/images/DSC01473-3.jpg`) via `syncApiClientProvider.baseUrl` (never bundled in the APK asset manifest).
+    - Attribute *"Designed and developed by Sudip Mandal"*, link to `https://blackpiratex.com`, provide an expanded editorial app vision description, and include links to the Author Blog (`https://blackpiratex.com/blog`), GitHub repo (`https://github.com/blackpirateapps/quitepaper`), Terms of Service, and Privacy Policy.
+
+### 2. Architectural Design & Implementation Details
+
+#### A. Shared Reusable Settings Primitives ([`lib/features/settings/presentation/widgets/settings_shared_widgets.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/settings_shared_widgets.dart))
+- Extracted shared settings building blocks to ensure visual coherence across all sub-screens:
+  - `SettingsGroup`: Grouped container with rounded borders, surface styling, and optional padding.
+  - `SettingsRow`: Configurable settings list tile supporting leading icons, badge pills, titles, subtitles, custom trailing widgets (chevrons, switches), selected state indicators, and tap handlers.
+  - `SettingsInfoTile`: Visual notice and informational alert banners.
+  - `BetaBadge`: Distinctive badge pill for experimental features like WYSIWYG editing.
+  - `buildSectionHeader`: Standardized uppercase section titles with letter spacing.
+  - `buildDivider`: Thin divider matching `AppColors.divider`.
+  - `buildThemePreviewSwatches`: Live palette swatches rendering background, card surface, and accent tokens.
+
+#### B. Streamlined Main Settings Screen ([`lib/features/settings/presentation/settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/settings_screen.dart))
+- Restructured `SettingsScreen` into 3 concise sections:
+  1. **Cloud Sync & Encryption**:
+     - When unauthenticated: Promo card with setup CTA.
+     - When authenticated: Exactly 3 rows:
+       1. User email with live sync status indicator badge.
+       2. "Sync Now" with manual trigger and feedback.
+       3. "Advanced" row navigating to `SyncAdvancedSettingsScreen`.
+  2. **General**:
+     - "Default Settings" (navigates to `DefaultSettingsScreen`).
+     - "Appearance" with subtitle *"Themes and typography"* (navigates to `AppearanceSettingsScreen`).
+     - "Backup and import" with subtitle *"Markdown import and local backups"* (navigates to `BackupImportSettingsScreen`).
+     - "Advanced" with subtitle *"Maintenance, debug tools, and sample notes"* (navigates to `GeneralAdvancedSettingsScreen`).
+  3. **About**:
+     - Clickable "Quiet Paper" app header tile navigating to `AboutAppScreen`.
+     - Privacy Policy, Terms & Conditions, and "Check for updates" (flavor-aware).
+
+#### C. Dedicated Sub-Screens
+1. **`SyncAdvancedSettingsScreen` ([`lib/features/settings/presentation/sync_advanced_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/sync_advanced_settings_screen.dart))**:
+   - Hosts email verification banner (with cooldown timer), Devices & Sessions, Account Password dialog trigger, Encryption Password rotation screen, Conflict Resolution review, and Sign Out confirmation dialog.
+   - Hosts the full **Storage and Attachments** section (all 5 options: Cloud Storage tier quota breakdown, Shared links management, Storage & Cleanup, Attached Assets inspector, and Orphaned Assets cleanup).
+2. **`DefaultSettingsScreen` ([`lib/features/settings/presentation/default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart))**:
+   - Consolidated with all Editor preferences: Super Editor, WYSIWYG (with `BetaBadge`), Markdown, Speech Recognition, and Smart web link toggles, alongside search and gesture preferences.
+3. **`AppearanceSettingsScreen` ([`lib/features/settings/presentation/appearance_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/appearance_settings_screen.dart))**:
+   - Theme Family selection (Classic Paper & Warm Paper) with live color preview swatches.
+   - Appearance mode selector (System, Light, Dark).
+   - Typography settings navigation row.
+4. **`BackupImportSettingsScreen` ([`lib/features/settings/presentation/backup_import_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/backup_import_settings_screen.dart))**:
+   - Import section: Markdown folders and file picker.
+   - Local Backup & Restore section: On-demand backup creation, restoration from archive, daily auto-backup switch, retention schedule dropdown, and optional password encryption.
+5. **`GeneralAdvancedSettingsScreen` ([`lib/features/settings/presentation/general_advanced_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/general_advanced_settings_screen.dart))**:
+   - Advanced Maintenance: Download All Attachments, Rerun OCR for All Files, Rebuild Search Index.
+   - Desktop OCR (Ollama): Endpoint configuration and model selector (Linux, macOS, Windows).
+   - Sample Notes: Initial database population helper.
+   - Debug: Web link preview cache diagnostic toggles.
+6. **`AboutAppScreen` ([`lib/features/settings/presentation/about_app_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/about_app_screen.dart))**:
+   - Author Hero Card: Remote image loading with progressive indicator and graceful fallback icon.
+   - Attribution: *"Designed and developed by Sudip Mandal"* and link button to `https://blackpiratex.com`.
+   - Editorial Overview: Full description of Quiet Paper's zero-knowledge cryptography and calm distraction-free offline design.
+   - Resource Links: Direct link tiles to Author Blog (`https://blackpiratex.com/blog`), GitHub Repository (`https://github.com/blackpirateapps/quitepaper`), Terms of Service, and Privacy Policy.
+
+#### D. Remote Backend Asset Optimization
+- Stored author hero image at [`backend/public/images/DSC01473-3.jpg`](file:///home/dog/git/quitepaper/backend/public/images/DSC01473-3.jpg).
+- Compressed 24-megapixel 6.4MB raw image to a 1200px width 300KB progressive JPEG, optimizing mobile bandwidth while preserving high visual fidelity on Retina displays.
+- Excluded from Flutter `pubspec.yaml` assets so the APK package size remains minimal.
+
+### 3. Verification & Quality
+- **Static Analysis**: `flutter analyze` completed with **0 issues found** (zero errors, zero warnings).
+- **Automated Test Suites**:
+  - `test/settings/settings_screen_test.dart` (17 tests passed): Navigation to all new sub-screens, 3-row Cloud Sync constraint, unauthenticated and authenticated layouts, tablet responsiveness.
+  - `test/settings/default_settings_test.dart` (14 tests passed): Editor style radio options, gestures, compression presets, and persistence.
+  - `test/settings/advanced_maintenance_settings_test.dart` (5 tests passed): Advanced maintenance actions and progress sheets.
+  - `test/settings/desktop_ollama_ocr_settings_test.dart` (4 tests passed): Desktop Ollama OCR configuration.
+  - `test/settings/settings_cloud_storage_row_test.dart` (3 tests passed): Cloud Storage row in `SyncAdvancedSettingsScreen`.
+  - `test/theme/theme_engine_test.dart` (23 tests passed): Theme engine and appearance settings.
+
 

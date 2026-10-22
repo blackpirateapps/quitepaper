@@ -13,7 +13,7 @@ import 'package:quitepaper/core/sync/sync_models.dart';
 import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
-import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/general_advanced_settings_screen.dart';
 import 'package:quitepaper/features/settings/presentation/widgets/maintenance_progress_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -138,7 +138,7 @@ void main() {
     );
   }
 
-  testWidgets('SettingsScreen renders Advanced section with all 3 maintenance rows',
+  testWidgets('GeneralAdvancedSettingsScreen renders Advanced section with all 3 maintenance rows',
       (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3.0;
@@ -147,19 +147,19 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(createTestWidget(child: const SettingsScreen()));
+    await tester.pumpWidget(createTestWidget(child: const GeneralAdvancedSettingsScreen()));
     await tester.pumpAndSettle();
 
     // Scroll to Advanced section
     await tester.scrollUntilVisible(
-      find.text('ADVANCED'),
+      find.text('ADVANCED MAINTENANCE'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
     // Verify section header
-    expect(find.text('ADVANCED'), findsOneWidget);
+    expect(find.text('ADVANCED MAINTENANCE'), findsOneWidget);
 
     // Verify 3 rows
     expect(find.text('Download All Attachments'), findsOneWidget);
@@ -181,7 +181,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(createTestWidget(child: const SettingsScreen()));
+    await tester.pumpWidget(createTestWidget(child: const GeneralAdvancedSettingsScreen()));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -218,7 +218,7 @@ void main() {
 
     mockKeyManager.isUnlocked = false;
 
-    await tester.pumpWidget(createTestWidget(child: const SettingsScreen()));
+    await tester.pumpWidget(createTestWidget(child: const GeneralAdvancedSettingsScreen()));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -252,7 +252,7 @@ void main() {
 
     mockKeyManager.isUnlocked = true;
 
-    await tester.pumpWidget(createTestWidget(child: const SettingsScreen()));
+    await tester.pumpWidget(createTestWidget(child: const GeneralAdvancedSettingsScreen()));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -281,7 +281,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(createTestWidget(child: const SettingsScreen()));
+    await tester.pumpWidget(createTestWidget(child: const GeneralAdvancedSettingsScreen()));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(

@@ -1,49 +1,27 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../../core/ocr/ollama_ocr_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
-import '../../../app/theme/app_colors.dart';
-import '../../../app/theme/app_spacing.dart';
-import '../../../app/theme/app_typography.dart';
-import '../../../app/theme/theme_family.dart';
-import '../../../core/sync/sync_models.dart';
-import '../../../core/sync/sync_provider.dart';
-import '../../../core/widgets/quiet_icon_button.dart';
-import '../../../core/backup/backup_provider.dart';
-import '../../../core/backup/presentation/auto_backup_password_dialog.dart';
-import '../../../core/backup/presentation/create_backup_dialog.dart';
-import '../../../core/backup/presentation/restore_backup_dialog.dart';
-import '../../../core/flavor/app_flavor.dart';
-import '../../../core/update/update_dialog.dart';
-import '../../../core/update/update_provider.dart';
-import '../../../core/utils/link_launcher_helper.dart';
-import '../../devices/presentation/devices_screen.dart';
-import '../../import/application/markdown_import_scanner.dart';
-import '../../import/presentation/markdown_import_screen.dart';
-import '../../editor/domain/editor_editing_style.dart';
-import '../../notes/application/notes_provider.dart';
-import '../../notes/application/sample_notes.dart';
-import '../../sync/presentation/change_account_password_dialog.dart';
-import '../../sync/presentation/change_encryption_password_screen.dart';
-import '../../sync/presentation/conflict_list_screen.dart';
-import '../../sync/presentation/sync_auth_screen.dart';
-import '../application/settings_provider.dart';
-import '../application/typography_provider.dart';
-import '../../../core/maintenance/maintenance_models.dart';
+import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/app/theme/app_spacing.dart';
+import 'package:quitepaper/app/theme/app_typography.dart';
+import 'package:quitepaper/core/flavor/app_flavor.dart';
+import 'package:quitepaper/core/sync/sync_models.dart';
+import 'package:quitepaper/core/sync/sync_provider.dart';
+import 'package:quitepaper/core/update/update_dialog.dart';
+import 'package:quitepaper/core/update/update_provider.dart';
+import 'package:quitepaper/core/utils/link_launcher_helper.dart';
+import 'package:quitepaper/core/version/app_version_provider.dart';
+import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
+import 'package:quitepaper/features/sync/presentation/conflict_list_screen.dart';
+import 'package:quitepaper/features/sync/presentation/sync_auth_screen.dart';
+import 'about_app_screen.dart';
+import 'appearance_settings_screen.dart';
+import 'backup_import_settings_screen.dart';
 import 'default_settings_screen.dart';
-import 'storage_management_screen.dart';
-import 'typography_settings_screen.dart';
-import 'widgets/maintenance_progress_sheet.dart';
-import '../../../core/speech/presentation/speech_settings_view.dart';
-import '../../../core/storage/cloud_storage_provider.dart';
-import 'cloud_storage_screen.dart';
-import '../../share/presentation/manage_shares_screen.dart';
-import '../../../core/version/app_version_provider.dart';
+import 'general_advanced_settings_screen.dart';
+import 'sync_advanced_settings_screen.dart';
+import 'widgets/settings_shared_widgets.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -55,9 +33,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final AnimationController _syncRotationController;
-  Timer? _cooldownTimer;
-  int _resendCooldownSeconds = 0;
-  bool _isSendingVerification = false;
   bool _isCheckingForUpdates = false;
 
   @override
@@ -87,127 +62,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  void _startCooldownTimer() {
-    setState(() {
-      _resendCooldownSeconds = 60;
-    });
-    _cooldownTimer?.cancel();
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_resendCooldownSeconds > 1) {
-        setState(() {
-          _resendCooldownSeconds--;
-        });
-      } else {
-        timer.cancel();
-        setState(() {
-          _resendCooldownSeconds = 0;
-        });
-      }
-    });
-  }
-
-  Future<void> _sendVerificationEmail(String email) async {
-    final colors = Theme.of(context).extension<AppColors>() ?? AppColors.light;
-    setState(() {
-      _isSendingVerification = true;
-    });
-    try {
-      final auth = ref.read(authServiceProvider);
-      await auth.sendEmailVerification();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Verification email sent to $email'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      _startCooldownTimer();
-    } catch (e) {
-      if (!mounted) return;
-      final errorMsg = e.toString().replaceAll('Exception: ', '');
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send verification email: $errorMsg'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: colors.error,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSendingVerification = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmSignOut(BuildContext context, String email) async {
-    final colors = context.appColors;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: colors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          title: Text(
-            'Sign out of this device?',
-            style: AppTypography.headline.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Your local notes will stay on this device and remain available offline. Cloud synchronization will stop until you sign in again.',
-            style: AppTypography.bodySmall.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          actionsPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(
-                'Cancel',
-                style: AppTypography.bodySmallMedium.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(
-                'Sign Out',
-                style: AppTypography.bodySmallMedium.copyWith(
-                  color: colors.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true && context.mounted) {
-      await ref.read(authServiceProvider).signOut();
-    }
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _syncRotationController.dispose();
-    _cooldownTimer?.cancel();
     super.dispose();
   }
 
@@ -273,408 +131,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  Future<void> _handleDownloadAllAttachments(BuildContext context) async {
-    await MaintenanceProgressSheet.show(
-      context,
-      taskType: MaintenanceTaskType.downloadAttachments,
-    );
-  }
-
-  Future<void> _handleRerunOcrForAll(BuildContext context) async {
-    final keyManager = ref.read(keyManagerProvider);
-    if (!keyManager.isUnlocked) {
-      final colors = context.appColors;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogCtx) => AlertDialog(
-          backgroundColor: colors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          title: Text(
-            'Encryption Locked',
-            style: AppTypography.headline.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Quiet Paper encryption keys are locked. Please unlock your notebook to extract text and re-run OCR on attachments.',
-            style: AppTypography.bodySmall.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: Text(
-                'OK',
-                style: AppTypography.bodySmallMedium.copyWith(
-                  color: colors.accent,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    await MaintenanceProgressSheet.show(
-      context,
-      taskType: MaintenanceTaskType.rerunOcr,
-    );
-  }
-
-  Future<void> _handleRebuildSearchIndex(BuildContext context) async {
-    final colors = context.appColors;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        title: Text(
-          'Rebuild Search Index',
-          style: AppTypography.headline.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          'This will rebuild full-text search indexes and refresh OCR candidate caches across all notes. Your note contents will not be modified.',
-          style: AppTypography.bodySmall.copyWith(
-            color: colors.textSecondary,
-            height: 1.4,
-          ),
-        ),
-        actionsPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: Text(
-              'Cancel',
-              style: AppTypography.bodySmallMedium.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: Text(
-              'Rebuild',
-              style: AppTypography.bodySmallMedium.copyWith(
-                color: colors.accent,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-    if (!context.mounted) return;
-
-    await MaintenanceProgressSheet.show(
-      context,
-      taskType: MaintenanceTaskType.rebuildSearchIndex,
-    );
-  }
-
-  Future<void> _showEditEndpointDialog(
-    BuildContext context,
-    String currentEndpoint,
-  ) async {
-    final colors = context.appColors;
-    final textController = TextEditingController(text: currentEndpoint);
-
-    final newEndpoint = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: colors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          title: Text(
-            'Ollama Endpoint URL',
-            style: AppTypography.headline.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter the local or network HTTP address of your Ollama daemon.',
-                style: AppTypography.bodySmall.copyWith(
-                  color: colors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: textController,
-                autofocus: true,
-                style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: 'http://127.0.0.1:11434',
-                  hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
-                  filled: true,
-                  fillColor: colors.surfaceElevated,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                    borderSide: BorderSide(color: colors.divider),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                    borderSide: BorderSide(color: colors.accent, width: 1.5),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actionsPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                'Cancel',
-                style: AppTypography.bodySmallMedium.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                final trimmed = textController.text.trim();
-                if (trimmed.isNotEmpty) {
-                  Navigator.of(dialogContext).pop(trimmed);
-                }
-              },
-              child: Text(
-                'Save',
-                style: AppTypography.bodySmallMedium.copyWith(
-                  color: colors.accent,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (newEndpoint != null && newEndpoint.isNotEmpty && context.mounted) {
-      await ref.read(ollamaOcrSettingsProvider.notifier).setEndpoint(newEndpoint);
-    }
-  }
-
-  Future<void> _showSelectModelDialog(
-    BuildContext context,
-    String currentModel,
-    List<String> availableModels,
-  ) async {
-    final colors = context.appColors;
-    final textController = TextEditingController(text: currentModel);
-
-    final candidateModels = <String>{
-      ...availableModels,
-      'deepseek-ocr',
-      'deepseek-ocr:latest',
-      'hf.co/ggml-org/DeepSeek-OCR-GGUF:latest',
-      if (currentModel.isNotEmpty) currentModel,
-    }.toList();
-
-    String selected = currentModel;
-
-    final chosen = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: colors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-              title: Text(
-                'Select OCR Model',
-                style: AppTypography.headline.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Choose an installed Ollama model or specify a custom tag:',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: colors.textSecondary,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: candidateModels.map((m) {
-                            final isCur = selected == m;
-                            return InkWell(
-                              onTap: () {
-                                setDialogState(() {
-                                  selected = m;
-                                  textController.text = m;
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(8.0),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                  vertical: 8.0,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      isCur
-                                          ? Icons.radio_button_checked
-                                          : Icons.radio_button_unchecked,
-                                      size: 18,
-                                      color: isCur
-                                          ? colors.accent
-                                          : colors.textTertiary,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        m,
-                                        style: AppTypography.bodySmall.copyWith(
-                                          color: isCur
-                                              ? colors.accent
-                                              : colors.textPrimary,
-                                          fontWeight: isCur
-                                              ? FontWeight.w600
-                                              : FontWeight.w400,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Custom model identifier:',
-                      style: AppTypography.caption.copyWith(
-                        color: colors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: textController,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'deepseek-ocr',
-                        hintStyle: AppTypography.bodySmall.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                        filled: true,
-                        fillColor: colors.surfaceElevated,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10.0),
-                          borderSide: BorderSide(color: colors.divider),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10.0),
-                          borderSide: BorderSide(color: colors.accent, width: 1.5),
-                        ),
-                      ),
-                      onChanged: (val) {
-                        setDialogState(() {
-                          selected = val.trim();
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actionsPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: AppTypography.bodySmallMedium.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final chosenModel = textController.text.trim();
-                    if (chosenModel.isNotEmpty) {
-                      Navigator.of(dialogContext).pop(chosenModel);
-                    }
-                  },
-                  child: Text(
-                    'Select',
-                    style: AppTypography.bodySmallMedium.copyWith(
-                      color: colors.accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (chosen != null && chosen.isNotEmpty && context.mounted) {
-      await ref.read(ollamaOcrSettingsProvider.notifier).setModel(chosen);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final themeSettings = ref.watch(themeSettingsProvider);
-    final editingStyle = ref.watch(editorEditingStyleProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider);
     final syncState = ref.watch(syncStateProvider);
-    final autoBackupConfig = ref.watch(autoBackupConfigProvider);
     final flavor = ref.watch(appFlavorProvider);
-    final cloudStorageSubtitle = ref.watch(cloudStorageSubtitleProvider);
     final appVersionInfo = ref.watch(appVersionInfoProvider);
 
     if (syncState.status == SyncStatus.syncing) {
@@ -719,7 +181,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
               children: [
                 // ==========================================
-                // Section: Cloud Sync & Encryption
+                // Section: Cloud Sync & Encryption (3 Rows)
                 // ==========================================
                 _buildSectionHeader(context, 'Cloud Sync & Encryption'),
                 _SettingsGroup(
@@ -748,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         },
                       ),
                     ] else ...[
-                      // 1. User Profile & Sync Status Row
+                      // Row 1: Email & Sync Status
                       _SettingsInfoTile(
                         icon: Icons.person_outline_rounded,
                         iconColor: colors.accent,
@@ -760,62 +222,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                 : colors.textSecondary,
                       ),
 
-                      // 2. [CONDITIONAL] Email Verification Row
-                      if (!currentUser.emailVerified) ...[
-                        _buildDivider(colors),
-                        _SettingsRow(
-                          icon: Icons.mark_email_unread_outlined,
-                          iconColor: colors.accent,
-                          title: 'Verify Email Address',
-                          subtitle:
-                              'Verification required for account recovery.',
-                          trailing: GestureDetector(
-                            onTap: (_resendCooldownSeconds > 0 ||
-                                    _isSendingVerification)
-                                ? null
-                                : () => _sendVerificationEmail(
-                                    currentUser.email),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: _resendCooldownSeconds > 0
-                                    ? colors.elevated
-                                    : colors.accent
-                                        .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: _resendCooldownSeconds > 0
-                                      ? colors.divider
-                                      : colors.accent
-                                          .withValues(alpha: 0.4),
-                                  width: 1,
-                                ),
-                              ),
-                              child: _isSendingVerification
-                                  ? const CupertinoActivityIndicator(radius: 6)
-                                  : Text(
-                                      _resendCooldownSeconds > 0
-                                          ? '${_resendCooldownSeconds}s'
-                                          : 'Resend Link',
-                                      style: AppTypography.caption.copyWith(
-                                        color: _resendCooldownSeconds > 0
-                                            ? colors.textTertiary
-                                            : colors.accent,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12.0,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          onTap: (_resendCooldownSeconds > 0 ||
-                                  _isSendingVerification)
-                              ? null
-                              : () => _sendVerificationEmail(currentUser.email),
-                        ),
-                      ],
-
-                      // 3. Sync Now Row
+                      // Row 2: Sync Now
                       _buildDivider(colors),
                       _SettingsRow(
                         leading: RotationTransition(
@@ -899,7 +306,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                     SnackBar(
                                       content: Text(
                                         'Sync complete with ${resultState.conflictsCount} conflict(s) requiring review.',
-                                        style: const TextStyle(color: Colors.white),
+                                        style: const TextStyle(
+                                            color: Colors.white),
                                       ),
                                       backgroundColor: Colors.orange.shade800,
                                       duration: const Duration(seconds: 4),
@@ -909,7 +317,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                         onPressed: () {
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) => const ConflictListScreen(),
+                                              builder: (_) =>
+                                                  const ConflictListScreen(),
                                             ),
                                           );
                                         },
@@ -950,210 +359,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                               },
                       ),
 
-                      // [CONDITIONAL] Review Conflicts Row
-                      if (syncState.conflictsCount > 0) ...[
-                        _buildDivider(colors),
-                        _SettingsRow(
-                          icon: Icons.warning_amber_rounded,
-                          iconColor: Colors.orange,
-                          title:
-                              'Review Sync Conflicts (${syncState.conflictsCount})',
-                          subtitle:
-                              'Conflicting edits need manual resolution',
-                          trailing: Icon(
-                            Icons.chevron_right_rounded,
-                            size: 18,
-                            color: colors.textTertiary,
-                          ),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ConflictListScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-
-                      // 4. Devices & Sessions Row
+                      // Row 3: Advanced
                       _buildDivider(colors),
                       _SettingsRow(
-                        icon: Icons.devices_rounded,
-                        title: 'Devices & Sessions',
-                        subtitle: 'Manage signed-in devices and sessions',
+                        icon: Icons.tune_rounded,
+                        title: 'Advanced',
+                        subtitle: 'Passwords, devices, sessions & storage',
                         trailing: Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
+                          CupertinoIcons.chevron_forward,
+                          size: 14,
                           color: colors.textTertiary,
                         ),
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => const DevicesScreen(),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // 5. Account Password Row (Firebase Auth)
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: Icons.key_outlined,
-                        title: 'Account Password',
-                        subtitle: 'Login & cloud account credentials',
-                        trailingRowText: 'Change',
-                        onTap: () {
-                          ChangeAccountPasswordDialog.show(context);
-                        },
-                      ),
-
-                      // 5. Encryption Password Row (Zero-Knowledge / Argon2id)
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: Icons.shield_outlined,
-                        title: 'Encryption Password',
-                        subtitle: 'Zero-knowledge note vault key',
-                        trailingRowText: 'Change',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
                               builder: (_) =>
-                                  const ChangeEncryptionPasswordScreen(),
+                                  const SyncAdvancedSettingsScreen(),
                             ),
                           );
                         },
-                      ),
-
-                      // 6. Sign Out Row
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: Icons.logout_rounded,
-                        iconColor: colors.error,
-                        title: 'Sign Out',
-                        titleColor: colors.error,
-                        isDestructive: true,
-                        onTap: () =>
-                            _confirmSignOut(context, currentUser.email),
                       ),
                     ],
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Theme Family
-                // ==========================================
-                _buildSectionHeader(context, 'THEME FAMILY'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.palette_outlined,
-                      title: 'Classic Paper',
-                      subtitle: 'Warm terracotta & soft paper editorial tones',
-                      trailing: _buildThemePreviewSwatches(
-                        context: context,
-                        colors: isDark ? AppColors.classicDark : AppColors.classicLight,
-                        isSelected: themeSettings.family == ThemeFamily.classicPaper,
-                      ),
-                      isSelected: themeSettings.family == ThemeFamily.classicPaper,
-                      onTap: () {
-                        ref
-                            .read(themeSettingsProvider.notifier)
-                            .setThemeFamily(ThemeFamily.classicPaper);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.auto_awesome_outlined,
-                      title: 'Warm Paper',
-                      subtitle: 'Warm ivory & midnight slate with serene slate blue accent',
-                      trailing: _buildThemePreviewSwatches(
-                        context: context,
-                        colors: isDark ? AppColors.midnightPaperDark : AppColors.warmPaperLight,
-                        isSelected: themeSettings.family == ThemeFamily.warmPaper,
-                      ),
-                      isSelected: themeSettings.family == ThemeFamily.warmPaper,
-                      onTap: () {
-                        ref
-                            .read(themeSettingsProvider.notifier)
-                            .setThemeFamily(ThemeFamily.warmPaper);
-                      },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Appearance
-                // ==========================================
-                _buildSectionHeader(context, 'APPEARANCE'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.brightness_auto_rounded,
-                      title: 'System',
-                      subtitle: 'Matches your device display settings',
-                      isSelected: themeSettings.appearance == AppearanceMode.system,
-                      onTap: () {
-                        ref
-                            .read(themeSettingsProvider.notifier)
-                            .setAppearanceMode(AppearanceMode.system);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.light_mode_outlined,
-                      title: 'Light',
-                      isSelected: themeSettings.appearance == AppearanceMode.light,
-                      onTap: () {
-                        ref
-                            .read(themeSettingsProvider.notifier)
-                            .setAppearanceMode(AppearanceMode.light);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.dark_mode_outlined,
-                      title: 'Dark',
-                      isSelected: themeSettings.appearance == AppearanceMode.dark,
-                      onTap: () {
-                        ref
-                            .read(themeSettingsProvider.notifier)
-                            .setAppearanceMode(AppearanceMode.dark);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.text_fields_rounded,
-                      title: 'Typography',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${ref.watch(typographySettingsProvider).bodyFontFamily ?? 'System'}, ${ref.watch(typographySettingsProvider).fontSize.toInt()}pt',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const TypographySettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
                   ],
                 ),
 
@@ -1168,7 +394,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     _SettingsRow(
                       icon: Icons.tune_rounded,
                       title: 'Default Settings',
-                      subtitle: 'Gestures and search shortcuts',
+                      subtitle: 'Gestures, search shortcuts, and editor',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DefaultSettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDivider(colors),
+                    _SettingsRow(
+                      icon: Icons.palette_outlined,
+                      title: 'Appearance',
+                      subtitle: 'Themes and typography',
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1183,563 +432,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
-                                const DefaultSettingsScreen(),
+                                const AppearanceSettingsScreen(),
                           ),
                         );
                       },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Editor
-                // ==========================================
-                _buildSectionHeader(context, 'EDITOR'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.auto_awesome_rounded,
-                      title: 'Super Editor',
-                      subtitle: 'Block-based editor with native task checkboxes',
-                      isSelected: editingStyle == EditorEditingStyle.superEditor,
-                      onTap: () {
-                        ref
-                            .read(editorEditingStyleProvider.notifier)
-                            .setEditingStyle(EditorEditingStyle.superEditor);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.edit_note_rounded,
-                      title: 'WYSIWYG',
-                      badge: const _BetaBadge(),
-                      subtitle: 'Hide Markdown syntax for a cleaner writing experience',
-                      isSelected: editingStyle == EditorEditingStyle.wysiwyg,
-                      onTap: () {
-                        ref
-                            .read(editorEditingStyleProvider.notifier)
-                            .setEditingStyle(EditorEditingStyle.wysiwyg);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.code_rounded,
-                      title: 'Markdown',
-                      subtitle: 'Show Markdown syntax while editing',
-                      isSelected: editingStyle == EditorEditingStyle.markdown,
-                      onTap: () {
-                        ref
-                            .read(editorEditingStyleProvider.notifier)
-                            .setEditingStyle(EditorEditingStyle.markdown);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.mic_none_rounded,
-                      title: 'Speech Recognition',
-                      subtitle: 'Offline voice input and model management',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        SpeechSettingsView.show(context);
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.link_rounded,
-                      title: 'Smart web links',
-                      subtitle:
-                          'Fetch titles and preview cards for pasted links. Makes network requests to linked URLs.',
-                      trailing: CupertinoSwitch(
-                        value: ref.watch(smartWebLinksProvider),
-                        activeTrackColor: colors.accent,
-                        onChanged: (v) =>
-                            ref.read(smartWebLinksProvider.notifier).set(v),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Storage & Attachments
-                // ==========================================
-                _buildSectionHeader(context, 'Storage & Attachments'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.cloud_outlined,
-                      title: 'Cloud Storage',
-                      subtitle: cloudStorageSubtitle,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const CloudStorageScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.link_rounded,
-                      title: 'Shared links',
-                      subtitle: 'Manage or delete notes you shared as public URLs',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ManageSharesScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.pie_chart_outline_rounded,
-                      title: 'Storage & Cleanup',
-                      subtitle: 'Storage breakdown, GC maintenance, and reclaimable space',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const StorageManagementScreen(initialTab: 0),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.attachment_rounded,
-                      title: 'Attached Assets',
-                      subtitle: 'Active images & scanned documents',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const StorageManagementScreen(initialTab: 1),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.delete_sweep_outlined,
-                      title: 'Orphaned Assets',
-                      subtitle: 'Unreferenced cloud assets pending destruction',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_forward,
-                            size: 14,
-                            color: colors.textTertiary,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const StorageManagementScreen(initialTab: 2),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Advanced
-                // ==========================================
-                _buildSectionHeader(context, 'Advanced'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.cloud_download_outlined,
-                      title: 'Download All Attachments',
-                      subtitle:
-                          'Download all media and documents from cloud for offline access',
-                      trailing: Icon(
-                        CupertinoIcons.chevron_forward,
-                        size: 14,
-                        color: colors.textTertiary,
-                      ),
-                      onTap: () => _handleDownloadAllAttachments(context),
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.document_scanner_outlined,
-                      title: 'Rerun OCR for All Files',
-                      subtitle:
-                          'Extract text from all local scanned documents and image attachments',
-                      trailing: Icon(
-                        CupertinoIcons.chevron_forward,
-                        size: 14,
-                        color: colors.textTertiary,
-                      ),
-                      onTap: () => _handleRerunOcrForAll(context),
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.manage_search_rounded,
-                      title: 'Rebuild Search Index',
-                      subtitle:
-                          'Refresh full-text and OCR indexes for notes and attachments',
-                      trailing: Icon(
-                        CupertinoIcons.chevron_forward,
-                        size: 14,
-                        color: colors.textTertiary,
-                      ),
-                      onTap: () => _handleRebuildSearchIndex(context),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Desktop OCR (Ollama)
-                // ==========================================
-                if (!kIsWeb &&
-                    (Platform.isLinux ||
-                        Platform.isMacOS ||
-                        Platform.isWindows)) ...[
-                  _buildSectionHeader(context, 'Desktop OCR (Ollama)'),
-                  _buildOllamaOcrSection(context, colors),
-                  const SizedBox(height: 24),
-                ],
-
-                // ==========================================
-                // Section: Import
-                // ==========================================
-                _buildSectionHeader(context, 'Import'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsInfoTile(
-                      icon: Icons.import_contacts_outlined,
-                      iconColor: colors.textSecondary,
-                      title: 'Import Markdown Folder',
-                      description:
-                          'Select a folder to scan and import all Markdown (.md) documents recursively, including frontmatter, file creation/modification dates, and subfolder tags.',
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.folder_open_rounded,
-                      title: 'Choose folder to import',
-                      onTap: () async {
-                        try {
-                          final folderPath =
-                              await FilePicker.platform.getDirectoryPath();
-                          if (folderPath != null && context.mounted) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => MarkdownImportScreen(
-                                  initialFolderPath: folderPath,
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error choosing folder: $e'),
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.description_outlined,
-                      title: 'Select markdown files',
-                      onTap: () async {
-                        try {
-                          final result =
-                              await FilePicker.platform.pickFiles(
-                            allowMultiple: true,
-                            type: FileType.custom,
-                            allowedExtensions: ['md', 'markdown'],
-                          );
-                          if (result != null &&
-                              result.files.isNotEmpty &&
-                              context.mounted) {
-                            final items =
-                                await MarkdownImportScanner.processPickedFiles(
-                                    result.files);
-                            if (context.mounted) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      MarkdownImportScreen(
-                                    initialFolderPath: 'Selected Files',
-                                    initialItems: items,
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error picking files: $e'),
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Local Backup & Restore
-                // ==========================================
-                _buildSectionHeader(context, 'Local Backup & Restore'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsInfoTile(
-                      icon: Icons.storage_outlined,
-                      iconColor: colors.textSecondary,
-                      title: 'Notebook Backups',
-                      description:
-                          'Export and restore complete .qpbackup snapshots, optionally protected with Argon2id encryption.',
-                    ),
-                    _buildDivider(colors),
-                    _SettingsRow(
-                      icon: Icons.backup_rounded,
-                      iconColor: colors.accent,
-                      title: 'Create Backup',
-                      titleColor: colors.accent,
-                      isPrimaryAction: true,
-                      onTap: () => CreateBackupDialog.show(context),
                     ),
                     _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.settings_backup_restore_rounded,
-                      title: 'Restore Backup',
-                      onTap: () => RestoreBackupDialog.show(context),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // Subgroup: Daily Auto-Backup
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.schedule_rounded,
-                      title: 'Daily Auto-Backup',
-                      subtitle:
-                          'Automatically saves snapshots on app launch',
-                      trailing: CupertinoSwitch(
-                        value: autoBackupConfig.enabled,
-                        activeTrackColor: colors.accent,
-                        onChanged: (val) async {
-                          if (val && autoBackupConfig.folderPath == null) {
-                            final folder =
-                                await FilePicker.platform.getDirectoryPath(
-                              dialogTitle: 'Select Auto-Backup Folder',
-                            );
-                            if (folder != null) {
-                              await ref
-                                  .read(
-                                      autoBackupConfigProvider.notifier)
-                                  .setFolderPath(folder);
-                              await ref
-                                  .read(
-                                      autoBackupConfigProvider.notifier)
-                                  .setEnabled(true);
-                            }
-                          } else {
-                            await ref
-                                .read(autoBackupConfigProvider.notifier)
-                                .setEnabled(val);
-                          }
-                        },
-                      ),
-                    ),
-                    if (autoBackupConfig.enabled) ...[
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: Icons.folder_outlined,
-                        title: 'Backup Folder',
-                        subtitle: autoBackupConfig.folderPath ??
-                            'No folder selected',
-                        onTap: () async {
-                          final folder =
-                              await FilePicker.platform.getDirectoryPath(
-                            dialogTitle: 'Change Auto-Backup Folder',
-                          );
-                          if (folder != null) {
-                            await ref
-                                .read(
-                                    autoBackupConfigProvider.notifier)
-                                .setFolderPath(folder);
-                          }
-                        },
-                      ),
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: Icons.history_rounded,
-                        title: 'Keep Backups',
-                        trailing: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            value: autoBackupConfig.retentionCount,
-                            dropdownColor: colors.surface,
-                            icon: Icon(
-                              Icons.unfold_more_rounded,
-                              size: 18,
-                              color: colors.textTertiary,
-                            ),
-                            style: AppTypography.caption.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            items: const [3, 5, 10, 30].map((c) {
-                              return DropdownMenuItem<int>(
-                                value: c,
-                                child: Text('$c backups'),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                ref
-                                    .read(
-                                        autoBackupConfigProvider.notifier)
-                                    .setRetentionCount(val);
-                              }
-                            },
+                      title: 'Backup and import',
+                      subtitle: 'Markdown import and local backups',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
                           ),
-                        ),
+                        ],
                       ),
-                      _buildDivider(colors),
-                      _SettingsRow(
-                        icon: autoBackupConfig.hasPassword
-                            ? Icons.lock_outline_rounded
-                            : Icons.lock_open_rounded,
-                        title: 'Encryption',
-                        trailingRowText: autoBackupConfig.hasPassword
-                            ? 'Encrypted'
-                            : 'Plaintext',
-                        onTap: () =>
-                            AutoBackupPasswordDialog.show(context),
-                      ),
-                    ],
-                  ],
-                ),
-                if (autoBackupConfig.lastBackupAt != null)
-                  _buildSectionFooter(
-                    context,
-                    'Last backup: ${DateFormat.yMMMd().add_jm().format(autoBackupConfig.lastBackupAt!)}',
-                  ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Sample Notes
-                // ==========================================
-                _buildSectionHeader(context, 'Sample Notes'),
-                _SettingsGroup(
-                  children: [
-                    _SettingsRow(
-                      icon: Icons.auto_stories_outlined,
-                      title: 'Load sample notes',
-                      subtitle:
-                          'Populate example notes demonstrating Markdown, hashtags, and editorial formatting.',
-                      onTap: () async {
-                        final repository =
-                            ref.read(notesRepositoryProvider);
-                        await SampleNotes.populateSampleNotes(
-                            repository);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Sample notes loaded'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const BackupImportSettingsScreen(),
+                          ),
+                        );
                       },
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // Section: Debug
-                // ==========================================
-                _buildSectionHeader(context, 'Debug'),
-                _SettingsGroup(
-                  children: [
+                    _buildDivider(colors),
                     _SettingsRow(
-                      icon: Icons.bug_report_outlined,
-                      title: 'Link preview debug info',
-                      subtitle:
-                          'Show detailed failure diagnostics when link preview fetching fails in the editor.',
-                      trailing: CupertinoSwitch(
-                        value: ref.watch(linkPreviewDebugProvider),
-                        activeTrackColor: colors.accent,
-                        onChanged: (v) =>
-                            ref.read(linkPreviewDebugProvider.notifier).set(v),
+                      icon: Icons.construction_rounded,
+                      title: 'Advanced',
+                      subtitle: 'Maintenance, debug tools, and sample notes',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.chevron_forward,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
+                        ],
                       ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const GeneralAdvancedSettingsScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1758,7 +502,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       title: 'Quiet Paper',
                       description:
                           'A quiet place to think.\n${appVersionInfo.displayVersion} • Offline-first • End-to-End Encrypted Sync',
-
+                      trailing: Icon(
+                        CupertinoIcons.chevron_forward,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AboutAppScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _buildDivider(colors),
                     _SettingsRow(
@@ -1826,542 +581,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
-  Widget _buildOllamaOcrSection(BuildContext context, AppColors colors) {
-    final ollamaSettings = ref.watch(ollamaOcrSettingsProvider);
-
-    String statusText;
-    Color statusColor;
-    switch (ollamaSettings.status) {
-      case OllamaConnectionStatus.connected:
-        statusText = 'Connected • ${ollamaSettings.model}';
-        statusColor = const Color(0xFF2E7D32);
-        break;
-      case OllamaConnectionStatus.checking:
-        statusText = 'Checking daemon connection…';
-        statusColor = colors.accent;
-        break;
-      case OllamaConnectionStatus.disconnected:
-      case OllamaConnectionStatus.error:
-        statusText = 'Ollama offline (${ollamaSettings.endpoint})';
-        statusColor = colors.error;
-        break;
-      case OllamaConnectionStatus.initial:
-        statusText = 'Status unverified';
-        statusColor = colors.textSecondary;
-        break;
-    }
-
-    return _SettingsGroup(
-      children: [
-        _SettingsRow(
-          icon: Icons.memory_rounded,
-          title: 'Use Local Ollama OCR',
-          subtitle:
-              'Transcribe documents and attachments using local DeepSeek-OCR without cloud upload',
-          trailing: CupertinoSwitch(
-            value: ollamaSettings.enabled,
-            activeTrackColor: colors.accent,
-            onChanged: (v) =>
-                ref.read(ollamaOcrSettingsProvider.notifier).setEnabled(v),
-          ),
-        ),
-        if (ollamaSettings.enabled) ...[
-          _buildDivider(colors),
-          _SettingsRow(
-            icon: Icons.sensors_rounded,
-            iconColor: statusColor,
-            title: 'Daemon Status',
-            subtitle: statusText,
-            trailing: IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 20),
-              color: colors.textSecondary,
-              tooltip: 'Check Connection',
-              onPressed: () async {
-                final success = await ref
-                    .read(ollamaOcrSettingsProvider.notifier)
-                    .checkConnection();
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    persist: false,
-                    content: Text(
-                      success
-                          ? 'Connected to Ollama! Found ${ref.read(ollamaOcrSettingsProvider).availableModels.length} models.'
-                          : 'Unable to connect to Ollama at ${ollamaSettings.endpoint}.',
-                    ),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-          ),
-          _buildDivider(colors),
-          _SettingsRow(
-            icon: Icons.link_rounded,
-            title: 'Ollama Endpoint',
-            subtitle: ollamaSettings.endpoint,
-            trailing: Icon(
-              CupertinoIcons.chevron_forward,
-              size: 14,
-              color: colors.textTertiary,
-            ),
-            onTap: () =>
-                _showEditEndpointDialog(context, ollamaSettings.endpoint),
-          ),
-          _buildDivider(colors),
-          _SettingsRow(
-            icon: Icons.auto_awesome_rounded,
-            title: 'OCR Model',
-            subtitle: ollamaSettings.model,
-            trailing: Icon(
-              CupertinoIcons.chevron_forward,
-              size: 14,
-              color: colors.textTertiary,
-            ),
-            onTap: () => _showSelectModelDialog(
-              context,
-              ollamaSettings.model,
-              ollamaSettings.availableModels,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _buildSectionHeader(BuildContext context, String title) {
-    final colors = context.appColors;
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: AppSpacing.xs,
-        bottom: 8.0,
-      ),
-      child: Text(
-        title.toUpperCase(),
-        style: AppTypography.caption.copyWith(
-          color: colors.textTertiary,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionFooter(BuildContext context, String text) {
-    final colors = context.appColors;
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: AppSpacing.xs,
-        top: 6.0,
-        right: AppSpacing.xs,
-      ),
-      child: Text(
-        text,
-        style: AppTypography.caption.copyWith(
-          color: colors.textTertiary,
-          fontSize: 11.5,
-          height: 1.35,
-        ),
-      ),
-    );
+    return buildSectionHeader(context, title);
   }
 
   Widget _buildDivider(AppColors colors) {
-    return Divider(
-      color: colors.divider.withValues(alpha: 0.5),
-      height: 1,
-      thickness: 1.0,
-      indent: 52, // 16 horizontal padding + 24 icon box + 12 gap = 52
-      endIndent: 0,
-    );
-  }
-
-  Widget _buildThemePreviewSwatches({
-    required BuildContext context,
-    required AppColors colors,
-    required bool isSelected,
-  }) {
-    final activeColors = context.appColors;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 5.0),
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: BorderRadius.circular(6.0),
-            border: Border.all(color: colors.divider, width: 0.8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 10.0,
-                height: 10.0,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.divider, width: 0.5),
-                ),
-              ),
-              const SizedBox(width: 3.5),
-              Container(
-                width: 10.0,
-                height: 10.0,
-                decoration: BoxDecoration(
-                  color: colors.textPrimary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 3.5),
-              Container(
-                width: 10.0,
-                height: 10.0,
-                decoration: BoxDecoration(
-                  color: colors.textSecondary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 3.5),
-              Container(
-                width: 10.0,
-                height: 10.0,
-                decoration: BoxDecoration(
-                  color: colors.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (isSelected) ...[
-          const SizedBox(width: 8.0),
-          Icon(
-            Icons.check_rounded,
-            size: 20,
-            color: activeColors.accent,
-          ),
-        ],
-      ],
-    );
+    return buildDivider(colors);
   }
 
   String _formatSyncStatus(SyncState state) {
     switch (state.status) {
-      case SyncStatus.syncing:
-        return 'Syncing...';
-      case SyncStatus.synced:
-        if (state.lastSyncedAt != null) {
-          final time = DateFormat.jm().format(state.lastSyncedAt!);
-          if (state.attachmentsSynced > 0) {
-            return 'All notes & ${state.attachmentsSynced} image(s) synced at $time';
-          }
-          return 'All notes synced at $time';
-        }
-        return 'All notes synced';
+      case SyncStatus.localOnly:
+        return 'Local storage only';
       case SyncStatus.pendingSync:
-        return 'Unlock encryption password to sync';
+        return 'Pending sync…';
+      case SyncStatus.syncing:
+        return 'Syncing changes…';
+      case SyncStatus.synced:
+        return 'All notes synced';
       case SyncStatus.offline:
         return 'Offline • Changes saved locally';
       case SyncStatus.conflict:
-        return 'Conflict detected • Preserved locally';
+        return '${state.conflictsCount} conflict(s) need review';
       case SyncStatus.syncError:
         return state.errorMessage ?? 'Sync failed • Check Cloudinary config';
-      case SyncStatus.localOnly:
-        return 'Local storage only';
     }
   }
 }
 
-/// A container card mimicking the iOS grouped table section.
-class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: colors.divider.withValues(alpha: 0.6),
-          width: 0.8,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      ),
-    );
-  }
-}
-
-/// An informative, non-clickable row used for headers/descriptions inside a grouped section.
-class _SettingsInfoTile extends StatelessWidget {
-  const _SettingsInfoTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.iconColor,
-    this.descriptionColor,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Color? iconColor;
-  final Color? descriptionColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16.0,
-        vertical: 14.0,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: Center(
-              child: Icon(
-                icon,
-                size: 20,
-                color: iconColor ?? colors.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16.0,
-                  ),
-                ),
-                const SizedBox(height: 3.0),
-                Text(
-                  description,
-                  style: AppTypography.caption.copyWith(
-                    color: descriptionColor ?? colors.textSecondary,
-                    fontSize: 12.0,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A standard clickable row inside a grouped section.
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    this.icon,
-    this.leading,
-    required this.title,
-    this.badge,
-    this.subtitle,
-    this.iconColor,
-    this.titleColor,
-    this.trailing,
-    this.trailingRowText,
-    this.isSelected = false,
-    this.isPrimaryAction = false,
-    this.isDestructive = false,
-    this.onTap,
-  }) : assert(icon != null || leading != null,
-            'Either icon or leading must be provided');
-
-  final IconData? icon;
-  final Widget? leading;
-  final String title;
-  final Widget? badge;
-  final String? subtitle;
-  final Color? iconColor;
-  final Color? titleColor;
-  final Widget? trailing;
-  final String? trailingRowText;
-  final bool isSelected;
-  final bool isPrimaryAction;
-  final bool isDestructive;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-
-    final resolvedIconColor = iconColor ??
-        (isSelected
-            ? colors.accent
-            : (isDestructive
-                ? colors.error
-                : (isPrimaryAction ? colors.accent : colors.textSecondary)));
-
-    final resolvedTitleColor = titleColor ??
-        (isSelected
-            ? colors.accent
-            : (isDestructive
-                ? colors.error
-                : (isPrimaryAction ? colors.accent : colors.textPrimary)));
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-            vertical: 14.0,
-          ),
-          child: Row(
-            crossAxisAlignment: subtitle != null
-                ? CrossAxisAlignment.start
-                : CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: Center(
-                  child: leading ??
-                      Icon(
-                        icon,
-                        size: 20,
-                        color: resolvedIconColor,
-                      ),
-                ),
-              ),
-              const SizedBox(width: 12.0),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: resolvedTitleColor,
-                              fontWeight: (isSelected || isPrimaryAction)
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              fontSize: 16.0,
-                            ),
-                          ),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8.0),
-                          badge!,
-                        ],
-                      ],
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2.0),
-                      Text(
-                        subtitle!,
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textTertiary,
-                          fontSize: 12.0,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (trailing != null)
-                trailing!
-              else if (trailingRowText != null)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      trailingRowText!,
-                      style: AppTypography.caption.copyWith(
-                        color: colors.textTertiary,
-                        fontSize: 13.0,
-                      ),
-                    ),
-                    const SizedBox(width: 4.0),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: colors.textTertiary,
-                    ),
-                  ],
-                )
-              else if (isSelected)
-                Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: colors.accent,
-                )
-              else if (onTap != null)
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: isDestructive
-                      ? colors.error.withValues(alpha: 0.6)
-                      : (isPrimaryAction
-                          ? colors.accent.withValues(alpha: 0.7)
-                          : colors.textTertiary),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact editorial Beta badge pill matching Quiet Paper's aesthetic.
-class _BetaBadge extends StatelessWidget {
-  const _BetaBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: colors.accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4.0),
-        border: Border.all(
-          color: colors.accent.withValues(alpha: 0.35),
-          width: 0.8,
-        ),
-      ),
-      child: Text(
-        'BETA',
-        style: AppTypography.caption.copyWith(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.6,
-          color: colors.accent,
-        ),
-      ),
-    );
-  }
-}
+// Re-exports/aliases for backward compatibility with existing tests
+typedef _SettingsGroup = SettingsGroup;
+typedef _SettingsInfoTile = SettingsInfoTile;
+typedef _SettingsRow = SettingsRow;
