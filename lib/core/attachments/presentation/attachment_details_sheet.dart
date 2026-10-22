@@ -349,6 +349,7 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
         : 'Not computed';
 
     final content = SafeArea(
+      top: false,
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -478,6 +479,16 @@ class _AttachmentDetailsSheetState extends ConsumerState<AttachmentDetailsSheet>
         child: content,
       );
     }
+
+    if (!isDesktop) {
+      return Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      );
+    }
+
     return content;
   }
 

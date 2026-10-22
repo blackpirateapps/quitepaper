@@ -6,6 +6,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/utils/platform_layout_helper.dart';
 import '../../../core/widgets/quiet_adaptive_modal.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../application/share_providers.dart';
@@ -381,11 +382,35 @@ class _VisibilityPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return SafeArea(
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+
+    final content = SafeArea(
+      top: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: AppSpacing.md),
+          if (!isDesktop) ...[
+            const AdaptiveSheetDragHandle(),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.xs,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Share Visibility',
+                  style: AppTypography.title.copyWith(
+                    color: colors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+          ],
+          const SizedBox(height: AppSpacing.sm),
           for (final v in ShareVisibility.values)
             ListTile(
               leading: Icon(
@@ -410,6 +435,17 @@ class _VisibilityPicker extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
         ],
       ),
+    );
+
+    if (isDesktop) {
+      return content;
+    }
+
+    return Material(
+      color: colors.surface,
+      borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+      clipBehavior: Clip.antiAlias,
+      child: content,
     );
   }
 }

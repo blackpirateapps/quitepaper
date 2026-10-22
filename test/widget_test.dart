@@ -468,6 +468,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsOneWidget);
+
+    // Tap Appearance row in General settings
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+
     expect(find.text('THEME FAMILY'), findsOneWidget);
     expect(find.text('Classic Paper'), findsOneWidget);
     expect(find.text('Warm Paper'), findsOneWidget);
@@ -495,7 +500,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(prefs.getString('app_appearance_mode'), 'dark');
 
-    // Back to main
+    // Back to Settings, then back to main
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
 
@@ -518,10 +525,14 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
+    // Tap Backup and import row in General settings
+    await tester.tap(find.text('Backup and import'));
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
       find.text('Import Markdown Folder'),
       200.0,
-      scrollable: find.byType(Scrollable),
+      scrollable: find.byType(Scrollable).first,
     );
 
     expect(find.text('IMPORT'), findsOneWidget);

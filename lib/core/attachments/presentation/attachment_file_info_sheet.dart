@@ -90,6 +90,7 @@ class AttachmentFileInfoSheet extends StatelessWidget {
         : 'Not computed';
 
     final content = SafeArea(
+      top: false,
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -185,6 +186,16 @@ class AttachmentFileInfoSheet extends StatelessWidget {
         child: content,
       );
     }
+
+    if (!isDesktop) {
+      return Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      );
+    }
+
     return content;
   }
 

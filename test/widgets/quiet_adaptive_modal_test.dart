@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_radii.dart';
+import 'package:quitepaper/core/attachments/presentation/attachment_file_info_sheet.dart';
+import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/widgets/quiet_adaptive_modal.dart';
 import 'package:quitepaper/core/widgets/quiet_editorial_dialog.dart';
 
@@ -471,6 +473,69 @@ void main() {
       );
 
       expect(find.byType(Container), findsNothing);
+    });
+  });
+
+  group('Modal Bottom Sheet Surface Background', () {
+    testWidgets('AttachmentFileInfoSheet renders with opaque colors.surface container on mobile', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final now = DateTime.now();
+      final entity = AttachmentEntity(
+        id: 'test-att-1',
+        fileName: 'document.pdf',
+        kind: 'file',
+        createdAt: now,
+        updatedAt: now,
+        mimeType: 'application/pdf',
+        byteSize: 1024,
+        sha256: 'abcdef1234567890abcdef',
+        encryptionKeyVersion: 1,
+        isDirty: false,
+        isDeleted: false,
+        serverRevision: 0,
+        uploadState: 'local_only',
+        ocrState: 'not_requested',
+        ocrLanguage: 'en',
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          platform: TargetPlatform.android,
+          child: Builder(
+            builder: (ctx) => Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  AttachmentFileInfoSheet.show(
+                    ctx,
+                    entity: entity,
+                  );
+                },
+                child: const Text('Open File Info'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open File Info'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('document.pdf'), findsAtLeast(1));
+      expect(find.byType(BottomSheet), findsOneWidget);
+
+      final materials = tester.widgetList<Material>(find.descendant(
+        of: find.byType(AttachmentFileInfoSheet),
+        matching: find.byType(Material),
+      ));
+
+      final surfaceMaterial = materials.firstWhere(
+        (m) =>
+            m.color == AppColors.light.surface &&
+            m.borderRadius == const BorderRadius.vertical(top: AppRadii.rLg),
+      );
+      expect(surfaceMaterial, isNotNull);
     });
   });
 }

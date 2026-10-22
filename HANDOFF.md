@@ -10476,4 +10476,35 @@ In accordance with Quiet Paper's core vision (*Content First, Warm Editorial Aes
   - `test/settings/settings_cloud_storage_row_test.dart` (3 tests passed): Cloud Storage row in `SyncAdvancedSettingsScreen`.
   - `test/theme/theme_engine_test.dart` (23 tests passed): Theme engine and appearance settings.
 
+---
+
+## 24. Opaque Surface Backgrounds on Mobile Bottom Sheets & Overflow Layout Fix
+
+### Problem & Root Cause
+On mobile viewports (Android/iOS), several modal presentation sheets rendered with a completely transparent background:
+1. **Typography Settings Font Chooser (`FontPickerSheet`)**:
+   - `FontPickerSheet` and `GoogleFontsSheet` presented via `QuietAdaptiveModal.show(type: AdaptiveModalType.spotlight)` on mobile use `DraggableScrollableSheet`.
+   - `QuietAdaptiveModal.show` on touch platforms defaults modal bottom sheet backgrounds to `Colors.transparent` for non-popover types to permit custom rounded card containers and child draggable sheets.
+   - However, `FontPickerSheet` and `GoogleFontsSheet` built their content columns directly inside `DraggableScrollableSheet` without an opaque `Material` or `Container(color: colors.surface)` wrapper. Consequently, the sheet was 100% transparent and floated directly over the settings screen behind it.
+   - Additionally, the top header row in `FontPickerSheet` previously placed the full-title text and two expanded `TextButton.icon` widgets ("Google Fonts" and "Import .ttf") in an unconstrained `Row`, which overflowed by 44px on standard $\le 400\text{dp}$ mobile screens.
+2. **Attachment Inspector Sheets (`AttachmentDetailsSheet` & `AttachmentFileInfoSheet`)**:
+   - Both sheets included a surface background container only when docked inside `EditorInspectorPane` (`isInInspector == true`).
+   - When presented modally on mobile bottom sheets (`!isDesktop && !isInInspector`), they returned `content` directly without a surface container, resulting in transparent sheets.
+3. **Share Visibility Sheet (`_VisibilityPicker` in `manage_shares_screen.dart`)**:
+   - `_VisibilityPicker` returned a plain `SafeArea(child: Column(...))` without a container or drag handle on mobile.
+
+### Solution
+1. **Opaque Rounded Material Surface Wrappers**:
+   - Wrapped `DraggableScrollableSheet` builders in [`font_picker_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/font_picker_sheet.dart) and [`google_fonts_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/google_fonts_sheet.dart) in `Material` with `color: colors.surface`, `borderRadius: const BorderRadius.vertical(top: AppRadii.rLg)`, `clipBehavior: Clip.antiAlias`, and `SafeArea(top: false)`. Using `Material` ensures proper `ListTile` splash/ink response without framework assertion warnings.
+   - Wrapped mobile layouts (`!isDesktop && !isInInspector`) in [`attachment_details_sheet.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_details_sheet.dart) and [`attachment_file_info_sheet.dart`](file:///home/dog/git/quitepaper/lib/core/attachments/presentation/attachment_file_info_sheet.dart) with `Material(color: colors.surface, borderRadius: BorderRadius.vertical(top: AppRadii.rLg))`.
+   - Updated `_VisibilityPicker` in [`manage_shares_screen.dart`](file:///home/dog/git/quitepaper/lib/features/share/presentation/manage_shares_screen.dart) with `AdaptiveSheetDragHandle`, title header, and `Material(color: colors.surface, borderRadius: BorderRadius.vertical(top: AppRadii.rLg))`.
+2. **Mobile Header Layout & Overflow Prevention**:
+   - In `FontPickerSheet`, constrained the title with `maxLines: 1` and `TextOverflow.ellipsis`.
+   - On narrow mobile screens, shortened action button labels to `'Google'` and `'Import'` with compact tap padding to prevent any RenderFlex overflow.
+3. **Automated Verification**:
+   - Created [`test/settings/font_picker_sheet_test.dart`](file:///home/dog/git/quitepaper/test/settings/font_picker_sheet_test.dart) covering mobile surface background rendering for both `FontPickerSheet` and `GoogleFontsSheet`.
+   - Added widget test coverage in [`test/widgets/quiet_adaptive_modal_test.dart`](file:///home/dog/git/quitepaper/test/widgets/quiet_adaptive_modal_test.dart) verifying `AttachmentFileInfoSheet` surface rendering.
+   - Synchronized legacy Settings navigation journeys in [`test/widget_test.dart`](file:///home/dog/git/quitepaper/test/widget_test.dart) to reflect the sub-page structure ("Appearance" and "Backup and import").
+   - Verified 0 issues with `flutter analyze`.
+
 

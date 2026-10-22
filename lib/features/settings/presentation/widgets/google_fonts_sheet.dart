@@ -92,18 +92,24 @@ class _GoogleFontsSheetState extends State<GoogleFontsSheet> {
       );
     }
 
-    return SafeArea(
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (ctx, scrollController) => _buildSheetContent(
-          ctx,
-          colors,
-          scrollController,
-          isDesktop: false,
-          filteredFonts: filteredFonts,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: _buildSheetContent(
+            ctx,
+            colors,
+            scrollController,
+            isDesktop: false,
+            filteredFonts: filteredFonts,
+          ),
         ),
       ),
     );

@@ -187,21 +187,27 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
       );
     }
 
-    return SafeArea(
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.75,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (ctx, scrollController) => _buildSheetContent(
-          ctx,
-          colors,
-          scrollController,
-          isDesktop: false,
-          typography: typography,
-          filtered: filtered,
-          effectiveCurrent: effectiveCurrent,
-          showCustomQueryOption: showCustomQueryOption,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scrollController) => Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: AppRadii.rLg),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: _buildSheetContent(
+            ctx,
+            colors,
+            scrollController,
+            isDesktop: false,
+            typography: typography,
+            filtered: filtered,
+            effectiveCurrent: effectiveCurrent,
+            showCustomQueryOption: showCustomQueryOption,
+          ),
         ),
       ),
     );
@@ -234,39 +240,51 @@ class _FontPickerSheetState extends ConsumerState<FontPickerSheet> {
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-                    // View Google Fonts Button
-                    if (widget.type != FontPickerType.bengali) ...[
-                      TextButton.icon(
-                        icon: Icon(Icons.language_rounded,
-                            size: 15, color: colors.accent),
-                        label: Text(
-                          'Google Fonts',
-                          style: TextStyle(
-                            color: colors.accent,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onPressed: _openGoogleFontsBrowser,
-                      ),
-                      const SizedBox(width: 4),
-                      // Import .TTF / .OTF Button
-                      TextButton.icon(
-                        icon: Icon(Icons.file_upload_outlined,
-                            size: 15, color: colors.accent),
-                        label: Text(
-                          'Import .ttf',
-                          style: TextStyle(
-                            color: colors.accent,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onPressed: _importLocalFont,
-                      ),
-                    ],
+              // View Google Fonts Button
+              if (widget.type != FontPickerType.bengali) ...[
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: Icon(Icons.language_rounded,
+                      size: 15, color: colors.accent),
+                  label: Text(
+                    isDesktop ? 'Google Fonts' : 'Google',
+                    style: TextStyle(
+                      color: colors.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: _openGoogleFontsBrowser,
+                ),
+                const SizedBox(width: 2),
+                // Import .TTF / .OTF Button
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: Icon(Icons.file_upload_outlined,
+                      size: 15, color: colors.accent),
+                  label: Text(
+                    isDesktop ? 'Import .ttf' : 'Import',
+                    style: TextStyle(
+                      color: colors.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: _importLocalFont,
+                ),
+              ],
                     if (isDesktop) ...[
                       const SizedBox(width: 4),
                       IconButton(
