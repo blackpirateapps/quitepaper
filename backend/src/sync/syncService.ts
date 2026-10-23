@@ -79,6 +79,8 @@ export interface StorageResourceItem {
   id: string;
   type: 'attachment' | 'document';
   title: string;
+  fileName: string | null;
+  kind: 'image' | 'document' | 'file';
   mimeType: string;
   byteSize: number;
   createdAt: string;
@@ -676,8 +678,8 @@ export async function getStorageResources(
 
   // Attachments
   const attsRes = await db.execute({
-    sql: `SELECT id, mime_type, byte_size, created_at, updated_at, status, orphaned_at, cloud_url, note_id
-          FROM attachments WHERE user_id = ? AND is_deleted = 0`,
+    sql: `SELECT id, file_name, kind, mime_type, byte_size, created_at, updated_at, status, orphaned_at, cloud_url, note_id
+          FROM attachments WHERE user_id = ? AND is_deleted = 0 AND kind != 'linkPreview'`,
     args: [userId],
   });
 
@@ -699,10 +701,17 @@ export async function getStorageResources(
     const orphanedAt = row.orphaned_at as string | null;
     const isEligible = status === 'orphaned' && (orphanedAt ? orphanedAt < orphanCutoffIso : true);
 
+    const fileName = ((row.file_name as string) || '').trim();
+    const rawKind = (row.kind as string) || 'image';
+    const kind: StorageResourceItem['kind'] =
+      rawKind === 'image' || rawKind === 'document' ? rawKind : 'file';
+
     const item: StorageResourceItem = {
       id: row.id as string,
       type: 'attachment',
-      title: 'Image Attachment',
+      title: fileName || 'Image Attachment',
+      fileName: fileName || null,
+      kind,
       mimeType: (row.mime_type as string) || 'image/png',
       byteSize: size,
       createdAt: row.created_at as string,
@@ -732,6 +741,8 @@ export async function getStorageResources(
       id: row.id as string,
       type: 'document',
       title: (row.title as string) || 'Scanned Document',
+      fileName: null,
+      kind: 'document',
       mimeType: (row.mime_type as string) || 'application/pdf',
       byteSize: size,
       createdAt: row.created_at as string,

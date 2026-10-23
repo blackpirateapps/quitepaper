@@ -604,6 +604,36 @@ class AttachmentService implements AssetResolver {
     await _storage.deleteEncryptedFile(attachmentId: assetId);
   }
 
+  /// Permanently removes all local traces of an attachment without enqueuing a
+  /// sync tombstone. Used by Storage & Assets when purging orphaned files.
+  Future<void> purgeLocalAttachment(String attachmentId) async {
+    final entity = await database.getAttachment(attachmentId);
+    if (entity == null) return;
+    final variants = await database.getVariantsForAttachment(attachmentId);
+
+    _storage.invalidateDecryptedCache(attachmentId);
+    _storage.invalidateDecryptedCache(attachmentId, variant: 'preview');
+    _storage.invalidateDecryptedCache(attachmentId, variant: 'thumbnail');
+
+    await _storage.deleteEncryptedFile(
+      attachmentId: attachmentId,
+      localPath: entity.localPath,
+    );
+    for (final variant in variants) {
+      if (variant.variantType == 'original') continue;
+      await _storage.deleteEncryptedFile(
+        attachmentId: attachmentId,
+        variant: variant.variantType,
+        localPath: variant.localPath,
+      );
+    }
+
+    await database.deleteAttachmentVariants(attachmentId);
+    await database.deleteAttachmentOcrPages(attachmentId);
+    await database.removeSyncQueueEntriesForEntity(attachmentId);
+    await database.deleteAttachmentLocal(attachmentId);
+  }
+
   /// Watches all active attachments for a note.
   Stream<List<AttachmentEntity>> watchAttachmentsForNote(String noteId) {
     return database.watchAttachmentsForNote(noteId);

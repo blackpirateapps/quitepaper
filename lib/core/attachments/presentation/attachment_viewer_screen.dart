@@ -124,6 +124,15 @@ class _AttachmentViewerScreenState extends ConsumerState<AttachmentViewerScreen>
           return;
         }
         _rawBytes = res.data;
+
+        // resolveAsset() may have pulled and persisted remote metadata for a
+        // cloud-only attachment. Re-fetch so filename/MIME detection is correct
+        // on the first open instead of falling back to an unknown binary.
+        final resolvedEntity =
+            await service.database.getAttachment(widget.attachmentId);
+        if (resolvedEntity != null) {
+          _entity = resolvedEntity;
+        }
       }
 
       final fileName = _entity?.fileName ?? 'attachment';

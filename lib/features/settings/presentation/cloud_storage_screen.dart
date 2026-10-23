@@ -731,7 +731,7 @@ class _CloudStorageScreenState extends ConsumerState<CloudStorageScreen> {
             colors: colors,
             icon: Icons.attachment_rounded,
             title: 'Attached Assets',
-            subtitle: 'Active images & scanned documents',
+            subtitle: 'Local and cloud images, files & documents',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -745,7 +745,7 @@ class _CloudStorageScreenState extends ConsumerState<CloudStorageScreen> {
             colors: colors,
             icon: Icons.delete_sweep_outlined,
             title: 'Orphaned Assets',
-            subtitle: 'Unreferenced cloud assets pending destruction',
+            subtitle: 'Unreferenced local and cloud assets pending cleanup',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(

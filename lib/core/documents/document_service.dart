@@ -615,6 +615,23 @@ class DocumentService implements DocumentResolver {
     await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);
   }
 
+  /// Permanently removes all local traces of a document without enqueuing a
+  /// sync tombstone. Used by Storage & Assets when purging orphaned files.
+  Future<void> purgeLocalDocument(String documentId) async {
+    final entity = await database.getDocument(documentId);
+    if (entity == null) return;
+
+    _storage.invalidateDecryptedCache(documentId);
+    _storage.invalidateDecryptedAnnotatedCache(documentId);
+
+    await _storage.deleteEncryptedFile(documentId: documentId);
+    await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);
+    await database.deleteDocumentOcrPages(documentId);
+    await database.deleteDocumentAnnotations(documentId);
+    await database.removeSyncQueueEntriesForEntity(documentId);
+    await database.deleteDocumentLocal(documentId);
+  }
+
   /// Checks whether an annotated derivative exists for [documentId].
   Future<bool> hasAnnotatedDocument(String documentId) async {
     if (_storage.getDecryptedAnnotatedCache(documentId) != null) return true;

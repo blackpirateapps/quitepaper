@@ -5,9 +5,12 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
-import '../../../core/documents/presentation/document_viewer_screen.dart';
+import '../../../core/attachments/attachment_icon_resolver.dart';
+import '../../../core/attachments/attachment_type_resolver.dart';
+import '../../../core/storage/storage_asset_models.dart';
 import '../../../core/storage/storage_management_service.dart';
 import '../../../core/sync/sync_models.dart';
+import 'widgets/storage_asset_details_sheet.dart';
 
 class StorageManagementScreen extends ConsumerStatefulWidget {
   const StorageManagementScreen({
@@ -18,7 +21,8 @@ class StorageManagementScreen extends ConsumerStatefulWidget {
   final int initialTab; // 0 = Overview & GC, 1 = Attached, 2 = Orphaned
 
   @override
-  ConsumerState<StorageManagementScreen> createState() => _StorageManagementScreenState();
+  ConsumerState<StorageManagementScreen> createState() =>
+      _StorageManagementScreenState();
 }
 
 class _StorageManagementScreenState extends ConsumerState<StorageManagementScreen>
@@ -45,8 +49,26 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  Future<void> _refreshAssets() async {
+    ref.invalidate(localStorageAssetsProvider);
+    ref.invalidate(cloudStorageResourcesProvider);
+    ref.invalidate(storageProfileProvider);
+    // Allow the invalidated futures to begin resolving before the refresh
+    // indicator retracts.
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  Future<void> _openAssetDetails(StorageAssetItem item) async {
+    await StorageAssetDetailsSheet.show(context, item: item);
+    if (mounted) {
+      await _refreshAssets();
+    }
   }
 
   Future<void> _showCleanupDialog(BuildContext context) async {
@@ -62,17 +84,26 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
           if (snapshot.connectionState == ConnectionState.waiting) {
             return AlertDialog(
               backgroundColor: colors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.lg)),
-              title: Text('Analyzing Cloud Storage', style: AppTypography.headline.copyWith(color: colors.textPrimary)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.lg),
+              ),
+              title: Text(
+                'Analyzing Cloud Storage',
+                style: AppTypography.headline.copyWith(color: colors.textPrimary),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 16),
                   CupertinoActivityIndicator(color: colors.accent, radius: 12),
                   const SizedBox(height: 16),
-                  Text('Calculating reclaimable space and safe synchronization boundaries...',
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodySmall.copyWith(color: colors.textSecondary)),
+                  Text(
+                    'Calculating reclaimable space and safe synchronization boundaries...',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -81,13 +112,28 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
           if (snapshot.hasError) {
             return AlertDialog(
               backgroundColor: colors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.lg)),
-              title: Text('Analysis Failed', style: AppTypography.headline.copyWith(color: colors.error)),
-              content: Text(snapshot.error.toString(), style: AppTypography.bodySmall.copyWith(color: colors.textSecondary)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.lg),
+              ),
+              title: Text(
+                'Analysis Failed',
+                style: AppTypography.headline.copyWith(color: colors.error),
+              ),
+              content: Text(
+                snapshot.error.toString(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogCtx).pop(),
-                  child: Text('Close', style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary)),
+                  child: Text(
+                    'Close',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -96,8 +142,13 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
           final summary = snapshot.data!;
           return AlertDialog(
             backgroundColor: colors.surface,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.lg)),
-            title: Text('Cloud Storage Cleanup', style: AppTypography.headline.copyWith(color: colors.textPrimary)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+            ),
+            title: Text(
+              'Cloud Storage Cleanup',
+              style: AppTypography.headline.copyWith(color: colors.textPrimary),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -111,16 +162,42 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildCleanupItem(colors, 'Sync History Entries', '${summary.syncChangesDeleted} items'),
-                  _buildCleanupItem(colors, 'Pruned Note Versions', '${summary.noteVersionsDeleted} items'),
-                  _buildCleanupItem(colors, 'Expired Idempotency Keys', '${summary.idempotencyKeysDeleted} items'),
-                  _buildCleanupItem(colors, 'Orphaned Attachments', '${summary.orphanedAttachmentsIdentified} items'),
-                  _buildCleanupItem(colors, 'Orphaned Documents', '${summary.orphanedDocumentsIdentified} items'),
-                  _buildCleanupItem(colors, 'Cleaned Tombstones', '${summary.tombstonesCleaned} items'),
+                  _buildCleanupItem(
+                    colors,
+                    'Sync History Entries',
+                    '${summary.syncChangesDeleted} items',
+                  ),
+                  _buildCleanupItem(
+                    colors,
+                    'Pruned Note Versions',
+                    '${summary.noteVersionsDeleted} items',
+                  ),
+                  _buildCleanupItem(
+                    colors,
+                    'Expired Idempotency Keys',
+                    '${summary.idempotencyKeysDeleted} items',
+                  ),
+                  _buildCleanupItem(
+                    colors,
+                    'Orphaned Attachments',
+                    '${summary.orphanedAttachmentsIdentified} items',
+                  ),
+                  _buildCleanupItem(
+                    colors,
+                    'Orphaned Documents',
+                    '${summary.orphanedDocumentsIdentified} items',
+                  ),
+                  _buildCleanupItem(
+                    colors,
+                    'Cleaned Tombstones',
+                    '${summary.tombstonesCleaned} items',
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Cleanup is device-aware and only removes data acknowledged by all active devices. Plaintext note content and attachments referenced in notes remain intact.',
-                    style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textTertiary,
+                    ),
                   ),
                 ],
               ),
@@ -128,24 +205,32 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogCtx).pop(),
-                child: Text('Cancel', style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary)),
+                child: Text(
+                  'Cancel',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colors.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
                 ),
                 onPressed: () async {
                   Navigator.of(dialogCtx).pop();
                   setState(() => _isCleaningUp = true);
                   try {
                     final res = await storageService.runGarbageCollection();
-                    ref.invalidate(storageProfileProvider);
-                    ref.invalidate(storageResourcesProvider);
+                    await _refreshAssets();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Cleanup complete: Reclaimed ${_formatBytes(res.estimatedBytesReclaimed)}'),
+                          content: Text(
+                            'Cleanup complete: Reclaimed ${_formatBytes(res.estimatedBytesReclaimed)}',
+                          ),
                           duration: const Duration(seconds: 3),
                         ),
                       );
@@ -163,7 +248,13 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
                     if (mounted) setState(() => _isCleaningUp = false);
                   }
                 },
-                child: Text('Clean Up Now', style: AppTypography.bodyMedium.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Clean Up Now',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           );
@@ -178,8 +269,19 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: AppTypography.bodySmall.copyWith(color: colors.textSecondary)),
-          Text(value, style: AppTypography.bodySmall.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -199,7 +301,7 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Cloud Storage & Assets',
+          'Storage & Assets',
           style: AppTypography.headline.copyWith(color: colors.textPrimary),
         ),
         bottom: TabBar(
@@ -218,8 +320,8 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
         controller: _tabController,
         children: [
           _buildOverviewTab(context),
-          _buildAttachedTab(context),
-          _buildOrphanedTab(context),
+          _buildAssetTab(context, orphaned: false),
+          _buildAssetTab(context, orphaned: true),
         ],
       ),
     );
@@ -228,47 +330,256 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
   Widget _buildOverviewTab(BuildContext context) {
     final colors = context.appColors;
     final profileAsync = ref.watch(storageProfileProvider);
+    final snapshot = ref.watch(storageAssetsProvider).valueOrNull;
+    final profile = profileAsync.valueOrNull;
+    final cloudUnavailable =
+        snapshot != null && !snapshot.cloudAvailable && !snapshot.cloudPending;
 
-    return profileAsync.when(
-      loading: () => Center(child: CupertinoActivityIndicator(color: colors.accent)),
-      error: (err, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.cloud_off_rounded, size: 48, color: colors.textTertiary),
-              const SizedBox(height: 12),
-              Text('Unable to fetch cloud storage profile',
-                  style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary)),
-              const SizedBox(height: 6),
-              Text(err.toString(),
-                  textAlign: TextAlign.center,
-                  style: AppTypography.caption.copyWith(color: colors.textSecondary)),
-              const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () => ref.invalidate(storageProfileProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      ),
-      data: (profile) => SingleChildScrollView(
+    return RefreshIndicator(
+      onRefresh: _refreshAssets,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSummaryCard(colors, profile),
-            const SizedBox(height: AppSpacing.lg),
-            _buildSectionHeader(context, 'Storage Breakdown'),
-            _buildTableMetricsGroup(colors, profile),
-            const SizedBox(height: AppSpacing.lg),
-            _buildSectionHeader(context, 'Maintenance & Cleanup'),
-            _buildMaintenanceGroup(colors, profile),
+            if (snapshot != null) ...[
+              _buildLocalSummaryCard(colors, snapshot),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (cloudUnavailable) ...[
+              _buildCloudBanner(colors),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (profile != null) ...[
+              _buildSummaryCard(colors, profile),
+              const SizedBox(height: AppSpacing.lg),
+              _buildSectionHeader(context, 'Storage Breakdown'),
+              _buildTableMetricsGroup(colors, profile),
+              const SizedBox(height: AppSpacing.lg),
+              _buildSectionHeader(context, 'Maintenance & Cleanup'),
+              _buildMaintenanceGroup(colors, profile),
+            ] else if (profileAsync.hasError)
+              _buildCloudStatusCard(
+                colors,
+                icon: Icons.cloud_off_rounded,
+                title: 'Cloud storage unavailable',
+                message:
+                    'Storage breakdown will appear when the cloud connection is restored. On-device assets remain available in the Attached and Orphaned tabs.',
+                isLoading: false,
+              )
+            else
+              _buildCloudStatusCard(
+                colors,
+                icon: Icons.cloud_queue_rounded,
+                title: 'Loading cloud storage…',
+                message: 'On-device assets are already available.',
+                isLoading: true,
+              ),
             const SizedBox(height: AppSpacing.xxl),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLocalSummaryCard(AppColors colors, StorageAssetsSnapshot snapshot) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: colors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.phone_iphone_rounded, color: colors.accent, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'On This Device',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _formatBytes(snapshot.localBytes),
+            style: AppTypography.display.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: 12),
+          Divider(color: colors.divider, height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatColumn(
+                  colors,
+                  '${snapshot.totalCount}',
+                  'Total assets',
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  colors,
+                  '${snapshot.attached.length}',
+                  'Attached',
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  colors,
+                  '${snapshot.orphaned.length}',
+                  'Orphaned',
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  colors,
+                  '${snapshot.cloudCount}',
+                  'In cloud',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(AppColors colors, String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: AppTypography.bodyMedium.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCloudBanner(AppColors colors) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 18, color: colors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Cloud unavailable — showing on-device assets only',
+              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: _refreshAssets,
+            child: Text(
+              'Retry',
+              style: AppTypography.caption.copyWith(
+                color: colors.accent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCloudPendingBanner(AppColors colors) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: colors.divider),
+      ),
+      child: Row(
+        children: [
+          CupertinoActivityIndicator(color: colors.accent, radius: 7),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            'Checking cloud assets…',
+            style: AppTypography.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCloudStatusCard(
+    AppColors colors, {
+    required IconData icon,
+    required String title,
+    required String message,
+    required bool isLoading,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: colors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: colors.textTertiary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (isLoading)
+                CupertinoActivityIndicator(color: colors.accent, radius: 7),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _refreshAssets,
+            child: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
@@ -288,7 +599,12 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
             children: [
               Icon(Icons.cloud_done_rounded, color: colors.accent, size: 24),
               const SizedBox(width: 8),
-              Text('Total Cloud Storage', style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary)),
+              Text(
+                'Total Cloud Storage',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -305,19 +621,39 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Reclaimable Space', style: AppTypography.caption.copyWith(color: colors.textTertiary)),
+                  Text(
+                    'Reclaimable Space',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textTertiary,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(_formatBytes(profile.totalReclaimableBytes),
-                      style: AppTypography.bodySmall.copyWith(color: colors.accent, fontWeight: FontWeight.w600)),
+                  Text(
+                    _formatBytes(profile.totalReclaimableBytes),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Active Checkpoints', style: AppTypography.caption.copyWith(color: colors.textTertiary)),
+                  Text(
+                    'Active Checkpoints',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textTertiary,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text('${profile.activeDevicesCount} active device(s)',
-                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${profile.activeDevicesCount} active device(s)',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -337,17 +673,47 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
       ),
       child: Column(
         children: [
-          _buildStorageRow(colors, 'Notes (Ciphertext)', t['notes']?.rowCount ?? 0, t['notes']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Notes (Ciphertext)',
+            t['notes']?.rowCount ?? 0,
+            t['notes']?.approximatePayloadBytes ?? 0,
+          ),
           _buildDivider(colors),
-          _buildStorageRow(colors, 'Note Versions History', t['noteVersions']?.rowCount ?? 0, t['noteVersions']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Note Versions History',
+            t['noteVersions']?.rowCount ?? 0,
+            t['noteVersions']?.approximatePayloadBytes ?? 0,
+          ),
           _buildDivider(colors),
-          _buildStorageRow(colors, 'Sync History & Revisions', t['syncChanges']?.rowCount ?? 0, t['syncChanges']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Sync History & Revisions',
+            t['syncChanges']?.rowCount ?? 0,
+            t['syncChanges']?.approximatePayloadBytes ?? 0,
+          ),
           _buildDivider(colors),
-          _buildStorageRow(colors, 'Image Attachments', t['attachments']?.rowCount ?? 0, t['attachments']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Attachments',
+            t['attachments']?.rowCount ?? 0,
+            t['attachments']?.approximatePayloadBytes ?? 0,
+          ),
           _buildDivider(colors),
-          _buildStorageRow(colors, 'Scanned Documents (PDF)', t['documents']?.rowCount ?? 0, t['documents']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Scanned Documents (PDF)',
+            t['documents']?.rowCount ?? 0,
+            t['documents']?.approximatePayloadBytes ?? 0,
+          ),
           _buildDivider(colors),
-          _buildStorageRow(colors, 'Encrypted Document OCR', t['documentOcrPages']?.rowCount ?? 0, t['documentOcrPages']?.approximatePayloadBytes ?? 0),
+          _buildStorageRow(
+            colors,
+            'Encrypted Document OCR',
+            t['documentOcrPages']?.rowCount ?? 0,
+            t['documentOcrPages']?.approximatePayloadBytes ?? 0,
+          ),
         ],
       ),
     );
@@ -355,18 +721,36 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
 
   Widget _buildStorageRow(AppColors colors, String title, int count, int bytes) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 12.0,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTypography.bodySmall.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w500)),
-              Text('$count record${count == 1 ? '' : 's'}', style: AppTypography.caption.copyWith(color: colors.textTertiary)),
+              Text(
+                title,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '$count record${count == 1 ? '' : 's'}',
+                style: AppTypography.caption.copyWith(color: colors.textTertiary),
+              ),
             ],
           ),
-          Text(_formatBytes(bytes), style: AppTypography.bodySmall.copyWith(color: colors.textSecondary, fontWeight: FontWeight.w600)),
+          Text(
+            _formatBytes(bytes),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -384,10 +768,20 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
         children: [
           ListTile(
             leading: Icon(Icons.cleaning_services_rounded, color: colors.accent),
-            title: Text('Run Storage Cleanup (GC)', style: AppTypography.bodyMedium.copyWith(color: colors.accent, fontWeight: FontWeight.w600)),
-            subtitle: Text('Analyze and prune stale revisions, idempotency keys, and expired orphans',
-                style: AppTypography.caption.copyWith(color: colors.textSecondary)),
-            trailing: _isCleaningUp ? const CupertinoActivityIndicator(radius: 8) : const Icon(CupertinoIcons.chevron_forward, size: 14),
+            title: Text(
+              'Run Storage Cleanup (GC)',
+              style: AppTypography.bodyMedium.copyWith(
+                color: colors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Analyze and prune stale revisions, idempotency keys, and expired orphans',
+              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            ),
+            trailing: _isCleaningUp
+                ? const CupertinoActivityIndicator(radius: 8)
+                : const Icon(CupertinoIcons.chevron_forward, size: 14),
             onTap: _isCleaningUp ? null : () => _showCleanupDialog(context),
           ),
         ],
@@ -395,80 +789,144 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
     );
   }
 
-  Widget _buildAttachedTab(BuildContext context) {
+  Widget _buildAssetTab(BuildContext context, {required bool orphaned}) {
     final colors = context.appColors;
-    final resourcesAsync = ref.watch(storageResourcesProvider);
+    final assetsAsync = ref.watch(storageAssetsProvider);
+    final snapshot = assetsAsync.valueOrNull;
 
-    return resourcesAsync.when(
-      loading: () => Center(child: CupertinoActivityIndicator(color: colors.accent)),
-      error: (err, _) => Center(child: Text(err.toString(), style: AppTypography.bodySmall.copyWith(color: colors.textSecondary))),
-      data: (res) {
-        final items = res.attached;
-        if (items.isEmpty) {
-          return Center(
+    if (snapshot == null) {
+      if (assetsAsync.hasError) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.attachment_rounded, size: 48, color: colors.textTertiary),
+                Icon(Icons.error_outline_rounded, size: 40, color: colors.error),
                 const SizedBox(height: 12),
-                Text('No attached resources found in cloud', style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary)),
+                Text(
+                  'Unable to load on-device assets',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  assetsAsync.error.toString(),
+                  textAlign: TextAlign.center,
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: _refreshAssets,
+                  child: const Text('Retry'),
+                ),
               ],
             ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: items.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (ctx, idx) {
-            final item = items[idx];
-            return _buildResourceTile(colors, item, isOrphan: false);
-          },
+          ),
         );
-      },
+      }
+      return Center(child: CupertinoActivityIndicator(color: colors.accent));
+    }
+
+    final items = orphaned ? snapshot.orphaned : snapshot.attached;
+
+    return Column(
+      children: [
+        if (snapshot.cloudPending)
+          _buildCloudPendingBanner(colors)
+        else if (!snapshot.cloudAvailable)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              0,
+            ),
+            child: _buildCloudBanner(colors),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refreshAssets,
+            child: items.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    children: [
+                      const SizedBox(height: 100),
+                      _buildEmptyState(colors, orphaned: orphaned),
+                    ],
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: items.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (ctx, idx) {
+                      return _buildAssetTile(colors, items[idx]);
+                    },
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildOrphanedTab(BuildContext context) {
-    final colors = context.appColors;
-    final resourcesAsync = ref.watch(storageResourcesProvider);
-
-    return resourcesAsync.when(
-      loading: () => Center(child: CupertinoActivityIndicator(color: colors.accent)),
-      error: (err, _) => Center(child: Text(err.toString(), style: AppTypography.bodySmall.copyWith(color: colors.textSecondary))),
-      data: (res) {
-        final items = res.orphaned;
-        if (items.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check_circle_outline_rounded, size: 48, color: colors.accent),
-                const SizedBox(height: 12),
-                Text('No orphaned resources found', style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary)),
-                const SizedBox(height: 4),
-                Text('All cloud assets are actively referenced by notes', style: AppTypography.caption.copyWith(color: colors.textTertiary)),
-              ],
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: items.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (ctx, idx) {
-            final item = items[idx];
-            return _buildResourceTile(colors, item, isOrphan: true);
-          },
-        );
-      },
+  Widget _buildEmptyState(AppColors colors, {required bool orphaned}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          orphaned
+              ? Icons.check_circle_outline_rounded
+              : Icons.attachment_rounded,
+          size: 48,
+          color: orphaned ? colors.accent : colors.textTertiary,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          orphaned ? 'No orphaned assets' : 'No attached assets',
+          style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          orphaned
+              ? 'Assets unreferenced by any note will appear here.'
+              : 'Attachments and documents referenced by your notes will appear here.',
+          textAlign: TextAlign.center,
+          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+        ),
+      ],
     );
   }
 
-  Widget _buildResourceTile(AppColors colors, StorageResourceItem item, {required bool isOrphan}) {
-    final isDoc = item.type == 'document';
+  Widget _buildAssetTile(AppColors colors, StorageAssetItem item) {
+    final isDocument = item.isDocument;
+    final icon = isDocument
+        ? Icons.picture_as_pdf_rounded
+        : AttachmentIconResolver.resolveIcon(
+            mimeType: item.mimeType,
+            fileName: item.fileName,
+            kind: item.kind,
+          );
+    final iconTint = isDocument
+        ? const Color(0xFFD9534F)
+        : AttachmentIconResolver.resolveIconTint(
+            mimeType: item.mimeType,
+            fileName: item.fileName,
+            colors: colors,
+            kind: item.kind,
+          );
+    final typeLabel = isDocument
+        ? 'PDF Document'
+        : AttachmentTypeResolver.resolveDisplayName(
+            mimeType: item.mimeType,
+            fileName: item.fileName,
+          );
+
     return Material(
       color: colors.surface,
       shape: RoundedRectangleBorder(
@@ -481,31 +939,44 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: (isDoc ? Colors.red : colors.accent).withValues(alpha: 0.12),
+            color: iconTint.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
-          child: Icon(
-            isDoc ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-            color: isDoc ? Colors.red : colors.accent,
-            size: 22,
-          ),
+          child: Icon(icon, color: iconTint, size: 22),
         ),
         title: Text(
-          item.title.isNotEmpty ? item.title : (isDoc ? 'Scanned Document' : 'Image Attachment'),
-          style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
+          item.title.isNotEmpty ? item.title : item.fileName,
+          style: AppTypography.bodyMedium.copyWith(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 2),
-            Text(
-              '${_formatBytes(item.byteSize)} • ${item.mimeType}',
-              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+            const SizedBox(height: 3),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  '${_formatBytes(item.byteSize)} • $typeLabel',
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                _StatusBadge(state: item.syncState),
+              ],
             ),
-            if (isOrphan) ...[
+            if (item.isOrphaned) ...[
               const SizedBox(height: 2),
               Text(
-                item.isEligibleForDeletion ? 'Eligible for destruction' : 'In 14-day safety grace period',
+                item.isEligibleForDeletion
+                    ? 'Eligible for destruction'
+                    : 'In 14-day safety grace period',
                 style: AppTypography.caption.copyWith(
                   color: item.isEligibleForDeletion ? colors.error : colors.textTertiary,
                   fontWeight: FontWeight.w600,
@@ -514,67 +985,12 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
             ],
           ],
         ),
-        trailing: isOrphan
-            ? IconButton(
-                icon: Icon(Icons.delete_outline_rounded, color: colors.error, size: 20),
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (dCtx) => AlertDialog(
-                      backgroundColor: colors.surface,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.lg)),
-                      title: Text('Delete Orphaned Asset', style: AppTypography.headline.copyWith(color: colors.textPrimary)),
-                      content: Text(
-                        'Are you sure you want to permanently delete this asset from cloud and local storage? This action cannot be undone.',
-                        style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(dCtx).pop(false),
-                          child: Text('Cancel', style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary)),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colors.error,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
-                          ),
-                          onPressed: () => Navigator.of(dCtx).pop(true),
-                          child: Text('Delete', style: AppTypography.bodyMedium.copyWith(color: Colors.white)),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (confirm == true && mounted) {
-                    try {
-                      await ref.read(storageManagementServiceProvider).deleteOrphanedResource(
-                            resourceType: item.type,
-                            resourceId: item.id,
-                          );
-                      ref.invalidate(storageResourcesProvider);
-                      ref.invalidate(storageProfileProvider);
-                    } catch (err) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to delete asset: $err'), backgroundColor: colors.error),
-                        );
-                      }
-                    }
-                  }
-                },
-              )
-            : (isDoc
-                ? IconButton(
-                    icon: Icon(Icons.open_in_new_rounded, color: colors.textSecondary, size: 18),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => DocumentViewerScreen(documentId: item.id),
-                        ),
-                      );
-                    },
-                  )
-                : null),
+        trailing: Icon(
+          CupertinoIcons.chevron_forward,
+          size: 14,
+          color: colors.textTertiary,
+        ),
+        onTap: () => _openAssetDetails(item),
       ),
     );
   }
@@ -601,6 +1017,51 @@ class _StorageManagementScreenState extends ConsumerState<StorageManagementScree
       thickness: 1,
       indent: AppSpacing.md,
       color: colors.divider,
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.state});
+
+  final StorageAssetSyncState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final Color color;
+    switch (state) {
+      case StorageAssetSyncState.synced:
+        color = colors.success;
+        break;
+      case StorageAssetSyncState.localOnly:
+        color = colors.textTertiary;
+        break;
+      case StorageAssetSyncState.cloudOnly:
+        color = colors.info;
+        break;
+      case StorageAssetSyncState.pending:
+        color = colors.warning;
+        break;
+      case StorageAssetSyncState.failed:
+        color = colors.error;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Text(
+        state.label,
+        style: AppTypography.caption.copyWith(
+          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

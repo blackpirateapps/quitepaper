@@ -678,6 +678,8 @@ class StorageResourceItem {
     required this.isEligibleForDeletion,
     this.parentNoteId,
     this.cloudUrl,
+    this.fileName,
+    this.kind,
   });
 
   final String id;
@@ -693,6 +695,12 @@ class StorageResourceItem {
   final String? parentNoteId;
   final String? cloudUrl;
 
+  /// Original user-visible filename (attachments only, when provided).
+  final String? fileName;
+
+  /// Asset kind (`image`, `file`, or `document`), when provided.
+  final String? kind;
+
   factory StorageResourceItem.fromJson(Map<String, dynamic> json) {
     return StorageResourceItem(
       id: json['id'] as String,
@@ -707,6 +715,8 @@ class StorageResourceItem {
       isEligibleForDeletion: json['isEligibleForDeletion'] as bool? ?? false,
       parentNoteId: json['parentNoteId'] as String?,
       cloudUrl: json['cloudUrl'] as String?,
+      fileName: json['fileName'] as String?,
+      kind: json['kind'] as String?,
     );
   }
 }

@@ -10635,3 +10635,55 @@ Added first-class multi-select to the notes list on phone and tablet, with batch
 - Updated legacy `test/widget_test.dart` archive/trash/pin flows for the new mobile long-press-to-select UX.
 - Added [`test/notes/notes_multi_select_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart) covering entry points, Escape/destination exits, batch archive/trash, and `NoteListTile` long-press/context-menu callbacks.
 - Automated verification: `flutter analyze` (**0 issues**) and `flutter test` (**2224/2224 tests passed**).
+
+---
+
+## 29. Local-First Storage & Assets
+
+### Overview
+The **Storage & Assets** page (formerly the cloud-only Attached/Orphaned lists) now merges encrypted Drift rows with the backend cloud resource listing. On-device assets render immediately, including while offline or signed out; cloud metadata fills in best-effort and never blocks the local view.
+
+### Models & Providers
+- Added [`lib/core/storage/storage_asset_models.dart`](file:///home/dog/git/quitepaper/lib/core/storage/storage_asset_models.dart):
+  - `StorageAssetType` (`attachment` / `document`).
+  - `StorageAssetSyncState` with display labels `Synced`, `Local only`, `Cloud only`, `Upload pending`, `Upload failed`.
+  - `StorageAssetItem`, which unifies local attachment/document entities with optional cloud resources and tracks `existsLocally`, `existsInCloud`, parent note, orphan grace state, and sync state.
+  - `StorageLocalAssets`, `StorageCloudResources`, and `StorageAssetsSnapshot.merge()`.
+- `StorageManagementService.getLocalStorageAssets()` scans all attachment rows, document rows, and note content once. Deleted rows and internal `linkPreview` records are excluded. Reference detection uses the same `qp://(?:attachment|asset)/<uuid>` and `qp://document/<uuid>` patterns as sync.
+- Providers in [`storage_management_service.dart`](file:///home/dog/git/quitepaper/lib/core/storage/storage_management_service.dart):
+  - `localStorageAssetsProvider` resolves without network access.
+  - `cloudStorageResourcesProvider` returns `StorageCloudResources.unavailable(...)` on failure, uses an 8-second timeout, and skips the request for signed-out users.
+  - `storageAssetsProvider` merges by `type:id`, keeping local rows visible while the cloud request is pending or failed.
+- Merge rules: an asset is Attached when a note references it locally **or** the cloud status is `referenced`; otherwise it is Orphaned. Local + cloud becomes `Synced`; local-only derives its badge from `uploadState`; remote-only becomes `Cloud only`. Local unreferenced rows are immediately eligible for permanent deletion.
+
+### UI Changes
+- [`storage_management_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/storage_management_screen.dart) is now titled **Storage & Assets**.
+- The Overview tab shows an **On This Device** summary (`localBytes`, total/attached/orphaned/in-cloud counts), the cloud profile breakdown, and a non-blocking offline banner with **Retry**.
+- Attached/Orphaned tabs show real filenames, type/size, resolved icons for images/files/audio/documents, full status badges, grace-period subtitles, empty states, and pull-to-refresh.
+- Tapping any tile opens the new adaptive [`StorageAssetDetailsSheet`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/widgets/storage_asset_details_sheet.dart) with:
+  - Location, type, added/updated, parent-note title, orphan status, and SHA-256 prefix.
+  - Explicit Preview for images, scanned documents, and text/code/Markdown/CSV.
+  - External open for generic binary, audio, and PDF attachments.
+  - Download to device for cloud-only items, Share, Save to storage, Rename for local attachments, and confirmed permanent deletion for orphaned items.
+- Cloud-linked deletion failure offers **Remove from device only**, leaving the encrypted cloud copy for backend GC.
+- Updated the Attached/Orphaned subtitles in `sync_advanced_settings_screen.dart` and `cloud_storage_screen.dart`.
+
+### Local Purge & Deletion
+- Added `AttachmentService.purgeLocalAttachment()` and `DocumentService.purgeLocalDocument()`: invalidate decrypted caches, delete original/variant `.enc` (and document `.qpd`/annotated files), delete variants/OCR/annotation rows, remove pending sync-queue entries, and delete the Drift row.
+- Added `AppDatabase.deleteAttachmentVariants()` and `removeSyncQueueEntriesForEntity()`.
+- `StorageManagementService.deleteOrphanedAsset()` / `deleteOrphanedResource()` delete cloud objects (unless device-only) and purge local data. Local-only assets are purged immediately; remote-only assets only hit the backend.
+
+### Backend Metadata
+- `/api/v1/storage/resources` now returns `fileName` and `kind` for attachments, uses `file_name` as the title when present (instead of hardcoded `"Image Attachment"`), excludes `linkPreview` rows, and reports `kind: 'document'` for scanned documents.
+- `StorageResourceItem` in Flutter parses the optional `fileName`/`kind` fields with backward-compatible constructors.
+
+### Cloud-Only Viewer Regression
+- `AttachmentViewerScreen._loadAttachment()` re-fetches the Drift entity after `resolveAsset()`, so a cloud-only text attachment detects its real filename and text format on the first open instead of falling back to an unknown binary.
+
+### Tests & Verification
+- Added [`test/storage/storage_assets_test.dart`](file:///home/dog/git/quitepaper/test/storage/storage_assets_test.dart): 13 merge/classification and local-purge tests covering local-only, synced, remote-only, orphaned, offline cloud failure, link-preview exclusion, audio, documents, upload failure, cloud+local deletion, and device-only deletion.
+- Expanded [`test/storage/storage_management_test.dart`](file:///home/dog/git/quitepaper/test/storage/storage_management_test.dart): offline local-only rendering, details-sheet routing, all five badge labels, and delete-confirmation UI.
+- Added [`test/attachments/attachment_viewer_cloud_only_test.dart`](file:///home/dog/git/quitepaper/test/attachments/attachment_viewer_cloud_only_test.dart) for the cloud-only filename/format regression.
+- Extended backend `lifecycle.test.ts` to assert attachment `fileName`/`kind`/title and document `kind`.
+- Verified `flutter analyze` (**0 issues**), `flutter test` (**2242/2242 tests passed**), backend `npm test` (**122/122 tests passed**), and backend `npm run build`.
+

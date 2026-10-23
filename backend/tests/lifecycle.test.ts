@@ -319,6 +319,9 @@ describe('Cloud Storage Lifecycle & Synchronized Trash Tests', () => {
         cloudPublicId: 'cloud_att_1',
         cloudUrl: 'https://res.cloudinary.com/demo/raw/upload/cloud_att_1',
         byteSize: 1024,
+        fileName: 'meeting-notes.txt',
+        kind: 'file',
+        mimeType: 'text/plain',
       },
     });
 
@@ -359,6 +362,20 @@ describe('Cloud Storage Lifecycle & Synchronized Trash Tests', () => {
     expect(storageRes.statusCode).toBe(200);
     expect(storageRes.body.totalAttachedCount).toBe(2);
     expect(storageRes.body.totalOrphanedCount).toBe(0);
+
+    // Metadata completeness: attachments expose filename/kind, documents are typed.
+    const attachmentItem = storageRes.body.attached.find(
+      (item: any) => item.type === 'attachment'
+    );
+    expect(attachmentItem.fileName).toBe('meeting-notes.txt');
+    expect(attachmentItem.kind).toBe('file');
+    expect(attachmentItem.title).toBe('meeting-notes.txt');
+
+    const documentItem = storageRes.body.attached.find(
+      (item: any) => item.type === 'document'
+    );
+    expect(documentItem.kind).toBe('document');
+    expect(documentItem.title).toBe('Scanned Document');
 
     // 4. Permanently delete the note -> should transition attachment and document to Orphaned
     await handleApiRequest({

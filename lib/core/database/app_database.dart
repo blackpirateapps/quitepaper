@@ -1516,6 +1516,17 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteAttachmentLocal(String id) async => (delete(attachmentsTable)..where((t) => t.id.equals(id))).go();
   Future<void> deleteDocumentLocal(String id) async => (delete(documentsTable)..where((t) => t.id.equals(id))).go();
 
+  /// Deletes all stored variant rows for an attachment.
+  Future<void> deleteAttachmentVariants(String attachmentId) async =>
+      (delete(attachmentVariantsTable)..where((t) => t.attachmentId.equals(attachmentId))).go();
+
+  /// Removes pending sync-queue entries for a specific entity ID.
+  ///
+  /// Attachment/document tombstones are enqueued in the generic `noteId`
+  /// column so purging a local record does not leave a dangling delete job.
+  Future<void> removeSyncQueueEntriesForEntity(String entityId) async =>
+      (delete(syncQueueTable)..where((t) => t.noteId.equals(entityId))).go();
+
   // ==========================================
   // SYNC OPERATIONS & QUERIES
   // ==========================================

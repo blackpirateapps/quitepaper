@@ -422,7 +422,7 @@ class _SyncAdvancedSettingsScreenState
                     SettingsRow(
                       icon: Icons.attachment_rounded,
                       title: 'Attached Assets',
-                      subtitle: 'Active images & scanned documents',
+                      subtitle: 'Local and cloud images, files & documents',
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -447,7 +447,7 @@ class _SyncAdvancedSettingsScreenState
                       icon: Icons.delete_sweep_outlined,
                       title: 'Orphaned Assets',
                       subtitle:
-                          'Unreferenced cloud assets pending destruction',
+                          'Unreferenced local and cloud assets pending cleanup',
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
