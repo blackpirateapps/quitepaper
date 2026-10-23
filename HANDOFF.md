@@ -10688,3 +10688,47 @@ The **Storage & Assets** page (formerly the cloud-only Attached/Orphaned lists) 
 - Extended backend `lifecycle.test.ts` to assert attachment `fileName`/`kind`/title and document `kind`.
 - Verified `flutter analyze` (**0 issues**), `flutter test` (**2242/2242 tests passed**), backend `npm test` (**122/122 tests passed**), and backend `npm run build`.
 
+
+---
+
+## 227. Nested Tag Hierarchy with Path-Based Identity (October 2026)
+
+### Overview
+Tags now support slash-separated hierarchy (`#work/projects/alpha`) using the **full normalized path as the canonical identity**. No `parentId` column or parallel folder model was added: every tag remains an ordinary synced entity whose name contains its full path, and parent/child relationships are derived in memory. This keeps offline creation, Markdown parsing, imports, and encrypted sync convergent without a schema migration.
+
+### Domain Model
+- Added [`lib/features/tags/domain/tag_path.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_path.dart) with `TagPath.parse` / `tryParse`, `segments`, `leaf`, `parent`, `ancestors`, `breadcrumb`, `token`, and descendant checks. `/` separates segments; empty, leading, trailing, or invalid segments are rejected. Validation reuses `TagParser` rules, including the existing case-folding and Unicode behavior. No new NFC normalization was introduced.
+- Added [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart) as a derived presentation model. It synthesizes implicit ancestors deterministically when only a legacy child row exists, without persisting rows. `Tag` gained `isImplicit` / `isNew`, and `TagWithCount` gained `isImplicit`.
+- `TagParser.isValidTag` now validates each path segment individually. Hashtag extraction and Markdown rewrites remain segment/path-prefix aware, so renaming or removing `work` never touches `workflow` or `work/projects`.
+
+### Database & Filtering
+- `createTag` / `ensureTagPathExists` create every missing ancestor in one transaction and reuse existing rows. Only the requested leaf receives the supplied icon, color, and pin metadata; ancestors are created dirty but are never implicitly assigned to notes.
+- `watchNotes(filterTag: ...)` and the notes query executor match the selected path plus all descendants using exact equality and an escaped `LIKE 'path/%'` predicate (`escapeChar: '\'`). Notes are deduplicated and textual prefixes such as `workflow` are excluded.
+- `watchAllTagsWithCount` computes subtree counts as **distinct active notes** and synthesizes implicit ancestors with deterministic IDs. `getAllTagNames` includes ancestor paths for autocomplete and validation.
+- Branch operations are transactional locally:
+  - `renameTag` renames the whole subtree in place, preserves IDs/metadata/assignments, rewrites Markdown and YAML frontmatter segment-aware, and removes old ancestors that become unused.
+  - `deleteTag` defaults to deleting the branch; `TagBranchDeleteMode.moveChildrenUp` promotes direct children and preserves their IDs. Collisions roll back.
+  - `moveTag` reparents a branch (or promotes it to the top level), while `mergeTags` folds a branch into a destination and reconciles conflicting target names by re-pointing note assignments.
+- Orphan cleanup now preserves tags that still have live descendants. Distributed atomicity is deliberately not claimed for renames/moves/merges; each affected tag syncs as its own entity.
+
+### Navigation & UI
+- Sidebar tag section and tag browser render expandable trees with leaf names, indentation, and full accessible paths. Expansion state persists locally through `ExpandedTagPathsNotifier`. Pinned tags remain a flat, reorderable section.
+- `TagContextHeader` shows the leaf in the title and the full breadcrumb underneath for nested tags.
+- Note chips display only the leaf. Tapping a nested chip opens a disclosure showing the full breadcrumb and an **Open tag** action; flat chips keep direct navigation. Chip semantics now announce the full path exactly (`#work/projects/alpha, nested tag`).
+- Inline tag autocomplete offers a synthetic **Create #path** candidate for missing valid nested paths, while existing tags keep precedence. Flat unknown queries preserve the legacy no-create behavior.
+- Rename/delete/merge dialogs and sidebar/browser actions remain available. Branch deletion offers delete-branch or move-children-up choices when descendants exist.
+
+### Markdown Import
+- Folder-derived tags remain flat by default. A new local preference (`import_mirror_folder_hierarchy`) and a per-import toggle opt into a single deepest nested tag derived from the folder path (for example `articles/wikipedia`). Existing picked-file imports remain flat.
+
+### Sync
+- The full path stays inside the encrypted tag name; each ancestor is an ordinary synced entity. When a remote child arrives before its ancestors, `upsertSyncedTag` hydrates missing local ancestors as dirty entities without resurrecting existing tombstones. Duplicate-name reconciliation, revision handling, and dirty states are preserved.
+- Expansion and selection state are local-only and never enter sync payloads.
+
+### Migration
+- `beforeOpen` runs `_backfillTagHierarchy`, which creates missing ancestors for existing tags containing `/`. It preserves IDs, metadata, assignments, and note content; generated ancestors are marked dirty. A `sync_metadata` marker (`tag_hierarchy_backfill_v1`) makes the pass idempotent. Malformed legacy paths are left untouched. Drift schema version remains **20**.
+
+### Tests & Verification
+- Added `test/tags/tag_path_test.dart`, `test/tags/tag_tree_test.dart`, `test/tags/tag_hierarchy_database_test.dart`, and `test/tags/tag_hierarchy_ui_test.dart`.
+- Extended parser, search/autocomplete, import scanner, sync, and tag dialog tests for nested paths, branch operations, child-before-ancestor sync, duplicate reconciliation, tombstones, migration, and accessibility.
+- Sequential verification: `flutter analyze` (**0 issues**) and `flutter test` (**2326/2326 tests passed**).

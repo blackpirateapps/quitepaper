@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../features/tags/domain/phosphor_icons.dart';
+import '../../features/tags/domain/tag_path.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../utils/tag_parser.dart';
 
@@ -30,7 +32,19 @@ class QuietTagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final displayTag = TagParser.formatDisplay(tag);
+    final path = TagPath.tryParse(tag);
+    final isNested = path?.isNested == true;
+    final displayTag = path != null
+        ? '#${path.leaf}'
+        : TagParser.formatDisplay(tag);
+    final fullLabel = path?.token ?? displayTag;
+
+    final VoidCallback? effectiveOnTap;
+    if (isNested) {
+      effectiveOnTap = () => _showPathDisclosure(context, path!);
+    } else {
+      effectiveOnTap = onTap;
+    }
 
     Color bg;
     Color textColor;
@@ -81,13 +95,20 @@ class QuietTagChip extends StatelessWidget {
       ],
     );
 
-    if (onTap != null) {
+    content = Semantics(
+      label: isNested ? '$fullLabel, nested tag' : fullLabel,
+      button: effectiveOnTap != null,
+      excludeSemantics: true,
+      child: content,
+    );
+
+    if (effectiveOnTap != null) {
       return Material(
         color: bg,
         shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderSm),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: onTap,
+          onTap: effectiveOnTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: content,
@@ -98,11 +119,70 @@ class QuietTagChip extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppRadii.borderSm,
-      ),
+      decoration: BoxDecoration(color: bg, borderRadius: AppRadii.borderSm),
       child: content,
     );
+  }
+
+  Future<void> _showPathDisclosure(BuildContext context, TagPath path) async {
+    final colors = context.appColors;
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+        title: Text(
+          '#${path.leaf}',
+          style: AppTypography.headline.copyWith(color: colors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Full tag path',
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              path.breadcrumb,
+              style: AppTypography.body.copyWith(
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Close',
+              style: AppTypography.bodyMedium.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+          if (onTap != null)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                'Open tag',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (shouldOpen == true && context.mounted) {
+      onTap?.call();
+    }
   }
 }

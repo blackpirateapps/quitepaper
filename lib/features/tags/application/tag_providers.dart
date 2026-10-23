@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
+import '../../settings/application/settings_provider.dart';
 import '../domain/tag_model.dart';
+import '../domain/tag_tree.dart';
 
 /// Service managing first-class tag domain operations.
 class TagService {
@@ -43,8 +46,16 @@ class TagService {
     onTagMutation?.call();
   }
 
-  Future<void> deleteTag(String tagId) async {
-    await _repository.deleteTag(tagId);
+  Future<void> moveTag(String tagId, String newParentName) async {
+    await _repository.moveTag(tagId, newParentName);
+    onTagMutation?.call();
+  }
+
+  Future<void> deleteTag(
+    String tagId, {
+    TagBranchDeleteMode mode = TagBranchDeleteMode.deleteBranch,
+  }) async {
+    await _repository.deleteTag(tagId, mode: mode);
     onTagMutation?.call();
   }
 
@@ -100,10 +111,126 @@ final allTagsProvider = StreamProvider<List<Tag>>((ref) {
         createdAt: item.tag.createdAt ?? DateTime.now(),
         updatedAt: item.tag.updatedAt ?? DateTime.now(),
         noteCount: item.noteCount,
+        isImplicit: item.isImplicit,
       );
     }).toList();
   });
 });
+
+/// Derived hierarchy for navigation surfaces. Implicit ancestors are included.
+final tagTreeProvider = Provider<TagTree>((ref) {
+  final tags = ref.watch(allTagsProvider).valueOrNull ?? const <Tag>[];
+  return TagTree.build(tags);
+});
+
+/// Locally persisted set of expanded tag paths.
+///
+/// Expansion is a device-local navigation preference and is intentionally not
+/// synced. SharedPreferences may be unavailable in tests; in that case the
+/// notifier still works for the lifetime of the provider container.
+class ExpandedTagPathsNotifier extends StateNotifier<Set<String>> {
+  ExpandedTagPathsNotifier(this._prefs) : super(_load(_prefs));
+
+  static const storageKey = 'expanded_tag_paths_v1';
+
+  final SharedPreferences? _prefs;
+
+  static Set<String> _load(SharedPreferences? prefs) {
+    final stored = prefs?.getStringList(storageKey);
+    if (stored == null) return <String>{};
+    return stored
+        .map(TagParser.normalizeTag)
+        .where((p) => p.isNotEmpty)
+        .toSet();
+  }
+
+  void toggle(String path) {
+    final normalized = TagParser.normalizeTag(path);
+    if (normalized.isEmpty) return;
+    final next = Set<String>.from(state);
+    if (!next.remove(normalized)) next.add(normalized);
+    state = next;
+    _persist();
+  }
+
+  void expand(String path) {
+    final normalized = TagParser.normalizeTag(path);
+    if (normalized.isEmpty || state.contains(normalized)) return;
+    state = {...state, normalized};
+    _persist();
+  }
+
+  void collapse(String path) {
+    final normalized = TagParser.normalizeTag(path);
+    if (!state.contains(normalized)) return;
+    state = {...state}..remove(normalized);
+    _persist();
+  }
+
+  void expandAll(Iterable<String> paths) {
+    final next = <String>{
+      ...state,
+      for (final path in paths)
+        if (TagParser.normalizeTag(path).isNotEmpty)
+          TagParser.normalizeTag(path),
+    };
+    state = next;
+    _persist();
+  }
+
+  void collapseAll() {
+    if (state.isEmpty) return;
+    state = <String>{};
+    _persist();
+  }
+
+  void _persist() {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final values = state.toList()..sort();
+    prefs.setStringList(storageKey, values);
+  }
+}
+
+final expandedTagPathsProvider =
+    StateNotifierProvider<ExpandedTagPathsNotifier, Set<String>>((ref) {
+      SharedPreferences? prefs;
+      try {
+        prefs = ref.watch(sharedPreferencesProvider);
+      } catch (_) {
+        // Unit/widget tests frequently omit SharedPreferences; expansion remains
+        // in memory for that container.
+      }
+      return ExpandedTagPathsNotifier(prefs);
+    });
+
+/// Whether Markdown folder imports should mirror folder hierarchy as nested
+/// tag paths. Flat per-folder tags remain the default for compatibility.
+class ImportFolderHierarchyNotifier extends StateNotifier<bool> {
+  ImportFolderHierarchyNotifier(this._prefs) : super(_load(_prefs));
+
+  static const storageKey = 'import_mirror_folder_hierarchy';
+
+  final SharedPreferences? _prefs;
+
+  static bool _load(SharedPreferences? prefs) =>
+      prefs?.getBool(storageKey) ?? false;
+
+  Future<void> setEnabled(bool enabled) async {
+    if (state == enabled) return;
+    state = enabled;
+    await _prefs?.setBool(storageKey, enabled);
+  }
+}
+
+final importFolderHierarchyProvider =
+    StateNotifierProvider<ImportFolderHierarchyNotifier, bool>((ref) {
+      SharedPreferences? prefs;
+      try {
+        prefs = ref.watch(sharedPreferencesProvider);
+      } catch (_) {}
+      return ImportFolderHierarchyNotifier(prefs);
+    });
 
 /// Pinned tags ordered deterministically by pinnedOrder.
 final pinnedTagsProvider = Provider<List<Tag>>((ref) {
@@ -154,10 +281,14 @@ final filteredBrowserTagsProvider = Provider<AsyncValue<List<Tag>>>((ref) {
         result = result.where((t) => t.isPinned).toList();
         break;
       case TagFilter.hasIcon:
-        result = result.where((t) => t.icon != null && t.icon!.isNotEmpty).toList();
+        result = result
+            .where((t) => t.icon != null && t.icon!.isNotEmpty)
+            .toList();
         break;
       case TagFilter.hasColor:
-        result = result.where((t) => t.color != null && t.color!.isNotEmpty).toList();
+        result = result
+            .where((t) => t.color != null && t.color!.isNotEmpty)
+            .toList();
         break;
       case TagFilter.hasNotes:
         result = result.where((t) => t.noteCount > 0).toList();
@@ -170,7 +301,9 @@ final filteredBrowserTagsProvider = Provider<AsyncValue<List<Tag>>>((ref) {
     // 3. Sorting
     switch (sort) {
       case TagSort.name:
-        result.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        result.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
         break;
       case TagSort.noteCount:
         result.sort((a, b) {
@@ -201,9 +334,16 @@ final filteredBrowserTagsProvider = Provider<AsyncValue<List<Tag>>>((ref) {
 });
 
 /// Stream of active notes associated with a specific tag name.
-final tagNotesStreamProvider = StreamProvider.family<List<Note>, String>((ref, tagName) {
+final tagNotesStreamProvider = StreamProvider.family<List<Note>, String>((
+  ref,
+  tagName,
+) {
   final repo = ref.watch(notesRepositoryProvider);
-  return repo.watchNotes(isArchived: false, isTrashed: false, filterTag: tagName);
+  return repo.watchNotes(
+    isArchived: false,
+    isTrashed: false,
+    filterTag: tagName,
+  );
 });
 
 /// Tag entity by stable ID.

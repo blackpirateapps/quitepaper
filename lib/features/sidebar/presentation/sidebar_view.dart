@@ -16,12 +16,12 @@ import '../../notes/application/saved_filters_provider.dart';
 import '../../notes/domain/saved_filter.dart';
 import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
-import '../../../core/database/app_database.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_colors.dart';
 import '../../tags/domain/tag_icon_registry.dart';
 import '../../tags/domain/tag_model.dart';
+import '../../tags/domain/tag_tree.dart';
 import '../../tags/presentation/widgets/tag_action_dialogs.dart';
 import '../../tags/presentation/widgets/tag_color_picker_sheet.dart';
 import '../../tags/presentation/widgets/tag_icon_picker_sheet.dart';
@@ -55,14 +55,25 @@ class SidebarView extends ConsumerWidget {
     final archiveCount = ref.watch(archivedNotesCountProvider).valueOrNull;
     final trashCount = ref.watch(trashedNotesCountProvider).valueOrNull;
     final hasTodayEntry = ref.watch(hasTodayJournalEntryProvider);
-    final tagsAsync = ref.watch(allTagsStreamProvider);
+    final tagsAsync = ref.watch(allTagsProvider);
+    final expandedTagPaths = ref.watch(expandedTagPathsProvider);
 
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
-    final headerTextColor = isSidebarDark ? const Color(0xFFF1F2F4) : colors.textPrimary;
-    final searchBgColor = isSidebarDark ? colors.sidebarSelected : colors.background;
-    final searchHintColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textTertiary;
-    final searchIconColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
-    final sidebarDividerColor = isSidebarDark ? const Color(0xFF2D333B) : colors.divider;
+    final headerTextColor = isSidebarDark
+        ? const Color(0xFFF1F2F4)
+        : colors.textPrimary;
+    final searchBgColor = isSidebarDark
+        ? colors.sidebarSelected
+        : colors.background;
+    final searchHintColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textTertiary;
+    final searchIconColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textSecondary;
+    final sidebarDividerColor = isSidebarDark
+        ? const Color(0xFF2D333B)
+        : colors.divider;
 
     return Container(
       color: colors.sidebarBackground,
@@ -160,331 +171,469 @@ class SidebarView extends ConsumerWidget {
             Expanded(
               child: DesktopSmoothScroll(
                 child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(0, AppSpacing.xs, 0, AppSpacing.sm),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // LIBRARY Section Header
-                    _buildSectionHeader(context, 'LIBRARY'),
+                  padding: const EdgeInsets.fromLTRB(
+                    0,
+                    AppSpacing.xs,
+                    0,
+                    AppSpacing.sm,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // LIBRARY Section Header
+                      _buildSectionHeader(context, 'LIBRARY'),
 
-                    SidebarItem(
-                      icon: PhosphorIconsRegular.note,
-                      label: 'All Notes',
-                      count: activeCount,
-                      isSelected: currentDestination == AppDestination.allNotes &&
-                          selectedTag == null,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.allNotes;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
+                      SidebarItem(
+                        icon: PhosphorIconsRegular.note,
+                        label: 'All Notes',
+                        count: activeCount,
+                        isSelected:
+                            currentDestination == AppDestination.allNotes &&
+                            selectedTag == null,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.allNotes;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.pinned
-                          ? PhosphorIconsFill.pushPin
-                          : PhosphorIconsRegular.pushPin,
-                      label: 'Pinned',
-                      count: pinnedCount,
-                      isSelected: currentDestination == AppDestination.pinned,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.pinned;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
+                      SidebarItem(
+                        icon: currentDestination == AppDestination.pinned
+                            ? PhosphorIconsFill.pushPin
+                            : PhosphorIconsRegular.pushPin,
+                        label: 'Pinned',
+                        count: pinnedCount,
+                        isSelected: currentDestination == AppDestination.pinned,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.pinned;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.archive
-                          ? PhosphorIconsFill.archive
-                          : PhosphorIconsRegular.archive,
-                      label: 'Archive',
-                      count: archiveCount,
-                      isSelected: currentDestination == AppDestination.archive,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.archive;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
+                      SidebarItem(
+                        icon: currentDestination == AppDestination.archive
+                            ? PhosphorIconsFill.archive
+                            : PhosphorIconsRegular.archive,
+                        label: 'Archive',
+                        count: archiveCount,
+                        isSelected:
+                            currentDestination == AppDestination.archive,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.archive;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.trash
-                          ? PhosphorIconsFill.trash
-                          : PhosphorIconsRegular.trash,
-                      label: 'Trash',
-                      count: trashCount,
-                      isSelected: currentDestination == AppDestination.trash,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.trash;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
+                      SidebarItem(
+                        icon: currentDestination == AppDestination.trash
+                            ? PhosphorIconsFill.trash
+                            : PhosphorIconsRegular.trash,
+                        label: 'Trash',
+                        count: trashCount,
+                        isSelected: currentDestination == AppDestination.trash,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.trash;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                    // JOURNAL Section Header
-                    const SizedBox(height: AppSpacing.md),
-                    _buildSectionHeader(context, 'JOURNAL'),
+                      // JOURNAL Section Header
+                      const SizedBox(height: AppSpacing.md),
+                      _buildSectionHeader(context, 'JOURNAL'),
 
-                    SidebarItem(
-                      icon: PhosphorIconsRegular.calendarCheck,
-                      label: 'Today',
-                      trailing: hasTodayEntry
-                          ? Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: colors.accent,
-                                shape: BoxShape.circle,
-                              ),
-                            )
-                          : null,
-                      onTap: () async {
-                        onItemSelected?.call();
-                        final journalService = ref.read(journalServiceProvider);
-                        await journalService.openOrCreateTodayFlow(
-                          context,
-                          isTablet: isCollapsible,
-                        );
-                      },
-                    ),
-
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.allJournalEntries
-                          ? PhosphorIconsFill.calendarDots
-                          : PhosphorIconsRegular.calendarDots,
-                      label: 'All Entries',
-                      isSelected: currentDestination == AppDestination.allJournalEntries,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.allJournalEntries;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
-
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.onThisDay
-                          ? PhosphorIconsFill.clockCounterClockwise
-                          : PhosphorIconsRegular.clockCounterClockwise,
-                      label: 'On This Day',
-                      isSelected: currentDestination == AppDestination.onThisDay,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.onThisDay;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
-
-                    SidebarItem(
-                      icon: currentDestination == AppDestination.places
-                          ? PhosphorIconsFill.mapPin
-                          : PhosphorIconsRegular.mapPin,
-                      label: 'Places',
-                      isSelected: currentDestination == AppDestination.places,
-                      onTap: () {
-                        ref.read(currentDestinationProvider.notifier).state =
-                            AppDestination.places;
-                        ref.read(selectedTagFilterProvider.notifier).state = null;
-                        ref.read(notesQueryProvider.notifier).clearAllFilters();
-                        onItemSelected?.call();
-                      },
-                    ),
-
-                    // SMART VIEWS Section (if any saved views exist)
-                    Builder(
-                      builder: (ctx) {
-                        final savedFilters = ref.watch(savedFiltersProvider);
-                        if (savedFilters.isEmpty) return const SizedBox.shrink();
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: AppSpacing.md),
-                            _buildSectionHeader(
-                              context,
-                              'SMART VIEWS',
-                              trailing: SizedBox(
-                                height: 28,
-                                width: 28,
-                                child: QuietIconButton(
-                                  icon: PhosphorIconsRegular.slidersHorizontal,
-                                  size: 16,
-                                  padding: const EdgeInsets.all(4.0),
-                                  tooltip: 'Manage smart views',
-                                  onPressed: () {
-                                    onItemSelected?.call();
-                                    SavedFiltersSheet.show(context);
-                                  },
+                      SidebarItem(
+                        icon: PhosphorIconsRegular.calendarCheck,
+                        label: 'Today',
+                        trailing: hasTodayEntry
+                            ? Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: colors.accent,
+                                  shape: BoxShape.circle,
                                 ),
-                              ),
-                            ),
-                            ...savedFilters.map((sv) {
-                              return SidebarItem(
-                                icon: PhosphorIconsRegular.bookmarkSimple,
-                                label: sv.name,
-                                onTap: () {
-                                  ref.read(notesQueryProvider.notifier).setFilters(sv.query.filter);
-                                  ref.read(notesQueryProvider.notifier).setSort(sv.query.sort);
-                                  onItemSelected?.call();
-                                },
-                                onLongPress: () => _showSmartViewOptions(context, ref, sv),
-                                onSecondaryTap: () => _showSmartViewOptions(context, ref, sv),
-                                onSecondaryTapUp: (details) => _showSmartViewOptions(context, ref, sv, details.globalPosition),
-                              );
-                            }),
-                          ],
-                        );
-                      },
-                    ),
+                              )
+                            : null,
+                        onTap: () async {
+                          onItemSelected?.call();
+                          final journalService = ref.read(
+                            journalServiceProvider,
+                          );
+                          await journalService.openOrCreateTodayFlow(
+                            context,
+                            isTablet: isCollapsible,
+                          );
+                        },
+                      ),
 
-                    // TAGS Section
-                    tagsAsync.when(
-                      data: (tags) {
-                        if (tags.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
+                      SidebarItem(
+                        icon:
+                            currentDestination ==
+                                AppDestination.allJournalEntries
+                            ? PhosphorIconsFill.calendarDots
+                            : PhosphorIconsRegular.calendarDots,
+                        label: 'All Entries',
+                        isSelected:
+                            currentDestination ==
+                            AppDestination.allJournalEntries,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.allJournalEntries;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                      SidebarItem(
+                        icon: currentDestination == AppDestination.onThisDay
+                            ? PhosphorIconsFill.clockCounterClockwise
+                            : PhosphorIconsRegular.clockCounterClockwise,
+                        label: 'On This Day',
+                        isSelected:
+                            currentDestination == AppDestination.onThisDay,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.onThisDay;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
 
-                        // Sort tags: pinned first (by pinnedOrder), then active note count
-                        final sortedTags = List<TagWithCount>.from(tags)..sort((a, b) {
-                          if (a.isPinned && !b.isPinned) return -1;
-                          if (!a.isPinned && b.isPinned) return 1;
-                          if (a.isPinned && b.isPinned) {
-                            return a.pinnedOrder.compareTo(b.pinnedOrder);
+                      SidebarItem(
+                        icon: currentDestination == AppDestination.places
+                            ? PhosphorIconsFill.mapPin
+                            : PhosphorIconsRegular.mapPin,
+                        label: 'Places',
+                        isSelected: currentDestination == AppDestination.places,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.places;
+                          ref.read(selectedTagFilterProvider.notifier).state =
+                              null;
+                          ref
+                              .read(notesQueryProvider.notifier)
+                              .clearAllFilters();
+                          onItemSelected?.call();
+                        },
+                      ),
+
+                      // SMART VIEWS Section (if any saved views exist)
+                      Builder(
+                        builder: (ctx) {
+                          final savedFilters = ref.watch(savedFiltersProvider);
+                          if (savedFilters.isEmpty) {
+                            return const SizedBox.shrink();
                           }
-                          return b.noteCount.compareTo(a.noteCount);
-                        });
 
-                        final displayTags = sortedTags.take(_maxVisibleTags).toList();
-                        final hasMore = sortedTags.length > _maxVisibleTags;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: AppSpacing.md),
-                            _buildSectionHeader(
-                              context,
-                              'TAGS',
-                              trailing: SizedBox(
-                                height: 28,
-                                width: 28,
-                                child: QuietIconButton(
-                                  icon: PhosphorIconsRegular.slidersHorizontal,
-                                  size: 16,
-                                  padding: const EdgeInsets.all(4.0),
-                                  tooltip: 'Manage tags',
-                                  onPressed: () {
-                                    ref.read(currentDestinationProvider.notifier).state =
-                                        AppDestination.tagBrowser;
-                                    ref.read(selectedTagFilterProvider.notifier).state = null;
-                                    ref.read(selectedTagIdProvider.notifier).state = null;
-                                    onItemSelected?.call();
-                                  },
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: AppSpacing.md),
+                              _buildSectionHeader(
+                                context,
+                                'SMART VIEWS',
+                                trailing: SizedBox(
+                                  height: 28,
+                                  width: 28,
+                                  child: QuietIconButton(
+                                    icon:
+                                        PhosphorIconsRegular.slidersHorizontal,
+                                    size: 16,
+                                    padding: const EdgeInsets.all(4.0),
+                                    tooltip: 'Manage smart views',
+                                    onPressed: () {
+                                      onItemSelected?.call();
+                                      SavedFiltersSheet.show(context);
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                            ...displayTags.map((t) {
-                              final isTagSelected =
-                                  currentDestination == AppDestination.tag &&
-                                      selectedTag == t.name;
-
-                              final colorDef = TagColors.fromId(t.color);
-                              final customColor = colorDef?.foreground(isDark);
-                              final iconData = TagIconRegistry.getIconData(
-                                t.icon,
-                                fallback: t.isPinned
-                                    ? PhosphorIconsFill.pushPin
-                                    : PhosphorIconsRegular.tag,
-                              );
-
-                              return SidebarItem(
-                                icon: iconData,
-                                label: t.name,
-                                count: t.noteCount,
-                                isSelected: isTagSelected,
-                                customIconColor: customColor,
-                                onTap: () {
-                                  ref
-                                      .read(currentDestinationProvider.notifier)
-                                      .state = AppDestination.tag;
-                                  ref
-                                      .read(selectedTagFilterProvider.notifier)
-                                      .state = t.name;
-                                  ref
-                                      .read(selectedTagIdProvider.notifier)
-                                      .state = t.id;
-                                  ref
-                                      .read(notesQueryProvider.notifier)
-                                      .setTag(t.name);
-                                  onItemSelected?.call();
-                                },
-                                onLongPress: () {
-                                  _showTagOptions(context, ref, t);
-                                },
-                                onSecondaryTap: () {
-                                  _showTagOptions(context, ref, t);
-                                },
-                                onSecondaryTapUp: (details) {
-                                  _showTagOptions(context, ref, t, details.globalPosition);
-                                },
-                              );
-                            }),
-                            if (hasMore) ...[
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.md,
-                                  vertical: 4.0,
-                                ),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                              ...savedFilters.map((sv) {
+                                return SidebarItem(
+                                  icon: PhosphorIconsRegular.bookmarkSimple,
+                                  label: sv.name,
                                   onTap: () {
-                                    ref.read(currentDestinationProvider.notifier).state =
-                                        AppDestination.tagBrowser;
-                                    ref.read(selectedTagFilterProvider.notifier).state = null;
-                                    ref.read(selectedTagIdProvider.notifier).state = null;
+                                    ref
+                                        .read(notesQueryProvider.notifier)
+                                        .setFilters(sv.query.filter);
+                                    ref
+                                        .read(notesQueryProvider.notifier)
+                                        .setSort(sv.query.sort);
                                     onItemSelected?.call();
                                   },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.sm,
-                                      vertical: 6.0,
+                                  onLongPress: () =>
+                                      _showSmartViewOptions(context, ref, sv),
+                                  onSecondaryTap: () =>
+                                      _showSmartViewOptions(context, ref, sv),
+                                  onSecondaryTapUp: (details) =>
+                                      _showSmartViewOptions(
+                                        context,
+                                        ref,
+                                        sv,
+                                        details.globalPosition,
+                                      ),
+                                );
+                              }),
+                            ],
+                          );
+                        },
+                      ),
+
+                      // TAGS Section
+                      tagsAsync.when(
+                        data: (tags) {
+                          if (tags.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final isDark =
+                              Theme.of(context).brightness == Brightness.dark;
+                          final tree = TagTree.build(tags);
+                          final flattened = TagTree.flatten(
+                            tree,
+                            expandedPaths: expandedTagPaths,
+                          );
+                          final displayTags = flattened
+                              .take(_maxVisibleTags)
+                              .toList();
+                          final hasMore = flattened.length > _maxVisibleTags;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: AppSpacing.md),
+                              _buildSectionHeader(
+                                context,
+                                'TAGS',
+                                trailing: SizedBox(
+                                  height: 28,
+                                  width: 28,
+                                  child: QuietIconButton(
+                                    icon:
+                                        PhosphorIconsRegular.slidersHorizontal,
+                                    size: 16,
+                                    padding: const EdgeInsets.all(4.0),
+                                    tooltip: 'Manage tags',
+                                    onPressed: () {
+                                      ref
+                                          .read(
+                                            currentDestinationProvider.notifier,
+                                          )
+                                          .state = AppDestination
+                                          .tagBrowser;
+                                      ref
+                                              .read(
+                                                selectedTagFilterProvider
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          null;
+                                      ref
+                                              .read(
+                                                selectedTagIdProvider.notifier,
+                                              )
+                                              .state =
+                                          null;
+                                      onItemSelected?.call();
+                                    },
+                                  ),
+                                ),
+                              ),
+                              ...displayTags.map((entry) {
+                                final node = entry.node;
+                                final tag = node.tag;
+                                final path = node.path?.value ?? tag.name;
+                                final isExpanded = expandedTagPaths.contains(
+                                  path,
+                                );
+                                final isTagSelected =
+                                    currentDestination == AppDestination.tag &&
+                                    selectedTag == tag.name;
+
+                                final colorDef = TagColors.fromId(tag.color);
+                                final customColor = colorDef?.foreground(
+                                  isDark,
+                                );
+                                final iconData = TagIconRegistry.getIconData(
+                                  tag.icon,
+                                  fallback: tag.isPinned
+                                      ? PhosphorIconsFill.pushPin
+                                      : PhosphorIconsRegular.tag,
+                                );
+
+                                return SidebarItem(
+                                  icon: iconData,
+                                  label: node.displayName,
+                                  indent: entry.depth,
+                                  semanticLabel:
+                                      '${node.displayPath}, ${tag.noteCount} notes'
+                                      '${tag.isImplicit ? ', implicit parent tag' : ''}',
+                                  count: tag.noteCount,
+                                  isSelected: isTagSelected,
+                                  customIconColor: customColor,
+                                  trailing: node.hasChildren
+                                      ? SizedBox(
+                                          width: 28,
+                                          height: 28,
+                                          child: IconButton(
+                                            padding: EdgeInsets.zero,
+                                            constraints:
+                                                const BoxConstraints.tightFor(
+                                                  width: 28,
+                                                  height: 28,
+                                                ),
+                                            iconSize: 16,
+                                            icon: Icon(
+                                              isExpanded
+                                                  ? PhosphorIconsRegular
+                                                        .caretDown
+                                                  : PhosphorIconsRegular
+                                                        .caretRight,
+                                              color: colors.textTertiary,
+                                            ),
+                                            tooltip: isExpanded
+                                                ? 'Collapse ${node.displayName}'
+                                                : 'Expand ${node.displayName}',
+                                            onPressed: () => ref
+                                                .read(
+                                                  expandedTagPathsProvider
+                                                      .notifier,
+                                                )
+                                                .toggle(path),
+                                          ),
+                                        )
+                                      : null,
+                                  onTap: () {
+                                    ref
+                                        .read(
+                                          currentDestinationProvider.notifier,
+                                        )
+                                        .state = AppDestination
+                                        .tag;
+                                    ref
+                                        .read(
+                                          selectedTagFilterProvider.notifier,
+                                        )
+                                        .state = tag
+                                        .name;
+                                    ref
+                                        .read(selectedTagIdProvider.notifier)
+                                        .state = tag
+                                        .id;
+                                    ref
+                                        .read(notesQueryProvider.notifier)
+                                        .setTag(tag.name);
+                                    onItemSelected?.call();
+                                  },
+                                  onLongPress: () {
+                                    _showTagOptions(context, ref, tag);
+                                  },
+                                  onSecondaryTap: () {
+                                    _showTagOptions(context, ref, tag);
+                                  },
+                                  onSecondaryTapUp: (details) {
+                                    _showTagOptions(
+                                      context,
+                                      ref,
+                                      tag,
+                                      details.globalPosition,
+                                    );
+                                  },
+                                );
+                              }),
+                              if (hasMore) ...[
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.md,
+                                    vertical: 4.0,
+                                  ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadii.sm,
                                     ),
-                                    child: Text(
-                                      'Show all tags (${tags.length})...',
-                                      style: AppTypography.caption.copyWith(
-                                        color: currentDestination == AppDestination.tagBrowser
-                                            ? colors.accent
-                                            : colors.textSecondary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
+                                    onTap: () {
+                                      ref
+                                          .read(
+                                            currentDestinationProvider.notifier,
+                                          )
+                                          .state = AppDestination
+                                          .tagBrowser;
+                                      ref
+                                              .read(
+                                                selectedTagFilterProvider
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          null;
+                                      ref
+                                              .read(
+                                                selectedTagIdProvider.notifier,
+                                              )
+                                              .state =
+                                          null;
+                                      onItemSelected?.call();
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm,
+                                        vertical: 6.0,
+                                      ),
+                                      child: Text(
+                                        'Show all tags (${tags.length})...',
+                                        style: AppTypography.caption.copyWith(
+                                          color:
+                                              currentDestination ==
+                                                  AppDestination.tagBrowser
+                                              ? colors.accent
+                                              : colors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (err, stack) => const SizedBox.shrink(),
-                    ),
-                  ],
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (err, stack) => const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
 
@@ -505,9 +654,7 @@ class SidebarView extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SidebarSyncTile(
-                    onItemSelected: onItemSelected,
-                  ),
+                  SidebarSyncTile(onItemSelected: onItemSelected),
                   SidebarItem(
                     icon: PhosphorIconsRegular.gearSix,
                     label: 'Settings',
@@ -515,7 +662,8 @@ class SidebarView extends ConsumerWidget {
                       onItemSelected?.call();
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()),
+                          builder: (_) => const SettingsScreen(),
+                        ),
                       );
                     },
                   ),
@@ -535,7 +683,9 @@ class SidebarView extends ConsumerWidget {
   }) {
     final colors = context.appColors;
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
-    final headerColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
+    final headerColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -572,10 +722,13 @@ class SidebarView extends ConsumerWidget {
 
     String? action;
     if (PlatformLayoutHelper.isDesktopPlatform && globalPosition != null) {
-      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+      final overlay =
+          Overlay.of(context).context.findRenderObject() as RenderBox?;
       final position = RelativeRect.fromRect(
         Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
-        overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+        overlay != null
+            ? Offset.zero & overlay.size
+            : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
       );
       action = await showMenu<String>(
         context: context,
@@ -590,9 +743,18 @@ class SidebarView extends ConsumerWidget {
             value: 'rename',
             child: Row(
               children: [
-                Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textPrimary),
+                Icon(
+                  PhosphorIconsRegular.pencilSimple,
+                  size: 18,
+                  color: colors.textPrimary,
+                ),
                 const SizedBox(width: 10),
-                Text('Rename', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  'Rename',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -602,7 +764,10 @@ class SidebarView extends ConsumerWidget {
               children: [
                 Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
                 const SizedBox(width: 10),
-                Text('Delete', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                Text(
+                  'Delete',
+                  style: AppTypography.bodySmall.copyWith(color: colors.error),
+                ),
               ],
             ),
           ),
@@ -631,7 +796,9 @@ class SidebarView extends ConsumerWidget {
                     const AdaptiveSheetDragHandle(),
                     const SizedBox(height: AppSpacing.xs),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -649,15 +816,25 @@ class SidebarView extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.sm),
                     Divider(color: colors.divider, height: 1),
                     ListTile(
-                      leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textPrimary),
+                      leading: Icon(
+                        PhosphorIconsRegular.pencilSimple,
+                        size: 20,
+                        color: colors.textPrimary,
+                      ),
                       title: Text(
                         'Rename',
-                        style: AppTypography.body.copyWith(color: colors.textPrimary),
+                        style: AppTypography.body.copyWith(
+                          color: colors.textPrimary,
+                        ),
                       ),
                       onTap: () => Navigator.of(ctx).pop('rename'),
                     ),
                     ListTile(
-                      leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
+                      leading: Icon(
+                        PhosphorIconsRegular.trash,
+                        size: 20,
+                        color: colors.error,
+                      ),
                       title: Text(
                         'Delete',
                         style: AppTypography.body.copyWith(color: colors.error),
@@ -708,7 +885,10 @@ class SidebarView extends ConsumerWidget {
               hintText: 'View Name',
               filled: true,
               fillColor: colors.background,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               border: OutlineInputBorder(
                 borderRadius: AppRadii.borderMd,
                 borderSide: BorderSide(color: colors.divider, width: 0.8),
@@ -720,7 +900,9 @@ class SidebarView extends ConsumerWidget {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(
                 'Cancel',
-                style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
             ),
             QuietButton(
@@ -769,7 +951,9 @@ class SidebarView extends ConsumerWidget {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(
                 'Cancel',
-                style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
             ),
             QuietButton(
@@ -797,33 +981,29 @@ class SidebarView extends ConsumerWidget {
     }
   }
 
+  bool _tagHasDescendants(WidgetRef ref, Tag tag) {
+    final tags = ref.read(allTagsProvider).valueOrNull ?? const <Tag>[];
+    return tags.any((candidate) => candidate.name.startsWith('${tag.name}/'));
+  }
+
   void _showTagOptions(
     BuildContext context,
     WidgetRef ref,
-    TagWithCount t, [
+    Tag tag, [
     Offset? globalPosition,
   ]) async {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorDef = TagColors.fromId(t.color);
-
-    final tag = Tag(
-      id: t.tag.id,
-      name: t.name,
-      icon: t.icon,
-      color: t.color,
-      isPinned: t.isPinned,
-      pinnedOrder: t.pinnedOrder,
-      createdAt: t.tag.createdAt ?? DateTime.now(),
-      updatedAt: t.tag.updatedAt ?? DateTime.now(),
-      noteCount: t.noteCount,
-    );
+    final colorDef = tag.colorDefinition;
 
     if (PlatformLayoutHelper.isDesktopPlatform && globalPosition != null) {
-      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+      final overlay =
+          Overlay.of(context).context.findRenderObject() as RenderBox?;
       final position = RelativeRect.fromRect(
         Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
-        overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+        overlay != null
+            ? Offset.zero & overlay.size
+            : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
       );
 
       final selected = await showMenu<String>(
@@ -839,9 +1019,19 @@ class SidebarView extends ConsumerWidget {
             value: 'open',
             child: Row(
               children: [
-                Icon(PhosphorIconsRegular.arrowSquareOut, size: 18, color: colors.accent),
+                Icon(
+                  PhosphorIconsRegular.arrowSquareOut,
+                  size: 18,
+                  color: colors.accent,
+                ),
                 const SizedBox(width: 10),
-                Text('Open', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+                Text(
+                  'Open',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -850,12 +1040,19 @@ class SidebarView extends ConsumerWidget {
             child: Row(
               children: [
                 Icon(
-                  t.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                  tag.isPinned
+                      ? PhosphorIconsFill.pushPin
+                      : PhosphorIconsRegular.pushPin,
                   size: 18,
-                  color: t.isPinned ? colors.accent : colors.textPrimary,
+                  color: tag.isPinned ? colors.accent : colors.textPrimary,
                 ),
                 const SizedBox(width: 10),
-                Text(t.isPinned ? 'Unpin tag' : 'Pin to top', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  tag.isPinned ? 'Unpin tag' : 'Pin to top',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -863,9 +1060,18 @@ class SidebarView extends ConsumerWidget {
             value: 'rename',
             child: Row(
               children: [
-                Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textSecondary),
+                Icon(
+                  PhosphorIconsRegular.pencilSimple,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: 10),
-                Text('Rename...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  'Rename...',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -873,9 +1079,18 @@ class SidebarView extends ConsumerWidget {
             value: 'icon',
             child: Row(
               children: [
-                Icon(PhosphorIconsRegular.smiley, size: 18, color: colors.textSecondary),
+                Icon(
+                  PhosphorIconsRegular.smiley,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: 10),
-                Text(t.icon != null ? 'Change icon...' : 'Add icon...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  tag.icon != null ? 'Change icon...' : 'Add icon...',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -883,9 +1098,18 @@ class SidebarView extends ConsumerWidget {
             value: 'color',
             child: Row(
               children: [
-                Icon(PhosphorIconsRegular.palette, size: 18, color: colors.textSecondary),
+                Icon(
+                  PhosphorIconsRegular.palette,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: 10),
-                Text(t.color != null ? 'Change color...' : 'Add color...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  tag.color != null ? 'Change color...' : 'Add color...',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -896,7 +1120,10 @@ class SidebarView extends ConsumerWidget {
               children: [
                 Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
                 const SizedBox(width: 10),
-                Text('Delete tag', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                Text(
+                  'Delete tag',
+                  style: AppTypography.bodySmall.copyWith(color: colors.error),
+                ),
               ],
             ),
           ),
@@ -906,17 +1133,22 @@ class SidebarView extends ConsumerWidget {
       if (!context.mounted) return;
 
       if (selected == 'open') {
-        ref.read(currentDestinationProvider.notifier).state = AppDestination.tag;
-        ref.read(selectedTagFilterProvider.notifier).state = t.name;
-        ref.read(selectedTagIdProvider.notifier).state = t.id;
-        ref.read(notesQueryProvider.notifier).setTag(t.name);
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.tag;
+        ref.read(selectedTagFilterProvider.notifier).state = tag.name;
+        ref.read(selectedTagIdProvider.notifier).state = tag.id;
+        ref.read(notesQueryProvider.notifier).setTag(tag.name);
         onItemSelected?.call();
       } else if (selected == 'pin') {
-        ref.read(tagServiceProvider).pinTag(t.id, !t.isPinned);
+        ref.read(tagServiceProvider).pinTag(tag.id, !tag.isPinned);
       } else if (selected == 'rename') {
         final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
         final existingNames = allTags.map((x) => x.name).toList();
-        final newName = await TagRenameDialog.show(context, tag: tag, existingTags: existingNames);
+        final newName = await TagRenameDialog.show(
+          context,
+          tag: tag,
+          existingTags: existingNames,
+        );
         if (newName != null && newName != tag.name && context.mounted) {
           await ref.read(tagServiceProvider).renameTag(tag.id, newName);
           if (ref.read(selectedTagFilterProvider) == tag.name) {
@@ -925,21 +1157,33 @@ class SidebarView extends ConsumerWidget {
           }
         }
       } else if (selected == 'icon') {
-        final newIcon = await TagIconPickerSheet.show(context, currentIconId: t.icon, tagName: t.name);
+        final newIcon = await TagIconPickerSheet.show(
+          context,
+          currentIconId: tag.icon,
+          tagName: tag.name,
+        );
         if (context.mounted) {
-          await ref.read(tagServiceProvider).setTagIcon(t.id, newIcon);
+          await ref.read(tagServiceProvider).setTagIcon(tag.id, newIcon);
         }
       } else if (selected == 'color') {
-        final newColor = await TagColorPickerSheet.show(context, currentColorId: t.color);
+        final newColor = await TagColorPickerSheet.show(
+          context,
+          currentColorId: tag.color,
+        );
         if (context.mounted) {
-          await ref.read(tagServiceProvider).setTagColor(t.id, newColor);
+          await ref.read(tagServiceProvider).setTagColor(tag.id, newColor);
         }
       } else if (selected == 'delete') {
-        final confirmed = await TagDeleteDialog.show(context, tag: tag);
-        if (confirmed == true && context.mounted) {
-          await ref.read(tagServiceProvider).deleteTag(t.id);
-          if (ref.read(selectedTagFilterProvider) == t.name) {
-            ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+        final mode = await TagDeleteDialog.showWithMode(
+          context,
+          tag: tag,
+          hasDescendants: _tagHasDescendants(ref, tag),
+        );
+        if (mode != null && context.mounted) {
+          await ref.read(tagServiceProvider).deleteTag(tag.id, mode: mode);
+          if (ref.read(selectedTagFilterProvider) == tag.name) {
+            ref.read(currentDestinationProvider.notifier).state =
+                AppDestination.allNotes;
             ref.read(selectedTagFilterProvider.notifier).state = null;
             ref.read(selectedTagIdProvider.notifier).state = null;
             ref.read(notesQueryProvider.notifier).setTag(null);
@@ -976,13 +1220,13 @@ class SidebarView extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      TagIconRegistry.getIconData(t.icon),
+                      TagIconRegistry.getIconData(tag.icon),
                       size: 20,
                       color: colorDef?.foreground(isDark) ?? colors.accent,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '#${t.name}',
+                      '#${tag.name}',
                       style: AppTypography.title.copyWith(
                         color: colors.textPrimary,
                         fontSize: 18,
@@ -990,8 +1234,10 @@ class SidebarView extends ConsumerWidget {
                     ),
                     const Spacer(),
                     Text(
-                      '${t.noteCount} note${t.noteCount == 1 ? '' : 's'}',
-                      style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                      '${tag.noteCount} note${tag.noteCount == 1 ? '' : 's'}',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                      ),
                     ),
                   ],
                 ),
@@ -1013,35 +1259,46 @@ class SidebarView extends ConsumerWidget {
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  ref.read(currentDestinationProvider.notifier).state = AppDestination.tag;
-                  ref.read(selectedTagFilterProvider.notifier).state = t.name;
-                  ref.read(selectedTagIdProvider.notifier).state = t.id;
-                  ref.read(notesQueryProvider.notifier).setTag(t.name);
+                  ref.read(currentDestinationProvider.notifier).state =
+                      AppDestination.tag;
+                  ref.read(selectedTagFilterProvider.notifier).state = tag.name;
+                  ref.read(selectedTagIdProvider.notifier).state = tag.id;
+                  ref.read(notesQueryProvider.notifier).setTag(tag.name);
                   onItemSelected?.call();
                 },
               ),
               ListTile(
                 dense: true,
                 leading: Icon(
-                  t.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                  tag.isPinned
+                      ? PhosphorIconsFill.pushPin
+                      : PhosphorIconsRegular.pushPin,
                   size: 20,
-                  color: t.isPinned ? colors.accent : colors.textSecondary,
+                  color: tag.isPinned ? colors.accent : colors.textSecondary,
                 ),
                 title: Text(
-                  t.isPinned ? 'Unpin tag' : 'Pin to top',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  tag.isPinned ? 'Unpin tag' : 'Pin to top',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  ref.read(tagServiceProvider).pinTag(t.id, !t.isPinned);
+                  ref.read(tagServiceProvider).pinTag(tag.id, !tag.isPinned);
                 },
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.pencilSimple,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
                   'Rename',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.of(ctx).pop();
@@ -1052,10 +1309,15 @@ class SidebarView extends ConsumerWidget {
                     tag: tag,
                     existingTags: existingNames,
                   );
-                  if (newName != null && newName != tag.name && context.mounted) {
-                    await ref.read(tagServiceProvider).renameTag(tag.id, newName);
+                  if (newName != null &&
+                      newName != tag.name &&
+                      context.mounted) {
+                    await ref
+                        .read(tagServiceProvider)
+                        .renameTag(tag.id, newName);
                     if (ref.read(selectedTagFilterProvider) == tag.name) {
-                      ref.read(selectedTagFilterProvider.notifier).state = newName;
+                      ref.read(selectedTagFilterProvider.notifier).state =
+                          newName;
                       ref.read(notesQueryProvider.notifier).setTag(newName);
                     }
                   }
@@ -1063,47 +1325,69 @@ class SidebarView extends ConsumerWidget {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.smiley, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.smiley,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
-                  t.icon != null ? 'Change icon' : 'Add icon',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  tag.icon != null ? 'Change icon' : 'Add icon',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.of(ctx).pop();
                   final newIcon = await TagIconPickerSheet.show(
                     context,
-                    currentIconId: t.icon,
-                    tagName: t.name,
+                    currentIconId: tag.icon,
+                    tagName: tag.name,
                   );
                   if (context.mounted) {
-                    await ref.read(tagServiceProvider).setTagIcon(t.id, newIcon);
+                    await ref
+                        .read(tagServiceProvider)
+                        .setTagIcon(tag.id, newIcon);
                   }
                 },
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.palette, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.palette,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
-                  t.color != null ? 'Change color' : 'Add color',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  tag.color != null ? 'Change color' : 'Add color',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.of(ctx).pop();
                   final newColor = await TagColorPickerSheet.show(
                     context,
-                    currentColorId: t.color,
+                    currentColorId: tag.color,
                   );
                   if (context.mounted) {
-                    await ref.read(tagServiceProvider).setTagColor(t.id, newColor);
+                    await ref
+                        .read(tagServiceProvider)
+                        .setTagColor(tag.id, newColor);
                   }
                 },
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.gitMerge, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.gitMerge,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
                   'Merge into...',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.of(ctx).pop();
@@ -1114,29 +1398,46 @@ class SidebarView extends ConsumerWidget {
                     availableTags: allTags,
                   );
                   if (destination != null && context.mounted) {
-                    await ref.read(tagServiceProvider).mergeTags(tag.id, destination.id);
+                    await ref
+                        .read(tagServiceProvider)
+                        .mergeTags(tag.id, destination.id);
                     if (ref.read(selectedTagFilterProvider) == tag.name) {
-                      ref.read(selectedTagFilterProvider.notifier).state = destination.name;
-                      ref.read(selectedTagIdProvider.notifier).state = destination.id;
-                      ref.read(notesQueryProvider.notifier).setTag(destination.name);
+                      ref.read(selectedTagFilterProvider.notifier).state =
+                          destination.name;
+                      ref.read(selectedTagIdProvider.notifier).state =
+                          destination.id;
+                      ref
+                          .read(notesQueryProvider.notifier)
+                          .setTag(destination.name);
                     }
                   }
                 },
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
+                leading: Icon(
+                  PhosphorIconsRegular.trash,
+                  size: 20,
+                  color: colors.error,
+                ),
                 title: Text(
                   'Delete tag',
                   style: AppTypography.bodySmall.copyWith(color: colors.error),
                 ),
                 onTap: () async {
                   Navigator.of(ctx).pop();
-                  final confirmed = await TagDeleteDialog.show(context, tag: tag);
-                  if (confirmed == true && context.mounted) {
-                    await ref.read(tagServiceProvider).deleteTag(tag.id);
+                  final mode = await TagDeleteDialog.showWithMode(
+                    context,
+                    tag: tag,
+                    hasDescendants: _tagHasDescendants(ref, tag),
+                  );
+                  if (mode != null && context.mounted) {
+                    await ref
+                        .read(tagServiceProvider)
+                        .deleteTag(tag.id, mode: mode);
                     if (ref.read(selectedTagFilterProvider) == tag.name) {
-                      ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+                      ref.read(currentDestinationProvider.notifier).state =
+                          AppDestination.allNotes;
                       ref.read(selectedTagFilterProvider.notifier).state = null;
                       ref.read(selectedTagIdProvider.notifier).state = null;
                       ref.read(notesQueryProvider.notifier).clearAllFilters();

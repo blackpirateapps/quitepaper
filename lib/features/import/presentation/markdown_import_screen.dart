@@ -8,6 +8,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
+import '../../tags/application/tag_providers.dart';
 import '../application/image_reference_matcher.dart';
 import '../application/markdown_import_scanner.dart';
 import '../application/markdown_import_service.dart';
@@ -27,7 +28,8 @@ class MarkdownImportScreen extends ConsumerStatefulWidget {
   final List<MarkdownImportItem>? initialItems;
 
   @override
-  ConsumerState<MarkdownImportScreen> createState() => _MarkdownImportScreenState();
+  ConsumerState<MarkdownImportScreen> createState() =>
+      _MarkdownImportScreenState();
 }
 
 class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
@@ -57,7 +59,10 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
     });
 
     try {
-      final items = await MarkdownImportScanner.scanFolder(path);
+      final items = await MarkdownImportScanner.scanFolder(
+        path,
+        mirrorFolderHierarchy: ref.read(importFolderHierarchyProvider),
+      );
       if (mounted) {
         setState(() {
           _items = items;
@@ -101,7 +106,9 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
           _isLoading = true;
           _errorMessage = null;
         });
-        final items = await MarkdownImportScanner.processPickedFiles(result.files);
+        final items = await MarkdownImportScanner.processPickedFiles(
+          result.files,
+        );
         if (mounted) {
           setState(() {
             _items = items;
@@ -147,9 +154,9 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not select images: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not select images: $e')));
       }
     }
   }
@@ -182,16 +189,17 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not relink image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not relink image: $e')));
       }
     }
   }
 
   int get _selectedCount => _items.where((i) => i.isSelected).length;
 
-  bool get _areAllSelected => _items.isNotEmpty && _selectedCount == _items.length;
+  bool get _areAllSelected =>
+      _items.isNotEmpty && _selectedCount == _items.length;
 
   void _toggleSelectAll(bool? selectAll) {
     final shouldSelect = selectAll ?? !_areAllSelected;
@@ -236,10 +244,16 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
           final colors = ctx.appColors;
           return AlertDialog(
             backgroundColor: colors.surface,
-            shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+            shape: const RoundedRectangleBorder(
+              borderRadius: AppRadii.borderLg,
+            ),
             title: Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: colors.accent, size: 22),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: colors.accent,
+                  size: 22,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Missing Images',
@@ -260,7 +274,10 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
               ),
               QuietButton(
                 label: 'Locate Images',
@@ -359,27 +376,19 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              Icons.file_open_outlined,
-              color: colors.textSecondary,
-            ),
+            icon: Icon(Icons.file_open_outlined, color: colors.textSecondary),
             tooltip: 'Pick markdown files',
             onPressed: _isLoading || _isImporting ? null : _pickFiles,
           ),
           IconButton(
-            icon: Icon(
-              Icons.folder_open_rounded,
-              color: colors.textSecondary,
-            ),
+            icon: Icon(Icons.folder_open_rounded, color: colors.textSecondary),
             tooltip: 'Choose different folder',
             onPressed: _isLoading || _isImporting ? null : _pickAnotherFolder,
           ),
           const SizedBox(width: AppSpacing.xs),
         ],
       ),
-      body: SafeArea(
-        child: _buildBody(colors),
-      ),
+      body: SafeArea(child: _buildBody(colors)),
       bottomNavigationBar: _buildBottomBar(colors),
     );
   }
@@ -397,7 +406,9 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
             const SizedBox(height: AppSpacing.md),
             Text(
               'Scanning directory for Markdown files & images...',
-              style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -416,7 +427,9 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               QuietButton(
@@ -438,17 +451,26 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.folder_open_rounded, size: 48, color: colors.textTertiary),
+              Icon(
+                Icons.folder_open_rounded,
+                size: 48,
+                color: colors.textTertiary,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 'No Markdown Files Found',
-                style: AppTypography.title.copyWith(color: colors.textPrimary, fontSize: 18),
+                style: AppTypography.title.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 18,
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'No .md or .markdown files were found in the chosen folder or its subdirectories.',
                 textAlign: TextAlign.center,
-                style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               Wrap(
@@ -484,6 +506,66 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
 
     return Column(
       children: [
+        if (widget.initialItems == null)
+          Container(
+            margin: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              border: Border.all(color: colors.divider),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.account_tree_outlined,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mirror folder hierarchy',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'Import subfolders as nested tags (articles/wikipedia)',
+                        style: AppTypography.caption.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: ref.watch(importFolderHierarchyProvider),
+                  activeThumbColor: colors.accent,
+                  onChanged: (value) async {
+                    await ref
+                        .read(importFolderHierarchyProvider.notifier)
+                        .setEnabled(value);
+                    if (mounted) {
+                      await _scanDirectory(_currentFolderPath);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
         // Missing Images Alert Banner
         if (missingImagesAcrossSelected > 0)
           Container(
@@ -586,11 +668,18 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
                   onTap: _addTagToAllSelected,
                   borderRadius: AppRadii.borderSm,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.label_outline_rounded, size: 16, color: colors.accent),
+                        Icon(
+                          Icons.label_outline_rounded,
+                          size: 16,
+                          color: colors.accent,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'Tag selected',
@@ -669,7 +758,9 @@ class _MarkdownImportScreenState extends ConsumerState<MarkdownImportScreen> {
                     ? QuietButtonVariant.primary
                     : QuietButtonVariant.secondary,
                 isFullWidth: true,
-                onPressed: (_selectedCount > 0 && !_isImporting) ? _performImport : null,
+                onPressed: (_selectedCount > 0 && !_isImporting)
+                    ? _performImport
+                    : null,
               ),
             ),
           ],

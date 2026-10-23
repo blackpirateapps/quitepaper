@@ -18,6 +18,8 @@ class SidebarItem extends StatelessWidget {
     this.isDestructive = false,
     this.customIconColor,
     this.trailing,
+    this.indent = 0,
+    this.semanticLabel,
   });
 
   final IconData icon;
@@ -32,13 +34,25 @@ class SidebarItem extends StatelessWidget {
   final Color? customIconColor;
   final Widget? trailing;
 
+  /// Extra left padding steps for hierarchy rows.
+  final int indent;
+
+  /// Optional accessibility label; defaults to [label] plus note count.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
-    final defaultTextColor = isSidebarDark ? const Color(0xFFF1F2F4) : colors.textPrimary;
-    final defaultSecondaryColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textSecondary;
-    final defaultTertiaryColor = isSidebarDark ? const Color(0xFF9CA3AF) : colors.textTertiary;
+    final defaultTextColor = isSidebarDark
+        ? const Color(0xFFF1F2F4)
+        : colors.textPrimary;
+    final defaultSecondaryColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textSecondary;
+    final defaultTertiaryColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textTertiary;
 
     final textColor = isSelected
         ? (isSidebarDark ? Colors.white : colors.textPrimary)
@@ -51,22 +65,23 @@ class SidebarItem extends StatelessWidget {
     final iconColor = isSelected
         ? colors.accent
         : (isDestructive
-            ? colors.error.withValues(alpha: 0.8)
-            : (customIconColor ?? defaultSecondaryColor));
+              ? colors.error.withValues(alpha: 0.8)
+              : (customIconColor ?? defaultSecondaryColor));
 
     final backgroundColor = isSelected
         ? colors.sidebarSelected
         : Colors.transparent;
 
-    final textStyle = (isSelected ? AppTypography.bodyMedium : AppTypography.body).copyWith(
-      color: textColor,
-      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-      fontSize: 15,
-    );
+    final textStyle =
+        (isSelected ? AppTypography.bodyMedium : AppTypography.body).copyWith(
+          color: textColor,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          fontSize: 15,
+        );
 
     return Semantics(
       selected: isSelected,
-      label: count != null ? '$label, $count notes' : label,
+      label: semanticLabel ?? (count != null ? '$label, $count notes' : label),
       button: true,
       child: Container(
         margin: const EdgeInsets.symmetric(
@@ -87,17 +102,13 @@ class SidebarItem extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 44.0),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md + (indent * 14.0),
                   vertical: 10.0,
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      icon,
-                      size: 20,
-                      color: iconColor,
-                    ),
+                    Icon(icon, size: 20, color: iconColor),
                     const SizedBox(width: 14.0),
                     Expanded(
                       child: Text(
@@ -113,7 +124,9 @@ class SidebarItem extends StatelessWidget {
                         '$count',
                         style: AppTypography.caption.copyWith(
                           color: countColor,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           fontSize: 13,
                         ),
                       ),

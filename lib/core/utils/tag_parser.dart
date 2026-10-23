@@ -77,22 +77,34 @@ abstract final class TagParser {
   }
 
   /// Validates whether a normalized tag string contains valid characters and is non-empty.
+  ///
+  /// Slashes separate path segments. Empty segments (`a//b`, `/a`, `a/`) are
+  /// rejected, and each segment follows the same character, numeric, and
+  /// leading/trailing punctuation rules as a flat tag.
   static bool isValidTag(String normalizedTag) {
     if (normalizedTag.isEmpty) return false;
-    // Cannot be purely numeric
-    if (int.tryParse(normalizedTag) != null) return false;
-    // Cannot start or end with slash/dash/underscore
-    if (normalizedTag.startsWith('/') ||
-        normalizedTag.endsWith('/') ||
-        normalizedTag.startsWith('-') ||
-        normalizedTag.endsWith('-') ||
-        normalizedTag.startsWith('_') ||
-        normalizedTag.endsWith('_')) {
+    if (normalizedTag.startsWith('/') || normalizedTag.endsWith('/')) {
       return false;
     }
-    // Tag should only contain letters (any script, incl. combining marks),
-    // numbers, dash, underscore, slash
-    return RegExp(r'^[\p{L}\p{M}\p{N}_\-/]+$', unicode: true).hasMatch(normalizedTag);
+
+    final segments = normalizedTag.split('/');
+    final segmentPattern = RegExp(r'^[\p{L}\p{M}\p{N}_\-]+$', unicode: true);
+
+    for (final segment in segments) {
+      if (segment.isEmpty) return false;
+      // Cannot be purely numeric
+      if (int.tryParse(segment) != null) return false;
+      // Cannot start or end with dash/underscore
+      if (segment.startsWith('-') ||
+          segment.endsWith('-') ||
+          segment.startsWith('_') ||
+          segment.endsWith('_')) {
+        return false;
+      }
+      if (!segmentPattern.hasMatch(segment)) return false;
+    }
+
+    return true;
   }
 
   /// Displays tag with leading `#`.
@@ -116,15 +128,18 @@ abstract final class TagParser {
 
     // 1. Handle YAML frontmatter if present
     if (text.startsWith('---')) {
-      final endMatch =
-          RegExp(r'\r?\n(---|\.\.\.)(\r?\n|$)').firstMatch(text.substring(3));
+      final endMatch = RegExp(
+        r'\r?\n(---|\.\.\.)(\r?\n|$)',
+      ).firstMatch(text.substring(3));
       if (endMatch != null) {
         final frontmatterEnd = 3 + endMatch.start + endMatch.group(0)!.length;
         final frontmatterBlock = text.substring(0, frontmatterEnd);
         final restOfText = text.substring(frontmatterEnd);
 
-        final cleanedFrontmatter =
-            _removeTagFromFrontmatter(frontmatterBlock, cleanTag);
+        final cleanedFrontmatter = _removeTagFromFrontmatter(
+          frontmatterBlock,
+          cleanTag,
+        );
         final cleanedRest = removeTagFromText(restOfText, cleanTag);
         return '$cleanedFrontmatter$cleanedRest';
       }
@@ -162,8 +177,7 @@ abstract final class TagParser {
     return _collapseEmptyLines(processedLines, text);
   }
 
-  static String _removeTagFromFrontmatter(
-      String frontmatter, String cleanTag) {
+  static String _removeTagFromFrontmatter(String frontmatter, String cleanTag) {
     final lines = frontmatter.split(RegExp(r'\r?\n'));
     final resultLines = <String>[];
     String? currentListKey;
@@ -190,8 +204,10 @@ abstract final class TagParser {
       final colonIndex = line.indexOf(':');
       if (colonIndex != -1) {
         final rawKey = line.substring(0, colonIndex).trim();
-        final key =
-            rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+        final key = rawKey
+            .toLowerCase()
+            .replaceAll('-', '_')
+            .replaceAll(' ', '_');
         final val = line.substring(colonIndex + 1).trim();
 
         if (_isTagKey(key)) {
@@ -294,22 +310,28 @@ abstract final class TagParser {
 
     // 4. Tag at start of line followed by space
     result = result.replaceAllMapped(
-      RegExp(r'^(\s*)#' '$escaped' r'\s+', caseSensitive: false),
+      RegExp(
+        r'^(\s*)#'
+        '$escaped'
+        r'\s+',
+        caseSensitive: false,
+      ),
       (m) => m.group(1) ?? '',
     );
 
     // 5. Any remaining isolated #tag (e.g., inside brackets `(#tag)` or quotes `"#tag"`)
     result = result.replaceAll(
-      RegExp('(?<=^|[\\s(\\[{<"\'`])#$escaped(?=[)\\]},.!?\\s>"\'`:]|\$)',
-          caseSensitive: false),
+      RegExp(
+        '(?<=^|[\\s(\\[{<"\'`])#$escaped(?=[)\\]},.!?\\s>"\'`:]|\$)',
+        caseSensitive: false,
+      ),
       '',
     );
 
     return result;
   }
 
-  static String _removeTagFromLineWithInlineCode(
-      String line, String cleanTag) {
+  static String _removeTagFromLineWithInlineCode(String line, String cleanTag) {
     final buffer = StringBuffer();
     var currentIndex = 0;
     final codeSpanRegex = RegExp(r'`[^`\n]*`');
@@ -331,8 +353,7 @@ abstract final class TagParser {
     return buffer.toString();
   }
 
-  static String _collapseEmptyLines(
-      List<String> lines, String originalText) {
+  static String _collapseEmptyLines(List<String> lines, String originalText) {
     if (lines.every((l) => l.trim().isEmpty) &&
         originalText.trim().isNotEmpty) {
       return '';
@@ -358,21 +379,28 @@ abstract final class TagParser {
   static String renameTagInText(String text, String oldTag, String newTag) {
     final cleanOld = normalizeTag(oldTag);
     final cleanNew = normalizeTag(newTag);
-    if (cleanOld.isEmpty || cleanNew.isEmpty || cleanOld == cleanNew || text.isEmpty) {
+    if (cleanOld.isEmpty ||
+        cleanNew.isEmpty ||
+        cleanOld == cleanNew ||
+        text.isEmpty) {
       return text;
     }
 
     // 1. Handle YAML frontmatter if present
     if (text.startsWith('---')) {
-      final endMatch =
-          RegExp(r'\r?\n(---|\.\.\.)(\r?\n|$)').firstMatch(text.substring(3));
+      final endMatch = RegExp(
+        r'\r?\n(---|\.\.\.)(\r?\n|$)',
+      ).firstMatch(text.substring(3));
       if (endMatch != null) {
         final frontmatterEnd = 3 + endMatch.start + endMatch.group(0)!.length;
         final frontmatterBlock = text.substring(0, frontmatterEnd);
         final restOfText = text.substring(frontmatterEnd);
 
-        final renamedFrontmatter =
-            _renameTagInFrontmatter(frontmatterBlock, cleanOld, cleanNew);
+        final renamedFrontmatter = _renameTagInFrontmatter(
+          frontmatterBlock,
+          cleanOld,
+          cleanNew,
+        );
         final renamedRest = renameTagInText(restOfText, cleanOld, cleanNew);
         return '$renamedFrontmatter$renamedRest';
       }
@@ -399,7 +427,9 @@ abstract final class TagParser {
       }
 
       if (line.contains('`')) {
-        processedLines.add(_renameTagInLineWithInlineCode(line, cleanOld, cleanNew));
+        processedLines.add(
+          _renameTagInLineWithInlineCode(line, cleanOld, cleanNew),
+        );
       } else {
         processedLines.add(_renameTagInLine(line, cleanOld, cleanNew));
       }
@@ -409,7 +439,10 @@ abstract final class TagParser {
   }
 
   static String _renameTagInFrontmatter(
-      String frontmatter, String cleanOld, String cleanNew) {
+    String frontmatter,
+    String cleanOld,
+    String cleanNew,
+  ) {
     final lines = frontmatter.split(RegExp(r'\r?\n'));
     final resultLines = <String>[];
     String? currentListKey;
@@ -435,8 +468,10 @@ abstract final class TagParser {
       final colonIndex = line.indexOf(':');
       if (colonIndex != -1) {
         final rawKey = line.substring(0, colonIndex).trim();
-        final key =
-            rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+        final key = rawKey
+            .toLowerCase()
+            .replaceAll('-', '_')
+            .replaceAll(' ', '_');
         final val = line.substring(colonIndex + 1).trim();
 
         if (_isTagKey(key)) {
@@ -494,7 +529,11 @@ abstract final class TagParser {
     return resultLines.join('\n');
   }
 
-  static String _renameTagInLine(String line, String cleanOld, String cleanNew) {
+  static String _renameTagInLine(
+    String line,
+    String cleanOld,
+    String cleanNew,
+  ) {
     if (!line.contains('#') || cleanOld.isEmpty) return line;
 
     final escaped = RegExp.escape(cleanOld);
@@ -510,7 +549,10 @@ abstract final class TagParser {
   }
 
   static String _renameTagInLineWithInlineCode(
-      String line, String cleanOld, String cleanNew) {
+    String line,
+    String cleanOld,
+    String cleanNew,
+  ) {
     final buffer = StringBuffer();
     var currentIndex = 0;
     final codeSpanRegex = RegExp(r'`[^`\n]*`');
@@ -536,7 +578,10 @@ abstract final class TagParser {
   /// If destinationTag already exists in the text, sourceTag is removed to avoid duplicates.
   /// Otherwise, sourceTag is renamed to destinationTag.
   static String mergeTagsInText(
-      String text, String sourceTag, String destinationTag) {
+    String text,
+    String sourceTag,
+    String destinationTag,
+  ) {
     final cleanSource = normalizeTag(sourceTag);
     final cleanDest = normalizeTag(destinationTag);
     if (cleanSource.isEmpty ||

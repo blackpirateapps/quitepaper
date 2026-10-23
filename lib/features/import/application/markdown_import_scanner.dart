@@ -11,7 +11,14 @@ import 'storage_permission_helper.dart';
 abstract final class MarkdownImportScanner {
   /// Recursively scans [folderPath] for markdown files (.md and .markdown),
   /// indexes image files, resolves linked image references, and prepares import items.
-  static Future<List<MarkdownImportItem>> scanFolder(String folderPath) async {
+  ///
+  /// When [mirrorFolderHierarchy] is true, the file's subfolder chain becomes a
+  /// single nested tag path (`articles/wikipedia`) instead of one flat tag per
+  /// folder. The default remains flat for backward compatibility.
+  static Future<List<MarkdownImportItem>> scanFolder(
+    String folderPath, {
+    bool mirrorFolderHierarchy = false,
+  }) async {
     // Ensure storage permissions on Android
     await StoragePermissionHelper.requestStoragePermission();
 
@@ -25,7 +32,10 @@ abstract final class MarkdownImportScanner {
     final markdownFiles = <File>[];
 
     try {
-      await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+      await for (final entity in rootDir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (entity is! File) continue;
 
         final lowerPath = entity.path.toLowerCase();
@@ -44,6 +54,7 @@ abstract final class MarkdownImportScanner {
             mdFile,
             folderPath,
             vaultImagesMap: vaultImagesMap,
+            mirrorFolderHierarchy: mirrorFolderHierarchy,
           );
           if (item != null) {
             items.add(item);
@@ -58,12 +69,17 @@ abstract final class MarkdownImportScanner {
       return items;
     }
 
-    items.sort((a, b) => a.relativePath.toLowerCase().compareTo(b.relativePath.toLowerCase()));
+    items.sort(
+      (a, b) =>
+          a.relativePath.toLowerCase().compareTo(b.relativePath.toLowerCase()),
+    );
     return items;
   }
 
   /// Processes a list of files picked directly via [FilePicker.platform.pickFiles].
-  static Future<List<MarkdownImportItem>> processPickedFiles(List<PlatformFile> pickedFiles) async {
+  static Future<List<MarkdownImportItem>> processPickedFiles(
+    List<PlatformFile> pickedFiles,
+  ) async {
     final items = <MarkdownImportItem>[];
 
     for (final pf in pickedFiles) {
@@ -81,7 +97,9 @@ abstract final class MarkdownImportScanner {
             rawContent = await file.readAsString();
             final stat = await file.stat();
             final modified = stat.modified;
-            final changed = (stat.changed.isBefore(modified) && stat.changed.millisecondsSinceEpoch > 0)
+            final changed =
+                (stat.changed.isBefore(modified) &&
+                    stat.changed.millisecondsSinceEpoch > 0)
                 ? stat.changed
                 : modified;
             createdAt = changed;
@@ -142,7 +160,9 @@ abstract final class MarkdownImportScanner {
       );
     }
 
-    items.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    items.sort(
+      (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    );
     return items;
   }
 
@@ -151,6 +171,7 @@ abstract final class MarkdownImportScanner {
     File file,
     String rootFolderPath, {
     Map<String, String>? vaultImagesMap,
+    bool mirrorFolderHierarchy = false,
   }) async {
     final rawContent = await file.readAsString();
     final stat = await file.stat();
@@ -159,7 +180,9 @@ abstract final class MarkdownImportScanner {
     final relativePath = p.relative(file.path, from: rootFolderPath);
 
     // 2. Extract subfolder names as tags
-    final subfolderTags = _extractSubfolderTags(relativePath);
+    final subfolderTags = mirrorFolderHierarchy
+        ? _extractNestedSubfolderTag(relativePath)
+        : _extractSubfolderTags(relativePath);
 
     // 3. Parse frontmatter
     final parsed = MarkdownFrontmatterParser.parse(rawContent);
@@ -187,7 +210,9 @@ abstract final class MarkdownImportScanner {
 
     // 7. File properties for createdAt and updatedAt
     final modified = stat.modified;
-    final changed = (stat.changed.isBefore(modified) && stat.changed.millisecondsSinceEpoch > 0)
+    final changed =
+        (stat.changed.isBefore(modified) &&
+            stat.changed.millisecondsSinceEpoch > 0)
         ? stat.changed
         : modified;
 
@@ -206,7 +231,8 @@ abstract final class MarkdownImportScanner {
       filePath: file.path,
       relativePath: relativePath,
       title: title,
-      content: rawContent, // Preserve entire markdown content including frontmatter as-is
+      content:
+          rawContent, // Preserve entire markdown content including frontmatter as-is
       tags: combinedTags.toList(),
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -250,6 +276,32 @@ abstract final class MarkdownImportScanner {
     }
 
     return tags.toList();
+  }
+
+  /// Builds a single nested tag path from the file's folder chain.
+  /// E.g. 'Articles/Wikipedia/Topic.md' -> ['articles/wikipedia'].
+  ///
+  /// Only the deepest folder becomes a note tag; ancestor entities are created
+  /// by the tag layer without implicit note assignments.
+  static List<String> _extractNestedSubfolderTag(String relativePath) {
+    final dirName = p.dirname(relativePath);
+    if (dirName == '.' || dirName.isEmpty) {
+      return const [];
+    }
+
+    final segments = <String>[];
+    for (final seg in p.split(dirName)) {
+      final trimmed = seg.trim();
+      if (trimmed.isEmpty || trimmed == '.' || trimmed == '..') continue;
+      final normalized = _sanitizeFolderTag(trimmed);
+      if (TagParser.isValidTag(normalized)) {
+        segments.add(normalized);
+      }
+    }
+
+    if (segments.isEmpty) return const [];
+    final path = segments.join('/');
+    return TagParser.isValidTag(path) ? [path] : const [];
   }
 
   static String _sanitizeFolderTag(String input) {

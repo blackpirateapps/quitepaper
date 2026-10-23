@@ -13,7 +13,9 @@ void main() {
   }
 
   group('Tag Action Dialogs Tests', () {
-    testWidgets('TagCreateDialog validates input and produces Tag entity', (tester) async {
+    testWidgets('TagCreateDialog validates input and produces Tag entity', (
+      tester,
+    ) async {
       Tag? createdTag;
 
       await tester.pumpWidget(
@@ -62,7 +64,9 @@ void main() {
       expect(createdTag?.isPinned, isTrue);
     });
 
-    testWidgets('TagRenameDialog validates new name and submits', (tester) async {
+    testWidgets('TagRenameDialog validates new name and submits', (
+      tester,
+    ) async {
       final tag = Tag(
         id: 't1',
         name: 'old-name',
@@ -95,13 +99,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Rename Tag'), findsOneWidget);
-      expect(find.text('Renaming this tag will update all 5 associated notes.'), findsOneWidget);
+      expect(
+        find.text('Renaming this tag will update all 5 associated notes.'),
+        findsOneWidget,
+      );
 
       // Enter duplicate name
       await tester.enterText(find.byType(TextField), 'other-tag');
       await tester.tap(find.text('Rename'));
       await tester.pumpAndSettle();
-      expect(find.text('A tag with this name already exists. Use Merge instead.'), findsOneWidget);
+      expect(
+        find.text('A tag with this name already exists. Use Merge instead.'),
+        findsOneWidget,
+      );
 
       // Enter valid new name
       await tester.enterText(find.byType(TextField), 'brand-new-name');
@@ -111,44 +121,52 @@ void main() {
       expect(renamed, equals('brand-new-name'));
     });
 
-    testWidgets('TagDeleteDialog explains notes will not be deleted and confirms', (tester) async {
-      final tag = Tag(
-        id: 't1',
-        name: 'discard',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        noteCount: 7,
-      );
+    testWidgets(
+      'TagDeleteDialog explains notes will not be deleted and confirms',
+      (tester) async {
+        final tag = Tag(
+          id: 't1',
+          name: 'discard',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          noteCount: 7,
+        );
 
-      bool? confirmed;
+        bool? confirmed;
 
-      await tester.pumpWidget(
-        createDialogApp(
-          Builder(
-            builder: (ctx) => ElevatedButton(
-              onPressed: () async {
-                confirmed = await TagDeleteDialog.show(ctx, tag: tag);
-              },
-              child: const Text('Open Delete'),
+        await tester.pumpWidget(
+          createDialogApp(
+            Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  confirmed = await TagDeleteDialog.show(ctx, tag: tag);
+                },
+                child: const Text('Open Delete'),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Open Delete'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Delete'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Delete #discard?'), findsOneWidget);
-      expect(find.textContaining('Your notes will not be deleted'), findsOneWidget);
+        expect(find.text('Delete #discard?'), findsOneWidget);
+        expect(
+          find.textContaining('Your notes will not be deleted'),
+          findsOneWidget,
+        );
 
-      await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
 
-      expect(confirmed, isTrue);
-    });
+        expect(confirmed, isTrue);
+      },
+    );
 
-    testWidgets('TagMergeDialog filters destination tags and selects target', (tester) async {
+    testWidgets('TagMergeDialog filters destination tags and selects target', (
+      tester,
+    ) async {
       final sourceTag = Tag(
         id: 'source-1',
         name: 'flutter-tips',
@@ -213,5 +231,144 @@ void main() {
       expect(selectedDest, isNotNull);
       expect(selectedDest?.name, equals('flutter'));
     });
+
+    testWidgets(
+      'branch delete dialog offers delete-branch and move-children-up',
+      (tester) async {
+        final tag = Tag(
+          id: 't-parent',
+          name: 'work',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          noteCount: 4,
+        );
+
+        TagBranchDeleteMode? selectedMode;
+
+        await tester.pumpWidget(
+          createDialogApp(
+            Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  selectedMode = await TagDeleteDialog.showWithMode(
+                    ctx,
+                    tag: tag,
+                    hasDescendants: true,
+                  );
+                },
+                child: const Text('Open Branch Delete'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open Branch Delete'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Delete #work?'), findsOneWidget);
+        expect(find.text('Delete tag and sub-tags'), findsOneWidget);
+        expect(
+          find.text('Delete only this tag, move children up'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Your notes will not be deleted'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Delete only this tag, move children up'));
+        await tester.pumpAndSettle();
+
+        expect(selectedMode, equals(TagBranchDeleteMode.moveChildrenUp));
+      },
+    );
+
+    testWidgets(
+      'branch delete dialog returns deleteBranch and supports cancel',
+      (tester) async {
+        final tag = Tag(
+          id: 't-parent',
+          name: 'work',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          noteCount: 4,
+        );
+
+        TagBranchDeleteMode? selectedMode;
+
+        await tester.pumpWidget(
+          createDialogApp(
+            Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  selectedMode = await TagDeleteDialog.showWithMode(
+                    ctx,
+                    tag: tag,
+                    hasDescendants: true,
+                  );
+                },
+                child: const Text('Open Branch Delete'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open Branch Delete'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(selectedMode, isNull);
+
+        await tester.tap(find.text('Open Branch Delete'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete tag and sub-tags'));
+        await tester.pumpAndSettle();
+        expect(selectedMode, equals(TagBranchDeleteMode.deleteBranch));
+      },
+    );
+
+    testWidgets(
+      'branch-aware delete falls back to simple confirmation without descendants',
+      (tester) async {
+        final tag = Tag(
+          id: 't-leaf',
+          name: 'work/projects',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          noteCount: 2,
+        );
+
+        TagBranchDeleteMode? selectedMode;
+
+        await tester.pumpWidget(
+          createDialogApp(
+            Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  selectedMode = await TagDeleteDialog.showWithMode(
+                    ctx,
+                    tag: tag,
+                    hasDescendants: false,
+                  );
+                },
+                child: const Text('Open Leaf Delete'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open Leaf Delete'));
+        await tester.pumpAndSettle();
+        expect(find.text('Delete #work/projects?'), findsOneWidget);
+        expect(find.text('Delete tag and sub-tags'), findsNothing);
+
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        expect(selectedMode, equals(TagBranchDeleteMode.deleteBranch));
+      },
+    );
   });
 }

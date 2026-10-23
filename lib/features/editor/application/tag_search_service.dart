@@ -1,12 +1,10 @@
 import '../../../core/utils/tag_parser.dart';
 import '../../tags/domain/tag_model.dart';
+import '../../tags/domain/tag_path.dart';
 
 /// Candidate item representing a tag match for autocomplete suggestions.
 class TagCandidateItem {
-  const TagCandidateItem({
-    required this.tag,
-    required this.score,
-  });
+  const TagCandidateItem({required this.tag, required this.score});
 
   final Tag tag;
   final int score;
@@ -71,6 +69,27 @@ class TagSearchService {
       if (score > 0) {
         scored.add(TagCandidateItem(tag: tag, score: score));
       }
+    }
+
+    // Offer to create a missing nested path. Flat unknown queries keep the
+    // existing behavior (no synthetic candidate) so free text is never
+    // silently turned into a tag.
+    if (cleanQuery.contains('/') &&
+        TagPath.isValid(cleanQuery) &&
+        !tagMap.containsKey(cleanQuery)) {
+      final now = DateTime.now();
+      scored.add(
+        TagCandidateItem(
+          tag: Tag(
+            id: 'new_$cleanQuery',
+            name: cleanQuery,
+            createdAt: now,
+            updatedAt: now,
+            isNew: true,
+          ),
+          score: 900,
+        ),
+      );
     }
 
     // Sort by score DESC, isPinned DESC, noteCount DESC, name ASC

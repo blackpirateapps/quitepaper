@@ -69,7 +69,7 @@ class NotesQueryExecutor {
       ..where(
         _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id) &
             _db.noteTagsTable.isPinned.equals(true) &
-            _db.tagsTable.name.equals(contextTag),
+            _db.tagNameMatchesSubtree(_db.tagsTable.name, contextTag),
       );
     return global | existsQuery(sub);
   }
@@ -100,8 +100,12 @@ class NotesQueryExecutor {
     // 2. Build keyset cursor predicate
     Expression<bool> fullPredicate = wherePredicate;
     if (query.cursor != null) {
-      final cursorPredicate =
-          _buildCursorPredicate(query.sort, query.cursor!, query.context, contextTag);
+      final cursorPredicate = _buildCursorPredicate(
+        query.sort,
+        query.cursor!,
+        query.context,
+        contextTag,
+      );
       fullPredicate = fullPredicate & cursorPredicate;
     }
 
@@ -165,12 +169,14 @@ class NotesQueryExecutor {
     // 1. Context lifecycle constraint
     switch (query.context) {
       case NotesContext.active:
-        predicate = predicate &
+        predicate =
+            predicate &
             _db.notesTable.isArchived.equals(false) &
             _db.notesTable.isTrashed.equals(false);
         break;
       case NotesContext.archive:
-        predicate = predicate &
+        predicate =
+            predicate &
             _db.notesTable.isArchived.equals(true) &
             _db.notesTable.isTrashed.equals(false);
         break;
@@ -188,7 +194,8 @@ class NotesQueryExecutor {
           _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id) &
               _db.noteTagsTable.isPinned.equals(true),
         );
-      predicate = predicate &
+      predicate =
+          predicate &
           (_db.notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub));
     }
 
@@ -209,7 +216,8 @@ class NotesQueryExecutor {
 
       if (normalizedTags.isNotEmpty) {
         if (query.filter.tagMatchMode == TagMatchMode.all) {
-          // AND mode: Note must have EVERY selected tag
+          // AND mode: Note must have EVERY selected tag (each selector
+          // includes its descendants).
           for (final tag in normalizedTags) {
             final tagSub = _db.selectOnly(_db.noteTagsTable)
               ..join([
@@ -220,13 +228,13 @@ class NotesQueryExecutor {
               ])
               ..addColumns([_db.noteTagsTable.noteId])
               ..where(
-                _db.tagsTable.name.equals(tag) &
+                _db.tagNameMatchesSubtree(_db.tagsTable.name, tag) &
                     _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id),
               );
             predicate = predicate & existsQuery(tagSub);
           }
         } else {
-          // OR mode: Note must have AT LEAST ONE selected tag
+          // OR mode: Note must have AT LEAST ONE selected tag or descendant.
           final tagSub = _db.selectOnly(_db.noteTagsTable)
             ..join([
               innerJoin(
@@ -236,7 +244,12 @@ class NotesQueryExecutor {
             ])
             ..addColumns([_db.noteTagsTable.noteId])
             ..where(
-              _db.tagsTable.name.isIn(normalizedTags) &
+              normalizedTags
+                      .map(
+                        (tag) =>
+                            _db.tagNameMatchesSubtree(_db.tagsTable.name, tag),
+                      )
+                      .reduce((a, b) => a | b) &
                   _db.noteTagsTable.noteId.equalsExp(_db.notesTable.id),
             );
           predicate = predicate & existsQuery(tagSub);
@@ -247,14 +260,16 @@ class NotesQueryExecutor {
     // 5. Date filters (Created / Modified) using half-open intervals [start, endExclusive)
     if (query.filter.createdRange != null) {
       final bounds = query.filter.createdRange!.getBounds();
-      predicate = predicate &
+      predicate =
+          predicate &
           _db.notesTable.createdAt.isBiggerOrEqualValue(bounds.start) &
           _db.notesTable.createdAt.isSmallerThanValue(bounds.endExclusive);
     }
 
     if (query.filter.modifiedRange != null) {
       final bounds = query.filter.modifiedRange!.getBounds();
-      predicate = predicate &
+      predicate =
+          predicate &
           _db.notesTable.updatedAt.isBiggerOrEqualValue(bounds.start) &
           _db.notesTable.updatedAt.isSmallerThanValue(bounds.endExclusive);
     }
@@ -263,34 +278,39 @@ class NotesQueryExecutor {
     for (final contentFilter in query.filter.contentFilters) {
       switch (contentFilter) {
         case ContentFilter.hasCode:
-          predicate = predicate &
+          predicate =
+              predicate &
               (_db.notesTable.content.like('%```%') |
                   _db.notesTable.content.like('%`%') |
                   _db.notesTable.content.like('%"code_block"%') |
                   _db.notesTable.content.like('%"code":true%'));
           break;
         case ContentFilter.hasChecklist:
-          predicate = predicate &
+          predicate =
+              predicate &
               (_db.notesTable.content.like('%- [ ]%') |
                   _db.notesTable.content.like('%- [x]%') |
                   _db.notesTable.content.like('%- [X]%') |
                   _db.notesTable.content.like('%"checklist_item"%'));
           break;
         case ContentFilter.hasIncompleteTasks:
-          predicate = predicate &
+          predicate =
+              predicate &
               (_db.notesTable.content.like('%- [ ]%') |
                   (_db.notesTable.content.like('%"checklist_item"%') &
                       _db.notesTable.content.like('%"isChecked":false%')));
           break;
         case ContentFilter.hasCompletedTasks:
-          predicate = predicate &
+          predicate =
+              predicate &
               (_db.notesTable.content.like('%- [x]%') |
                   _db.notesTable.content.like('%- [X]%') |
                   (_db.notesTable.content.like('%"checklist_item"%') &
                       _db.notesTable.content.like('%"isChecked":true%')));
           break;
         case ContentFilter.hasLinks:
-          predicate = predicate &
+          predicate =
+              predicate &
               (_db.notesTable.content.like('%http://%') |
                   _db.notesTable.content.like('%https://%') |
                   _db.notesTable.content.like('%qp://%') |
@@ -347,7 +367,8 @@ class NotesQueryExecutor {
                   _db.documentsTable.isDeleted.equals(false) &
                   _db.documentsTable.ocrState.equals('available'),
             );
-          predicate = predicate & (existsQuery(ocrAttSub) | existsQuery(ocrDocSub));
+          predicate =
+              predicate & (existsQuery(ocrAttSub) | existsQuery(ocrDocSub));
           break;
       }
     }
@@ -355,12 +376,16 @@ class NotesQueryExecutor {
     // 8. Security filter
     switch (query.filter.securityFilter) {
       case SecurityFilter.protectedOnly:
-        predicate = predicate &
+        predicate =
+            predicate &
             _db.notesTable.content.like('<!-- quiet-paper-encrypted-note-v1:%');
         break;
       case SecurityFilter.unprotectedOnly:
-        predicate = predicate &
-            _db.notesTable.content.like('<!-- quiet-paper-encrypted-note-v1:%').not();
+        predicate =
+            predicate &
+            _db.notesTable.content
+                .like('<!-- quiet-paper-encrypted-note-v1:%')
+                .not();
         break;
       case SecurityFilter.all:
         break;
@@ -393,7 +418,8 @@ class NotesQueryExecutor {
               _db.documentsTable.title.lower().like(pattern),
         );
 
-      predicate = predicate &
+      predicate =
+          predicate &
           (_db.notesTable.title.lower().like(pattern) |
               _db.notesTable.content.lower().like(pattern) |
               existsQuery(tagSub) |
@@ -423,7 +449,9 @@ class NotesQueryExecutor {
     //    float only within their own tag view).
     if (sort.pinnedFirst && context == NotesContext.active) {
       final pinnedExpr = _pinnedInContextExpr(contextTag);
-      terms.add((_) => OrderingTerm(expression: pinnedExpr, mode: OrderingMode.desc));
+      terms.add(
+        (_) => OrderingTerm(expression: pinnedExpr, mode: OrderingMode.desc),
+      );
     }
 
     // 2. Primary sort field
@@ -433,10 +461,14 @@ class NotesQueryExecutor {
 
     switch (sort.field) {
       case SortField.updated:
-        terms.add((n) => OrderingTerm(expression: n.updatedAt, mode: orderMode));
+        terms.add(
+          (n) => OrderingTerm(expression: n.updatedAt, mode: orderMode),
+        );
         break;
       case SortField.created:
-        terms.add((n) => OrderingTerm(expression: n.createdAt, mode: orderMode));
+        terms.add(
+          (n) => OrderingTerm(expression: n.createdAt, mode: orderMode),
+        );
         break;
       case SortField.title:
         terms.add(
@@ -446,7 +478,9 @@ class NotesQueryExecutor {
           ),
         );
         // Secondary sort for identical titles: updated_at DESC
-        terms.add((n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc));
+        terms.add(
+          (n) => OrderingTerm(expression: n.updatedAt, mode: OrderingMode.desc),
+        );
         break;
     }
 
@@ -465,7 +499,9 @@ class NotesQueryExecutor {
   ) {
     final sortCondition = _buildSortFieldCursorPredicate(sort, cursor);
 
-    if (sort.pinnedFirst && context == NotesContext.active && cursor.lastIsPinned != null) {
+    if (sort.pinnedFirst &&
+        context == NotesContext.active &&
+        cursor.lastIsPinned != null) {
       final pinnedExpr = _pinnedInContextExpr(contextTag);
       if (cursor.lastIsPinned == true) {
         // Cursor is in pinned partition: next can be unpinned OR (pinned with sort condition)
@@ -517,7 +553,8 @@ class NotesQueryExecutor {
         final cUpdated = cursor.lastUpdatedAt ?? DateTime.now();
         final titleLower = _db.notesTable.title.lower();
 
-        final tieBreaker = (_db.notesTable.updatedAt.isSmallerThanValue(cUpdated)) |
+        final tieBreaker =
+            (_db.notesTable.updatedAt.isSmallerThanValue(cUpdated)) |
             (_db.notesTable.updatedAt.equals(cUpdated) &
                 _db.notesTable.id.isBiggerThanValue(cId));
 
