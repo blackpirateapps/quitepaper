@@ -10551,6 +10551,87 @@ In `QuietMarkdownPreview`, `WebLinkElementBuilder` and `LinkPreviewElementBuilde
 - Full Flutter test suite: `flutter test` (**2210/2210 tests passed**).
 - Backend test suite: `cd backend && npm test` (**122/122 tests passed across 19 suites**).
 
+---
 
+## 27. PDF Viewer Mobile Zoom Lag Elimination & 12x Max Zoom Range Extension
 
+### Problem & Root Cause
+Users reported that inside the document PDF viewer (`DocumentViewerScreen`), pinch-to-zoom was laggy and sluggish on mobile devices, and that the viewer did not permit zooming in far enough:
+1. **Unbounded Full-Screen Widget Rebuilds on Page Scroll/Boundary Crossing**:
+   - `DocumentViewerScreen.build()` subscribed to `onPageChanged: (details) => setState(() => _selectedPageIndex = details.newPageNumber - 1)`.
+   - Every time a user scrolled or zoomed past a page boundary, `setState` rebuilt the entire `DocumentViewerScreen` widget tree (Scaffold, AppBar, Top/Bottom overlay action bars, Floating Annotation Palettes, and `SfPdfViewer`).
+2. **Synchronous Multi-Megabyte Buffer Equality Checks on Touch Events**:
+   - `SfPdfViewer.memory(...)` creates a fresh `BytePDFSource` instance on every build invocation.
+   - Because `BytePDFSource` lacks identity/value memoization, `SfPdfViewerState.didUpdateWidget` triggered an internal `_compareDocument` call executing `listEquals(oldBytes, newBytes)` comparing millions of raw bytes synchronously on Flutter's main UI thread during gesture tracking.
+3. **ScrollHead Gesture Arena Conflict on Mobile Touchscreens**:
+   - `SfPdfViewer` was instantiated with `canShowScrollHead: true` unconditionally.
+   - On mobile screens, this renders a 48px vertical draggable scroll handle along the right edge of the viewport. During pinch-to-zoom and multi-finger pan interactions, this handle competed in Flutter's `GestureArena`, intercepting touch pointer events and causing stuttering and dropped frames.
+4. **Constrained Default Zoom Ceiling**:
+   - `SfPdfViewer` defaults `maxZoomLevel` to `3` (300%). For dense PDF documents, technical schematics, contracts, or scanned papers, 3x is insufficient for fine legibility.
 
+### Solution & Architectural Improvements
+1. **Targeted ValueNotifier Decoupling (`ValueNotifier<int> _selectedPageIndexNotifier`)**:
+   - Replaced state variable `_selectedPageIndex` and `setState` in `onPageChanged` with an isolated `ValueNotifier<int> _selectedPageIndexNotifier`.
+   - The AppBar page indicator (`Page X of Y`) now listens via `ValueListenableBuilder<int>`, updating the subtitle text in isolation without rebuilding the Scaffold, Body, or `SfPdfViewer`.
+2. **Persistent Document Source Memoization (`PDFSource _cachedPdfSource`)**:
+   - Replaced dynamic instantiation of `SfPdfViewer.memory(...)` with `SfPdfViewer(source: _cachedPdfSource!, ...)`.
+   - `_cachedPdfSource` is instantiated once when PDF bytes are loaded or re-annotated and reused across widget updates.
+   - This completely eliminates `listEquals` main-thread byte comparisons during gestures.
+3. **Platform-Aware Scroll Head Policy**:
+   - Configured `canShowScrollHead: isDesktop` and `canShowScrollStatus: isDesktop` using `PlatformLayoutHelper.isDesktop(context)`.
+   - On mobile touchscreens (Android & iOS), the touch-intercepting scroll head is disabled, giving pinch-to-zoom full gesture arena priority. On desktop platforms (Linux, macOS, Windows, Web), the desktop scrollhead is retained for mouse drag interaction.
+4. **12x Max Zoom Level & High-DPI Tiling**:
+   - Defined `kPdfViewerMaxZoomLevel = 12.0` (1200% zoom) and `kPdfViewerMinZoomLevel = 1.0`.
+   - Syncfusion's native tiling engine automatically fetches high-resolution tile images (`getTileImage`) for the visible viewport without ballooning raster memory.
+5. **Floating Quick-Zoom Controller Pill**:
+   - Added `_buildFloatingZoomPill` providing one-tap Zoom Out (`-`), live Zoom Percentage badge (e.g. `100%`, tap to reset to 1.0x), and Zoom In (`+`).
+   - Integrated `_zoomLevelNotifier` hooked into `SfPdfViewer.onZoomLevelChanged` to update the badge dynamically without rebuilding the PDF viewport.
+   - Automatically hides when the annotation palette or drawing mode is active to preserve screen real estate.
+6. **Automated Verification**:
+   - Created comprehensive unit & widget tests in [`test/documents/document_viewer_zoom_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_viewer_zoom_test.dart) testing:
+     - Configuration of `maxZoomLevel: 12.0` and mobile scrollhead suppression.
+     - Quick-zoom pill 1.35x step increments/decrements and tap-to-reset behavior.
+     - Page navigation isolation via `_selectedPageIndexNotifier` without viewer reconstruction.
+     - Automatic hiding of quick-zoom controls when entering annotation mode.
+   - Restored the page-count value in the AppBar subtitle (`Page 1 of 3 (3 pages)`) after the `ValueListenableBuilder` refactor.
+   - Verified 0 issues with `flutter analyze` and 2224/2224 passing Flutter tests.
+
+---
+
+## 28. Notes Multi-Select & Batch Actions
+
+### Overview
+Added first-class multi-select to the notes list on phone and tablet, with batch operations for archive, trash, permanent delete, restore, unarchive, pin/unpin, tag, and export.
+
+### Entry Points
+1. **Mobile**:
+   - Long-press any note to enter selection mode with that note selected.
+   - Tap the new **Select** text action in the phone AppBar.
+   - Choose **Select notes** from the overflow menu.
+   - Choose **Select** from a note's long-press context menu (search/tag surfaces).
+2. **Desktop**:
+   - Ctrl/Cmd+click to toggle individual notes.
+   - Shift+click to select a contiguous range from the anchor note.
+   - Ctrl/Cmd+A selects all notes in the current view; Escape, Delete, and Ctrl/Cmd+Shift+A provide select-all, trash, and archive shortcuts.
+3. **Tablet**:
+   - Selecting a note replaces the middle-pane header with a selection header containing the count, close button, and batch action buttons.
+4. **Exit behavior**:
+   - The close button, Escape, system back, or changing destination/tag exits selection mode.
+   - The FAB and swipe-to-dismiss gestures are disabled while selecting.
+
+### Batch Actions
+- **Archive / Trash**: `_archiveSelected` and `_trashOrDeleteSelected` perform batch persistence and remove affected notes locally.
+- **Trash view**: batch restore and permanent delete with the existing confirmation dialog.
+- **Archive view**: batch unarchive and move to Trash.
+- **More menu**: Pin/Unpin (respecting the active tag scope), Add tag (skips notes that already have the tag), and Export.
+- **Export**: a single selected note opens the existing export sheet; multiple notes produce a ZIP of Markdown files, skipping password-protected notes and de-duplicating filenames.
+- **Pluralized feedback**: single-note actions report `Note archived`, `Note moved to Trash`, `Note pinned`, etc., while multi-note actions report `N notes archived`, etc.
+
+### Focus & Keyboard Handling
+- Added `_multiSelectFocusNode`, requested when entering selection mode and placed inside `CallbackShortcuts`, so Escape/Ctrl+A shortcuts receive key events even when no list child owns focus.
+- Multi-select shortcuts only act while selection mode is active, preserving editor Ctrl+A behavior.
+
+### Regression Fixes & Tests
+- Updated legacy `test/widget_test.dart` archive/trash/pin flows for the new mobile long-press-to-select UX.
+- Added [`test/notes/notes_multi_select_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart) covering entry points, Escape/destination exits, batch archive/trash, and `NoteListTile` long-press/context-menu callbacks.
+- Automated verification: `flutter analyze` (**0 issues**) and `flutter test` (**2224/2224 tests passed**).

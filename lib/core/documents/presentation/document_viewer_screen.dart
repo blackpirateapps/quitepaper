@@ -19,12 +19,19 @@ import '../../ocr/presentation/ocr_language_dialog.dart';
 import '../../ocr/presentation/ocr_text_viewer_screen.dart';
 import '../../uri/quiet_paper_uri.dart';
 import '../../uri/resource_resolver.dart';
+import '../../utils/platform_layout_helper.dart';
 import '../../widgets/quiet_button.dart';
 import '../../widgets/quiet_adaptive_modal.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../document_models.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
+
+/// Maximum allowed zoom level for PDF document viewing (12x / 1200% magnification).
+const double kPdfViewerMaxZoomLevel = 12.0;
+
+/// Minimum zoom level for PDF document viewing (1x / 100% fit).
+const double kPdfViewerMinZoomLevel = 1.0;
 
 /// Dedicated full-screen viewer for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
 ///
@@ -88,7 +95,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   ResourceResolution<ResolvedDocumentInfo>? _resolution;
   late final PdfViewerController _pdfViewerController;
   late final UndoHistoryController _undoHistoryController;
-  GlobalKey<SfPdfViewerState> _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
+  late final ValueNotifier<int> _selectedPageIndexNotifier;
+  late final ValueNotifier<double> _zoomLevelNotifier;
+  PDFSource? _cachedPdfSource;
+  GlobalKey<SfPdfViewerState> _pdfViewerStateKey =
+      GlobalKey<SfPdfViewerState>();
   OverlayEntry? _selectionOverlayEntry;
 
   // In-document text search state
@@ -102,7 +113,6 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   bool _isDirty = false;
   bool _isSavingAnnotations = false;
   PdfAnnotationMode _activeAnnotationMode = PdfAnnotationMode.none;
-  int _selectedPageIndex = 0;
   int _pageCount = 1;
   String? _currentTitle;
 
@@ -114,9 +124,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     super.initState();
     _pdfViewerController = PdfViewerController();
     _undoHistoryController = UndoHistoryController();
-    _selectedPageIndex = widget.initialPageIndex >= 0
-        ? widget.initialPageIndex
-        : 0;
+    _selectedPageIndexNotifier = ValueNotifier<int>(
+      widget.initialPageIndex >= 0 ? widget.initialPageIndex : 0,
+    );
+    _zoomLevelNotifier = ValueNotifier<double>(1.0);
 
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
@@ -156,15 +167,22 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   Future<void> _initDocumentBytes(ResolvedDocumentInfo docInfo) async {
     final docService = ref.read(documentServiceProvider);
-    final annotatedBytes = await docService.resolveAnnotatedBytes(widget.documentId);
+    final annotatedBytes = await docService.resolveAnnotatedBytes(
+      widget.documentId,
+    );
     if (!mounted) return;
 
+    final bytes = annotatedBytes ?? docInfo.pdfBytes;
     setState(() {
       _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
       _hasAnnotatedDerivative = annotatedBytes != null;
-      _activePdfBytes = annotatedBytes ?? docInfo.pdfBytes;
+      _activePdfBytes = bytes;
+      _cachedPdfSource = BytePDFSource(bytes);
       _pageCount = docInfo.pageCount > 0 ? docInfo.pageCount : 1;
-      _selectedPageIndex = widget.initialPageIndex.clamp(0, _pageCount - 1);
+      _selectedPageIndexNotifier.value = widget.initialPageIndex.clamp(
+        0,
+        _pageCount - 1,
+      );
       _isLoading = false;
       _hideFloatingSelectionMenu();
     });
@@ -209,6 +227,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     _searchResult?.removeListener(_onSearchResultUpdated);
     _pdfViewerController.dispose();
     _undoHistoryController.dispose();
+    _selectedPageIndexNotifier.dispose();
+    _zoomLevelNotifier.dispose();
     super.dispose();
   }
 
@@ -296,7 +316,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 decoration: BoxDecoration(
                   color: colors.surfaceSecondary,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border(left: BorderSide(color: colors.accent, width: 3)),
+                  border: Border(
+                    left: BorderSide(color: colors.accent, width: 3),
+                  ),
                 ),
                 child: Text(
                   selectedText.length > 120
@@ -317,10 +339,14 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               autofocus: true,
               maxLines: 4,
               minLines: 2,
-              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textPrimary,
+              ),
               decoration: InputDecoration(
                 hintText: 'Write a note or annotation…',
-                hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
+                hintStyle: AppTypography.bodySmall.copyWith(
+                  color: colors.textTertiary,
+                ),
                 filled: true,
                 fillColor: colors.background,
                 border: OutlineInputBorder(
@@ -600,6 +626,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         _hasAnnotatedDerivative = false;
         _setAnnotationMode(PdfAnnotationMode.none);
         _activePdfBytes = pristineBytes;
+        _cachedPdfSource =
+            pristineBytes != null ? BytePDFSource(pristineBytes) : null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -714,7 +742,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         _activePdfBytes = savedBytes;
         return savedBytes;
       } catch (e) {
-        debugPrint('[DocumentViewerScreen] Failed to save annotations for export: $e');
+        debugPrint(
+          '[DocumentViewerScreen] Failed to save annotations for export: $e',
+        );
       }
     }
 
@@ -736,7 +766,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     }
 
     try {
-      final bytes = await _resolveExportBytes(docInfo, forceOriginal: !exportAnnotated);
+      final bytes = await _resolveExportBytes(
+        docInfo,
+        forceOriginal: !exportAnnotated,
+      );
       final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
       final base = cleanTitle.isEmpty ? 'document' : cleanTitle;
       final fileName = exportAnnotated ? '$base-annotated.pdf' : '$base.pdf';
@@ -802,7 +835,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       exportAnnotated = choice;
     }
 
-    final bytes = await _resolveExportBytes(docInfo, forceOriginal: !exportAnnotated);
+    final bytes = await _resolveExportBytes(
+      docInfo,
+      forceOriginal: !exportAnnotated,
+    );
     final cleanTitle = docInfo.title.replaceAll(RegExp(r'[^\w\s\-]'), '_');
     final base = cleanTitle.isEmpty ? 'document' : cleanTitle;
     final fileName = exportAnnotated ? '$base-annotated.pdf' : '$base.pdf';
@@ -980,104 +1016,123 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       builder: (modalContext) => SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom + AppSpacing.sm,
+            bottom:
+                MediaQuery.of(modalContext).viewInsets.bottom + AppSpacing.sm,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            const Center(child: AdaptiveSheetDragHandle()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-              child: Text(
-                'Annotation Tools',
-                style: AppTypography.headline.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colors.textPrimary,
+              const Center(child: AdaptiveSheetDragHandle()),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 4,
+                ),
+                child: Text(
+                  'Annotation Tools',
+                  style: AppTypography.headline.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.highlight, color: Colors.amber),
-              title: const Text('Highlight Text'),
-              subtitle: const Text('Click and drag over text to highlight'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.highlight
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.highlight);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.format_underlined, color: Colors.blue),
-              title: const Text('Underline Text'),
-              subtitle: const Text('Underline key words and phrases'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.underline
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.underline);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.strikethrough_s, color: Colors.redAccent),
-              title: const Text('Strikethrough'),
-              subtitle: const Text('Cross out text'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.strikethrough
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.strikethrough);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.waves, color: Colors.orange),
-              title: const Text('Squiggly Underline'),
-              subtitle: const Text('Wavy underline for grammar or review'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.squiggly
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.squiggly);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.sticky_note_2_outlined, color: Colors.purple),
-              title: const Text('Sticky Note / Comment'),
-              subtitle: const Text('Tap anywhere on the page to pin a comment'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.stickyNote
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.stickyNote);
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(Icons.pan_tool_outlined, color: colors.textSecondary),
-              title: const Text('Navigate / Select Mode'),
-              subtitle: const Text('Normal reading, panning, and selection'),
-              trailing: _activeAnnotationMode == PdfAnnotationMode.none
-                  ? Icon(Icons.check, color: colors.accent)
-                  : null,
-              onTap: () {
-                Navigator.of(modalContext).pop();
-                _setAnnotationMode(PdfAnnotationMode.none);
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.highlight, color: Colors.amber),
+                title: const Text('Highlight Text'),
+                subtitle: const Text('Click and drag over text to highlight'),
+                trailing: _activeAnnotationMode == PdfAnnotationMode.highlight
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.highlight);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.format_underlined,
+                  color: Colors.blue,
+                ),
+                title: const Text('Underline Text'),
+                subtitle: const Text('Underline key words and phrases'),
+                trailing: _activeAnnotationMode == PdfAnnotationMode.underline
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.underline);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.strikethrough_s,
+                  color: Colors.redAccent,
+                ),
+                title: const Text('Strikethrough'),
+                subtitle: const Text('Cross out text'),
+                trailing:
+                    _activeAnnotationMode == PdfAnnotationMode.strikethrough
+                        ? Icon(Icons.check, color: colors.accent)
+                        : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.strikethrough);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.waves, color: Colors.orange),
+                title: const Text('Squiggly Underline'),
+                subtitle: const Text('Wavy underline for grammar or review'),
+                trailing: _activeAnnotationMode == PdfAnnotationMode.squiggly
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.squiggly);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.sticky_note_2_outlined,
+                  color: Colors.purple,
+                ),
+                title: const Text('Sticky Note / Comment'),
+                subtitle: const Text(
+                  'Tap anywhere on the page to pin a comment',
+                ),
+                trailing: _activeAnnotationMode == PdfAnnotationMode.stickyNote
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.stickyNote);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.pan_tool_outlined,
+                  color: colors.textSecondary,
+                ),
+                title: const Text('Navigate / Select Mode'),
+                subtitle: const Text('Normal reading, panning, and selection'),
+                trailing: _activeAnnotationMode == PdfAnnotationMode.none
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.of(modalContext).pop();
+                  _setAnnotationMode(PdfAnnotationMode.none);
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1124,13 +1179,18 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      Text(
-                        'Page ${_selectedPageIndex + 1} of ${docInfo.pageCount} (${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.normal,
-                        ),
+                      ValueListenableBuilder<int>(
+                        valueListenable: _selectedPageIndexNotifier,
+                        builder: (context, pageIndex, _) {
+                          return Text(
+                            'Page ${pageIndex + 1} of ${docInfo.pageCount} (${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(width: 6),
                       Container(
@@ -1142,30 +1202,30 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                           color: isOcrAvailable
                               ? Colors.green.withValues(alpha: 0.15)
                               : isOcrFailed
-                              ? Colors.redAccent.withValues(alpha: 0.15)
-                              : colors.accent.withValues(alpha: 0.15),
+                                  ? Colors.redAccent.withValues(alpha: 0.15)
+                                  : colors.accent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           isOcrAvailable
                               ? 'Searchable (OCR)'
                               : docInfo.ocrState == 'processing'
-                              ? 'Processing text…'
-                              : docInfo.ocrState == 'queued'
-                              ? 'Preparing text…'
-                              : isOcrFailed
-                              ? 'OCR unavailable'
-                              : isOcrSkipped
-                              ? 'OCR skipped (large PDF)'
-                              : 'PDF',
+                                  ? 'Processing text…'
+                                  : docInfo.ocrState == 'queued'
+                                      ? 'Preparing text…'
+                                      : isOcrFailed
+                                          ? 'OCR unavailable'
+                                          : isOcrSkipped
+                                              ? 'OCR skipped (large PDF)'
+                                              : 'PDF',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: isOcrAvailable
                                 ? Colors.green
                                 : isOcrFailed
-                                ? Colors.redAccent
-                                : colors.accent,
+                                    ? Colors.redAccent
+                                    : colors.accent,
                           ),
                         ),
                       ),
@@ -1473,6 +1533,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       return _buildErrorState(colors, res);
     }
 
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+
     return Column(
       children: [
         if (_isSearching && _searchResult != null) _buildSearchBar(colors),
@@ -1525,56 +1587,182 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     visualDensity: VisualDensity.compact,
                     foregroundColor: colors.accent,
                   ),
-                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
           ),
         Expanded(
-          child: SfPdfViewer.memory(
-            _activePdfBytes!,
-            key: _pdfViewerStateKey,
-            controller: _pdfViewerController,
-            undoController: _undoHistoryController,
-            canShowScrollHead: true,
-            canShowScrollStatus: true,
-            enableTextSelection: true,
-            canShowTextSelectionMenu: false,
-            enableDoubleTapZooming: true,
-            canShowPaginationDialog: true,
-            currentSearchTextHighlightColor:
-                colors.accent.withValues(alpha: 0.6),
-            otherSearchTextHighlightColor:
-                colors.accent.withValues(alpha: 0.25),
-            initialPageNumber: (widget.initialPageIndex >= 0
-                    ? widget.initialPageIndex
-                    : 0) +
-                1,
-            onDocumentLoaded: (details) {
-              if (mounted) {
-                setState(() {
-                  _pageCount = details.document.pages.count;
-                });
-              }
-            },
-            onDocumentLoadFailed: (details) {
-              debugPrint(
-                  '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}');
-            },
-            onPageChanged: (details) {
-              if (mounted) {
-                setState(() {
-                  _selectedPageIndex = details.newPageNumber - 1;
-                });
-              }
-            },
-            onTextSelectionChanged: _handleTextSelectionChanged,
-            onAnnotationAdded: (_) => _onAnnotationMutated(),
-            onAnnotationEdited: (_) => _onAnnotationMutated(),
-            onAnnotationRemoved: (_) => _onAnnotationMutated(),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: SfPdfViewer(
+                  source: _cachedPdfSource ?? BytePDFSource(_activePdfBytes!),
+                  key: _pdfViewerStateKey,
+                  controller: _pdfViewerController,
+                  undoController: _undoHistoryController,
+                  maxZoomLevel: kPdfViewerMaxZoomLevel,
+                  canShowScrollHead: isDesktop,
+                  canShowScrollStatus: isDesktop,
+                  enableTextSelection: true,
+                  canShowTextSelectionMenu: false,
+                  enableDoubleTapZooming: true,
+                  canShowPaginationDialog: true,
+                  currentSearchTextHighlightColor: colors.accent.withValues(
+                    alpha: 0.6,
+                  ),
+                  otherSearchTextHighlightColor: colors.accent.withValues(
+                    alpha: 0.25,
+                  ),
+                  initialPageNumber: (widget.initialPageIndex >= 0
+                          ? widget.initialPageIndex
+                          : 0) +
+                      1,
+                  onZoomLevelChanged: (details) {
+                    _zoomLevelNotifier.value = details.newZoomLevel;
+                    _hideFloatingSelectionMenu();
+                  },
+                  onDocumentLoaded: (details) {
+                    if (mounted) {
+                      setState(() {
+                        _pageCount = details.document.pages.count;
+                      });
+                    }
+                  },
+                  onDocumentLoadFailed: (details) {
+                    debugPrint(
+                      '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
+                    );
+                  },
+                  onPageChanged: (details) {
+                    _selectedPageIndexNotifier.value =
+                        details.newPageNumber - 1;
+                  },
+                  onTextSelectionChanged: _handleTextSelectionChanged,
+                  onAnnotationAdded: (_) => _onAnnotationMutated(),
+                  onAnnotationEdited: (_) => _onAnnotationMutated(),
+                  onAnnotationRemoved: (_) => _onAnnotationMutated(),
+                ),
+              ),
+              if (_activeAnnotationMode == PdfAnnotationMode.none)
+                Positioned(
+                  right: AppSpacing.md,
+                  bottom: AppSpacing.md,
+                  child: _buildFloatingZoomPill(colors),
+                ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  void _zoomIn() {
+    final current = _zoomLevelNotifier.value;
+    final next = (current * 1.35).clamp(
+      kPdfViewerMinZoomLevel,
+      kPdfViewerMaxZoomLevel,
+    );
+    _zoomLevelNotifier.value = next;
+    _pdfViewerController.zoomLevel = next;
+  }
+
+  void _zoomOut() {
+    final current = _zoomLevelNotifier.value;
+    final next = (current / 1.35).clamp(
+      kPdfViewerMinZoomLevel,
+      kPdfViewerMaxZoomLevel,
+    );
+    _zoomLevelNotifier.value = next;
+    _pdfViewerController.zoomLevel = next;
+  }
+
+  void _resetZoom() {
+    _zoomLevelNotifier.value = kPdfViewerMinZoomLevel;
+    _pdfViewerController.zoomLevel = kPdfViewerMinZoomLevel;
+  }
+
+  Widget _buildFloatingZoomPill(AppColors colors) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ValueListenableBuilder<double>(
+      valueListenable: _zoomLevelNotifier,
+      builder: (context, zoom, _) {
+        final zoomPercent = (zoom * 100).round();
+        final isAtMin = zoom <= kPdfViewerMinZoomLevel + 0.01;
+        final isAtMax = zoom >= kPdfViewerMaxZoomLevel - 0.01;
+
+        return Material(
+          color: Colors.transparent,
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: colors.divider.withValues(alpha: 0.7),
+                width: 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_rounded, size: 18),
+                  tooltip: 'Zoom out',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  color: isAtMin ? colors.textTertiary : colors.textPrimary,
+                  onPressed: isAtMin ? null : _zoomOut,
+                ),
+                InkWell(
+                  onTap: isAtMin ? null : _resetZoom,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      '$zoomPercent%',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isAtMin ? colors.textSecondary : colors.accent,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  tooltip: 'Zoom in',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  color: isAtMax ? colors.textTertiary : colors.textPrimary,
+                  onPressed: isAtMax ? null : _zoomIn,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1609,7 +1797,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               result.totalInstanceCount > 0
                   ? '${result.currentInstanceIndex} of ${result.totalInstanceCount}'
                   : (result.isSearchCompleted ? '0 results' : 'Searching…'),
-              style: AppTypography.caption.copyWith(color: colors.textSecondary),
+              style: AppTypography.caption.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           const SizedBox(width: 8),
           IconButton(
@@ -1662,13 +1852,20 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     if (top < mediaQuery.padding.top + kToolbarHeight) {
       top = region.bottom + 10.0;
     }
-    if (top + menuHeight > screenSize.height - mediaQuery.padding.bottom - 10.0) {
-      top = math.max(10.0, screenSize.height - menuHeight - mediaQuery.padding.bottom - 10.0);
+    if (top + menuHeight >
+        screenSize.height - mediaQuery.padding.bottom - 10.0) {
+      top = math.max(
+        10.0,
+        screenSize.height - menuHeight - mediaQuery.padding.bottom - 10.0,
+      );
     }
 
     // Determine horizontal position: center on selected text, clamp within screen
     double left = region.center.dx - (maxMenuWidth / 2);
-    left = left.clamp(12.0, math.max(12.0, screenSize.width - maxMenuWidth - 12.0));
+    left = left.clamp(
+      12.0,
+      math.max(12.0, screenSize.width - maxMenuWidth - 12.0),
+    );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = context.appColors;
@@ -1707,7 +1904,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       label: 'Copy',
                       colors: colors,
                       onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: selectedText));
+                        await Clipboard.setData(
+                          ClipboardData(text: selectedText),
+                        );
                         _clearSelectionState();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1726,13 +1925,15 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       label: 'Highlight',
                       iconColor: const Color(0xFFE5A000),
                       colors: colors,
-                      onTap: () => _applyTextMarkup(PdfAnnotationMode.highlight),
+                      onTap: () =>
+                          _applyTextMarkup(PdfAnnotationMode.highlight),
                     ),
                     _buildSelectionActionItem(
                       icon: Icons.format_underlined_rounded,
                       label: 'Underline',
                       colors: colors,
-                      onTap: () => _applyTextMarkup(PdfAnnotationMode.underline),
+                      onTap: () =>
+                          _applyTextMarkup(PdfAnnotationMode.underline),
                     ),
                     _buildSelectionActionItem(
                       icon: Icons.format_strikethrough_rounded,
@@ -1754,9 +1955,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       iconColor: colors.accent,
                       colors: colors,
                       onTap: () {
-                        final lines =
-                            _pdfViewerStateKey.currentState?.getSelectedTextLines() ??
-                                [];
+                        final lines = _pdfViewerStateKey.currentState
+                                ?.getSelectedTextLines() ??
+                            [];
                         _clearSelectionState();
                         _promptAddStickyNoteForSelection(lines, selectedText);
                       },

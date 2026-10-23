@@ -207,7 +207,13 @@ void main() {
     expect(find.byType(SidebarView), findsOneWidget);
     expect(find.text('Quiet Paper'), findsOneWidget);
     expect(find.text('LIBRARY'), findsOneWidget);
-    expect(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SidebarView),
+        matching: find.text('All Notes'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Pinned'), findsOneWidget);
     expect(find.text('Archive'), findsOneWidget);
     expect(find.text('Trash'), findsOneWidget);
@@ -238,7 +244,12 @@ void main() {
     await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SidebarView),
+        matching: find.text('All Notes'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('All Notes'), findsOneWidget);
@@ -246,7 +257,9 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Archive and Unarchive note flow with Undo', (tester) async {
+  testWidgets('Archive and Unarchive note flow via multi-select', (
+    tester,
+  ) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -267,12 +280,12 @@ void main() {
 
     expect(find.text('Note to Archive'), findsOneWidget);
 
-    // Long press note to open context menu
+    // Long press enters multi-select (mobile)
     await tester.longPress(find.text('Note to Archive'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Archive note'), findsOneWidget);
-    await tester.tap(find.text('Archive note'));
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('Archive selected'));
     await tester.pumpAndSettle();
 
     // Disappeared from All Notes, SnackBar appeared
@@ -289,21 +302,27 @@ void main() {
     // Note is now in Archive
     expect(find.text('Note to Archive'), findsOneWidget);
 
-    // Long press note in Archive -> Unarchive
+    // Long press note in Archive -> Unarchive via multi-select
     await tester.longPress(find.text('Note to Archive'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Unarchive note'), findsOneWidget);
-    await tester.tap(find.text('Unarchive note'));
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('Unarchive selected'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Note unarchived'), findsOneWidget);
     expect(find.text('Note to Archive'), findsNothing);
 
     // Back to All Notes
     await tester.tap(find.byIcon(PhosphorIconsRegular.list));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.descendant(of: find.byType(SidebarView), matching: find.text('All Notes')));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SidebarView),
+        matching: find.text('All Notes'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Note to Archive'), findsOneWidget);
@@ -334,12 +353,12 @@ void main() {
 
     expect(find.text('Note for Trash'), findsOneWidget);
 
-    // Long press -> Move to Trash
+    // Long press enters multi-select -> Move to Trash
     await tester.longPress(find.text('Note for Trash'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Move to Trash'), findsOneWidget);
-    await tester.tap(find.text('Move to Trash'));
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('Move to Trash'));
     await tester.pumpAndSettle();
 
     expect(find.text('Note for Trash'), findsNothing);
@@ -354,12 +373,12 @@ void main() {
 
     expect(find.text('Note for Trash'), findsOneWidget);
 
-    // Long press in Trash -> Delete permanently
+    // Long press in Trash -> Delete permanently via multi-select
     await tester.longPress(find.text('Note for Trash'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Delete permanently'), findsOneWidget);
-    await tester.tap(find.text('Delete permanently'));
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('Delete permanently'));
     await tester.pumpAndSettle();
 
     // Confirmation dialog
@@ -375,6 +394,7 @@ void main() {
     await tester.tap(find.text('Delete Permanently'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Note permanently deleted'), findsOneWidget);
     expect(find.text('Note for Trash'), findsNothing);
     expect(find.text('Trash is empty'), findsOneWidget);
 
@@ -542,7 +562,7 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('Pinning and unpinning notes from context sheet', (tester) async {
+  testWidgets('Pinning and unpinning notes via multi-select', (tester) async {
     setPhoneSize(tester);
 
     final prefs = await SharedPreferences.getInstance();
@@ -565,12 +585,21 @@ void main() {
     expect(find.text('Important Note'), findsOneWidget);
     expect(find.text('Pinned'), findsNothing);
 
-    // Long press to open context menu
+    // Long press enters multi-select
     await tester.longPress(find.text('Important Note'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pin note'), findsOneWidget);
-    await tester.tap(find.text('Pin note'));
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pin / Unpin'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note pinned'), findsOneWidget);
+
+    // Exit multi-select before checking the Pinned section
+    await tester.tap(find.byTooltip('Close selection'));
     await tester.pumpAndSettle();
 
     // Verify pinned header appeared
@@ -579,63 +608,64 @@ void main() {
     await finishTest(tester);
   });
 
-  testWidgets('AppBar preview action toggles Markdown preview cleanly in Editor', (
-    tester,
-  ) async {
-    setPhoneSize(tester);
+  testWidgets(
+    'AppBar preview action toggles Markdown preview cleanly in Editor',
+    (tester) async {
+      setPhoneSize(tester);
 
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
 
-    final testNote = Note(
-      id: 'prev-1',
-      title: 'Markdown Test',
-      content: '# Heading One\n**Bold text**\n- Item A\n- Item B',
-      createdAt: now,
-      updatedAt: now,
-    );
+      final testNote = Note(
+        id: 'prev-1',
+        title: 'Markdown Test',
+        content: '# Heading One\n**Bold text**\n- Item A\n- Item B',
+        createdAt: now,
+        updatedAt: now,
+      );
 
-    await repository.saveNote(testNote);
+      await repository.saveNote(testNote);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          databaseProvider.overrideWithValue(db),
-          notesRepositoryProvider.overrideWithValue(repository),
-        ],
-        child: MaterialApp(home: EditorScreen(note: testNote)),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            databaseProvider.overrideWithValue(db),
+            notesRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(home: EditorScreen(note: testNote)),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    // In edit mode: text fields are visible
-    expect(find.byType(TextField), findsWidgets);
+      // In edit mode: text fields are visible
+      expect(find.byType(TextField), findsWidgets);
 
-    // Tap preview button in AppBar
-    await tester.tap(find.byTooltip('Preview note'));
-    await tester.pumpAndSettle();
+      // Tap preview button in AppBar
+      await tester.tap(find.byTooltip('Preview note'));
+      await tester.pumpAndSettle();
 
-    // TextFields are gone, rendered preview is shown
-    expect(find.byType(TextField), findsNothing);
-    expect(find.text('Heading One'), findsOneWidget);
+      // TextFields are gone, rendered preview is shown
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Heading One'), findsOneWidget);
 
-    // Tap edit button in AppBar to switch back to edit
-    await tester.tap(find.byTooltip('Edit note'));
-    await tester.pumpAndSettle();
+      // Tap edit button in AppBar to switch back to edit
+      await tester.tap(find.byTooltip('Edit note'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(TextField), findsWidgets);
+      expect(find.byType(TextField), findsWidgets);
 
-    // Verify that the overflow menu does not contain redundant Markdown preview toggle
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
-    await tester.pumpAndSettle();
-    expect(find.text('Markdown preview'), findsNothing);
-    expect(find.text('Switch to edit'), findsNothing);
-    await tester.tapAt(Offset.zero);
-    await tester.pumpAndSettle();
+      // Verify that the overflow menu does not contain redundant Markdown preview toggle
+      await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Markdown preview'), findsNothing);
+      expect(find.text('Switch to edit'), findsNothing);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
 
-    await finishTest(tester);
-  });
+      await finishTest(tester);
+    },
+  );
 
   testWidgets('Tablet layout displays split view with active note editor', (
     tester,
@@ -857,8 +887,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsWidgets);
-      expect(find.textContaining('This is the very first line of a massive document'), findsWidgets);
-      expect(find.textContaining('Paragraph 2 with lots of words and detail.'), findsWidgets);
+      expect(
+        find.textContaining(
+          'This is the very first line of a massive document',
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.textContaining('Paragraph 2 with lots of words and detail.'),
+        findsWidgets,
+      );
       expect(find.textContaining('Paragraph 3.'), findsWidgets);
 
       // Tap preview button next to 3-dots to switch back to preview

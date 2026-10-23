@@ -41,6 +41,8 @@ class NoteListTile extends StatefulWidget {
     this.isMultiSelecting = false,
     this.isItemMultiSelected = false,
     this.onItemMultiSelectToggle,
+    this.onEnterMultiSelect,
+    this.onModifierSelect,
     this.pinContextTag,
   });
 
@@ -63,6 +65,15 @@ class NoteListTile extends StatefulWidget {
   final bool isMultiSelecting;
   final bool isItemMultiSelected;
   final VoidCallback? onItemMultiSelectToggle;
+
+  /// Enters multi-select mode with this note as the seed selection
+  /// (mobile long-press, or "Select" in the context menu).
+  final VoidCallback? onEnterMultiSelect;
+
+  /// Desktop Ctrl/Shift click selection. [ctrl] is true for Ctrl/Meta,
+  /// [shift] for Shift range-select.
+  final void Function({required bool ctrl, required bool shift})?
+      onModifierSelect;
 
   /// When this tile is rendered inside a single-tag view, the (normalized) tag
   /// name that view is scoped to. Governs whether the note reads as pinned and
@@ -132,21 +143,31 @@ class _NoteListTileState extends State<NoteListTile> {
         child: Material(
           color: backgroundColor,
           child: InkWell(
-            onTap: widget.isMultiSelecting
-                ? widget.onItemMultiSelectToggle
-                : widget.onTap,
+            onTap: _handleTap,
             onSecondaryTapUp: widget.isMultiSelecting
                 ? null
-                : (details) => _showDesktopContextMenu(context, details.globalPosition),
+                : (details) =>
+                    _showDesktopContextMenu(context, details.globalPosition),
             onLongPress: widget.isMultiSelecting
                 ? widget.onItemMultiSelectToggle
                 : () {
+                    // Mobile: long-press enters multi-select (Bear-style).
+                    // Desktop: long-press keeps the rich context menu.
                     if (PlatformLayoutHelper.isDesktopPlatform) {
-                      final renderBox = context.findRenderObject() as RenderBox?;
+                      final renderBox =
+                          context.findRenderObject() as RenderBox?;
                       final pos = renderBox != null
-                          ? renderBox.localToGlobal(Offset(renderBox.size.width / 2, renderBox.size.height / 2))
+                          ? renderBox.localToGlobal(
+                              Offset(
+                                renderBox.size.width / 2,
+                                renderBox.size.height / 2,
+                              ),
+                            )
                           : const Offset(100, 100);
                       _showDesktopContextMenu(context, pos);
+                    } else if (widget.onEnterMultiSelect != null) {
+                      HapticFeedback.lightImpact();
+                      widget.onEnterMultiSelect!();
                     } else {
                       _showContextMenu(context);
                     }
@@ -318,9 +339,13 @@ class _NoteListTileState extends State<NoteListTile> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: colors.surfaceSubtle,
-                                          borderRadius: BorderRadius.circular(4.0),
+                                          borderRadius: BorderRadius.circular(
+                                            4.0,
+                                          ),
                                           border: Border.all(
-                                            color: colors.divider.withValues(alpha: 0.8),
+                                            color: colors.divider.withValues(
+                                              alpha: 0.8,
+                                            ),
                                             width: 0.8,
                                           ),
                                         ),
@@ -415,7 +440,8 @@ class _NoteListTileState extends State<NoteListTile> {
     }
 
     // Sort and merge overlapping spans
-    final sortedSpans = [...rawSpans]..sort((a, b) => a.start.compareTo(b.start));
+    final sortedSpans = [...rawSpans]
+      ..sort((a, b) => a.start.compareTo(b.start));
 
     final mergedSpans = <TokenSpanDto>[];
     for (final span in sortedSpans) {
@@ -452,29 +478,27 @@ class _NoteListTileState extends State<NoteListTile> {
 
     for (final span in mergedSpans) {
       if (span.start > lastEnd) {
-        spans.add(TextSpan(
-          text: text.substring(lastEnd, span.start),
-          style: baseStyle,
-        ));
+        spans.add(
+          TextSpan(text: text.substring(lastEnd, span.start), style: baseStyle),
+        );
       }
-      spans.add(TextSpan(
-        text: text.substring(span.start, span.end),
-        style: baseStyle.copyWith(
-          color: highlightTextColor,
-          backgroundColor: span.isExact
-              ? highlightColor.withValues(alpha: 0.45)
-              : highlightColor.withValues(alpha: 0.28),
-          fontWeight: FontWeight.w700,
+      spans.add(
+        TextSpan(
+          text: text.substring(span.start, span.end),
+          style: baseStyle.copyWith(
+            color: highlightTextColor,
+            backgroundColor: span.isExact
+                ? highlightColor.withValues(alpha: 0.45)
+                : highlightColor.withValues(alpha: 0.28),
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      ));
+      );
       lastEnd = span.end;
     }
 
     if (lastEnd < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(lastEnd),
-        style: baseStyle,
-      ));
+      spans.add(TextSpan(text: text.substring(lastEnd), style: baseStyle));
     }
 
     return Text.rich(
@@ -485,12 +509,42 @@ class _NoteListTileState extends State<NoteListTile> {
     );
   }
 
-  void _showDesktopContextMenu(BuildContext context, Offset globalPosition) async {
+  void _handleTap() {
+    if (widget.isMultiSelecting) {
+      widget.onItemMultiSelectToggle?.call();
+      return;
+    }
+
+    if (PlatformLayoutHelper.isDesktopPlatform &&
+        widget.onModifierSelect != null) {
+      final keys = HardwareKeyboard.instance.logicalKeysPressed;
+      final ctrl = keys.contains(LogicalKeyboardKey.controlLeft) ||
+          keys.contains(LogicalKeyboardKey.controlRight) ||
+          keys.contains(LogicalKeyboardKey.metaLeft) ||
+          keys.contains(LogicalKeyboardKey.metaRight);
+      final shift = keys.contains(LogicalKeyboardKey.shiftLeft) ||
+          keys.contains(LogicalKeyboardKey.shiftRight);
+      if (ctrl || shift) {
+        widget.onModifierSelect!(ctrl: ctrl, shift: shift);
+        return;
+      }
+    }
+
+    widget.onTap();
+  }
+
+  void _showDesktopContextMenu(
+    BuildContext context,
+    Offset globalPosition,
+  ) async {
     final colors = context.appColors;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     final position = RelativeRect.fromRect(
       Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 0, 0),
-      overlay != null ? Offset.zero & overlay.size : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
+      overlay != null
+          ? Offset.zero & overlay.size
+          : Rect.fromLTWH(0, 0, globalPosition.dx, globalPosition.dy),
     );
 
     if (widget.note.isTrashed) {
@@ -503,13 +557,42 @@ class _NoteListTileState extends State<NoteListTile> {
           side: BorderSide(color: colors.divider, width: 0.8),
         ),
         items: [
+          if (widget.onEnterMultiSelect != null)
+            PopupMenuItem<String>(
+              value: 'select',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 18,
+                    color: colors.textPrimary,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Select',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           PopupMenuItem<String>(
             value: 'restore',
             child: Row(
               children: [
-                Icon(Icons.restore_rounded, size: 18, color: colors.textPrimary),
+                Icon(
+                  Icons.restore_rounded,
+                  size: 18,
+                  color: colors.textPrimary,
+                ),
                 const SizedBox(width: 10),
-                Text('Restore note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  'Restore note',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -517,9 +600,18 @@ class _NoteListTileState extends State<NoteListTile> {
             value: 'export',
             child: Row(
               children: [
-                Icon(Icons.ios_share_rounded, size: 18, color: colors.textSecondary),
+                Icon(
+                  Icons.ios_share_rounded,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: 10),
-                Text('Export note...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  'Export note...',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -528,9 +620,16 @@ class _NoteListTileState extends State<NoteListTile> {
             value: 'delete',
             child: Row(
               children: [
-                Icon(Icons.delete_forever_rounded, size: 18, color: colors.error),
+                Icon(
+                  Icons.delete_forever_rounded,
+                  size: 18,
+                  color: colors.error,
+                ),
                 const SizedBox(width: 10),
-                Text('Delete permanently', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                Text(
+                  'Delete permanently',
+                  style: AppTypography.bodySmall.copyWith(color: colors.error),
+                ),
               ],
             ),
           ),
@@ -539,7 +638,9 @@ class _NoteListTileState extends State<NoteListTile> {
 
       if (!context.mounted) return;
 
-      if (selected == 'restore') {
+      if (selected == 'select') {
+        widget.onEnterMultiSelect?.call();
+      } else if (selected == 'restore') {
         widget.onRestore?.call();
       } else if (selected == 'export') {
         ExportNoteSheet.show(context, note: widget.note);
@@ -556,8 +657,9 @@ class _NoteListTileState extends State<NoteListTile> {
     final isArchived = widget.note.isArchived;
     // Inside a tag view the pin action governs this tag's pin; the label tracks
     // that scope so a globally-pinned note still offers "Pin to tag".
-    final pinActive =
-        widget.pinIsTagScoped ? widget.note.isPinnedInTag(widget.pinContextTag!) : isPinned;
+    final pinActive = widget.pinIsTagScoped
+        ? widget.note.isPinnedInTag(widget.pinContextTag!)
+        : isPinned;
     final pinLabel = widget.pinIsTagScoped
         ? (pinActive ? 'Unpin from tag' : 'Pin to tag')
         : (pinActive ? 'Unpin note' : 'Pin note');
@@ -571,17 +673,44 @@ class _NoteListTileState extends State<NoteListTile> {
         side: BorderSide(color: colors.divider, width: 0.8),
       ),
       items: [
+        if (widget.onEnterMultiSelect != null)
+          PopupMenuItem<String>(
+            value: 'select',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 18,
+                  color: colors.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Select',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         PopupMenuItem<String>(
           value: 'pin',
           child: Row(
             children: [
               Icon(
-                pinActive ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                pinActive
+                    ? PhosphorIconsFill.pushPin
+                    : PhosphorIconsRegular.pushPin,
                 size: 18,
                 color: pinActive ? colors.accent : colors.textPrimary,
               ),
               const SizedBox(width: 10),
-              Text(pinLabel, style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              Text(
+                pinLabel,
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
             ],
           ),
         ),
@@ -595,7 +724,12 @@ class _NoteListTileState extends State<NoteListTile> {
                 color: colors.textSecondary,
               ),
               const SizedBox(width: 10),
-              Text(isArchived ? 'Unarchive note' : 'Archive note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              Text(
+                isArchived ? 'Unarchive note' : 'Archive note',
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
             ],
           ),
         ),
@@ -606,7 +740,12 @@ class _NoteListTileState extends State<NoteListTile> {
               children: [
                 Icon(Icons.copy_rounded, size: 18, color: colors.textSecondary),
                 const SizedBox(width: 10),
-                Text('Duplicate note', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                Text(
+                  'Duplicate note',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -616,7 +755,12 @@ class _NoteListTileState extends State<NoteListTile> {
             children: [
               Icon(Icons.link_rounded, size: 18, color: colors.textSecondary),
               const SizedBox(width: 10),
-              Text('Copy note link', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              Text(
+                'Copy note link',
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
             ],
           ),
         ),
@@ -624,9 +768,18 @@ class _NoteListTileState extends State<NoteListTile> {
           value: 'export',
           child: Row(
             children: [
-              Icon(Icons.ios_share_rounded, size: 18, color: colors.textSecondary),
+              Icon(
+                Icons.ios_share_rounded,
+                size: 18,
+                color: colors.textSecondary,
+              ),
               const SizedBox(width: 10),
-              Text('Export note...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+              Text(
+                'Export note...',
+                style: AppTypography.bodySmall.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
             ],
           ),
         ),
@@ -637,7 +790,10 @@ class _NoteListTileState extends State<NoteListTile> {
             children: [
               Icon(Icons.delete_outline_rounded, size: 18, color: colors.error),
               const SizedBox(width: 10),
-              Text('Move to Trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+              Text(
+                'Move to Trash',
+                style: AppTypography.bodySmall.copyWith(color: colors.error),
+              ),
             ],
           ),
         ),
@@ -646,7 +802,9 @@ class _NoteListTileState extends State<NoteListTile> {
 
     if (!context.mounted) return;
 
-    if (selected == 'pin') {
+    if (selected == 'select') {
+      widget.onEnterMultiSelect?.call();
+    } else if (selected == 'pin') {
       widget.onTogglePin?.call();
     } else if (selected == 'archive') {
       if (isArchived) {
@@ -691,6 +849,23 @@ class _NoteListTileState extends State<NoteListTile> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const AdaptiveSheetDragHandle(),
+                if (widget.onEnterMultiSelect != null)
+                  ListTile(
+                    leading: Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: colors.textPrimary,
+                    ),
+                    title: Text(
+                      'Select',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      widget.onEnterMultiSelect!();
+                    },
+                  ),
                 if (widget.note.isTrashed) ...[
                   ListTile(
                     leading: Icon(
@@ -820,7 +995,9 @@ class _NoteListTileState extends State<NoteListTile> {
                     ListTile(
                       leading: Icon(
                         (widget.pinIsTagScoped
-                                ? widget.note.isPinnedInTag(widget.pinContextTag!)
+                                ? widget.note.isPinnedInTag(
+                                    widget.pinContextTag!,
+                                  )
                                 : widget.isPinnedHere)
                             ? PhosphorIconsFill.pushPin
                             : PhosphorIconsRegular.pushPin,

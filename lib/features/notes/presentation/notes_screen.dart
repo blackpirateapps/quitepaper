@@ -1,12 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'package:archive/archive.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import '../../export/presentation/export_note_sheet.dart';
+import '../../import/presentation/widgets/add_tag_modal.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/cli/cli_args_provider.dart';
 import '../../../core/documents/document_provider.dart';
@@ -66,7 +71,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   String? _selectedNoteIdForTablet;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
+
+  /// Anchor note id for Shift+click range selection on desktop.
+  String? _multiSelectAnchorId;
   bool _shouldAutoFocusTablet = false;
+
+  /// Holds focus while multi-select is active so Escape/Ctrl+A shortcuts work
+  /// even when no other widget in the list owns the primary focus.
+  final FocusNode _multiSelectFocusNode = FocusNode(
+    debugLabel: 'notes-multi-select',
+  );
 
   final GlobalKey<PullDownSearchRevealState> _phonePullDownKey =
       GlobalKey<PullDownSearchRevealState>();
@@ -81,6 +95,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       _checkForUpdatesOnLaunch();
       _performAutoBackupOnLaunch();
     });
+  }
+
+  @override
+  void dispose() {
+    _multiSelectFocusNode.dispose();
+    super.dispose();
   }
 
   void _checkInitialCliArgs() async {
@@ -107,7 +127,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 
-  Future<void> _handleDroppedFileToNewNote(DropDoneDetails detail, {required bool isTabletLayout}) async {
+  Future<void> _handleDroppedFileToNewNote(
+    DropDoneDetails detail, {
+    required bool isTabletLayout,
+  }) async {
     final resolvedPaths = <String>{};
 
     for (final file in detail.files) {
@@ -154,7 +177,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
 
     try {
-      if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'].contains(ext)) {
+      if ([
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.webp',
+        '.gif',
+        '.bmp',
+        '.svg',
+      ].contains(ext)) {
         final attachmentService = ref.read(attachmentServiceProvider);
         final noteId = uuid.v4();
         final importRes = await attachmentService.importImageFromFile(
@@ -181,10 +212,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         } else if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => EditorScreen(
-                note: note,
-                initialPreviewMode: false,
-              ),
+              builder: (_) =>
+                  EditorScreen(note: note, initialPreviewMode: false),
             ),
           );
         }
@@ -215,10 +244,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         } else if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => EditorScreen(
-                note: note,
-                initialPreviewMode: false,
-              ),
+              builder: (_) =>
+                  EditorScreen(note: note, initialPreviewMode: false),
             ),
           );
         }
@@ -250,10 +277,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         } else if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => EditorScreen(
-                note: note,
-                initialPreviewMode: false,
-              ),
+              builder: (_) =>
+                  EditorScreen(note: note, initialPreviewMode: false),
             ),
           );
         }
@@ -263,7 +288,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 
-  Future<void> _importDroppedMarkdownFile(File file, bool isTabletLayout) async {
+  Future<void> _importDroppedMarkdownFile(
+    File file,
+    bool isTabletLayout,
+  ) async {
     try {
       final content = await file.readAsString();
       final filename = p.basenameWithoutExtension(file.path);
@@ -292,10 +320,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       } else if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => EditorScreen(
-              note: note,
-              initialPreviewMode: true,
-            ),
+            builder: (_) => EditorScreen(note: note, initialPreviewMode: true),
           ),
         );
       }
@@ -337,25 +362,273 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 
+  void _enterMultiSelect([String? seedId]) {
+    setState(() {
+      _isMultiSelecting = true;
+      _selectedNoteIds.clear();
+      if (seedId != null) {
+        _selectedNoteIds.add(seedId);
+        _multiSelectAnchorId = seedId;
+      } else {
+        _multiSelectAnchorId = null;
+      }
+    });
+    _multiSelectFocusNode.requestFocus();
+    HapticFeedback.lightImpact();
+  }
 
   void _exitMultiSelect() {
+    _multiSelectFocusNode.unfocus();
     setState(() {
       _isMultiSelecting = false;
       _selectedNoteIds.clear();
+      _multiSelectAnchorId = null;
     });
   }
 
   void _toggleNoteMultiSelect(String id) {
     setState(() {
+      if (!_isMultiSelecting) {
+        _isMultiSelecting = true;
+      }
       if (_selectedNoteIds.contains(id)) {
         _selectedNoteIds.remove(id);
         if (_selectedNoteIds.isEmpty) {
           _isMultiSelecting = false;
+          _multiSelectAnchorId = null;
         }
       } else {
         _selectedNoteIds.add(id);
+        _multiSelectAnchorId = id;
       }
     });
+  }
+
+  List<String> _currentOrderedNoteIds() {
+    final groups = ref.read(groupedNotesCollectionProvider);
+    return [
+      for (final g in groups)
+        for (final n in g.notes) n.id,
+    ];
+  }
+
+  List<Note> _selectedNotes() {
+    final byId = {
+      for (final n in ref.read(notesCollectionProvider).notes) n.id: n,
+    };
+    return [
+      for (final id in _selectedNoteIds)
+        if (byId.containsKey(id)) byId[id]!,
+    ];
+  }
+
+  void _selectAllInView() {
+    final ids = _currentOrderedNoteIds();
+    if (ids.isEmpty) return;
+    setState(() {
+      _isMultiSelecting = true;
+      _selectedNoteIds
+        ..clear()
+        ..addAll(ids);
+      _multiSelectAnchorId = ids.first;
+    });
+  }
+
+  void _selectRange(String fromId, String toId) {
+    final ordered = _currentOrderedNoteIds();
+    final i1 = ordered.indexOf(fromId);
+    final i2 = ordered.indexOf(toId);
+    if (i1 < 0 || i2 < 0) {
+      _enterMultiSelect(toId);
+      return;
+    }
+    final start = math.min(i1, i2);
+    final end = math.max(i1, i2);
+    setState(() {
+      _isMultiSelecting = true;
+      _selectedNoteIds
+        ..clear()
+        ..addAll(ordered.sublist(start, end + 1));
+    });
+  }
+
+  void _handleModifierSelect(
+    String id, {
+    required bool ctrl,
+    required bool shift,
+  }) {
+    if (shift && _multiSelectAnchorId != null) {
+      _selectRange(_multiSelectAnchorId!, id);
+      return;
+    }
+    if (!_isMultiSelecting) {
+      _enterMultiSelect(id);
+    } else {
+      _toggleNoteMultiSelect(id);
+    }
+  }
+
+  String _selectionMessage(int count, String singular, String plural) =>
+      count == 1 ? singular : '$count $plural';
+
+  Future<void> _pinSelectedNotes() async {
+    final notes = _selectedNotes();
+    if (notes.isEmpty) return;
+    final repository = ref.read(notesRepositoryProvider);
+    final destination = ref.read(currentDestinationProvider);
+    final tagFilter = ref.read(selectedTagFilterProvider);
+    final pinInTag =
+        destination == AppDestination.tag &&
+        tagFilter != null &&
+        tagFilter.isNotEmpty;
+
+    final scopedTag = pinInTag ? tagFilter : null;
+    final shouldPin = scopedTag != null
+        ? notes.any((n) => !n.isPinnedInTag(scopedTag))
+        : notes.any((n) => !n.isPinned);
+
+    for (final note in notes) {
+      if (scopedTag != null) {
+        await repository.setPinnedInTag(note.id, scopedTag, shouldPin);
+      } else {
+        await repository.setPinned(note.id, shouldPin);
+      }
+    }
+    ref.read(notesCollectionProvider.notifier).refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          shouldPin
+              ? _selectionMessage(notes.length, 'Note pinned', 'notes pinned')
+              : _selectionMessage(
+                  notes.length,
+                  'Note unpinned',
+                  'notes unpinned',
+                ),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _addTagToSelectedNotes() async {
+    final notes = _selectedNotes();
+    if (notes.isEmpty) return;
+    final tag = await AddTagDialog.show(
+      context,
+      title: 'Add tag to selected',
+      hintText: 'e.g. project, notes',
+    );
+    if (tag == null || tag.isEmpty || !mounted) return;
+
+    final repository = ref.read(notesRepositoryProvider);
+    final now = DateTime.now();
+    var updated = 0;
+    for (final note in notes) {
+      final hasTag = note.tags.any(
+        (t) => TagParser.normalizeTag(t).toLowerCase() == tag.toLowerCase(),
+      );
+      if (hasTag) continue;
+      await repository.saveNote(
+        note.copyWith(tags: [...note.tags, tag], updatedAt: now),
+      );
+      updated++;
+    }
+    ref.read(notesCollectionProvider.notifier).refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          updated == 0
+              ? 'All selected notes already have #$tag'
+              : 'Added #$tag to $updated notes',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _exportSelectedNotes() async {
+    final notes = _selectedNotes();
+    if (notes.isEmpty) return;
+
+    if (notes.length == 1) {
+      await ExportNoteSheet.show(context, note: notes.first);
+      return;
+    }
+
+    final archive = Archive();
+    var skipped = 0;
+    final usedNames = <String>{};
+    for (final note in notes) {
+      if (note.isPasswordProtected) {
+        skipped++;
+        continue;
+      }
+      var base = note.displayTitle
+          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+          .trim();
+      if (base.isEmpty) base = 'Untitled';
+      var filename = '$base.md';
+      var suffix = 2;
+      while (usedNames.contains(filename.toLowerCase())) {
+        filename = '$base ($suffix).md';
+        suffix++;
+      }
+      usedNames.add(filename.toLowerCase());
+      final bytes = utf8.encode(note.markdownContent);
+      archive.addFile(ArchiveFile(filename, bytes.length, bytes));
+    }
+
+    if (archive.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No exportable notes (password-protected notes skipped)',
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final encoded = ZipEncoder().encode(archive);
+    final zipBytes = Uint8List.fromList(encoded);
+
+    final savedPath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export ${archive.length} notes',
+      fileName: 'quiet-paper-notes.zip',
+      type: FileType.custom,
+      allowedExtensions: const ['zip'],
+      bytes: zipBytes,
+    );
+    if (savedPath == null) return;
+
+    if (savedPath.isNotEmpty) {
+      final f = File(savedPath);
+      if (!await f.exists() || (await f.length()) == 0) {
+        try {
+          await f.writeAsBytes(zipBytes, flush: true);
+        } catch (_) {}
+      }
+    }
+
+    if (!mounted) return;
+    final skippedMsg = skipped > 0
+        ? ' ($skipped password-protected skipped)'
+        : '';
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Exported ${archive.length} notes$skippedMsg'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   String _getDestinationTitle(AppDestination destination) {
@@ -441,13 +714,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     ref.listen<AppDestination>(currentDestinationProvider, (prev, next) {
       if (prev != next) {
-        _validateOpenNoteForNewContext(next, ref.read(selectedTagFilterProvider));
+        if (_isMultiSelecting) _exitMultiSelect();
+        _validateOpenNoteForNewContext(
+          next,
+          ref.read(selectedTagFilterProvider),
+        );
       }
     });
 
     ref.listen<String?>(selectedTagFilterProvider, (prev, next) {
       if (prev != next) {
-        _validateOpenNoteForNewContext(ref.read(currentDestinationProvider), next);
+        if (_isMultiSelecting) _exitMultiSelect();
+        _validateOpenNoteForNewContext(
+          ref.read(currentDestinationProvider),
+          next,
+        );
       }
     });
 
@@ -475,22 +756,77 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     final phoneKeyboardBindings = {
       // Create New Note (Ctrl+N / Cmd+N)
-      const SingleActivator(LogicalKeyboardKey.keyN, control: true): () => _createAndOpenNote(context),
-      const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () => _createAndOpenNote(context),
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
+          _createAndOpenNote(context),
+      const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
+          _createAndOpenNote(context),
 
       // Search Notes (Ctrl+F / Cmd+F)
-      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _openSearchScreen(context),
-      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+          _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
+          _openSearchScreen(context),
 
-      const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
-        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+      const SingleActivator(
+        LogicalKeyboardKey.keyT,
+        control: true,
+        shift: true,
+      ): () {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.tagBrowser;
         ref.read(selectedTagFilterProvider.notifier).state = null;
         ref.read(selectedTagIdProvider.notifier).state = null;
       },
-      const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
-        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+      const SingleActivator(
+        LogicalKeyboardKey.keyT,
+        meta: true,
+        shift: true,
+      ): () {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.tagBrowser;
         ref.read(selectedTagFilterProvider.notifier).state = null;
         ref.read(selectedTagIdProvider.notifier).state = null;
+      },
+
+      // Multi-select: Select all (only while selecting, so editor Ctrl+A still works)
+      // Escape / Delete / Archive
+      const SingleActivator(LogicalKeyboardKey.keyA, control: true): () {
+        if (_isMultiSelecting) _selectAllInView();
+      },
+      const SingleActivator(LogicalKeyboardKey.keyA, meta: true): () {
+        if (_isMultiSelecting) _selectAllInView();
+      },
+      const SingleActivator(LogicalKeyboardKey.escape): () {
+        if (_isMultiSelecting) _exitMultiSelect();
+      },
+      const SingleActivator(LogicalKeyboardKey.delete): () {
+        if (_isMultiSelecting && _selectedNoteIds.isNotEmpty) {
+          _trashOrDeleteSelected(context, destination, repository);
+        }
+      },
+      const SingleActivator(
+        LogicalKeyboardKey.keyA,
+        control: true,
+        shift: true,
+      ): () {
+        if (_isMultiSelecting &&
+            _selectedNoteIds.isNotEmpty &&
+            destination != AppDestination.trash &&
+            destination != AppDestination.archive) {
+          _archiveSelected(context, repository);
+        }
+      },
+      const SingleActivator(
+        LogicalKeyboardKey.keyA,
+        meta: true,
+        shift: true,
+      ): () {
+        if (_isMultiSelecting &&
+            _selectedNoteIds.isNotEmpty &&
+            destination != AppDestination.trash &&
+            destination != AppDestination.archive) {
+          _archiveSelected(context, repository);
+        }
       },
     };
 
@@ -498,412 +834,830 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     return CallbackShortcuts(
       bindings: phoneKeyboardBindings,
-      child: PopScope(
-        canPop: destination == AppDestination.allNotes &&
-            !(_phonePullDownKey.currentState?.isSearchActive ?? false),
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          if (_phonePullDownKey.currentState?.isSearchActive ?? false) {
-            _phonePullDownKey.currentState?.closeSearch();
-            return;
-          }
-          ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
-          ref.read(selectedTagFilterProvider.notifier).state = null;
-          ref.read(selectedTagIdProvider.notifier).state = null;
-          ref.read(notesQueryProvider.notifier).clearAllFilters();
-        },
-        child: PullDownSearchReveal(
-          key: _phonePullDownKey,
-          enabled: defaultSettings.swipeDownToSearchNotes,
-          onOpenSearch: () {},
-          onStateCreated: (state) => _phonePullDownState = state,
-          searchViewBuilder: (context, isPastThreshold, onClose) {
-            return SearchScreen(
-              onClose: onClose,
-              isPastThreshold: isPastThreshold,
-              autoFocus: _phonePullDownState?.isSearchActive ?? false,
-            );
+      child: Focus(
+        focusNode: _multiSelectFocusNode,
+        child: PopScope(
+          canPop:
+              !_isMultiSelecting &&
+              destination == AppDestination.allNotes &&
+              !(_phonePullDownKey.currentState?.isSearchActive ?? false),
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (_isMultiSelecting) {
+              _exitMultiSelect();
+              return;
+            }
+            if (_phonePullDownKey.currentState?.isSearchActive ?? false) {
+              _phonePullDownKey.currentState?.closeSearch();
+              return;
+            }
+            ref.read(currentDestinationProvider.notifier).state =
+                AppDestination.allNotes;
+            ref.read(selectedTagFilterProvider.notifier).state = null;
+            ref.read(selectedTagIdProvider.notifier).state = null;
+            ref.read(notesQueryProvider.notifier).clearAllFilters();
           },
-          child: Scaffold(
-            backgroundColor: colors.background,
-            drawerEnableOpenDragGesture: true,
-            drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
-            drawer: Drawer(
-              backgroundColor: colors.surface,
-              elevation: 0,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
+          child: PullDownSearchReveal(
+            key: _phonePullDownKey,
+            enabled: defaultSettings.swipeDownToSearchNotes,
+            onOpenSearch: () {},
+            onStateCreated: (state) => _phonePullDownState = state,
+            searchViewBuilder: (context, isPastThreshold, onClose) {
+              return SearchScreen(
+                onClose: onClose,
+                isPastThreshold: isPastThreshold,
+                autoFocus: _phonePullDownState?.isSearchActive ?? false,
+              );
+            },
+            child: Scaffold(
+              backgroundColor: colors.background,
+              drawerEnableOpenDragGesture: true,
+              drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.35,
+              drawer: Drawer(
+                backgroundColor: colors.surface,
+                elevation: 0,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.horizontal(right: AppRadii.rMd),
+                ),
+                width: 300,
+                child: SidebarView(
+                  onItemSelected: () {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
               ),
-              width: 300,
-              child: SidebarView(
-                onItemSelected: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-            ),
-            appBar: (isTagBrowser ||
-                    destination == AppDestination.allJournalEntries ||
-                    destination == AppDestination.places)
-                ? null
-                : destination == AppDestination.onThisDay
-                    ? AppBar(
-                        backgroundColor: colors.background,
-                        elevation: 0,
-                        scrolledUnderElevation: 0,
-                        leading: Builder(
-                          builder: (scaffoldCtx) => QuietIconButton(
-                            icon: PhosphorIconsRegular.list,
-                            tooltip: 'Open navigation',
-                            onPressed: () {
-                              Scaffold.of(scaffoldCtx).openDrawer();
-                            },
-                          ),
+              appBar:
+                  (isTagBrowser ||
+                      destination == AppDestination.allJournalEntries ||
+                      destination == AppDestination.places)
+                  ? null
+                  : destination == AppDestination.onThisDay
+                  ? AppBar(
+                      backgroundColor: colors.background,
+                      elevation: 0,
+                      scrolledUnderElevation: 0,
+                      leading: Builder(
+                        builder: (scaffoldCtx) => QuietIconButton(
+                          icon: PhosphorIconsRegular.list,
+                          tooltip: 'Open navigation',
+                          onPressed: () {
+                            Scaffold.of(scaffoldCtx).openDrawer();
+                          },
                         ),
-                        title: Text(
-                          title,
-                          style: AppTypography.title.copyWith(
-                            color: colors.textPrimary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      ),
+                      title: Text(
+                        title,
+                        style: AppTypography.title.copyWith(
+                          color: colors.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
                         ),
-                      )
-                    : (_isMultiSelecting
-                        ? _buildMultiSelectAppBar(context, colors, destination, repository)
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : (_isMultiSelecting
+                        ? _buildMultiSelectAppBar(
+                            context,
+                            colors,
+                            destination,
+                            repository,
+                          )
                         : destination == AppDestination.tag
-                            ? PreferredSize(
-                        preferredSize: const Size.fromHeight(52),
+                        ? PreferredSize(
+                            preferredSize: const Size.fromHeight(52),
+                            child: Builder(
+                              builder: (scaffoldCtx) => TagContextHeader(
+                                tagName: selectedTag ?? 'tag',
+                                tagId: ref.watch(selectedTagIdProvider),
+                                noteCount: collectionState.totalCount,
+                                onOpenDrawer: () =>
+                                    Scaffold.of(scaffoldCtx).openDrawer(),
+                                onSortPressed: () =>
+                                    NotesSortSheet.show(context),
+                                onFilterPressed: () =>
+                                    NotesFilterSheet.show(context),
+                                onSearchPressed: () =>
+                                    _openSearchScreen(context),
+                                onCreateNotePressed: () =>
+                                    _createAndOpenNote(context),
+                                advancedFilterCount:
+                                    query.filter.advancedFilterCount,
+                              ),
+                            ),
+                          )
+                        : AppBar(
+                            backgroundColor: colors.background,
+                            elevation: 0,
+                            scrolledUnderElevation: 0,
+                            leading: Builder(
+                              builder: (scaffoldCtx) => QuietIconButton(
+                                icon: PhosphorIconsRegular.list,
+                                tooltip: 'Open navigation',
+                                onPressed: () {
+                                  Scaffold.of(scaffoldCtx).openDrawer();
+                                },
+                              ),
+                            ),
+                            title: Text(
+                              title,
+                              style: AppTypography.title.copyWith(
+                                color: colors.textPrimary,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            actions: [
+                              if (collectionState.notes.isNotEmpty)
+                                _NotesSelectTextAction(
+                                  onPressed: () => _enterMultiSelect(),
+                                ),
+                              QuietIconButton(
+                                icon: PhosphorIconsRegular.plus,
+                                tooltip: 'New note',
+                                onPressed: () => _createAndOpenNote(context),
+                              ),
+                              QuietIconButton(
+                                icon: PhosphorIconsRegular.magnifyingGlass,
+                                tooltip: 'Search notes',
+                                onPressed: () => _openSearchScreen(context),
+                              ),
+                              PopupMenuButton<String>(
+                                icon: const Icon(
+                                  PhosphorIconsRegular.dotsThreeVertical,
+                                  size: 20,
+                                ),
+                                tooltip: 'More options',
+                                color: colors.surface,
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: AppRadii.borderMd,
+                                  side: BorderSide(
+                                    color: colors.divider,
+                                    width: 0.8,
+                                  ),
+                                ),
+                                onSelected: (val) {
+                                  if (val == 'select') {
+                                    _enterMultiSelect();
+                                  } else if (val == 'sort') {
+                                    NotesSortSheet.show(context);
+                                  } else if (val == 'filter') {
+                                    NotesFilterSheet.show(context);
+                                  } else if (val == 'clip') {
+                                    WebClipDialog.show(context);
+                                  } else if (val == 'settings') {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const SettingsScreen(),
+                                      ),
+                                    );
+                                  } else if (val == 'empty_trash') {
+                                    _confirmEmptyTrash(context);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'select',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.checkCircle,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Text(
+                                          'Select notes',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: colors.textPrimary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'sort',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.arrowsDownUp,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Text(
+                                          'Sort notes',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: colors.textPrimary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'filter',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.funnel,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            query.filter.advancedFilterCount > 0
+                                                ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                                : 'Filter notes',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                        if (query.filter.advancedFilterCount >
+                                            0)
+                                          Container(
+                                            width: 7,
+                                            height: 7,
+                                            decoration: BoxDecoration(
+                                              color: colors.accent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'clip',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.globe,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Text(
+                                          'Clip webpage',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: colors.textPrimary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'settings',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.gear,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Text(
+                                          'Settings',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: colors.textPrimary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (destination == AppDestination.trash) ...[
+                                    const PopupMenuDivider(),
+                                    PopupMenuItem(
+                                      value: 'empty_trash',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            PhosphorIconsRegular.trash,
+                                            size: 18,
+                                            color: colors.error,
+                                          ),
+                                          const SizedBox(width: AppSpacing.sm),
+                                          Text(
+                                            'Empty trash',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(color: colors.error),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                            ],
+                          )),
+              body: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                switchInCurve: Curves.easeInOutCubic,
+                switchOutCurve: Curves.easeInOutCubic,
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topLeft,
+                    children: [...previousChildren, ?currentChild],
+                  );
+                },
+                transitionBuilder: (child, animation) {
+                  final isTagBrowserChild =
+                      child.key == const ValueKey('phone_tag_browser');
+                  final slideTween = isTagBrowserChild
+                      ? Tween<Offset>(
+                          begin: const Offset(0.04, 0.0),
+                          end: Offset.zero,
+                        )
+                      : Tween<Offset>(
+                          begin: const Offset(-0.04, 0.0),
+                          end: Offset.zero,
+                        );
+
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: slideTween.animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: isTagBrowser
+                    ? SafeArea(
+                        key: const ValueKey('phone_tag_browser'),
                         child: Builder(
-                          builder: (scaffoldCtx) => TagContextHeader(
-                            tagName: selectedTag ?? 'tag',
-                            tagId: ref.watch(selectedTagIdProvider),
-                            noteCount: collectionState.totalCount,
-                            onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
-                            onSortPressed: () => NotesSortSheet.show(context),
-                            onFilterPressed: () => NotesFilterSheet.show(context),
-                            onSearchPressed: () => _openSearchScreen(context),
-                            onCreateNotePressed: () => _createAndOpenNote(context),
-                            advancedFilterCount: query.filter.advancedFilterCount,
+                          builder: (scaffoldCtx) => TagBrowserView(
+                            onOpenDrawer: () =>
+                                Scaffold.of(scaffoldCtx).openDrawer(),
                           ),
                         ),
                       )
-                    : AppBar(
-                        backgroundColor: colors.background,
-                        elevation: 0,
-                        scrolledUnderElevation: 0,
-                        leading: Builder(
-                          builder: (scaffoldCtx) => QuietIconButton(
-                            icon: PhosphorIconsRegular.list,
-                            tooltip: 'Open navigation',
-                            onPressed: () {
-                              Scaffold.of(scaffoldCtx).openDrawer();
-                            },
+                    : destination == AppDestination.allJournalEntries
+                    ? SafeArea(
+                        key: const ValueKey('phone_all_journal_entries'),
+                        child: Builder(
+                          builder: (scaffoldCtx) => JournalAllEntriesView(
+                            onOpenDrawer: () =>
+                                Scaffold.of(scaffoldCtx).openDrawer(),
                           ),
                         ),
-                        title: Text(
-                          title,
-                          style: AppTypography.title.copyWith(
-                            color: colors.textPrimary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
+                      )
+                    : destination == AppDestination.onThisDay
+                    ? const SafeArea(
+                        key: ValueKey('phone_on_this_day'),
+                        child: OnThisDayView(),
+                      )
+                    : destination == AppDestination.places
+                    ? SafeArea(
+                        key: const ValueKey('phone_places'),
+                        child: Builder(
+                          builder: (scaffoldCtx) => JournalPlacesView(
+                            onOpenDrawer: () =>
+                                Scaffold.of(scaffoldCtx).openDrawer(),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        actions: [
-                          QuietIconButton(
-                            icon: PhosphorIconsRegular.plus,
-                            tooltip: 'New note',
-                            onPressed: () => _createAndOpenNote(context),
-                          ),
-                          QuietIconButton(
-                            icon: PhosphorIconsRegular.magnifyingGlass,
-                            tooltip: 'Search notes',
-                            onPressed: () => _openSearchScreen(context),
-                          ),
-                          PopupMenuButton<String>(
-                            icon: const Icon(PhosphorIconsRegular.dotsThreeVertical, size: 20),
-                            tooltip: 'More options',
-                            color: colors.surface,
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: AppRadii.borderMd,
-                              side: BorderSide(color: colors.divider, width: 0.8),
-                            ),
-                            onSelected: (val) {
-                              if (val == 'sort') {
-                                NotesSortSheet.show(context);
-                              } else if (val == 'filter') {
-                                NotesFilterSheet.show(context);
-                              } else if (val == 'clip') {
-                                WebClipDialog.show(context);
-                              } else if (val == 'settings') {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                                );
-                              } else if (val == 'empty_trash') {
-                                _confirmEmptyTrash(context);
+                      )
+                    : SafeArea(
+                        key: const ValueKey('phone_notes_list'),
+                        child: Builder(
+                          builder: (scaffoldCtx) => GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragEnd: (details) {
+                              if (details.primaryVelocity != null &&
+                                  details.primaryVelocity! > 250) {
+                                Scaffold.of(scaffoldCtx).openDrawer();
                               }
                             },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'sort',
-                                child: Row(
-                                  children: [
-                                    Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text(
-                                      'Sort notes',
-                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (destination == AppDestination.allNotes)
+                                  const TagsFilterBar(),
+                                const ActiveFilterChips(),
+                                if (!collectionState.initialLoading &&
+                                    collectionState.notes.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.lg,
+                                      vertical: 4.0,
                                     ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'filter',
-                                child: Row(
-                                  children: [
-                                    Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: Text(
-                                        query.filter.advancedFilterCount > 0
-                                            ? 'Filter notes (${query.filter.advancedFilterCount})'
-                                            : 'Filter notes',
-                                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                                    child: Text(
+                                      '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                                      style: AppTypography.caption.copyWith(
+                                        color: colors.textTertiary,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                    if (query.filter.advancedFilterCount > 0)
-                                      Container(
-                                        width: 7,
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: colors.accent,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'clip',
-                                child: Row(
-                                  children: [
-                                    Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text(
-                                      'Clip webpage',
-                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'settings',
-                                child: Row(
-                                  children: [
-                                    Icon(PhosphorIconsRegular.gear, size: 18, color: colors.textSecondary),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text(
-                                      'Settings',
-                                      style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (destination == AppDestination.trash) ...[
-                                const PopupMenuDivider(),
-                                PopupMenuItem(
-                                  value: 'empty_trash',
-                                  child: Row(
-                                    children: [
-                                      Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      Text(
-                                        'Empty trash',
-                                        style: AppTypography.bodySmall.copyWith(color: colors.error),
-                                      ),
-                                    ],
+                                  ),
+                                Expanded(
+                                  child: NotificationListener<ScrollNotification>(
+                                    onNotification: (notification) {
+                                      // Keyset-based prefetch threshold: 800dp from bottom
+                                      if (notification.metrics.extentAfter <
+                                          800) {
+                                        ref
+                                            .read(
+                                              notesCollectionProvider.notifier,
+                                            )
+                                            .loadMore();
+                                      }
+                                      return false;
+                                    },
+                                    child: collectionState.initialLoading
+                                        ? const Center(
+                                            child:
+                                                CircularProgressIndicator.adaptive(),
+                                          )
+                                        : (groups.isEmpty &&
+                                              collectionState.notes.isEmpty)
+                                        ? SingleChildScrollView(
+                                            physics: const BouncingScrollPhysics(
+                                              parent:
+                                                  AlwaysScrollableScrollPhysics(),
+                                            ),
+                                            child: SizedBox(
+                                              height: 400,
+                                              child: NoteEmptyState(
+                                                onCreateNote: () =>
+                                                    _createAndOpenNote(context),
+                                                destination: destination,
+                                                tagFilter: selectedTag,
+                                                hasActiveFilters: query
+                                                    .filter
+                                                    .hasAdvancedFilters,
+                                                onClearFilters: () => ref
+                                                    .read(
+                                                      notesQueryProvider
+                                                          .notifier,
+                                                    )
+                                                    .clearAllFilters(),
+                                              ),
+                                            ),
+                                          )
+                                        : DesktopSmoothScroll(
+                                            child: ListView.builder(
+                                              scrollCacheExtent:
+                                                  const ScrollCacheExtent.pixels(
+                                                    1200.0,
+                                                  ),
+                                              padding: const EdgeInsets.only(
+                                                bottom: 96,
+                                              ),
+                                              physics:
+                                                  PlatformLayoutHelper
+                                                      .isDesktopPlatform
+                                                  ? const ClampingScrollPhysics(
+                                                      parent:
+                                                          AlwaysScrollableScrollPhysics(),
+                                                    )
+                                                  : const BouncingScrollPhysics(
+                                                      parent:
+                                                          AlwaysScrollableScrollPhysics(),
+                                                    ),
+                                              itemCount:
+                                                  _calculateTotalItemCount(
+                                                    groups,
+                                                  ) +
+                                                  1,
+                                              itemBuilder: (context, index) {
+                                                if (index ==
+                                                    _calculateTotalItemCount(
+                                                      groups,
+                                                    )) {
+                                                  return NotesLoadingMoreIndicator(
+                                                    loadingMore: collectionState
+                                                        .loadingMore,
+                                                    error:
+                                                        collectionState.error,
+                                                    onRetry: () => ref
+                                                        .read(
+                                                          notesCollectionProvider
+                                                              .notifier,
+                                                        )
+                                                        .retry(),
+                                                  );
+                                                }
+                                                return _buildGroupedItem(
+                                                  context,
+                                                  groups,
+                                                  index,
+                                                );
+                                              },
+                                            ),
+                                          ),
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                        ],
-                      )),
-            body: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 240),
-              switchInCurve: Curves.easeInOutCubic,
-              switchOutCurve: Curves.easeInOutCubic,
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.topLeft,
-                  children: [
-                    ...previousChildren,
-                    ?currentChild,
-                  ],
-                );
-              },
-              transitionBuilder: (child, animation) {
-                final isTagBrowserChild = child.key == const ValueKey('phone_tag_browser');
-                final slideTween = isTagBrowserChild
-                    ? Tween<Offset>(begin: const Offset(0.04, 0.0), end: Offset.zero)
-                    : Tween<Offset>(begin: const Offset(-0.04, 0.0), end: Offset.zero);
-
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: slideTween.animate(animation),
-                    child: child,
-                  ),
-                );
-              },
-              child: isTagBrowser
-                  ? SafeArea(
-                      key: const ValueKey('phone_tag_browser'),
-                      child: Builder(
-                        builder: (scaffoldCtx) => TagBrowserView(
-                          onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
-                        ),
-                      ),
-                    )
-                  : destination == AppDestination.allJournalEntries
-                      ? SafeArea(
-                          key: const ValueKey('phone_all_journal_entries'),
-                          child: Builder(
-                            builder: (scaffoldCtx) => JournalAllEntriesView(
-                              onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
                             ),
-                          ),
-                        )
-                  : destination == AppDestination.onThisDay
-                      ? const SafeArea(
-                          key: ValueKey('phone_on_this_day'),
-                          child: OnThisDayView(),
-                        )
-                  : destination == AppDestination.places
-                      ? SafeArea(
-                          key: const ValueKey('phone_places'),
-                          child: Builder(
-                            builder: (scaffoldCtx) => JournalPlacesView(
-                              onOpenDrawer: () => Scaffold.of(scaffoldCtx).openDrawer(),
-                            ),
-                          ),
-                        )
-                      : SafeArea(
-                          key: const ValueKey('phone_notes_list'),
-                      child: Builder(
-                        builder: (scaffoldCtx) => GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onHorizontalDragEnd: (details) {
-                            if (details.primaryVelocity != null &&
-                                details.primaryVelocity! > 250) {
-                              Scaffold.of(scaffoldCtx).openDrawer();
-                            }
-                          },
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (destination == AppDestination.allNotes)
-                                const TagsFilterBar(),
-                              const ActiveFilterChips(),
-                              if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.lg,
-                                    vertical: 4.0,
-                                  ),
-                                  child: Text(
-                                    '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.textTertiary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              Expanded(
-                                child: NotificationListener<ScrollNotification>(
-                                  onNotification: (notification) {
-                                    // Keyset-based prefetch threshold: 800dp from bottom
-                                    if (notification.metrics.extentAfter < 800) {
-                                      ref.read(notesCollectionProvider.notifier).loadMore();
-                                    }
-                                    return false;
-                                  },
-                                  child: collectionState.initialLoading
-                                      ? const Center(
-                                          child: CircularProgressIndicator.adaptive(),
-                                        )
-                                      : (groups.isEmpty && collectionState.notes.isEmpty)
-                                          ? SingleChildScrollView(
-                                              physics: const BouncingScrollPhysics(
-                                                parent: AlwaysScrollableScrollPhysics(),
-                                              ),
-                                              child: SizedBox(
-                                                height: 400,
-                                                child: NoteEmptyState(
-                                                  onCreateNote: () => _createAndOpenNote(context),
-                                                  destination: destination,
-                                                  tagFilter: selectedTag,
-                                                  hasActiveFilters: query.filter.hasAdvancedFilters,
-                                                  onClearFilters: () => ref
-                                                      .read(notesQueryProvider.notifier)
-                                                      .clearAllFilters(),
-                                                ),
-                                              ),
-                                            )
-                                          : DesktopSmoothScroll(
-                                              child: ListView.builder(
-                                                scrollCacheExtent: const ScrollCacheExtent.pixels(1200.0),
-                                                padding: const EdgeInsets.only(bottom: 96),
-                                                physics: PlatformLayoutHelper.isDesktopPlatform
-                                                    ? const ClampingScrollPhysics(
-                                                        parent: AlwaysScrollableScrollPhysics(),
-                                                      )
-                                                    : const BouncingScrollPhysics(
-                                                        parent: AlwaysScrollableScrollPhysics(),
-                                                      ),
-                                                itemCount: _calculateTotalItemCount(groups) + 1,
-                                                itemBuilder: (context, index) {
-                                                  if (index == _calculateTotalItemCount(groups)) {
-                                                    return NotesLoadingMoreIndicator(
-                                                      loadingMore: collectionState.loadingMore,
-                                                      error: collectionState.error,
-                                                      onRetry: () => ref
-                                                          .read(notesCollectionProvider.notifier)
-                                                          .retry(),
-                                                    );
-                                                  }
-                                                  return _buildGroupedItem(context, groups, index);
-                                                },
-                                              ),
-                                            ),
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
+              ),
+              floatingActionButton:
+                  (!_isMultiSelecting &&
+                      !isTagBrowser &&
+                      (destination == AppDestination.allNotes ||
+                          destination == AppDestination.pinned ||
+                          destination == AppDestination.tag))
+                  ? QuietFab(onPressed: () => _createAndOpenNote(context))
+                  : null,
             ),
-            floatingActionButton: (!isTagBrowser &&
-                    (destination == AppDestination.allNotes ||
-                        destination == AppDestination.pinned ||
-                        destination == AppDestination.tag))
-                ? QuietFab(
-                    onPressed: () => _createAndOpenNote(context),
-                  )
-                : null,
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _archiveSelected(
+    BuildContext context,
+    NotesRepository repository,
+  ) async {
+    final count = _selectedNoteIds.length;
+    if (count == 0) return;
+    final ids = _selectedNoteIds.toList();
+    await repository.archiveNotes(ids);
+    for (final id in ids) {
+      ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+    }
+    _exitMultiSelect();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _selectionMessage(count, 'Note archived', 'notes archived'),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _trashOrDeleteSelected(
+    BuildContext context,
+    AppDestination destination,
+    NotesRepository repository,
+  ) async {
+    final count = _selectedNoteIds.length;
+    if (count == 0) return;
+    final ids = _selectedNoteIds.toList();
+
+    if (destination == AppDestination.trash) {
+      final confirmed = await PermanentDeleteDialog.show(context, count: count);
+      if (!confirmed) return;
+      await repository.deletePermanentlyBatch(ids);
+      for (final id in ids) {
+        ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+      }
+      _exitMultiSelect();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _selectionMessage(
+                count,
+                'Note permanently deleted',
+                'notes permanently deleted',
+              ),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    await repository.trashNotes(ids);
+    for (final id in ids) {
+      ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
+    }
+    _exitMultiSelect();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _selectionMessage(
+              count,
+              'Note moved to Trash',
+              'notes moved to Trash',
+            ),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  List<Widget> _buildMultiSelectActionButtons(
+    BuildContext context,
+    AppColors colors,
+    AppDestination destination,
+    NotesRepository repository,
+  ) {
+    final count = _selectedNoteIds.length;
+    final hasSelection = count > 0;
+
+    return [
+      QuietIconButton(
+        icon: PhosphorIconsRegular.selectionAll,
+        tooltip: 'Select all in view',
+        onPressed: _selectAllInView,
+      ),
+      if (destination == AppDestination.trash) ...[
+        QuietIconButton(
+          icon: PhosphorIconsRegular.arrowCounterClockwise,
+          tooltip: 'Restore selected',
+          onPressed: !hasSelection
+              ? null
+              : () async {
+                  final ids = _selectedNoteIds.toList();
+                  await repository.restoreNotes(ids);
+                  for (final id in ids) {
+                    ref
+                        .read(notesCollectionProvider.notifier)
+                        .removeLocalNote(id);
+                  }
+                  _exitMultiSelect();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          _selectionMessage(
+                            count,
+                            'Note restored',
+                            'notes restored',
+                          ),
+                        ),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+        ),
+        QuietIconButton(
+          icon: PhosphorIconsRegular.trash,
+          tooltip: 'Delete permanently',
+          onPressed: !hasSelection
+              ? null
+              : () => _trashOrDeleteSelected(context, destination, repository),
+        ),
+      ] else if (destination == AppDestination.archive) ...[
+        QuietIconButton(
+          icon: PhosphorIconsRegular.arrowUUpLeft,
+          tooltip: 'Unarchive selected',
+          onPressed: !hasSelection
+              ? null
+              : () async {
+                  final ids = _selectedNoteIds.toList();
+                  await repository.unarchiveNotes(ids);
+                  for (final id in ids) {
+                    ref
+                        .read(notesCollectionProvider.notifier)
+                        .removeLocalNote(id);
+                  }
+                  _exitMultiSelect();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          _selectionMessage(
+                            count,
+                            'Note unarchived',
+                            'notes unarchived',
+                          ),
+                        ),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+        ),
+        QuietIconButton(
+          icon: PhosphorIconsRegular.trash,
+          tooltip: 'Move to Trash',
+          onPressed: !hasSelection
+              ? null
+              : () => _trashOrDeleteSelected(context, destination, repository),
+        ),
+      ] else ...[
+        QuietIconButton(
+          icon: PhosphorIconsRegular.archive,
+          tooltip: 'Archive selected',
+          onPressed: !hasSelection
+              ? null
+              : () => _archiveSelected(context, repository),
+        ),
+        QuietIconButton(
+          icon: PhosphorIconsRegular.trash,
+          tooltip: 'Move to Trash',
+          onPressed: !hasSelection
+              ? null
+              : () => _trashOrDeleteSelected(context, destination, repository),
+        ),
+      ],
+      PopupMenuButton<String>(
+        icon: Icon(
+          PhosphorIconsRegular.dotsThreeVertical,
+          size: 20,
+          color: hasSelection ? colors.textPrimary : colors.textTertiary,
+        ),
+        tooltip: 'More actions',
+        enabled: hasSelection,
+        color: colors.surface,
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: BorderSide(color: colors.divider, width: 0.8),
+        ),
+        onSelected: (val) {
+          if (val == 'pin') {
+            _pinSelectedNotes();
+          } else if (val == 'tag') {
+            _addTagToSelectedNotes();
+          } else if (val == 'export') {
+            _exportSelectedNotes();
+          }
+        },
+        itemBuilder: (context) => [
+          if (destination != AppDestination.trash &&
+              destination != AppDestination.archive)
+            PopupMenuItem(
+              value: 'pin',
+              child: Row(
+                children: [
+                  Icon(
+                    PhosphorIconsRegular.pushPin,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Pin / Unpin',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (destination != AppDestination.trash)
+            PopupMenuItem(
+              value: 'tag',
+              child: Row(
+                children: [
+                  Icon(
+                    PhosphorIconsRegular.tag,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Add tag…',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          PopupMenuItem(
+            value: 'export',
+            child: Row(
+              children: [
+                Icon(
+                  PhosphorIconsRegular.export,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  count == 1 ? 'Export note…' : 'Export as ZIP…',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(width: AppSpacing.xs),
+    ];
   }
 
   AppBar _buildMultiSelectAppBar(
@@ -923,155 +1677,68 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         onPressed: _exitMultiSelect,
       ),
       title: Text(
-        '$count selected',
+        count == 0 ? 'Select notes' : '$count selected',
         style: AppTypography.headline.copyWith(
           color: colors.textPrimary,
           fontSize: 18,
         ),
       ),
-      actions: [
-        if (destination == AppDestination.trash) ...[
+      actions: _buildMultiSelectActionButtons(
+        context,
+        colors,
+        destination,
+        repository,
+      ),
+    );
+  }
+
+  Widget _buildTabletMultiSelectHeader(
+    BuildContext context,
+    AppColors colors,
+    AppDestination destination,
+    NotesRepository repository,
+  ) {
+    final count = _selectedNoteIds.length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
           QuietIconButton(
-            icon: PhosphorIconsRegular.arrowCounterClockwise,
-            tooltip: 'Restore selected',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              await repository.restoreNotes(ids);
-              for (final id in ids) {
-                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-              }
-              _exitMultiSelect();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count notes restored'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
+            icon: PhosphorIconsRegular.x,
+            tooltip: 'Close selection',
+            onPressed: _exitMultiSelect,
           ),
-          QuietIconButton(
-            icon: PhosphorIconsRegular.trash,
-            tooltip: 'Delete permanently',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              final confirmed =
-                  await PermanentDeleteDialog.show(context, count: count);
-              if (confirmed) {
-                await repository.deletePermanentlyBatch(ids);
-                for (final id in ids) {
-                  ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-                }
-                _exitMultiSelect();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('$count notes permanently deleted'),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              }
-            },
+          const SizedBox(width: 4.0),
+          Expanded(
+            child: Text(
+              count == 0 ? 'Select notes' : '$count selected',
+              style: AppTypography.title.copyWith(
+                color: colors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
-        ] else if (destination == AppDestination.archive) ...[
-          QuietIconButton(
-            icon: PhosphorIconsRegular.arrowUUpLeft,
-            tooltip: 'Unarchive selected',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              await repository.unarchiveNotes(ids);
-              for (final id in ids) {
-                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-              }
-              _exitMultiSelect();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count notes unarchived'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
-          ),
-          QuietIconButton(
-            icon: PhosphorIconsRegular.trash,
-            tooltip: 'Move to Trash',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              await repository.trashNotes(ids);
-              for (final id in ids) {
-                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-              }
-              _exitMultiSelect();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count notes moved to Trash'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
-          ),
-        ] else ...[
-          QuietIconButton(
-            icon: PhosphorIconsRegular.archive,
-            tooltip: 'Archive selected',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              await repository.archiveNotes(ids);
-              for (final id in ids) {
-                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-              }
-              _exitMultiSelect();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count notes archived'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
-          ),
-          QuietIconButton(
-            icon: PhosphorIconsRegular.trash,
-            tooltip: 'Move to Trash',
-            onPressed: () async {
-              final ids = _selectedNoteIds.toList();
-              await repository.trashNotes(ids);
-              for (final id in ids) {
-                ref.read(notesCollectionProvider.notifier).removeLocalNote(id);
-              }
-              _exitMultiSelect();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count notes moved to Trash'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
+          ..._buildMultiSelectActionButtons(
+            context,
+            colors,
+            destination,
+            repository,
           ),
         ],
-        const SizedBox(width: AppSpacing.xs),
-      ],
+      ),
     );
   }
 
   Widget _buildTabletLayout(BuildContext context, AppColors colors) {
     final destination = ref.watch(currentDestinationProvider);
     final selectedTag = ref.watch(selectedTagFilterProvider);
+    final repository = ref.watch(notesRepositoryProvider);
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
@@ -1081,10 +1748,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     // Watch active note if one is selected in tablet mode
     Note? activeNote;
     if (_selectedNoteIdForTablet != null) {
-      final noteAsync = ref.watch(noteDetailStreamProvider(_selectedNoteIdForTablet!));
+      final noteAsync = ref.watch(
+        noteDetailStreamProvider(_selectedNoteIdForTablet!),
+      );
       activeNote = noteAsync.valueOrNull;
       if (activeNote == null && collectionState.notes.isNotEmpty) {
-        final matches = collectionState.notes.where((n) => n.id == _selectedNoteIdForTablet);
+        final matches = collectionState.notes.where(
+          (n) => n.id == _selectedNoteIdForTablet,
+        );
         if (matches.isNotEmpty) {
           activeNote = matches.first;
         }
@@ -1097,44 +1768,111 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     final tabletKeyboardBindings = {
       // Create New Note (Ctrl+N / Cmd+N)
-      const SingleActivator(LogicalKeyboardKey.keyN, control: true): _createAndOpenNoteTablet,
-      const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _createAndOpenNoteTablet,
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+          _createAndOpenNoteTablet,
+      const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
+          _createAndOpenNoteTablet,
 
       // Search Notes (Ctrl+F / Cmd+F)
-      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _openSearchScreen(context),
-      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+          _openSearchScreen(context),
+      const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
+          _openSearchScreen(context),
 
       // Toggle Sidebar (Ctrl+Shift+S / Cmd+Shift+S)
-      const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true): () {
-        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(isNavSidebarVisibleProvider);
+      const SingleActivator(
+        LogicalKeyboardKey.keyS,
+        control: true,
+        shift: true,
+      ): () {
+        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(
+          isNavSidebarVisibleProvider,
+        );
       },
-      const SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true): () {
-        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(isNavSidebarVisibleProvider);
+      const SingleActivator(
+        LogicalKeyboardKey.keyS,
+        meta: true,
+        shift: true,
+      ): () {
+        ref.read(isNavSidebarVisibleProvider.notifier).state = !ref.read(
+          isNavSidebarVisibleProvider,
+        );
       },
 
       // Tag Browser (Ctrl+Shift+T / Cmd+Shift+T)
-      const SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): () {
-        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+      const SingleActivator(
+        LogicalKeyboardKey.keyT,
+        control: true,
+        shift: true,
+      ): () {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.tagBrowser;
         ref.read(selectedTagFilterProvider.notifier).state = null;
         ref.read(selectedTagIdProvider.notifier).state = null;
       },
-      const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true): () {
-        ref.read(currentDestinationProvider.notifier).state = AppDestination.tagBrowser;
+      const SingleActivator(
+        LogicalKeyboardKey.keyT,
+        meta: true,
+        shift: true,
+      ): () {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.tagBrowser;
         ref.read(selectedTagFilterProvider.notifier).state = null;
         ref.read(selectedTagIdProvider.notifier).state = null;
       },
 
       // Settings (Ctrl+, / Cmd+,)
       const SingleActivator(LogicalKeyboardKey.comma, control: true): () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       },
       const SingleActivator(LogicalKeyboardKey.comma, meta: true): () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       },
 
-      // Delete selected note (Delete)
+      // Multi-select shortcuts (Ctrl+A only while selecting so editor select-all wins)
+      const SingleActivator(LogicalKeyboardKey.keyA, control: true): () {
+        if (_isMultiSelecting) _selectAllInView();
+      },
+      const SingleActivator(LogicalKeyboardKey.keyA, meta: true): () {
+        if (_isMultiSelecting) _selectAllInView();
+      },
+      const SingleActivator(LogicalKeyboardKey.escape): () {
+        if (_isMultiSelecting) _exitMultiSelect();
+      },
+      const SingleActivator(
+        LogicalKeyboardKey.keyA,
+        control: true,
+        shift: true,
+      ): () {
+        if (_isMultiSelecting &&
+            _selectedNoteIds.isNotEmpty &&
+            destination != AppDestination.trash &&
+            destination != AppDestination.archive) {
+          _archiveSelected(context, repository);
+        }
+      },
+      const SingleActivator(
+        LogicalKeyboardKey.keyA,
+        meta: true,
+        shift: true,
+      ): () {
+        if (_isMultiSelecting &&
+            _selectedNoteIds.isNotEmpty &&
+            destination != AppDestination.trash &&
+            destination != AppDestination.archive) {
+          _archiveSelected(context, repository);
+        }
+      },
+
+      // Delete selected note (Delete) — prefers multi-select batch when active
       const SingleActivator(LogicalKeyboardKey.delete): () {
-        if (_selectedNoteIdForTablet != null && activeNote != null) {
+        if (_isMultiSelecting && _selectedNoteIds.isNotEmpty) {
+          _trashOrDeleteSelected(context, destination, repository);
+        } else if (_selectedNoteIdForTablet != null && activeNote != null) {
           _trashNoteWithUndo(activeNote);
         }
       },
@@ -1142,543 +1880,942 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
     return CallbackShortcuts(
       bindings: tabletKeyboardBindings,
-      child: PopScope(
-        canPop: destination == AppDestination.allNotes &&
-            !(_tabletPullDownState?.isSearchActive ?? false),
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          if (_tabletPullDownState?.isSearchActive ?? false) {
-            _tabletPullDownState?.closeSearch();
-            return;
-          }
-          ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
-          ref.read(selectedTagFilterProvider.notifier).state = null;
-          ref.read(selectedTagIdProvider.notifier).state = null;
-          ref.read(notesQueryProvider.notifier).clearAllFilters();
-        },
-        child: Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Row(
-          children: [
-            // 1 & 2: Navigation Sidebar & Notes List Drop Target
-            DropTarget(
-              onDragDone: (detail) =>
-                  _handleDroppedFileToNewNote(detail, isTabletLayout: true),
+      child: Focus(
+        focusNode: _multiSelectFocusNode,
+        child: PopScope(
+          canPop:
+              !_isMultiSelecting &&
+              destination == AppDestination.allNotes &&
+              !(_tabletPullDownState?.isSearchActive ?? false),
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (_isMultiSelecting) {
+              _exitMultiSelect();
+              return;
+            }
+            if (_tabletPullDownState?.isSearchActive ?? false) {
+              _tabletPullDownState?.closeSearch();
+              return;
+            }
+            ref.read(currentDestinationProvider.notifier).state =
+                AppDestination.allNotes;
+            ref.read(selectedTagFilterProvider.notifier).state = null;
+            ref.read(selectedTagIdProvider.notifier).state = null;
+            ref.read(notesQueryProvider.notifier).clearAllFilters();
+          },
+          child: Scaffold(
+            backgroundColor: colors.background,
+            body: SafeArea(
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. Left Navigation Sidebar (280dp, collapsible)
-                  AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeInOutCubic,
-              width: isNavSidebarVisible ? 280.0 : 0.0,
-              child: ClipRect(
-                child: OverflowBox(
-                  minWidth: 280.0,
-                  maxWidth: 280.0,
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: colors.divider, width: 1),
-                      ),
+                  // 1 & 2: Navigation Sidebar & Notes List Drop Target
+                  DropTarget(
+                    onDragDone: (detail) => _handleDroppedFileToNewNote(
+                      detail,
+                      isTabletLayout: true,
                     ),
-                    child: const SidebarView(isCollapsible: true),
-                  ),
-                ),
-              ),
-            ),
-
-            // 2. Middle Note List Pane (320dp, collapsible)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeInOutCubic,
-              width: isNoteListVisible ? 320.0 : 0.0,
-              child: ClipRect(
-                child: OverflowBox(
-                  minWidth: 320.0,
-                  maxWidth: 320.0,
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: colors.divider, width: 1),
-                      ),
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 240),
-                      switchInCurve: Curves.easeInOutCubic,
-                      switchOutCurve: Curves.easeInOutCubic,
-                      layoutBuilder: (currentChild, previousChildren) {
-                        return Stack(
-                          alignment: Alignment.topLeft,
-                          children: [
-                            ...previousChildren,
-                            ?currentChild,
-                          ],
-                        );
-                      },
-                      transitionBuilder: (child, animation) {
-                        final isTagBrowserChild = child.key == const ValueKey('tablet_tag_browser');
-                        final slideTween = isTagBrowserChild
-                            ? Tween<Offset>(begin: const Offset(0.04, 0.0), end: Offset.zero)
-                            : Tween<Offset>(begin: const Offset(-0.04, 0.0), end: Offset.zero);
-
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: slideTween.animate(animation),
-                            child: child,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1. Left Navigation Sidebar (280dp, collapsible)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeInOutCubic,
+                          width: isNavSidebarVisible ? 280.0 : 0.0,
+                          child: ClipRect(
+                            child: OverflowBox(
+                              minWidth: 280.0,
+                              maxWidth: 280.0,
+                              alignment: Alignment.topLeft,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    right: BorderSide(
+                                      color: colors.divider,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: const SidebarView(isCollapsible: true),
+                              ),
+                            ),
                           ),
-                        );
-                      },
-                      child: destination == AppDestination.tagBrowser
-                          ? TagBrowserView(
-                              key: const ValueKey('tablet_tag_browser'),
-                              isTablet: true,
-                              isSidebarVisible: isNavSidebarVisible,
-                              onToggleSidebar: () {
-                                ref
-                                    .read(isNavSidebarVisibleProvider.notifier)
-                                    .state = !isNavSidebarVisible;
-                              },
-                            )
-                          : destination == AppDestination.allJournalEntries
-                              ? JournalAllEntriesView(
-                                  key: const ValueKey('tablet_all_journal_entries'),
-                                  isTablet: true,
-                                  isSidebarVisible: isNavSidebarVisible,
-                                  selectedNoteId: _selectedNoteIdForTablet,
-                                  onToggleSidebar: () {
-                                    ref
-                                        .read(isNavSidebarVisibleProvider.notifier)
-                                        .state = !isNavSidebarVisible;
-                                  },
-                                  onNoteSelected: (note) {
-                                    setState(() {
-                                      _selectedNoteIdForTablet = note.id;
-                                    });
-                                  },
-                                )
-                          : destination == AppDestination.onThisDay
-                              ? OnThisDayView(
-                                  key: const ValueKey('tablet_on_this_day'),
-                                  selectedNoteId: _selectedNoteIdForTablet,
-                                  onNoteSelected: (note) {
-                                    setState(() {
-                                      _selectedNoteIdForTablet = note.id;
-                                    });
-                                  },
-                                )
-                          : destination == AppDestination.places
-                              ? JournalPlacesView(
-                                  key: const ValueKey('tablet_places'),
-                                  isTablet: true,
-                                  isSidebarVisible: isNavSidebarVisible,
-                                  selectedNoteId: _selectedNoteIdForTablet,
-                                  onToggleSidebar: () {
-                                    ref
-                                        .read(isNavSidebarVisibleProvider.notifier)
-                                        .state = !isNavSidebarVisible;
-                                  },
-                                  onNoteSelected: (note) {
-                                    setState(() {
-                                      _selectedNoteIdForTablet = note.id;
-                                    });
-                                  },
-                                )
-                              : PullDownSearchReveal(
-                                  key: const ValueKey('tablet_notes_list'),
-                                  isTabletPane: true,
-                                  enabled: defaultSettings.swipeDownToSearchNotes,
-                                  onOpenSearch: () {},
-                                  onStateCreated: (state) => _tabletPullDownState = state,
-                                  searchViewBuilder: (context, isPastThreshold, onClose) {
-                                    return SearchScreen(
-                                      onClose: onClose,
-                                      isPastThreshold: isPastThreshold,
-                                      autoFocus: _tabletPullDownState?.isSearchActive ?? false,
-                                      onNoteSelected: (note) {
-                                        setState(() {
-                                          _selectedNoteIdForTablet = note.id;
-                                        });
+                        ),
+
+                        // 2. Middle Note List Pane (320dp, collapsible)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeInOutCubic,
+                          width: isNoteListVisible ? 320.0 : 0.0,
+                          child: ClipRect(
+                            child: OverflowBox(
+                              minWidth: 320.0,
+                              maxWidth: 320.0,
+                              alignment: Alignment.topLeft,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    right: BorderSide(
+                                      color: colors.divider,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 240),
+                                  switchInCurve: Curves.easeInOutCubic,
+                                  switchOutCurve: Curves.easeInOutCubic,
+                                  layoutBuilder:
+                                      (currentChild, previousChildren) {
+                                        return Stack(
+                                          alignment: Alignment.topLeft,
+                                          children: [
+                                            ...previousChildren,
+                                            ?currentChild,
+                                          ],
+                                        );
                                       },
+                                  transitionBuilder: (child, animation) {
+                                    final isTagBrowserChild =
+                                        child.key ==
+                                        const ValueKey('tablet_tag_browser');
+                                    final slideTween = isTagBrowserChild
+                                        ? Tween<Offset>(
+                                            begin: const Offset(0.04, 0.0),
+                                            end: Offset.zero,
+                                          )
+                                        : Tween<Offset>(
+                                            begin: const Offset(-0.04, 0.0),
+                                            end: Offset.zero,
+                                          );
+
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: slideTween.animate(animation),
+                                        child: child,
+                                      ),
                                     );
                                   },
-                              child: GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onHorizontalDragEnd: (details) {
-                                if (!isNavSidebarVisible &&
-                                    details.primaryVelocity != null &&
-                                    details.primaryVelocity! > 250) {
-                                  ref
-                                      .read(isNavSidebarVisibleProvider.notifier)
-                                      .state = true;
-                                }
-                              },
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Middle Pane Top bar
-                                  if (destination == AppDestination.tag)
-                                    TagContextHeader(
-                                      tagName: selectedTag ?? 'tag',
-                                      tagId: ref.watch(selectedTagIdProvider),
-                                      noteCount: collectionState.totalCount,
-                                      isTablet: true,
-                                      isSidebarVisible: isNavSidebarVisible,
-                                      onToggleSidebar: () {
-                                        ref
-                                            .read(isNavSidebarVisibleProvider.notifier)
-                                            .state = !isNavSidebarVisible;
-                                      },
-                                      onSortPressed: () => NotesSortSheet.show(context),
-                                      onFilterPressed: () => NotesFilterSheet.show(context),
-                                      onSearchPressed: () => _openSearchScreen(context),
-                                      onCreateNotePressed: () => _createAndOpenNoteTablet(),
-                                      advancedFilterCount: query.filter.advancedFilterCount,
-                                    )
-                                  else
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.sm,
-                                        vertical: AppSpacing.xs,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          QuietIconButton(
-                                            icon: isNavSidebarVisible
-                                                ? PhosphorIconsRegular.sidebarSimple
-                                                : PhosphorIconsRegular.sidebarSimple,
-                                            tooltip: isNavSidebarVisible
-                                                ? 'Hide navigation'
-                                                : 'Show navigation',
-                                            onPressed: () {
-                                              ref
-                                                  .read(isNavSidebarVisibleProvider.notifier)
-                                                  .state = !isNavSidebarVisible;
-                                            },
+                                  child:
+                                      destination == AppDestination.tagBrowser
+                                      ? TagBrowserView(
+                                          key: const ValueKey(
+                                            'tablet_tag_browser',
                                           ),
-                                          const SizedBox(width: 4.0),
-                                          Expanded(
-                                            child: Text(
-                                              title,
-                                              style: AppTypography.title.copyWith(
-                                                color: colors.textPrimary,
-                                                fontSize: 19,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                              maxLines: 1,
-                                            ),
+                                          isTablet: true,
+                                          isSidebarVisible: isNavSidebarVisible,
+                                          onToggleSidebar: () {
+                                            ref
+                                                    .read(
+                                                      isNavSidebarVisibleProvider
+                                                          .notifier,
+                                                    )
+                                                    .state =
+                                                !isNavSidebarVisible;
+                                          },
+                                        )
+                                      : destination ==
+                                            AppDestination.allJournalEntries
+                                      ? JournalAllEntriesView(
+                                          key: const ValueKey(
+                                            'tablet_all_journal_entries',
                                           ),
-                                          QuietIconButton(
-                                            icon: PhosphorIconsRegular.plus,
-                                            tooltip: 'New note',
-                                            isActive: true,
-                                            onPressed: () => _createAndOpenNoteTablet(),
+                                          isTablet: true,
+                                          isSidebarVisible: isNavSidebarVisible,
+                                          selectedNoteId:
+                                              _selectedNoteIdForTablet,
+                                          onToggleSidebar: () {
+                                            ref
+                                                    .read(
+                                                      isNavSidebarVisibleProvider
+                                                          .notifier,
+                                                    )
+                                                    .state =
+                                                !isNavSidebarVisible;
+                                          },
+                                          onNoteSelected: (note) {
+                                            setState(() {
+                                              _selectedNoteIdForTablet =
+                                                  note.id;
+                                            });
+                                          },
+                                        )
+                                      : destination == AppDestination.onThisDay
+                                      ? OnThisDayView(
+                                          key: const ValueKey(
+                                            'tablet_on_this_day',
                                           ),
-                                          QuietIconButton(
-                                            icon: PhosphorIconsRegular.magnifyingGlass,
-                                            tooltip: 'Search notes',
-                                            onPressed: () => _openSearchScreen(context),
+                                          selectedNoteId:
+                                              _selectedNoteIdForTablet,
+                                          onNoteSelected: (note) {
+                                            setState(() {
+                                              _selectedNoteIdForTablet =
+                                                  note.id;
+                                            });
+                                          },
+                                        )
+                                      : destination == AppDestination.places
+                                      ? JournalPlacesView(
+                                          key: const ValueKey('tablet_places'),
+                                          isTablet: true,
+                                          isSidebarVisible: isNavSidebarVisible,
+                                          selectedNoteId:
+                                              _selectedNoteIdForTablet,
+                                          onToggleSidebar: () {
+                                            ref
+                                                    .read(
+                                                      isNavSidebarVisibleProvider
+                                                          .notifier,
+                                                    )
+                                                    .state =
+                                                !isNavSidebarVisible;
+                                          },
+                                          onNoteSelected: (note) {
+                                            setState(() {
+                                              _selectedNoteIdForTablet =
+                                                  note.id;
+                                            });
+                                          },
+                                        )
+                                      : PullDownSearchReveal(
+                                          key: const ValueKey(
+                                            'tablet_notes_list',
                                           ),
-                                          PopupMenuButton<String>(
-                                            icon: const Icon(PhosphorIconsRegular.dotsThree, size: 20),
-                                            tooltip: 'More actions',
-                                            color: colors.surface,
-                                            elevation: 3,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: AppRadii.borderMd,
-                                              side: BorderSide(color: colors.divider, width: 0.8),
-                                            ),
-                                            onSelected: (val) {
-                                              if (val == 'sort') {
-                                                NotesSortSheet.show(context);
-                                              } else if (val == 'filter') {
-                                                NotesFilterSheet.show(context);
-                                              } else if (val == 'clip') {
-                                                WebClipDialog.show(context);
-                                              } else if (val == 'hide_list') {
-                                                ref
-                                                    .read(isNoteListVisibleProvider.notifier)
-                                                    .state = false;
-                                              } else if (val == 'settings') {
-                                                Navigator.of(context).push(
-                                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                          isTabletPane: true,
+                                          enabled: defaultSettings
+                                              .swipeDownToSearchNotes,
+                                          onOpenSearch: () {},
+                                          onStateCreated: (state) =>
+                                              _tabletPullDownState = state,
+                                          searchViewBuilder:
+                                              (
+                                                context,
+                                                isPastThreshold,
+                                                onClose,
+                                              ) {
+                                                return SearchScreen(
+                                                  onClose: onClose,
+                                                  isPastThreshold:
+                                                      isPastThreshold,
+                                                  autoFocus:
+                                                      _tabletPullDownState
+                                                          ?.isSearchActive ??
+                                                      false,
+                                                  onNoteSelected: (note) {
+                                                    setState(() {
+                                                      _selectedNoteIdForTablet =
+                                                          note.id;
+                                                    });
+                                                  },
                                                 );
-                                              } else if (val == 'empty_trash') {
-                                                _confirmEmptyTrash(context);
+                                              },
+                                          child: GestureDetector(
+                                            behavior:
+                                                HitTestBehavior.translucent,
+                                            onHorizontalDragEnd: (details) {
+                                              if (!isNavSidebarVisible &&
+                                                  details.primaryVelocity !=
+                                                      null &&
+                                                  details.primaryVelocity! >
+                                                      250) {
+                                                ref
+                                                        .read(
+                                                          isNavSidebarVisibleProvider
+                                                              .notifier,
+                                                        )
+                                                        .state =
+                                                    true;
                                               }
                                             },
-                                            itemBuilder: (context) => [
-                                              PopupMenuItem(
-                                                value: 'sort',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
-                                                    const SizedBox(width: AppSpacing.sm),
-                                                    Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                  ],
-                                                ),
-                                              ),
-                                              PopupMenuItem(
-                                                value: 'filter',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
-                                                    const SizedBox(width: AppSpacing.sm),
-                                                    Expanded(
-                                                      child: Text(
-                                                        query.filter.advancedFilterCount > 0
-                                                            ? 'Filter notes (${query.filter.advancedFilterCount})'
-                                                            : 'Filter notes',
-                                                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                                                      ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                // Middle Pane Top bar
+                                                if (_isMultiSelecting)
+                                                  _buildTabletMultiSelectHeader(
+                                                    context,
+                                                    colors,
+                                                    destination,
+                                                    repository,
+                                                  )
+                                                else if (destination ==
+                                                    AppDestination.tag)
+                                                  TagContextHeader(
+                                                    tagName:
+                                                        selectedTag ?? 'tag',
+                                                    tagId: ref.watch(
+                                                      selectedTagIdProvider,
                                                     ),
-                                                    if (query.filter.advancedFilterCount > 0)
-                                                      Container(
-                                                        width: 7,
-                                                        height: 7,
-                                                        decoration: BoxDecoration(
-                                                          color: colors.accent,
-                                                          shape: BoxShape.circle,
+                                                    noteCount: collectionState
+                                                        .totalCount,
+                                                    isTablet: true,
+                                                    isSidebarVisible:
+                                                        isNavSidebarVisible,
+                                                    onToggleSidebar: () {
+                                                      ref
+                                                              .read(
+                                                                isNavSidebarVisibleProvider
+                                                                    .notifier,
+                                                              )
+                                                              .state =
+                                                          !isNavSidebarVisible;
+                                                    },
+                                                    onSortPressed: () =>
+                                                        NotesSortSheet.show(
+                                                          context,
                                                         ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                              PopupMenuItem(
-                                                value: 'clip',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
-                                                    const SizedBox(width: AppSpacing.sm),
-                                                    Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                  ],
-                                                ),
-                                              ),
-                                              if (activeNote != null)
-                                                PopupMenuItem(
-                                                  value: 'hide_list',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(PhosphorIconsRegular.sidebarSimple, size: 18, color: colors.textSecondary),
-                                                      const SizedBox(width: AppSpacing.sm),
-                                                      Text('Hide notes list', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                    ],
+                                                    onFilterPressed: () =>
+                                                        NotesFilterSheet.show(
+                                                          context,
+                                                        ),
+                                                    onSearchPressed: () =>
+                                                        _openSearchScreen(
+                                                          context,
+                                                        ),
+                                                    onCreateNotePressed: () =>
+                                                        _createAndOpenNoteTablet(),
+                                                    advancedFilterCount: query
+                                                        .filter
+                                                        .advancedFilterCount,
+                                                  )
+                                                else
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal:
+                                                              AppSpacing.sm,
+                                                          vertical:
+                                                              AppSpacing.xs,
+                                                        ),
+                                                    child: Row(
+                                                      children: [
+                                                        QuietIconButton(
+                                                          icon:
+                                                              isNavSidebarVisible
+                                                              ? PhosphorIconsRegular
+                                                                    .sidebarSimple
+                                                              : PhosphorIconsRegular
+                                                                    .sidebarSimple,
+                                                          tooltip:
+                                                              isNavSidebarVisible
+                                                              ? 'Hide navigation'
+                                                              : 'Show navigation',
+                                                          onPressed: () {
+                                                            ref
+                                                                    .read(
+                                                                      isNavSidebarVisibleProvider
+                                                                          .notifier,
+                                                                    )
+                                                                    .state =
+                                                                !isNavSidebarVisible;
+                                                          },
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4.0,
+                                                        ),
+                                                        Expanded(
+                                                          child: Text(
+                                                            title,
+                                                            style: AppTypography
+                                                                .title
+                                                                .copyWith(
+                                                                  color: colors
+                                                                      .textPrimary,
+                                                                  fontSize: 19,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            maxLines: 1,
+                                                          ),
+                                                        ),
+                                                        if (collectionState
+                                                            .notes
+                                                            .isNotEmpty)
+                                                          _NotesSelectTextAction(
+                                                            onPressed: () =>
+                                                                _enterMultiSelect(),
+                                                          ),
+                                                        QuietIconButton(
+                                                          icon:
+                                                              PhosphorIconsRegular
+                                                                  .plus,
+                                                          tooltip: 'New note',
+                                                          isActive: true,
+                                                          onPressed: () =>
+                                                              _createAndOpenNoteTablet(),
+                                                        ),
+                                                        QuietIconButton(
+                                                          icon: PhosphorIconsRegular
+                                                              .magnifyingGlass,
+                                                          tooltip:
+                                                              'Search notes',
+                                                          onPressed: () =>
+                                                              _openSearchScreen(
+                                                                context,
+                                                              ),
+                                                        ),
+                                                        PopupMenuButton<String>(
+                                                          icon: const Icon(
+                                                            PhosphorIconsRegular
+                                                                .dotsThree,
+                                                            size: 20,
+                                                          ),
+                                                          tooltip:
+                                                              'More actions',
+                                                          color: colors.surface,
+                                                          elevation: 3,
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                AppRadii
+                                                                    .borderMd,
+                                                            side: BorderSide(
+                                                              color: colors
+                                                                  .divider,
+                                                              width: 0.8,
+                                                            ),
+                                                          ),
+                                                          onSelected: (val) {
+                                                            if (val ==
+                                                                'select') {
+                                                              _enterMultiSelect();
+                                                            } else if (val ==
+                                                                'sort') {
+                                                              NotesSortSheet.show(
+                                                                context,
+                                                              );
+                                                            } else if (val ==
+                                                                'filter') {
+                                                              NotesFilterSheet.show(
+                                                                context,
+                                                              );
+                                                            } else if (val ==
+                                                                'clip') {
+                                                              WebClipDialog.show(
+                                                                context,
+                                                              );
+                                                            } else if (val ==
+                                                                'hide_list') {
+                                                              ref
+                                                                      .read(
+                                                                        isNoteListVisibleProvider
+                                                                            .notifier,
+                                                                      )
+                                                                      .state =
+                                                                  false;
+                                                            } else if (val ==
+                                                                'settings') {
+                                                              Navigator.of(
+                                                                context,
+                                                              ).push(
+                                                                MaterialPageRoute(
+                                                                  builder: (_) =>
+                                                                      const SettingsScreen(),
+                                                                ),
+                                                              );
+                                                            } else if (val ==
+                                                                'empty_trash') {
+                                                              _confirmEmptyTrash(
+                                                                context,
+                                                              );
+                                                            }
+                                                          },
+                                                          itemBuilder: (context) => [
+                                                            PopupMenuItem(
+                                                              value: 'select',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .checkCircle,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Text(
+                                                                    'Select notes',
+                                                                    style: AppTypography
+                                                                        .bodySmall
+                                                                        .copyWith(
+                                                                          color:
+                                                                              colors.textPrimary,
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            PopupMenuItem(
+                                                              value: 'sort',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .arrowsDownUp,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Text(
+                                                                    'Sort notes',
+                                                                    style: AppTypography
+                                                                        .bodySmall
+                                                                        .copyWith(
+                                                                          color:
+                                                                              colors.textPrimary,
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            PopupMenuItem(
+                                                              value: 'filter',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .funnel,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      query.filter.advancedFilterCount >
+                                                                              0
+                                                                          ? 'Filter notes (${query.filter.advancedFilterCount})'
+                                                                          : 'Filter notes',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                  if (query
+                                                                          .filter
+                                                                          .advancedFilterCount >
+                                                                      0)
+                                                                    Container(
+                                                                      width: 7,
+                                                                      height: 7,
+                                                                      decoration: BoxDecoration(
+                                                                        color: colors
+                                                                            .accent,
+                                                                        shape: BoxShape
+                                                                            .circle,
+                                                                      ),
+                                                                    ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            PopupMenuItem(
+                                                              value: 'clip',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .globe,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Text(
+                                                                    'Clip webpage',
+                                                                    style: AppTypography
+                                                                        .bodySmall
+                                                                        .copyWith(
+                                                                          color:
+                                                                              colors.textPrimary,
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            if (activeNote !=
+                                                                null)
+                                                              PopupMenuItem(
+                                                                value:
+                                                                    'hide_list',
+                                                                child: Row(
+                                                                  children: [
+                                                                    Icon(
+                                                                      PhosphorIconsRegular
+                                                                          .sidebarSimple,
+                                                                      size: 18,
+                                                                      color: colors
+                                                                          .textSecondary,
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width:
+                                                                          AppSpacing
+                                                                              .sm,
+                                                                    ),
+                                                                    Text(
+                                                                      'Hide notes list',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            PopupMenuItem(
+                                                              value: 'settings',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .gear,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Text(
+                                                                    'Settings',
+                                                                    style: AppTypography
+                                                                        .bodySmall
+                                                                        .copyWith(
+                                                                          color:
+                                                                              colors.textPrimary,
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            if (destination ==
+                                                                AppDestination
+                                                                    .trash) ...[
+                                                              const PopupMenuDivider(),
+                                                              PopupMenuItem(
+                                                                value:
+                                                                    'empty_trash',
+                                                                child: Row(
+                                                                  children: [
+                                                                    Icon(
+                                                                      PhosphorIconsRegular
+                                                                          .trash,
+                                                                      size: 18,
+                                                                      color: colors
+                                                                          .error,
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width:
+                                                                          AppSpacing
+                                                                              .sm,
+                                                                    ),
+                                                                    Text(
+                                                                      'Empty trash',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.error,
+                                                                          ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
+                                                if (destination ==
+                                                    AppDestination
+                                                        .allNotes) ...[
+                                                  const TagsFilterBar(),
+                                                ],
+                                                const ActiveFilterChips(
+                                                  horizontalPadding:
+                                                      AppSpacing.md,
                                                 ),
-                                              PopupMenuItem(
-                                                value: 'settings',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(PhosphorIconsRegular.gear, size: 18, color: colors.textSecondary),
-                                                    const SizedBox(width: AppSpacing.sm),
-                                                    Text('Settings', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
-                                                  ],
-                                                ),
-                                              ),
-                                              if (destination == AppDestination.trash) ...[
-                                                const PopupMenuDivider(),
-                                                PopupMenuItem(
-                                                  value: 'empty_trash',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
-                                                      const SizedBox(width: AppSpacing.sm),
-                                                      Text('Empty trash', style: AppTypography.bodySmall.copyWith(color: colors.error)),
-                                                    ],
+                                                if (!collectionState
+                                                        .initialLoading &&
+                                                    collectionState
+                                                        .notes
+                                                        .isNotEmpty)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          left: AppSpacing.md,
+                                                          right: AppSpacing.md,
+                                                          top: 2.0,
+                                                          bottom: 4.0,
+                                                        ),
+                                                    child: Text(
+                                                      '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
+                                                      style: AppTypography
+                                                          .caption
+                                                          .copyWith(
+                                                            color: colors
+                                                                .textTertiary,
+                                                            fontSize: 11.5,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                Expanded(
+                                                  child: NotificationListener<ScrollNotification>(
+                                                    onNotification: (notification) {
+                                                      if (notification
+                                                              .metrics
+                                                              .extentAfter <
+                                                          800) {
+                                                        ref
+                                                            .read(
+                                                              notesCollectionProvider
+                                                                  .notifier,
+                                                            )
+                                                            .loadMore();
+                                                      }
+                                                      return false;
+                                                    },
+                                                    child:
+                                                        collectionState
+                                                            .initialLoading
+                                                        ? const Center(
+                                                            child:
+                                                                CircularProgressIndicator.adaptive(),
+                                                          )
+                                                        : (groups.isEmpty &&
+                                                              collectionState
+                                                                  .notes
+                                                                  .isEmpty)
+                                                        ? SingleChildScrollView(
+                                                            physics:
+                                                                const BouncingScrollPhysics(
+                                                                  parent:
+                                                                      AlwaysScrollableScrollPhysics(),
+                                                                ),
+                                                            child: SizedBox(
+                                                              height: 400,
+                                                              child: NoteEmptyState(
+                                                                onCreateNote: () =>
+                                                                    _createAndOpenNoteTablet(),
+                                                                destination:
+                                                                    destination,
+                                                                tagFilter:
+                                                                    selectedTag,
+                                                                hasActiveFilters:
+                                                                    query
+                                                                        .filter
+                                                                        .hasAdvancedFilters,
+                                                                onClearFilters: () => ref
+                                                                    .read(
+                                                                      notesQueryProvider
+                                                                          .notifier,
+                                                                    )
+                                                                    .clearAllFilters(),
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : DesktopSmoothScroll(
+                                                            child: ListView.builder(
+                                                              scrollCacheExtent:
+                                                                  const ScrollCacheExtent.pixels(
+                                                                    1200.0,
+                                                                  ),
+                                                              physics:
+                                                                  PlatformLayoutHelper
+                                                                      .isDesktopPlatform
+                                                                  ? const ClampingScrollPhysics(
+                                                                      parent:
+                                                                          AlwaysScrollableScrollPhysics(),
+                                                                    )
+                                                                  : const BouncingScrollPhysics(
+                                                                      parent:
+                                                                          AlwaysScrollableScrollPhysics(),
+                                                                    ),
+                                                              itemCount:
+                                                                  _calculateTotalItemCount(
+                                                                    groups,
+                                                                  ) +
+                                                                  1,
+                                                              itemBuilder: (context, index) {
+                                                                if (index ==
+                                                                    _calculateTotalItemCount(
+                                                                      groups,
+                                                                    )) {
+                                                                  return NotesLoadingMoreIndicator(
+                                                                    loadingMore:
+                                                                        collectionState
+                                                                            .loadingMore,
+                                                                    error: collectionState
+                                                                        .error,
+                                                                    onRetry: () => ref
+                                                                        .read(
+                                                                          notesCollectionProvider
+                                                                              .notifier,
+                                                                        )
+                                                                        .retry(),
+                                                                  );
+                                                                }
+                                                                return _buildGroupedItem(
+                                                                  context,
+                                                                  groups,
+                                                                  index,
+                                                                  isTablet:
+                                                                      true,
+                                                                );
+                                                              },
+                                                            ),
+                                                          ),
                                                   ),
                                                 ),
                                               ],
-                                            ],
+                                            ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  if (destination == AppDestination.allNotes) ...[
-                                    const TagsFilterBar(),
-                                  ],
-                          const ActiveFilterChips(horizontalPadding: AppSpacing.md),
-                          if (!collectionState.initialLoading && collectionState.notes.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppSpacing.md,
-                                right: AppSpacing.md,
-                                top: 2.0,
-                                bottom: 4.0,
-                              ),
-                              child: Text(
-                                '${collectionState.totalCount} ${collectionState.totalCount == 1 ? 'note' : 'notes'}',
-                                style: AppTypography.caption.copyWith(
-                                  color: colors.textTertiary,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w500,
+                                        ),
                                 ),
                               ),
                             ),
-                          Expanded(
-                            child: NotificationListener<ScrollNotification>(
-                              onNotification: (notification) {
-                                if (notification.metrics.extentAfter < 800) {
-                                  ref.read(notesCollectionProvider.notifier).loadMore();
-                                }
-                                return false;
-                              },
-                              child: collectionState.initialLoading
-                                  ? const Center(
-                                      child: CircularProgressIndicator.adaptive(),
-                                    )
-                                  : (groups.isEmpty && collectionState.notes.isEmpty)
-                                      ? SingleChildScrollView(
-                                          physics: const BouncingScrollPhysics(
-                                            parent: AlwaysScrollableScrollPhysics(),
-                                          ),
-                                          child: SizedBox(
-                                            height: 400,
-                                            child: NoteEmptyState(
-                                              onCreateNote: () => _createAndOpenNoteTablet(),
-                                              destination: destination,
-                                              tagFilter: selectedTag,
-                                              hasActiveFilters: query.filter.hasAdvancedFilters,
-                                              onClearFilters: () => ref
-                                                  .read(notesQueryProvider.notifier)
-                                                  .clearAllFilters(),
-                                            ),
-                                          ),
-                                        )
-                                      : DesktopSmoothScroll(
-                                          child: ListView.builder(
-                                            scrollCacheExtent: const ScrollCacheExtent.pixels(1200.0),
-                                            physics: PlatformLayoutHelper.isDesktopPlatform
-                                                ? const ClampingScrollPhysics(
-                                                    parent: AlwaysScrollableScrollPhysics(),
-                                                  )
-                                                : const BouncingScrollPhysics(
-                                                    parent: AlwaysScrollableScrollPhysics(),
-                                                  ),
-                                            itemCount: _calculateTotalItemCount(groups) + 1,
-                                            itemBuilder: (context, index) {
-                                              if (index == _calculateTotalItemCount(groups)) {
-                                                return NotesLoadingMoreIndicator(
-                                                  loadingMore: collectionState.loadingMore,
-                                                  error: collectionState.error,
-                                                  onRetry: () => ref
-                                                      .read(notesCollectionProvider.notifier)
-                                                      .retry(),
-                                                );
-                                              }
-                                              return _buildGroupedItem(
-                                                context,
-                                                groups,
-                                                index,
-                                                isTablet: true,
-                                              );
-                                            },
-                                          ),
-                                        ),
-                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                ),
-                ),
-              ),
-            ),
+
+                  // 3. Right Detail Editor Pane
+                  Expanded(
+                    child: activeNote != null
+                        ? KeyedSubtree(
+                            key: ValueKey(activeNote.id),
+                            child: EditorScreen(
+                              note: activeNote,
+                              autoFocusBody:
+                                  _shouldAutoFocusTablet &&
+                                  _selectedNoteIdForTablet == activeNote.id,
+                              initialPreviewMode:
+                                  !(_shouldAutoFocusTablet &&
+                                      _selectedNoteIdForTablet ==
+                                          activeNote.id),
+                              onClose: () {
+                                setState(() {
+                                  _selectedNoteIdForTablet = null;
+                                });
+                              },
+                              onOpenLinkedNote:
+                                  (
+                                    linkedNote, {
+                                    bool initialPreviewMode = true,
+                                  }) {
+                                    setState(() {
+                                      _selectedNoteIdForTablet = linkedNote.id;
+                                      _shouldAutoFocusTablet =
+                                          !initialPreviewMode;
+                                    });
+                                  },
+                            ),
+                          )
+                        : DropTarget(
+                            onDragDone: (detail) => _handleDroppedFileToNewNote(
+                              detail,
+                              isTabletLayout: true,
+                            ),
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.xl),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      PhosphorIconsRegular.notePencil,
+                                      size: 48,
+                                      color: colors.textTertiary.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.md),
+                                    Text(
+                                      'No note selected',
+                                      style: AppTypography.title.copyWith(
+                                        color: colors.textSecondary,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    Text(
+                                      'Select a note to view or create a new one.',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: colors.textTertiary,
+                                      ),
+                                    ),
+                                    if (!isNoteListVisible ||
+                                        !isNavSidebarVisible) ...[
+                                      const SizedBox(height: AppSpacing.lg),
+                                      QuietButton(
+                                        label: 'Show note list',
+                                        icon:
+                                            PhosphorIconsRegular.sidebarSimple,
+                                        variant: QuietButtonVariant.secondary,
+                                        onPressed: () {
+                                          ref
+                                                  .read(
+                                                    isNoteListVisibleProvider
+                                                        .notifier,
+                                                  )
+                                                  .state =
+                                              true;
+                                          ref
+                                                  .read(
+                                                    isNavSidebarVisibleProvider
+                                                        .notifier,
+                                                  )
+                                                  .state =
+                                              true;
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
                 ],
               ),
             ),
-
-            // 3. Right Detail Editor Pane
-            Expanded(
-              child: activeNote != null
-                  ? KeyedSubtree(
-                      key: ValueKey(activeNote.id),
-                      child: EditorScreen(
-                        note: activeNote,
-                        autoFocusBody: _shouldAutoFocusTablet &&
-                            _selectedNoteIdForTablet == activeNote.id,
-                        initialPreviewMode: !(_shouldAutoFocusTablet &&
-                            _selectedNoteIdForTablet == activeNote.id),
-                        onClose: () {
-                          setState(() {
-                            _selectedNoteIdForTablet = null;
-                          });
-                        },
-                        onOpenLinkedNote: (linkedNote, {bool initialPreviewMode = true}) {
-                          setState(() {
-                            _selectedNoteIdForTablet = linkedNote.id;
-                            _shouldAutoFocusTablet = !initialPreviewMode;
-                          });
-                        },
-                      ),
-                    )
-
-                  : DropTarget(
-                      onDragDone: (detail) => _handleDroppedFileToNewNote(
-                        detail,
-                        isTabletLayout: true,
-                      ),
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xl),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                PhosphorIconsRegular.notePencil,
-                                size: 48,
-                                color: colors.textTertiary.withValues(alpha: 0.35),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                'No note selected',
-                                style: AppTypography.title.copyWith(
-                                  color: colors.textSecondary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                'Select a note to view or create a new one.',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: colors.textTertiary,
-                                ),
-                              ),
-                              if (!isNoteListVisible || !isNavSidebarVisible) ...[
-                                const SizedBox(height: AppSpacing.lg),
-                                QuietButton(
-                                  label: 'Show note list',
-                                  icon: PhosphorIconsRegular.sidebarSimple,
-                                  variant: QuietButtonVariant.secondary,
-                                  onPressed: () {
-                                    ref
-                                        .read(isNoteListVisibleProvider.notifier)
-                                        .state = true;
-                                    ref
-                                        .read(isNavSidebarVisibleProvider.notifier)
-                                        .state = true;
-                                  },
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-    ),
-  );
+    );
   }
 
   void _prewarmThumbnails(List<NoteGroup> groups) {
@@ -1769,10 +2906,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             color: context.appColors.error,
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: const Icon(
-              PhosphorIconsRegular.trash,
-              color: Colors.white,
-            ),
+            child: const Icon(PhosphorIconsRegular.trash, color: Colors.white),
           );
         } else {
           // All Notes / Pinned / Tag:
@@ -1792,16 +2926,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             color: context.appColors.error,
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: const Icon(
-              PhosphorIconsRegular.trash,
-              color: Colors.white,
-            ),
+            child: const Icon(PhosphorIconsRegular.trash, color: Colors.white),
           );
         }
 
         return Dismissible(
           key: ValueKey('dismiss_${note.id}'),
-          direction: dismissDirection,
+          direction: _isMultiSelecting
+              ? DismissDirection.none
+              : dismissDirection,
           background: background,
           secondaryBackground: secondaryBackground,
           onDismissed: (direction) {
@@ -1827,6 +2960,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             isMultiSelecting: _isMultiSelecting,
             isItemMultiSelected: isItemMultiSelected,
             onItemMultiSelectToggle: () => _toggleNoteMultiSelect(note.id),
+            onEnterMultiSelect: () => _enterMultiSelect(note.id),
+            onModifierSelect: ({required bool ctrl, required bool shift}) {
+              _handleModifierSelect(note.id, ctrl: ctrl, shift: shift);
+            },
             onTap: () {
               if (isTablet) {
                 setState(() {
@@ -1882,8 +3019,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             onDuplicate: () {
               _duplicateNote(note);
             },
-            pinContextTag: ref.read(currentDestinationProvider) ==
-                    AppDestination.tag
+            pinContextTag:
+                ref.read(currentDestinationProvider) == AppDestination.tag
                 ? ref.read(selectedTagFilterProvider)
                 : null,
           ),
@@ -1903,21 +3040,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     } else if (_phonePullDownState != null) {
       _phonePullDownState!.openSearch();
     } else {
-      Navigator.of(context).push(
-        SearchPageRoute(
-          builder: (_) => const SearchScreen(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(SearchPageRoute(builder: (_) => const SearchScreen()));
     }
   }
 
   void _openNote(BuildContext context, Note note) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditorScreen(
-          note: note,
-          initialPreviewMode: true,
-        ),
+        builder: (_) => EditorScreen(note: note, initialPreviewMode: true),
       ),
     );
   }
@@ -2066,7 +3198,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           onPressed: () {
             // Undo restores the note to its pre-trash state, including its
             // original modification date, so trashing + undo is a no-op.
-            repository.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt);
+            repository.restoreFromTrash(
+              note.id,
+              restoreUpdatedAt: note.updatedAt,
+            );
             ref.read(notesCollectionProvider.notifier).refresh();
           },
         ),
@@ -2185,5 +3320,38 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         );
       }
     }
+  }
+}
+
+/// Quiet Places-style text action used to enter note multi-select.
+class _NotesSelectTextAction extends StatelessWidget {
+  const _NotesSelectTextAction({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadii.borderSm,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadii.borderSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 10.0,
+          ),
+          child: Text(
+            'Select',
+            style: AppTypography.bodySmallMedium.copyWith(
+              color: colors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
