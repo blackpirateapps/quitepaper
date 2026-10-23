@@ -89,22 +89,16 @@ void main() {
   }
 
   group('Notes multi-select entry & batch actions', () {
-    testWidgets('Select app bar action enters multi-select mode', (
-      tester,
-    ) async {
+    testWidgets('no Select text action in the app bar', (tester) async {
       setPhoneSize(tester);
       await seedNotes();
 
       await tester.pumpWidget(buildNotesApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Select'), findsOneWidget);
-      await tester.tap(find.text('Select'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Select notes'), findsOneWidget);
-      expect(find.byIcon(PhosphorIconsRegular.x), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
+      expect(find.text('Select'), findsNothing);
+      expect(find.byIcon(PhosphorIconsRegular.plus), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.magnifyingGlass), findsOneWidget);
 
       await finishTest(tester);
     });
@@ -139,14 +133,14 @@ void main() {
       await tester.pumpWidget(buildNotesApp());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Select'));
+      await tester.longPress(find.text('Alpha Note'));
       await tester.pumpAndSettle();
-      expect(find.text('Select notes'), findsOneWidget);
+      expect(find.text('1 selected'), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
 
-      expect(find.text('Select notes'), findsNothing);
+      expect(find.text('1 selected'), findsNothing);
       expect(find.text('All Notes'), findsOneWidget);
 
       await finishTest(tester);

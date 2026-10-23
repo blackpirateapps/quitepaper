@@ -10606,9 +10606,9 @@ Added first-class multi-select to the notes list on phone and tablet, with batch
 ### Entry Points
 1. **Mobile**:
    - Long-press any note to enter selection mode with that note selected.
-   - Tap the new **Select** text action in the phone AppBar.
    - Choose **Select notes** from the overflow menu.
    - Choose **Select** from a note's long-press context menu (search/tag surfaces).
+   - The former top-bar **Select** text action next to the new-note and search icons has been removed; selection mode remains reachable via long-press and the overflow menu.
 2. **Desktop**:
    - Ctrl/Cmd+click to toggle individual notes.
    - Shift+click to select a contiguous range from the anchor note.
@@ -10634,6 +10634,7 @@ Added first-class multi-select to the notes list on phone and tablet, with batch
 ### Regression Fixes & Tests
 - Updated legacy `test/widget_test.dart` archive/trash/pin flows for the new mobile long-press-to-select UX.
 - Added [`test/notes/notes_multi_select_test.dart`](file:///home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart) covering entry points, Escape/destination exits, batch archive/trash, and `NoteListTile` long-press/context-menu callbacks.
+- Removed the `_NotesSelectTextAction` widget from both the phone AppBar and tablet list header; the app-bar test now asserts the text action is absent while the overflow-menu entry point remains covered.
 - Automated verification: `flutter analyze` (**0 issues**) and `flutter test` (**2224/2224 tests passed**).
 
 ---

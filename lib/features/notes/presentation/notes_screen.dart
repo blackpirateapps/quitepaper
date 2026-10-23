@@ -972,10 +972,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             actions: [
-                              if (collectionState.notes.isNotEmpty)
-                                _NotesSelectTextAction(
-                                  onPressed: () => _enterMultiSelect(),
-                                ),
                               QuietIconButton(
                                 icon: PhosphorIconsRegular.plus,
                                 tooltip: 'New note',
@@ -2234,13 +2230,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             maxLines: 1,
                                                           ),
                                                         ),
-                                                        if (collectionState
-                                                            .notes
-                                                            .isNotEmpty)
-                                                          _NotesSelectTextAction(
-                                                            onPressed: () =>
-                                                                _enterMultiSelect(),
-                                                          ),
                                                         QuietIconButton(
                                                           icon:
                                                               PhosphorIconsRegular
@@ -3323,35 +3312,3 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   }
 }
 
-/// Quiet Places-style text action used to enter note multi-select.
-class _NotesSelectTextAction extends StatelessWidget {
-  const _NotesSelectTextAction({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.appColors;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: AppRadii.borderSm,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: AppRadii.borderSm,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: 10.0,
-          ),
-          child: Text(
-            'Select',
-            style: AppTypography.bodySmallMedium.copyWith(
-              color: colors.accent,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
