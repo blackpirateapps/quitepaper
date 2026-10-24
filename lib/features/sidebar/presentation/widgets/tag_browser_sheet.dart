@@ -242,27 +242,35 @@ class _TagBrowserSheetState extends ConsumerState<TagBrowserSheet> {
                         if (node.hasChildren) ...[
                           const SizedBox(width: 4),
                           SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 24,
-                                height: 24,
+                            width: 32,
+                            height: 32,
+                            child: Material(
+                              color: isExpanded
+                                  ? colors.accent.withValues(alpha: 0.12)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(AppRadii.sm),
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 32,
+                                  height: 32,
+                                ),
+                                iconSize: 18,
+                                icon: Icon(
+                                  isExpanded
+                                      ? PhosphorIconsRegular.caretDown
+                                      : PhosphorIconsRegular.caretRight,
+                                  color: isExpanded
+                                      ? colors.accent
+                                      : colors.textSecondary,
+                                ),
+                                tooltip: isExpanded
+                                    ? 'Collapse sub-tags'
+                                    : 'Expand sub-tags',
+                                onPressed: () => ref
+                                    .read(expandedTagPathsProvider.notifier)
+                                    .toggle(path),
                               ),
-                              iconSize: 15,
-                              icon: Icon(
-                                isExpanded
-                                    ? PhosphorIconsRegular.caretDown
-                                    : PhosphorIconsRegular.caretRight,
-                                color: colors.textTertiary,
-                              ),
-                              tooltip: isExpanded
-                                  ? 'Collapse sub-tags'
-                                  : 'Expand sub-tags',
-                              onPressed: () => ref
-                                  .read(expandedTagPathsProvider.notifier)
-                                  .toggle(path),
                             ),
                           ),
                         ],

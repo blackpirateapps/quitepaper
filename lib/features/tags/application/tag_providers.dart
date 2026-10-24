@@ -184,6 +184,9 @@ class ExpandedTagPathsNotifier extends StateNotifier<Set<String>> {
     _persist();
   }
 
+  bool isExpanded(String path) =>
+      state.contains(TagParser.normalizeTag(path));
+
   void _persist() {
     final prefs = _prefs;
     if (prefs == null) return;

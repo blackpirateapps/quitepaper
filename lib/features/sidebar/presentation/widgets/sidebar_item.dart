@@ -102,9 +102,11 @@ class SidebarItem extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 44.0),
               child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md + (indent * 14.0),
-                  vertical: 10.0,
+                padding: EdgeInsets.only(
+                  left: AppSpacing.md + (indent * 16.0),
+                  right: AppSpacing.sm,
+                  top: 10.0,
+                  bottom: 10.0,
                 ),
                 child: Row(
                   children: [

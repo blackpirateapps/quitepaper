@@ -218,6 +218,124 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets(
+      'expanding a parent tag does not truncate expanded children under _maxVisibleTags',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 900);
+        tester.view.devicePixelRatio = 1.0;
+
+        // 8 root tags, where root0 has 2 children
+        final manyTags = [
+          Tag(
+            id: 't-root0',
+            name: 'root0',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 1,
+          ),
+          Tag(
+            id: 't-root0-child1',
+            name: 'root0/child1',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 1,
+          ),
+          Tag(
+            id: 't-root0-child2',
+            name: 'root0/child2',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 1,
+          ),
+          for (var i = 1; i < 8; i++)
+            Tag(
+              id: 't-root$i',
+              name: 'root$i',
+              createdAt: testDate,
+              updatedAt: testDate,
+              noteCount: 1,
+            ),
+        ];
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              allTagsProvider.overrideWith((ref) => Stream.value(manyTags)),
+            ],
+            child: MaterialApp(
+              theme: ThemeData(extensions: const [AppColors.light]),
+              home: const Scaffold(body: SidebarView()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('root0'), findsOneWidget);
+        expect(find.text('child1'), findsNothing);
+        expect(find.text('child2'), findsNothing);
+
+        await tester.tap(find.byTooltip('Expand root0'));
+        await tester.pumpAndSettle();
+
+        // Children are now visible and not truncated
+        expect(find.text('child1'), findsOneWidget);
+        expect(find.text('child2'), findsOneWidget);
+
+        await finishTest(tester);
+      },
+    );
+
+    testWidgets(
+      'tapping an implicit parent tag row toggles expansion directly',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 900);
+        tester.view.devicePixelRatio = 1.0;
+
+        // Only explicit child tag exists; parent 'work' is implicit
+        final implicitChildTag = [
+          Tag(
+            id: 't-child',
+            name: 'work/projects',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 2,
+          ),
+        ];
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              allTagsProvider.overrideWith((ref) => Stream.value(implicitChildTag)),
+            ],
+            child: MaterialApp(
+              theme: ThemeData(extensions: const [AppColors.light]),
+              home: const Scaffold(body: SidebarView()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('work'), findsOneWidget);
+        expect(find.text('projects'), findsNothing);
+
+        // Tap directly on the implicit parent row
+        await tester.tap(find.text('work'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('projects'), findsOneWidget);
+
+        // Tap again to collapse
+        await tester.tap(find.text('work'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('projects'), findsNothing);
+
+        await finishTest(tester);
+      },
+    );
   });
 
   group('Tag browser hierarchy', () {
@@ -319,6 +437,61 @@ void main() {
 
       await finishTest(tester);
     });
+
+    testWidgets(
+      'expands all and collapses all sub-tags from popup menu (wide and compact)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1000, 900);
+        tester.view.devicePixelRatio = 1.0;
+
+        await tester.pumpWidget(
+          createTestApp(
+            home: const Scaffold(body: TagBrowserView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('#work'), findsOneWidget);
+        expect(find.text('#projects'), findsNothing);
+        expect(find.text('#alpha'), findsNothing);
+
+        // Open header hierarchy menu on wide layout
+        await tester.tap(find.byTooltip('Tag hierarchy options'));
+        await tester.pumpAndSettle();
+
+        // Tap "Expand all sub-tags"
+        await tester.tap(find.text('Expand all sub-tags'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('#projects'), findsOneWidget);
+        expect(find.text('#alpha'), findsOneWidget);
+
+        // Open menu and tap "Collapse all sub-tags"
+        await tester.tap(find.byTooltip('Tag hierarchy options'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Collapse all sub-tags'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('#projects'), findsNothing);
+        expect(find.text('#alpha'), findsNothing);
+
+        // Switch to compact layout (<340 width) and test combined menu
+        tester.view.physicalSize = const Size(320, 700);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Sort and filter tags'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Expand all sub-tags'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('#projects'), findsOneWidget);
+        expect(find.text('#alpha'), findsOneWidget);
+
+        await finishTest(tester);
+      },
+    );
   });
 
   group('Tag context breadcrumb', () {

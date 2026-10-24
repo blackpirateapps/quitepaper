@@ -10764,3 +10764,33 @@ Addressed three tag UX issues in the editor:
    - Synchronized `test/editor/wysiwyg_autocomplete_test.dart` and `test/editor/wysiwyg_backspace_test.dart` for immediate `#` trigger visibility.
    - Verified `flutter analyze` (**0 issues found**) and `flutter test` (**2337/2337 passing tests**).
 
+---
+
+## 229. Prominently Collapsible Children Tags in Sidebar and Tags Page (October 2026)
+
+### Overview
+Addressed user-reported issues where child tags were not effectively collapsible or their expanders were difficult to discover/interact with in both the navigation sidebar (`SidebarView`) and the tag browser (`TagBrowserView` / `TagBrowserSheet`). Specifically:
+1. **Visible & Prominent Expand/Collapse Chevrons on the Right**: Chevrons are placed on the trailing (right) side of each tag row, styled with a 32x32 hit area, 18sp icon size, high contrast (`accent` when expanded, `textSecondary` or light grey on dark sidebar when collapsed), and rounded hover/splash feedback. Tags are collapsed by default.
+2. **Sidebar Child Truncation Fix**: Expanding a root tag previously pushed total displayed items beyond the 7-tag limit (`_maxVisibleTags`), truncating children into `... and N more`. Now, visible root count is capped at 7 while all expanded descendants of visible roots are flattened inline.
+3. **Sidebar Alignment & Padding Fix**: Fixed asymmetric padding in `SidebarItem` so deeper nested tags keep their trailing badges and chevrons aligned flush to the right edge.
+4. **Tag Browser Layout & Alignment Cleanup**: Removed the small left-side chevron and empty placeholders in `TagBrowserView`; all tag icons align consistently to their depth indentation (`indent * 16.0`), and chevrons appear on the right side next to the note count.
+5. **Implicit Parent Tag Tap Toggle**: For implicit parent tags without direct notes, tapping the entire row toggles expansion.
+6. **Hierarchy Menu Actions**: Added "Expand all sub-tags" and "Collapse all sub-tags" in both the compact popup menu (`Sort and filter tags`) and the desktop/tablet header menu (`Tag hierarchy options` with `PhosphorIconsRegular.treeStructure`).
+
+### Implementation Details
+- **Domain & Application**:
+  - In [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart), added optional `roots` parameter to `TagTree.flatten()` to enable flattening a subset of root nodes and their descendants in linear time.
+  - In [`lib/features/tags/application/tag_providers.dart`](file:///home/dog/git/quitepaper/lib/features/tags/application/tag_providers.dart), added `bool isExpanded(String path)` helper to `ExpandedTagPathsNotifier`.
+- **Sidebar Presentation**:
+  - In [`lib/features/sidebar/presentation/widgets/sidebar_item.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/sidebar_item.dart), changed padding from symmetric `horizontal: AppSpacing.md + (indent * 14.0)` to `left: AppSpacing.md + (indent * 16.0), right: AppSpacing.sm` to maintain right-aligned trailing controls across all nesting levels.
+  - In [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart), updated visible tag calculation to `TagTree.flatten(tree, expandedPaths: expandedPaths, roots: tree.roots.take(_maxVisibleTags).toList())`. Promoted the trailing chevron button to 32x32 dp, 18sp icon size, with high-contrast color and tap toggle for implicit parents.
+- **Tag Browser & Sheet**:
+  - In [`lib/features/tags/presentation/widgets/tag_browser_view.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart), moved the expand/collapse button to the trailing position after the note count, eliminated leading placeholders for uniform icon alignment, added row tap expansion for implicit tags, and introduced "Expand all sub-tags" and "Collapse all sub-tags" actions in both compact and wide header menus.
+  - In [`lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart), aligned trailing expander styling to 32x32 dp, 18sp icon, and high-contrast color scheme.
+- **Automated Verification**:
+  - In [`test/tags/tag_hierarchy_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_hierarchy_ui_test.dart), added widget tests for:
+    - Expanding parent tags under `_maxVisibleTags` without child truncation.
+    - Tapping implicit parent rows to toggle expansion.
+    - Expanding all and collapsing all sub-tags from both wide (`Tag hierarchy options`) and compact (`Sort and filter tags`) popup menus.
+
+

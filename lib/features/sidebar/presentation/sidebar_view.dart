@@ -420,14 +420,14 @@ class SidebarView extends ConsumerWidget {
                           final isDark =
                               Theme.of(context).brightness == Brightness.dark;
                           final tree = TagTree.build(tags);
-                          final flattened = TagTree.flatten(
+                          final visibleRoots =
+                              tree.roots.take(_maxVisibleTags).toList();
+                          final hasMore = tree.roots.length > _maxVisibleTags;
+                          final displayTags = TagTree.flatten(
                             tree,
                             expandedPaths: expandedTagPaths,
+                            roots: visibleRoots,
                           );
-                          final displayTags = flattened
-                              .take(_maxVisibleTags)
-                              .toList();
-                          final hasMore = flattened.length > _maxVisibleTags;
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,53 +504,75 @@ class SidebarView extends ConsumerWidget {
                                   customIconColor: customColor,
                                   trailing: node.hasChildren
                                       ? SizedBox(
-                                          width: 28,
-                                          height: 28,
-                                          child: IconButton(
-                                            padding: EdgeInsets.zero,
-                                            constraints:
-                                                const BoxConstraints.tightFor(
-                                                  width: 28,
-                                                  height: 28,
+                                          width: 32,
+                                          height: 32,
+                                          child: Material(
+                                            color: isExpanded
+                                                ? colors.accent.withValues(
+                                                    alpha: 0.12,
+                                                  )
+                                                : Colors.transparent,
+                                            borderRadius:
+                                                BorderRadius.circular(
+                                                  AppRadii.sm,
                                                 ),
-                                            iconSize: 16,
-                                            icon: Icon(
-                                              isExpanded
-                                                  ? PhosphorIconsRegular
-                                                        .caretDown
-                                                  : PhosphorIconsRegular
-                                                        .caretRight,
-                                              color: colors.textTertiary,
+                                            child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints.tightFor(
+                                                    width: 32,
+                                                    height: 32,
+                                                  ),
+                                              iconSize: 18,
+                                              icon: Icon(
+                                                isExpanded
+                                                    ? PhosphorIconsRegular
+                                                          .caretDown
+                                                    : PhosphorIconsRegular
+                                                          .caretRight,
+                                                color: isExpanded
+                                                    ? colors.accent
+                                                    : (isSidebarDark
+                                                        ? const Color(
+                                                            0xFFD1D5DB,
+                                                          )
+                                                        : colors.textSecondary),
+                                              ),
+                                              tooltip: isExpanded
+                                                  ? 'Collapse ${node.displayName}'
+                                                  : 'Expand ${node.displayName}',
+                                              onPressed: () => ref
+                                                  .read(
+                                                    expandedTagPathsProvider
+                                                        .notifier,
+                                                  )
+                                                  .toggle(path),
                                             ),
-                                            tooltip: isExpanded
-                                                ? 'Collapse ${node.displayName}'
-                                                : 'Expand ${node.displayName}',
-                                            onPressed: () => ref
-                                                .read(
-                                                  expandedTagPathsProvider
-                                                      .notifier,
-                                                )
-                                                .toggle(path),
                                           ),
                                         )
                                       : null,
                                   onTap: () {
+                                    if (tag.isImplicit && node.hasChildren) {
+                                      ref
+                                          .read(
+                                            expandedTagPathsProvider.notifier,
+                                          )
+                                          .toggle(path);
+                                      return;
+                                    }
                                     ref
                                         .read(
                                           currentDestinationProvider.notifier,
                                         )
-                                        .state = AppDestination
-                                        .tag;
+                                        .state = AppDestination.tag;
                                     ref
                                         .read(
                                           selectedTagFilterProvider.notifier,
                                         )
-                                        .state = tag
-                                        .name;
+                                        .state = tag.name;
                                     ref
                                         .read(selectedTagIdProvider.notifier)
-                                        .state = tag
-                                        .id;
+                                        .state = tag.id;
                                     ref
                                         .read(notesQueryProvider.notifier)
                                         .setTag(tag.name);

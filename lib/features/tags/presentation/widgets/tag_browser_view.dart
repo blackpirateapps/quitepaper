@@ -810,6 +810,86 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                         _buildFilterMenuItems(colors, activeFilter),
                   ),
                 ),
+                const SizedBox(width: 2),
+                // Separate Hierarchy Menu
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(
+                      PhosphorIconsRegular.treeStructure,
+                      size: 20,
+                    ),
+                    tooltip: 'Tag hierarchy options',
+                    color: colors.surface,
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadii.borderMd,
+                      side: BorderSide(color: colors.divider, width: 0.8),
+                    ),
+                    onSelected: (val) {
+                      if (val == 'tree_expand_all') {
+                        final allTags =
+                            ref.read(allTagsProvider).valueOrNull ?? [];
+                        final tree = TagTree.build(allTags);
+                        ref.read(expandedTagPathsProvider.notifier).expandAll(
+                              tree.nodesByPath.values
+                                  .where((n) => n.hasChildren)
+                                  .map((n) => n.path?.value ?? n.tag.name),
+                            );
+                      } else if (val == 'tree_collapse_all') {
+                        ref
+                            .read(expandedTagPathsProvider.notifier)
+                            .collapseAll();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: 'tree_expand_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretDown,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Expand all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_collapse_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretRight,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Collapse all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ] else ...[
                 // Compact Combined Sort & Filter Menu
                 SizedBox(
@@ -846,6 +926,19 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                           (f) => f.name == filterName,
                         );
                         ref.read(tagFilterProvider.notifier).state = filter;
+                      } else if (val == 'tree_expand_all') {
+                        final allTags =
+                            ref.read(allTagsProvider).valueOrNull ?? [];
+                        final tree = TagTree.build(allTags);
+                        ref.read(expandedTagPathsProvider.notifier).expandAll(
+                              tree.nodesByPath.values
+                                  .where((n) => n.hasChildren)
+                                  .map((n) => n.path?.value ?? n.tag.name),
+                            );
+                      } else if (val == 'tree_collapse_all') {
+                        ref
+                            .read(expandedTagPathsProvider.notifier)
+                            .collapseAll();
                       }
                     },
                     itemBuilder: (context) => [
@@ -928,6 +1021,61 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                                 ),
                             ],
                           ),
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
+                        enabled: false,
+                        height: 28,
+                        child: Text(
+                          'HIERARCHY',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_expand_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretDown,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Expand all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_collapse_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretRight,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Collapse all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -1097,7 +1245,13 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _handleTagTap(item),
+          onTap: () {
+            if (item.isImplicit && hasChildren && onToggle != null) {
+              onToggle();
+              return;
+            }
+            _handleTagTap(item);
+          },
           onLongPress: () => _showTagOptions(context, item),
           onSecondaryTapUp: (details) => _showTagOptions(
             context,
@@ -1111,32 +1265,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
             ),
             child: Row(
               children: [
-                if (indent > 0) SizedBox(width: indent * 14.0),
-                if (hasChildren && onToggle != null)
-                  SizedBox(
-                    width: 24,
-                    height: 28,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 24,
-                        height: 28,
-                      ),
-                      iconSize: 15,
-                      icon: Icon(
-                        isExpanded
-                            ? PhosphorIconsRegular.caretDown
-                            : PhosphorIconsRegular.caretRight,
-                        color: colors.textTertiary,
-                      ),
-                      tooltip: isExpanded
-                          ? 'Collapse sub-tags'
-                          : 'Expand sub-tags',
-                      onPressed: onToggle,
-                    ),
-                  )
-                else
-                  const SizedBox(width: 20),
+                if (indent > 0) SizedBox(width: indent * 16.0),
                 // Icon or hash glyph container
                 Container(
                   width: 30,
@@ -1196,6 +1325,42 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+
+                // Trailing expand/collapse chevron
+                if (hasChildren && onToggle != null) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Material(
+                      color: isExpanded
+                          ? colors.accent.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 32,
+                          height: 32,
+                        ),
+                        iconSize: 18,
+                        icon: Icon(
+                          isExpanded
+                              ? PhosphorIconsRegular.caretDown
+                              : PhosphorIconsRegular.caretRight,
+                          color: isExpanded
+                              ? colors.accent
+                              : colors.textSecondary,
+                        ),
+                        tooltip: isExpanded
+                            ? 'Collapse sub-tags'
+                            : 'Expand sub-tags',
+                        onPressed: onToggle,
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(width: 4),
 
                 // More options button

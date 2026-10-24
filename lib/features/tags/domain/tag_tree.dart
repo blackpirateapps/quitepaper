@@ -125,9 +125,11 @@ class TagTree {
   }
 
   /// Flattens the tree, including children of expanded nodes only.
+  /// If [roots] is provided, only those roots and their descendants are flattened.
   static List<({TagTreeNode node, int depth})> flatten(
     TagTree tree, {
     required Set<String> expandedPaths,
+    Iterable<TagTreeNode>? roots,
   }) {
     final result = <({TagTreeNode node, int depth})>[];
     void visit(TagTreeNode node, int depth) {
@@ -139,7 +141,8 @@ class TagTree {
       }
     }
 
-    for (final root in tree.roots) {
+    final effectiveRoots = roots ?? tree.roots;
+    for (final root in effectiveRoots) {
       visit(root, 0);
     }
     return result;
