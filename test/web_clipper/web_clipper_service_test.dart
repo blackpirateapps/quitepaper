@@ -19,7 +19,7 @@ class InMemoryNotesRepository implements NotesRepository {
   final Map<String, Note> _notes = {};
 
   @override
-  Future<void> saveNote(Note note) async {
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false}) async {
     _notes[note.id] = note;
   }
 

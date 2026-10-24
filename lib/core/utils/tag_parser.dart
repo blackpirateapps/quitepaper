@@ -11,12 +11,26 @@ abstract final class TagParser {
     unicode: true,
   );
 
+  /// Matches hashtags that are strictly followed by whitespace or a closing delimiter
+  /// rather than end-of-input. Used during interactive editing so in-progress hashtags
+  /// are not converted to tags until the user presses space, enter, or punctuation.
+  static final RegExp _tagWithTerminatorRegex = RegExp(
+    r'''(?:^|[\s(\[{<"'`])#([\p{L}\p{M}\p{N}_\-/]+)(?=[)\],.!?\s>"'`:])''',
+    multiLine: true,
+    unicode: true,
+  );
+
   /// Extracts unique normalized tag names from markdown text.
-  static List<String> extractTags(String text) {
+  ///
+  /// When [requireTerminator] is true, hashtags must be terminated by whitespace
+  /// (e.g. space, tab, or enter/newline) or a delimiter/punctuation, rather than
+  /// bare end-of-input.
+  static List<String> extractTags(String text, {bool requireTerminator = false}) {
     if (text.isEmpty || !text.contains('#')) return const [];
 
     final cleanText = _stripCodeBlocks(text);
-    final matches = _tagRegex.allMatches(cleanText);
+    final regex = requireTerminator ? _tagWithTerminatorRegex : _tagRegex;
+    final matches = regex.allMatches(cleanText);
     final tags = <String>{};
 
     for (final match in matches) {

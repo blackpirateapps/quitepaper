@@ -30,9 +30,9 @@ class TagAutocompleteTrigger {
   static final RegExp _tagTerminatorRegex = RegExp(r'''[\s.,!?()\[\]{}"`'><:;]''');
 
   /// Evaluates [value] and returns an active [TagAutocompleteTrigger] if the caret
-  /// is positioned after an unclosed `#` trigger followed by 1 or more tag characters.
+  /// is positioned after an unclosed `#` trigger followed by 0 or more tag characters.
   ///
-  /// Rule: `#` alone returns `null` (nothing appears).
+  /// Rule: `#` alone returns trigger with query `''`.
   /// `# ` (hash followed by space) returns `null`.
   /// `#a` returns trigger with query `'a'`.
   static TagAutocompleteTrigger? detect(TextEditingValue value) {
@@ -42,7 +42,7 @@ class TagAutocompleteTrigger {
 
     final text = value.text;
     final cursor = value.selection.start;
-    if (cursor < 2 || cursor > text.length) {
+    if (cursor < 1 || cursor > text.length) {
       return null;
     }
 
@@ -98,8 +98,7 @@ class TagAutocompleteTrigger {
 
     final queryStart = absoluteHashStart + 1;
     final queryEnd = cursor;
-    if (queryStart >= queryEnd) {
-      // User typed `#` alone: nothing appears
+    if (queryStart > queryEnd) {
       return null;
     }
 

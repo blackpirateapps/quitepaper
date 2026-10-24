@@ -15,6 +15,7 @@ class QuietTagChip extends StatelessWidget {
     this.onDelete,
     this.isSelected = false,
     this.showBackground = true,
+    this.showFullPath = false,
     this.icon,
     this.customColor,
     this.customBackgroundColor,
@@ -25,6 +26,7 @@ class QuietTagChip extends StatelessWidget {
   final VoidCallback? onDelete;
   final bool isSelected;
   final bool showBackground;
+  final bool showFullPath;
   final IconData? icon;
   final Color? customColor;
   final Color? customBackgroundColor;
@@ -34,13 +36,13 @@ class QuietTagChip extends StatelessWidget {
     final colors = context.appColors;
     final path = TagPath.tryParse(tag);
     final isNested = path?.isNested == true;
-    final displayTag = path != null
-        ? '#${path.leaf}'
-        : TagParser.formatDisplay(tag);
-    final fullLabel = path?.token ?? displayTag;
+    final displayTag = (showFullPath || path == null)
+        ? TagParser.formatDisplay(tag)
+        : '#${path.leaf}';
+    final fullLabel = path?.token ?? TagParser.formatDisplay(tag);
 
     final VoidCallback? effectiveOnTap;
-    if (isNested) {
+    if (isNested && !showFullPath) {
       effectiveOnTap = () => _showPathDisclosure(context, path!);
     } else {
       effectiveOnTap = onTap;
@@ -96,7 +98,7 @@ class QuietTagChip extends StatelessWidget {
     );
 
     content = Semantics(
-      label: isNested ? '$fullLabel, nested tag' : fullLabel,
+      label: (isNested && !showFullPath) ? '$fullLabel, nested tag' : fullLabel,
       button: effectiveOnTap != null,
       excludeSemantics: true,
       child: content,

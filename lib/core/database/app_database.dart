@@ -1289,6 +1289,7 @@ class AppDatabase extends _$AppDatabase {
     int serverRevision = 0,
     bool isDirty = true,
     DateTime? syncedAt,
+    bool preserveEmptyTags = false,
   }) async {
     final effectiveJournalDate =
         journalDate ??
@@ -1297,9 +1298,11 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       // Resolve the note's current tag set first so per-tag pins can be pruned
       // to tags the note still carries.
-      final extractedTags = (tags != null && tags.isNotEmpty)
+      final extractedTags = (preserveEmptyTags && tags != null)
           ? tags
-          : TagParser.extractTags('$title\n$content');
+          : ((tags != null && tags.isNotEmpty)
+              ? tags
+              : TagParser.extractTags('$title\n$content'));
       final normalizedTagSet = extractedTags
           .map(TagParser.normalizeTag)
           .where(TagParser.isValidTag)

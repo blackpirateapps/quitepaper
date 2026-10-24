@@ -118,7 +118,7 @@ void main() {
       await finishTest(tester);
     });
 
-    testWidgets('WYSIWYG mode tag autocomplete: # alone shows nothing, #a shows tag menu', (tester) async {
+    testWidgets('WYSIWYG mode tag autocomplete: # alone shows tag menu, #a filters tag menu', (tester) async {
       final now = DateTime.now();
       final currentNote = Note(
         id: 'current-tag-1',
@@ -162,11 +162,11 @@ void main() {
       await tester.tap(blockField);
       await tester.pumpAndSettle();
 
-      // 1. User types '#' alone: nothing should appear
+      // 1. User types '#' alone: tag menu appears
       await tester.enterText(blockField, 'Start idea #');
       await tester.pumpAndSettle();
 
-      expect(find.byType(TagInlineMenu), findsNothing);
+      expect(find.byType(TagInlineMenu), findsOneWidget);
 
       // 2. User types any character immediately after '#': e.g. '#a'
       final blockWithHash = find.widgetWithText(TextField, 'Start idea #');

@@ -23,7 +23,8 @@ class TagSearchService {
     int limit = 15,
   }) {
     final cleanQuery = TagParser.normalizeTag(query);
-    if (cleanQuery.isEmpty) {
+    // If the raw query was non-empty but normalized to empty, it was invalid punctuation
+    if (query.isNotEmpty && cleanQuery.isEmpty) {
       return const [];
     }
 
@@ -54,42 +55,49 @@ class TagSearchService {
 
     final scored = <TagCandidateItem>[];
 
-    for (final tag in tagMap.values) {
-      final lowerName = tag.name.toLowerCase();
-      int score = 0;
+    if (cleanQuery.isEmpty) {
+      // User typed `#` alone: return all known tags up to limit
+      for (final tag in tagMap.values) {
+        scored.add(TagCandidateItem(tag: tag, score: 500));
+      }
+    } else {
+      for (final tag in tagMap.values) {
+        final lowerName = tag.name.toLowerCase();
+        int score = 0;
 
-      if (lowerName == cleanQuery) {
-        score = 1000;
-      } else if (lowerName.startsWith(cleanQuery)) {
-        score = 800;
-      } else if (lowerName.contains(cleanQuery)) {
-        score = 400;
+        if (lowerName == cleanQuery) {
+          score = 1000;
+        } else if (lowerName.startsWith(cleanQuery)) {
+          score = 800;
+        } else if (lowerName.contains(cleanQuery)) {
+          score = 400;
+        }
+
+        if (score > 0) {
+          scored.add(TagCandidateItem(tag: tag, score: score));
+        }
       }
 
-      if (score > 0) {
-        scored.add(TagCandidateItem(tag: tag, score: score));
-      }
-    }
-
-    // Offer to create a missing nested path. Flat unknown queries keep the
-    // existing behavior (no synthetic candidate) so free text is never
-    // silently turned into a tag.
-    if (cleanQuery.contains('/') &&
-        TagPath.isValid(cleanQuery) &&
-        !tagMap.containsKey(cleanQuery)) {
-      final now = DateTime.now();
-      scored.add(
-        TagCandidateItem(
-          tag: Tag(
-            id: 'new_$cleanQuery',
-            name: cleanQuery,
-            createdAt: now,
-            updatedAt: now,
-            isNew: true,
+      // Offer to create a missing nested path if syntactically valid.
+      // Flat unknown queries keep the existing behavior (no synthetic candidate)
+      // so free text is never silently turned into a tag.
+      if (cleanQuery.contains('/') &&
+          TagPath.isValid(cleanQuery) &&
+          !tagMap.containsKey(cleanQuery)) {
+        final now = DateTime.now();
+        scored.add(
+          TagCandidateItem(
+            tag: Tag(
+              id: 'new_$cleanQuery',
+              name: cleanQuery,
+              createdAt: now,
+              updatedAt: now,
+              isNew: true,
+            ),
+            score: 900,
           ),
-          score: 900,
-        ),
-      );
+        );
+      }
     }
 
     // Sort by score DESC, isPinned DESC, noteCount DESC, name ASC

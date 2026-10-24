@@ -34,6 +34,42 @@ void main() {
 ''';
       expect(TagParser.extractTags(text), equals(['real_tag']));
     });
+
+    test('requireTerminator ignores unterminated hashtag at end of input', () {
+      expect(
+        TagParser.extractTags('Hello #work', requireTerminator: true),
+        isEmpty,
+      );
+      expect(
+        TagParser.extractTags('Note with #journal/daily', requireTerminator: true),
+        isEmpty,
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by space', () {
+      expect(
+        TagParser.extractTags('Hello #work and #done ', requireTerminator: true),
+        equals(['done', 'work']),
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by newline', () {
+      expect(
+        TagParser.extractTags('Hello #work\n#journal/daily\n', requireTerminator: true),
+        equals(['journal/daily', 'work']),
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by punctuation', () {
+      expect(
+        TagParser.extractTags('Tag #work.', requireTerminator: true),
+        equals(['work']),
+      );
+      expect(
+        TagParser.extractTags('Tagged (#work) here', requireTerminator: true),
+        equals(['work']),
+      );
+    });
   });
 
   group('TagParser.removeTagFromText', () {

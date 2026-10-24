@@ -235,7 +235,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
     // Extract tags during debounced save and merge with explicit tags
     final textForTags = state.note.isRichText ? state.note.plainText : state.note.content;
     final extractedTags =
-        TagParser.extractTags('$titleToSave\n$textForTags');
+        TagParser.extractTags('$titleToSave\n$textForTags', requireTerminator: true);
     final combinedTags = {...state.note.tags, ...extractedTags}.toList();
     final noteToSave = state.note.copyWith(
       title: titleToSave,
@@ -258,9 +258,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
           title: titleToSave,
           content: encryptedPayload,
         );
-        await repository.saveNote(encryptedNoteInDb);
+        await repository.saveNote(encryptedNoteInDb, preserveEmptyTags: true);
       } else {
-        await repository.saveNote(noteToSave);
+        await repository.saveNote(noteToSave, preserveEmptyTags: true);
       }
 
       if (mounted) {

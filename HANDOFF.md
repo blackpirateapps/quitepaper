@@ -10732,3 +10732,35 @@ Tags now support slash-separated hierarchy (`#work/projects/alpha`) using the **
 - Added `test/tags/tag_path_test.dart`, `test/tags/tag_tree_test.dart`, `test/tags/tag_hierarchy_database_test.dart`, and `test/tags/tag_hierarchy_ui_test.dart`.
 - Extended parser, search/autocomplete, import scanner, sync, and tag dialog tests for nested paths, branch operations, child-before-ancestor sync, duplicate reconciliation, tombstones, migration, and accessibility.
 - Sequential verification: `flutter analyze` (**0 issues**) and `flutter test` (**2326/2326 tests passed**).
+
+---
+
+## 228. Tag Picker on '#', Full Path Note Display, and Deferred Tag Creation (October 2026)
+
+### Overview
+Addressed three tag UX issues in the editor:
+1. **Tag Picker on `#`**: Typing `#` alone now immediately triggers the inline tag autocomplete picker showing all known tags, instead of requiring a character to be typed first.
+2. **Full Path Tag Display in Opened Notes**: When a note is opened in the editor or preview mode, tag chips in the note header bar display their full hierarchical path (e.g. `#journal/daily` or `#work/projects`) rather than truncating to only the leaf name (`#daily`).
+3. **Deferred Tag Creation While Typing**: In-body tags typed into note content are no longer extracted or added to the note tags bar prematurely while typing. The tag is only committed once terminated by whitespace (`Space`, `Enter`/newline) or delimiter/punctuation.
+
+### Implementation Details
+1. **Tag Picker Autocomplete Trigger**:
+   - In [`lib/features/editor/application/tag_autocomplete_trigger.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/tag_autocomplete_trigger.dart), relaxed `cursor < 2` to `cursor < 1` and permitted `queryStart == queryEnd` (`query: ''`).
+   - When `#` is typed alone at line start or after whitespace, `TagAutocompleteTrigger` emits a trigger with `query: ''`.
+   - In [`lib/features/editor/application/tag_search_service.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/tag_search_service.dart), empty queries (`query: ''`) rank and return all available existing and inline tags up to `limit` sorted by `isPinned DESC, noteCount DESC, name ASC`.
+   - Maintained `# ` space termination and ATX heading suppression (`##`..`######` at line start) so markdown headings remain unhindered.
+2. **Full Tag Path in Opened Notes**:
+   - In [`lib/core/widgets/quiet_tag_chip.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_tag_chip.dart), added `showFullPath: bool` (default `false`). When `true`, renders `TagParser.formatDisplay(tag)` and skips the disclosure popup since the full path is already visible.
+   - In [`lib/features/editor/presentation/widgets/tag_editor_bar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/tag_editor_bar.dart), added `showFullPath: bool` (default `true`) and passed it to all child `QuietTagChip` instances.
+   - Opened notes in `EditorScreen`, `FrontmatterPropertiesSection`, and `MarkdownPreview` render the complete hierarchical tag path. Compact multi-note list tiles (`NoteListTile`) retain `showFullPath: false` with tap disclosure.
+3. **Deferred In-Body Tag Extraction & Persistence**:
+   - In [`lib/core/utils/tag_parser.dart`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart), introduced `_tagWithTerminatorRegex` and `requireTerminator: bool = false` on `TagParser.extractTags`. When `requireTerminator: true`, hashtags must be followed by whitespace (`\s`) or closing punctuation/delimiters, omitting end-of-string lookahead `|$`.
+   - In [`lib/features/editor/application/editor_provider.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/editor_provider.dart), debounced autosave (`saveNow`) uses `requireTerminator: true` when scanning content. In-progress typing spans (e.g. `#t`, `#ta`) are not extracted or merged into `state.note.tags`.
+   - In [`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart) and [`lib/features/notes/data/notes_repository.dart`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_repository.dart), added `preserveEmptyTags: bool = false` to `saveNote`. When `EditorNotifier` saves with an explicitly empty tag set, the database respects it without triggering legacy fallback tag extraction from unterminated markdown content.
+4. **Automated Verification**:
+   - Updated `test/editor/tag_autocomplete_trigger_test.dart` and `test/editor/tag_search_service_test.dart` for `#` trigger and empty query candidate rankings.
+   - Added `test/editor/tag_inline_menu_test.dart` coverage for empty-query inline menu rendering and full-path `TagEditorBar` chip display.
+   - Added `test/utils/tag_parser_test.dart` and `test/editor/editor_provider_tag_test.dart` coverage for `requireTerminator: true` and deferred tag creation on space / enter.
+   - Synchronized `test/editor/wysiwyg_autocomplete_test.dart` and `test/editor/wysiwyg_backspace_test.dart` for immediate `#` trigger visibility.
+   - Verified `flutter analyze` (**0 issues found**) and `flutter test` (**2337/2337 passing tests**).
+

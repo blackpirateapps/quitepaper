@@ -23,7 +23,7 @@ abstract class NotesRepository {
   });
   Future<Note?> getNoteById(String id);
   Stream<Note?> watchNoteById(String id);
-  Future<void> saveNote(Note note);
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false});
   Future<void> setNoteShareInfo(
     String noteId, {
     String? shareId,
@@ -249,7 +249,7 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<void> saveNote(Note note) async {
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false}) async {
     await _db.saveNote(
       id: note.id,
       title: note.title,
@@ -262,6 +262,7 @@ class DriftNotesRepository implements NotesRepository {
       deletedAt: note.deletedAt,
       tags: note.tags,
       journalDate: note.journalDate,
+      preserveEmptyTags: preserveEmptyTags,
     );
 
     // Sync any renamed document titles referenced inside the note's markdown body

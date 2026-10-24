@@ -55,8 +55,17 @@ void main() {
       expect(results[2].name, 'pineapple'); // Substring match
     });
 
-    test('empty or invalid query returns empty list', () {
+    test('empty query returns all existing tags ranked by pinned, note count, and name', () {
       final results = service.searchTags(query: '', existingTags: allTags);
+      expect(results.length, 4);
+      expect(results[0].name, 'work'); // Pinned
+      expect(results[1].name, 'pineapple'); // noteCount 10
+      expect(results[2].name, 'apple'); // noteCount 5
+      expect(results[3].name, 'application'); // noteCount 1
+    });
+
+    test('invalid punctuation query returns empty list', () {
+      final results = service.searchTags(query: '???', existingTags: allTags);
       expect(results, isEmpty);
     });
 

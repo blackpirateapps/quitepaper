@@ -14,6 +14,7 @@ class TagEditorBar extends StatelessWidget {
     required this.onAddTag,
     required this.onRemoveTag,
     this.showAddButton = false,
+    this.showFullPath = true,
     this.padding,
   });
 
@@ -21,6 +22,7 @@ class TagEditorBar extends StatelessWidget {
   final ValueChanged<String> onAddTag;
   final ValueChanged<String> onRemoveTag;
   final bool showAddButton;
+  final bool showFullPath;
   final EdgeInsetsGeometry? padding;
 
   @override
@@ -41,6 +43,7 @@ class TagEditorBar extends StatelessWidget {
           ...tags.map((tag) {
             return QuietTagChip(
               tag: tag,
+              showFullPath: showFullPath,
               onDelete: () => onRemoveTag(tag),
             );
           }),
