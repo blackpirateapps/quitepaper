@@ -12,12 +12,22 @@ class TagTreeNode {
     List<TagTreeNode>? children,
   }) : children = children ?? <TagTreeNode>[];
 
-  final Tag tag;
+  Tag tag;
   final TagPath? path;
   final List<TagTreeNode> children;
 
   bool get hasChildren => children.isNotEmpty;
   bool get isImplicit => tag.isImplicit;
+
+  /// Total note count for this node and its descendants.
+  int get totalNoteCount {
+    var count = tag.noteCount;
+    var childSum = 0;
+    for (final child in children) {
+      childSum += child.totalNoteCount;
+    }
+    return count > childSum ? count : childSum;
+  }
 
   /// The leaf shown in compact surfaces (falls back to the raw name for
   /// malformed legacy paths).
@@ -103,6 +113,26 @@ class TagTree {
       roots.add(nodes[tag.name]!);
     }
 
+    // Ensure all ancestor nodes reflect their subtree's total note count so implicit
+    // or parent tags accurately display the total number of notes in their hierarchy.
+    int computeSubtreeCounts(TagTreeNode node) {
+      var childTotal = 0;
+      for (final child in node.children) {
+        childTotal += computeSubtreeCounts(child);
+      }
+      final total = node.tag.noteCount > childTotal
+          ? node.tag.noteCount
+          : childTotal;
+      if (node.tag.noteCount < total) {
+        node.tag = node.tag.copyWith(noteCount: total);
+      }
+      return total;
+    }
+
+    for (final root in roots) {
+      computeSubtreeCounts(root);
+    }
+
     final effectiveCompare = compare ?? _defaultCompare;
     void sortNodes(List<TagTreeNode> list) {
       list.sort((a, b) => effectiveCompare(a.tag, b.tag));
@@ -113,6 +143,22 @@ class TagTree {
 
     sortNodes(roots);
     return TagTree._(List.unmodifiable(roots), Map.unmodifiable(nodes));
+  }
+
+  /// Default comparator ordering tags pinned-first, then alphabetically by name.
+  static int compareByName(Tag a, Tag b) => _defaultCompare(a, b);
+
+  /// Comparator ordering tags pinned-first, then by note count descending (most used first),
+  /// then alphabetically by name.
+  static int compareByUsage(Tag a, Tag b) {
+    if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+    if (a.isPinned && b.isPinned) {
+      final order = a.pinnedOrder.compareTo(b.pinnedOrder);
+      if (order != 0) return order;
+    }
+    final count = b.noteCount.compareTo(a.noteCount);
+    if (count != 0) return count;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
 
   static int _defaultCompare(Tag a, Tag b) {

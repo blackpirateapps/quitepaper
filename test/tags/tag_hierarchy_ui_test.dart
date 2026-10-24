@@ -319,6 +319,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('work'), findsOneWidget);
+        expect(find.text('2'), findsOneWidget);
         expect(find.text('projects'), findsNothing);
 
         // Tap directly on the implicit parent row
@@ -332,6 +333,63 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('projects'), findsNothing);
+
+        await finishTest(tester);
+      },
+    );
+
+    testWidgets(
+      'sidebar displays the most used parent tag and its note count when many root tags exist',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 900);
+        tester.view.devicePixelRatio = 1.0;
+
+        final tags = [
+          // 8 tags starting with 'a_' that each have only 1 note
+          for (var i = 1; i <= 8; i++)
+            Tag(
+              id: 't-a$i',
+              name: 'a_root$i',
+              createdAt: testDate,
+              updatedAt: testDate,
+              noteCount: 1,
+            ),
+          // 'work' is alphabetically at the end, but is the MOST USED parent tag with 25 notes across children
+          Tag(
+            id: 't-work-proj',
+            name: 'work/projects',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 15,
+          ),
+          Tag(
+            id: 't-work-ideas',
+            name: 'work/ideas',
+            createdAt: testDate,
+            updatedAt: testDate,
+            noteCount: 10,
+          ),
+        ];
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              allTagsProvider.overrideWith((ref) => Stream.value(tags)),
+            ],
+            child: MaterialApp(
+              theme: ThemeData(extensions: const [AppColors.light]),
+              home: const Scaffold(body: SidebarView()),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // 'work' is the most used parent tag (25 notes total) -> must display in the sidebar!
+        expect(find.text('work'), findsOneWidget);
+        // Its total note count (25) must display in the sidebar!
+        expect(find.text('25'), findsOneWidget);
 
         await finishTest(tester);
       },

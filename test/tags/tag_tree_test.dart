@@ -169,6 +169,31 @@ void main() {
       expect(tree.nodeFor('#Work/Projects')?.tag.name, equals('work/projects'));
       expect(tree.nodeFor('missing'), isNull);
     });
+
+    test('propagates subtree note counts to synthesized and parent tags', () {
+      final child1 = tag('work/projects', noteCount: 10);
+      final child2 = tag('work/ideas', noteCount: 5);
+      final tree = TagTree.build([child1, child2]);
+
+      final work = tree.nodeFor('work')!;
+      expect(work.isImplicit, isTrue);
+      expect(work.tag.noteCount, equals(15));
+      expect(work.totalNoteCount, equals(15));
+    });
+
+    test('TagTree.compareByUsage orders pinned first, then by note count descending', () {
+      final tree = TagTree.build([
+        tag('c_misc', noteCount: 1),
+        tag('b_pinned', noteCount: 2, isPinned: true, pinnedOrder: 1),
+        tag('work', noteCount: 20),
+        tag('a_notes', noteCount: 5),
+      ], compare: TagTree.compareByUsage);
+
+      expect(
+        tree.roots.map((n) => n.tag.name),
+        equals(['b_pinned', 'work', 'a_notes', 'c_misc']),
+      );
+    });
   });
 
   group('TagTree.flatten', () {

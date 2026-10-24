@@ -21,6 +21,7 @@ import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_colors.dart';
 import '../../tags/domain/tag_icon_registry.dart';
 import '../../tags/domain/tag_model.dart';
+import '../../tags/domain/tag_path.dart';
 import '../../tags/domain/tag_tree.dart';
 import '../../tags/presentation/widgets/tag_action_dialogs.dart';
 import '../../tags/presentation/widgets/tag_color_picker_sheet.dart';
@@ -419,10 +420,28 @@ class SidebarView extends ConsumerWidget {
 
                           final isDark =
                               Theme.of(context).brightness == Brightness.dark;
-                          final tree = TagTree.build(tags);
+                          final tree = TagTree.build(
+                            tags,
+                            compare: TagTree.compareByUsage,
+                          );
                           final visibleRoots =
                               tree.roots.take(_maxVisibleTags).toList();
-                          final hasMore = tree.roots.length > _maxVisibleTags;
+                          if (selectedTag != null) {
+                            final rootName =
+                                TagPath.tryParse(selectedTag)?.segments.first ??
+                                selectedTag;
+                            for (final root in tree.roots) {
+                              final name =
+                                  root.path?.segments.first ?? root.tag.name;
+                              if (name == rootName &&
+                                  !visibleRoots.contains(root)) {
+                                visibleRoots.add(root);
+                                break;
+                              }
+                            }
+                          }
+                          final hasMore =
+                              tree.roots.length > visibleRoots.length;
                           final displayTags = TagTree.flatten(
                             tree,
                             expandedPaths: expandedTagPaths,

@@ -10793,4 +10793,28 @@ Addressed user-reported issues where child tags were not effectively collapsible
     - Tapping implicit parent rows to toggle expansion.
     - Expanding all and collapsing all sub-tags from both wide (`Tag hierarchy options`) and compact (`Sort and filter tags`) popup menus.
 
+---
+
+## 230. Sidebar Most-Used Tag Ordering & Parent Subtree Count Propagation (October 2026)
+
+### Overview
+Addressed two interconnected issues where parent tags in the sidebar failed to display or showed incorrect note counts:
+1. **Most Used Parent Tag Missing in Sidebar**: `SidebarView` was building `TagTree` with default alphabetical sorting (`_defaultCompare`), which caused `tree.roots.take(_maxVisibleTags)` to select the first 7 roots alphabetically (e.g. `a` through `g`). If a user had 8 or more roots and their most used parent tag started with a later letter (e.g. `#work`), it was excluded from the sidebar even when it had the most notes in the app.
+2. **Missing Subtree Note Count on Parent Tags**: When parent tags were implicit (synthesized for presentation when notes were tagged with `#parent/child` without an explicit `#parent` row) or had zero direct notes, `TagTree.build` created them with `noteCount: 0`. While the Tag Browser computed subtree counts at the SQL/query level, in-memory tree derivation in `TagTree` lacked recursive subtree aggregation, causing parent tags to display `0` or drop to the bottom of usage sorts.
+
+### Implementation Details
+- **Subtree Count Propagation in `TagTree`**:
+  - In [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart):
+    - Added `int get totalNoteCount` on `TagTreeNode` to recursively aggregate child note counts.
+    - Updated `TagTree.build` to perform a post-construction bottom-up pass (`computeSubtreeCounts`) ensuring every parent node's `tag.noteCount` reflects the total active notes across its entire subtree (`max(tag.noteCount, childSum)`).
+    - Exposed `TagTree.compareByUsage` (pinned first, then `noteCount DESC`, then alphabetical) and `TagTree.compareByName` (pinned first, then alphabetical).
+- **Sidebar Ordering by Usage**:
+  - In [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart), updated `TagTree.build` to use `compare: TagTree.compareByUsage`.
+  - The 7 visible root slots in the sidebar now prioritize the user's most used parent tags.
+  - Added fallback check to ensure that if a tag outside the top 7 is currently active (`selectedTag`), its root is included in `visibleRoots` so selection state remains visible in the sidebar.
+- **Automated Verification**:
+  - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), added unit tests verifying subtree note count propagation and `TagTree.compareByUsage` sorting.
+  - In [`test/tags/tag_hierarchy_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_hierarchy_ui_test.dart), verified that parent tags display their full aggregated note count and that the most used parent tag displays in the sidebar even when more than 7 root tags exist.
+
+
 
