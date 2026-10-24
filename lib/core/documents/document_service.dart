@@ -59,6 +59,7 @@ class DocumentService implements DocumentResolver {
     DocumentSource source = DocumentSource.scanner,
     OcrLanguage language = OcrLanguage.english,
     String? thumbnailPath,
+    bool? autoRunOcr,
   }) async {
     if (pdfBytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
@@ -104,9 +105,13 @@ class DocumentService implements DocumentResolver {
               ? 'Imported PDF'
               : 'Scanned Document');
 
+    final shouldAutoRunOcr = autoRunOcr ?? (source == DocumentSource.scanner);
     final skipOcr =
         source == DocumentSource.importedPdf &&
         PdfRasterPolicy.shouldSkipOcr(pdfBytes);
+    final initialOcrState = !shouldAutoRunOcr
+        ? OcrProcessingState.notRequested
+        : (skipOcr ? OcrProcessingState.skipped : OcrProcessingState.queued);
     await database.saveDocument(
       id: documentId,
       noteId: noteId,
@@ -125,14 +130,12 @@ class DocumentService implements DocumentResolver {
       uploadState: DocumentUploadState.uploadPending.identifier,
       localPath: localPath,
       thumbnailPath: thumbnailPath,
-      ocrState:
-          (skipOcr ? OcrProcessingState.skipped : OcrProcessingState.queued)
-              .identifier,
+      ocrState: initialOcrState.identifier,
       ocrLanguage: language.code,
     );
 
-    // 5. Enqueue background OCR / text extraction asynchronously
-    if (processingService != null && !skipOcr) {
+    // 5. Enqueue background OCR / text extraction asynchronously if auto-run requested
+    if (processingService != null && shouldAutoRunOcr && !skipOcr) {
       // Non-blocking invocation
       processingService!
           .processDocument(
@@ -235,6 +238,7 @@ class DocumentService implements DocumentResolver {
     String? noteId,
     String? title,
     OcrLanguage language = OcrLanguage.english,
+    bool autoRunOcr = false,
   }) async {
     if (!await file.exists()) {
       throw ArgumentError('Selected PDF file does not exist: ${file.path}');
@@ -268,6 +272,7 @@ class DocumentService implements DocumentResolver {
       title: documentTitle,
       source: DocumentSource.importedPdf,
       language: language,
+      autoRunOcr: autoRunOcr,
     );
   }
 

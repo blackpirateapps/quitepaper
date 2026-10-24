@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/attachments/attachment_processing_service.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/documents/document_crypto.dart';
+import 'package:quitepaper/core/documents/document_models.dart';
+import 'package:quitepaper/core/documents/document_service.dart';
+import 'package:quitepaper/core/documents/document_storage.dart';
 import 'package:quitepaper/core/ocr/document_processing_service.dart';
 import 'package:quitepaper/core/ocr/ocr_crypto.dart';
 import 'package:quitepaper/core/ocr/ocr_models.dart';
@@ -220,6 +225,42 @@ void main() {
       );
 
       expect(ocrService.recognizePageCalls, equals(1));
+    });
+
+    test('DocumentService imported PDF initializes to not_requested and does not auto-run OCR', () async {
+      final tempDir = await Directory.systemTemp.createTemp('ocr_policy_test_');
+      try {
+        final storage = DocumentLocalStorage(
+          customDocumentsDirectory: tempDir,
+          customTempDirectory: tempDir,
+        );
+        final fullDocService = DocumentService(
+          database: db,
+          keyManager: keyManager,
+          crypto: DocumentCrypto(),
+          storage: storage,
+          processingService: docService,
+        );
+
+        final samplePdf = Uint8List.fromList(utf8.encode('%PDF-1.4 test document payload'));
+        final createResult = await fullDocService.createDocumentFromPdfBytes(
+          pdfBytes: samplePdf,
+          pageCount: 1,
+          title: 'Manual PDF Check',
+          source: DocumentSource.importedPdf,
+        );
+
+        expect(createResult.document.ocrState, equals(OcrProcessingState.notRequested.identifier));
+        expect(ocrService.recognizeDocumentCalls, equals(0));
+        expect(ocrService.recognizePageCalls, equals(0));
+
+        final saved = await db.getDocument(createResult.document.id);
+        expect(saved?.ocrState, equals('not_requested'));
+      } finally {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      }
     });
   });
 }
