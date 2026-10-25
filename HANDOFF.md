@@ -11093,6 +11093,49 @@ Implemented the complete, calm, editorial first-run onboarding experience, inter
 - `flutter analyze`: **0 issues, 0 warnings** (clean).
 - `flutter test`: **2,381 / 2,381 tests passing** (100% pass rate across the full test suite).
 
+---
+
+## 237. Note Reconciliation & Pruned Sync Log Recovery on Fresh Devices (October 2026)
+
+### 1. Problem Statement & Root Cause
+- When signing in on a new device (e.g. Android after iOS/desktop usage), notes stopped syncing after downloading ~50 notes, with the sync engine reporting "All notes synced" even though the user had hundreds of notes on the server.
+- **Root Cause**: The Turso `sync_changes` table functions as a transient delta log. Incremental changelog entries are regularly garbage collected by `runGarbageCollection()` up to `safeSyncBoundaryRevision` (`min(last_acknowledged_revision)` across known active devices).
+- When a fresh device enrolled with `cursor = 0`, it requested deltas starting from 0. `sync_changes` only held recent delta entries (e.g., the last 50 revisions). Revisions preceding the safe sync boundary had been purged from `sync_changes`, although the durable `notes` table retained every active note.
+- `pullChanges(cursor: 0, limit: 50)` downloaded the 50 remaining entries and returned `hasMore: false`. The client engine concluded that all server changes were pulled, terminating the sync with most notes missing locally.
+
+### 2. Architectural Solution: Total Note Check & Manifest Reconciliation
+
+#### Backend Endpoints (`backend/src/sync/syncService.ts`, `backend/src/api/handler.ts`, `backend/src/validation/schemas.ts`)
+1. **Server Total Note Count in Pull Response**:
+   - Added `serverTotalNotes: number` to `PullResponse` and `pullSyncChanges()`, computing `COUNT(*)` from `notes WHERE user_id = ? AND is_deleted = 0`.
+2. **Notes Manifest (`GET /api/v1/sync/notes/manifest`)**:
+   - Returns a lightweight array of all non-deleted notes (`id`, `revision`, `updated_at`, `trashed`, `archived`) along with summary counts (`totalCount`, `activeCount`, `trashedCount`) queried directly from the durable `notes` table.
+   - Bandwidth-efficient: A 1,000-note manifest is ~50KB and executes in ~20ms.
+3. **Fetch Missing Notes (`POST /api/v1/sync/notes/fetch-missing`)**:
+   - Accepts `{ noteIds: string[] }` (1 to 100 IDs) validated via `fetchMissingNotesSchema`.
+   - Directly queries `notes` by `id IN (...)` and maps them into canonical `PullChangeItem` format, bypassing `sync_changes` entirely.
+
+#### Client Synchronization Engine (`lib/core/sync/sync_engine.dart`, `lib/core/sync/sync_api_client.dart`, `lib/core/sync/sync_models.dart`)
+1. **Reconciliation Step (`Step 3b: _reconcileNotesWithServer`)**:
+   - Executed immediately following the standard changelog pull loop in `syncNow()`.
+   - Calls `apiClient.getNotesManifest()`.
+   - Fetches all local note IDs and revisions from `_db.notesDao.getAllNotes()`.
+   - Compares manifest items against local SQLite notes to identify any note ID missing locally or where `manifest.revision > local.serverRevision`.
+   - Requests missing notes in chunks of 50 via `apiClient.fetchMissingNotes(...)`.
+   - Decrypts ciphertexts using Argon2id / XChaCha20-Poly1305 with the user's master key, executes 3-way merge conflict detection against dirty local drafts, prefetches web snapshot metadata if referenced, and persists them into SQLite.
+   - Advances `currentCursor = max(currentCursor, manifestMaxRev)`.
+2. **Factored Ingestion Helper (`_applyPulledNoteChange`)**:
+   - Standardized note application logic between incremental pull loop and reconciliation batching to guarantee consistent decryption, conflict detection, and metadata caching.
+3. **Mock & API Client Compatibility**:
+   - Added default no-op methods to `SyncApiClient` interface for `getNotesManifest()` and `fetchMissingNotes()` so legacy test mocks and alternate client implementations compile without `NoSuchMethodError`.
+
+### 3. Verification & Quality Gates
+- `cd backend && npm test`: 19 test files, 123 tests passing (100%).
+- `cd backend && npm run build`: 0 TypeScript compilation errors.
+- `flutter analyze`: **0 issues, 0 warnings** (clean).
+- `flutter test test/sync/sync_engine_test.dart test/sync/tag_sync_test.dart`: All unit and integration tests passing, including reconciliation of missing notes omitted by `sync_changes`.
+
+
 
 
 

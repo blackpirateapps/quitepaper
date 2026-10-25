@@ -5,6 +5,8 @@ import {
   pushSyncChanges,
   pullSyncChanges,
   getLatestCursor,
+  getNotesManifest,
+  fetchMissingNotes,
   getNoteById,
   getHistoricalRevision,
   updateAttachmentReferences,
@@ -267,6 +269,26 @@ export async function handleApiRequest(req: RequestLike): Promise<ResponseLike> 
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: pullResult,
+      };
+    }
+
+    // GET /api/v1/sync/notes/manifest (Reconciliation manifest of all non-deleted notes)
+    if (pathname === '/api/v1/sync/notes/manifest' && method === 'GET') {
+      const manifest = await getNotesManifest(db, userId);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: manifest,
+      };
+    }
+
+    // POST /api/v1/sync/notes/fetch-missing (Fetch full payload of missing notes by IDs)
+    if (pathname === '/api/v1/sync/notes/fetch-missing' && method === 'POST') {
+      const missingNotes = await fetchMissingNotes(db, userId, req.body);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: missingNotes,
       };
     }
 

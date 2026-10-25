@@ -526,337 +526,7 @@ class SyncEngine {
         }
 
         for (final change in pullResponse.changes) {
-          final conflictEntity =
-              await database.getConflictForNote(change.id);
-          final pendingConflict = conflictEntity != null
-              ? SyncConflict.fromEntity(conflictEntity)
-              : null;
-          if (pendingConflict != null) {
-            // Rebase pending conflict against newer remote revision
-            if (change.revision > pendingConflict.remoteRevision) {
-              try {
-                NotePlaintext newRemote;
-                if (change.isDeleted) {
-                  newRemote = const NotePlaintext(title: '', body: '', tags: []);
-                } else {
-                  final env = EncryptedEnvelope(
-                    version: change.contentVersion,
-                    algorithm: 'xchacha20-poly1305',
-                    keyVersion: change.encryptionKeyVersion,
-                    nonce: change.contentNonce,
-                    ciphertext: change.contentCiphertext,
-                  );
-                  newRemote = await cryptoService.decryptNote(
-                    envelope: env,
-                    masterKeyBytes: masterKey,
-                    noteId: change.id,
-                  );
-                }
-
-                final rebaseResult = conflictResolver.merge3Way(
-                  base: pendingConflict.remotePlaintext,
-                  local: pendingConflict.localPlaintext ??
-                      const NotePlaintext(title: '', body: '', tags: []),
-                  remote: newRemote,
-                  localIsDeleted: pendingConflict.localIsDeleted,
-                  remoteIsDeleted: change.isDeleted,
-                );
-
-                final updatedConflict = pendingConflict.copyWith(
-                  remoteRevision: change.revision,
-                  remotePlaintext: newRemote,
-                  remoteIsDeleted: change.isDeleted,
-                  conflictRegions: rebaseResult.conflictRegions,
-                  conflictType:
-                      rebaseResult.conflictType ?? pendingConflict.conflictType,
-                  resolvedTitle: rebaseResult.mergedPlaintext.title,
-                  resolvedContent: rebaseResult.mergedPlaintext.body,
-                  resolvedTags: rebaseResult.mergedPlaintext.tags,
-                );
-
-                await database.saveConflict(
-                  id: updatedConflict.id,
-                  noteId: updatedConflict.noteId,
-                  baseRevision: updatedConflict.baseRevision,
-                  localRevision: updatedConflict.localRevision,
-                  remoteRevision: updatedConflict.remoteRevision,
-                  conflictType: updatedConflict.conflictType.name,
-                  state: updatedConflict.state.name,
-                  createdAt: updatedConflict.createdAt,
-                  dataJson: updatedConflict.toDataJson(),
-                );
-              } catch (rebaseErr) {
-                debugPrint(
-                    'Failed to rebase conflict for note ${change.id}: $rebaseErr');
-              }
-            }
-            continue;
-          }
-
-          if (change.isDeleted) {
-            // Note was deleted on another device
-            final localNote = await database.getNoteWithTags(change.id);
-            if (localNote != null && localNote.note.isDirty) {
-              // Delete-vs-Edit conflict on pull!
-              final basePlaintext = await _fetchBasePlaintext(
-                  change.id, localNote.note.serverRevision, masterKey);
-              final localPlaintext = NotePlaintext(
-                title: localNote.note.title,
-                body: localNote.note.content,
-                tags: localNote.tagNames,
-                pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
-              );
-              const remotePlaintext =
-                  NotePlaintext(title: '', body: '', tags: []);
-
-              final mergeRes = conflictResolver.merge3Way(
-                base: basePlaintext,
-                local: localPlaintext,
-                remote: remotePlaintext,
-                localIsDeleted: false,
-                remoteIsDeleted: true,
-              );
-
-              if (mergeRes.isClean) {
-                if (mergeRes.isDeleted) {
-                  await database.deletePermanently(change.id, enqueueSync: false);
-                }
-              } else {
-                const uuid = Uuid();
-                final conflict = SyncConflict(
-                  id: uuid.v4(),
-                  noteId: change.id,
-                  baseRevision: localNote.note.serverRevision,
-                  localRevision: localNote.note.serverRevision,
-                  remoteRevision: change.revision,
-                  conflictType: ConflictType.deleteVsEdit,
-                  state: ConflictState.manualRequired,
-                  createdAt: DateTime.now(),
-                  basePlaintext: basePlaintext,
-                  localPlaintext: localPlaintext,
-                  remotePlaintext: remotePlaintext,
-                  localIsDeleted: false,
-                  remoteIsDeleted: true,
-                  resolvedTitle: localPlaintext.title,
-                  resolvedContent: localPlaintext.body,
-                  resolvedTags: localPlaintext.tags,
-                  explanation: 'Note was deleted on another device while being edited locally.',
-                );
-                await database.saveConflict(
-                  id: conflict.id,
-                  noteId: conflict.noteId,
-                  baseRevision: conflict.baseRevision,
-                  localRevision: conflict.localRevision,
-                  remoteRevision: conflict.remoteRevision,
-                  conflictType: conflict.conflictType.name,
-                  state: conflict.state.name,
-                  createdAt: conflict.createdAt,
-                  dataJson: conflict.toDataJson(),
-                );
-              }
-            } else {
-              await database.deletePermanently(change.id, enqueueSync: false);
-            }
-          } else {
-            // Decrypt note content
-            try {
-              final envelope = EncryptedEnvelope(
-                version: change.contentVersion,
-                algorithm: 'xchacha20-poly1305',
-                keyVersion: change.encryptionKeyVersion,
-                nonce: change.contentNonce,
-                ciphertext: change.contentCiphertext,
-              );
-
-              final decrypted = await cryptoService.decryptNote(
-                envelope: envelope,
-                masterKeyBytes: masterKey,
-                noteId: change.id,
-              );
-
-              final localNote = await database.getNoteWithTags(change.id);
-              if (localNote != null &&
-                  change.revision <= localNote.note.serverRevision) {
-                // Already incorporated revision (e.g. via push auto-merge)
-                continue;
-              }
-
-              if (localNote != null && localNote.note.isDirty) {
-                // Colliding local edit while pulling!
-                final basePlaintext = await _fetchBasePlaintext(
-                    change.id, localNote.note.serverRevision, masterKey);
-                final localPlaintext = NotePlaintext(
-                  title: localNote.note.title,
-                  body: localNote.note.content,
-                  tags: localNote.tagNames,
-                  pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
-                );
-
-                final mergeRes = conflictResolver.merge3Way(
-                  base: basePlaintext,
-                  local: localPlaintext,
-                  remote: decrypted,
-                  localIsDeleted: localNote.note.isTrashed,
-                  remoteIsDeleted: false,
-                );
-
-                if (mergeRes.isClean) {
-                  await conflictResolver.applyAutoMerge(
-                    noteId: change.id,
-                    mergedPlaintext: mergeRes.mergedPlaintext,
-                    baseRevision: localNote.note.serverRevision,
-                    localRevision: localNote.note.serverRevision,
-                    remoteRevision: change.revision,
-                    updatedAt: change.updatedAt,
-                  );
-                } else {
-                  const uuid = Uuid();
-                  final conflict = SyncConflict(
-                    id: uuid.v4(),
-                    noteId: change.id,
-                    baseRevision: localNote.note.serverRevision,
-                    localRevision: localNote.note.serverRevision,
-                    remoteRevision: change.revision,
-                    conflictType: mergeRes.conflictType ?? ConflictType.content,
-                    state: ConflictState.manualRequired,
-                    createdAt: DateTime.now(),
-                    basePlaintext: basePlaintext,
-                    localPlaintext: localPlaintext,
-                    remotePlaintext: decrypted,
-                    localIsDeleted: localNote.note.isTrashed,
-                    remoteIsDeleted: false,
-                    conflictRegions: mergeRes.conflictRegions,
-                    resolvedTitle: mergeRes.mergedPlaintext.title,
-                    resolvedContent: mergeRes.mergedPlaintext.body,
-                    resolvedTags: mergeRes.mergedPlaintext.tags,
-                    explanation: mergeRes.explanation,
-                  );
-                  await database.saveConflict(
-                    id: conflict.id,
-                    noteId: conflict.noteId,
-                    baseRevision: conflict.baseRevision,
-                    localRevision: conflict.localRevision,
-                    remoteRevision: conflict.remoteRevision,
-                    conflictType: conflict.conflictType.name,
-                    state: conflict.state.name,
-                    createdAt: conflict.createdAt,
-                    dataJson: conflict.toDataJson(),
-                  );
-                }
-              } else {
-                await database.saveNote(
-                  id: change.id,
-                  title: decrypted.title,
-                  content: decrypted.body,
-                  createdAt: change.createdAt,
-                  updatedAt: change.updatedAt,
-                  isPinned: change.pinned,
-                  isArchived: change.archived,
-                  isTrashed: change.trashed,
-                  deletedAt: change.deletedAt,
-                  tags: decrypted.tags,
-                  pinnedTags: decrypted.pinnedTags,
-                  serverRevision: change.revision,
-                  isDirty: false,
-                  syncedAt: DateTime.now(),
-                );
-              }
-
-              // Pre-fetch metadata for any attachments referenced in pulled note
-              final assetMatches = RegExp(
-                r'qp://asset/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-              ).allMatches(decrypted.body);
-
-              for (final match in assetMatches) {
-                final assetId = match.group(1);
-                if (assetId != null) {
-                  final localAtt = await database.getAttachment(assetId);
-                  if (localAtt == null || localAtt.cloudUrl == null || localAtt.cloudUrl!.isEmpty) {
-                    try {
-                      final remoteMeta = await apiClient.getAttachmentMetadata(assetId);
-                      if (remoteMeta != null) {
-                        final isLinkPreviewThumb =
-                            decrypted.body.contains('<!-- qp-link-preview:') &&
-                            decrypted.body.contains('qp://asset/$assetId');
-                        final effectiveKind =
-                            isLinkPreviewThumb ? 'linkPreview' : remoteMeta.kind;
-
-                        await database.saveAttachment(
-                          id: remoteMeta.id,
-                          noteId: remoteMeta.noteId,
-                          fileName: remoteMeta.fileName,
-                          kind: effectiveKind,
-                          createdAt: remoteMeta.createdAt,
-                          updatedAt: remoteMeta.updatedAt,
-                          mimeType: remoteMeta.mimeType,
-                          byteSize: remoteMeta.byteSize,
-                          width: remoteMeta.width,
-                          height: remoteMeta.height,
-                          sha256: remoteMeta.sha256,
-                          encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
-                          serverRevision: remoteMeta.serverRevision,
-                          isDirty: false,
-                          isDeleted: remoteMeta.isDeleted,
-                          deletedAt: remoteMeta.deletedAt,
-                          uploadState: 'synced',
-                          cloudPublicId: remoteMeta.cloudPublicId,
-                          cloudUrl: remoteMeta.cloudUrl,
-                        );
-                      }
-                    } catch (attErr) {
-                      debugPrint('Failed to prefetch metadata for attachment $assetId: $attErr');
-                    }
-                  }
-                }
-              }
-
-              // Pre-fetch metadata for any scanned documents referenced in pulled note
-              final docMatches = RegExp(
-                r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-              ).allMatches(decrypted.body);
-
-              for (final match in docMatches) {
-                final docId = match.group(1);
-                if (docId != null) {
-                  final localDoc = await database.getDocument(docId);
-                  if (localDoc == null || localDoc.cloudUrl == null || localDoc.cloudUrl!.isEmpty) {
-                    try {
-                      final remoteMeta = await apiClient.getDocumentMetadata(docId);
-                      if (remoteMeta != null) {
-                        await database.saveDocument(
-                          id: remoteMeta.id,
-                          noteId: remoteMeta.noteId,
-                          title: remoteMeta.title,
-                          source: remoteMeta.source.identifier,
-                          createdAt: remoteMeta.createdAt,
-                          updatedAt: remoteMeta.updatedAt,
-                          mimeType: remoteMeta.mimeType,
-                          byteSize: remoteMeta.byteSize,
-                          pageCount: remoteMeta.pageCount,
-                          sha256: remoteMeta.sha256,
-                          encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
-                          serverRevision: remoteMeta.serverRevision,
-                          isDirty: false,
-                          isDeleted: remoteMeta.isDeleted,
-                          deletedAt: remoteMeta.deletedAt,
-                          uploadState: 'synced',
-                          cloudPublicId: remoteMeta.cloudPublicId,
-                          cloudUrl: remoteMeta.cloudUrl,
-                          ocrState: remoteMeta.ocrState.identifier,
-                          ocrLanguage: remoteMeta.ocrLanguage,
-                        );
-                      }
-                    } catch (docErr) {
-                      debugPrint('Failed to prefetch metadata for document $docId: $docErr');
-                    }
-                  }
-                }
-              }
-            } catch (decErr) {
-              // Log or skip malformed payload without halting sync loop
-              debugPrint('Failed to decrypt pulled note ${change.id}: $decErr');
-            }
-          }
+          await _applyPulledNoteChange(change, masterKey);
         }
 
         if (pullResponse.changes.isEmpty || pullResponse.cursor <= currentCursor) {
@@ -866,6 +536,16 @@ class SyncEngine {
           await database.setSyncMetadata('sync_cursor', currentCursor.toString());
           hasMore = pullResponse.hasMore;
         }
+      }
+
+      // 3b. NOTE RECONCILIATION & CONSISTENCY CHECK
+      // Check total active notes on server against local database.
+      // If there is any discrepancy or missing notes (e.g. on a new device where
+      // sync_changes history was pruned by GC), fetch all missing notes directly.
+      try {
+        await _reconcileNotesWithServer(masterKey);
+      } catch (reconcileErr) {
+        debugPrint('[SyncEngine] Note reconciliation warning: $reconcileErr');
       }
 
       // 4. NOTE VERSION SYNC PHASE
@@ -1443,6 +1123,405 @@ class SyncEngine {
     }
 
     return null;
+  }
+
+  Future<void> _reconcileNotesWithServer(Uint8List masterKey) async {
+    NotesManifestResponse manifest;
+    try {
+      manifest = await apiClient.getNotesManifest();
+    } catch (e) {
+      debugPrint('[SyncEngine] Could not fetch notes manifest for reconciliation: $e');
+      return;
+    }
+
+    final localNotes = await database.getAllNotesRaw();
+    final localMap = {for (final n in localNotes) n.id: n};
+
+    final missingIds = <String>[];
+    var maxServerRev = 0;
+
+    for (final serverNote in manifest.notes) {
+      if (serverNote.revision > maxServerRev) {
+        maxServerRev = serverNote.revision;
+      }
+      final local = localMap[serverNote.id];
+      if (local == null) {
+        // Note completely missing locally
+        missingIds.add(serverNote.id);
+      } else if (serverNote.revision > local.serverRevision && !local.isDirty) {
+        // Remote note has a higher revision and local note has no dirty edits
+        missingIds.add(serverNote.id);
+      }
+    }
+
+    if (missingIds.isNotEmpty) {
+      debugPrint('[SyncEngine] Reconciling: fetching ${missingIds.length} missing notes from server...');
+      const fetchBatchSize = 50;
+      for (var i = 0; i < missingIds.length; i += fetchBatchSize) {
+        final end = (i + fetchBatchSize < missingIds.length) ? i + fetchBatchSize : missingIds.length;
+        final batch = missingIds.sublist(i, end);
+        try {
+          final fetchedNotes = await apiClient.fetchMissingNotes(batch);
+          for (final change in fetchedNotes) {
+            await _applyPulledNoteChange(change, masterKey);
+          }
+        } catch (fetchErr) {
+          debugPrint('[SyncEngine] Failed to fetch chunk of missing notes: $fetchErr');
+        }
+      }
+    }
+
+    // Advance cursor to highest known server revision if higher
+    if (maxServerRev > 0) {
+      final currentCursorStr = await database.getSyncMetadata('sync_cursor');
+      final currentCursor = int.tryParse(currentCursorStr ?? '0') ?? 0;
+      if (maxServerRev > currentCursor) {
+        await database.setSyncMetadata('sync_cursor', maxServerRev.toString());
+      }
+    }
+  }
+
+  Future<void> _applyPulledNoteChange(
+    PullChangeItem change,
+    Uint8List masterKey,
+  ) async {
+    final conflictEntity = await database.getConflictForNote(change.id);
+    final pendingConflict = conflictEntity != null
+        ? SyncConflict.fromEntity(conflictEntity)
+        : null;
+    if (pendingConflict != null) {
+      // Rebase pending conflict against newer remote revision
+      if (change.revision > pendingConflict.remoteRevision) {
+        try {
+          NotePlaintext newRemote;
+          if (change.isDeleted) {
+            newRemote = const NotePlaintext(title: '', body: '', tags: []);
+          } else {
+            final env = EncryptedEnvelope(
+              version: change.contentVersion,
+              algorithm: 'xchacha20-poly1305',
+              keyVersion: change.encryptionKeyVersion,
+              nonce: change.contentNonce,
+              ciphertext: change.contentCiphertext,
+            );
+            newRemote = await cryptoService.decryptNote(
+              envelope: env,
+              masterKeyBytes: masterKey,
+              noteId: change.id,
+            );
+          }
+
+          final rebaseResult = conflictResolver.merge3Way(
+            base: pendingConflict.remotePlaintext,
+            local: pendingConflict.localPlaintext ??
+                const NotePlaintext(title: '', body: '', tags: []),
+            remote: newRemote,
+            localIsDeleted: pendingConflict.localIsDeleted,
+            remoteIsDeleted: change.isDeleted,
+          );
+
+          final updatedConflict = pendingConflict.copyWith(
+            remoteRevision: change.revision,
+            remotePlaintext: newRemote,
+            remoteIsDeleted: change.isDeleted,
+            conflictRegions: rebaseResult.conflictRegions,
+            conflictType:
+                rebaseResult.conflictType ?? pendingConflict.conflictType,
+            resolvedTitle: rebaseResult.mergedPlaintext.title,
+            resolvedContent: rebaseResult.mergedPlaintext.body,
+            resolvedTags: rebaseResult.mergedPlaintext.tags,
+          );
+
+          await database.saveConflict(
+            id: updatedConflict.id,
+            noteId: updatedConflict.noteId,
+            baseRevision: updatedConflict.baseRevision,
+            localRevision: updatedConflict.localRevision,
+            remoteRevision: updatedConflict.remoteRevision,
+            conflictType: updatedConflict.conflictType.name,
+            state: updatedConflict.state.name,
+            createdAt: updatedConflict.createdAt,
+            dataJson: updatedConflict.toDataJson(),
+          );
+        } catch (rebaseErr) {
+          debugPrint(
+              'Failed to rebase conflict for note ${change.id}: $rebaseErr');
+        }
+      }
+      return;
+    }
+
+    if (change.isDeleted) {
+      // Note was deleted on another device
+      final localNote = await database.getNoteWithTags(change.id);
+      if (localNote != null && localNote.note.isDirty) {
+        // Delete-vs-Edit conflict on pull!
+        final basePlaintext = await _fetchBasePlaintext(
+            change.id, localNote.note.serverRevision, masterKey);
+        final localPlaintext = NotePlaintext(
+          title: localNote.note.title,
+          body: localNote.note.content,
+          tags: localNote.tagNames,
+          pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
+        );
+        const remotePlaintext = NotePlaintext(title: '', body: '', tags: []);
+
+        final mergeRes = conflictResolver.merge3Way(
+          base: basePlaintext,
+          local: localPlaintext,
+          remote: remotePlaintext,
+          localIsDeleted: false,
+          remoteIsDeleted: true,
+        );
+
+        if (mergeRes.isClean) {
+          if (mergeRes.isDeleted) {
+            await database.deletePermanently(change.id, enqueueSync: false);
+          }
+        } else {
+          const uuid = Uuid();
+          final conflict = SyncConflict(
+            id: uuid.v4(),
+            noteId: change.id,
+            baseRevision: localNote.note.serverRevision,
+            localRevision: localNote.note.serverRevision,
+            remoteRevision: change.revision,
+            conflictType: ConflictType.deleteVsEdit,
+            state: ConflictState.manualRequired,
+            createdAt: DateTime.now(),
+            basePlaintext: basePlaintext,
+            localPlaintext: localPlaintext,
+            remotePlaintext: remotePlaintext,
+            localIsDeleted: false,
+            remoteIsDeleted: true,
+            resolvedTitle: localPlaintext.title,
+            resolvedContent: localPlaintext.body,
+            resolvedTags: localPlaintext.tags,
+            explanation:
+                'Note was deleted on another device while being edited locally.',
+          );
+          await database.saveConflict(
+            id: conflict.id,
+            noteId: conflict.noteId,
+            baseRevision: conflict.baseRevision,
+            localRevision: conflict.localRevision,
+            remoteRevision: conflict.remoteRevision,
+            conflictType: conflict.conflictType.name,
+            state: conflict.state.name,
+            createdAt: conflict.createdAt,
+            dataJson: conflict.toDataJson(),
+          );
+        }
+      } else {
+        await database.deletePermanently(change.id, enqueueSync: false);
+      }
+    } else {
+      // Decrypt note content
+      try {
+        final envelope = EncryptedEnvelope(
+          version: change.contentVersion,
+          algorithm: 'xchacha20-poly1305',
+          keyVersion: change.encryptionKeyVersion,
+          nonce: change.contentNonce,
+          ciphertext: change.contentCiphertext,
+        );
+
+        final decrypted = await cryptoService.decryptNote(
+          envelope: envelope,
+          masterKeyBytes: masterKey,
+          noteId: change.id,
+        );
+
+        final localNote = await database.getNoteWithTags(change.id);
+        if (localNote != null &&
+            change.revision <= localNote.note.serverRevision) {
+          // Already incorporated revision (e.g. via push auto-merge)
+          return;
+        }
+
+        if (localNote != null && localNote.note.isDirty) {
+          // Colliding local edit while pulling!
+          final basePlaintext = await _fetchBasePlaintext(
+              change.id, localNote.note.serverRevision, masterKey);
+          final localPlaintext = NotePlaintext(
+            title: localNote.note.title,
+            body: localNote.note.content,
+            tags: localNote.tagNames,
+            pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
+          );
+
+          final mergeRes = conflictResolver.merge3Way(
+            base: basePlaintext,
+            local: localPlaintext,
+            remote: decrypted,
+            localIsDeleted: localNote.note.isTrashed,
+            remoteIsDeleted: false,
+          );
+
+          if (mergeRes.isClean) {
+            await conflictResolver.applyAutoMerge(
+              noteId: change.id,
+              mergedPlaintext: mergeRes.mergedPlaintext,
+              baseRevision: localNote.note.serverRevision,
+              localRevision: localNote.note.serverRevision,
+              remoteRevision: change.revision,
+              updatedAt: change.updatedAt,
+            );
+          } else {
+            const uuid = Uuid();
+            final conflict = SyncConflict(
+              id: uuid.v4(),
+              noteId: change.id,
+              baseRevision: localNote.note.serverRevision,
+              localRevision: localNote.note.serverRevision,
+              remoteRevision: change.revision,
+              conflictType: mergeRes.conflictType ?? ConflictType.content,
+              state: ConflictState.manualRequired,
+              createdAt: DateTime.now(),
+              basePlaintext: basePlaintext,
+              localPlaintext: localPlaintext,
+              remotePlaintext: decrypted,
+              localIsDeleted: localNote.note.isTrashed,
+              remoteIsDeleted: false,
+              conflictRegions: mergeRes.conflictRegions,
+              resolvedTitle: mergeRes.mergedPlaintext.title,
+              resolvedContent: mergeRes.mergedPlaintext.body,
+              resolvedTags: mergeRes.mergedPlaintext.tags,
+              explanation: mergeRes.explanation,
+            );
+            await database.saveConflict(
+              id: conflict.id,
+              noteId: conflict.noteId,
+              baseRevision: conflict.baseRevision,
+              localRevision: conflict.localRevision,
+              remoteRevision: conflict.remoteRevision,
+              conflictType: conflict.conflictType.name,
+              state: conflict.state.name,
+              createdAt: conflict.createdAt,
+              dataJson: conflict.toDataJson(),
+            );
+          }
+        } else {
+          await database.saveNote(
+            id: change.id,
+            title: decrypted.title,
+            content: decrypted.body,
+            createdAt: change.createdAt,
+            updatedAt: change.updatedAt,
+            isPinned: change.pinned,
+            isArchived: change.archived,
+            isTrashed: change.trashed,
+            deletedAt: change.deletedAt,
+            tags: decrypted.tags,
+            pinnedTags: decrypted.pinnedTags,
+            serverRevision: change.revision,
+            isDirty: false,
+            syncedAt: DateTime.now(),
+          );
+        }
+
+        // Pre-fetch metadata for any attachments referenced in pulled note
+        final assetMatches = RegExp(
+          r'qp://asset/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+        ).allMatches(decrypted.body);
+
+        for (final match in assetMatches) {
+          final assetId = match.group(1);
+          if (assetId != null) {
+            final localAtt = await database.getAttachment(assetId);
+            if (localAtt == null ||
+                localAtt.cloudUrl == null ||
+                localAtt.cloudUrl!.isEmpty) {
+              try {
+                final remoteMeta =
+                    await apiClient.getAttachmentMetadata(assetId);
+                if (remoteMeta != null) {
+                  final isLinkPreviewThumb =
+                      decrypted.body.contains('<!-- qp-link-preview:') &&
+                          decrypted.body.contains('qp://asset/$assetId');
+                  final effectiveKind =
+                      isLinkPreviewThumb ? 'linkPreview' : remoteMeta.kind;
+
+                  await database.saveAttachment(
+                    id: remoteMeta.id,
+                    noteId: remoteMeta.noteId,
+                    fileName: remoteMeta.fileName,
+                    kind: effectiveKind,
+                    createdAt: remoteMeta.createdAt,
+                    updatedAt: remoteMeta.updatedAt,
+                    mimeType: remoteMeta.mimeType,
+                    byteSize: remoteMeta.byteSize,
+                    width: remoteMeta.width,
+                    height: remoteMeta.height,
+                    sha256: remoteMeta.sha256,
+                    encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
+                    serverRevision: remoteMeta.serverRevision,
+                    isDirty: false,
+                    isDeleted: remoteMeta.isDeleted,
+                    deletedAt: remoteMeta.deletedAt,
+                    uploadState: 'synced',
+                    cloudPublicId: remoteMeta.cloudPublicId,
+                    cloudUrl: remoteMeta.cloudUrl,
+                  );
+                }
+              } catch (attErr) {
+                debugPrint(
+                    'Failed to prefetch metadata for attachment $assetId: $attErr');
+              }
+            }
+          }
+        }
+
+        // Pre-fetch metadata for any scanned documents referenced in pulled note
+        final docMatches = RegExp(
+          r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+        ).allMatches(decrypted.body);
+
+        for (final match in docMatches) {
+          final docId = match.group(1);
+          if (docId != null) {
+            final localDoc = await database.getDocument(docId);
+            if (localDoc == null ||
+                localDoc.cloudUrl == null ||
+                localDoc.cloudUrl!.isEmpty) {
+              try {
+                final remoteMeta =
+                    await apiClient.getDocumentMetadata(docId);
+                if (remoteMeta != null) {
+                  await database.saveDocument(
+                    id: remoteMeta.id,
+                    noteId: remoteMeta.noteId,
+                    title: remoteMeta.title,
+                    source: remoteMeta.source.identifier,
+                    createdAt: remoteMeta.createdAt,
+                    updatedAt: remoteMeta.updatedAt,
+                    mimeType: remoteMeta.mimeType,
+                    byteSize: remoteMeta.byteSize,
+                    pageCount: remoteMeta.pageCount,
+                    sha256: remoteMeta.sha256,
+                    encryptionKeyVersion: remoteMeta.encryptionKeyVersion,
+                    serverRevision: remoteMeta.serverRevision,
+                    isDirty: false,
+                    isDeleted: remoteMeta.isDeleted,
+                    deletedAt: remoteMeta.deletedAt,
+                    uploadState: 'synced',
+                    cloudPublicId: remoteMeta.cloudPublicId,
+                    cloudUrl: remoteMeta.cloudUrl,
+                    ocrState: remoteMeta.ocrState.identifier,
+                    ocrLanguage: remoteMeta.ocrLanguage,
+                  );
+                }
+              } catch (docErr) {
+                debugPrint(
+                    'Failed to prefetch metadata for document $docId: $docErr');
+              }
+            }
+          }
+        }
+      } catch (decErr) {
+        debugPrint('Failed to decrypt pulled note ${change.id}: $decErr');
+      }
+    }
   }
 
   Future<void> _pushDirtyOcrPages(String deviceId, Uint8List masterKey) async {

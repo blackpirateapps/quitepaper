@@ -388,11 +388,13 @@ class PullSyncResponse {
     required this.changes,
     required this.cursor,
     required this.hasMore,
+    this.serverTotalNotes,
   });
 
   final List<PullChangeItem> changes;
   final int cursor;
   final bool hasMore;
+  final int? serverTotalNotes;
 
   factory PullSyncResponse.fromJson(Map<String, dynamic> json) {
     final rawChanges = json['changes'] as List? ?? [];
@@ -402,6 +404,61 @@ class PullSyncResponse {
           .toList(),
       cursor: json['cursor'] as int? ?? 0,
       hasMore: json['hasMore'] as bool? ?? false,
+      serverTotalNotes: json['serverTotalNotes'] as int?,
+    );
+  }
+}
+
+@immutable
+class NotesManifestItem {
+  const NotesManifestItem({
+    required this.id,
+    required this.revision,
+    required this.updatedAt,
+    this.trashed = false,
+    this.archived = false,
+  });
+
+  final String id;
+  final int revision;
+  final String updatedAt;
+  final bool trashed;
+  final bool archived;
+
+  factory NotesManifestItem.fromJson(Map<String, dynamic> json) {
+    return NotesManifestItem(
+      id: json['id'] as String? ?? '',
+      revision: json['revision'] as int? ?? 1,
+      updatedAt: json['updatedAt'] as String? ?? '',
+      trashed: json['trashed'] as bool? ?? false,
+      archived: json['archived'] as bool? ?? false,
+    );
+  }
+}
+
+@immutable
+class NotesManifestResponse {
+  const NotesManifestResponse({
+    required this.totalCount,
+    required this.activeCount,
+    required this.trashedCount,
+    required this.notes,
+  });
+
+  final int totalCount;
+  final int activeCount;
+  final int trashedCount;
+  final List<NotesManifestItem> notes;
+
+  factory NotesManifestResponse.fromJson(Map<String, dynamic> json) {
+    final rawList = json['notes'] as List? ?? [];
+    return NotesManifestResponse(
+      totalCount: json['totalCount'] as int? ?? 0,
+      activeCount: json['activeCount'] as int? ?? 0,
+      trashedCount: json['trashedCount'] as int? ?? 0,
+      notes: rawList
+          .map((n) => NotesManifestItem.fromJson(n as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

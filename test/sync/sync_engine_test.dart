@@ -130,6 +130,54 @@ class InMemorySyncApiClient extends SyncApiClient {
   }
 
   @override
+  Future<NotesManifestResponse> getNotesManifest() async {
+    final activeNotes = serverNotes.values.where((n) => !n.isDeleted).toList();
+    final items = serverNotes.values.map((n) {
+      final rev = syncLog.where((l) => l.id == n.id).fold(1, (prev, elem) => elem.revision > prev ? elem.revision : prev);
+      return NotesManifestItem(
+        id: n.id,
+        revision: rev,
+        updatedAt: n.updatedAt.toIso8601String(),
+        trashed: false,
+        archived: false,
+      );
+    }).toList();
+
+    return NotesManifestResponse(
+      totalCount: items.length,
+      activeCount: activeNotes.length,
+      trashedCount: 0,
+      notes: items,
+    );
+  }
+
+  @override
+  Future<List<PullChangeItem>> fetchMissingNotes(List<String> noteIds) async {
+    final results = <PullChangeItem>[];
+    for (final id in noteIds) {
+      final note = serverNotes[id];
+      if (note != null) {
+        final rev = syncLog.where((l) => l.id == note.id).fold(1, (prev, elem) => elem.revision > prev ? elem.revision : prev);
+        results.add(PullChangeItem(
+          id: note.id,
+          revision: rev,
+          changeType: note.isDeleted ? 'delete' : 'upsert',
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          archived: false,
+          trashed: false,
+          pinned: false,
+          contentCiphertext: note.contentCiphertext,
+          contentNonce: note.contentNonce,
+          contentVersion: note.contentVersion,
+          encryptionKeyVersion: note.encryptionKeyVersion,
+        ));
+      }
+    }
+    return results;
+  }
+
+  @override
   Future<int> getCursor() async {
     return cursorCounter;
   }
@@ -744,5 +792,71 @@ void main() {
     expect(pulledDoc.source, DocumentSource.webSnapshot.identifier);
     expect(pulledDoc.mimeType, 'text/html');
     expect(pulledDoc.cloudUrl, isNotEmpty);
+  });
+
+  test('Reconciles and fetches missing notes from server manifest even if syncLog omitted them', () async {
+    const userEmail = 'reconcile_user@quietpaper.test';
+    const fbPassword = 'AccountPassword123';
+    const encPassword = 'QuietPaperEncryptionPassword-!@#';
+
+    // 1. Device A: Sign up & setup keys
+    await authA.signUpWithEmailAndPassword(userEmail, fbPassword);
+    final recoveryKey = crypto.generateRecoveryKey();
+    final wrappedKey = await keyManagerA.setupNewKeys(
+      password: encPassword,
+      recoveryKey: recoveryKey,
+      kdfParameters: testKdf,
+    );
+    await sharedApi.putKeys(wrappedKey);
+
+    // 2. Device B: Sign in & unlock keys
+    await authB.signUpWithEmailAndPassword(userEmail, fbPassword);
+    await keyManagerB.unlockWithPassword(
+      password: encPassword,
+      remoteWrappedKey: wrappedKey,
+    );
+
+    // Device A creates two notes and pushes them
+    final now = DateTime.now();
+    await dbA.saveNote(
+      id: 'note-pruned-from-log',
+      title: 'Old Archived Note',
+      content: 'This note was edited long ago and its delta log was pruned.',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      isDirty: true,
+    );
+
+    await dbA.saveNote(
+      id: 'note-still-in-log',
+      title: 'Recent Active Note',
+      content: 'This note was edited recently.',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      isDirty: true,
+    );
+
+    await engineA.syncNow();
+    expect(engineA.state.status, SyncStatus.synced);
+
+    // Simulate GC pruning the older note's delta from the incremental sync log
+    sharedApi.syncLog.removeWhere((item) => item.id == 'note-pruned-from-log');
+
+    // Device B (new device) syncs for the first time
+    await engineB.syncNow();
+    expect(engineB.state.status, SyncStatus.synced);
+
+    // Verify Device B received BOTH notes through the reconciliation pipeline
+    final localNotesB = await dbB.getAllNotesRaw();
+    expect(localNotesB.length, 2);
+    final idsB = localNotesB.map((n) => n.id).toSet();
+    expect(idsB.contains('note-pruned-from-log'), isTrue);
+    expect(idsB.contains('note-still-in-log'), isTrue);
   });
 }

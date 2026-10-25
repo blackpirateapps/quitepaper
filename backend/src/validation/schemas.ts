@@ -78,6 +78,10 @@ export const pullSyncSchema = z.object({
   clientVersion: z.string().max(64).optional(),
 });
 
+export const fetchMissingNotesSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
+});
+
 export const syncReferencesSchema = z.object({
   deviceId: z.string().max(128).optional(),
   references: z.array(
@@ -396,3 +400,4 @@ export type ShareAttachmentInput = z.infer<typeof shareAttachmentSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;
 export type UpdateShareInput = z.infer<typeof updateShareSchema>;
 export type SubmitSharePasswordInput = z.infer<typeof submitSharePasswordSchema>;
+export type FetchMissingNotesInput = z.infer<typeof fetchMissingNotesSchema>;

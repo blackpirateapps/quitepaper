@@ -35,6 +35,15 @@ abstract class SyncApiClient {
     required int cursor,
     int limit = 100,
   });
+  Future<NotesManifestResponse> getNotesManifest() async =>
+      const NotesManifestResponse(
+        totalCount: 0,
+        activeCount: 0,
+        trashedCount: 0,
+        notes: [],
+      );
+  Future<List<PullChangeItem>> fetchMissingNotes(List<String> noteIds) async =>
+      const [];
   Future<int> getCursor();
   Future<CloudinaryUploadAuth> getAttachmentUploadAuth({
     required String attachmentId,
@@ -578,6 +587,52 @@ class HttpSyncApiClient implements SyncApiClient {
       throw Exception('Pull sync failed: Invalid JSON response from server');
     }
     return PullSyncResponse.fromJson(data);
+  }
+
+  @override
+  Future<NotesManifestResponse> getNotesManifest() async {
+    final url = Uri.parse('$_baseUrl/api/v1/sync/notes/manifest');
+    final res = await _sendWithAuthRetry((headers) => _client.get(url, headers: headers));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to get notes manifest'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to get notes manifest: Invalid JSON response from server');
+    }
+    return NotesManifestResponse.fromJson(data);
+  }
+
+  @override
+  Future<List<PullChangeItem>> fetchMissingNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return const [];
+    final url = Uri.parse('$_baseUrl/api/v1/sync/notes/fetch-missing');
+    final body = jsonEncode({'ids': noteIds});
+
+    final res = await _sendWithAuthRetry((headers) => _client.post(
+      url,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    ));
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res, 'Failed to fetch missing notes'));
+    }
+
+    final data = _safeParseJson(res.body);
+    if (data == null) {
+      throw Exception('Failed to fetch missing notes: Invalid JSON response from server');
+    }
+
+    final rawList = data['notes'] as List? ?? [];
+    return rawList
+        .map((n) => PullChangeItem.fromJson(n as Map<String, dynamic>))
+        .toList();
   }
 
   @override

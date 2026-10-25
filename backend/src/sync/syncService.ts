@@ -73,6 +73,7 @@ export interface PullResponse {
   changes: PullChangeItem[];
   cursor: number;
   hasMore: boolean;
+  serverTotalNotes?: number;
 }
 
 export interface StorageResourceItem {
@@ -515,10 +516,17 @@ export async function pullSyncChanges(db: Client, userId: string, rawInput: unkn
     await recordDeviceCheckpoint(db, userId, deviceId, undefined, clientVersion, nextCursor);
   }
 
+  const countRes = await db.execute({
+    sql: 'SELECT COUNT(*) as cnt FROM notes WHERE user_id = ? AND deleted_at IS NULL AND trashed = 0',
+    args: [userId],
+  });
+  const serverTotalNotes = Number(countRes.rows[0]?.cnt || 0);
+
   return {
     changes,
     cursor: nextCursor,
     hasMore,
+    serverTotalNotes,
   };
 }
 
@@ -528,6 +536,98 @@ export async function getLatestCursor(db: Client, userId: string): Promise<numbe
     args: [userId],
   });
   return Number(result.rows[0]?.max_rev || 0);
+}
+
+export interface NotesManifestItem {
+  id: string;
+  revision: number;
+  updatedAt: string;
+  trashed: boolean;
+  archived: boolean;
+}
+
+export interface NotesManifestResponse {
+  totalCount: number;
+  activeCount: number;
+  trashedCount: number;
+  notes: NotesManifestItem[];
+}
+
+export interface FetchMissingNotesResponse {
+  notes: PullChangeItem[];
+}
+
+export async function getNotesManifest(db: Client, userId: string): Promise<NotesManifestResponse> {
+  const rowsRes = await db.execute({
+    sql: `SELECT id, revision, updated_at, trashed, archived
+          FROM notes
+          WHERE user_id = ? AND deleted_at IS NULL
+          ORDER BY updated_at DESC`,
+    args: [userId],
+  });
+
+  const notes: NotesManifestItem[] = rowsRes.rows.map(r => ({
+    id: r.id as string,
+    revision: Number(r.revision || 1),
+    updatedAt: r.updated_at as string,
+    trashed: Number(r.trashed) === 1,
+    archived: Number(r.archived) === 1,
+  }));
+
+  const activeCount = notes.filter(n => !n.trashed).length;
+  const trashedCount = notes.filter(n => n.trashed).length;
+
+  return {
+    totalCount: notes.length,
+    activeCount,
+    trashedCount,
+    notes,
+  };
+}
+
+export async function fetchMissingNotes(
+  db: Client,
+  userId: string,
+  rawInput: unknown
+): Promise<FetchMissingNotesResponse> {
+  const { fetchMissingNotesSchema } = await import('../validation/schemas.js');
+  const parsed = fetchMissingNotesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('BAD_REQUEST', `Invalid fetch missing notes body: ${parsed.error.message}`, 400, parsed.error.format());
+  }
+
+  const { ids } = parsed.data;
+  if (ids.length === 0) return { notes: [] };
+
+  const placeholders = ids.map(() => '?').join(',');
+  const results = await db.execute({
+    sql: `SELECT id, created_at, updated_at, archived, trashed, pinned,
+                 folder_id, sort_order, content_ciphertext, content_nonce,
+                 content_version, encryption_key_version, revision, deleted_at
+          FROM notes
+          WHERE user_id = ? AND id IN (${placeholders})`,
+    args: [userId, ...ids],
+  });
+
+  const notes: PullChangeItem[] = results.rows.map(row => ({
+    id: row.id as string,
+    revision: Number(row.revision || 1),
+    changeType: row.deleted_at ? 'delete' : 'upsert',
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    archived: Number(row.archived) === 1,
+    trashed: Number(row.trashed) === 1,
+    pinned: Number(row.pinned) === 1,
+    folderId: (row.folder_id as string) || null,
+    sortOrder: row.sort_order != null ? Number(row.sort_order) : null,
+    contentCiphertext: (row.content_ciphertext as string) || '',
+    contentNonce: (row.content_nonce as string) || '',
+    contentVersion: Number(row.content_version || 1),
+    encryptionKeyVersion: Number(row.encryption_key_version || 1),
+    deletedAt: (row.deleted_at as string) || null,
+  }));
+
+  return { notes };
 }
 
 /**

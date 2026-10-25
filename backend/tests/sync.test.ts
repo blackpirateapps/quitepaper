@@ -203,4 +203,71 @@ describe('Backend Sync Engine & Revision Tracking Tests', () => {
     expect(failRes.statusCode).toBe(400);
     expect(failRes.body.error.code).toBe('BAD_REQUEST');
   });
+
+  it('Returns notes manifest and fetches missing notes directly from durable notes table', async () => {
+    const note1 = '11111111-1111-1111-1111-111111111111';
+    const note2 = '22222222-2222-2222-2222-222222222222';
+
+    // Push two notes
+    await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/sync/push',
+      headers: { authorization: 'Bearer mock:user-manifest' },
+      body: {
+        changes: [
+          {
+            id: note1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            archived: false,
+            trashed: false,
+            pinned: false,
+            contentCiphertext: 'note-1-content',
+            contentNonce: 'note-1-nonce-12345678',
+            contentVersion: 1,
+            encryptionKeyVersion: 1,
+          },
+          {
+            id: note2,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            archived: false,
+            trashed: false,
+            pinned: true,
+            contentCiphertext: 'note-2-content',
+            contentNonce: 'note-2-nonce-12345678',
+            contentVersion: 1,
+            encryptionKeyVersion: 1,
+          },
+        ],
+      },
+    });
+
+    // Check manifest
+    const manifestRes = await handleApiRequest({
+      method: 'GET',
+      url: '/api/v1/sync/notes/manifest',
+      headers: { authorization: 'Bearer mock:user-manifest' },
+    });
+
+    expect(manifestRes.statusCode).toBe(200);
+    expect(manifestRes.body.totalCount).toBe(2);
+    expect(manifestRes.body.activeCount).toBe(2);
+    expect(manifestRes.body.notes.length).toBe(2);
+    expect(manifestRes.body.notes.map((n: any) => n.id)).toContain(note1);
+    expect(manifestRes.body.notes.map((n: any) => n.id)).toContain(note2);
+
+    // Fetch missing notes by ID
+    const fetchRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/sync/notes/fetch-missing',
+      headers: { authorization: 'Bearer mock:user-manifest' },
+      body: { ids: [note1, note2] },
+    });
+
+    expect(fetchRes.statusCode).toBe(200);
+    expect(fetchRes.body.notes.length).toBe(2);
+    expect(fetchRes.body.notes[0].contentCiphertext).toBeTruthy();
+    expect(fetchRes.body.notes[1].contentCiphertext).toBeTruthy();
+  });
 });
