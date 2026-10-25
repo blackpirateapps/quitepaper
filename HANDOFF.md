@@ -233,14 +233,22 @@ Quiet Paper's Markdown preview integrates Obsidian-inspired properties with the 
 
 ## 8. Release & CI/CD Workflows
 
-### Multi-Architecture GitHub Release Workflow (`.github/workflows/release.yml`)
+### Multi-Platform GitHub Release Workflow (`.github/workflows/release.yml`)
 - **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional tag/title/draft/prerelease flags, or automatically on git tag push (`v*`).
-- **Builds**:
-  - `quiet-paper-<version>-arm64-v8a.apk` (Modern 64-bit Android)
-  - `quiet-paper-<version>-armeabi-v7a.apk` (32-bit legacy Android)
-  - `quiet-paper-<version>-x86_64.apk` (x86_64 Chromebooks / Emulators)
-  - `quiet-paper-<version>-universal.apk` (Universal FAT binary)
-- Automatically attaches all 4 APK binaries as release assets to the GitHub Release.
+- **Parallel Pipeline**: Concurrently compiles Android and Linux release artifacts across modular jobs (`prepare` -> `build-android` & `build-linux` in parallel -> `build-flatpak` container -> `publish-release`).
+- **Builds & Releases**:
+  - Android APKs:
+    - `quiet-paper-<version>-arm64-v8a.apk` (Modern 64-bit Android)
+    - `quiet-paper-<version>-armeabi-v7a.apk` (32-bit legacy Android)
+    - `quiet-paper-<version>-x86_64.apk` (x86_64 Chromebooks / Emulators)
+    - `quiet-paper-<version>-universal.apk` (Universal FAT binary)
+  - Linux Packages:
+    - `quiet-paper-<version>-1.x86_64.rpm` (Native RPM package for Fedora, RHEL, openSUSE)
+    - `quiet-paper-<version>-amd64.deb` (Native Debian package for Ubuntu, Debian, Mint, Pop!_OS)
+    - `Quiet_Paper-<version>-x86_64.AppImage` (Universal standalone Linux AppImage)
+    - `quiet-paper-<version>-x86_64.flatpak` (Self-contained Flatpak bundle built via Flathub GNOME 47 container)
+    - `quiet-paper-<version>-linux-x64.tar.gz` (Portable Linux tarball)
+- Automatically attaches all 9 release assets to the GitHub Release.
 
 ### Play Store Android App Bundle (AAB) Workflow (`.github/workflows/build_aab.yml`)
 - **Trigger**: Manually dispatched via GitHub Actions UI (`workflow_dispatch`) with optional version name (`build_name`) and version code (`build_number`) overrides.
@@ -10892,4 +10900,44 @@ The root cause was located in [`lib/core/utils/tag_parser.dart`](file:///home/do
   - In [`test/tags/tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart), added widget tests verifying that both 3-dot buttons and row long-presses open the unified menu with "Add nested tag", and that tapping it opens the nested dialog scoped under `#parent/`.
   - In [`test/tags/tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart), verified that "Add nested tag" appears in the Tag Context Header actions menu.
   - Static analysis: `flutter analyze` (**0 issues**).
+
+---
+
+## 233. Multi-Platform GitHub Release Workflow: Linux Packages (RPM, DEB, AppImage, Flatpak) (October 2026)
+
+### Overview
+Expanded the official GitHub Release workflow ([`.github/workflows/release.yml`](file:///home/dog/git/quitepaper/.github/workflows/release.yml)) to build and release native Linux distributions alongside multi-architecture Android APKs. Quiet Paper releases now automatically generate and attach 9 distinct installation binaries for every published version tag or manual workflow dispatch.
+
+### Pipeline Architecture & Concurrency
+The release pipeline is structured into 5 decoupled, concurrent jobs:
+1. **`prepare`**: Checks out repository, extracts semantic version name (`VERSION_NAME`) from `pubspec.yaml`, computes monotonic build number via `git rev-list --count HEAD`, and resolves release tag and title into workflow outputs.
+2. **`build-android`** *(runs in parallel with `build-linux`)*: Sets up Temurin Java 17, imports signing keystore, and compiles:
+   - Modern 64-bit Android: `quiet-paper-<version>-arm64-v8a.apk`
+   - Legacy 32-bit Android: `quiet-paper-<version>-armeabi-v7a.apk`
+   - Chromebooks & Emulators: `quiet-paper-<version>-x86_64.apk`
+   - Universal Fat APK: `quiet-paper-<version>-universal.apk`
+3. **`build-linux`** *(runs in parallel with `build-android`)*:
+   - Installs native build tools: `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libsqlite3-dev`, `libsecret-1-dev`, `libgstreamer1.0-dev`, `gstreamer1.0-plugins-*`, `rpm`, `curl`, `file`, and `dpkg`.
+   - Compiles release bundle: `flutter build linux --release`.
+   - Packages portable tarball: `quiet-paper-<version>-linux-x64.tar.gz`.
+   - Compiles native RPM: `quiet-paper-<version>-1.x86_64.rpm` via `rpmbuild` and [`linux/packaging/quietpaper.spec`](file:///home/dog/git/quitepaper/linux/packaging/quietpaper.spec) with dynamic version injection (`--define "app_version <version>"`).
+   - Compiles native Debian package: `quiet-paper-<version>-amd64.deb` via [`linux/packaging/build_deb.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_deb.sh).
+   - Compiles native AppImage: `Quiet_Paper-<version>-x86_64.AppImage` via [`linux/packaging/build_appimage.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_appimage.sh).
+   - Prepares and uploads Flatpak staging bundle with desktop entries, metainfo, and 256x256 / 512x512 icons via [`linux/packaging/build_flatpak.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_flatpak.sh).
+4. **`build-flatpak`**:
+   - Executes inside the official privileged container: `ghcr.io/flathub-infra/flatpak-github-actions:gnome-47`.
+   - Downloads staged release bundle and compiles `quiet-paper-<version>-x86_64.flatpak` via `flatpak/flatpak-github-actions/flatpak-builder@v6` against [`linux/packaging/com.blackpiratex.quietpaper.yml`](file:///home/dog/git/quitepaper/linux/packaging/com.blackpiratex.quietpaper.yml).
+   - Uses preinstalled GNOME 47 runtimes without multi-gigabyte network overhead or host sandboxing restrictions.
+5. **`publish-release`**:
+   - Downloads all artifacts from Android, Linux, and Flatpak jobs.
+   - Publishes to GitHub Releases via `softprops/action-gh-release@v2` attaching all 9 binaries with automated changelog release notes.
+
+### Packaging Scripts & Files
+- **[`linux/packaging/build_deb.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_deb.sh)**: Generates complete Debian packaging directory tree (`opt/quitepaper/`, `usr/bin/quitepaper` symlink, desktop files, icons, `DEBIAN/control`, `postinst`, and `postrm` icon cache triggers) and builds via `dpkg-deb --root-owner-group`.
+- **[`linux/packaging/com.blackpiratex.quietpaper.yml`](file:///home/dog/git/quitepaper/linux/packaging/com.blackpiratex.quietpaper.yml)**: FreeDesktop/GNOME 47 Flatpak manifest granting Wayland, X11, PulseAudio, DRI, Secret Service (`org.freedesktop.secrets`), and document filesystem permissions.
+- **[`linux/packaging/build_flatpak.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_flatpak.sh)**: Staging and local compilation helper for Flatpak distribution.
+- **[`linux/packaging/quietpaper.spec`](file:///home/dog/git/quitepaper/linux/packaging/quietpaper.spec)**: Parameterized RPM spec supporting dynamic version override (`%{app_version}`).
+- **[`linux/packaging/build_appimage.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_appimage.sh)**: Updated to accept dynamic version arguments and output versioned AppImages.
+- **[`.github/workflows/build_linux.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_linux.yml)**: Updated push/PR testing workflow to validate Debian package compilation alongside RPM, AppImage, and tarball builds.
+
 

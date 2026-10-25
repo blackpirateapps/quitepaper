@@ -1,5 +1,7 @@
+%{!?app_version: %define app_version 1.6.1}
+
 Name:           quitepaper
-Version:        1.5.8
+Version:        %{app_version}
 Release:        1%{?dist}
 Summary:        Privacy-first, local-first encrypted notes and markdown journal
 

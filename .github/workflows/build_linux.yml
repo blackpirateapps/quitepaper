@@ -30,7 +30,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libsecret-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav rpm curl file
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libsecret-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav rpm curl file dpkg
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -75,12 +75,20 @@ jobs:
           mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
           rpmbuild -bb linux/packaging/quietpaper.spec \
             --define "_topdir $PWD/rpmbuild" \
-            --define "_sourcedir $PWD"
+            --define "_sourcedir $PWD" \
+            --define "app_version ${{ steps.version.outputs.version }}"
           find rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
+
+      - name: Build DEB Package
+        run: |
+          chmod +x linux/packaging/build_deb.sh
+          ./linux/packaging/build_deb.sh "${{ steps.version.outputs.version }}"
+          cp "build/linux/dist/quiet-paper-${{ steps.version.outputs.version }}-amd64.deb" .
 
       - name: Build AppImage Package
         run: |
-          ./linux/packaging/build_appimage.sh
+          chmod +x linux/packaging/build_appimage.sh
+          ./linux/packaging/build_appimage.sh "${{ steps.version.outputs.version }}"
           cp build/linux/dist/Quiet_Paper-x86_64.AppImage .
 
       - name: Upload Linux Release Tarball Artifact
@@ -96,6 +104,14 @@ jobs:
         with:
           name: quiet-paper-linux-rpm
           path: "*.rpm"
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Linux DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiet-paper-linux-deb
+          path: "*.deb"
           if-no-files-found: error
           retention-days: 30
 

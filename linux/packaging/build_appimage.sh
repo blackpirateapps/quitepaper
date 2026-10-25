@@ -7,6 +7,11 @@ BUNDLE_DIR="${PROJECT_ROOT}/build/linux/x64/release/bundle"
 APPDIR="${PROJECT_ROOT}/build/linux/AppDir"
 OUTPUT_DIR="${PROJECT_ROOT}/build/linux/dist"
 
+VERSION="${1:-}"
+if [ -z "${VERSION}" ]; then
+  VERSION=$(grep '^version:' "${PROJECT_ROOT}/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
+fi
+
 if [ ! -d "${BUNDLE_DIR}" ]; then
   echo "Error: Flutter release bundle not found at ${BUNDLE_DIR}"
   echo "Run 'flutter build linux --release' first."
@@ -61,5 +66,7 @@ fi
 
 echo "==> Building AppImage..."
 export APPIMAGE_EXTRACT_AND_RUN=1
-ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run -n "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
-echo "==> AppImage created at ${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
+ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run -n "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-${VERSION}-x86_64.AppImage"
+ln -sf "Quiet_Paper-${VERSION}-x86_64.AppImage" "${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
+ln -sf "Quiet_Paper-${VERSION}-x86_64.AppImage" "${OUTPUT_DIR}/quiet-paper-${VERSION}-x86_64.AppImage"
+echo "==> AppImage created at ${OUTPUT_DIR}/Quiet_Paper-${VERSION}-x86_64.AppImage"
