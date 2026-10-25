@@ -91,6 +91,10 @@ export async function processDestructionJobs(
         const byteSize = attRes.rows.length > 0 ? Number(attRes.rows[0].byte_size || 0) : 0;
 
         await db.execute({
+          sql: 'DELETE FROM attachment_ocr_pages WHERE attachment_id = ? AND user_id = ?',
+          args: [resourceId, userId],
+        });
+        await db.execute({
           sql: 'DELETE FROM attachments WHERE id = ? AND user_id = ?',
           args: [resourceId, userId],
         });

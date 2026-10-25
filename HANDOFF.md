@@ -10963,5 +10963,48 @@ Bumped the official application version from `1.6.1+19` to `1.6.2+20` across the
   - [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html) & [`backend/public/changelog.html`](file:///home/dog/git/quitepaper/backend/public/changelog.html): Added 1.6.2 release notes and footer meta.
   - [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html), [`backend/public/privacy.html`](file:///home/dog/git/quitepaper/backend/public/privacy.html), [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html), [`backend/public/terms.html`](file:///home/dog/git/quitepaper/backend/public/terms.html): Footers updated to `v1.6.2`.
 
+---
+
+## 235. Fix: Zero-Knowledge OCR Sync Foreign Key Constraint Failure and Defensive Note Pull Pagination (October 2026)
+
+### 1. Problem & Context
+On a new Android device (and any secondary device), users experienced:
+1. Notes stopping at 50 notes during initial cloud sync.
+2. Serverless backend logging unhandled 500 errors on `POST /api/v1/sync/ocr/push`:
+   ```
+   [API 500 UNHANDLED ERROR] POST /api/v1/sync/ocr/push LibsqlError: SQLITE_CONSTRAINT: SQLite error: FOREIGN KEY constraint failed
+       at async pushOcrPages (backend/src/sync/syncService.ts:1665:7)
+       at async handleApiRequest (backend/src/api/handler.ts:407:26)
+   ```
+
+### 2. Root Cause Analysis
+- **Decoupling Disconnect**:
+  - In [`backend/migrations/015_ocr_sync_and_conflicts_schema.sql`](file:///home/dog/git/quitepaper/backend/migrations/015_ocr_sync_and_conflicts_schema.sql) and [`005_ocr_and_document_source_schema.sql`](file:///home/dog/git/quitepaper/backend/migrations/005_ocr_and_document_source_schema.sql), `attachment_ocr_pages` and `document_ocr_pages` were created with `FOREIGN KEY (attachment_id) REFERENCES attachments(id)` and `FOREIGN KEY (document_id) REFERENCES documents(id)`.
+  - In Quiet Paper's zero-knowledge sync model, OCR text is end-to-end encrypted sidecar metadata synced directly over Turso SQLite control plane. Media binary files are uploaded asynchronously to Cloudinary, and rows in `attachments` / `documents` are only confirmed after upload.
+  - On a new device or when local OCR runs on queued attachments, `_pushDirtyOcrPages()` in Step 2d pushes dirty OCR pages *before* binary uploads in Step 5.
+  - Because `attachments(id)` had not been confirmed on Turso, `INSERT INTO attachment_ocr_pages` failed SQLite foreign key enforcement and crashed the endpoint with 500.
+  - This 500 failure left OCR pages dirty on the client, causing retries on every subsequent sync cycle to crash again.
+  - Furthermore, in [`lib/core/sync/sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart), `while (hasMore)` pulls notes in batches of 50. If cursor advancement stagnated or pagination encountered empty batches, sync would halt at the 50-note boundary.
+
+### 3. Architectural Fix & Implementation
+1. **Database Migration 016 ([`backend/migrations/016_remove_ocr_foreign_keys.sql`](file:///home/dog/git/quitepaper/backend/migrations/016_remove_ocr_foreign_keys.sql))**:
+   - Recreated `attachment_ocr_pages` and `document_ocr_pages` without foreign keys to `attachments(id)` or `documents(id)`, mirroring the pattern of `document_annotations` (migration 013) and `attachment_references` (migration 007).
+   - Preserved `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`.
+2. **Backend Migration Runner ([`backend/src/db/migrate.ts`](file:///home/dog/git/quitepaper/backend/src/db/migrate.ts))**:
+   - Updated `INITIAL_SCHEMA_SQL` and added Migration 016 block in `runMigrations(db)` to migrate live databases safely.
+3. **Explicit Cleanup & Garbage Collection**:
+   - Added explicit deletion of `attachment_ocr_pages` and `attachment_references` when attachments are deleted in [`backend/src/sync/syncService.ts`](file:///home/dog/git/quitepaper/backend/src/sync/syncService.ts) and [`backend/src/gc/destructionJobProcessor.ts`](file:///home/dog/git/quitepaper/backend/src/gc/destructionJobProcessor.ts).
+4. **Backend Test Decoupling ([`backend/tests/ocr_sync.test.ts`](file:///home/dog/git/quitepaper/backend/tests/ocr_sync.test.ts))**:
+   - Removed artificial pre-confirmation of media files and verified that OCR pages push and pull independently of Cloudinary upload states.
+5. **Defensive Note Pull Pagination ([`lib/core/sync/sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart))**:
+   - Guarded `while (hasMore)` note pulling with: `if (pullResponse.changes.isEmpty || pullResponse.cursor <= currentCursor) hasMore = false;` to guarantee deterministic pagination termination.
+
+### 4. Verification & Quality Gates
+- `npm test`: 19 test files, 122 tests passing (100%).
+- `npm run build`: Clean TypeScript compilation with 0 errors.
+- `flutter analyze`: **0 issues, 0 warnings**.
+- `flutter test test/sync/ test/notes/notes_query_database_test.dart`: **85 / 85 tests passing**.
+
+
 
 

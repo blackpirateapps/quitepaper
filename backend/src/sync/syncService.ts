@@ -809,6 +809,14 @@ export async function deleteStorageResource(
       await deleteCloudinaryResource(cloudPublicId.trim());
     }
     await db.execute({
+      sql: 'DELETE FROM attachment_ocr_pages WHERE attachment_id = ? AND user_id = ?',
+      args: [resourceId, userId],
+    });
+    await db.execute({
+      sql: 'DELETE FROM attachment_references WHERE resource_id = ? AND user_id = ?',
+      args: [resourceId, userId],
+    });
+    await db.execute({
       sql: 'DELETE FROM attachments WHERE id = ? AND user_id = ?',
       args: [resourceId, userId],
     });

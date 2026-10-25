@@ -859,9 +859,13 @@ class SyncEngine {
           }
         }
 
-        currentCursor = pullResponse.cursor;
-        await database.setSyncMetadata('sync_cursor', currentCursor.toString());
-        hasMore = pullResponse.hasMore;
+        if (pullResponse.changes.isEmpty || pullResponse.cursor <= currentCursor) {
+          hasMore = false;
+        } else {
+          currentCursor = pullResponse.cursor;
+          await database.setSyncMetadata('sync_cursor', currentCursor.toString());
+          hasMore = pullResponse.hasMore;
+        }
       }
 
       // 4. NOTE VERSION SYNC PHASE

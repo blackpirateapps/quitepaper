@@ -15,31 +15,9 @@ describe('Backend Zero-Knowledge OCR Synchronization and Conflict Detection Test
   const docId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   const attId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
-  it('Pushes encrypted document and attachment OCR pages and pulls them with cursor pagination', async () => {
-    // Confirm document and attachment first so FK constraints pass
-    await handleApiRequest({
-      method: 'POST',
-      url: '/api/v1/documents/confirm',
-      headers: { authorization: 'Bearer mock:user-ocr-1' },
-      body: {
-        documentId: docId,
-        title: 'Test Doc',
-        cloudPublicId: 'pub_doc_1',
-        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/pub_doc_1',
-      },
-    });
-
-    await handleApiRequest({
-      method: 'POST',
-      url: '/api/v1/attachments/confirm',
-      headers: { authorization: 'Bearer mock:user-ocr-1' },
-      body: {
-        attachmentId: attId,
-        cloudPublicId: 'pub_att_1',
-        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/pub_att_1',
-      },
-    });
-
+  it('Pushes encrypted document and attachment OCR pages and pulls them with cursor pagination without requiring Cloudinary media records', async () => {
+    // OCR pages are zero-knowledge sidecars decoupled from attachments/documents control tables.
+    // They push cleanly without needing pre-existing rows in attachments or documents.
     const pushRes = await handleApiRequest({
       method: 'POST',
       url: '/api/v1/sync/ocr/push',
@@ -107,20 +85,7 @@ describe('Backend Zero-Knowledge OCR Synchronization and Conflict Detection Test
     expect(pullEmpty.body.changes.length).toBe(0);
   });
 
-  it('Detects revision conflict when baseRevision is smaller than server revision', async () => {
-    // Confirm document first so FK constraint passes
-    await handleApiRequest({
-      method: 'POST',
-      url: '/api/v1/documents/confirm',
-      headers: { authorization: 'Bearer mock:user-ocr-conflict' },
-      body: {
-        documentId: docId,
-        title: 'Conflict Test Doc',
-        cloudPublicId: 'pub_doc_conflict',
-        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/pub_doc_conflict',
-      },
-    });
-
+  it('Detects revision conflict when baseRevision is smaller than server revision without document pre-confirmation', async () => {
     // Initial push -> revision 1
     const initialRes = await handleApiRequest({
       method: 'POST',
