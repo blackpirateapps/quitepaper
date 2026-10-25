@@ -413,12 +413,27 @@ Note body''';
       () {
         expect(
           TagParser.extractTags(
-            'Bad #work//projects, #/work, #work/, #work/123 and good #work/projects',
+            'Bad #work//projects, #/work, #work/, #123/projects, #work/-bad and good #work/projects',
           ),
           equals(['work/projects']),
         );
       },
     );
+
+    test('extracts nested tags with numeric child segments', () {
+      expect(
+        TagParser.extractTags(
+          'Notes under #journal/2026 and #archive/2024/01 and #work/123.',
+        ),
+        equals(['archive/2024/01', 'journal/2026', 'work/123']),
+      );
+      expect(TagParser.isValidTag('journal/2026'), isTrue);
+      expect(TagParser.isValidTag('archive/2024/01'), isTrue);
+      expect(TagParser.isValidTag('work/123'), isTrue);
+      expect(TagParser.isValidTag('123'), isFalse);
+      expect(TagParser.isValidTag('123/projects'), isFalse);
+      expect(TagParser.isValidTag('123/456'), isFalse);
+    });
 
     test('extracts Unicode and hyphenated path segments', () {
       expect(

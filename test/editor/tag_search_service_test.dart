@@ -118,10 +118,16 @@ void main() {
     });
 
     test('invalid nested path shapes do not offer a create candidate', () {
-      for (final query in ['work//projects', 'work/', '/work', 'work/123']) {
+      for (final query in ['work//projects', 'work/', '/work', '123/projects', 'work/-projects']) {
         final results = service.searchTags(query: query, existingTags: allTags);
         expect(results.where((tag) => tag.isNew), isEmpty, reason: query);
       }
+    });
+
+    test('offers a create candidate for valid nested path with numeric segment', () {
+      final results = service.searchTags(query: 'journal/2026', existingTags: allTags);
+      expect(results.where((tag) => tag.isNew), isNotEmpty);
+      expect(results.firstWhere((tag) => tag.isNew).name, equals('journal/2026'));
     });
 
     test('nested path queries match existing descendants', () {

@@ -55,7 +55,7 @@ void main() {
 
     test('rejects segments that violate flat tag rules', () {
       for (final invalid in [
-        'work/123',
+        '123/projects',
         'work/-projects',
         'work/projects-',
         'work/_projects',
@@ -64,6 +64,16 @@ void main() {
       ]) {
         expect(TagPath.tryParse(invalid), isNull, reason: invalid);
       }
+    });
+
+    test('permits numeric child segments in nested tag paths', () {
+      final path = TagPath.parse('journal/2026');
+      expect(path.segments, equals(['journal', '2026']));
+      expect(path.leaf, equals('2026'));
+      expect(path.parentValue, equals('journal'));
+      expect(path.ancestorValues, equals(['journal']));
+      expect(path.token, equals('#journal/2026'));
+      expect(path.breadcrumb, equals('#journal / 2026'));
     });
 
     test('normalizes an already normalized path idempotently', () {

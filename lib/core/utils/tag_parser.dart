@@ -90,11 +90,14 @@ abstract final class TagParser {
     return tag.toLowerCase();
   }
 
+  static final RegExp _pureNumericRegex = RegExp(r'^\p{N}+$', unicode: true);
+
   /// Validates whether a normalized tag string contains valid characters and is non-empty.
   ///
   /// Slashes separate path segments. Empty segments (`a//b`, `/a`, `a/`) are
-  /// rejected, and each segment follows the same character, numeric, and
-  /// leading/trailing punctuation rules as a flat tag.
+  /// rejected. The root segment (or flat tag) cannot be purely numeric (e.g. `#2026` or `#123`).
+  /// However, nested child segments CAN be numeric (e.g. `#journal/2026`, `#finance/2024/01`).
+  /// Each segment must not start or end with a dash or underscore.
   static bool isValidTag(String normalizedTag) {
     if (normalizedTag.isEmpty) return false;
     if (normalizedTag.startsWith('/') || normalizedTag.endsWith('/')) {
@@ -104,10 +107,15 @@ abstract final class TagParser {
     final segments = normalizedTag.split('/');
     final segmentPattern = RegExp(r'^[\p{L}\p{M}\p{N}_\-]+$', unicode: true);
 
-    for (final segment in segments) {
+    for (var i = 0; i < segments.length; i++) {
+      final segment = segments[i];
       if (segment.isEmpty) return false;
-      // Cannot be purely numeric
-      if (int.tryParse(segment) != null) return false;
+      // Only the root segment (or a standalone flat tag) cannot be purely numeric
+      if (i == 0 &&
+          (int.tryParse(segment) != null ||
+              _pureNumericRegex.hasMatch(segment))) {
+        return false;
+      }
       // Cannot start or end with dash/underscore
       if (segment.startsWith('-') ||
           segment.endsWith('-') ||

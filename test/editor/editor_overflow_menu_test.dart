@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
+import 'package:quitepaper/core/widgets/quiet_tag_chip.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/table/table_insert_dialog.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
@@ -469,6 +470,60 @@ void main() {
         isA<RoundedRectangleBorder>(),
       );
       expect(bottomSheet.clipBehavior, Clip.antiAlias);
+
+      await finishTest(tester);
+    });
+
+    testWidgets(
+        'Tapping "Add tag" from 3-dot overflow menu creates nested tag with numeric segments (e.g. journal/2026)',
+        (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'nested-tag-overflow-test',
+        title: 'My Journal',
+        content: 'Writing today in my journal.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+
+      // Open 3-dot overflow menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+
+      // Tap "Add tag"
+      expect(find.text('Add tag'), findsOneWidget);
+      await tester.tap(find.text('Add tag'));
+      await tester.pumpAndSettle();
+
+      // Enter nested tag "journal/2026" in the dialog
+      final dialogTextField = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      );
+      expect(dialogTextField, findsOneWidget);
+      await tester.enterText(dialogTextField, 'journal/2026');
+      await tester.pumpAndSettle();
+
+      // Tap "Add"
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      // Verify the tag chip is displayed on the editor
+      expect(find.byType(QuietTagChip), findsOneWidget);
+      expect(find.text('#journal/2026'), findsOneWidget);
+
+      // Verify the note and tag entities exist in the database
+      final savedNote = await repository.getNoteById('nested-tag-overflow-test');
+      expect(savedNote, isNotNull);
+      expect(savedNote!.tags, equals(['journal/2026']));
+
+      final allTagNames = await db.getAllTagNames();
+      expect(allTagNames, contains('journal/2026'));
+      expect(allTagNames, contains('journal'));
 
       await finishTest(tester);
     });

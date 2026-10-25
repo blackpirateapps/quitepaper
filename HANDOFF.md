@@ -10816,5 +10816,28 @@ Addressed two interconnected issues where parent tags in the sidebar failed to d
   - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), added unit tests verifying subtree note count propagation and `TagTree.compareByUsage` sorting.
   - In [`test/tags/tag_hierarchy_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_hierarchy_ui_test.dart), verified that parent tags display their full aggregated note count and that the most used parent tag displays in the sidebar even when more than 7 root tags exist.
 
+---
+
+## 231. Support for Nested Tags with Numeric Segments (e.g. #journal/2026) (October 2026)
+
+### Problem & Root Cause
+When attempting to create a nested tag like `journal/2026` via the note's 3-dot overflow menu ("Add tag"), inline hashtags in markdown (`#journal/2026`), or tag creation dialogs, the tag was rejected and failed to be created.
+The root cause was located in [`lib/core/utils/tag_parser.dart`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart): `TagParser.isValidTag` applied a purely numeric rejection check (`int.tryParse(segment) != null`) across **every** segment of a slash-separated path. While root/standalone tags cannot be purely numeric (preventing collisions with hex colors, markdown numbers, or issue IDs like `#2026` or `#123`), sub-path segments in hierarchical tags commonly represent years, months, days, or version numbers (e.g. `journal/2026`, `finance/2024/01`, `work/project/1`).
+
+### Solution
+- **Refined Tag Validation (`lib/core/utils/tag_parser.dart`)**:
+  - Confined the purely numeric rejection check (`int.tryParse(segment) != null || _pureNumericRegex.hasMatch(segment)`) strictly to the root segment (`i == 0`).
+  - Permitted child segments (`i > 0`) to be purely numeric while retaining all other format invariants (non-empty, Unicode word/numeric/hyphen/underscore regex, and no leading/trailing hyphens or underscores).
+- **Editor Add Tag Validation & Error Feedback (`lib/features/editor/presentation/widgets/tag_editor_bar.dart`)**:
+  - Updated `TagEditorBar.showAddTagDialog` with dynamic validation and editorial error feedback if invalid characters or malformed shapes are entered, clearing on text change.
+  - Updated placeholder hint text to `'e.g. ideas, journal/2026'`.
+- **Automated Verification**:
+  - In [`test/utils/tag_parser_test.dart`](file:///home/dog/git/quitepaper/test/utils/tag_parser_test.dart), added unit tests verifying extraction and validation of `journal/2026`, `archive/2024/01`, `work/123`, while rejecting purely numeric roots like `123` and `123/projects`.
+  - In [`test/tags/tag_path_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_path_test.dart), added tests verifying `TagPath.parse('journal/2026')` correctly resolves parent and leaf segments.
+  - In [`test/editor/tag_search_service_test.dart`](file:///home/dog/git/quitepaper/test/editor/tag_search_service_test.dart), verified that searching `journal/2026` produces a create candidate item.
+  - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), verified that `TagTree.build` nests `2026` as a child node under `journal`.
+  - In [`test/editor/editor_overflow_menu_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_overflow_menu_test.dart), added full widget journey test confirming that adding `journal/2026` via the 3-dot overflow menu creates the tag and its ancestor in the database and renders the `#journal/2026` tag chip.
+
+
 
 

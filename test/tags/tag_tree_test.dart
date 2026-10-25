@@ -120,20 +120,31 @@ void main() {
       final tree = TagTree.build([
         tag('work/projects'),
         tag('legacy//broken'),
-        tag('numeric/123'),
+        tag('123//broken'),
       ]);
 
       expect(
         tree.roots.map((node) => node.tag.name),
         contains('legacy//broken'),
       );
-      expect(tree.roots.map((node) => node.tag.name), contains('numeric/123'));
+      expect(tree.roots.map((node) => node.tag.name), contains('123//broken'));
       final malformed = tree.roots.firstWhere(
         (node) => node.tag.name == 'legacy//broken',
       );
       expect(malformed.path, isNull);
       expect(malformed.displayName, equals('legacy//broken'));
       expect(malformed.displayPath, equals('#legacy//broken'));
+    });
+
+    test('nests tags with numeric segments under their parent', () {
+      final tree = TagTree.build([
+        tag('journal/2026'),
+      ]);
+
+      expect(tree.roots.map((node) => node.tag.name), contains('journal'));
+      final journal = tree.roots.firstWhere((node) => node.tag.name == 'journal');
+      expect(journal.children.map((child) => child.tag.name), contains('journal/2026'));
+      expect(journal.children.first.displayName, equals('2026'));
     });
 
     test('orders pinned siblings first and respects pinned order', () {
