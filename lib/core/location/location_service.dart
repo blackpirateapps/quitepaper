@@ -16,7 +16,7 @@ final locationServiceProvider = Provider<LocationService>((ref) {
 /// Service for acquiring device location, reverse geocoding to human-readable addresses,
 /// and opening location in external map applications.
 class LocationService {
-  LocationService({http.Client? httpClient, this._appVersion = '1.6.1'})
+  LocationService({http.Client? httpClient, this._appVersion = '1.6.2'})
       : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;

@@ -22,7 +22,7 @@ class BackupService {
     AttachmentLocalStorage? storage,
     DocumentLocalStorage? documentStorage,
     FlutterSecureStorage? secureStorage,
-    this.appVersion = '1.6.1',
+    this.appVersion = '1.6.2',
 
   })  : _storage = storage ?? AttachmentLocalStorage(),
         _documentStorage = documentStorage ?? DocumentLocalStorage(),

@@ -10940,4 +10940,28 @@ The release pipeline is structured into 5 decoupled, concurrent jobs:
 - **[`linux/packaging/build_appimage.sh`](file:///home/dog/git/quitepaper/linux/packaging/build_appimage.sh)**: Updated to accept dynamic version arguments and output versioned AppImages.
 - **[`.github/workflows/build_linux.yml`](file:///home/dog/git/quitepaper/.github/workflows/build_linux.yml)**: Updated push/PR testing workflow to validate Debian package compilation alongside RPM, AppImage, and tarball builds.
 
+---
+
+## 234. Release Version Bump to 1.6.2 (Build 20) (October 2026)
+
+### Overview
+Bumped the official application version from `1.6.1+19` to `1.6.2+20` across the application codebase, packaging specs, and landing site. The build number increments `versionCode` to `20`, ensuring Android package manager and the in-app update checker recognize the build as an upgrade.
+
+### Updated Locations
+- [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml#L19): `version: 1.6.1+19` → `version: 1.6.2+20`.
+- [`lib/core/version/app_version_provider.dart`](file:///home/dog/git/quitepaper/lib/core/version/app_version_provider.dart): Fallbacks and doc comments updated to `'1.6.2'`.
+- [`lib/main.dart`](file:///home/dog/git/quitepaper/lib/main.dart#L31): Startup `PackageInfo` fallback updated to `'1.6.2'`.
+- [`lib/core/location/location_service.dart`](file:///home/dog/git/quitepaper/lib/core/location/location_service.dart#L19): Default `_appVersion` updated to `'1.6.2'`.
+- [`lib/core/device/device_info_service.dart`](file:///home/dog/git/quitepaper/lib/core/device/device_info_service.dart#L28): Default `appVersion` updated to `'1.6.2'`.
+- [`lib/core/backup/backup_service.dart`](file:///home/dog/git/quitepaper/lib/core/backup/backup_service.dart#L25): Default constructor `appVersion` updated to `'1.6.2'`.
+- [`lib/core/journal/application/weather_service.dart`](file:///home/dog/git/quitepaper/lib/core/journal/application/weather_service.dart#L30): Default `User-Agent` updated to `QuitePaper/1.6.2`.
+- [`lib/features/export/application/exporters/qpnote_exporter.dart`](file:///home/dog/git/quitepaper/lib/features/export/application/exporters/qpnote_exporter.dart#L12): Default `_appVersion` updated to `'1.6.2'`.
+- [`linux/packaging/quietpaper.spec`](file:///home/dog/git/quitepaper/linux/packaging/quietpaper.spec#L1): Default `%define app_version 1.6.2`.
+- [`linux/com.blackpiratex.quietpaper.metainfo.xml`](file:///home/dog/git/quitepaper/linux/com.blackpiratex.quietpaper.metainfo.xml#L32): Added 1.6.2 release entry.
+- Landing site & changelog:
+  - [`public/index.html`](file:///home/dog/git/quitepaper/public/index.html) & [`backend/public/index.html`](file:///home/dog/git/quitepaper/backend/public/index.html): Hero badge and footer updated to `v1.6.2`.
+  - [`public/changelog.html`](file:///home/dog/git/quitepaper/public/changelog.html) & [`backend/public/changelog.html`](file:///home/dog/git/quitepaper/backend/public/changelog.html): Added 1.6.2 release notes and footer meta.
+  - [`public/privacy.html`](file:///home/dog/git/quitepaper/public/privacy.html), [`backend/public/privacy.html`](file:///home/dog/git/quitepaper/backend/public/privacy.html), [`public/terms.html`](file:///home/dog/git/quitepaper/public/terms.html), [`backend/public/terms.html`](file:///home/dog/git/quitepaper/backend/public/terms.html): Footers updated to `v1.6.2`.
+
+
 

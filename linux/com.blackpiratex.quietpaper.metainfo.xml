@@ -29,6 +29,11 @@
   </provides>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.6.2" date="2026-10-25">
+      <description>
+        <p>Multi-platform Linux packaging release with native RPM, DEB, Flatpak, AppImage builds, nested numeric tags, and tag hierarchy polish.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-09-21">
       <description>
         <p>Linux native optimization release featuring XDG Base Directory migration, WAL concurrency, single-instance GTK integration, desktop drag-and-drop, and native packages.</p>
