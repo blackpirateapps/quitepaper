@@ -10691,6 +10691,30 @@ The **Storage & Assets** page (formerly the cloud-only Attached/Orphaned lists) 
 
 ---
 
+## 30. Manual-Only PDF OCR Processing Policy
+
+### Overview
+When a PDF document is imported into Quiet Paper or attached to a note (via file attachment, pasting, drag-and-drop, or creating a note from a PDF file), OCR processing is now strictly manual-only. Background OCR recognition is no longer automatically triggered upon import or note attachment.
+
+### Key Changes
+1. **Explicit `autoRunOcr` Control ([`lib/core/documents/document_service.dart`](file:///home/dog/git/quitepaper/lib/core/documents/document_service.dart))**:
+   - Added optional `bool? autoRunOcr` to `DocumentService.createDocumentFromPdfBytes`.
+   - Resolves `shouldAutoRunOcr = autoRunOcr ?? (source == DocumentSource.scanner)`. For all imported PDFs (`DocumentSource.importedPdf`), automatic OCR execution is disabled by default.
+   - `DocumentService.importPdfFile` sets `autoRunOcr: false` by default.
+   - Initial `ocrState` is set to `OcrProcessingState.notRequested` (`'not_requested'`) rather than `'queued'`.
+   - The asynchronous background OCR task (`processingService!.processDocument(...)`) is only enqueued if `shouldAutoRunOcr` is explicitly true and `!skipOcr`.
+2. **UI & Card Experience**:
+   - Note editor and markdown preview cards (`QuietDocumentCard`) display page count and clean file size (e.g. `2 pages • 1.4 MB`) without unwanted `"Processing text…"` banners.
+   - In [`DocumentViewerScreen`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart), imported PDFs display the editorial `'PDF'` badge pill.
+   - The top AppBar features a dedicated `"Run OCR"` icon button (`Icons.document_scanner_outlined`).
+   - Tapping `"Run OCR"` or selecting `"Run / Regenerate OCR"` from the overflow menu starts on-demand text extraction in the background with snackbar feedback, seamlessly updating the badge to `'Searchable (OCR)'` and unlocking `"View OCR Text"` once completed.
+3. **Automated Verification**:
+   - [`test/documents/document_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_service_test.dart): Verified that imported PDFs initialize with `ocrState: 'not_requested'` and that `createDocumentFromPdfBytes` respects `autoRunOcr` configuration.
+   - [`test/ocr/ocr_manual_policy_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ocr_manual_policy_test.dart): Verified that `DocumentService` imported PDF initialization skips recognition calls without explicit user request.
+   - [`test/documents/document_viewer_ocr_menu_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_viewer_ocr_menu_test.dart): Verified viewer badge and OCR trigger flows.
+
+---
+
 ## 227. Nested Tag Hierarchy with Path-Based Identity (October 2026)
 
 ### Overview
@@ -10868,8 +10892,4 @@ The root cause was located in [`lib/core/utils/tag_parser.dart`](file:///home/do
   - In [`test/tags/tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart), added widget tests verifying that both 3-dot buttons and row long-presses open the unified menu with "Add nested tag", and that tapping it opens the nested dialog scoped under `#parent/`.
   - In [`test/tags/tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart), verified that "Add nested tag" appears in the Tag Context Header actions menu.
   - Static analysis: `flutter analyze` (**0 issues**).
-
-
-
-
 

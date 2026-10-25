@@ -6,6 +6,7 @@ import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/documents/document_crypto.dart';
+import 'package:quitepaper/core/documents/document_models.dart';
 import 'package:quitepaper/core/documents/document_service.dart';
 import 'package:quitepaper/core/documents/document_storage.dart';
 import 'package:quitepaper/core/uri/resource_resolver.dart';
@@ -160,12 +161,51 @@ void main() {
       expect(doc.id, isNotEmpty);
       expect(doc.title, equals('Quarterly Financial Report'));
       expect(doc.source, equals('imported_pdf'));
+      expect(doc.ocrState, equals('not_requested'));
       expect(doc.mimeType, equals('application/pdf'));
       expect(result.markdownSnippet, equals('[Quarterly Financial Report](qp://document/${doc.id})'));
 
       final resolution = await documentService.resolveDocument(doc.id);
       expect(resolution.isAvailable, isTrue);
       expect(resolution.data?.source, equals('imported_pdf'));
+      expect(resolution.data?.ocrState, equals('not_requested'));
+    });
+
+    test('importPdfFile defaults to manual OCR (ocrState: not_requested) without auto-running OCR', () async {
+      final dummyPdfFile = File('${tempDir.path}/Manual_Ocr_Contract.pdf');
+      await dummyPdfFile.writeAsBytes(samplePdfBytes);
+
+      final result = await documentService.importPdfFile(
+        file: dummyPdfFile,
+        title: 'Manual OCR Contract',
+      );
+
+      expect(result.document.ocrState, equals('not_requested'));
+
+      final docInDb = await database.getDocument(result.document.id);
+      expect(docInDb?.ocrState, equals('not_requested'));
+    });
+
+    test('createDocumentFromPdfBytes respects autoRunOcr parameter', () async {
+      // 1. Explicit autoRunOcr: false on scanner source
+      final docManual = await documentService.createDocumentFromPdfBytes(
+        pdfBytes: samplePdfBytes,
+        pageCount: 1,
+        title: 'Scanned Manual',
+        source: DocumentSource.scanner,
+        autoRunOcr: false,
+      );
+      expect(docManual.document.ocrState, equals('not_requested'));
+
+      // 2. Explicit autoRunOcr: true on importedPdf source
+      final docAuto = await documentService.createDocumentFromPdfBytes(
+        pdfBytes: samplePdfBytes,
+        pageCount: 1,
+        title: 'Imported Auto',
+        source: DocumentSource.importedPdf,
+        autoRunOcr: true,
+      );
+      expect(docAuto.document.ocrState, equals('queued'));
     });
 
     test('renameDocument updates document title and replaces markdown link in note content', () async {
