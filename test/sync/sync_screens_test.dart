@@ -310,5 +310,35 @@ void main() {
       expect(find.text('Create Account'), findsOneWidget);
       expect(find.text('Sign In'), findsOneWidget);
     });
+
+    testWidgets('SyncAuthScreen initialView signIn opens directly on sign-in step', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [AppColors.light]),
+            home: const SyncAuthScreen(initialView: SyncAuthInitialView.signIn),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sign In to Quiet Paper'), findsOneWidget);
+      expect(find.text('Email address'), findsOneWidget);
+    });
+
+    testWidgets('SyncAuthScreen initialView createAccount opens directly on email step', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [AppColors.light]),
+            home: const SyncAuthScreen(initialView: SyncAuthInitialView.createAccount),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('What is your email address?'), findsOneWidget);
+      expect(find.text('Email address'), findsOneWidget);
+    });
   });
 }

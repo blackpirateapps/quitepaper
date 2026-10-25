@@ -13,12 +13,22 @@ import '../backup_models.dart';
 import '../backup_provider.dart';
 
 class RestoreBackupDialog extends ConsumerStatefulWidget {
-  const RestoreBackupDialog({super.key});
+  const RestoreBackupDialog({
+    super.key,
+    this.showSuccessSnackBar = true,
+  });
 
-  static Future<void> show(BuildContext context) {
-    return showDialog<void>(
+  final bool showSuccessSnackBar;
+
+  static Future<int?> show(
+    BuildContext context, {
+    bool showSuccessSnackBar = true,
+  }) {
+    return showDialog<int>(
       context: context,
-      builder: (_) => const RestoreBackupDialog(),
+      builder: (_) => RestoreBackupDialog(
+        showSuccessSnackBar: showSuccessSnackBar,
+      ),
     );
   }
 
@@ -128,18 +138,20 @@ class _RestoreBackupDialogState extends ConsumerState<RestoreBackupDialog> {
       );
 
       if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Restored ${result.totalRestored} notes'
-              '${result.totalUpdated > 0 ? ', updated ${result.totalUpdated}' : ''}'
-              '${result.totalSkipped > 0 ? ', skipped ${result.totalSkipped}' : ''}'
-              '${result.totalConflicts > 0 ? ', kept ${result.totalConflicts} duplicates' : ''}.',
+        if (widget.showSuccessSnackBar) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Restored ${result.totalRestored} notes'
+                '${result.totalUpdated > 0 ? ', updated ${result.totalUpdated}' : ''}'
+                '${result.totalSkipped > 0 ? ', skipped ${result.totalSkipped}' : ''}'
+                '${result.totalConflicts > 0 ? ', kept ${result.totalConflicts} duplicates' : ''}.',
+              ),
+              duration: const Duration(seconds: 4),
             ),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+          );
+        }
+        Navigator.of(context).pop(result.totalRestored);
       }
     } catch (e) {
       if (mounted) {

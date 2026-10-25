@@ -11005,6 +11005,95 @@ On a new Android device (and any secondary device), users experienced:
 - `flutter analyze`: **0 issues, 0 warnings**.
 - `flutter test test/sync/ test/notes/notes_query_database_test.dart`: **85 / 85 tests passing**.
 
+---
+
+## 236. First-Run Onboarding, Interactive Coach Marks & Settings Replay (October 2026)
+
+### Overview
+Implemented the complete, calm, editorial first-run onboarding experience, interactive coach marks tour, and settings replay for Quiet Paper. The implementation adheres strictly to Quiet Paper's aesthetic philosophy (warm paper tones, zero noisy modals, restrained transitions, and total respect for user privacy) without modifying backend APIs, database schemas, or sync wire formats.
+
+### Architecture & Components
+
+1. **State Management & Persistence (`lib/features/onboarding/application/onboarding_provider.dart`)**:
+   - `OnboardingKeys`:
+     - `onboarding_completed_v1` (`bool`): Tracks whether the user has finished or skipped onboarding.
+     - `onboarding_tour_seen_v1` (`bool`): Tracks whether the 3-step coach mark tour has been shown or dismissed.
+   - `OnboardingStatusNotifier`: StateNotifier exposing `OnboardingStatus` (`completed`, `tourSeen`, `isLoaded`).
+   - Methods:
+     - `complete()`: Persists `completed = true`.
+     - `markTourSeen()`: Persists `tourSeen = true`.
+     - `clearTourSeen()`: Resets `tourSeen = false` (for replay).
+     - `finishWithTour()`: Sets `completed = true, tourSeen = false` (triggers coach marks).
+     - `finishWithoutTour()`: Sets `completed = true, tourSeen = true` (skips coach marks).
+   - `onboardingStatusProvider`: Auto-loaded Riverpod provider using `sharedPreferencesProvider`.
+
+2. **App Root Gating (`lib/app/app_root.dart`)**:
+   - Acts as top-level gate in `lib/app/app.dart`.
+   - While SharedPreferences loads: renders `SizedBox.shrink()` tinted to theme background (no white flash).
+   - If `!status.completed`: renders `OnboardingScreen`.
+   - If `status.completed`: renders `NotesScreen(showOnboardingTour: !status.tourSeen)`.
+
+3. **Carousel Flow (`lib/features/onboarding/presentation/onboarding_screen.dart`)**:
+   - 8-page `PageView` with smooth 320ms curve transitions (`Curves.easeOutCubic`).
+   - Top bar (48dp): Back chevron (pages 2-8), progress dots, Skip text button.
+   - Bottom bar (72dp): Dynamic primary action button and secondary link ("Skip the tour").
+   - Keyboard navigation: Left/Right arrows, PageUp/PageDown, Enter (advance), Escape (back/skip).
+   - Responsive page layout (`OnboardingPageLayout`):
+     - Screen width >= 760dp (Tablet/Desktop): 2-column split (visual left 420dp max, text right 480dp max).
+     - Screen width < 760dp (Phone): Stacked vertical layout wrapped in `SingleChildScrollView`.
+   - Responsive scaling: All vignettes wrapped in `FittedBox(fit: BoxFit.scaleDown)` and `ExcludeSemantics` guaranteeing zero overflow even on 320x568 dp screens (e.g., iPhone SE 1st gen).
+   - Pages & Canonical Copy:
+     - **Page 1: Welcome**: Eyebrow: `WELCOME TO QUIET PAPER`, Title: `A quiet place to think.`, Subtitle: `No clutter, no noise. Just your thoughts on warm paper.`, Visual: `WelcomeVignette`, Actions: `Restore a backup` · `Sign in` · `Create account`. Primary: `Start writing`.
+     - **Page 2: Privacy**: Eyebrow: `PRIVATE BY DEFAULT`, Title: `Your words. Your business.`, Footnote: `No account needed to start.`, Visual: `PrivacyVignette`. Primary: `Next`.
+     - **Page 3: Voice**: Eyebrow: `VOICE FIRST`, Title: `Speak your mind. We'll write it down.`, Footnote: `Models stay on device. Zero data sent to the cloud.`, Visual: `VoiceVignette`. Primary: `Next`.
+     - **Page 4: Simplicity**: Eyebrow: `ONE LIST, ONE WAY`, Title: `Folders belong in filing cabinets.`, Footnote: `Organize when you feel like it. Or never.`, Visual: `SimplicityVignette`. Primary: `Next`.
+     - **Page 5: OCR**: Eyebrow: `PAPER TO PAPERLESS`, Title: `Search the text inside your photos.`, Footnote: `Processed completely offline with Apple Vision / Google ML Kit.`, Visual: `OcrVignette`. Primary: `Next`.
+     - **Page 6: Sync**: Eyebrow: `SYNC WHEN YOU'RE READY`, Title: `Quietly synced. Cryptographically sealed.`, Footnote: `Already have an account? Sign in`, Visual: `SyncVignette`. Primary: `Next`.
+     - **Page 7: Personalize**: Eyebrow: `MAKE IT YOURS`, Title: `A desk that feels like yours.`, Interactive controls:
+       - Paper style: Classic Paper (`classic_paper`) vs Warm Paper (`warm_paper`).
+       - Appearance: System (`system`), Light (`light`), Dark (`dark`).
+       - Sample notes: "Load 5 sample notes" (checks Drift database, inserts sample notes, or displays "Your desk already has notes." if notes exist). Primary: `Next`.
+     - **Page 8: Ready**: Eyebrow: `ALL SET`, Title: `Your desk is clear.`, Subtitle: `Start with a blank page or let us show you around.`, Visual: `ReadyVignette`. Primary: `Show me around` (launches coach marks), Secondary: `Skip the tour, let's write` (lands on desk).
+
+4. **Success Screen (`lib/features/onboarding/presentation/widgets/onboarding_success_page.dart`)**:
+   - Replaces carousel when user signs in or restores a backup from the Welcome or Sync pages.
+   - Sync variant: "You're signed in. End-to-end sync is active for `<email>`."
+   - Restore variant: "Your backup is home. We put back `<N>` notes and their tags."
+   - Primary button: `Continue to Quiet Paper`.
+
+5. **Interactive Coach Marks (`lib/features/onboarding/presentation/coach_marks/onboarding_coach_marks.dart`)**:
+   - Spotlight overlay on `NotesScreen` with darkened backdrop (`#000000` with 60% opacity) and smooth rounded cutout around target elements.
+   - 3-step sequence:
+     - **Step 1: Sidebar** (targets menu button): "All your notes, one drawer." / "Tags, archive, trash, and settings live here. Swipe from the left edge anytime to open."
+     - **Step 2: Search** (targets search bar / pull-down): "Find anything in milliseconds." / "Search titles, note text, and even words inside attached photos. Or pull down on the list to reveal."
+     - **Step 3: Create** (targets FAB / compose button): "Your first note is one tap away." / "Tap + to start writing. Everything saves automatically as you type."
+   - Controls: "Next" / "Create my first note" (primary), "Skip tour" (secondary).
+   - Tapping "Create my first note" automatically creates a blank note via `notesRepositoryProvider`, opens `EditorScreen(showFirstNoteTips: true)`, and completes the tour.
+
+6. **First Note Editor Tips (`lib/features/onboarding/presentation/widgets/first_note_tips_card.dart`)**:
+   - Unobtrusive card docked at the top of the note editor for the user's first created note.
+   - Title: `A few quiet tricks` with "Got it" dismissal button.
+   - Tips:
+     - `• No save button—everything saves as you type.`
+     - `• Type #tag anywhere to organize.`
+     - `• Skip the title? The first line becomes it.`
+
+7. **Settings Replay Entry Point (`lib/features/settings/presentation/about_app_screen.dart`)**:
+   - Added `WELCOME TOUR` group under the About screen with `Show welcome tour` row (`Icons.explore_outlined`).
+   - Resets `tourSeen = false` and opens `OnboardingScreen(isReplay: true)` with an explicit close button (`Icons.close_rounded`) in the top bar.
+
+8. **Testing Suite**:
+   - `test/onboarding/onboarding_provider_test.dart`: 7 unit tests covering defaults, completion, tourSeen persistence, reset, and reloading.
+   - `test/onboarding/onboarding_screen_test.dart`: 10 widget/integration tests covering page advancement, skipping, theme switching, sample notes loading/idempotency, auth link navigation, success screens, and 320x568 small-phone overflow validation.
+   - `test/onboarding/coach_marks_test.dart`: 5 tests covering 3 coach mark steps, skipping, first note creation, editor tips card display and dismissal, and missing-target fallback safety.
+   - `test/settings/about_app_screen_test.dart`: 2 tests verifying "Show welcome tour" row exists and launches replay.
+   - `test/sync/sync_screens_test.dart` & `test/widget_test.dart`: Updated to accommodate onboarding root gating.
+
+### Verification & Quality Gates
+- `flutter analyze`: **0 issues, 0 warnings** (clean).
+- `flutter test`: **2,381 / 2,381 tests passing** (100% pass rate across the full test suite).
+
+
 
 
 

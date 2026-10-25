@@ -8,6 +8,7 @@ import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:quitepaper/core/utils/link_launcher_helper.dart';
 import 'package:quitepaper/core/version/app_version_provider.dart';
 import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
+import '../../onboarding/presentation/onboarding_screen.dart';
 import 'widgets/settings_shared_widgets.dart';
 
 /// Detailed "About" screen presenting author hero media, app vision, and resources.
@@ -279,6 +280,36 @@ class AboutAppScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // Welcome Tour
+                // ==========================================
+                buildSectionHeader(context, 'WELCOME TOUR'),
+                SettingsGroup(
+                  children: [
+                    SettingsRow(
+                      key: const Key('settings-show-welcome-tour'),
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'Show welcome tour',
+                      subtitle: 'Revisit the introduction and first-note tips.',
+                      trailing: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: colors.textTertiary,
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const OnboardingScreen(isReplay: true),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 24),

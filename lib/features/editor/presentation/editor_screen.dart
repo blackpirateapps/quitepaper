@@ -33,6 +33,7 @@ import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.da
 import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
+import '../../onboarding/presentation/widgets/first_note_tips_card.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
@@ -114,6 +115,7 @@ class EditorScreen extends ConsumerStatefulWidget {
     required this.note,
     this.autoFocusBody = false,
     this.initialPreviewMode = false,
+    this.showFirstNoteTips = false,
     this.onClose,
     this.onOpenLinkedNote,
   });
@@ -121,6 +123,7 @@ class EditorScreen extends ConsumerStatefulWidget {
   final Note note;
   final bool autoFocusBody;
   final bool initialPreviewMode;
+  final bool showFirstNoteTips;
   final VoidCallback? onClose;
   final void Function(Note note, {bool initialPreviewMode})? onOpenLinkedNote;
 
@@ -138,6 +141,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final ScrollController _scrollController;
   late final UndoRedoManager _undoRedoManager;
   late final VersionSessionTracker _sessionTracker;
+  bool _firstNoteTipsDismissed = false;
 
   // In-Note Search & Replace state & animations
   bool _isSearchVisible = false;
@@ -1934,6 +1938,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 // Top-docked formatting toolbar or speech recording bar (desktop mode)
                 if (isDesktop)
                   _buildToolbarOrSpeechBar(isTopDocked: true),
+                if (widget.showFirstNoteTips &&
+                    !editorState.isPreviewMode &&
+                    !editorState.isReadOnly &&
+                    !_firstNoteTipsDismissed)
+                  FirstNoteTipsCard(
+                    onDismiss: () {
+                      setState(() {
+                        _firstNoteTipsDismissed = true;
+                      });
+                    },
+                  ),
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
