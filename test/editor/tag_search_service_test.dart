@@ -55,8 +55,17 @@ void main() {
       expect(results[2].name, 'pineapple'); // Substring match
     });
 
-    test('empty or invalid query returns empty list', () {
+    test('empty query returns all existing tags ranked by pinned, note count, and name', () {
       final results = service.searchTags(query: '', existingTags: allTags);
+      expect(results.length, 4);
+      expect(results[0].name, 'work'); // Pinned
+      expect(results[1].name, 'pineapple'); // noteCount 10
+      expect(results[2].name, 'apple'); // noteCount 5
+      expect(results[3].name, 'application'); // noteCount 1
+    });
+
+    test('invalid punctuation query returns empty list', () {
+      final results = service.searchTags(query: '???', existingTags: allTags);
       expect(results, isEmpty);
     });
 
@@ -68,6 +77,82 @@ void main() {
       );
       expect(results.length, 1);
       expect(results[0].name, 'cooking');
+    });
+
+    test('offers a create candidate for a missing valid nested path', () {
+      final results = service.searchTags(
+        query: '#Work/Projects/Alpha',
+        existingTags: allTags,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single.name, equals('work/projects/alpha'));
+      expect(results.single.isNew, isTrue);
+    });
+
+    test('existing nested tags win over the synthetic create candidate', () {
+      final nested = Tag(
+        id: 'nested',
+        name: 'work/projects',
+        createdAt: now,
+        updatedAt: now,
+        noteCount: 3,
+      );
+      final results = service.searchTags(
+        query: 'work/projects',
+        existingTags: [...allTags, nested],
+      );
+
+      expect(results.first.name, equals('work/projects'));
+      expect(results.first.isNew, isFalse);
+      expect(results.where((tag) => tag.isNew), isEmpty);
+    });
+
+    test('flat unknown queries keep the legacy no-create behavior', () {
+      final results = service.searchTags(
+        query: 'brand-new-flat-tag',
+        existingTags: allTags,
+      );
+
+      expect(results, isEmpty);
+    });
+
+    test('invalid nested path shapes do not offer a create candidate', () {
+      for (final query in ['work//projects', 'work/', '/work', '123/projects', 'work/-projects']) {
+        final results = service.searchTags(query: query, existingTags: allTags);
+        expect(results.where((tag) => tag.isNew), isEmpty, reason: query);
+      }
+    });
+
+    test('offers a create candidate for valid nested path with numeric segment', () {
+      final results = service.searchTags(query: 'journal/2026', existingTags: allTags);
+      expect(results.where((tag) => tag.isNew), isNotEmpty);
+      expect(results.firstWhere((tag) => tag.isNew).name, equals('journal/2026'));
+    });
+
+    test('nested path queries match existing descendants', () {
+      final parent = Tag(
+        id: 'nested-parent',
+        name: 'work/projects',
+        createdAt: now,
+        updatedAt: now,
+        noteCount: 2,
+      );
+      final nested = Tag(
+        id: 'nested-child',
+        name: 'work/projects/alpha',
+        createdAt: now,
+        updatedAt: now,
+        noteCount: 1,
+      );
+      final results = service.searchTags(
+        query: 'work/projects',
+        existingTags: [...allTags, parent, nested],
+      );
+
+      expect(results.map((tag) => tag.name), contains('work/projects/alpha'));
+      expect(results.first.name, equals('work/projects'));
+      expect(results.first.isNew, isFalse);
     });
   });
 }

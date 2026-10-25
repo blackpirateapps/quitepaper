@@ -235,6 +235,7 @@ void main() {
       await tester.tap(find.byTooltip('Tag options'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Add nested tag'), findsOneWidget);
       expect(find.text('Rename tag'), findsOneWidget);
       expect(find.text('Change icon'), findsOneWidget);
       expect(find.text('Change color'), findsOneWidget);

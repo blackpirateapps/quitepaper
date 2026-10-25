@@ -10712,3 +10712,184 @@ When a PDF document is imported into Quiet Paper or attached to a note (via file
    - [`test/documents/document_service_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_service_test.dart): Verified that imported PDFs initialize with `ocrState: 'not_requested'` and that `createDocumentFromPdfBytes` respects `autoRunOcr` configuration.
    - [`test/ocr/ocr_manual_policy_test.dart`](file:///home/dog/git/quitepaper/test/ocr/ocr_manual_policy_test.dart): Verified that `DocumentService` imported PDF initialization skips recognition calls without explicit user request.
    - [`test/documents/document_viewer_ocr_menu_test.dart`](file:///home/dog/git/quitepaper/test/documents/document_viewer_ocr_menu_test.dart): Verified viewer badge and OCR trigger flows.
+
+---
+
+## 227. Nested Tag Hierarchy with Path-Based Identity (October 2026)
+
+### Overview
+Tags now support slash-separated hierarchy (`#work/projects/alpha`) using the **full normalized path as the canonical identity**. No `parentId` column or parallel folder model was added: every tag remains an ordinary synced entity whose name contains its full path, and parent/child relationships are derived in memory. This keeps offline creation, Markdown parsing, imports, and encrypted sync convergent without a schema migration.
+
+### Domain Model
+- Added [`lib/features/tags/domain/tag_path.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_path.dart) with `TagPath.parse` / `tryParse`, `segments`, `leaf`, `parent`, `ancestors`, `breadcrumb`, `token`, and descendant checks. `/` separates segments; empty, leading, trailing, or invalid segments are rejected. Validation reuses `TagParser` rules, including the existing case-folding and Unicode behavior. No new NFC normalization was introduced.
+- Added [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart) as a derived presentation model. It synthesizes implicit ancestors deterministically when only a legacy child row exists, without persisting rows. `Tag` gained `isImplicit` / `isNew`, and `TagWithCount` gained `isImplicit`.
+- `TagParser.isValidTag` now validates each path segment individually. Hashtag extraction and Markdown rewrites remain segment/path-prefix aware, so renaming or removing `work` never touches `workflow` or `work/projects`.
+
+### Database & Filtering
+- `createTag` / `ensureTagPathExists` create every missing ancestor in one transaction and reuse existing rows. Only the requested leaf receives the supplied icon, color, and pin metadata; ancestors are created dirty but are never implicitly assigned to notes.
+- `watchNotes(filterTag: ...)` and the notes query executor match the selected path plus all descendants using exact equality and an escaped `LIKE 'path/%'` predicate (`escapeChar: '\'`). Notes are deduplicated and textual prefixes such as `workflow` are excluded.
+- `watchAllTagsWithCount` computes subtree counts as **distinct active notes** and synthesizes implicit ancestors with deterministic IDs. `getAllTagNames` includes ancestor paths for autocomplete and validation.
+- Branch operations are transactional locally:
+  - `renameTag` renames the whole subtree in place, preserves IDs/metadata/assignments, rewrites Markdown and YAML frontmatter segment-aware, and removes old ancestors that become unused.
+  - `deleteTag` defaults to deleting the branch; `TagBranchDeleteMode.moveChildrenUp` promotes direct children and preserves their IDs. Collisions roll back.
+  - `moveTag` reparents a branch (or promotes it to the top level), while `mergeTags` folds a branch into a destination and reconciles conflicting target names by re-pointing note assignments.
+- Orphan cleanup now preserves tags that still have live descendants. Distributed atomicity is deliberately not claimed for renames/moves/merges; each affected tag syncs as its own entity.
+
+### Navigation & UI
+- Sidebar tag section and tag browser render expandable trees with leaf names, indentation, and full accessible paths. Expansion state persists locally through `ExpandedTagPathsNotifier`. Pinned tags remain a flat, reorderable section.
+- `TagContextHeader` shows the leaf in the title and the full breadcrumb underneath for nested tags.
+- Note chips display only the leaf. Tapping a nested chip opens a disclosure showing the full breadcrumb and an **Open tag** action; flat chips keep direct navigation. Chip semantics now announce the full path exactly (`#work/projects/alpha, nested tag`).
+- Inline tag autocomplete offers a synthetic **Create #path** candidate for missing valid nested paths, while existing tags keep precedence. Flat unknown queries preserve the legacy no-create behavior.
+- Rename/delete/merge dialogs and sidebar/browser actions remain available. Branch deletion offers delete-branch or move-children-up choices when descendants exist.
+
+### Markdown Import
+- Folder-derived tags remain flat by default. A new local preference (`import_mirror_folder_hierarchy`) and a per-import toggle opt into a single deepest nested tag derived from the folder path (for example `articles/wikipedia`). Existing picked-file imports remain flat.
+
+### Sync
+- The full path stays inside the encrypted tag name; each ancestor is an ordinary synced entity. When a remote child arrives before its ancestors, `upsertSyncedTag` hydrates missing local ancestors as dirty entities without resurrecting existing tombstones. Duplicate-name reconciliation, revision handling, and dirty states are preserved.
+- Expansion and selection state are local-only and never enter sync payloads.
+
+### Migration
+- `beforeOpen` runs `_backfillTagHierarchy`, which creates missing ancestors for existing tags containing `/`. It preserves IDs, metadata, assignments, and note content; generated ancestors are marked dirty. A `sync_metadata` marker (`tag_hierarchy_backfill_v1`) makes the pass idempotent. Malformed legacy paths are left untouched. Drift schema version remains **20**.
+
+### Tests & Verification
+- Added `test/tags/tag_path_test.dart`, `test/tags/tag_tree_test.dart`, `test/tags/tag_hierarchy_database_test.dart`, and `test/tags/tag_hierarchy_ui_test.dart`.
+- Extended parser, search/autocomplete, import scanner, sync, and tag dialog tests for nested paths, branch operations, child-before-ancestor sync, duplicate reconciliation, tombstones, migration, and accessibility.
+- Sequential verification: `flutter analyze` (**0 issues**) and `flutter test` (**2326/2326 tests passed**).
+
+---
+
+## 228. Tag Picker on '#', Full Path Note Display, and Deferred Tag Creation (October 2026)
+
+### Overview
+Addressed three tag UX issues in the editor:
+1. **Tag Picker on `#`**: Typing `#` alone now immediately triggers the inline tag autocomplete picker showing all known tags, instead of requiring a character to be typed first.
+2. **Full Path Tag Display in Opened Notes**: When a note is opened in the editor or preview mode, tag chips in the note header bar display their full hierarchical path (e.g. `#journal/daily` or `#work/projects`) rather than truncating to only the leaf name (`#daily`).
+3. **Deferred Tag Creation While Typing**: In-body tags typed into note content are no longer extracted or added to the note tags bar prematurely while typing. The tag is only committed once terminated by whitespace (`Space`, `Enter`/newline) or delimiter/punctuation.
+
+### Implementation Details
+1. **Tag Picker Autocomplete Trigger**:
+   - In [`lib/features/editor/application/tag_autocomplete_trigger.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/tag_autocomplete_trigger.dart), relaxed `cursor < 2` to `cursor < 1` and permitted `queryStart == queryEnd` (`query: ''`).
+   - When `#` is typed alone at line start or after whitespace, `TagAutocompleteTrigger` emits a trigger with `query: ''`.
+   - In [`lib/features/editor/application/tag_search_service.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/tag_search_service.dart), empty queries (`query: ''`) rank and return all available existing and inline tags up to `limit` sorted by `isPinned DESC, noteCount DESC, name ASC`.
+   - Maintained `# ` space termination and ATX heading suppression (`##`..`######` at line start) so markdown headings remain unhindered.
+2. **Full Tag Path in Opened Notes**:
+   - In [`lib/core/widgets/quiet_tag_chip.dart`](file:///home/dog/git/quitepaper/lib/core/widgets/quiet_tag_chip.dart), added `showFullPath: bool` (default `false`). When `true`, renders `TagParser.formatDisplay(tag)` and skips the disclosure popup since the full path is already visible.
+   - In [`lib/features/editor/presentation/widgets/tag_editor_bar.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/tag_editor_bar.dart), added `showFullPath: bool` (default `true`) and passed it to all child `QuietTagChip` instances.
+   - Opened notes in `EditorScreen`, `FrontmatterPropertiesSection`, and `MarkdownPreview` render the complete hierarchical tag path. Compact multi-note list tiles (`NoteListTile`) retain `showFullPath: false` with tap disclosure.
+3. **Deferred In-Body Tag Extraction & Persistence**:
+   - In [`lib/core/utils/tag_parser.dart`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart), introduced `_tagWithTerminatorRegex` and `requireTerminator: bool = false` on `TagParser.extractTags`. When `requireTerminator: true`, hashtags must be followed by whitespace (`\s`) or closing punctuation/delimiters, omitting end-of-string lookahead `|$`.
+   - In [`lib/features/editor/application/editor_provider.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/editor_provider.dart), debounced autosave (`saveNow`) uses `requireTerminator: true` when scanning content. In-progress typing spans (e.g. `#t`, `#ta`) are not extracted or merged into `state.note.tags`.
+   - In [`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart) and [`lib/features/notes/data/notes_repository.dart`](file:///home/dog/git/quitepaper/lib/features/notes/data/notes_repository.dart), added `preserveEmptyTags: bool = false` to `saveNote`. When `EditorNotifier` saves with an explicitly empty tag set, the database respects it without triggering legacy fallback tag extraction from unterminated markdown content.
+4. **Automated Verification**:
+   - Updated `test/editor/tag_autocomplete_trigger_test.dart` and `test/editor/tag_search_service_test.dart` for `#` trigger and empty query candidate rankings.
+   - Added `test/editor/tag_inline_menu_test.dart` coverage for empty-query inline menu rendering and full-path `TagEditorBar` chip display.
+   - Added `test/utils/tag_parser_test.dart` and `test/editor/editor_provider_tag_test.dart` coverage for `requireTerminator: true` and deferred tag creation on space / enter.
+   - Synchronized `test/editor/wysiwyg_autocomplete_test.dart` and `test/editor/wysiwyg_backspace_test.dart` for immediate `#` trigger visibility.
+   - Verified `flutter analyze` (**0 issues found**) and `flutter test` (**2337/2337 passing tests**).
+
+---
+
+## 229. Prominently Collapsible Children Tags in Sidebar and Tags Page (October 2026)
+
+### Overview
+Addressed user-reported issues where child tags were not effectively collapsible or their expanders were difficult to discover/interact with in both the navigation sidebar (`SidebarView`) and the tag browser (`TagBrowserView` / `TagBrowserSheet`). Specifically:
+1. **Visible & Prominent Expand/Collapse Chevrons on the Right**: Chevrons are placed on the trailing (right) side of each tag row, styled with a 32x32 hit area, 18sp icon size, high contrast (`accent` when expanded, `textSecondary` or light grey on dark sidebar when collapsed), and rounded hover/splash feedback. Tags are collapsed by default.
+2. **Sidebar Child Truncation Fix**: Expanding a root tag previously pushed total displayed items beyond the 7-tag limit (`_maxVisibleTags`), truncating children into `... and N more`. Now, visible root count is capped at 7 while all expanded descendants of visible roots are flattened inline.
+3. **Sidebar Alignment & Padding Fix**: Fixed asymmetric padding in `SidebarItem` so deeper nested tags keep their trailing badges and chevrons aligned flush to the right edge.
+4. **Tag Browser Layout & Alignment Cleanup**: Removed the small left-side chevron and empty placeholders in `TagBrowserView`; all tag icons align consistently to their depth indentation (`indent * 16.0`), and chevrons appear on the right side next to the note count.
+5. **Implicit Parent Tag Tap Toggle**: For implicit parent tags without direct notes, tapping the entire row toggles expansion.
+6. **Hierarchy Menu Actions**: Added "Expand all sub-tags" and "Collapse all sub-tags" in both the compact popup menu (`Sort and filter tags`) and the desktop/tablet header menu (`Tag hierarchy options` with `PhosphorIconsRegular.treeStructure`).
+
+### Implementation Details
+- **Domain & Application**:
+  - In [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart), added optional `roots` parameter to `TagTree.flatten()` to enable flattening a subset of root nodes and their descendants in linear time.
+  - In [`lib/features/tags/application/tag_providers.dart`](file:///home/dog/git/quitepaper/lib/features/tags/application/tag_providers.dart), added `bool isExpanded(String path)` helper to `ExpandedTagPathsNotifier`.
+- **Sidebar Presentation**:
+  - In [`lib/features/sidebar/presentation/widgets/sidebar_item.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/sidebar_item.dart), changed padding from symmetric `horizontal: AppSpacing.md + (indent * 14.0)` to `left: AppSpacing.md + (indent * 16.0), right: AppSpacing.sm` to maintain right-aligned trailing controls across all nesting levels.
+  - In [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart), updated visible tag calculation to `TagTree.flatten(tree, expandedPaths: expandedPaths, roots: tree.roots.take(_maxVisibleTags).toList())`. Promoted the trailing chevron button to 32x32 dp, 18sp icon size, with high-contrast color and tap toggle for implicit parents.
+- **Tag Browser & Sheet**:
+  - In [`lib/features/tags/presentation/widgets/tag_browser_view.dart`](file:///home/dog/git/quitepaper/lib/features/tags/presentation/widgets/tag_browser_view.dart), moved the expand/collapse button to the trailing position after the note count, eliminated leading placeholders for uniform icon alignment, added row tap expansion for implicit tags, and introduced "Expand all sub-tags" and "Collapse all sub-tags" actions in both compact and wide header menus.
+  - In [`lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/widgets/tag_browser_sheet.dart), aligned trailing expander styling to 32x32 dp, 18sp icon, and high-contrast color scheme.
+- **Automated Verification**:
+  - In [`test/tags/tag_hierarchy_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_hierarchy_ui_test.dart), added widget tests for:
+    - Expanding parent tags under `_maxVisibleTags` without child truncation.
+    - Tapping implicit parent rows to toggle expansion.
+    - Expanding all and collapsing all sub-tags from both wide (`Tag hierarchy options`) and compact (`Sort and filter tags`) popup menus.
+
+---
+
+## 230. Sidebar Most-Used Tag Ordering & Parent Subtree Count Propagation (October 2026)
+
+### Overview
+Addressed two interconnected issues where parent tags in the sidebar failed to display or showed incorrect note counts:
+1. **Most Used Parent Tag Missing in Sidebar**: `SidebarView` was building `TagTree` with default alphabetical sorting (`_defaultCompare`), which caused `tree.roots.take(_maxVisibleTags)` to select the first 7 roots alphabetically (e.g. `a` through `g`). If a user had 8 or more roots and their most used parent tag started with a later letter (e.g. `#work`), it was excluded from the sidebar even when it had the most notes in the app.
+2. **Missing Subtree Note Count on Parent Tags**: When parent tags were implicit (synthesized for presentation when notes were tagged with `#parent/child` without an explicit `#parent` row) or had zero direct notes, `TagTree.build` created them with `noteCount: 0`. While the Tag Browser computed subtree counts at the SQL/query level, in-memory tree derivation in `TagTree` lacked recursive subtree aggregation, causing parent tags to display `0` or drop to the bottom of usage sorts.
+
+### Implementation Details
+- **Subtree Count Propagation in `TagTree`**:
+  - In [`lib/features/tags/domain/tag_tree.dart`](file:///home/dog/git/quitepaper/lib/features/tags/domain/tag_tree.dart):
+    - Added `int get totalNoteCount` on `TagTreeNode` to recursively aggregate child note counts.
+    - Updated `TagTree.build` to perform a post-construction bottom-up pass (`computeSubtreeCounts`) ensuring every parent node's `tag.noteCount` reflects the total active notes across its entire subtree (`max(tag.noteCount, childSum)`).
+    - Exposed `TagTree.compareByUsage` (pinned first, then `noteCount DESC`, then alphabetical) and `TagTree.compareByName` (pinned first, then alphabetical).
+- **Sidebar Ordering by Usage**:
+  - In [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart), updated `TagTree.build` to use `compare: TagTree.compareByUsage`.
+  - The 7 visible root slots in the sidebar now prioritize the user's most used parent tags.
+  - Added fallback check to ensure that if a tag outside the top 7 is currently active (`selectedTag`), its root is included in `visibleRoots` so selection state remains visible in the sidebar.
+- **Automated Verification**:
+  - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), added unit tests verifying subtree note count propagation and `TagTree.compareByUsage` sorting.
+  - In [`test/tags/tag_hierarchy_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_hierarchy_ui_test.dart), verified that parent tags display their full aggregated note count and that the most used parent tag displays in the sidebar even when more than 7 root tags exist.
+
+---
+
+## 231. Support for Nested Tags with Numeric Segments (e.g. #journal/2026) (October 2026)
+
+### Problem & Root Cause
+When attempting to create a nested tag like `journal/2026` via the note's 3-dot overflow menu ("Add tag"), inline hashtags in markdown (`#journal/2026`), or tag creation dialogs, the tag was rejected and failed to be created.
+The root cause was located in [`lib/core/utils/tag_parser.dart`](file:///home/dog/git/quitepaper/lib/core/utils/tag_parser.dart): `TagParser.isValidTag` applied a purely numeric rejection check (`int.tryParse(segment) != null`) across **every** segment of a slash-separated path. While root/standalone tags cannot be purely numeric (preventing collisions with hex colors, markdown numbers, or issue IDs like `#2026` or `#123`), sub-path segments in hierarchical tags commonly represent years, months, days, or version numbers (e.g. `journal/2026`, `finance/2024/01`, `work/project/1`).
+
+### Solution
+- **Refined Tag Validation (`lib/core/utils/tag_parser.dart`)**:
+  - Confined the purely numeric rejection check (`int.tryParse(segment) != null || _pureNumericRegex.hasMatch(segment)`) strictly to the root segment (`i == 0`).
+  - Permitted child segments (`i > 0`) to be purely numeric while retaining all other format invariants (non-empty, Unicode word/numeric/hyphen/underscore regex, and no leading/trailing hyphens or underscores).
+- **Editor Add Tag Validation & Error Feedback (`lib/features/editor/presentation/widgets/tag_editor_bar.dart`)**:
+  - Updated `TagEditorBar.showAddTagDialog` with dynamic validation and editorial error feedback if invalid characters or malformed shapes are entered, clearing on text change.
+  - Updated placeholder hint text to `'e.g. ideas, journal/2026'`.
+- **Automated Verification**:
+  - In [`test/utils/tag_parser_test.dart`](file:///home/dog/git/quitepaper/test/utils/tag_parser_test.dart), added unit tests verifying extraction and validation of `journal/2026`, `archive/2024/01`, `work/123`, while rejecting purely numeric roots like `123` and `123/projects`.
+  - In [`test/tags/tag_path_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_path_test.dart), added tests verifying `TagPath.parse('journal/2026')` correctly resolves parent and leaf segments.
+  - In [`test/editor/tag_search_service_test.dart`](file:///home/dog/git/quitepaper/test/editor/tag_search_service_test.dart), verified that searching `journal/2026` produces a create candidate item.
+  - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), verified that `TagTree.build` nests `2026` as a child node under `journal`.
+  - In [`test/editor/editor_overflow_menu_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_overflow_menu_test.dart), added full widget journey test confirming that adding `journal/2026` via the 3-dot overflow menu creates the tag and its ancestor in the database and renders the `#journal/2026` tag chip.
+
+---
+
+## 232. Tag Browser Long-Press Menu Unification and "Add nested tag" Action (October 2026)
+
+### Problem & Objectives
+1. **Long-Press Menu Parity**: In the Tag Browser page (`TagBrowserView`), long-pressing a tag row lacked parity with the 3-dot overflow button (`dotsThreeVertical`). On desktop/tablet, `onLongPress` did not anchor to the specific row context, and haptic feedback was missing.
+2. **"Add nested tag" Action**: Users needed a quick way to create sub-tags directly nested under an existing parent tag without having to manually type out full hierarchical paths from scratch.
+
+### Implementation Details
+- **Nested Tag Creation Dialog (`lib/features/tags/presentation/widgets/tag_action_dialogs.dart`)**:
+  - Extended `TagCreateDialog` and added `TagCreateDialog.showNested(context, parentTag: tag, existingTags: ...)` supporting `parentTagName: String?`.
+  - When `parentTagName` is specified:
+    - Dialog title: **"New Nested Tag"**.
+    - Input prefix: `#<parentTagName>/`.
+    - Placeholder: `'sub-tag (e.g. 2026, projects)'`.
+    - Automatically combines the parent path with the child segment and validates via `TagParser.isValidTag` and checks for duplicates.
+    - Pre-populates the parent tag's icon and color while leaving them customizable.
+- **Tag Browser View (`lib/features/tags/presentation/widgets/tag_browser_view.dart`)**:
+  - Added **"Add nested tag"** (`PhosphorIconsRegular.folderPlus`) directly beneath **"Open"** in the tag options menu (`_showTagOptions`).
+  - Added `_handleAddNestedTag` handler: creates the tag via `tagServiceProvider.createTag`, automatically expands the parent tag in `expandedTagPathsProvider` so the new sub-tag is immediately revealed in the hierarchy tree, and shows a confirmation SnackBar.
+  - Wrapped `_buildTagRow` with a `Builder` to capture `rowContext`, invoking `HapticFeedback.mediumImpact()` and anchoring popovers directly to the clicked row.
+  - Verified that long-press on both unpinned and pinned tag rows reliably presents the options menu.
+- **Consistent Availability Across Tag Surfaces**:
+  - **Sidebar (`lib/features/sidebar/presentation/sidebar_view.dart`)**: Added **"Add nested tag"** with `PhosphorIconsRegular.folderPlus` directly beneath "Open" for both desktop `showMenu` and mobile adaptive popovers/sheets.
+  - **Tag Context Header (`lib/features/tags/presentation/widgets/tag_context_header.dart`)**: Added **"Add nested tag"** to the 3-dot popup menu at the top of note lists filtered by a tag.
+- **Automated Verification**:
+  - In [`test/tags/tag_dialogs_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_dialogs_test.dart), added tests verifying `TagCreateDialog.showNested` static prefix, child segment validation, duplicate checking, and nested tag entity generation.
+  - In [`test/tags/tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart), added widget tests verifying that both 3-dot buttons and row long-presses open the unified menu with "Add nested tag", and that tapping it opens the nested dialog scoped under `#parent/`.
+  - In [`test/tags/tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart), verified that "Add nested tag" appears in the Tag Context Header actions menu.
+  - Static analysis: `flutter analyze` (**0 issues**).
+

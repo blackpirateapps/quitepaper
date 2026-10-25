@@ -156,5 +156,75 @@ void main() {
       final savedNote = await repository.getNoteById('note-tag-4');
       expect(savedNote!.tags, equals(['extra_tag']));
     });
+
+    test('typing in-progress #tag without space or enter does not add tag on saveNow()', () async {
+      final now = DateTime.now();
+      final initialNote = Note(
+        id: 'note-tag-5',
+        title: 'Draft Note',
+        content: 'Starting note',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        tags: const [],
+      );
+
+      await repository.saveNote(initialNote);
+
+      final notifier = EditorNotifier(
+        initialNote: initialNote,
+        repository: repository,
+      );
+
+      expect(notifier.state.note.tags, isEmpty);
+
+      // User is in the middle of typing '#journal/daily' (no space or newline yet)
+      notifier.updateContent('Starting note #journal/daily');
+      await notifier.saveNow();
+
+      // Tag should NOT be added yet
+      expect(notifier.state.note.tags, isEmpty);
+      var saved = await repository.getNoteById('note-tag-5');
+      expect(saved!.tags, isEmpty);
+
+      // User presses space after the tag
+      notifier.updateContent('Starting note #journal/daily ');
+      await notifier.saveNow();
+
+      // Tag is now created and saved
+      expect(notifier.state.note.tags, equals(['journal/daily']));
+      saved = await repository.getNoteById('note-tag-5');
+      expect(saved!.tags, equals(['journal/daily']));
+    });
+
+    test('pressing enter (newline) after #tag creates the tag on saveNow()', () async {
+      final now = DateTime.now();
+      final initialNote = Note(
+        id: 'note-tag-6',
+        title: 'Draft Note 2',
+        content: '',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        tags: const [],
+      );
+
+      await repository.saveNote(initialNote);
+
+      final notifier = EditorNotifier(
+        initialNote: initialNote,
+        repository: repository,
+      );
+
+      // In-progress typing: no newline
+      notifier.updateContent('Working on #ideas');
+      await notifier.saveNow();
+      expect(notifier.state.note.tags, isEmpty);
+
+      // User presses Enter (newline)
+      notifier.updateContent('Working on #ideas\nNext line');
+      await notifier.saveNow();
+      expect(notifier.state.note.tags, equals(['ideas']));
+    });
   });
 }

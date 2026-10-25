@@ -4,13 +4,18 @@ import 'package:quitepaper/features/editor/application/tag_autocomplete_trigger.
 
 void main() {
   group('TagAutocompleteTrigger Tests', () {
-    test('returns null when # is typed alone', () {
+    test('detects trigger when # is typed alone with empty query', () {
       const value = TextEditingValue(
         text: '#',
         selection: TextSelection.collapsed(offset: 1),
       );
       final trigger = TagAutocompleteTrigger.detect(value);
-      expect(trigger, isNull);
+      expect(trigger, isNotNull);
+      expect(trigger!.triggerStart, 0);
+      expect(trigger.queryStart, 1);
+      expect(trigger.queryEnd, 1);
+      expect(trigger.query, '');
+      expect(trigger.fullLength, 1);
     });
 
     test('returns null when # is followed by a space (# )', () {
@@ -60,6 +65,19 @@ void main() {
       expect(trigger.queryStart, 11);
       expect(trigger.queryEnd, 15);
       expect(trigger.query, 'work');
+    });
+
+    test('detects trigger when # is typed alone after whitespace in middle of line', () {
+      const value = TextEditingValue(
+        text: 'Notes for #',
+        selection: TextSelection.collapsed(offset: 11),
+      );
+      final trigger = TagAutocompleteTrigger.detect(value);
+      expect(trigger, isNotNull);
+      expect(trigger!.triggerStart, 10);
+      expect(trigger.queryStart, 11);
+      expect(trigger.queryEnd, 11);
+      expect(trigger.query, '');
     });
 
     test('detects trigger inside brackets (#nested/tag)', () {

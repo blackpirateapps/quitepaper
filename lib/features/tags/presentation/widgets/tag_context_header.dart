@@ -12,6 +12,7 @@ import '../../../web_clipper/presentation/web_clip_dialog.dart';
 import '../../application/tag_providers.dart';
 import '../../domain/tag_icon_registry.dart';
 import '../../domain/tag_model.dart';
+import '../../domain/tag_path.dart';
 import 'tag_action_dialogs.dart';
 import 'tag_color_picker_sheet.dart';
 import 'tag_icon_picker_sheet.dart';
@@ -50,7 +51,50 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(52);
 
-  Future<void> _handleRename(BuildContext context, WidgetRef ref, Tag tag) async {
+  Future<void> _handleAddNestedTag(
+    BuildContext context,
+    WidgetRef ref,
+    Tag parentTag,
+  ) async {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+    final existingNames = allTags.map((t) => t.name).toList();
+
+    final newTag = await TagCreateDialog.showNested(
+      context,
+      parentTag: parentTag,
+      existingTags: existingNames,
+    );
+
+    if (newTag != null && context.mounted) {
+      final service = ref.read(tagServiceProvider);
+      await service.createTag(
+        newTag.name,
+        icon: newTag.icon,
+        color: newTag.color,
+        isPinned: newTag.isPinned,
+      );
+      final currentExpanded = ref.read(expandedTagPathsProvider);
+      if (!currentExpanded.contains(parentTag.name)) {
+        ref.read(expandedTagPathsProvider.notifier).toggle(parentTag.name);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nested tag #${newTag.name} created'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRename(
+    BuildContext context,
+    WidgetRef ref,
+    Tag tag,
+  ) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
     final existingNames = allTags.map((t) => t.name).toList();
 
@@ -90,14 +134,27 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     }
   }
 
-  Future<void> _handleDelete(BuildContext context, WidgetRef ref, Tag tag) async {
-    final confirmed = await TagDeleteDialog.show(context, tag: tag);
-    if (confirmed == true && context.mounted) {
+  Future<void> _handleDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Tag tag,
+  ) async {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? const <Tag>[];
+    final hasDescendants = allTags.any(
+      (candidate) => candidate.name.startsWith('${tag.name}/'),
+    );
+    final mode = await TagDeleteDialog.showWithMode(
+      context,
+      tag: tag,
+      hasDescendants: hasDescendants,
+    );
+    if (mode != null && context.mounted) {
       final service = ref.read(tagServiceProvider);
-      await service.deleteTag(tag.id);
+      await service.deleteTag(tag.id, mode: mode);
 
       // Return workspace to All Notes
-      ref.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+      ref.read(currentDestinationProvider.notifier).state =
+          AppDestination.allNotes;
       ref.read(selectedTagFilterProvider.notifier).state = null;
       ref.read(selectedTagIdProvider.notifier).state = null;
       ref.read(notesQueryProvider.notifier).clearAllFilters();
@@ -115,7 +172,11 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     }
   }
 
-  Future<void> _handleMerge(BuildContext context, WidgetRef ref, Tag sourceTag) async {
+  Future<void> _handleMerge(
+    BuildContext context,
+    WidgetRef ref,
+    Tag sourceTag,
+  ) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
 
     final destination = await TagMergeDialog.show(
@@ -136,7 +197,9 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Merged #${sourceTag.name} into #${destination.name}'),
+            content: Text(
+              'Merged #${sourceTag.name} into #${destination.name}',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
@@ -145,7 +208,11 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     }
   }
 
-  Future<void> _handleChangeIcon(BuildContext context, WidgetRef ref, Tag tag) async {
+  Future<void> _handleChangeIcon(
+    BuildContext context,
+    WidgetRef ref,
+    Tag tag,
+  ) async {
     final newIcon = await TagIconPickerSheet.show(
       context,
       currentIconId: tag.icon,
@@ -157,7 +224,11 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     }
   }
 
-  Future<void> _handleChangeColor(BuildContext context, WidgetRef ref, Tag tag) async {
+  Future<void> _handleChangeColor(
+    BuildContext context,
+    WidgetRef ref,
+    Tag tag,
+  ) async {
     final newColor = await TagColorPickerSheet.show(
       context,
       currentColorId: tag.color,
@@ -197,8 +268,13 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     final customColor = colorDef?.foreground(isDark);
     final iconData = TagIconRegistry.getIconData(
       tag?.icon,
-      fallback: tag?.isPinned == true ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.tag,
+      fallback: tag?.isPinned == true
+          ? PhosphorIconsFill.pushPin
+          : PhosphorIconsRegular.tag,
     );
+    final path = TagPath.tryParse(tagName);
+    final displayName = path != null ? '#${path.leaf}' : '#$tagName';
+    final breadcrumb = path?.isNested == true ? path!.breadcrumb : null;
 
     return Container(
       color: colors.background,
@@ -207,9 +283,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
         child: Container(
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: colors.background,
-          ),
+          decoration: BoxDecoration(color: colors.background),
           child: Row(
             children: [
               if (onOpenDrawer != null)
@@ -223,35 +297,58 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                   icon: isSidebarVisible
                       ? PhosphorIconsRegular.sidebarSimple
                       : PhosphorIconsRegular.sidebarSimple,
-                  tooltip: isSidebarVisible ? 'Hide navigation' : 'Show navigation',
+                  tooltip: isSidebarVisible
+                      ? 'Hide navigation'
+                      : 'Show navigation',
                   onPressed: onToggleSidebar,
                 ),
               const SizedBox(width: 4.0),
 
               // Tag Icon & Name
               Expanded(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      iconData,
-                      size: 18,
-                      color: customColor ?? colors.accent,
-                    ),
-                    const SizedBox(width: 6.0),
-                    Flexible(
-                      child: Text(
-                        '#$tagName',
-                        style: AppTypography.title.copyWith(
-                          color: colors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                child: Semantics(
+                  label: breadcrumb ?? displayName,
+                  header: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        iconData,
+                        size: 18,
+                        color: customColor ?? colors.accent,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6.0),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
+                              style: AppTypography.title.copyWith(
+                                color: colors.textPrimary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            if (breadcrumb != null)
+                              Text(
+                                breadcrumb,
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textTertiary,
+                                  fontSize: 10,
+                                  height: 1.1,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -283,6 +380,9 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                 onSelected: (val) {
                   if (tag == null) return;
                   switch (val) {
+                    case 'nested':
+                      _handleAddNestedTag(context, ref, tag);
+                      break;
                     case 'rename':
                       _handleRename(context, ref, tag);
                       break;
@@ -293,7 +393,9 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       _handleChangeColor(context, ref, tag);
                       break;
                     case 'pin':
-                      ref.read(tagServiceProvider).pinTag(tag.id, !tag.isPinned);
+                      ref
+                          .read(tagServiceProvider)
+                          .pinTag(tag.id, !tag.isPinned);
                       break;
                     case 'merge':
                       _handleMerge(context, ref, tag);
@@ -318,9 +420,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'sort',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.arrowsDownUp, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.arrowsDownUp,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text('Sort notes', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            'Sort notes',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -329,14 +440,20 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'filter',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.funnel, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.funnel,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               advancedFilterCount > 0
                                   ? 'Filter notes ($advancedFilterCount)'
                                   : 'Filter notes',
-                              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: colors.textPrimary,
+                              ),
                             ),
                           ),
                           if (advancedFilterCount > 0)
@@ -355,22 +472,58 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                     value: 'clip',
                     child: Row(
                       children: [
-                        Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
+                        Icon(
+                          PhosphorIconsRegular.globe,
+                          size: 18,
+                          color: colors.textSecondary,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
-                        Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                        Text(
+                          'Clip webpage',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  if (tag != null)
-                    const PopupMenuDivider(),
+                  if (tag != null) const PopupMenuDivider(),
                   if (tag != null) ...[
+                    PopupMenuItem(
+                      value: 'nested',
+                      child: Row(
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.folderPlus,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            'Add nested tag',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     PopupMenuItem(
                       value: 'rename',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.pencilSimple, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.pencilSimple,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text('Rename tag', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            'Rename tag',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -378,9 +531,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'icon',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.smiley, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.smiley,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text(tag.icon != null ? 'Change icon' : 'Add icon', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            tag.icon != null ? 'Change icon' : 'Add icon',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -388,9 +550,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'color',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.palette, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.palette,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text(tag.color != null ? 'Change color' : 'Add color', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            tag.color != null ? 'Change color' : 'Add color',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -399,12 +570,21 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       child: Row(
                         children: [
                           Icon(
-                            tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                            tag.isPinned
+                                ? PhosphorIconsFill.pushPin
+                                : PhosphorIconsRegular.pushPin,
                             size: 18,
-                            color: tag.isPinned ? colors.accent : colors.textSecondary,
+                            color: tag.isPinned
+                                ? colors.accent
+                                : colors.textSecondary,
                           ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text(tag.isPinned ? 'Unpin tag' : 'Pin tag', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            tag.isPinned ? 'Unpin tag' : 'Pin tag',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -412,9 +592,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'merge',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.gitMerge, size: 18, color: colors.textSecondary),
+                          Icon(
+                            PhosphorIconsRegular.gitMerge,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text('Merge into...', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                          Text(
+                            'Merge into...',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -422,9 +611,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(PhosphorIconsRegular.trash, size: 18, color: colors.error),
+                          Icon(
+                            PhosphorIconsRegular.trash,
+                            size: 18,
+                            color: colors.error,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text('Delete tag', style: AppTypography.bodySmall.copyWith(color: colors.error)),
+                          Text(
+                            'Delete tag',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.error,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -434,9 +632,18 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                     value: 'clip',
                     child: Row(
                       children: [
-                        Icon(PhosphorIconsRegular.globe, size: 18, color: colors.textSecondary),
+                        Icon(
+                          PhosphorIconsRegular.globe,
+                          size: 18,
+                          color: colors.textSecondary,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
-                        Text('Clip webpage', style: AppTypography.bodySmall.copyWith(color: colors.textPrimary)),
+                        Text(
+                          'Clip webpage',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
                       ],
                     ),
                   ),

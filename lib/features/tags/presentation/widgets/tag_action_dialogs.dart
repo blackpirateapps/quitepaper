@@ -12,16 +12,24 @@ import '../../domain/tag_model.dart';
 import 'tag_color_picker_sheet.dart';
 import 'tag_icon_picker_sheet.dart';
 
-/// Editorial dialog for creating a new tag.
+/// Editorial dialog for creating a new tag or a nested sub-tag.
 class TagCreateDialog extends StatefulWidget {
   const TagCreateDialog({
     super.key,
     required this.existingTags,
     this.initialName,
+    this.parentTagName,
+    this.initialIcon,
+    this.initialColor,
+    this.initialPinned = false,
   });
 
   final List<String> existingTags;
   final String? initialName;
+  final String? parentTagName;
+  final String? initialIcon;
+  final String? initialColor;
+  final bool initialPinned;
 
   static Future<Tag?> show(
     BuildContext context, {
@@ -30,9 +38,25 @@ class TagCreateDialog extends StatefulWidget {
   }) {
     return showDialog<Tag>(
       context: context,
+      builder: (ctx) =>
+          TagCreateDialog(existingTags: existingTags, initialName: initialName),
+    );
+  }
+
+  static Future<Tag?> showNested(
+    BuildContext context, {
+    required Tag parentTag,
+    required List<String> existingTags,
+    String? initialName,
+  }) {
+    return showDialog<Tag>(
+      context: context,
       builder: (ctx) => TagCreateDialog(
         existingTags: existingTags,
+        parentTagName: parentTag.name,
         initialName: initialName,
+        initialIcon: parentTag.icon,
+        initialColor: parentTag.color,
       ),
     );
   }
@@ -52,6 +76,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialName ?? '');
+    _selectedIcon = widget.initialIcon;
+    _selectedColor = widget.initialColor;
+    _isPinned = widget.initialPinned;
   }
 
   @override
@@ -61,7 +88,22 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
   }
 
   void _validateAndSubmit() {
-    final raw = _controller.text.trim();
+    var raw = _controller.text.trim();
+    if (widget.parentTagName != null) {
+      if (raw.startsWith('#')) raw = raw.substring(1).trim();
+      while (raw.startsWith('/')) {
+        raw = raw.substring(1).trim();
+      }
+      while (raw.endsWith('/')) {
+        raw = raw.substring(0, raw.length - 1).trim();
+      }
+      if (raw.isEmpty) {
+        setState(() => _errorText = 'Nested tag name cannot be empty');
+        return;
+      }
+      raw = '${widget.parentTagName}/$raw';
+    }
+
     final normalized = TagParser.normalizeTag(raw);
 
     if (normalized.isEmpty) {
@@ -70,11 +112,17 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
     }
 
     if (!TagParser.isValidTag(normalized)) {
-      setState(() => _errorText = 'Invalid tag name (use letters, numbers, -, _)');
+      setState(
+        () => _errorText = widget.parentTagName != null
+            ? 'Invalid nested tag name (use letters, numbers, -, _)'
+            : 'Invalid tag name (use letters, numbers, -, _)',
+      );
       return;
     }
 
-    final lowerExisting = widget.existingTags.map(TagParser.normalizeTag).toSet();
+    final lowerExisting = widget.existingTags
+        .map(TagParser.normalizeTag)
+        .toSet();
     if (lowerExisting.contains(normalized)) {
       setState(() => _errorText = 'A tag with this name already exists');
       return;
@@ -100,12 +148,13 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = TagColors.fromId(_selectedColor);
+    final isNested = widget.parentTagName != null;
 
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
       title: Text(
-        'New Tag',
+        isNested ? 'New Nested Tag' : 'New Tag',
         style: AppTypography.headline.copyWith(color: colors.textPrimary),
       ),
       content: SingleChildScrollView(
@@ -118,13 +167,15 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
               autofocus: true,
               style: AppTypography.body.copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
-                prefixText: '#',
+                prefixText: isNested ? '#${widget.parentTagName}/' : '#',
                 prefixStyle: AppTypography.body.copyWith(
                   color: colorDef?.foreground(isDark) ?? colors.accent,
                   fontWeight: FontWeight.w600,
                 ),
-                hintText: 'tag-name',
-                hintStyle: AppTypography.body.copyWith(color: colors.textTertiary),
+                hintText: isNested ? 'sub-tag (e.g. 2026, projects)' : 'tag-name',
+                hintStyle: AppTypography.body.copyWith(
+                  color: colors.textTertiary,
+                ),
                 errorText: _errorText,
                 filled: true,
                 fillColor: colors.background,
@@ -140,7 +191,10 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                   borderSide: BorderSide(color: colors.accent),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
               onChanged: (_) {
                 if (_errorText != null) {
@@ -161,13 +215,18 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                       final picked = await TagIconPickerSheet.show(
                         context,
                         currentIconId: _selectedIcon,
-                        tagName: _controller.text,
+                        tagName: isNested
+                            ? '${widget.parentTagName}/${_controller.text}'
+                            : _controller.text,
                       );
                       setState(() => _selectedIcon = picked);
                     },
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.background,
                         borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -179,7 +238,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                           Icon(
                             TagIconRegistry.getIconData(_selectedIcon),
                             size: 18,
-                            color: colorDef?.foreground(isDark) ?? colors.textSecondary,
+                            color:
+                                colorDef?.foreground(isDark) ??
+                                colors.textSecondary,
                           ),
                           const SizedBox(width: 6),
                           Flexible(
@@ -211,12 +272,19 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                     },
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: colorDef != null ? colorDef.background(isDark) : colors.background,
+                        color: colorDef != null
+                            ? colorDef.background(isDark)
+                            : colors.background,
                         borderRadius: BorderRadius.circular(AppRadii.sm),
                         border: Border.all(
-                          color: colorDef != null ? colorDef.foreground(isDark) : colors.divider,
+                          color: colorDef != null
+                              ? colorDef.foreground(isDark)
+                              : colors.divider,
                         ),
                       ),
                       child: Row(
@@ -227,7 +295,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                             height: 14,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: colorDef?.foreground(isDark) ?? colors.textTertiary,
+                              color:
+                                  colorDef?.foreground(isDark) ??
+                                  colors.textTertiary,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -236,7 +306,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                               colorDef?.label ?? 'Add Color',
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.caption.copyWith(
-                                color: colorDef?.foreground(isDark) ?? colors.textPrimary,
+                                color:
+                                    colorDef?.foreground(isDark) ??
+                                    colors.textPrimary,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -260,7 +332,8 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                   children: [
                     Checkbox(
                       value: _isPinned,
-                      onChanged: (val) => setState(() => _isPinned = val ?? false),
+                      onChanged: (val) =>
+                          setState(() => _isPinned = val ?? false),
                       activeColor: colors.accent,
                       visualDensity: VisualDensity.compact,
                     ),
@@ -282,7 +355,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
             'Cancel',
-            style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ),
         QuietButton(
@@ -347,7 +422,9 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
     }
 
     if (!TagParser.isValidTag(normalized)) {
-      setState(() => _errorText = 'Invalid tag name (use letters, numbers, -, _)');
+      setState(
+        () => _errorText = 'Invalid tag name (use letters, numbers, -, _)',
+      );
       return;
     }
 
@@ -362,7 +439,10 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
         .toSet();
 
     if (otherTags.contains(normalized)) {
-      setState(() => _errorText = 'A tag with this name already exists. Use Merge instead.');
+      setState(
+        () => _errorText =
+            'A tag with this name already exists. Use Merge instead.',
+      );
       return;
     }
 
@@ -386,7 +466,9 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
         children: [
           Text(
             'Renaming this tag will update all ${widget.tag.noteCount} associated notes.',
-            style: AppTypography.bodySmall.copyWith(color: colors.textSecondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(
@@ -406,7 +488,10 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
                 borderRadius: BorderRadius.circular(AppRadii.sm),
                 borderSide: BorderSide(color: colors.divider),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
             ),
             onChanged: (_) {
               if (_errorText != null) {
@@ -422,7 +507,9 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
             'Cancel',
-            style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ),
         QuietButton(
@@ -437,10 +524,7 @@ class _TagRenameDialogState extends State<TagRenameDialog> {
 
 /// Editorial confirmation dialog for deleting a tag.
 class TagDeleteDialog extends StatelessWidget {
-  const TagDeleteDialog({
-    super.key,
-    required this.tag,
-  });
+  const TagDeleteDialog({super.key, required this.tag});
 
   final Tag tag;
 
@@ -448,6 +532,27 @@ class TagDeleteDialog extends StatelessWidget {
     return showDialog<bool?>(
       context: context,
       builder: (ctx) => TagDeleteDialog(tag: tag),
+    );
+  }
+
+  /// Shows branch-aware delete options.
+  ///
+  /// For tags without descendants this preserves the simple confirmation flow
+  /// and returns [TagBranchDeleteMode.deleteBranch] when confirmed. For a tag
+  /// with descendants the user can delete the whole branch, promote children,
+  /// or cancel (null).
+  static Future<TagBranchDeleteMode?> showWithMode(
+    BuildContext context, {
+    required Tag tag,
+    required bool hasDescendants,
+  }) async {
+    if (!hasDescendants) {
+      final confirmed = await show(context, tag: tag);
+      return confirmed == true ? TagBranchDeleteMode.deleteBranch : null;
+    }
+    return showDialog<TagBranchDeleteMode>(
+      context: context,
+      builder: (ctx) => _TagBranchDeleteDialog(tag: tag),
     );
   }
 
@@ -474,13 +579,109 @@ class TagDeleteDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(
             'Cancel',
-            style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ),
         QuietButton(
           label: 'Delete',
           variant: QuietButtonVariant.destructive,
           onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _TagBranchDeleteDialog extends StatelessWidget {
+  const _TagBranchDeleteDialog({required this.tag});
+
+  final Tag tag;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+      title: Text(
+        'Delete #${tag.name}?',
+        style: AppTypography.headline.copyWith(color: colors.textPrimary),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'This tag has sub-tags. Choose how to handle the branch. '
+            'Your notes will not be deleted.',
+            style: AppTypography.body.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ListTile(
+            dense: true,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            leading: Icon(
+              PhosphorIconsRegular.trash,
+              size: 20,
+              color: colors.error,
+            ),
+            title: Text(
+              'Delete tag and sub-tags',
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Removes #${tag.name} and every descendant from notes.',
+              style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            ),
+            onTap: () =>
+                Navigator.of(context).pop(TagBranchDeleteMode.deleteBranch),
+          ),
+          ListTile(
+            dense: true,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            leading: Icon(
+              PhosphorIconsRegular.arrowUp,
+              size: 20,
+              color: colors.textSecondary,
+            ),
+            title: Text(
+              'Delete only this tag, move children up',
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Promotes direct sub-tags one level and keeps them on notes.',
+              style: AppTypography.caption.copyWith(color: colors.textTertiary),
+            ),
+            onTap: () =>
+                Navigator.of(context).pop(TagBranchDeleteMode.moveChildrenUp),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancel',
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
         ),
       ],
     );
@@ -505,10 +706,8 @@ class TagMergeDialog extends StatefulWidget {
   }) {
     return showDialog<Tag?>(
       context: context,
-      builder: (ctx) => TagMergeDialog(
-        sourceTag: sourceTag,
-        availableTags: availableTags,
-      ),
+      builder: (ctx) =>
+          TagMergeDialog(sourceTag: sourceTag, availableTags: availableTags),
     );
   }
 
@@ -568,11 +767,19 @@ class _TagMergeDialogState extends State<TagMergeDialog> {
             // Search box
             TextField(
               controller: _searchController,
-              style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.textPrimary,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search destination tag...',
-                hintStyle: AppTypography.bodySmall.copyWith(color: colors.textTertiary),
-                prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 18, color: colors.textTertiary),
+                hintStyle: AppTypography.bodySmall.copyWith(
+                  color: colors.textTertiary,
+                ),
+                prefixIcon: Icon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  size: 18,
+                  color: colors.textTertiary,
+                ),
                 filled: true,
                 fillColor: colors.background,
                 isDense: true,
@@ -593,7 +800,9 @@ class _TagMergeDialogState extends State<TagMergeDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         child: Text(
                           'No other tags available',
-                          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                          ),
                         ),
                       ),
                     )
@@ -614,20 +823,27 @@ class _TagMergeDialogState extends State<TagMergeDialog> {
                           leading: Icon(
                             TagIconRegistry.getIconData(item.icon),
                             size: 18,
-                            color: isSelected ? colors.accent : colors.textSecondary,
+                            color: isSelected
+                                ? colors.accent
+                                : colors.textSecondary,
                           ),
                           title: Text(
                             '#${item.name}',
                             style: AppTypography.bodySmall.copyWith(
                               color: colors.textPrimary,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                           ),
                           trailing: Text(
                             '${item.noteCount} notes',
-                            style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                            style: AppTypography.caption.copyWith(
+                              color: colors.textTertiary,
+                            ),
                           ),
-                          onTap: () => setState(() => _selectedDestination = item),
+                          onTap: () =>
+                              setState(() => _selectedDestination = item),
                         );
                       },
                     ),
@@ -640,7 +856,9 @@ class _TagMergeDialogState extends State<TagMergeDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
             'Cancel',
-            style: AppTypography.bodyMedium.copyWith(color: colors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ),
         QuietButton(

@@ -9,6 +9,7 @@ import '../../../core/ocr/ocr_crypto.dart';
 import '../domain/note_model.dart';
 import '../domain/note_version_model.dart';
 import '../domain/notes_query.dart';
+import '../../tags/domain/tag_model.dart';
 import 'notes_query_executor.dart';
 
 abstract class NotesRepository {
@@ -22,8 +23,12 @@ abstract class NotesRepository {
   });
   Future<Note?> getNoteById(String id);
   Stream<Note?> watchNoteById(String id);
-  Future<void> saveNote(Note note);
-  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl});
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false});
+  Future<void> setNoteShareInfo(
+    String noteId, {
+    String? shareId,
+    String? shareUrl,
+  });
   Future<void> setPinned(String id, bool isPinned);
   Future<void> setPinnedInTag(String id, String tagName, bool pinned);
   Future<void> archiveNote(String id);
@@ -42,9 +47,18 @@ abstract class NotesRepository {
   Future<List<String>> getAllTagNames();
   Future<TagEntity?> getTagById(String id);
   Future<TagEntity?> getTagByName(String name);
-  Future<TagEntity> createTag(String name, {String? icon, String? color, bool isPinned = false});
+  Future<TagEntity> createTag(
+    String name, {
+    String? icon,
+    String? color,
+    bool isPinned = false,
+  });
   Future<void> renameTag(String tagId, String newName);
-  Future<void> deleteTag(String tagId);
+  Future<void> moveTag(String tagId, String newParentName);
+  Future<void> deleteTag(
+    String tagId, {
+    TagBranchDeleteMode mode = TagBranchDeleteMode.deleteBranch,
+  });
   Future<void> mergeTags(String sourceTagId, String destinationTagId);
   Future<void> pinTag(String tagId, bool isPinned);
   Future<void> reorderPinnedTags(List<String> orderedTagIds);
@@ -74,21 +88,24 @@ abstract class NotesRepository {
   Stream<Set<String>> watchJournalDatesForMonth(int year, int month);
   Future<List<Note>> getAllJournalEntries();
   Stream<List<Note>> watchAllJournalEntries();
-  Future<List<Note>> getOnThisDayEntries({required int month, required int day, required int beforeYear});
-  Stream<List<Note>> watchOnThisDayEntries({required int month, required int day, required int beforeYear});
+  Future<List<Note>> getOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  });
+  Stream<List<Note>> watchOnThisDayEntries({
+    required int month,
+    required int day,
+    required int beforeYear,
+  });
   Stream<List<Note>> watchNotesForDates(List<String> dateStrings);
   Future<int?> getEarliestJournalYear();
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
   Future<List<String>> validateJournalIntegrity();
 }
 
-
 class DriftNotesRepository implements NotesRepository {
-  DriftNotesRepository(
-    this._db, [
-    this._keyManager,
-    this._ocrCrypto,
-  ]);
+  DriftNotesRepository(this._db, [this._keyManager, this._ocrCrypto]);
 
   final AppDatabase _db;
   final KeyManager? _keyManager;
@@ -142,8 +159,9 @@ class DriftNotesRepository implements NotesRepository {
           .map((list) => list.map(_mapToDomain).toList());
     }
 
-    return Stream.fromFuture(_getNoteIdsMatchingOcr(searchQuery.trim()))
-        .asyncExpand((ocrNoteIds) {
+    return Stream.fromFuture(
+      _getNoteIdsMatchingOcr(searchQuery.trim()),
+    ).asyncExpand((ocrNoteIds) {
       return _db
           .watchNotes(
             isArchived: isArchived,
@@ -225,11 +243,13 @@ class DriftNotesRepository implements NotesRepository {
 
   @override
   Stream<Note?> watchNoteById(String id) {
-    return _db.watchNoteWithTags(id).map((res) => res != null ? _mapToDomain(res) : null);
+    return _db
+        .watchNoteWithTags(id)
+        .map((res) => res != null ? _mapToDomain(res) : null);
   }
 
   @override
-  Future<void> saveNote(Note note) async {
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false}) async {
     await _db.saveNote(
       id: note.id,
       title: note.title,
@@ -242,6 +262,7 @@ class DriftNotesRepository implements NotesRepository {
       deletedAt: note.deletedAt,
       tags: note.tags,
       journalDate: note.journalDate,
+      preserveEmptyTags: preserveEmptyTags,
     );
 
     // Sync any renamed document titles referenced inside the note's markdown body
@@ -249,14 +270,21 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl}) async {
+  Future<void> setNoteShareInfo(
+    String noteId, {
+    String? shareId,
+    String? shareUrl,
+  }) async {
     // Share fields are local-only bookkeeping (not synced), managed exclusively
     // by the share feature. Keep them out of saveNote so ordinary saves and sync
     // pulls never clobber them; set/clear them explicitly here instead.
     await _db.setNoteShareInfo(noteId, shareId: shareId, shareUrl: shareUrl);
   }
 
-  Future<void> _syncDocumentTitlesFromMarkdown(String noteId, String content) async {
+  Future<void> _syncDocumentTitlesFromMarkdown(
+    String noteId,
+    String content,
+  ) async {
     if (!content.contains('qp://document/')) return;
 
     final matches = RegExp(
@@ -366,7 +394,12 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<TagEntity> createTag(String name, {String? icon, String? color, bool isPinned = false}) {
+  Future<TagEntity> createTag(
+    String name, {
+    String? icon,
+    String? color,
+    bool isPinned = false,
+  }) {
     return _db.createTag(name, icon: icon, color: color, isPinned: isPinned);
   }
 
@@ -376,8 +409,16 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
-  Future<void> deleteTag(String tagId) {
-    return _db.deleteTag(tagId);
+  Future<void> moveTag(String tagId, String newParentName) {
+    return _db.moveTag(tagId, newParentName);
+  }
+
+  @override
+  Future<void> deleteTag(
+    String tagId, {
+    TagBranchDeleteMode mode = TagBranchDeleteMode.deleteBranch,
+  }) {
+    return _db.deleteTag(tagId, mode: mode);
   }
 
   @override
@@ -509,7 +550,6 @@ class DriftNotesRepository implements NotesRepository {
     return _db.watchBacklinksForNote(targetNoteId);
   }
 
-
   @override
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {
     return _db.getOutgoingLinksForNote(sourceNoteId);
@@ -533,7 +573,9 @@ class DriftNotesRepository implements NotesRepository {
 
   @override
   Stream<Note?> watchJournalEntry(String journalDate) {
-    return _db.watchJournalEntry(journalDate).map((res) => res != null ? _mapToDomain(res) : null);
+    return _db
+        .watchJournalEntry(journalDate)
+        .map((res) => res != null ? _mapToDomain(res) : null);
   }
 
   @override
@@ -554,7 +596,9 @@ class DriftNotesRepository implements NotesRepository {
 
   @override
   Stream<List<Note>> watchAllJournalEntries() {
-    return _db.watchAllJournalEntries().map((list) => list.map(_mapToDomain).toList());
+    return _db.watchAllJournalEntries().map(
+      (list) => list.map(_mapToDomain).toList(),
+    );
   }
 
   @override
@@ -578,11 +622,7 @@ class DriftNotesRepository implements NotesRepository {
     required int beforeYear,
   }) {
     return _db
-        .watchOnThisDayEntries(
-          month: month,
-          day: day,
-          beforeYear: beforeYear,
-        )
+        .watchOnThisDayEntries(month: month, day: day, beforeYear: beforeYear)
         .map((list) => list.map(_mapToDomain).toList());
   }
 
@@ -610,7 +650,9 @@ class DriftNotesRepository implements NotesRepository {
     final newId = uuid.v4();
     final now = DateTime.now();
     final defaultTitle = JournalDateHelper.formatDisplayDate(localDate);
-    final initialContent = JournalMetadataService.createInitialJournalContent(journalDate: dateStr);
+    final initialContent = JournalMetadataService.createInitialJournalContent(
+      journalDate: dateStr,
+    );
 
     try {
       await _db.saveNote(
@@ -647,4 +689,3 @@ class DriftNotesRepository implements NotesRepository {
     return _db.validateJournalIntegrity();
   }
 }
-

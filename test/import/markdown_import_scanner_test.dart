@@ -7,7 +7,9 @@ void main() {
     late Directory tempDir;
 
     setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('quitepaper_test_import_');
+      tempDir = await Directory.systemTemp.createTemp(
+        'quitepaper_test_import_',
+      );
     });
 
     tearDown(() async {
@@ -16,16 +18,20 @@ void main() {
       }
     });
 
-    test('recursively scans directory, finds .md and .markdown, extracts subfolder tags and frontmatter', () async {
-      // 1. Root level markdown without frontmatter
-      final rootFile = File('${tempDir.path}/Root Note.md');
-      await rootFile.writeAsString('# Heading in root\n\nContent with #root-tag');
+    test(
+      'recursively scans directory, finds .md and .markdown, extracts subfolder tags and frontmatter',
+      () async {
+        // 1. Root level markdown without frontmatter
+        final rootFile = File('${tempDir.path}/Root Note.md');
+        await rootFile.writeAsString(
+          '# Heading in root\n\nContent with #root-tag',
+        );
 
-      // 2. Nested markdown with frontmatter inside Articles/Wikipedia/
-      final wikiDir = Directory('${tempDir.path}/Articles/Wikipedia');
-      await wikiDir.create(recursive: true);
-      final wikiFile = File('${wikiDir.path}/Deep Learning.md');
-      await wikiFile.writeAsString('''---
+        // 2. Nested markdown with frontmatter inside Articles/Wikipedia/
+        final wikiDir = Directory('${tempDir.path}/Articles/Wikipedia');
+        await wikiDir.create(recursive: true);
+        final wikiFile = File('${wikiDir.path}/Deep Learning.md');
+        await wikiFile.writeAsString('''---
 title: "Custom Frontmatter Title"
 tags: [ai, ml]
 ---
@@ -33,58 +39,136 @@ tags: [ai, ml]
 Some content with #deep-learning
 ''');
 
-      // 3. Deeply nested .markdown file
-      final deepDir = Directory('${tempDir.path}/Notes/2024/Projects/Alpha');
-      await deepDir.create(recursive: true);
-      final deepFile = File('${deepDir.path}/Roadmap.markdown');
-      await deepFile.writeAsString('Roadmap details');
+        // 3. Deeply nested .markdown file
+        final deepDir = Directory('${tempDir.path}/Notes/2024/Projects/Alpha');
+        await deepDir.create(recursive: true);
+        final deepFile = File('${deepDir.path}/Roadmap.markdown');
+        await deepFile.writeAsString('Roadmap details');
 
-      // 4. Non-markdown files (should be ignored)
-      final txtFile = File('${tempDir.path}/ignore_me.txt');
-      await txtFile.writeAsString('text');
-      final pngFile = File('${tempDir.path}/image.png');
-      await pngFile.writeAsString('image');
+        // 4. Non-markdown files (should be ignored)
+        final txtFile = File('${tempDir.path}/ignore_me.txt');
+        await txtFile.writeAsString('text');
+        final pngFile = File('${tempDir.path}/image.png');
+        await pngFile.writeAsString('image');
+
+        final items = await MarkdownImportScanner.scanFolder(tempDir.path);
+
+        expect(items.length, equals(3));
+
+        // Check root note
+        final rootItem = items.firstWhere(
+          (i) => i.relativePath == 'Root Note.md',
+        );
+        expect(rootItem.title, equals('Root Note'));
+        expect(rootItem.tags, contains('root-tag'));
+        expect(rootItem.fileSizeBytes, greaterThan(0));
+        expect(rootItem.isSelected, isTrue);
+
+        // Check nested wiki note
+        final wikiItem = items.firstWhere(
+          (i) => i.relativePath.contains('Articles'),
+        );
+        expect(wikiItem.title, equals('Custom Frontmatter Title'));
+        expect(wikiItem.content, contains('---'));
+        expect(wikiItem.content, contains('title: "Custom Frontmatter Title"'));
+        // Subfolder tags: 'articles', 'wikipedia'; frontmatter tags: 'ai', 'ml'; in-body: 'deep-learning'
+        expect(
+          wikiItem.tags,
+          containsAll(['articles', 'wikipedia', 'ai', 'ml', 'deep-learning']),
+        );
+
+        // Check deeply nested note
+        final deepItem = items.firstWhere(
+          (i) => i.relativePath.contains('Alpha'),
+        );
+        expect(deepItem.title, equals('Roadmap'));
+        expect(deepItem.tags, containsAll(['notes', 'projects', 'alpha']));
+      },
+    );
+
+    test(
+      'preserves file properties for dates when frontmatter dates are not present',
+      () async {
+        final file = File('${tempDir.path}/dated_note.md');
+        await file.writeAsString('Some content');
+
+        final stat = await file.stat();
+        final item = await MarkdownImportScanner.processFile(
+          file,
+          tempDir.path,
+        );
+
+        expect(item, isNotNull);
+        expect(
+          item!.updatedAt.millisecondsSinceEpoch,
+          equals(stat.modified.millisecondsSinceEpoch),
+        );
+      },
+    );
+
+    test(
+      'mirrorFolderHierarchy opt-in creates one deepest nested folder tag',
+      () async {
+        final wikiDir = Directory('${tempDir.path}/Articles/Wikipedia');
+        await wikiDir.create(recursive: true);
+        final wikiFile = File('${wikiDir.path}/Deep Learning.md');
+        await wikiFile.writeAsString('''---
+tags: [ai]
+---
+Body #deep-learning
+''');
+
+        final rootFile = File('${tempDir.path}/Root Note.md');
+        await rootFile.writeAsString('Root body');
+
+        final items = await MarkdownImportScanner.scanFolder(
+          tempDir.path,
+          mirrorFolderHierarchy: true,
+        );
+
+        final wikiItem = items.firstWhere(
+          (i) => i.relativePath.contains('Articles'),
+        );
+        expect(wikiItem.tags, contains('articles/wikipedia'));
+        expect(wikiItem.tags, containsAll(['ai', 'deep-learning']));
+        expect(wikiItem.tags, isNot(contains('articles')));
+        expect(wikiItem.tags, isNot(contains('wikipedia')));
+
+        final rootItem = items.firstWhere(
+          (i) => i.relativePath == 'Root Note.md',
+        );
+        expect(rootItem.tags, isEmpty);
+      },
+    );
+
+    test(
+      'hierarchical folder import skips invalid folder segments and sanitizes spaces',
+      () async {
+        final deepDir = Directory('${tempDir.path}/Notes/2024/Project Alpha');
+        await deepDir.create(recursive: true);
+        final file = File('${deepDir.path}/Roadmap.md');
+        await file.writeAsString('Roadmap');
+
+        final items = await MarkdownImportScanner.scanFolder(
+          tempDir.path,
+          mirrorFolderHierarchy: true,
+        );
+
+        expect(items, hasLength(1));
+        expect(items.single.tags, equals(['notes/project-alpha']));
+      },
+    );
+
+    test('default folder import keeps one flat tag per folder', () async {
+      final wikiDir = Directory('${tempDir.path}/Articles/Wikipedia');
+      await wikiDir.create(recursive: true);
+      final file = File('${wikiDir.path}/Deep Learning.md');
+      await file.writeAsString('Body');
 
       final items = await MarkdownImportScanner.scanFolder(tempDir.path);
 
-      expect(items.length, equals(3));
-
-      // Check root note
-      final rootItem = items.firstWhere((i) => i.relativePath == 'Root Note.md');
-      expect(rootItem.title, equals('Root Note'));
-      expect(rootItem.tags, contains('root-tag'));
-      expect(rootItem.fileSizeBytes, greaterThan(0));
-      expect(rootItem.isSelected, isTrue);
-
-      // Check nested wiki note
-      final wikiItem = items.firstWhere((i) => i.relativePath.contains('Articles'));
-      expect(wikiItem.title, equals('Custom Frontmatter Title'));
-      expect(wikiItem.content, contains('---'));
-      expect(wikiItem.content, contains('title: "Custom Frontmatter Title"'));
-      // Subfolder tags: 'articles', 'wikipedia'; frontmatter tags: 'ai', 'ml'; in-body: 'deep-learning'
-      expect(
-        wikiItem.tags,
-        containsAll(['articles', 'wikipedia', 'ai', 'ml', 'deep-learning']),
-      );
-
-      // Check deeply nested note
-      final deepItem = items.firstWhere((i) => i.relativePath.contains('Alpha'));
-      expect(deepItem.title, equals('Roadmap'));
-      expect(
-        deepItem.tags,
-        containsAll(['notes', 'projects', 'alpha']),
-      );
-    });
-
-    test('preserves file properties for dates when frontmatter dates are not present', () async {
-      final file = File('${tempDir.path}/dated_note.md');
-      await file.writeAsString('Some content');
-
-      final stat = await file.stat();
-      final item = await MarkdownImportScanner.processFile(file, tempDir.path);
-
-      expect(item, isNotNull);
-      expect(item!.updatedAt.millisecondsSinceEpoch, equals(stat.modified.millisecondsSinceEpoch));
+      expect(items.single.tags, containsAll(['articles', 'wikipedia']));
+      expect(items.single.tags, isNot(contains('articles/wikipedia')));
     });
   });
 }

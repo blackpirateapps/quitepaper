@@ -15,6 +15,8 @@ import '../../../notes/application/notes_query_provider.dart';
 import '../../application/tag_providers.dart';
 import '../../domain/tag_icon_registry.dart';
 import '../../domain/tag_model.dart';
+import '../../domain/tag_path.dart';
+import '../../domain/tag_tree.dart';
 import 'tag_action_dialogs.dart';
 import 'tag_color_picker_sheet.dart';
 import 'tag_icon_picker_sheet.dart';
@@ -122,6 +124,41 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     }
   }
 
+  Future<void> _handleAddNestedTag(Tag parentTag) async {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+    final existingNames = allTags.map((t) => t.name).toList();
+
+    final newTag = await TagCreateDialog.showNested(
+      context,
+      parentTag: parentTag,
+      existingTags: existingNames,
+    );
+
+    if (newTag != null && mounted) {
+      final service = ref.read(tagServiceProvider);
+      await service.createTag(
+        newTag.name,
+        icon: newTag.icon,
+        color: newTag.color,
+        isPinned: newTag.isPinned,
+      );
+      final currentExpanded = ref.read(expandedTagPathsProvider);
+      if (!currentExpanded.contains(parentTag.name)) {
+        ref.read(expandedTagPathsProvider.notifier).toggle(parentTag.name);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nested tag #${newTag.name} created'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleRename(Tag tag) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
     final existingNames = allTags.map((t) => t.name).toList();
@@ -160,10 +197,18 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
   }
 
   Future<void> _handleDelete(Tag tag) async {
-    final confirmed = await TagDeleteDialog.show(context, tag: tag);
-    if (confirmed == true && mounted) {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? const <Tag>[];
+    final hasDescendants = allTags.any(
+      (candidate) => candidate.name.startsWith('${tag.name}/'),
+    );
+    final mode = await TagDeleteDialog.showWithMode(
+      context,
+      tag: tag,
+      hasDescendants: hasDescendants,
+    );
+    if (mode != null && mounted) {
       final service = ref.read(tagServiceProvider);
-      await service.deleteTag(tag.id);
+      await service.deleteTag(tag.id, mode: mode);
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +238,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Merged #${sourceTag.name} into #${destination.name}'),
+            content: Text(
+              'Merged #${sourceTag.name} into #${destination.name}',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
@@ -241,10 +288,16 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
       type: AdaptiveModalType.popover,
       anchorContext: anchorContext,
       cursorPosition: cursorPosition,
-      alignment: alignment ?? (cursorPosition != null ? PopoverAlignment.auto : PopoverAlignment.end),
+      alignment:
+          alignment ??
+          (cursorPosition != null
+              ? PopoverAlignment.auto
+              : PopoverAlignment.end),
       maxWidth: 280,
       builder: (ctx) => Material(
-        color: PlatformLayoutHelper.isDesktop(context) ? Colors.transparent : colors.surface,
+        color: PlatformLayoutHelper.isDesktop(context)
+            ? Colors.transparent
+            : colors.surface,
         borderRadius: PlatformLayoutHelper.isDesktop(context)
             ? null
             : const BorderRadius.vertical(top: AppRadii.rLg),
@@ -282,7 +335,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       '${tag.noteCount} note${tag.noteCount == 1 ? '' : 's'}',
-                      style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                      ),
                     ),
                   ],
                 ),
@@ -310,13 +365,35 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ListTile(
                 dense: true,
                 leading: Icon(
-                  tag.isPinned ? PhosphorIconsFill.pushPin : PhosphorIconsRegular.pushPin,
+                  PhosphorIconsRegular.folderPlus,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Add nested tag',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _handleAddNestedTag(tag);
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  tag.isPinned
+                      ? PhosphorIconsFill.pushPin
+                      : PhosphorIconsRegular.pushPin,
                   size: 20,
                   color: tag.isPinned ? colors.accent : colors.textSecondary,
                 ),
                 title: Text(
                   tag.isPinned ? 'Unpin tag' : 'Pin to top',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -325,10 +402,16 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.pencilSimple, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.pencilSimple,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
                   'Rename',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -344,7 +427,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                 ),
                 title: Text(
                   tag.icon != null ? 'Change icon' : 'Add icon',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -353,10 +438,16 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.palette, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.palette,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
                   tag.color != null ? 'Change color' : 'Add color',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -365,10 +456,16 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.gitMerge, size: 20, color: colors.textSecondary),
+                leading: Icon(
+                  PhosphorIconsRegular.gitMerge,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 title: Text(
                   'Merge into...',
-                  style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -377,7 +474,11 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               ListTile(
                 dense: true,
-                leading: Icon(PhosphorIconsRegular.trash, size: 20, color: colors.error),
+                leading: Icon(
+                  PhosphorIconsRegular.trash,
+                  size: 20,
+                  color: colors.error,
+                ),
                 title: Text(
                   'Delete tag',
                   style: AppTypography.bodySmall.copyWith(color: colors.error),
@@ -403,6 +504,7 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     final activeFilter = ref.watch(tagFilterProvider);
     final activeSort = ref.watch(tagSortProvider);
     final query = ref.watch(tagSearchQueryProvider);
+    final expandedPaths = ref.watch(expandedTagPathsProvider);
 
     return CallbackShortcuts(
       bindings: {
@@ -426,7 +528,8 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
             Expanded(
               child: filteredTagsAsync.when(
                 data: (tags) {
-                  final allRawTags = ref.watch(allTagsProvider).valueOrNull ?? [];
+                  final allRawTags =
+                      ref.watch(allTagsProvider).valueOrNull ?? [];
 
                   // Empty State: No tags exist at all
                   if (allRawTags.isEmpty && query.isEmpty) {
@@ -443,7 +546,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   if (tags.isEmpty) {
                     return _buildEmptyState(
                       colors,
-                      title: query.isNotEmpty ? 'No matching tags' : 'No tags match this filter',
+                      title: query.isNotEmpty
+                          ? 'No matching tags'
+                          : 'No tags match this filter',
                       subtitle: query.isNotEmpty
                           ? 'No tags found matching "$query".'
                           : 'Try changing your active filter.',
@@ -451,12 +556,20 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   }
 
                   // Filtered / Search results view (flat list)
-                  final isFilteredOrSorted = query.isNotEmpty ||
+                  final isFilteredOrSorted =
+                      query.isNotEmpty ||
                       activeFilter != TagFilter.all ||
                       activeSort != TagSort.name;
 
-                  if (!isFilteredOrSorted && pinnedTags.isNotEmpty) {
-                    final unpinnedTags = tags.where((t) => !t.isPinned).toList();
+                  if (!isFilteredOrSorted) {
+                    final unpinnedTags = tags
+                        .where((t) => !t.isPinned)
+                        .toList();
+                    final tree = TagTree.build(unpinnedTags);
+                    final flattened = TagTree.flatten(
+                      tree,
+                      expandedPaths: expandedPaths,
+                    );
 
                     return ListView(
                       padding: const EdgeInsets.only(bottom: 48),
@@ -465,45 +578,66 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                       ),
                       children: [
                         const SizedBox(height: AppSpacing.xs),
-                        _buildSectionHeader(colors, 'PINNED', pinnedTags.length),
-                        Padding(
-                          padding: EdgeInsets.zero,
-                          child: ReorderableListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            buildDefaultDragHandles: false,
-                            itemCount: pinnedTags.length,
-                            // ignore: deprecated_member_use
-                            onReorder: (oldIdx, newIdx) {
-                              final list = List<Tag>.from(pinnedTags);
-                              if (newIdx > oldIdx) newIdx -= 1;
-                              final item = list.removeAt(oldIdx);
-                              list.insert(newIdx, item);
-                              ref
-                                  .read(tagServiceProvider)
-                                  .reorderPinnedTags(list.map((t) => t.id).toList());
-                            },
-                            itemBuilder: (ctx, index) {
-                              final item = pinnedTags[index];
-                              return ReorderableDelayedDragStartListener(
-                                key: ValueKey('pinned_${item.id}'),
-                                index: index,
-                                child: _buildTagRow(
-                                  item,
-                                  colors,
-                                  hidePinGlyph: true,
-                                ),
-                              );
-                            },
+                        if (pinnedTags.isNotEmpty) ...[
+                          _buildSectionHeader(
+                            colors,
+                            'PINNED',
+                            pinnedTags.length,
                           ),
+                          Padding(
+                            padding: EdgeInsets.zero,
+                            child: ReorderableListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              buildDefaultDragHandles: false,
+                              itemCount: pinnedTags.length,
+                              // ignore: deprecated_member_use
+                              onReorder: (oldIdx, newIdx) {
+                                final list = List<Tag>.from(pinnedTags);
+                                if (newIdx > oldIdx) newIdx -= 1;
+                                final item = list.removeAt(oldIdx);
+                                list.insert(newIdx, item);
+                                ref
+                                    .read(tagServiceProvider)
+                                    .reorderPinnedTags(
+                                      list.map((t) => t.id).toList(),
+                                    );
+                              },
+                              itemBuilder: (ctx, index) {
+                                final item = pinnedTags[index];
+                                return ReorderableDelayedDragStartListener(
+                                  key: ValueKey('pinned_${item.id}'),
+                                  index: index,
+                                  child: _buildTagRow(
+                                    item,
+                                    colors,
+                                    hidePinGlyph: true,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                        ],
+                        _buildSectionHeader(
+                          colors,
+                          'ALL TAGS',
+                          unpinnedTags.length,
                         ),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildSectionHeader(colors, 'ALL TAGS', unpinnedTags.length),
-                        ...unpinnedTags.map((item) {
+                        ...flattened.map((entry) {
+                          final node = entry.node;
+                          final item = node.tag;
+                          final path = node.path?.value ?? item.name;
                           return _buildTagRow(
                             item,
                             colors,
                             key: ValueKey('all_${item.id}'),
+                            indent: entry.depth,
+                            hasChildren: node.hasChildren,
+                            isExpanded: expandedPaths.contains(path),
+                            onToggle: () => ref
+                                .read(expandedTagPathsProvider.notifier)
+                                .toggle(path),
                           );
                         }),
                       ],
@@ -511,7 +645,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   }
 
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs,
+                    ),
                     physics: const BouncingScrollPhysics(
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
@@ -526,11 +662,14 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     },
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator.adaptive()),
+                loading: () =>
+                    const Center(child: CircularProgressIndicator.adaptive()),
                 error: (err, _) => Center(
                   child: Text(
                     'Error loading tags: $err',
-                    style: AppTypography.bodySmall.copyWith(color: colors.error),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.error,
+                    ),
                   ),
                 ),
               ),
@@ -553,7 +692,11 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: Row(
           children: [
-            Icon(PhosphorIconsRegular.magnifyingGlass, size: 20, color: colors.textSecondary),
+            Icon(
+              PhosphorIconsRegular.magnifyingGlass,
+              size: 20,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: TextField(
@@ -618,7 +761,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   icon: widget.isSidebarVisible
                       ? PhosphorIconsRegular.sidebarSimple
                       : PhosphorIconsRegular.sidebarSimple,
-                  tooltip: widget.isSidebarVisible ? 'Hide navigation' : 'Show navigation',
+                  tooltip: widget.isSidebarVisible
+                      ? 'Hide navigation'
+                      : 'Show navigation',
                   onPressed: widget.onToggleSidebar,
                 ),
               const SizedBox(width: 4),
@@ -632,7 +777,10 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
               ),
               const SizedBox(width: AppSpacing.xs),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
                   color: colors.divider.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(8),
@@ -665,7 +813,10 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                   height: 32,
                   child: PopupMenuButton<TagSort>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(PhosphorIconsRegular.arrowsDownUp, size: 20),
+                    icon: const Icon(
+                      PhosphorIconsRegular.arrowsDownUp,
+                      size: 20,
+                    ),
                     tooltip: 'Sort tags',
                     color: colors.surface,
                     elevation: 3,
@@ -677,7 +828,8 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     onSelected: (val) {
                       ref.read(tagSortProvider.notifier).state = val;
                     },
-                    itemBuilder: (context) => _buildSortMenuItems(colors, activeSort),
+                    itemBuilder: (context) =>
+                        _buildSortMenuItems(colors, activeSort),
                   ),
                 ),
                 const SizedBox(width: 2),
@@ -692,7 +844,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                           ? PhosphorIconsFill.funnel
                           : PhosphorIconsRegular.funnel,
                       size: 20,
-                      color: activeFilter != TagFilter.all ? colors.accent : null,
+                      color: activeFilter != TagFilter.all
+                          ? colors.accent
+                          : null,
                     ),
                     tooltip: 'Filter tags',
                     color: colors.surface,
@@ -705,7 +859,88 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     onSelected: (val) {
                       ref.read(tagFilterProvider.notifier).state = val;
                     },
-                    itemBuilder: (context) => _buildFilterMenuItems(colors, activeFilter),
+                    itemBuilder: (context) =>
+                        _buildFilterMenuItems(colors, activeFilter),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                // Separate Hierarchy Menu
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(
+                      PhosphorIconsRegular.treeStructure,
+                      size: 20,
+                    ),
+                    tooltip: 'Tag hierarchy options',
+                    color: colors.surface,
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadii.borderMd,
+                      side: BorderSide(color: colors.divider, width: 0.8),
+                    ),
+                    onSelected: (val) {
+                      if (val == 'tree_expand_all') {
+                        final allTags =
+                            ref.read(allTagsProvider).valueOrNull ?? [];
+                        final tree = TagTree.build(allTags);
+                        ref.read(expandedTagPathsProvider.notifier).expandAll(
+                              tree.nodesByPath.values
+                                  .where((n) => n.hasChildren)
+                                  .map((n) => n.path?.value ?? n.tag.name),
+                            );
+                      } else if (val == 'tree_collapse_all') {
+                        ref
+                            .read(expandedTagPathsProvider.notifier)
+                            .collapseAll();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: 'tree_expand_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretDown,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Expand all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_collapse_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretRight,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Collapse all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ] else ...[
@@ -720,7 +955,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                           ? PhosphorIconsFill.funnel
                           : PhosphorIconsRegular.arrowsDownUp,
                       size: 20,
-                      color: activeFilter != TagFilter.all ? colors.accent : null,
+                      color: activeFilter != TagFilter.all
+                          ? colors.accent
+                          : null,
                     ),
                     tooltip: 'Sort and filter tags',
                     color: colors.surface,
@@ -732,12 +969,29 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     onSelected: (val) {
                       if (val.startsWith('sort_')) {
                         final sortName = val.substring(5);
-                        final sort = TagSort.values.firstWhere((s) => s.name == sortName);
+                        final sort = TagSort.values.firstWhere(
+                          (s) => s.name == sortName,
+                        );
                         ref.read(tagSortProvider.notifier).state = sort;
                       } else if (val.startsWith('filter_')) {
                         final filterName = val.substring(7);
-                        final filter = TagFilter.values.firstWhere((f) => f.name == filterName);
+                        final filter = TagFilter.values.firstWhere(
+                          (f) => f.name == filterName,
+                        );
                         ref.read(tagFilterProvider.notifier).state = filter;
+                      } else if (val == 'tree_expand_all') {
+                        final allTags =
+                            ref.read(allTagsProvider).valueOrNull ?? [];
+                        final tree = TagTree.build(allTags);
+                        ref.read(expandedTagPathsProvider.notifier).expandAll(
+                              tree.nodesByPath.values
+                                  .where((n) => n.hasChildren)
+                                  .map((n) => n.path?.value ?? n.tag.name),
+                            );
+                      } else if (val == 'tree_collapse_all') {
+                        ref
+                            .read(expandedTagPathsProvider.notifier)
+                            .collapseAll();
                       }
                     },
                     itemBuilder: (context) => [
@@ -762,13 +1016,21 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                                 child: Text(
                                   _getSortLabel(s),
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: activeSort == s ? colors.accent : colors.textPrimary,
-                                    fontWeight: activeSort == s ? FontWeight.w600 : FontWeight.normal,
+                                    color: activeSort == s
+                                        ? colors.accent
+                                        : colors.textPrimary,
+                                    fontWeight: activeSort == s
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               ),
                               if (activeSort == s)
-                                Icon(PhosphorIconsRegular.check, size: 16, color: colors.accent),
+                                Icon(
+                                  PhosphorIconsRegular.check,
+                                  size: 16,
+                                  color: colors.accent,
+                                ),
                             ],
                           ),
                         ),
@@ -795,15 +1057,78 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                                 child: Text(
                                   _getFilterLabel(f),
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: activeFilter == f ? colors.accent : colors.textPrimary,
-                                    fontWeight: activeFilter == f ? FontWeight.w600 : FontWeight.normal,
+                                    color: activeFilter == f
+                                        ? colors.accent
+                                        : colors.textPrimary,
+                                    fontWeight: activeFilter == f
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               ),
                               if (activeFilter == f)
-                                Icon(PhosphorIconsRegular.check, size: 16, color: colors.accent),
+                                Icon(
+                                  PhosphorIconsRegular.check,
+                                  size: 16,
+                                  color: colors.accent,
+                                ),
                             ],
                           ),
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
+                        enabled: false,
+                        height: 28,
+                        child: Text(
+                          'HIERARCHY',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_expand_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretDown,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Expand all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'tree_collapse_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.caretRight,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Collapse all sub-tags',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -857,18 +1182,19 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     }
   }
 
-  List<PopupMenuEntry<TagSort>> _buildSortMenuItems(AppColors colors, TagSort activeSort) {
+  List<PopupMenuEntry<TagSort>> _buildSortMenuItems(
+    AppColors colors,
+    TagSort activeSort,
+  ) {
     return TagSort.values.map((s) {
-      return _buildPopupCheckItem(
-        s,
-        _getSortLabel(s),
-        activeSort == s,
-        colors,
-      );
+      return _buildPopupCheckItem(s, _getSortLabel(s), activeSort == s, colors);
     }).toList();
   }
 
-  List<PopupMenuEntry<TagFilter>> _buildFilterMenuItems(AppColors colors, TagFilter activeFilter) {
+  List<PopupMenuEntry<TagFilter>> _buildFilterMenuItems(
+    AppColors colors,
+    TagFilter activeFilter,
+  ) {
     return TagFilter.values.map((f) {
       return _buildPopupCheckItem(
         f,
@@ -950,32 +1276,60 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     AppColors colors, {
     Key? key,
     bool hidePinGlyph = false,
+    int indent = 0,
+    bool hasChildren = false,
+    bool isExpanded = false,
+    VoidCallback? onToggle,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = item.colorDefinition;
     final iconData = TagIconRegistry.getIconData(item.icon);
+    final path = TagPath.tryParse(item.name);
+    final displayName = path != null ? '#${path.leaf}' : '#${item.name}';
+    final fullLabel = path?.token ?? '#${item.name}';
 
     return Semantics(
       key: key,
-      label: '${item.name}, ${item.noteCount} notes${item.isPinned ? ', pinned' : ''}',
+      label:
+          '$fullLabel, ${item.noteCount} notes'
+          '${item.isPinned ? ', pinned' : ''}'
+          '${item.isImplicit ? ', implicit parent tag' : ''}',
       button: true,
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _handleTagTap(item),
-          onLongPress: () => _showTagOptions(context, item),
-          onSecondaryTapUp: (details) => _showTagOptions(
-            context,
-            item,
-            cursorPosition: details.globalPosition,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: 8.0,
+        child: Builder(
+          builder: (rowContext) => InkWell(
+            onTap: () {
+              if (item.isImplicit && hasChildren && onToggle != null) {
+                onToggle();
+                return;
+              }
+              _handleTagTap(item);
+            },
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              _showTagOptions(
+                rowContext,
+                item,
+                anchorContext: rowContext,
+                alignment: PopoverAlignment.center,
+              );
+            },
+            onSecondaryTapUp: (details) => _showTagOptions(
+              rowContext,
+              item,
+              anchorContext: rowContext,
+              cursorPosition: details.globalPosition,
+              alignment: PopoverAlignment.auto,
             ),
-            child: Row(
-              children: [
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 8.0,
+              ),
+              child: Row(
+                children: [
+                if (indent > 0) SizedBox(width: indent * 16.0),
                 // Icon or hash glyph container
                 Container(
                   width: 30,
@@ -991,20 +1345,20 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                       iconData,
                       size: 15,
                       color: colorDef != null
-                        ? colorDef.foreground(isDark)
-                        : colors.textSecondary,
+                          ? colorDef.foreground(isDark)
+                          : colors.textSecondary,
                     ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
 
-                // Tag Name
+                // Tag leaf name
                 Expanded(
                   child: Row(
                     children: [
                       Flexible(
                         child: Text(
-                          '#${item.name}',
+                          displayName,
                           style: AppTypography.body.copyWith(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.w500,
@@ -1035,6 +1389,42 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+
+                // Trailing expand/collapse chevron
+                if (hasChildren && onToggle != null) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Material(
+                      color: isExpanded
+                          ? colors.accent.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 32,
+                          height: 32,
+                        ),
+                        iconSize: 18,
+                        icon: Icon(
+                          isExpanded
+                              ? PhosphorIconsRegular.caretDown
+                              : PhosphorIconsRegular.caretRight,
+                          color: isExpanded
+                              ? colors.accent
+                              : colors.textSecondary,
+                        ),
+                        tooltip: isExpanded
+                            ? 'Collapse sub-tags'
+                            : 'Expand sub-tags',
+                        onPressed: onToggle,
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(width: 4),
 
                 // More options button
@@ -1064,8 +1454,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildEmptyState(
     AppColors colors, {

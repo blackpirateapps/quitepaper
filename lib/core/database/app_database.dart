@@ -29,15 +29,14 @@ import '../note_links/note_link_extractor.dart';
 import '../note_links/note_link_models.dart';
 import '../journal/application/journal_metadata_service.dart';
 import '../../features/notes/domain/note_model.dart';
+import '../../features/tags/domain/tag_model.dart';
+import '../../features/tags/domain/tag_path.dart';
 import '../ocr/ocr_models.dart';
 
 part 'app_database.g.dart';
 
 class NoteWithTags {
-  const NoteWithTags({
-    required this.note,
-    required this.tags,
-  });
+  const NoteWithTags({required this.note, required this.tags});
 
   final NoteEntity note;
   final List<TagEntity> tags;
@@ -49,10 +48,12 @@ class TagWithCount {
   const TagWithCount({
     required this.tag,
     required this.noteCount,
+    this.isImplicit = false,
   });
 
   final TagEntity tag;
   final int noteCount;
+  final bool isImplicit;
 
   String get id => tag.id;
   String get name => tag.name;
@@ -64,298 +65,349 @@ class TagWithCount {
   DateTime? get updatedAt => tag.updatedAt;
 }
 
-@DriftDatabase(tables: [
-  NotesTable,
-  TagsTable,
-  NoteTagsTable,
-  SyncMetadataTable,
-  SyncQueueTable,
-  AttachmentsTable,
-  AttachmentVariantsTable,
-  AttachmentOcrPagesTable,
-  NoteVersionsTable,
-  DocumentsTable,
-  DocumentOcrPagesTable,
-  DocumentAnnotationsTable,
-  SyncConflictsTable,
-  NoteLinksTable,
-  PlaceAliasesTable,
-  QuickCaptureDraftsTable,
-])
+@DriftDatabase(
+  tables: [
+    NotesTable,
+    TagsTable,
+    NoteTagsTable,
+    SyncMetadataTable,
+    SyncQueueTable,
+    AttachmentsTable,
+    AttachmentVariantsTable,
+    AttachmentOcrPagesTable,
+    NoteVersionsTable,
+    DocumentsTable,
+    DocumentOcrPagesTable,
+    DocumentAnnotationsTable,
+    SyncConflictsTable,
+    NoteLinksTable,
+    PlaceAliasesTable,
+    QuickCaptureDraftsTable,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
-      : super(executor ?? conn.openConnection());
+    : super(executor ?? conn.openConnection());
 
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
   int get schemaVersion => 20;
 
-
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await _createFts5TablesAndTriggers();
-        },
-        onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            await _addColumnSafely(m, notesTable, notesTable.isArchived);
-            await _addColumnSafely(m, notesTable, notesTable.isTrashed);
-            await _addColumnSafely(m, notesTable, notesTable.deletedAt);
-          }
-          if (from < 3) {
-            await _addColumnSafely(m, notesTable, notesTable.serverRevision);
-            await _addColumnSafely(m, notesTable, notesTable.isDirty);
-            await _addColumnSafely(m, notesTable, notesTable.syncedAt);
-            await _createTableSafely(m, syncMetadataTable);
-            await _createTableSafely(m, syncQueueTable);
-          }
-          if (from < 4) {
-            await _createTableSafely(m, attachmentsTable);
-            await _createTableSafely(m, attachmentVariantsTable);
-          }
-          if (from < 5) {
-            await _createTableSafely(m, noteVersionsTable);
-          }
-          if (from < 6) {
-            await _createTableSafely(m, documentsTable);
-          }
-          if (from < 7) {
-            if (from >= 6) {
-              await _addColumnSafely(m, documentsTable, documentsTable.source);
-              await _addColumnSafely(m, documentsTable, documentsTable.ocrState);
-              await _addColumnSafely(
-                m,
-                documentsTable,
-                documentsTable.ocrLanguage,
-              );
-            }
-            await _createTableSafely(m, documentOcrPagesTable);
-          }
-          if (from < 8) {
-            await _createTableSafely(m, syncConflictsTable);
-            if (from >= 5) {
-              await _addColumnSafely(
-                m,
-                noteVersionsTable,
-                noteVersionsTable.baseRevision,
-              );
-              await _addColumnSafely(
-                m,
-                noteVersionsTable,
-                noteVersionsTable.localParentRevision,
-              );
-              await _addColumnSafely(
-                m,
-                noteVersionsTable,
-                noteVersionsTable.remoteParentRevision,
-              );
-              await _addColumnSafely(
-                m,
-                noteVersionsTable,
-                noteVersionsTable.mergeType,
-              );
-              await _addColumnSafely(
-                m,
-                noteVersionsTable,
-                noteVersionsTable.resolutionSummary,
-              );
-            }
-          }
-          if (from < 9) {
-            if (from >= 4) {
-              await _addColumnSafely(m, attachmentsTable, attachmentsTable.ocrState);
-              await _addColumnSafely(m, attachmentsTable, attachmentsTable.ocrLanguage);
-            }
-            await _createTableSafely(m, attachmentOcrPagesTable);
-          }
-          if (from < 10) {
-            await _createFts5TablesAndTriggers();
-            await _backfillSearchIndex();
-          }
-          if (from < 11) {
-            if (from >= 4) {
-              await _addColumnSafely(m, attachmentsTable, attachmentsTable.fileName);
-              await _addColumnSafely(m, attachmentsTable, attachmentsTable.kind);
-            }
-          }
-          if (from < 12) {
-            await _addColumnSafely(m, tagsTable, tagsTable.icon);
-            await _addColumnSafely(m, tagsTable, tagsTable.color);
-            await _addColumnSafely(m, tagsTable, tagsTable.isPinned);
-            await _addColumnSafely(m, tagsTable, tagsTable.pinnedOrder);
-            await _addColumnSafely(m, tagsTable, tagsTable.createdAt);
-            await _addColumnSafely(m, tagsTable, tagsTable.updatedAt);
-            await _addColumnSafely(m, tagsTable, tagsTable.isDirty);
-            await _addColumnSafely(m, tagsTable, tagsTable.serverRevision);
-            await _addColumnSafely(m, tagsTable, tagsTable.syncedAt);
-            await _addColumnSafely(m, tagsTable, tagsTable.isDeleted);
-            await _addColumnSafely(m, tagsTable, tagsTable.deletedAt);
-          }
-          if (from < 13) {
-            await _createTableSafely(m, noteLinksTable);
-          }
-          if (from < 14) {
-            await _addColumnSafely(m, notesTable, notesTable.journalDate);
-          }
-          if (from < 15) {
-            await _addColumnSafely(m, notesTable, notesTable.shareId);
-            await _addColumnSafely(m, notesTable, notesTable.shareUrl);
-          }
-          if (from < 16) {
-            await _createTableSafely(m, documentAnnotationsTable);
-          }
-          if (from < 17) {
-            await _createTableSafely(m, placeAliasesTable);
-          }
-          if (from < 18) {
-            // Per-tag ("local") note pinning: authoritative set of tags each
-            // note is pinned within, plus a denormalized flag on the join row.
-            await _addColumnSafely(m, notesTable, notesTable.pinnedTags);
-            await _addColumnSafely(m, noteTagsTable, noteTagsTable.isPinned);
-          }
-          if (from < 19) {
-            // OCR synchronization & conflict detection columns
-            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.revision);
-            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.baseRevision);
-            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.isDirty);
-            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.isDeleted);
-            await _addColumnSafely(m, documentOcrPagesTable, documentOcrPagesTable.updatedAt);
+    onCreate: (m) async {
+      await m.createAll();
+      await _createFts5TablesAndTriggers();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await _addColumnSafely(m, notesTable, notesTable.isArchived);
+        await _addColumnSafely(m, notesTable, notesTable.isTrashed);
+        await _addColumnSafely(m, notesTable, notesTable.deletedAt);
+      }
+      if (from < 3) {
+        await _addColumnSafely(m, notesTable, notesTable.serverRevision);
+        await _addColumnSafely(m, notesTable, notesTable.isDirty);
+        await _addColumnSafely(m, notesTable, notesTable.syncedAt);
+        await _createTableSafely(m, syncMetadataTable);
+        await _createTableSafely(m, syncQueueTable);
+      }
+      if (from < 4) {
+        await _createTableSafely(m, attachmentsTable);
+        await _createTableSafely(m, attachmentVariantsTable);
+      }
+      if (from < 5) {
+        await _createTableSafely(m, noteVersionsTable);
+      }
+      if (from < 6) {
+        await _createTableSafely(m, documentsTable);
+      }
+      if (from < 7) {
+        if (from >= 6) {
+          await _addColumnSafely(m, documentsTable, documentsTable.source);
+          await _addColumnSafely(m, documentsTable, documentsTable.ocrState);
+          await _addColumnSafely(m, documentsTable, documentsTable.ocrLanguage);
+        }
+        await _createTableSafely(m, documentOcrPagesTable);
+      }
+      if (from < 8) {
+        await _createTableSafely(m, syncConflictsTable);
+        if (from >= 5) {
+          await _addColumnSafely(
+            m,
+            noteVersionsTable,
+            noteVersionsTable.baseRevision,
+          );
+          await _addColumnSafely(
+            m,
+            noteVersionsTable,
+            noteVersionsTable.localParentRevision,
+          );
+          await _addColumnSafely(
+            m,
+            noteVersionsTable,
+            noteVersionsTable.remoteParentRevision,
+          );
+          await _addColumnSafely(
+            m,
+            noteVersionsTable,
+            noteVersionsTable.mergeType,
+          );
+          await _addColumnSafely(
+            m,
+            noteVersionsTable,
+            noteVersionsTable.resolutionSummary,
+          );
+        }
+      }
+      if (from < 9) {
+        if (from >= 4) {
+          await _addColumnSafely(
+            m,
+            attachmentsTable,
+            attachmentsTable.ocrState,
+          );
+          await _addColumnSafely(
+            m,
+            attachmentsTable,
+            attachmentsTable.ocrLanguage,
+          );
+        }
+        await _createTableSafely(m, attachmentOcrPagesTable);
+      }
+      if (from < 10) {
+        await _createFts5TablesAndTriggers();
+        await _backfillSearchIndex();
+      }
+      if (from < 11) {
+        if (from >= 4) {
+          await _addColumnSafely(
+            m,
+            attachmentsTable,
+            attachmentsTable.fileName,
+          );
+          await _addColumnSafely(m, attachmentsTable, attachmentsTable.kind);
+        }
+      }
+      if (from < 12) {
+        await _addColumnSafely(m, tagsTable, tagsTable.icon);
+        await _addColumnSafely(m, tagsTable, tagsTable.color);
+        await _addColumnSafely(m, tagsTable, tagsTable.isPinned);
+        await _addColumnSafely(m, tagsTable, tagsTable.pinnedOrder);
+        await _addColumnSafely(m, tagsTable, tagsTable.createdAt);
+        await _addColumnSafely(m, tagsTable, tagsTable.updatedAt);
+        await _addColumnSafely(m, tagsTable, tagsTable.isDirty);
+        await _addColumnSafely(m, tagsTable, tagsTable.serverRevision);
+        await _addColumnSafely(m, tagsTable, tagsTable.syncedAt);
+        await _addColumnSafely(m, tagsTable, tagsTable.isDeleted);
+        await _addColumnSafely(m, tagsTable, tagsTable.deletedAt);
+      }
+      if (from < 13) {
+        await _createTableSafely(m, noteLinksTable);
+      }
+      if (from < 14) {
+        await _addColumnSafely(m, notesTable, notesTable.journalDate);
+      }
+      if (from < 15) {
+        await _addColumnSafely(m, notesTable, notesTable.shareId);
+        await _addColumnSafely(m, notesTable, notesTable.shareUrl);
+      }
+      if (from < 16) {
+        await _createTableSafely(m, documentAnnotationsTable);
+      }
+      if (from < 17) {
+        await _createTableSafely(m, placeAliasesTable);
+      }
+      if (from < 18) {
+        // Per-tag ("local") note pinning: authoritative set of tags each
+        // note is pinned within, plus a denormalized flag on the join row.
+        await _addColumnSafely(m, notesTable, notesTable.pinnedTags);
+        await _addColumnSafely(m, noteTagsTable, noteTagsTable.isPinned);
+      }
+      if (from < 19) {
+        // OCR synchronization & conflict detection columns
+        await _addColumnSafely(
+          m,
+          documentOcrPagesTable,
+          documentOcrPagesTable.revision,
+        );
+        await _addColumnSafely(
+          m,
+          documentOcrPagesTable,
+          documentOcrPagesTable.baseRevision,
+        );
+        await _addColumnSafely(
+          m,
+          documentOcrPagesTable,
+          documentOcrPagesTable.isDirty,
+        );
+        await _addColumnSafely(
+          m,
+          documentOcrPagesTable,
+          documentOcrPagesTable.isDeleted,
+        );
+        await _addColumnSafely(
+          m,
+          documentOcrPagesTable,
+          documentOcrPagesTable.updatedAt,
+        );
 
-            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.revision);
-            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.baseRevision);
-            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDirty);
-            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.isDeleted);
-            await _addColumnSafely(m, attachmentOcrPagesTable, attachmentOcrPagesTable.updatedAt);
+        await _addColumnSafely(
+          m,
+          attachmentOcrPagesTable,
+          attachmentOcrPagesTable.revision,
+        );
+        await _addColumnSafely(
+          m,
+          attachmentOcrPagesTable,
+          attachmentOcrPagesTable.baseRevision,
+        );
+        await _addColumnSafely(
+          m,
+          attachmentOcrPagesTable,
+          attachmentOcrPagesTable.isDirty,
+        );
+        await _addColumnSafely(
+          m,
+          attachmentOcrPagesTable,
+          attachmentOcrPagesTable.isDeleted,
+        );
+        await _addColumnSafely(
+          m,
+          attachmentOcrPagesTable,
+          attachmentOcrPagesTable.updatedAt,
+        );
 
-            // Backfill existing OCR page records with processed_at if updated_at is null
-            await customStatement(
-              'UPDATE document_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
-            );
-            await customStatement(
-              'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
-            );
-          }
-          if (from < 20) {
-            await _createTableSafely(m, quickCaptureDraftsTable);
-          }
-        },
-        beforeOpen: (details) async {
-          await customStatement('PRAGMA foreign_keys = ON;');
-          try {
-            await customStatement('PRAGMA journal_mode = WAL;');
-            await customStatement('PRAGMA synchronous = NORMAL;');
-            await customStatement('PRAGMA busy_timeout = 5000;');
-            await customStatement('PRAGMA cache_size = -16000;');
-            if (PlatformLayoutHelper.isDesktopPlatform) {
-              await customStatement('PRAGMA mmap_size = 268435456;');
-            }
-          } catch (e) {
-            debugPrint('[AppDatabase] PRAGMA tuning warning: $e');
-          }
-          await _createFts5TablesAndTriggers();
-          await _verifySearchIndexIntegrity();
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS notes_lifecycle_idx ON notes (is_archived, is_trashed, is_pinned, updated_at);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS notes_deleted_idx ON notes (is_trashed, deleted_at);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS notes_dirty_idx ON notes (is_dirty);',
-          );
-          await customStatement(
-            'CREATE UNIQUE INDEX IF NOT EXISTS notes_journal_date_unique_idx ON notes (journal_date) WHERE journal_date IS NOT NULL;',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS notes_journal_date_lookup_idx ON notes (journal_date);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_tags_pinned_idx ON note_tags (note_id, is_pinned);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS tags_pinned_idx ON tags (is_pinned, pinned_order);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS tags_name_idx ON tags (name);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS tags_dirty_idx ON tags (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachments_kind_idx ON attachments (kind);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachments_dirty_idx ON attachments (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachments_upload_state_idx ON attachments (upload_state);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachment_variants_att_idx ON attachment_variants (attachment_id);',
-          );
-
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_versions_note_idx ON note_versions (note_id, version_number DESC);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_versions_dirty_idx ON note_versions (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS documents_note_idx ON documents (note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS documents_dirty_idx ON documents (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS documents_upload_state_idx ON documents (upload_state);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS document_ocr_dirty_idx ON document_ocr_pages (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS document_annotations_doc_idx ON document_annotations (document_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS document_annotations_dirty_idx ON document_annotations (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachment_ocr_att_idx ON attachment_ocr_pages (attachment_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS attachment_ocr_dirty_idx ON attachment_ocr_pages (is_dirty);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS sync_conflicts_note_idx ON sync_conflicts (note_id, state);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS sync_conflicts_state_idx ON sync_conflicts (state);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_links_source_idx ON note_links (source_note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_links_target_idx ON note_links (target_note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS note_links_target_source_idx ON note_links (target_note_id, source_note_id);',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS quick_capture_drafts_updated_idx ON quick_capture_drafts (updated_at DESC);',
-          );
-        },
+        // Backfill existing OCR page records with processed_at if updated_at is null
+        await customStatement(
+          'UPDATE document_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
+        );
+        await customStatement(
+          'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
+        );
+      }
+      if (from < 20) {
+        await _createTableSafely(m, quickCaptureDraftsTable);
+      }
+    },
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA foreign_keys = ON;');
+      try {
+        await customStatement('PRAGMA journal_mode = WAL;');
+        await customStatement('PRAGMA synchronous = NORMAL;');
+        await customStatement('PRAGMA busy_timeout = 5000;');
+        await customStatement('PRAGMA cache_size = -16000;');
+        if (PlatformLayoutHelper.isDesktopPlatform) {
+          await customStatement('PRAGMA mmap_size = 268435456;');
+        }
+      } catch (e) {
+        debugPrint('[AppDatabase] PRAGMA tuning warning: $e');
+      }
+      // Local, idempotent hierarchy backfill. No schema change is required:
+      // existing slash-containing tag names already carry their full path.
+      await _backfillTagHierarchy();
+      await _createFts5TablesAndTriggers();
+      await _verifySearchIndexIntegrity();
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS notes_lifecycle_idx ON notes (is_archived, is_trashed, is_pinned, updated_at);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS notes_deleted_idx ON notes (is_trashed, deleted_at);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS notes_dirty_idx ON notes (is_dirty);',
+      );
+      await customStatement(
+        'CREATE UNIQUE INDEX IF NOT EXISTS notes_journal_date_unique_idx ON notes (journal_date) WHERE journal_date IS NOT NULL;',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS notes_journal_date_lookup_idx ON notes (journal_date);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_tags_tag_idx ON note_tags (tag_id, note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_tags_pinned_idx ON note_tags (note_id, is_pinned);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS tags_pinned_idx ON tags (is_pinned, pinned_order);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS tags_name_idx ON tags (name);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS tags_dirty_idx ON tags (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachments_kind_idx ON attachments (kind);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachments_dirty_idx ON attachments (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachments_upload_state_idx ON attachments (upload_state);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachment_variants_att_idx ON attachment_variants (attachment_id);',
       );
 
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_versions_note_idx ON note_versions (note_id, version_number DESC);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_versions_dirty_idx ON note_versions (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS documents_note_idx ON documents (note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS documents_dirty_idx ON documents (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS documents_upload_state_idx ON documents (upload_state);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS document_ocr_doc_idx ON document_ocr_pages (document_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS document_ocr_dirty_idx ON document_ocr_pages (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS document_annotations_doc_idx ON document_annotations (document_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS document_annotations_dirty_idx ON document_annotations (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachment_ocr_att_idx ON attachment_ocr_pages (attachment_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS attachment_ocr_dirty_idx ON attachment_ocr_pages (is_dirty);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS sync_conflicts_note_idx ON sync_conflicts (note_id, state);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS sync_conflicts_state_idx ON sync_conflicts (state);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_links_source_idx ON note_links (source_note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_links_target_idx ON note_links (target_note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS note_links_target_source_idx ON note_links (target_note_id, source_note_id);',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS quick_capture_drafts_updated_idx ON quick_capture_drafts (updated_at DESC);',
+      );
+    },
+  );
 
   Future<void> _addColumnSafely(
     Migrator m,
@@ -383,10 +435,7 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  Future<void> _createTableSafely(
-    Migrator m,
-    TableInfo table,
-  ) async {
+  Future<void> _createTableSafely(Migrator m, TableInfo table) async {
     try {
       final rows = await customSelect(
         'SELECT name FROM sqlite_master WHERE type="table" AND name="${table.actualTableName}";',
@@ -417,6 +466,54 @@ class AppDatabase extends _$AppDatabase {
   /// Resets the background rebuild flag after an auto-repair pass has been triggered.
   void clearSearchIndexRebuildFlag() => _needsSearchIndexRebuild = false;
 
+  /// Local, idempotent backfill for pre-hierarchy databases.
+  ///
+  /// Existing tags whose names already contain `/` keep their IDs, metadata,
+  /// note assignments, and Markdown untouched. Only missing ancestor tag rows
+  /// are inserted, marked dirty so they can propagate through normal sync.
+  /// Malformed legacy tag names are deliberately left alone. The marker makes
+  /// subsequent startups a cheap no-op.
+  Future<void> _backfillTagHierarchy() async {
+    const markerKey = 'tag_hierarchy_backfill_v1';
+    try {
+      final marker = await getSyncMetadata(markerKey);
+      if (marker != null) return;
+
+      final tags = await (select(
+        tagsTable,
+      )..where((t) => t.isDeleted.equals(false))).get();
+      final existingNames = {for (final tag in tags) tag.name};
+      final now = DateTime.now();
+      final pending = <String>{};
+
+      for (final tag in tags) {
+        final path = TagPath.tryParse(tag.name);
+        if (path == null) continue;
+        for (final ancestor in path.ancestors) {
+          if (existingNames.contains(ancestor.value)) continue;
+          if (!pending.add(ancestor.value)) continue;
+          await into(tagsTable).insert(
+            TagsTableCompanion.insert(
+              id: TagParser.deterministicTagId(ancestor.value),
+              name: ancestor.value,
+              pinnedOrder: const Value(0),
+              createdAt: Value(now),
+              updatedAt: Value(now),
+              isDirty: const Value(true),
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+        }
+      }
+
+      await setSyncMetadata(markerKey, '1');
+    } catch (error) {
+      // A failed backfill must never prevent the database from opening. The
+      // marker is only written after a successful pass, so this is retried.
+      debugPrint('[AppDatabase] Tag hierarchy backfill skipped: $error');
+    }
+  }
+
   /// Fast sanity check executed in beforeOpen.
   /// If active notes exist but FTS index tables are empty (e.g. wiped during app update/reinstall)
   /// or severely under-populated (<80% of active notes), marks the index for background repair.
@@ -439,7 +536,9 @@ class AppDatabase extends _$AppDatabase {
         _needsSearchIndexRebuild = true;
       }
     } catch (e) {
-      debugPrint('[QuietPaper FTS] Integrity check error: $e. Scheduling background rebuild.');
+      debugPrint(
+        '[QuietPaper FTS] Integrity check error: $e. Scheduling background rebuild.',
+      );
       _needsSearchIndexRebuild = true;
     }
   }
@@ -493,7 +592,9 @@ class AppDatabase extends _$AppDatabase {
   /// Updates or inserts a note into both FTS5 search indexes atomically.
   Future<void> indexNoteForSearch(String noteId) async {
     try {
-      final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+      final note = await (select(
+        notesTable,
+      )..where((n) => n.id.equals(noteId))).getSingleOrNull();
       if (note == null || note.isTrashed || note.deletedAt != null) {
         await removeNoteFromSearchIndex(noteId);
         return;
@@ -520,14 +621,26 @@ class AppDatabase extends _$AppDatabase {
         [noteId],
       );
 
-      if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
+      if (projection.title.isNotEmpty ||
+          projection.bodyText.isNotEmpty ||
+          projection.tags.isNotEmpty) {
         await customStatement(
           'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-          [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          [
+            projection.noteId,
+            projection.title,
+            projection.bodyText,
+            projection.tags,
+          ],
         );
         await customStatement(
           'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-          [projection.noteId, projection.title, projection.bodyText, projection.tags],
+          [
+            projection.noteId,
+            projection.title,
+            projection.bodyText,
+            projection.tags,
+          ],
         );
       }
     } catch (e) {
@@ -547,7 +660,9 @@ class AppDatabase extends _$AppDatabase {
         [noteId],
       );
     } catch (e) {
-      debugPrint('[QuietPaper FTS] Error removing note $noteId from search index: $e');
+      debugPrint(
+        '[QuietPaper FTS] Error removing note $noteId from search index: $e',
+      );
     }
   }
 
@@ -616,11 +731,21 @@ class AppDatabase extends _$AppDatabase {
                 projection.tags.isNotEmpty) {
               await customStatement(
                 'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-                [projection.noteId, projection.title, projection.bodyText, projection.tags],
+                [
+                  projection.noteId,
+                  projection.title,
+                  projection.bodyText,
+                  projection.tags,
+                ],
               );
               await customStatement(
                 'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-                [projection.noteId, projection.title, projection.bodyText, projection.tags],
+                [
+                  projection.noteId,
+                  projection.title,
+                  projection.bodyText,
+                  projection.tags,
+                ],
               );
             }
           }
@@ -669,7 +794,9 @@ class AppDatabase extends _$AppDatabase {
     }
 
     // 2. Trigram query in note_search_trigram (for substring matches like 'part' in 'counterpart')
-    if (query.isTrigramEligible && query.ftsTrigramExpression.isNotEmpty && candidateIds.length < limit) {
+    if (query.isTrigramEligible &&
+        query.ftsTrigramExpression.isNotEmpty &&
+        candidateIds.length < limit) {
       try {
         final trigramLimit = limit - candidateIds.length;
         final rows = await customSelect(
@@ -713,12 +840,14 @@ class AppDatabase extends _$AppDatabase {
 
   /// Fetches lightweight SearchCandidateDto records (omitting heavy body content)
   /// for instant Phase 1 title and tag matching without memory overhead.
-  Future<List<SearchCandidateDto>> getSearchCandidatesLightweight(List<String> noteIds) async {
+  Future<List<SearchCandidateDto>> getSearchCandidatesLightweight(
+    List<String> noteIds,
+  ) async {
     if (noteIds.isEmpty) return const [];
 
-    final rows = await (select(notesTable)
-          ..where((n) => n.id.isIn(noteIds) & n.isTrashed.equals(false)))
-        .get();
+    final rows = await (select(
+      notesTable,
+    )..where((n) => n.id.isIn(noteIds) & n.isTrashed.equals(false))).get();
 
     if (rows.isEmpty) return const [];
 
@@ -730,7 +859,8 @@ class AppDatabase extends _$AppDatabase {
       return SearchCandidateDto(
         id: n.id,
         title: n.title,
-        content: '', // Intentionally omitted for Phase 1 instant title/tag matching
+        content:
+            '', // Intentionally omitted for Phase 1 instant title/tag matching
         tags: tags,
         updatedAt: n.updatedAt,
         isPinned: n.isPinned,
@@ -742,17 +872,22 @@ class AppDatabase extends _$AppDatabase {
 
   /// Fetches minimal SearchCandidateDto records for candidate IDs in memory-safe chunks of 50
   /// and truncates extremely large notes to prevent heap exhaustion across isolate boundaries.
-  Future<List<SearchCandidateDto>> getSearchCandidatesByIds(List<String> noteIds) async {
+  Future<List<SearchCandidateDto>> getSearchCandidatesByIds(
+    List<String> noteIds,
+  ) async {
     if (noteIds.isEmpty) return const [];
 
     final results = <SearchCandidateDto>[];
     const batchSize = 50;
 
     for (var i = 0; i < noteIds.length; i += batchSize) {
-      final batchIds = noteIds.sublist(i, (i + batchSize < noteIds.length) ? i + batchSize : noteIds.length);
-      final rows = await (select(notesTable)
-            ..where((n) => n.id.isIn(batchIds) & n.isTrashed.equals(false)))
-          .get();
+      final batchIds = noteIds.sublist(
+        i,
+        (i + batchSize < noteIds.length) ? i + batchSize : noteIds.length,
+      );
+      final rows = await (select(
+        notesTable,
+      )..where((n) => n.id.isIn(batchIds) & n.isTrashed.equals(false))).get();
 
       if (rows.isEmpty) continue;
 
@@ -762,7 +897,9 @@ class AppDatabase extends _$AppDatabase {
       for (final n in rows) {
         final tags = (tagsMap[n.id] ?? []).map((t) => t.name).toList();
         // Defensive cap: truncate excessively large notes to 50,000 characters to prevent isolate memory exhaustion
-        final content = n.content.length > 50000 ? n.content.substring(0, 50000) : n.content;
+        final content = n.content.length > 50000
+            ? n.content.substring(0, 50000)
+            : n.content;
         results.add(
           SearchCandidateDto(
             id: n.id,
@@ -772,7 +909,9 @@ class AppDatabase extends _$AppDatabase {
             updatedAt: n.updatedAt,
             isPinned: n.isPinned,
             isArchived: n.isArchived,
-            isPasswordProtected: SearchIndexProjection.isPasswordProtected(n.content),
+            isPasswordProtected: SearchIndexProjection.isPasswordProtected(
+              n.content,
+            ),
           ),
         );
       }
@@ -796,7 +935,9 @@ class AppDatabase extends _$AppDatabase {
   }) {
     final notesQuery = select(notesTable);
 
-    notesQuery.where((n) => n.isArchived.equals(isArchived) & n.isTrashed.equals(isTrashed));
+    notesQuery.where(
+      (n) => n.isArchived.equals(isArchived) & n.isTrashed.equals(isTrashed),
+    );
 
     if (isPinned != null) {
       notesQuery.where((n) => n.isPinned.equals(isPinned));
@@ -807,14 +948,11 @@ class AppDatabase extends _$AppDatabase {
       notesQuery.where((n) {
         final subQuery = selectOnly(noteTagsTable)
           ..join([
-            innerJoin(
-              tagsTable,
-              tagsTable.id.equalsExp(noteTagsTable.tagId),
-            ),
+            innerJoin(tagsTable, tagsTable.id.equalsExp(noteTagsTable.tagId)),
           ])
           ..addColumns([noteTagsTable.noteId])
           ..where(
-            tagsTable.name.equals(normalizedTag) &
+            tagNameMatchesSubtree(tagsTable.name, normalizedTag) &
                 noteTagsTable.noteId.equalsExp(n.id),
           );
         return existsQuery(subQuery);
@@ -831,10 +969,7 @@ class AppDatabase extends _$AppDatabase {
 
         final tagSubQuery = selectOnly(noteTagsTable)
           ..join([
-            innerJoin(
-              tagsTable,
-              tagsTable.id.equalsExp(noteTagsTable.tagId),
-            ),
+            innerJoin(tagsTable, tagsTable.id.equalsExp(noteTagsTable.tagId)),
           ])
           ..addColumns([noteTagsTable.noteId])
           ..where(
@@ -850,11 +985,15 @@ class AppDatabase extends _$AppDatabase {
                 documentsTable.title.lower().like(pattern),
           );
 
-        final matchesAdditional = (matchingNoteIds != null && matchingNoteIds.isNotEmpty)
+        final matchesAdditional =
+            (matchingNoteIds != null && matchingNoteIds.isNotEmpty)
             ? n.id.isIn(matchingNoteIds)
             : const Constant(false);
 
-        return titleOrContentMatch | existsQuery(tagSubQuery) | existsQuery(docSubQuery) | matchesAdditional;
+        return titleOrContentMatch |
+            existsQuery(tagSubQuery) |
+            existsQuery(docSubQuery) |
+            matchesAdditional;
       });
     }
 
@@ -881,18 +1020,16 @@ class AppDatabase extends _$AppDatabase {
       final tagsByNoteId = await getTagsForNoteIds(noteIds);
 
       return notesList.map((note) {
-        return NoteWithTags(
-          note: note,
-          tags: tagsByNoteId[note.id] ?? [],
-        );
+        return NoteWithTags(note: note, tags: tagsByNoteId[note.id] ?? []);
       }).toList();
     });
   }
 
   /// Get single note by ID with tags
   Future<NoteWithTags?> getNoteWithTags(String noteId) async {
-    final note = await (select(notesTable)..where((n) => n.id.equals(noteId)))
-        .getSingleOrNull();
+    final note = await (select(
+      notesTable,
+    )..where((n) => n.id.equals(noteId))).getSingleOrNull();
     if (note == null) return null;
 
     final tags = await _getTagsForNote(noteId);
@@ -904,16 +1041,17 @@ class AppDatabase extends _$AppDatabase {
     return (select(notesTable)..where((n) => n.id.equals(noteId)))
         .watchSingleOrNull()
         .asyncMap((note) async {
-      if (note == null) return null;
-      final tags = await _getTagsForNote(noteId);
-      return NoteWithTags(note: note, tags: tags);
-    });
+          if (note == null) return null;
+          final tags = await _getTagsForNote(noteId);
+          return NoteWithTags(note: note, tags: tags);
+        });
   }
 
   /// Get single journal entry by normalized calendar date string (YYYY-MM-DD)
   Future<NoteWithTags?> getJournalEntry(String journalDate) async {
-    final note = await (select(notesTable)..where((n) => n.journalDate.equals(journalDate)))
-        .getSingleOrNull();
+    final note = await (select(
+      notesTable,
+    )..where((n) => n.journalDate.equals(journalDate))).getSingleOrNull();
     if (note == null) return null;
 
     final tags = await _getTagsForNote(note.id);
@@ -925,10 +1063,10 @@ class AppDatabase extends _$AppDatabase {
     return (select(notesTable)..where((n) => n.journalDate.equals(journalDate)))
         .watchSingleOrNull()
         .asyncMap((note) async {
-      if (note == null) return null;
-      final tags = await _getTagsForNote(note.id);
-      return NoteWithTags(note: note, tags: tags);
-    });
+          if (note == null) return null;
+          final tags = await _getTagsForNote(note.id);
+          return NoteWithTags(note: note, tags: tags);
+        });
   }
 
   /// Fetches historical journal entries for On This Day (matching month and day, strictly before year, non-trashed)
@@ -942,10 +1080,12 @@ class AppDatabase extends _$AppDatabase {
     final suffix = '-$monthStr-$dayStr';
 
     final query = select(notesTable)
-      ..where((n) =>
-          n.journalDate.isNotNull() &
-          n.isTrashed.equals(false) &
-          n.journalDate.like('%$suffix'))
+      ..where(
+        (n) =>
+            n.journalDate.isNotNull() &
+            n.isTrashed.equals(false) &
+            n.journalDate.like('%$suffix'),
+      )
       ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
 
     final rawNotes = await query.get();
@@ -962,7 +1102,9 @@ class AppDatabase extends _$AppDatabase {
     final ids = validNotes.map((n) => n.id).toList();
     final tagsMap = await getTagsForNoteIds(ids);
 
-    return validNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+    return validNotes
+        .map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? []))
+        .toList();
   }
 
   /// Watches historical journal entries for On This Day
@@ -976,10 +1118,12 @@ class AppDatabase extends _$AppDatabase {
     final suffix = '-$monthStr-$dayStr';
 
     final query = select(notesTable)
-      ..where((n) =>
-          n.journalDate.isNotNull() &
-          n.isTrashed.equals(false) &
-          n.journalDate.like('%$suffix'))
+      ..where(
+        (n) =>
+            n.journalDate.isNotNull() &
+            n.isTrashed.equals(false) &
+            n.journalDate.like('%$suffix'),
+      )
       ..orderBy([(n) => OrderingTerm.desc(n.journalDate)]);
 
     return query.watch().asyncMap((rawNotes) async {
@@ -996,7 +1140,9 @@ class AppDatabase extends _$AppDatabase {
       final ids = validNotes.map((n) => n.id).toList();
       final tagsMap = await getTagsForNoteIds(ids);
 
-      return validNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+      return validNotes
+          .map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? []))
+          .toList();
     });
   }
 
@@ -1007,10 +1153,12 @@ class AppDatabase extends _$AppDatabase {
     }
 
     final query = select(notesTable)
-      ..where((n) =>
-          n.journalDate.isNotNull() &
-          n.isTrashed.equals(false) &
-          n.journalDate.isIn(dateStrings))
+      ..where(
+        (n) =>
+            n.journalDate.isNotNull() &
+            n.isTrashed.equals(false) &
+            n.journalDate.isIn(dateStrings),
+      )
       ..orderBy([
         (n) => OrderingTerm.desc(n.journalDate),
         (n) => OrderingTerm.desc(n.createdAt),
@@ -1050,9 +1198,11 @@ class AppDatabase extends _$AppDatabase {
 
     final query = selectOnly(notesTable)
       ..addColumns([notesTable.journalDate])
-      ..where(notesTable.journalDate.isNotNull() &
-          notesTable.isTrashed.equals(false) &
-          notesTable.journalDate.like('$prefix%'));
+      ..where(
+        notesTable.journalDate.isNotNull() &
+            notesTable.isTrashed.equals(false) &
+            notesTable.journalDate.like('$prefix%'),
+      );
 
     final rows = await query.get();
     return rows.map((r) => r.read(notesTable.journalDate)!).toSet();
@@ -1066,12 +1216,14 @@ class AppDatabase extends _$AppDatabase {
 
     final query = selectOnly(notesTable)
       ..addColumns([notesTable.journalDate])
-      ..where(notesTable.journalDate.isNotNull() &
-          notesTable.isTrashed.equals(false) &
-          notesTable.journalDate.like('$prefix%'));
+      ..where(
+        notesTable.journalDate.isNotNull() &
+            notesTable.isTrashed.equals(false) &
+            notesTable.journalDate.like('$prefix%'),
+      );
 
-    return query.watch().map((rows) =>
-      rows.map((r) => r.read(notesTable.journalDate)!).toSet(),
+    return query.watch().map(
+      (rows) => rows.map((r) => r.read(notesTable.journalDate)!).toSet(),
     );
   }
 
@@ -1086,7 +1238,9 @@ class AppDatabase extends _$AppDatabase {
     final ids = rawNotes.map((n) => n.id).toList();
     final tagsMap = await getTagsForNoteIds(ids);
 
-    return rawNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+    return rawNotes
+        .map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? []))
+        .toList();
   }
 
   /// Watches all active journal entries ordered chronologically (newest date first)
@@ -1100,7 +1254,9 @@ class AppDatabase extends _$AppDatabase {
       final ids = rawNotes.map((n) => n.id).toList();
       final tagsMap = await getTagsForNoteIds(ids);
 
-      return rawNotes.map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? [])).toList();
+      return rawNotes
+          .map((n) => NoteWithTags(note: n, tags: tagsMap[n.id] ?? []))
+          .toList();
     });
   }
 
@@ -1133,16 +1289,20 @@ class AppDatabase extends _$AppDatabase {
     int serverRevision = 0,
     bool isDirty = true,
     DateTime? syncedAt,
+    bool preserveEmptyTags = false,
   }) async {
-    final effectiveJournalDate = journalDate ??
+    final effectiveJournalDate =
+        journalDate ??
         JournalMetadataService.extractJournalMetadata(content).journalDate;
 
     await transaction(() async {
       // Resolve the note's current tag set first so per-tag pins can be pruned
       // to tags the note still carries.
-      final extractedTags = (tags != null && tags.isNotEmpty)
+      final extractedTags = (preserveEmptyTags && tags != null)
           ? tags
-          : TagParser.extractTags('$title\n$content');
+          : ((tags != null && tags.isNotEmpty)
+              ? tags
+              : TagParser.extractTags('$title\n$content'));
       final normalizedTagSet = extractedTags
           .map(TagParser.normalizeTag)
           .where(TagParser.isValidTag)
@@ -1154,9 +1314,9 @@ class AppDatabase extends _$AppDatabase {
       if (pinnedTags != null) {
         pinnedSource = pinnedTags;
       } else {
-        final existing = await (select(notesTable)
-              ..where((n) => n.id.equals(id)))
-            .getSingleOrNull();
+        final existing = await (select(
+          notesTable,
+        )..where((n) => n.id.equals(id))).getSingleOrNull();
         pinnedSource = _decodePinnedTags(existing?.pinnedTags);
       }
       final effectivePinned = pinnedSource
@@ -1211,14 +1371,26 @@ class AppDatabase extends _$AppDatabase {
           deletedAt: deletedAt,
         );
 
-        if (projection.title.isNotEmpty || projection.bodyText.isNotEmpty || projection.tags.isNotEmpty) {
+        if (projection.title.isNotEmpty ||
+            projection.bodyText.isNotEmpty ||
+            projection.tags.isNotEmpty) {
           await customStatement(
             'INSERT INTO note_search_prefix (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+            [
+              projection.noteId,
+              projection.title,
+              projection.bodyText,
+              projection.tags,
+            ],
           );
           await customStatement(
             'INSERT INTO note_search_trigram (note_id, title, body_text, tags) VALUES (?, ?, ?, ?);',
-            [projection.noteId, projection.title, projection.bodyText, projection.tags],
+            [
+              projection.noteId,
+              projection.title,
+              projection.bodyText,
+              projection.tags,
+            ],
           );
         }
       }
@@ -1228,15 +1400,15 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-
   /// Set or clear the local share bookkeeping (share slug + public URL) for a note.
   /// These columns are local-only (not synced); pass null to clear on unshare.
-  Future<void> setNoteShareInfo(String noteId, {String? shareId, String? shareUrl}) async {
+  Future<void> setNoteShareInfo(
+    String noteId, {
+    String? shareId,
+    String? shareUrl,
+  }) async {
     await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
-      NotesTableCompanion(
-        shareId: Value(shareId),
-        shareUrl: Value(shareUrl),
-      ),
+      NotesTableCompanion(shareId: Value(shareId), shareUrl: Value(shareUrl)),
     );
   }
 
@@ -1284,9 +1456,9 @@ class AppDatabase extends _$AppDatabase {
     if (!TagParser.isValidTag(norm)) return;
 
     await transaction(() async {
-      final note =
-          await (select(notesTable)..where((n) => n.id.equals(noteId)))
-              .getSingleOrNull();
+      final note = await (select(
+        notesTable,
+      )..where((n) => n.id.equals(noteId))).getSingleOrNull();
       if (note == null) return;
 
       final current = _decodePinnedTags(note.pinnedTags).toSet();
@@ -1303,12 +1475,13 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      final tag = await (select(tagsTable)..where((t) => t.name.equals(norm)))
-          .getSingleOrNull();
+      final tag = await (select(
+        tagsTable,
+      )..where((t) => t.name.equals(norm))).getSingleOrNull();
       if (tag != null) {
-        await (update(noteTagsTable)
-              ..where((nt) =>
-                  nt.noteId.equals(noteId) & nt.tagId.equals(tag.id)))
+        await (update(noteTagsTable)..where(
+              (nt) => nt.noteId.equals(noteId) & nt.tagId.equals(tag.id),
+            ))
             .write(NoteTagsTableCompanion(isPinned: Value(pinned)));
       }
     });
@@ -1361,7 +1534,10 @@ class AppDatabase extends _$AppDatabase {
   /// When [restoreUpdatedAt] is provided (e.g. undoing a trash action), the
   /// note's modification date is reset to that value so the round-trip leaves
   /// the modification date untouched. Otherwise it defaults to now.
-  Future<void> restoreFromTrash(String noteId, {DateTime? restoreUpdatedAt}) async {
+  Future<void> restoreFromTrash(
+    String noteId, {
+    DateTime? restoreUpdatedAt,
+  }) async {
     await transaction(() async {
       await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
         NotesTableCompanion(
@@ -1377,11 +1553,22 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Permanent hard deletion of a single note
-  Future<void> deletePermanently(String noteId, {bool enqueueSync = true}) async {
+  Future<void> deletePermanently(
+    String noteId, {
+    bool enqueueSync = true,
+  }) async {
     await transaction(() async {
-      await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.equals(noteId) | nl.targetNoteId.equals(noteId))).go();
-      await (delete(noteVersionsTable)..where((v) => v.noteId.equals(noteId))).go();
-      await (delete(noteTagsTable)..where((nt) => nt.noteId.equals(noteId))).go();
+      await (delete(noteLinksTable)..where(
+            (nl) =>
+                nl.sourceNoteId.equals(noteId) | nl.targetNoteId.equals(noteId),
+          ))
+          .go();
+      await (delete(
+        noteVersionsTable,
+      )..where((v) => v.noteId.equals(noteId))).go();
+      await (delete(
+        noteTagsTable,
+      )..where((nt) => nt.noteId.equals(noteId))).go();
       await (delete(notesTable)..where((n) => n.id.equals(noteId))).go();
       await removeNoteFromSearchIndex(noteId);
       await _cleanupOrphanedTags();
@@ -1395,18 +1582,27 @@ class AppDatabase extends _$AppDatabase {
   /// Empty all notes currently in Trash
   Future<void> emptyTrash({bool enqueueSync = true}) async {
     await transaction(() async {
-      final trashedNotes = await (select(notesTable)
-            ..where((n) => n.isTrashed.equals(true)))
-          .get();
+      final trashedNotes = await (select(
+        notesTable,
+      )..where((n) => n.isTrashed.equals(true))).get();
       final trashedIds = trashedNotes.map((n) => n.id).toList();
 
       if (trashedIds.isNotEmpty) {
         for (final id in trashedIds) {
           await removeNoteFromSearchIndex(id);
         }
-        await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.isIn(trashedIds) | nl.targetNoteId.isIn(trashedIds))).go();
-        await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(trashedIds))).go();
-        await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(trashedIds))).go();
+        await (delete(noteLinksTable)..where(
+              (nl) =>
+                  nl.sourceNoteId.isIn(trashedIds) |
+                  nl.targetNoteId.isIn(trashedIds),
+            ))
+            .go();
+        await (delete(
+          noteVersionsTable,
+        )..where((v) => v.noteId.isIn(trashedIds))).go();
+        await (delete(
+          noteTagsTable,
+        )..where((nt) => nt.noteId.isIn(trashedIds))).go();
         await (delete(notesTable)..where((n) => n.id.isIn(trashedIds))).go();
         await _cleanupOrphanedTags();
         if (enqueueSync) {
@@ -1485,15 +1681,26 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Batch permanent deletion
-  Future<void> deletePermanentlyBatch(List<String> noteIds, {bool enqueueSync = true}) async {
+  Future<void> deletePermanentlyBatch(
+    List<String> noteIds, {
+    bool enqueueSync = true,
+  }) async {
     if (noteIds.isEmpty) return;
     await transaction(() async {
       for (final id in noteIds) {
         await removeNoteFromSearchIndex(id);
       }
-      await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.isIn(noteIds) | nl.targetNoteId.isIn(noteIds))).go();
-      await (delete(noteVersionsTable)..where((v) => v.noteId.isIn(noteIds))).go();
-      await (delete(noteTagsTable)..where((nt) => nt.noteId.isIn(noteIds))).go();
+      await (delete(noteLinksTable)..where(
+            (nl) =>
+                nl.sourceNoteId.isIn(noteIds) | nl.targetNoteId.isIn(noteIds),
+          ))
+          .go();
+      await (delete(
+        noteVersionsTable,
+      )..where((v) => v.noteId.isIn(noteIds))).go();
+      await (delete(
+        noteTagsTable,
+      )..where((nt) => nt.noteId.isIn(noteIds))).go();
       await (delete(notesTable)..where((n) => n.id.isIn(noteIds))).go();
       await _cleanupOrphanedTags();
       if (enqueueSync) {
@@ -1504,21 +1711,25 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-
   /// Legacy helper for deleting a note
   Future<void> deleteNote(String noteId, {bool enqueueSync = true}) async {
     await deletePermanently(noteId, enqueueSync: enqueueSync);
   }
 
   Future<List<NoteEntity>> getAllNotesRaw() async => select(notesTable).get();
-  Future<List<AttachmentEntity>> getAllAttachmentsRaw() async => select(attachmentsTable).get();
-  Future<List<DocumentEntity>> getAllDocumentsRaw() async => select(documentsTable).get();
-  Future<void> deleteAttachmentLocal(String id) async => (delete(attachmentsTable)..where((t) => t.id.equals(id))).go();
-  Future<void> deleteDocumentLocal(String id) async => (delete(documentsTable)..where((t) => t.id.equals(id))).go();
+  Future<List<AttachmentEntity>> getAllAttachmentsRaw() async =>
+      select(attachmentsTable).get();
+  Future<List<DocumentEntity>> getAllDocumentsRaw() async =>
+      select(documentsTable).get();
+  Future<void> deleteAttachmentLocal(String id) async =>
+      (delete(attachmentsTable)..where((t) => t.id.equals(id))).go();
+  Future<void> deleteDocumentLocal(String id) async =>
+      (delete(documentsTable)..where((t) => t.id.equals(id))).go();
 
   /// Deletes all stored variant rows for an attachment.
-  Future<void> deleteAttachmentVariants(String attachmentId) async =>
-      (delete(attachmentVariantsTable)..where((t) => t.attachmentId.equals(attachmentId))).go();
+  Future<void> deleteAttachmentVariants(String attachmentId) async => (delete(
+    attachmentVariantsTable,
+  )..where((t) => t.attachmentId.equals(attachmentId))).go();
 
   /// Removes pending sync-queue entries for a specific entity ID.
   ///
@@ -1533,9 +1744,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all local notes marked dirty for pushing
   Future<List<NoteWithTags>> getDirtyNotes() async {
-    final dirtyEntities = await (select(notesTable)
-          ..where((n) => n.isDirty.equals(true)))
-        .get();
+    final dirtyEntities = await (select(
+      notesTable,
+    )..where((n) => n.isDirty.equals(true))).get();
     if (dirtyEntities.isEmpty) return [];
 
     final ids = dirtyEntities.map((n) => n.id).toList();
@@ -1563,8 +1774,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Gets a sync metadata value by key
   Future<String?> getSyncMetadata(String key) async {
-    final row = await (select(syncMetadataTable)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final row = await (select(
+      syncMetadataTable,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
     return row?.value;
   }
 
@@ -1641,13 +1853,14 @@ class AppDatabase extends _$AppDatabase {
 
   /// Resets sync cursors in sync metadata to force clean initial pull or re-sync
   Future<void> resetSyncCursors() async {
-    await (delete(syncMetadataTable)
-          ..where((t) =>
+    await (delete(syncMetadataTable)..where(
+          (t) =>
               t.key.equals('sync_cursor') |
               t.key.equals('version_sync_cursor') |
               t.key.equals('tag_sync_cursor') |
               t.key.equals('place_alias_sync_cursor') |
-              t.key.equals('ocr_sync_cursor')))
+              t.key.equals('ocr_sync_cursor'),
+        ))
         .go();
   }
 
@@ -1666,7 +1879,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all pending sync queue entries
   Future<List<SyncQueueEntity>> getPendingSyncQueue() async {
-    return (select(syncQueueTable)..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
+    return (select(
+      syncQueueTable,
+    )..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
   }
 
   /// Remove processed sync queue entries
@@ -1683,7 +1898,10 @@ class AppDatabase extends _$AppDatabase {
   Stream<int> watchActiveNotesCount() {
     final countExp = notesTable.id.count();
     final query = selectOnly(notesTable)
-      ..where(notesTable.isArchived.equals(false) & notesTable.isTrashed.equals(false))
+      ..where(
+        notesTable.isArchived.equals(false) &
+            notesTable.isTrashed.equals(false),
+      )
       ..addColumns([countExp]);
 
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
@@ -1700,9 +1918,11 @@ class AppDatabase extends _$AppDatabase {
             noteTagsTable.isPinned.equals(true),
       );
     final query = selectOnly(notesTable)
-      ..where((notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub)) &
-          notesTable.isArchived.equals(false) &
-          notesTable.isTrashed.equals(false))
+      ..where(
+        (notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub)) &
+            notesTable.isArchived.equals(false) &
+            notesTable.isTrashed.equals(false),
+      )
       ..addColumns([countExp]);
 
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
@@ -1712,7 +1932,9 @@ class AppDatabase extends _$AppDatabase {
   Stream<int> watchArchivedNotesCount() {
     final countExp = notesTable.id.count();
     final query = selectOnly(notesTable)
-      ..where(notesTable.isArchived.equals(true) & notesTable.isTrashed.equals(false))
+      ..where(
+        notesTable.isArchived.equals(true) & notesTable.isTrashed.equals(false),
+      )
       ..addColumns([countExp]);
 
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
@@ -1732,76 +1954,66 @@ class AppDatabase extends _$AppDatabase {
   // TAG OPERATIONS
   // ==========================================
 
-  /// Watches all tags with active note count (excluding archived and trashed notes)
-  Stream<List<TagWithCount>> watchAllTagsWithCount() {
-    final activeNotesCount = CustomExpression<int>(
-      'COUNT(CASE WHEN notes.is_archived = 0 AND notes.is_trashed = 0 AND notes.id IS NOT NULL THEN 1 END)',
-    );
-
-    final query = select(tagsTable).join([
-      leftOuterJoin(
-        noteTagsTable,
-        noteTagsTable.tagId.equalsExp(tagsTable.id),
-      ),
-      leftOuterJoin(
-        notesTable,
-        notesTable.id.equalsExp(noteTagsTable.noteId),
-      ),
-    ]);
-
-    query.where(tagsTable.isDeleted.equals(false));
-    query.groupBy([
-      tagsTable.id,
-      tagsTable.name,
-      tagsTable.icon,
-      tagsTable.color,
-      tagsTable.isPinned,
-      tagsTable.pinnedOrder,
-      tagsTable.createdAt,
-      tagsTable.updatedAt,
-      tagsTable.isDirty,
-      tagsTable.serverRevision,
-      tagsTable.syncedAt,
-      tagsTable.isDeleted,
-      tagsTable.deletedAt,
-    ]);
-    query.addColumns([activeNotesCount]);
-    query.orderBy([
-      OrderingTerm.desc(tagsTable.isPinned),
-      OrderingTerm.asc(tagsTable.pinnedOrder),
-      OrderingTerm.desc(activeNotesCount),
-      OrderingTerm.asc(tagsTable.name),
-    ]);
-
-    return query.watch().map((rows) {
-      return rows.map((row) {
-        final tag = row.readTable(tagsTable);
-        final count = row.read(activeNotesCount) ?? 0;
-        return TagWithCount(tag: tag, noteCount: count);
-      }).toList();
-    });
+  /// SQL predicate matching [nameExpression] against [rootTag] and all of its
+  /// descendants, without false positives such as `work` matching `workflow`.
+  ///
+  /// Exact equality handles the tag itself; the escaped `LIKE` prefix handles
+  /// descendants. Backslash is used as the SQL `LIKE` escape character.
+  Expression<bool> tagNameMatchesSubtree(
+    Expression<String> nameExpression,
+    String rootTag,
+  ) {
+    final root = TagParser.normalizeTag(rootTag);
+    if (root.isEmpty) return const Constant(false);
+    final escaped = root
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    return nameExpression.equals(root) |
+        nameExpression.like('$escaped/%', escapeChar: r'\');
   }
 
-  /// Get all distinct active tag names
-  Future<List<String>> getAllTagNames() async {
-    final tags = await (select(tagsTable)..where((t) => t.isDeleted.equals(false))).get();
-    return tags.map((t) => t.name).toList();
+  /// Loads every non-deleted tag in [rootName]'s subtree, root first.
+  Future<List<TagEntity>> _getSubtreeTags(String rootName) async {
+    final root = TagParser.normalizeTag(rootName);
+    if (root.isEmpty) return const [];
+    final all = await (select(
+      tagsTable,
+    )..where((t) => t.isDeleted.equals(false))).get();
+    final path = TagPath.tryParse(root);
+    final subtree = all.where((tag) {
+      if (tag.name == root) return true;
+      if (path == null) return false;
+      return tag.name.startsWith('$root/');
+    }).toList();
+    subtree.sort((a, b) => a.name.length.compareTo(b.name.length));
+    return subtree;
   }
 
-  /// Retrieves a tag by its stable ID
-  Future<TagEntity?> getTagById(String id) {
-    return (select(tagsTable)..where((t) => t.id.equals(id) & t.isDeleted.equals(false))).getSingleOrNull();
-  }
-
-  /// Retrieves a tag by its textual name
-  Future<TagEntity?> getTagByName(String name) {
-    final normalized = TagParser.normalizeTag(name);
-    return (select(tagsTable)..where((t) => t.name.equals(normalized) & t.isDeleted.equals(false))).getSingleOrNull();
-  }
-
-  /// Creates a new tag or restores/updates existing
-  Future<TagEntity> createTag(
+  /// Creates [name] and any missing path ancestors in one transaction/helper.
+  Future<TagEntity> ensureTagPathExists(
     String name, {
+    bool markDirty = true,
+    String? icon,
+    String? color,
+    bool isPinned = false,
+  }) {
+    return transaction(
+      () => _ensureTagPath(
+        name,
+        markDirty: markDirty,
+        icon: icon,
+        color: color,
+        isPinned: isPinned,
+      ),
+    );
+  }
+
+  /// Internal, transaction-safe path creation. Callers that already run in a
+  /// transaction should use this directly to avoid nested transactions.
+  Future<TagEntity> _ensureTagPath(
+    String name, {
+    bool markDirty = true,
     String? icon,
     String? color,
     bool isPinned = false,
@@ -1810,47 +2022,320 @@ class AppDatabase extends _$AppDatabase {
     if (!TagParser.isValidTag(normalized)) {
       throw ArgumentError('Invalid tag name: $name');
     }
+    final path = TagPath.parse(normalized);
+
+    for (final ancestor in path.ancestors) {
+      await _ensureSingleTag(
+        ancestor.value,
+        markDirty: markDirty,
+        isAncestor: true,
+      );
+    }
+
+    return _ensureSingleTag(
+      normalized,
+      markDirty: markDirty,
+      icon: icon,
+      color: color,
+      isPinned: isPinned,
+    );
+  }
+
+  /// Ensures every ancestor of [name] exists without creating the leaf itself.
+  Future<void> _ensureAncestorsFor(
+    String name, {
+    required bool markDirty,
+  }) async {
+    final normalized = TagParser.normalizeTag(name);
+    final path = TagPath.tryParse(normalized);
+    if (path == null) return;
+    for (final ancestor in path.ancestors) {
+      await _ensureSingleTag(
+        ancestor.value,
+        markDirty: markDirty,
+        isAncestor: true,
+      );
+    }
+  }
+
+  /// Hydrates missing ancestors for a remotely pulled tag.
+  ///
+  /// A child can arrive before its ancestors. Missing ancestors are inserted as
+  /// ordinary dirty tag rows so they sync normally. Existing rows (including
+  /// tombstones) are left untouched: a remote tombstone stays authoritative.
+  Future<void> _ensureAncestorsForSynced(String name) async {
+    final path = TagPath.tryParse(name);
+    if (path == null) return;
+    final now = DateTime.now();
+    for (final ancestor in path.ancestors) {
+      final existing = await (select(
+        tagsTable,
+      )..where((t) => t.name.equals(ancestor.value))).getSingleOrNull();
+      if (existing != null) continue;
+      await into(tagsTable).insert(
+        TagsTableCompanion.insert(
+          id: TagParser.deterministicTagId(ancestor.value),
+          name: ancestor.value,
+          pinnedOrder: const Value(0),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+          isDirty: const Value(true),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+    }
+  }
+
+  Future<TagEntity> _ensureSingleTag(
+    String normalizedName, {
+    required bool markDirty,
+    String? icon,
+    String? color,
+    bool isPinned = false,
+    bool isAncestor = false,
+  }) async {
+    final existing = await (select(
+      tagsTable,
+    )..where((t) => t.name.equals(normalizedName))).getSingleOrNull();
     final now = DateTime.now();
 
-    final existing = await (select(tagsTable)..where((t) => t.name.equals(normalized))).getSingleOrNull();
     if (existing != null) {
       if (existing.isDeleted) {
+        // During remote ingestion a tombstone is authoritative: do not
+        // resurrect an ancestor just because a child arrived out of order.
+        if (!markDirty) return existing;
         await (update(tagsTable)..where((t) => t.id.equals(existing.id))).write(
           TagsTableCompanion(
             isDeleted: const Value(false),
             deletedAt: const Value(null),
-            icon: Value(icon ?? existing.icon),
-            color: Value(color ?? existing.color),
-            isPinned: Value(isPinned),
+            icon: isAncestor
+                ? const Value.absent()
+                : Value(icon ?? existing.icon),
+            color: isAncestor
+                ? const Value.absent()
+                : Value(color ?? existing.color),
+            isPinned: isAncestor ? const Value.absent() : Value(isPinned),
             updatedAt: Value(now),
             isDirty: const Value(true),
           ),
         );
-        return (await (select(tagsTable)..where((t) => t.id.equals(existing.id))).getSingle());
+        return (await (select(
+          tagsTable,
+        )..where((t) => t.id.equals(existing.id))).getSingle());
       }
       return existing;
     }
 
-    final newId = TagParser.deterministicTagId(normalized);
+    final id = TagParser.deterministicTagId(normalizedName);
     await into(tagsTable).insert(
       TagsTableCompanion.insert(
-        id: newId,
-        name: normalized,
-        icon: Value(icon),
-        color: Value(color),
-        isPinned: Value(isPinned),
+        id: id,
+        name: normalizedName,
+        icon: Value(isAncestor ? null : icon),
+        color: Value(isAncestor ? null : color),
+        isPinned: Value(isAncestor ? false : isPinned),
         pinnedOrder: const Value(0),
         createdAt: Value(now),
         updatedAt: Value(now),
-        isDirty: const Value(true),
+        isDirty: Value(markDirty),
         serverRevision: const Value(0),
         isDeleted: const Value(false),
       ),
+      mode: InsertMode.insertOrIgnore,
     );
-    return (await (select(tagsTable)..where((t) => t.id.equals(newId))).getSingle());
+
+    final created = await (select(
+      tagsTable,
+    )..where((t) => t.name.equals(normalizedName))).getSingleOrNull();
+    if (created != null) return created;
+
+    return TagEntity(
+      id: id,
+      name: normalizedName,
+      icon: isAncestor ? null : icon,
+      color: isAncestor ? null : color,
+      isPinned: isAncestor ? false : isPinned,
+      pinnedOrder: 0,
+      createdAt: now,
+      updatedAt: now,
+      isDirty: markDirty,
+      serverRevision: 0,
+      isDeleted: false,
+    );
   }
 
-  /// Renames a tag and propagates the change to all associated note Markdown
+  /// Watches all tags with distinct active-note counts for each tag's subtree.
+  ///
+  /// Selecting a parent tag includes all descendants, so its count is the
+  /// number of distinct active notes carrying the tag itself or any descendant.
+  /// Missing ancestors are synthesized as implicit presentation rows so nested
+  /// tags always appear in navigation; they are never persisted by this method.
+  Stream<List<TagWithCount>> watchAllTagsWithCount() {
+    final query = select(tagsTable).join([
+      leftOuterJoin(noteTagsTable, noteTagsTable.tagId.equalsExp(tagsTable.id)),
+      leftOuterJoin(notesTable, notesTable.id.equalsExp(noteTagsTable.noteId)),
+    ]);
+
+    query.where(tagsTable.isDeleted.equals(false));
+    query.addColumns([
+      noteTagsTable.noteId,
+      notesTable.isArchived,
+      notesTable.isTrashed,
+    ]);
+
+    return query.watch().map((rows) {
+      final tagRows = <String, TagEntity>{};
+      final ownNoteIds = <String, Set<String>>{};
+
+      for (final row in rows) {
+        final tag = row.readTable(tagsTable);
+        tagRows[tag.name] = tag;
+
+        final noteId = row.read(noteTagsTable.noteId);
+        if (noteId == null) continue;
+        final archived = row.read(notesTable.isArchived);
+        final trashed = row.read(notesTable.isTrashed);
+        if (archived == true || trashed == true) continue;
+        ownNoteIds.putIfAbsent(tag.name, () => <String>{}).add(noteId);
+      }
+
+      // Aggregate each tag's own notes into itself and every ancestor path.
+      final subtreeNotes = <String, Set<String>>{
+        for (final name in tagRows.keys) name: <String>{},
+      };
+      for (final entry in ownNoteIds.entries) {
+        final path = TagPath.tryParse(entry.key);
+        final targets = <String>[
+          entry.key,
+          if (path != null) ...path.ancestorValues,
+        ];
+        for (final target in targets) {
+          subtreeNotes
+              .putIfAbsent(target, () => <String>{})
+              .addAll(entry.value);
+        }
+      }
+
+      // Synthesize missing ancestors with stable deterministic IDs.
+      final now = DateTime.now();
+      final implicitTags = <String, TagEntity>{};
+      for (final tag in tagRows.values) {
+        final path = TagPath.tryParse(tag.name);
+        if (path == null) continue;
+        for (final ancestor in path.ancestors) {
+          final name = ancestor.value;
+          if (tagRows.containsKey(name)) continue;
+          final childCreatedAt = tag.createdAt ?? now;
+          final childUpdatedAt = tag.updatedAt ?? now;
+          final prior = implicitTags[name];
+          final createdAt =
+              prior?.createdAt == null ||
+                  childCreatedAt.isBefore(prior!.createdAt!)
+              ? childCreatedAt
+              : prior.createdAt!;
+          final updatedAt =
+              prior?.updatedAt == null ||
+                  childUpdatedAt.isAfter(prior!.updatedAt!)
+              ? childUpdatedAt
+              : prior.updatedAt!;
+          implicitTags[name] = TagEntity(
+            id: TagParser.deterministicTagId(name),
+            name: name,
+            isPinned: false,
+            pinnedOrder: 0,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            isDirty: false,
+            serverRevision: 0,
+            isDeleted: false,
+          );
+        }
+      }
+
+      final result = <TagWithCount>[
+        for (final tag in tagRows.values)
+          TagWithCount(
+            tag: tag,
+            noteCount: subtreeNotes[tag.name]?.length ?? 0,
+          ),
+        for (final tag in implicitTags.values)
+          TagWithCount(
+            tag: tag,
+            noteCount: subtreeNotes[tag.name]?.length ?? 0,
+            isImplicit: true,
+          ),
+      ];
+
+      result.sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        if (a.isPinned && b.isPinned) {
+          final order = a.pinnedOrder.compareTo(b.pinnedOrder);
+          if (order != 0) return order;
+        }
+        final count = b.noteCount.compareTo(a.noteCount);
+        if (count != 0) return count;
+        return a.name.compareTo(b.name);
+      });
+
+      return result;
+    });
+  }
+
+  /// Get all distinct active tag names, including implicit ancestor paths.
+  Future<List<String>> getAllTagNames() async {
+    final tags = await (select(
+      tagsTable,
+    )..where((t) => t.isDeleted.equals(false))).get();
+    final names = <String>{};
+    for (final tag in tags) {
+      names.add(tag.name);
+      final path = TagPath.tryParse(tag.name);
+      if (path != null) names.addAll(path.ancestorValues);
+    }
+    final sorted = names.toList()..sort();
+    return sorted;
+  }
+
+  /// Retrieves a tag by its stable ID
+  Future<TagEntity?> getTagById(String id) {
+    return (select(tagsTable)
+          ..where((t) => t.id.equals(id) & t.isDeleted.equals(false)))
+        .getSingleOrNull();
+  }
+
+  /// Retrieves a tag by its textual name
+  Future<TagEntity?> getTagByName(String name) {
+    final normalized = TagParser.normalizeTag(name);
+    return (select(tagsTable)
+          ..where((t) => t.name.equals(normalized) & t.isDeleted.equals(false)))
+        .getSingleOrNull();
+  }
+
+  /// Creates a new tag or restores/updates existing.
+  ///
+  /// Nested paths automatically create every missing ancestor in the same
+  /// transaction. Ancestors are ordinary tag entities but are not assigned to
+  /// the note: only the requested leaf is associated with notes elsewhere.
+  Future<TagEntity> createTag(
+    String name, {
+    String? icon,
+    String? color,
+    bool isPinned = false,
+  }) {
+    return ensureTagPathExists(
+      name,
+      markDirty: true,
+      icon: icon,
+      color: color,
+      isPinned: isPinned,
+    );
+  }
+
+  /// Renames a tag and propagates the change to all associated note Markdown.
+  ///
+  /// Nested tags rename as a branch: `work` → `job` also renames
+  /// `work/projects` → `job/projects`, preserving each child tag's own ID,
+  /// metadata, and note assignments. The whole local operation is transactional.
   Future<void> renameTag(String tagId, String newName) async {
     final normalizedNew = TagParser.normalizeTag(newName);
     if (!TagParser.isValidTag(normalizedNew)) {
@@ -1858,77 +2343,208 @@ class AppDatabase extends _$AppDatabase {
     }
 
     await transaction(() async {
-      final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
+      final tag = await (select(
+        tagsTable,
+      )..where((t) => t.id.equals(tagId))).getSingleOrNull();
       if (tag == null) return;
       final oldName = tag.name;
       if (oldName == normalizedNew) return;
 
-      final existingWithNewName = await (select(tagsTable)
-            ..where((t) => t.name.equals(normalizedNew) & t.isDeleted.equals(false)))
-          .getSingleOrNull();
-      if (existingWithNewName != null && existingWithNewName.id != tagId) {
-        throw StateError('A tag with name "$normalizedNew" already exists.');
+      final oldPath = TagPath.tryParse(oldName);
+      final newPath = TagPath.parse(normalizedNew);
+      if (oldPath != null && newPath.isSelfOrDescendantOf(oldPath)) {
+        throw StateError('A tag cannot be moved inside its own branch.');
+      }
+
+      final subtree = oldPath == null
+          ? <TagEntity>[tag]
+          : await _getSubtreeTags(oldName);
+      if (subtree.isEmpty) return;
+
+      final subtreeIds = subtree.map((t) => t.id).toSet();
+      final renames = <String, String>{
+        for (final item in subtree)
+          item.name: oldPath == null
+              ? normalizedNew
+              : '$normalizedNew${item.name.substring(oldName.length)}',
+      };
+
+      // Reject collisions with tags outside the branch before mutating.
+      for (final targetName in renames.values) {
+        if (targetName == oldName) continue;
+        final existing =
+            await (select(tagsTable)..where(
+                  (t) => t.name.equals(targetName) & t.isDeleted.equals(false),
+                ))
+                .getSingleOrNull();
+        if (existing != null && !subtreeIds.contains(existing.id)) {
+          throw StateError('A tag with name "$targetName" already exists.');
+        }
       }
 
       final now = DateTime.now();
 
-      // 1. Update tag name in tagsTable first so _syncNoteTags finds it during saveNote
-      await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
-        TagsTableCompanion(
-          name: Value(normalizedNew),
-          updatedAt: Value(now),
-          isDirty: const Value(true),
-        ),
+      // 1. Update tag names first so _syncNoteTags resolves the renamed rows
+      //    instead of minting duplicates while notes are saved below.
+      for (final item in subtree) {
+        await (update(tagsTable)..where((t) => t.id.equals(item.id))).write(
+          TagsTableCompanion(
+            name: Value(renames[item.name]!),
+            updatedAt: Value(now),
+            isDirty: const Value(true),
+          ),
+        );
+      }
+
+      // 2. Ensure the new branch's ancestors exist (dirty, ordinary entities).
+      await _ensureAncestorsFor(normalizedNew, markDirty: true);
+
+      // 3. Rewrite note Markdown and per-tag pins in one pass per note.
+      await _rewriteNotesForTagChanges(
+        renames: renames,
+        affectedTagIds: subtreeIds,
       );
 
-      // 2. Propagate rename to all notes containing oldName
-      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(tagId))).get();
-      final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
-      final textNotes = await (select(notesTable)
-            ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
-          .get();
-      final allNoteIds = taggedNoteIds.union(textNotes.map((n) => n.id).toSet());
-
-      for (final noteId in allNoteIds) {
-        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
-        if (note == null) continue;
-
-        final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedNew);
-        final newContent = TagParser.renameTagInText(note.content, oldName, normalizedNew);
-
-        await saveNote(
-          id: note.id,
-          title: newTitle,
-          content: newContent,
-          createdAt: note.createdAt,
-          updatedAt: now,
-          isPinned: note.isPinned,
-          isArchived: note.isArchived,
-          isTrashed: note.isTrashed,
-          deletedAt: note.deletedAt,
-          isDirty: true,
-        );
+      // 4. Remove old ancestors that no longer have children or note
+      //    assignments, so renaming a branch does not leave empty paths behind.
+      if (oldPath != null) {
+        await _cleanupOldAncestors(oldPath);
       }
     });
   }
 
-  /// Deletes a tag and removes it from all note Markdown without deleting notes
-  Future<void> deleteTag(String tagId) async {
-    await transaction(() async {
-      final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
-      if (tag == null) return;
+  /// Deletes ancestors of [oldPath] that became unused after a branch move.
+  ///
+  /// Walks from the deepest ancestor upward. Stops at the first ancestor that
+  /// still has a live descendant or a direct note assignment, which also keeps
+  /// all shallower ancestors alive.
+  Future<void> _cleanupOldAncestors(TagPath oldPath) async {
+    final liveTags = await (select(
+      tagsTable,
+    )..where((t) => t.isDeleted.equals(false))).get();
 
-      final now = DateTime.now();
-      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(tagId))).get();
-      final noteIds = noteRows.map((r) => r.noteId).toList();
+    for (final ancestor in oldPath.ancestors.reversed) {
+      final tag = liveTags
+          .where((candidate) => candidate.name == ancestor.value)
+          .firstOrNull;
+      if (tag == null) continue;
 
-      for (final noteId in noteIds) {
-        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
-        if (note == null) continue;
+      final hasChild = liveTags.any(
+        (candidate) => candidate.name.startsWith('${ancestor.value}/'),
+      );
+      if (hasChild) break;
 
-        final newTitle = TagParser.removeTagFromText(note.title, tag.name);
-        final newContent = TagParser.removeTagFromText(note.content, tag.name);
+      final assignment =
+          await (select(noteTagsTable)
+                ..where((nt) => nt.tagId.equals(tag.id))
+                ..limit(1))
+              .getSingleOrNull();
+      if (assignment != null) break;
 
+      await _deleteTagRows([tag]);
+      liveTags.removeWhere((candidate) => candidate.id == tag.id);
+    }
+  }
+
+  /// Moves a tag branch under [newParentName], preserving its leaf segment.
+  ///
+  /// Passing an empty [newParentName] promotes the branch to the top level.
+  /// This is a local transactional rename; distributed atomicity is not claimed
+  /// (each renamed tag syncs as its own entity).
+  Future<void> moveTag(String tagId, String newParentName) async {
+    final tag = await (select(
+      tagsTable,
+    )..where((t) => t.id.equals(tagId))).getSingleOrNull();
+    if (tag == null) return;
+    final path = TagPath.tryParse(tag.name);
+    if (path == null) {
+      throw ArgumentError.value(
+        tag.name,
+        'tagId',
+        'Cannot move a malformed tag path',
+      );
+    }
+    final normalizedParent = TagParser.normalizeTag(newParentName);
+    final target = normalizedParent.isEmpty
+        ? path.leaf
+        : '$normalizedParent/${path.leaf}';
+    await renameTag(tagId, target);
+  }
+
+  /// Rewrites Markdown hashtags and per-tag pins for a set of tag changes.
+  ///
+  /// [renames] maps old full tag names to new full names. [removals] contains
+  /// tags to strip. Only affected notes are visited; unrelated text, headings,
+  /// code blocks, and inline code are preserved by [TagParser].
+  Future<void> _rewriteNotesForTagChanges({
+    Map<String, String> renames = const {},
+    Set<String> removals = const {},
+    Set<String> affectedTagIds = const {},
+  }) async {
+    if (renames.isEmpty && removals.isEmpty) return;
+
+    final affectedNames = <String>{...renames.keys, ...removals};
+
+    final noteIds = <String>{};
+    if (affectedTagIds.isNotEmpty) {
+      final noteRows = await (select(
+        noteTagsTable,
+      )..where((nt) => nt.tagId.isIn(affectedTagIds))).get();
+      noteIds.addAll(noteRows.map((r) => r.noteId));
+    }
+    for (final name in affectedNames) {
+      final escaped = name.replaceAll('%', r'\%').replaceAll('_', r'\_');
+      final notesWithText =
+          await (select(notesTable)..where(
+                (n) =>
+                    n.title.like('%$escaped%', escapeChar: r'\') |
+                    n.content.like('%$escaped%', escapeChar: r'\'),
+              ))
+              .get();
+      noteIds.addAll(notesWithText.map((n) => n.id));
+    }
+    if (noteIds.isEmpty) return;
+
+    final renameEntries = renames.entries.toList()
+      ..sort((a, b) => a.key.length.compareTo(b.key.length));
+    final removalNames = removals.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+
+    final now = DateTime.now();
+    for (final noteId in noteIds) {
+      final note = await (select(
+        notesTable,
+      )..where((n) => n.id.equals(noteId))).getSingleOrNull();
+      if (note == null) continue;
+
+      var newTitle = note.title;
+      var newContent = note.content;
+      for (final entry in renameEntries) {
+        newTitle = TagParser.renameTagInText(newTitle, entry.key, entry.value);
+        newContent = TagParser.renameTagInText(
+          newContent,
+          entry.key,
+          entry.value,
+        );
+      }
+      for (final name in removalNames) {
+        newTitle = TagParser.removeTagFromText(newTitle, name);
+        newContent = TagParser.removeTagFromText(newContent, name);
+      }
+
+      final priorPins = _decodePinnedTags(note.pinnedTags);
+      final newPins = <String>{};
+      for (final pin in priorPins) {
+        final normalized = TagParser.normalizeTag(pin);
+        if (removals.contains(normalized)) continue;
+        newPins.add(renames[normalized] ?? normalized);
+      }
+
+      final pinsChanged =
+          newPins.length != priorPins.length ||
+          !newPins.every(priorPins.contains);
+
+      if (newTitle != note.title || newContent != note.content || pinsChanged) {
         await saveNote(
           id: note.id,
           title: newTitle,
@@ -1939,13 +2555,124 @@ class AppDatabase extends _$AppDatabase {
           isArchived: note.isArchived,
           isTrashed: note.isTrashed,
           deletedAt: note.deletedAt,
+          pinnedTags: newPins.toList(),
           isDirty: true,
         );
       }
+    }
+  }
 
-      final syncCursor = await getSyncMetadata('tag_sync_cursor');
-      if (tag.serverRevision > 0 || tag.syncedAt != null || syncCursor != null) {
-        await (update(tagsTable)..where((t) => t.id.equals(tagId))).write(
+  /// Deletes a tag and removes it from note Markdown without deleting notes.
+  ///
+  /// For a tag with descendants, the default [mode] removes the whole branch.
+  /// [TagBranchDeleteMode.moveChildrenUp] instead promotes direct children by
+  /// removing the deleted tag's segment from their paths.
+  Future<void> deleteTag(
+    String tagId, {
+    TagBranchDeleteMode mode = TagBranchDeleteMode.deleteBranch,
+  }) async {
+    await transaction(() async {
+      final tag = await (select(
+        tagsTable,
+      )..where((t) => t.id.equals(tagId))).getSingleOrNull();
+      if (tag == null) return;
+
+      final allTags = await (select(
+        tagsTable,
+      )..where((t) => t.isDeleted.equals(false))).get();
+      final rootPath = TagPath.tryParse(tag.name);
+
+      if (mode == TagBranchDeleteMode.deleteBranch || rootPath == null) {
+        final subtree = await _getSubtreeTags(tag.name);
+        final ids = subtree.map((t) => t.id).toSet();
+        await _rewriteNotesForTagChanges(
+          removals: subtree.map((t) => t.name).toSet(),
+          affectedTagIds: ids,
+        );
+        await _deleteTagRows(subtree);
+        return;
+      }
+
+      final directChildren = allTags.where((candidate) {
+        final childPath = TagPath.tryParse(candidate.name);
+        return childPath?.parentValue == tag.name;
+      }).toList();
+
+      if (directChildren.isEmpty) {
+        await _rewriteNotesForTagChanges(
+          removals: {tag.name},
+          affectedTagIds: {tag.id},
+        );
+        await _deleteTagRows([tag]);
+        return;
+      }
+
+      // Build child-subtree renames: a/b/c -> b/c when deleting a.
+      final subtreeIds = <String>{tag.id};
+      final renames = <String, String>{};
+      for (final child in directChildren) {
+        final childPath = TagPath.parse(child.name);
+        final promoted = childPath.segments.sublist(1).join('/');
+        for (final item in allTags) {
+          if (item.name != child.name &&
+              !item.name.startsWith('${child.name}/')) {
+            continue;
+          }
+          subtreeIds.add(item.id);
+          final suffix = item.name.substring(child.name.length);
+          renames[item.name] = '$promoted$suffix';
+        }
+      }
+
+      // Reject collisions with tags outside the affected branch.
+      for (final targetName in renames.values) {
+        final existing =
+            await (select(tagsTable)..where(
+                  (t) => t.name.equals(targetName) & t.isDeleted.equals(false),
+                ))
+                .getSingleOrNull();
+        if (existing != null && !subtreeIds.contains(existing.id)) {
+          throw StateError('A tag with name "$targetName" already exists.');
+        }
+      }
+
+      final now = DateTime.now();
+      for (final entry in renames.entries) {
+        final source = allTags.firstWhere((t) => t.name == entry.key);
+        await (update(tagsTable)..where((t) => t.id.equals(source.id))).write(
+          TagsTableCompanion(
+            name: Value(entry.value),
+            updatedAt: Value(now),
+            isDirty: const Value(true),
+          ),
+        );
+      }
+      for (final targetName in renames.values) {
+        await _ensureAncestorsFor(targetName, markDirty: true);
+      }
+
+      await _rewriteNotesForTagChanges(
+        renames: renames,
+        removals: {tag.name},
+        affectedTagIds: subtreeIds,
+      );
+      await _deleteTagRows([tag]);
+    });
+  }
+
+  /// Removes or tombstones [tags] and all their note assignments.
+  Future<void> _deleteTagRows(List<TagEntity> tags) async {
+    if (tags.isEmpty) return;
+    final now = DateTime.now();
+    final ids = tags.map((t) => t.id).toSet();
+    await (delete(noteTagsTable)..where((nt) => nt.tagId.isIn(ids))).go();
+
+    final syncCursor = await getSyncMetadata('tag_sync_cursor');
+    for (final tag in tags) {
+      if (tag.serverRevision > 0 ||
+          tag.syncedAt != null ||
+          syncCursor != null) {
+        await (update(tagsTable)..where((t) => t.id.equals(tag.id))).write(
           TagsTableCompanion(
             isDeleted: const Value(true),
             deletedAt: Value(now),
@@ -1954,57 +2681,111 @@ class AppDatabase extends _$AppDatabase {
           ),
         );
       } else {
-        await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
+        await (delete(tagsTable)..where((t) => t.id.equals(tag.id))).go();
       }
-    });
+    }
   }
 
-  /// Merges sourceTag into destinationTag, updating Markdown across all notes
+  /// Merges the source tag branch into the destination tag branch.
+  ///
+  /// A source branch `work` merged into `archive` rewrites `work/projects` to
+  /// `archive/projects`, not all descendants into the parent tag. Existing
+  /// target names are reconciled by moving note assignments, matching the
+  /// single-tag merge behavior.
   Future<void> mergeTags(String sourceTagId, String destinationTagId) async {
     if (sourceTagId == destinationTagId) return;
 
     await transaction(() async {
-      final sourceTag = await (select(tagsTable)..where((t) => t.id.equals(sourceTagId))).getSingleOrNull();
-      final destTag = await (select(tagsTable)..where((t) => t.id.equals(destinationTagId))).getSingleOrNull();
+      final sourceTag = await (select(
+        tagsTable,
+      )..where((t) => t.id.equals(sourceTagId))).getSingleOrNull();
+      final destTag = await (select(
+        tagsTable,
+      )..where((t) => t.id.equals(destinationTagId))).getSingleOrNull();
       if (sourceTag == null || destTag == null) return;
 
-      final now = DateTime.now();
-      final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(sourceTagId))).get();
-      final noteIds = noteRows.map((r) => r.noteId).toList();
-
-      for (final noteId in noteIds) {
-        final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
-        if (note == null) continue;
-
-        final newTitle = TagParser.mergeTagsInText(note.title, sourceTag.name, destTag.name);
-        final newContent = TagParser.mergeTagsInText(note.content, sourceTag.name, destTag.name);
-
-        await saveNote(
-          id: note.id,
-          title: newTitle,
-          content: newContent,
-          createdAt: note.createdAt,
-          updatedAt: now,
-          isPinned: note.isPinned,
-          isArchived: note.isArchived,
-          isTrashed: note.isTrashed,
-          deletedAt: note.deletedAt,
-          isDirty: true,
-        );
+      final sourcePath = TagPath.tryParse(sourceTag.name);
+      final destPath = TagPath.tryParse(destTag.name);
+      if (sourcePath != null &&
+          destPath != null &&
+          destPath.isSelfOrDescendantOf(sourcePath)) {
+        throw StateError('Cannot merge a tag into its own branch.');
       }
 
-      final syncCursor = await getSyncMetadata('tag_sync_cursor');
-      if (sourceTag.serverRevision > 0 || sourceTag.syncedAt != null || syncCursor != null) {
-        await (update(tagsTable)..where((t) => t.id.equals(sourceTagId))).write(
+      final subtree = sourcePath == null
+          ? <TagEntity>[sourceTag]
+          : await _getSubtreeTags(sourceTag.name);
+      final subtreeIds = subtree.map((t) => t.id).toSet();
+      final renames = <String, String>{
+        for (final item in subtree)
+          item.name: sourcePath == null
+              ? destTag.name
+              : '${destTag.name}${item.name.substring(sourceTag.name.length)}',
+      };
+
+      final existingByName = {
+        for (final tag in await (select(
+          tagsTable,
+        )..where((t) => t.isDeleted.equals(false))).get())
+          tag.name: tag,
+      };
+
+      final now = DateTime.now();
+      final conflicted = <TagEntity>[];
+
+      // Rename non-conflicting source rows in place first so their IDs,
+      // metadata, and sync state survive the merge.
+      for (final item in subtree) {
+        final targetName = renames[item.name]!;
+        if (targetName == item.name) continue;
+        final existing = existingByName[targetName];
+        if (existing != null && existing.id != item.id) {
+          conflicted.add(item);
+          continue;
+        }
+        await (update(tagsTable)..where((t) => t.id.equals(item.id))).write(
           TagsTableCompanion(
-            isDeleted: const Value(true),
-            deletedAt: Value(now),
-            isDirty: const Value(true),
+            name: Value(targetName),
             updatedAt: Value(now),
+            isDirty: const Value(true),
           ),
         );
-      } else {
-        await (delete(tagsTable)..where((t) => t.id.equals(sourceTagId))).go();
+        existingByName[targetName] = item.copyWith(name: targetName);
+      }
+
+      await _ensureAncestorsFor(destTag.name, markDirty: true);
+      for (final targetName in renames.values) {
+        await _ensureAncestorsFor(targetName, markDirty: true);
+      }
+
+      await _rewriteNotesForTagChanges(
+        renames: renames,
+        affectedTagIds: subtreeIds,
+      );
+
+      // Source tags whose target already existed are folded into it.
+      for (final item in conflicted) {
+        final targetName = renames[item.name]!;
+        final target =
+            await (select(tagsTable)..where(
+                  (t) => t.name.equals(targetName) & t.isDeleted.equals(false),
+                ))
+                .getSingleOrNull();
+        if (target == null) continue;
+
+        final sourceRows = await (select(
+          noteTagsTable,
+        )..where((nt) => nt.tagId.equals(item.id))).get();
+        for (final row in sourceRows) {
+          await into(noteTagsTable).insertOnConflictUpdate(
+            NoteTagsTableCompanion.insert(
+              noteId: row.noteId,
+              tagId: target.id,
+              isPinned: Value(row.isPinned),
+            ),
+          );
+        }
+        await _deleteTagRows([item]);
       }
     });
   }
@@ -2013,10 +2794,13 @@ class AppDatabase extends _$AppDatabase {
   Future<void> pinTag(String tagId, bool isPinned) async {
     int nextOrder = 0;
     if (isPinned) {
-      final pinnedTags = await (select(tagsTable)
-            ..where((t) => t.isPinned.equals(true) & t.isDeleted.equals(false))
-            ..orderBy([(t) => OrderingTerm.desc(t.pinnedOrder)]))
-          .get();
+      final pinnedTags =
+          await (select(tagsTable)
+                ..where(
+                  (t) => t.isPinned.equals(true) & t.isDeleted.equals(false),
+                )
+                ..orderBy([(t) => OrderingTerm.desc(t.pinnedOrder)]))
+              .get();
       if (pinnedTags.isNotEmpty) {
         nextOrder = pinnedTags.first.pinnedOrder + 1;
       }
@@ -2037,7 +2821,9 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       final now = DateTime.now();
       for (var i = 0; i < orderedTagIds.length; i++) {
-        await (update(tagsTable)..where((t) => t.id.equals(orderedTagIds[i]))).write(
+        await (update(
+          tagsTable,
+        )..where((t) => t.id.equals(orderedTagIds[i]))).write(
           TagsTableCompanion(
             pinnedOrder: Value(i),
             updatedAt: Value(now),
@@ -2081,7 +2867,9 @@ class AppDatabase extends _$AppDatabase {
     required int serverRevision,
     required DateTime syncedAt,
   }) async {
-    final tag = await (select(tagsTable)..where((t) => t.id.equals(tagId))).getSingleOrNull();
+    final tag = await (select(
+      tagsTable,
+    )..where((t) => t.id.equals(tagId))).getSingleOrNull();
     if (tag == null) return;
     if (tag.isDeleted) {
       await (delete(tagsTable)..where((t) => t.id.equals(tagId))).go();
@@ -2116,34 +2904,63 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     await transaction(() async {
       final normalizedName = TagParser.normalizeTag(name);
-      final existingById = await (select(tagsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+      final existingById = await (select(
+        tagsTable,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
       final existingByName = normalizedName.isNotEmpty
-          ? await (select(tagsTable)..where((t) => t.name.equals(normalizedName))).getSingleOrNull()
+          ? await (select(
+              tagsTable,
+            )..where((t) => t.name.equals(normalizedName))).getSingleOrNull()
           : null;
 
+      // Children may arrive before their ancestors when pulling from another
+      // device. Hydrate missing ancestors (never resurrecting tombstones).
+      if (!isDeleted && normalizedName.isNotEmpty) {
+        await _ensureAncestorsForSynced(normalizedName);
+      }
+
       // If the incoming tag is an explicit rename of a previous tag name
-      if (renamedFrom != null && renamedFrom.isNotEmpty && renamedFrom != normalizedName) {
+      if (renamedFrom != null &&
+          renamedFrom.isNotEmpty &&
+          renamedFrom != normalizedName) {
         final oldName = TagParser.normalizeTag(renamedFrom);
-        final oldTag = await (select(tagsTable)..where((t) => t.name.equals(oldName))).getSingleOrNull();
+        final oldTag = await (select(
+          tagsTable,
+        )..where((t) => t.name.equals(oldName))).getSingleOrNull();
 
         final noteRows = oldTag != null
-            ? await (select(noteTagsTable)..where((nt) => nt.tagId.equals(oldTag.id))).get()
+            ? await (select(
+                noteTagsTable,
+              )..where((nt) => nt.tagId.equals(oldTag.id))).get()
             : <NoteTagEntity>[];
         final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
 
-        final notesWithText = await (select(notesTable)
-              ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
-            .get();
+        final notesWithText =
+            await (select(notesTable)..where(
+                  (n) =>
+                      n.title.like('%$oldName%') | n.content.like('%$oldName%'),
+                ))
+                .get();
         final textNoteIds = notesWithText.map((n) => n.id).toSet();
         final allNoteIds = taggedNoteIds.union(textNoteIds);
 
         final now = DateTime.now();
         for (final noteId in allNoteIds) {
-          final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+          final note = await (select(
+            notesTable,
+          )..where((n) => n.id.equals(noteId))).getSingleOrNull();
           if (note == null) continue;
 
-          final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedName);
-          final newContent = TagParser.renameTagInText(note.content, oldName, normalizedName);
+          final newTitle = TagParser.renameTagInText(
+            note.title,
+            oldName,
+            normalizedName,
+          );
+          final newContent = TagParser.renameTagInText(
+            note.content,
+            oldName,
+            normalizedName,
+          );
 
           if (newTitle != note.title || newContent != note.content) {
             await saveNote(
@@ -2162,40 +2979,63 @@ class AppDatabase extends _$AppDatabase {
         }
 
         if (oldTag != null) {
-          await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(oldTag.id))).go();
+          await (delete(
+            noteTagsTable,
+          )..where((nt) => nt.tagId.equals(oldTag.id))).go();
           await (delete(tagsTable)..where((t) => t.id.equals(oldTag.id))).go();
         }
       }
 
       if (isDeleted) {
         final targetTag = existingById ?? existingByName;
-        final targetName = (targetTag?.name.isNotEmpty == true) ? targetTag!.name : normalizedName;
+        final targetName = (targetTag?.name.isNotEmpty == true)
+            ? targetTag!.name
+            : normalizedName;
         final targetId = targetTag?.id ?? id;
 
         // 1. Remove or rename this tag in all notes in Markdown and search index on this device
         if (targetName.isNotEmpty) {
-          final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(targetId))).get();
+          final noteRows = await (select(
+            noteTagsTable,
+          )..where((nt) => nt.tagId.equals(targetId))).get();
           final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
 
-          final notesWithText = await (select(notesTable)
-                ..where((n) => n.title.like('%$targetName%') | n.content.like('%$targetName%')))
-              .get();
+          final notesWithText =
+              await (select(notesTable)..where(
+                    (n) =>
+                        n.title.like('%$targetName%') |
+                        n.content.like('%$targetName%'),
+                  ))
+                  .get();
           final textNoteIds = notesWithText.map((n) => n.id).toSet();
           final allNoteIds = taggedNoteIds.union(textNoteIds);
 
           final now = DateTime.now();
           for (final noteId in allNoteIds) {
-            final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+            final note = await (select(
+              notesTable,
+            )..where((n) => n.id.equals(noteId))).getSingleOrNull();
             if (note == null) continue;
 
             final String newTitle;
             final String newContent;
             if (renamedTo != null && renamedTo.isNotEmpty) {
-              newTitle = TagParser.renameTagInText(note.title, targetName, renamedTo);
-              newContent = TagParser.renameTagInText(note.content, targetName, renamedTo);
+              newTitle = TagParser.renameTagInText(
+                note.title,
+                targetName,
+                renamedTo,
+              );
+              newContent = TagParser.renameTagInText(
+                note.content,
+                targetName,
+                renamedTo,
+              );
             } else {
               newTitle = TagParser.removeTagFromText(note.title, targetName);
-              newContent = TagParser.removeTagFromText(note.content, targetName);
+              newContent = TagParser.removeTagFromText(
+                note.content,
+                targetName,
+              );
             }
 
             if (newTitle != note.title || newContent != note.content) {
@@ -2216,25 +3056,34 @@ class AppDatabase extends _$AppDatabase {
         }
 
         // 2. Cascade delete tag and noteTags relations
-        await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(targetId))).go();
+        await (delete(
+          noteTagsTable,
+        )..where((nt) => nt.tagId.equals(targetId))).go();
         if (existingById != null) {
-          await (delete(tagsTable)..where((t) => t.id.equals(existingById.id))).go();
+          await (delete(
+            tagsTable,
+          )..where((t) => t.id.equals(existingById.id))).go();
         }
-        if (existingByName != null && existingByName.id != (existingById?.id ?? '')) {
-          await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
+        if (existingByName != null &&
+            existingByName.id != (existingById?.id ?? '')) {
+          await (delete(
+            tagsTable,
+          )..where((t) => t.id.equals(existingByName.id))).go();
         }
         return;
       }
 
       // If local tag has pending unsynced dirty changes and was updated more recently, keep local dirty edits
       if (existingById != null && existingById.isDirty) {
-        if (existingById.updatedAt != null && existingById.updatedAt!.isAfter(updatedAt)) {
+        if (existingById.updatedAt != null &&
+            existingById.updatedAt!.isAfter(updatedAt)) {
           return;
         }
       }
 
       // Propagate remote rename to local notes if existing tag had a different name
-      final oldName = (existingById != null &&
+      final oldName =
+          (existingById != null &&
               existingById.name.isNotEmpty &&
               existingById.name != normalizedName &&
               normalizedName.isNotEmpty)
@@ -2261,9 +3110,8 @@ class AppDatabase extends _$AppDatabase {
       if (existingByName != null && existingByName.id != id) {
         // 1. Temporarily rename the old tag so normalizedName is available for the canonical remote ID without violating UNIQUE(name)
         final tempName = '${normalizedName}_merging_${existingByName.id}';
-        await (update(tagsTable)..where((t) => t.id.equals(existingByName.id))).write(
-          TagsTableCompanion(name: Value(tempName)),
-        );
+        await (update(tagsTable)..where((t) => t.id.equals(existingByName.id)))
+            .write(TagsTableCompanion(name: Value(tempName)));
 
         // 2. Insert the canonical remote tag into tagsTable so it exists before referencing it in noteTagsTable
         await into(tagsTable).insertOnConflictUpdate(
@@ -2285,9 +3133,13 @@ class AppDatabase extends _$AppDatabase {
         );
 
         // 3. Re-link noteTags to the canonical remote ID, ensuring the referenced note still exists
-        final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).get();
+        final noteRows = await (select(
+          noteTagsTable,
+        )..where((nt) => nt.tagId.equals(existingByName.id))).get();
         for (final row in noteRows) {
-          final noteExists = await (select(notesTable)..where((n) => n.id.equals(row.noteId))).getSingleOrNull();
+          final noteExists = await (select(
+            notesTable,
+          )..where((n) => n.id.equals(row.noteId))).getSingleOrNull();
           if (noteExists != null) {
             await into(noteTagsTable).insertOnConflictUpdate(
               NoteTagsTableCompanion.insert(
@@ -2298,8 +3150,12 @@ class AppDatabase extends _$AppDatabase {
             );
           }
         }
-        await (delete(noteTagsTable)..where((nt) => nt.tagId.equals(existingByName.id))).go();
-        await (delete(tagsTable)..where((t) => t.id.equals(existingByName.id))).go();
+        await (delete(
+          noteTagsTable,
+        )..where((nt) => nt.tagId.equals(existingByName.id))).go();
+        await (delete(
+          tagsTable,
+        )..where((t) => t.id.equals(existingByName.id))).go();
       } else {
         await into(tagsTable).insertOnConflictUpdate(
           TagsTableCompanion(
@@ -2322,20 +3178,37 @@ class AppDatabase extends _$AppDatabase {
 
       // Propagate remote rename to local notes if existing tag had a different name
       if (oldName != null) {
-        final noteRows = await (select(noteTagsTable)..where((nt) => nt.tagId.equals(id))).get();
+        final noteRows = await (select(
+          noteTagsTable,
+        )..where((nt) => nt.tagId.equals(id))).get();
         final taggedNoteIds = noteRows.map((r) => r.noteId).toSet();
-        final notesWithText = await (select(notesTable)
-              ..where((n) => n.title.like('%$oldName%') | n.content.like('%$oldName%')))
-            .get();
-        final allNoteIds = taggedNoteIds.union(notesWithText.map((n) => n.id).toSet());
+        final notesWithText =
+            await (select(notesTable)..where(
+                  (n) =>
+                      n.title.like('%$oldName%') | n.content.like('%$oldName%'),
+                ))
+                .get();
+        final allNoteIds = taggedNoteIds.union(
+          notesWithText.map((n) => n.id).toSet(),
+        );
 
         final now = DateTime.now();
         for (final noteId in allNoteIds) {
-          final note = await (select(notesTable)..where((n) => n.id.equals(noteId))).getSingleOrNull();
+          final note = await (select(
+            notesTable,
+          )..where((n) => n.id.equals(noteId))).getSingleOrNull();
           if (note == null) continue;
 
-          final newTitle = TagParser.renameTagInText(note.title, oldName, normalizedName);
-          final newContent = TagParser.renameTagInText(note.content, oldName, normalizedName);
+          final newTitle = TagParser.renameTagInText(
+            note.title,
+            oldName,
+            normalizedName,
+          );
+          final newContent = TagParser.renameTagInText(
+            note.content,
+            oldName,
+            normalizedName,
+          );
 
           if (newTitle != note.title || newContent != note.content) {
             await saveNote(
@@ -2363,15 +3236,16 @@ class AppDatabase extends _$AppDatabase {
   /// All non-tombstoned place-alias rows (used to rebuild the in-memory map and
   /// for backup export).
   Future<List<PlaceAliasEntity>> getAllPlaceAliases() async {
-    return (select(placeAliasesTable)
-          ..where((t) => t.isDeleted.equals(false)))
-        .get();
+    return (select(
+      placeAliasesTable,
+    )..where((t) => t.isDeleted.equals(false))).get();
   }
 
   /// All place-alias rows pending synchronization (including tombstones).
   Future<List<PlaceAliasEntity>> getDirtyPlaceAliases() async {
-    return (select(placeAliasesTable)..where((t) => t.isDirty.equals(true)))
-        .get();
+    return (select(
+      placeAliasesTable,
+    )..where((t) => t.isDirty.equals(true))).get();
   }
 
   /// Write-through upsert of a locally-mutated place alias. Marks the row dirty
@@ -2384,9 +3258,9 @@ class AppDatabase extends _$AppDatabase {
     int contentVersion = 1,
     int encryptionKeyVersion = 1,
   }) async {
-    final existing = await (select(placeAliasesTable)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final existing = await (select(
+      placeAliasesTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     final now = DateTime.now();
     await into(placeAliasesTable).insertOnConflictUpdate(
       PlaceAliasesTableCompanion(
@@ -2409,9 +3283,9 @@ class AppDatabase extends _$AppDatabase {
   /// next sync. When the row was never synced (serverRevision 0) and does not
   /// exist, this is a no-op. Returns true when a tombstone was written.
   Future<bool> tombstoneLocalPlaceAlias(String id) async {
-    final existing = await (select(placeAliasesTable)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final existing = await (select(
+      placeAliasesTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (existing == null) return false;
     if (existing.serverRevision == 0) {
       // Never reached the server → just drop it; nothing to tombstone remotely.
@@ -2436,8 +3310,9 @@ class AppDatabase extends _$AppDatabase {
     required int serverRevision,
     required DateTime syncedAt,
   }) async {
-    final row = await (select(placeAliasesTable)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (select(
+      placeAliasesTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (row == null) return;
     if (row.isDeleted) {
       await (delete(placeAliasesTable)..where((t) => t.id.equals(id))).go();
@@ -2470,9 +3345,9 @@ class AppDatabase extends _$AppDatabase {
     DateTime? deletedAt,
   }) async {
     await transaction(() async {
-      final existing = await (select(placeAliasesTable)
-            ..where((t) => t.id.equals(id)))
-          .getSingleOrNull();
+      final existing = await (select(
+        placeAliasesTable,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
 
       if (isDeleted) {
         // A remote tombstone wins unless we hold a newer local dirty edit.
@@ -2522,10 +3397,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<TagEntity>> _getTagsForNote(String noteId) async {
     final query = select(tagsTable).join([
-      innerJoin(
-        noteTagsTable,
-        noteTagsTable.tagId.equalsExp(tagsTable.id),
-      ),
+      innerJoin(noteTagsTable, noteTagsTable.tagId.equalsExp(tagsTable.id)),
     ])..where(noteTagsTable.noteId.equals(noteId));
 
     final rows = await query.get();
@@ -2533,14 +3405,12 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<Map<String, List<TagEntity>>> getTagsForNoteIds(
-      List<String> noteIds) async {
+    List<String> noteIds,
+  ) async {
     if (noteIds.isEmpty) return {};
 
     final query = select(tagsTable).join([
-      innerJoin(
-        noteTagsTable,
-        noteTagsTable.tagId.equalsExp(tagsTable.id),
-      ),
+      innerJoin(noteTagsTable, noteTagsTable.tagId.equalsExp(tagsTable.id)),
     ])..where(noteTagsTable.noteId.isIn(noteIds));
 
     final rows = await query.get();
@@ -2574,8 +3444,17 @@ class AppDatabase extends _$AppDatabase {
     }
 
     for (final tagName in normalized) {
-      var tag = await (select(tagsTable)..where((t) => t.name.equals(tagName)))
-          .getSingleOrNull();
+      // Nested tags carry their hierarchy in the name. Ensure ancestors exist
+      // as ordinary tag rows without assigning them to this note.
+      if (isSyncIngestion) {
+        await _ensureAncestorsForSynced(tagName);
+      } else {
+        await _ensureAncestorsFor(tagName, markDirty: true);
+      }
+
+      var tag = await (select(
+        tagsTable,
+      )..where((t) => t.name.equals(tagName))).getSingleOrNull();
 
       if (tag == null) {
         final newTagId = TagParser.deterministicTagId(tagName);
@@ -2616,7 +3495,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _cleanupOrphanedTags() async {
     final orphanedTagsQuery = selectOnly(tagsTable)
-      ..addColumns([tagsTable.id])
+      ..addColumns([tagsTable.id, tagsTable.name])
       ..where(
         notExistsQuery(
           selectOnly(noteTagsTable)
@@ -2626,7 +3505,28 @@ class AppDatabase extends _$AppDatabase {
       );
 
     final orphanedTagRows = await orphanedTagsQuery.get();
-    final orphanedIds = orphanedTagRows.map((r) => r.read(tagsTable.id)!).toList();
+    if (orphanedTagRows.isEmpty) return;
+
+    // Ancestor tags are meaningful even without direct note assignments: they
+    // provide the hierarchy for descendant tags. Never delete a tag that is an
+    // ancestor of any other live tag, including implicit legacy ancestors.
+    final liveTags = await (select(
+      tagsTable,
+    )..where((t) => t.isDeleted.equals(false))).get();
+    final namesWithChildren = <String>{};
+    for (final tag in liveTags) {
+      final path = TagPath.tryParse(tag.name);
+      if (path != null) namesWithChildren.addAll(path.ancestorValues);
+    }
+
+    final orphanedIds = <String>[];
+    for (final row in orphanedTagRows) {
+      final id = row.read(tagsTable.id);
+      final name = row.read(tagsTable.name);
+      if (id == null || name == null) continue;
+      if (namesWithChildren.contains(name)) continue;
+      orphanedIds.add(id);
+    }
 
     if (orphanedIds.isNotEmpty) {
       await (delete(tagsTable)..where((t) => t.id.isIn(orphanedIds))).go();
@@ -2723,7 +3623,9 @@ class AppDatabase extends _$AppDatabase {
     await (update(attachmentsTable)..where((a) => a.id.equals(id))).write(
       AttachmentsTableCompanion(
         ocrState: Value(ocrState),
-        ocrLanguage: ocrLanguage != null ? Value(ocrLanguage) : const Value.absent(),
+        ocrLanguage: ocrLanguage != null
+            ? Value(ocrLanguage)
+            : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -2731,48 +3633,54 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all active non-deleted attachments
   Future<List<AttachmentEntity>> getActiveAttachments() async {
-    return (select(attachmentsTable)..where((a) => a.isDeleted.equals(false)))
-        .get();
+    return (select(
+      attachmentsTable,
+    )..where((a) => a.isDeleted.equals(false))).get();
   }
 
   /// Get a single attachment by ID
   Future<AttachmentEntity?> getAttachment(String id) async {
-    return (select(attachmentsTable)..where((a) => a.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      attachmentsTable,
+    )..where((a) => a.id.equals(id))).getSingleOrNull();
   }
 
   /// Get all active attachments for a note
   Future<List<AttachmentEntity>> getAttachmentsForNote(String noteId) async {
-    return (select(attachmentsTable)
-          ..where((a) =>
+    return (select(attachmentsTable)..where(
+          (a) =>
               a.noteId.equals(noteId) &
               a.isDeleted.equals(false) &
-              a.kind.isNotValue('linkPreview')))
+              a.kind.isNotValue('linkPreview'),
+        ))
         .get();
   }
 
   /// Watch active attachments for a note
   Stream<List<AttachmentEntity>> watchAttachmentsForNote(String noteId) {
-    return (select(attachmentsTable)
-          ..where((a) =>
+    return (select(attachmentsTable)..where(
+          (a) =>
               a.noteId.equals(noteId) &
               a.isDeleted.equals(false) &
-              a.kind.isNotValue('linkPreview')))
+              a.kind.isNotValue('linkPreview'),
+        ))
         .watch();
   }
 
   /// Get all dirty attachments requiring sync
   Future<List<AttachmentEntity>> getDirtyAttachments() async {
-    return (select(attachmentsTable)..where((a) => a.isDirty.equals(true)))
-        .get();
+    return (select(
+      attachmentsTable,
+    )..where((a) => a.isDirty.equals(true))).get();
   }
 
   /// Get all attachments pending Cloudinary upload
   Future<List<AttachmentEntity>> getPendingUploadAttachments() async {
-    return (select(attachmentsTable)
-          ..where((a) =>
+    return (select(attachmentsTable)..where(
+          (a) =>
               a.isDeleted.equals(false) &
-              (a.uploadState.isNotValue('synced') | a.isDirty.equals(true))))
+              (a.uploadState.isNotValue('synced') | a.isDirty.equals(true)),
+        ))
         .get();
   }
 
@@ -2873,10 +3781,11 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get variants for an attachment
   Future<List<AttachmentVariantEntity>> getVariantsForAttachment(
-      String attachmentId) async {
-    return (select(attachmentVariantsTable)
-          ..where((v) => v.attachmentId.equals(attachmentId)))
-        .get();
+    String attachmentId,
+  ) async {
+    return (select(
+      attachmentVariantsTable,
+    )..where((v) => v.attachmentId.equals(attachmentId))).get();
   }
 
   // ==========================================
@@ -2929,8 +3838,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Get note versions for a note sorted newest first
-  Future<List<NoteVersionEntity>> getNoteVersions(String noteId,
-      {int limit = 50}) async {
+  Future<List<NoteVersionEntity>> getNoteVersions(
+    String noteId, {
+    int limit = 50,
+  }) async {
     return (select(noteVersionsTable)
           ..where((v) => v.noteId.equals(noteId))
           ..orderBy([(v) => OrderingTerm.desc(v.versionNumber)])
@@ -2939,8 +3850,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Watch note versions for a note sorted newest first
-  Stream<List<NoteVersionEntity>> watchNoteVersions(String noteId,
-      {int limit = 50}) {
+  Stream<List<NoteVersionEntity>> watchNoteVersions(
+    String noteId, {
+    int limit = 50,
+  }) {
     return (select(noteVersionsTable)
           ..where((v) => v.noteId.equals(noteId))
           ..orderBy([(v) => OrderingTerm.desc(v.versionNumber)])
@@ -2969,21 +3882,24 @@ class AppDatabase extends _$AppDatabase {
     if (versions.length > maxKeep) {
       final toDelete = versions.sublist(maxKeep);
       final idsToDelete = toDelete.map((v) => v.id).toList();
-      await (delete(noteVersionsTable)..where((v) => v.id.isIn(idsToDelete)))
-          .go();
+      await (delete(
+        noteVersionsTable,
+      )..where((v) => v.id.isIn(idsToDelete))).go();
     }
   }
 
   /// Delete all versions for a note
   Future<void> deleteNoteVersions(String noteId) async {
-    await (delete(noteVersionsTable)..where((v) => v.noteId.equals(noteId)))
-        .go();
+    await (delete(
+      noteVersionsTable,
+    )..where((v) => v.noteId.equals(noteId))).go();
   }
 
   /// Get dirty versions pending sync
   Future<List<NoteVersionEntity>> getDirtyNoteVersions() async {
-    return (select(noteVersionsTable)..where((v) => v.isDirty.equals(true)))
-        .get();
+    return (select(
+      noteVersionsTable,
+    )..where((v) => v.isDirty.equals(true))).get();
   }
 
   /// Mark a note version as synced
@@ -3041,8 +3957,11 @@ class AppDatabase extends _$AppDatabase {
   /// Get all active/pending conflicts requiring manual resolution
   Future<List<SyncConflictEntity>> getPendingConflicts() async {
     return (select(syncConflictsTable)
-          ..where((c) =>
-              c.state.isNotValue('resolved') & c.state.isNotValue('autoMerged'))
+          ..where(
+            (c) =>
+                c.state.isNotValue('resolved') &
+                c.state.isNotValue('autoMerged'),
+          )
           ..orderBy([(c) => OrderingTerm.desc(c.createdAt)]))
         .get();
   }
@@ -3050,8 +3969,11 @@ class AppDatabase extends _$AppDatabase {
   /// Watch active/pending conflicts requiring manual resolution
   Stream<List<SyncConflictEntity>> watchPendingConflicts() {
     return (select(syncConflictsTable)
-          ..where((c) =>
-              c.state.isNotValue('resolved') & c.state.isNotValue('autoMerged'))
+          ..where(
+            (c) =>
+                c.state.isNotValue('resolved') &
+                c.state.isNotValue('autoMerged'),
+          )
           ..orderBy([(c) => OrderingTerm.desc(c.createdAt)]))
         .watch();
   }
@@ -3060,8 +3982,10 @@ class AppDatabase extends _$AppDatabase {
   Stream<int> watchPendingConflictsCount() {
     final countExp = syncConflictsTable.id.count();
     final query = selectOnly(syncConflictsTable)
-      ..where(syncConflictsTable.state.isNotValue('resolved') &
-          syncConflictsTable.state.isNotValue('autoMerged'))
+      ..where(
+        syncConflictsTable.state.isNotValue('resolved') &
+            syncConflictsTable.state.isNotValue('autoMerged'),
+      )
       ..addColumns([countExp]);
 
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
@@ -3071,8 +3995,10 @@ class AppDatabase extends _$AppDatabase {
   Future<int> getPendingConflictsCount() async {
     final countExp = syncConflictsTable.id.count();
     final query = selectOnly(syncConflictsTable)
-      ..where(syncConflictsTable.state.isNotValue('resolved') &
-          syncConflictsTable.state.isNotValue('autoMerged'))
+      ..where(
+        syncConflictsTable.state.isNotValue('resolved') &
+            syncConflictsTable.state.isNotValue('autoMerged'),
+      )
       ..addColumns([countExp]);
 
     final row = await query.getSingle();
@@ -3081,17 +4007,20 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get single conflict by ID
   Future<SyncConflictEntity?> getConflict(String id) async {
-    return (select(syncConflictsTable)..where((c) => c.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      syncConflictsTable,
+    )..where((c) => c.id.equals(id))).getSingleOrNull();
   }
 
   /// Get most recent unresolved conflict for a note
   Future<SyncConflictEntity?> getConflictForNote(String noteId) async {
     return (select(syncConflictsTable)
-          ..where((c) =>
-              c.noteId.equals(noteId) &
-              c.state.isNotValue('resolved') &
-              c.state.isNotValue('autoMerged'))
+          ..where(
+            (c) =>
+                c.noteId.equals(noteId) &
+                c.state.isNotValue('resolved') &
+                c.state.isNotValue('autoMerged'),
+          )
           ..orderBy([(c) => OrderingTerm.desc(c.createdAt)])
           ..limit(1))
         .getSingleOrNull();
@@ -3120,7 +4049,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Delete all conflicts for a note
   Future<void> deleteConflictsForNote(String noteId) async {
-    await (delete(syncConflictsTable)..where((c) => c.noteId.equals(noteId))).go();
+    await (delete(
+      syncConflictsTable,
+    )..where((c) => c.noteId.equals(noteId))).go();
   }
 
   // ==========================================
@@ -3184,21 +4115,23 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get a single document by ID
   Future<DocumentEntity?> getDocument(String id) async {
-    return (select(documentsTable)..where((d) => d.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      documentsTable,
+    )..where((d) => d.id.equals(id))).getSingleOrNull();
   }
 
   /// Watch a single document by ID
   Stream<DocumentEntity?> watchDocument(String id) {
-    return (select(documentsTable)..where((d) => d.id.equals(id)))
-        .watchSingleOrNull();
+    return (select(
+      documentsTable,
+    )..where((d) => d.id.equals(id))).watchSingleOrNull();
   }
 
   /// Get all active documents for a note
   Future<List<DocumentEntity>> getDocumentsForNote(String noteId) async {
-    return (select(documentsTable)
-          ..where((d) => d.noteId.equals(noteId) & d.isDeleted.equals(false)))
-        .get();
+    return (select(
+      documentsTable,
+    )..where((d) => d.noteId.equals(noteId) & d.isDeleted.equals(false))).get();
   }
 
   /// Watch active documents for a note
@@ -3210,16 +4143,16 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all dirty documents requiring sync
   Future<List<DocumentEntity>> getDirtyDocuments() async {
-    return (select(documentsTable)..where((d) => d.isDirty.equals(true)))
-        .get();
+    return (select(documentsTable)..where((d) => d.isDirty.equals(true))).get();
   }
 
   /// Get all documents pending Cloudinary upload
   Future<List<DocumentEntity>> getPendingUploadDocuments() async {
-    return (select(documentsTable)
-          ..where((d) =>
+    return (select(documentsTable)..where(
+          (d) =>
               d.isDeleted.equals(false) &
-              (d.uploadState.isNotValue('synced') | d.isDirty.equals(true))))
+              (d.uploadState.isNotValue('synced') | d.isDirty.equals(true)),
+        ))
         .get();
   }
 
@@ -3291,7 +4224,9 @@ class AppDatabase extends _$AppDatabase {
     await (update(documentsTable)..where((d) => d.id.equals(id))).write(
       DocumentsTableCompanion(
         ocrState: Value(ocrState),
-        ocrLanguage: ocrLanguage != null ? Value(ocrLanguage) : const Value.absent(),
+        ocrLanguage: ocrLanguage != null
+            ? Value(ocrLanguage)
+            : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -3299,10 +4234,11 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get documents queued or in-progress for OCR
   Future<List<DocumentEntity>> getDocumentsPendingOcr() async {
-    return (select(documentsTable)
-          ..where((d) =>
+    return (select(documentsTable)..where(
+          (d) =>
               d.isDeleted.equals(false) &
-              (d.ocrState.equals('queued') | d.ocrState.equals('processing'))))
+              (d.ocrState.equals('queued') | d.ocrState.equals('processing')),
+        ))
         .get();
   }
 
@@ -3325,12 +4261,16 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all active (non-deleted) documents
   Future<List<DocumentEntity>> getActiveDocuments() async {
-    return (select(documentsTable)..where((d) => d.isDeleted.equals(false))).get();
+    return (select(
+      documentsTable,
+    )..where((d) => d.isDeleted.equals(false))).get();
   }
 
   /// Watch all active (non-deleted) documents
   Stream<List<DocumentEntity>> watchActiveDocuments() {
-    return (select(documentsTable)..where((d) => d.isDeleted.equals(false))).watch();
+    return (select(
+      documentsTable,
+    )..where((d) => d.isDeleted.equals(false))).watch();
   }
 
   /// Get all documents (including tombstones) for backup
@@ -3380,7 +4320,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// All document OCR page rows awaiting push to the backend
   Future<List<DocumentOcrPageEntity>> getDirtyDocumentOcrPages() async {
-    return (select(documentOcrPagesTable)..where((p) => p.isDirty.equals(true))).get();
+    return (select(
+      documentOcrPagesTable,
+    )..where((p) => p.isDirty.equals(true))).get();
   }
 
   /// Mark a document OCR page synced at [revision] and clear its dirty flag
@@ -3389,20 +4331,23 @@ class AppDatabase extends _$AppDatabase {
     required int pageNumber,
     required int revision,
   }) async {
-    await (update(documentOcrPagesTable)
-          ..where((p) =>
-              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+    await (update(documentOcrPagesTable)..where(
+          (p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber),
+        ))
         .write(
-      DocumentOcrPagesTableCompanion(
-        revision: Value(revision),
-        baseRevision: Value(revision),
-        isDirty: const Value(false),
-      ),
-    );
+          DocumentOcrPagesTableCompanion(
+            revision: Value(revision),
+            baseRevision: Value(revision),
+            isDirty: const Value(false),
+          ),
+        );
   }
 
   /// Get all OCR page records for a document ordered by page number
-  Future<List<DocumentOcrPageEntity>> getDocumentOcrPages(String documentId) async {
+  Future<List<DocumentOcrPageEntity>> getDocumentOcrPages(
+    String documentId,
+  ) async {
     return (select(documentOcrPagesTable)
           ..where((p) => p.documentId.equals(documentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
@@ -3410,9 +4355,14 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Get a single OCR page record for a document by page number
-  Future<DocumentOcrPageEntity?> getDocumentOcrPage(String documentId, int pageNumber) async {
-    return (select(documentOcrPagesTable)
-          ..where((p) => p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+  Future<DocumentOcrPageEntity?> getDocumentOcrPage(
+    String documentId,
+    int pageNumber,
+  ) async {
+    return (select(documentOcrPagesTable)..where(
+          (p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber),
+        ))
         .getSingleOrNull();
   }
 
@@ -3428,10 +4378,11 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get lightweight OCR metadata summary for a document without loading encrypted payloads
   Future<OcrDocumentMetadata?> getDocumentOcrMetadata(String documentId) async {
-    final rows = await (select(documentOcrPagesTable)
-          ..where((p) => p.documentId.equals(documentId))
-          ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
-        .get();
+    final rows =
+        await (select(documentOcrPagesTable)
+              ..where((p) => p.documentId.equals(documentId))
+              ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
+            .get();
 
     if (rows.isEmpty) return null;
 
@@ -3458,7 +4409,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Delete OCR pages for a document
   Future<void> deleteDocumentOcrPages(String documentId) async {
-    await (delete(documentOcrPagesTable)..where((p) => p.documentId.equals(documentId))).go();
+    await (delete(
+      documentOcrPagesTable,
+    )..where((p) => p.documentId.equals(documentId))).go();
   }
 
   /// Get all OCR pages across all documents (for full backup)
@@ -3495,7 +4448,8 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all annotation page rows for a document ordered by page number.
   Future<List<DocumentAnnotationEntity>> getDocumentAnnotationPages(
-      String documentId) async {
+    String documentId,
+  ) async {
     return (select(documentAnnotationsTable)
           ..where((p) => p.documentId.equals(documentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
@@ -3504,16 +4458,20 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get a single annotation page row for a document by page number.
   Future<DocumentAnnotationEntity?> getDocumentAnnotationPage(
-      String documentId, int pageNumber) async {
-    return (select(documentAnnotationsTable)
-          ..where((p) =>
-              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+    String documentId,
+    int pageNumber,
+  ) async {
+    return (select(documentAnnotationsTable)..where(
+          (p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber),
+        ))
         .getSingleOrNull();
   }
 
   /// Watch all annotation page rows for a document (badge counts).
   Stream<List<DocumentAnnotationEntity>> watchDocumentAnnotationPages(
-      String documentId) {
+    String documentId,
+  ) {
     return (select(documentAnnotationsTable)
           ..where((p) => p.documentId.equals(documentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
@@ -3522,9 +4480,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// All annotation rows awaiting push to the backend (sync §9).
   Future<List<DocumentAnnotationEntity>> getDirtyDocumentAnnotations() async {
-    return (select(documentAnnotationsTable)
-          ..where((p) => p.isDirty.equals(true)))
-        .get();
+    return (select(
+      documentAnnotationsTable,
+    )..where((p) => p.isDirty.equals(true))).get();
   }
 
   /// Mark an annotation page synced at [revision] and clear its dirty flag.
@@ -3533,22 +4491,23 @@ class AppDatabase extends _$AppDatabase {
     required int pageNumber,
     required int revision,
   }) async {
-    await (update(documentAnnotationsTable)
-          ..where((p) =>
-              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber)))
+    await (update(documentAnnotationsTable)..where(
+          (p) =>
+              p.documentId.equals(documentId) & p.pageNumber.equals(pageNumber),
+        ))
         .write(
-      DocumentAnnotationsTableCompanion(
-        revision: Value(revision),
-        isDirty: const Value(false),
-      ),
-    );
+          DocumentAnnotationsTableCompanion(
+            revision: Value(revision),
+            isDirty: const Value(false),
+          ),
+        );
   }
 
   /// Delete all annotation pages for a document.
   Future<void> deleteDocumentAnnotations(String documentId) async {
-    await (delete(documentAnnotationsTable)
-          ..where((p) => p.documentId.equals(documentId)))
-        .go();
+    await (delete(
+      documentAnnotationsTable,
+    )..where((p) => p.documentId.equals(documentId))).go();
   }
 
   /// Get all annotation pages across all documents (for full backup).
@@ -3598,7 +4557,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// All attachment OCR page rows awaiting push to the backend
   Future<List<AttachmentOcrPageEntity>> getDirtyAttachmentOcrPages() async {
-    return (select(attachmentOcrPagesTable)..where((p) => p.isDirty.equals(true))).get();
+    return (select(
+      attachmentOcrPagesTable,
+    )..where((p) => p.isDirty.equals(true))).get();
   }
 
   /// Mark an attachment OCR page synced at [revision] and clear its dirty flag
@@ -3607,20 +4568,24 @@ class AppDatabase extends _$AppDatabase {
     required int pageNumber,
     required int revision,
   }) async {
-    await (update(attachmentOcrPagesTable)
-          ..where((p) =>
-              p.attachmentId.equals(attachmentId) & p.pageNumber.equals(pageNumber)))
+    await (update(attachmentOcrPagesTable)..where(
+          (p) =>
+              p.attachmentId.equals(attachmentId) &
+              p.pageNumber.equals(pageNumber),
+        ))
         .write(
-      AttachmentOcrPagesTableCompanion(
-        revision: Value(revision),
-        baseRevision: Value(revision),
-        isDirty: const Value(false),
-      ),
-    );
+          AttachmentOcrPagesTableCompanion(
+            revision: Value(revision),
+            baseRevision: Value(revision),
+            isDirty: const Value(false),
+          ),
+        );
   }
 
   /// Get all OCR page records for an attachment ordered by page number
-  Future<List<AttachmentOcrPageEntity>> getAttachmentOcrPages(String attachmentId) async {
+  Future<List<AttachmentOcrPageEntity>> getAttachmentOcrPages(
+    String attachmentId,
+  ) async {
     return (select(attachmentOcrPagesTable)
           ..where((p) => p.attachmentId.equals(attachmentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
@@ -3629,16 +4594,21 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get a single OCR page record for an attachment by page number
   Future<AttachmentOcrPageEntity?> getAttachmentOcrPage(
-      String attachmentId, int pageNumber) async {
-    return (select(attachmentOcrPagesTable)
-          ..where((p) =>
+    String attachmentId,
+    int pageNumber,
+  ) async {
+    return (select(attachmentOcrPagesTable)..where(
+          (p) =>
               p.attachmentId.equals(attachmentId) &
-              p.pageNumber.equals(pageNumber)))
+              p.pageNumber.equals(pageNumber),
+        ))
         .getSingleOrNull();
   }
 
   /// Watch all OCR page records for an attachment ordered by page number
-  Stream<List<AttachmentOcrPageEntity>> watchAttachmentOcrPages(String attachmentId) {
+  Stream<List<AttachmentOcrPageEntity>> watchAttachmentOcrPages(
+    String attachmentId,
+  ) {
     return (select(attachmentOcrPagesTable)
           ..where((p) => p.attachmentId.equals(attachmentId))
           ..orderBy([(p) => OrderingTerm.asc(p.pageNumber)]))
@@ -3647,7 +4617,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Delete OCR pages for an attachment
   Future<void> deleteAttachmentOcrPages(String attachmentId) async {
-    await (delete(attachmentOcrPagesTable)..where((p) => p.attachmentId.equals(attachmentId))).go();
+    await (delete(
+      attachmentOcrPagesTable,
+    )..where((p) => p.attachmentId.equals(attachmentId))).go();
   }
 
   /// Get all OCR pages across all attachments (for full search/backup)
@@ -3661,7 +4633,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Synchronizes derived internal note links from [content] for [sourceNoteId].
   Future<void> _syncNoteLinks(String sourceNoteId, String content) async {
-    await (delete(noteLinksTable)..where((nl) => nl.sourceNoteId.equals(sourceNoteId))).go();
+    await (delete(
+      noteLinksTable,
+    )..where((nl) => nl.sourceNoteId.equals(sourceNoteId))).go();
 
     final parsedLinks = NoteLinkExtractor.extractLinks(content);
     if (parsedLinks.isEmpty) return;
@@ -3687,7 +4661,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> rebuildNoteLinkIndex() async {
     await transaction(() async {
       await delete(noteLinksTable).go();
-      final allNotes = await (select(notesTable)..where((n) => n.isTrashed.equals(false))).get();
+      final allNotes = await (select(
+        notesTable,
+      )..where((n) => n.isTrashed.equals(false))).get();
       for (final note in allNotes) {
         final parsedLinks = NoteLinkExtractor.extractLinks(note.content);
         if (parsedLinks.isNotEmpty) {
@@ -3712,23 +4688,27 @@ class AppDatabase extends _$AppDatabase {
 
   /// Fetches backlinks pointing to [targetNoteId], separating active notes from trashed notes.
   Future<BacklinkQueryResult> getBacklinksForNote(String targetNoteId) async {
-    final links = await (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId))).get();
+    final links = await (select(
+      noteLinksTable,
+    )..where((nl) => nl.targetNoteId.equals(targetNoteId))).get();
     if (links.isEmpty) return BacklinkQueryResult.empty;
 
     final linkCountsBySource = <String, int>{};
     for (final link in links) {
-      linkCountsBySource[link.sourceNoteId] = (linkCountsBySource[link.sourceNoteId] ?? 0) + 1;
+      linkCountsBySource[link.sourceNoteId] =
+          (linkCountsBySource[link.sourceNoteId] ?? 0) + 1;
     }
 
     final sourceIds = linkCountsBySource.keys.toList();
-    final allSourceNotes = await (select(notesTable)
-          ..where((n) => n.id.isIn(sourceIds))
-          ..orderBy([
-            (n) => OrderingTerm.desc(n.updatedAt),
-            (n) => OrderingTerm.asc(n.title),
-            (n) => OrderingTerm.asc(n.id),
-          ]))
-        .get();
+    final allSourceNotes =
+        await (select(notesTable)
+              ..where((n) => n.id.isIn(sourceIds))
+              ..orderBy([
+                (n) => OrderingTerm.desc(n.updatedAt),
+                (n) => OrderingTerm.asc(n.title),
+                (n) => OrderingTerm.asc(n.id),
+              ]))
+            .get();
 
     if (allSourceNotes.isEmpty) return BacklinkQueryResult.empty;
 
@@ -3776,11 +4756,11 @@ class AppDatabase extends _$AppDatabase {
 
   /// Watches reactive backlinks pointing to [targetNoteId].
   Stream<BacklinkQueryResult> watchBacklinksForNote(String targetNoteId) {
-    return (select(noteLinksTable)..where((nl) => nl.targetNoteId.equals(targetNoteId)))
+    return (select(noteLinksTable)
+          ..where((nl) => nl.targetNoteId.equals(targetNoteId)))
         .watch()
         .asyncMap((_) => getBacklinksForNote(targetNoteId));
   }
-
 
   /// Fetches outgoing note links originating from [sourceNoteId].
   Future<List<NoteLinkEntity>> getOutgoingLinksForNote(String sourceNoteId) {
@@ -3831,17 +4811,23 @@ class AppDatabase extends _$AppDatabase {
 
   /// Retrieves a quick capture draft by its session ID.
   Future<QuickCaptureDraftEntity?> getQuickCaptureDraft(String id) {
-    return (select(quickCaptureDraftsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+    return (select(
+      quickCaptureDraftsTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
   /// Returns all active quick capture drafts ordered newest first.
   Future<List<QuickCaptureDraftEntity>> getAllQuickCaptureDrafts() {
-    return (select(quickCaptureDraftsTable)..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).get();
+    return (select(
+      quickCaptureDraftsTable,
+    )..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).get();
   }
 
   /// Watches all active quick capture drafts ordered newest first.
   Stream<List<QuickCaptureDraftEntity>> watchQuickCaptureDrafts() {
-    return (select(quickCaptureDraftsTable)..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).watch();
+    return (select(
+      quickCaptureDraftsTable,
+    )..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])).watch();
   }
 
   /// Deletes a specific quick capture draft by ID.
@@ -3875,4 +4861,3 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 }
-

@@ -32,18 +32,57 @@ void main() {
 ```
 `#fake_inline_tag`
 ''';
+      expect(TagParser.extractTags(text), equals(['real_tag']));
+    });
+
+    test('requireTerminator ignores unterminated hashtag at end of input', () {
       expect(
-        TagParser.extractTags(text),
-        equals(['real_tag']),
+        TagParser.extractTags('Hello #work', requireTerminator: true),
+        isEmpty,
+      );
+      expect(
+        TagParser.extractTags('Note with #journal/daily', requireTerminator: true),
+        isEmpty,
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by space', () {
+      expect(
+        TagParser.extractTags('Hello #work and #done ', requireTerminator: true),
+        equals(['done', 'work']),
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by newline', () {
+      expect(
+        TagParser.extractTags('Hello #work\n#journal/daily\n', requireTerminator: true),
+        equals(['journal/daily', 'work']),
+      );
+    });
+
+    test('requireTerminator extracts hashtag followed by punctuation', () {
+      expect(
+        TagParser.extractTags('Tag #work.', requireTerminator: true),
+        equals(['work']),
+      );
+      expect(
+        TagParser.extractTags('Tagged (#work) here', requireTerminator: true),
+        equals(['work']),
       );
     });
   });
 
   group('TagParser.removeTagFromText', () {
-    test('removes hashtag from middle of sentence without leaving double spaces', () {
-      const text = 'Hello #work world';
-      expect(TagParser.removeTagFromText(text, 'work'), equals('Hello world'));
-    });
+    test(
+      'removes hashtag from middle of sentence without leaving double spaces',
+      () {
+        const text = 'Hello #work world';
+        expect(
+          TagParser.removeTagFromText(text, 'work'),
+          equals('Hello world'),
+        );
+      },
+    );
 
     test('removes hashtag at beginning of sentence', () {
       const text = '#work Meeting with client';
@@ -130,19 +169,23 @@ void main() {
       );
     });
 
-    test('preserves code blocks and inline code containing matching hashtag', () {
-      const text = '#work\n'
-          '```\n'
-          '#work inside code block\n'
-          '```\n'
-          '`#work inline code`\n'
-          'End #work';
-      final result = TagParser.removeTagFromText(text, 'work');
-      expect(
-        result,
-        equals('```\n#work inside code block\n```\n`#work inline code`\nEnd'),
-      );
-    });
+    test(
+      'preserves code blocks and inline code containing matching hashtag',
+      () {
+        const text =
+            '#work\n'
+            '```\n'
+            '#work inside code block\n'
+            '```\n'
+            '`#work inline code`\n'
+            'End #work';
+        final result = TagParser.removeTagFromText(text, 'work');
+        expect(
+          result,
+          equals('```\n#work inside code block\n```\n`#work inline code`\nEnd'),
+        );
+      },
+    );
 
     test('removes tags from YAML frontmatter array format', () {
       const text = '''---
@@ -154,11 +197,13 @@ Body text #work''';
       final result = TagParser.removeTagFromText(text, 'work');
       expect(
         result,
-        equals('---'
-            '\ntitle: My Note'
-            '\ntags: [urgent]'
-            '\n---'
-            '\nBody text'),
+        equals(
+          '---'
+          '\ntitle: My Note'
+          '\ntags: [urgent]'
+          '\n---'
+          '\nBody text',
+        ),
       );
     });
 
@@ -174,12 +219,14 @@ Body text''';
       final result = TagParser.removeTagFromText(text, 'work');
       expect(
         result,
-        equals('---'
-            '\ntitle: My Note'
-            '\ntags:'
-            '\n  - urgent'
-            '\n---'
-            '\nBody text'),
+        equals(
+          '---'
+          '\ntitle: My Note'
+          '\ntags:'
+          '\n  - urgent'
+          '\n---'
+          '\nBody text',
+        ),
       );
     });
 
@@ -193,11 +240,13 @@ Body text''';
       final result = TagParser.removeTagFromText(text, 'work');
       expect(
         result,
-        equals('---'
-            '\ntitle: My Note'
-            '\ntags: []'
-            '\n---'
-            '\nBody text'),
+        equals(
+          '---'
+          '\ntitle: My Note'
+          '\ntags: []'
+          '\n---'
+          '\nBody text',
+        ),
       );
     });
   });
@@ -246,7 +295,11 @@ Body text''';
 ~~~
 #programming
 ''';
-      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      final result = TagParser.renameTagInText(
+        text,
+        'programming',
+        'development',
+      );
       expect(result.contains('#development'), isTrue);
       expect(result.contains('// #programming should remain intact'), isTrue);
       expect(result.contains('#programming should also remain intact'), isTrue);
@@ -267,14 +320,20 @@ tags: [programming, flutter]
 ---
 #programming in body''';
 
-      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      final result = TagParser.renameTagInText(
+        text,
+        'programming',
+        'development',
+      );
       expect(
         result,
-        equals('---'
-            '\ntitle: Project Note'
-            '\ntags: [development, flutter]'
-            '\n---'
-            '\n#development in body'),
+        equals(
+          '---'
+          '\ntitle: Project Note'
+          '\ntags: [development, flutter]'
+          '\n---'
+          '\n#development in body',
+        ),
       );
     });
 
@@ -286,33 +345,254 @@ tags:
 ---
 Note body''';
 
-      final result = TagParser.renameTagInText(text, 'programming', 'development');
+      final result = TagParser.renameTagInText(
+        text,
+        'programming',
+        'development',
+      );
       expect(
         result,
-        equals('---'
-            '\ntags:'
-            '\n  - development'
-            '\n  - mobile'
-            '\n---'
-            '\nNote body'),
+        equals(
+          '---'
+          '\ntags:'
+          '\n  - development'
+          '\n  - mobile'
+          '\n---'
+          '\nNote body',
+        ),
       );
     });
   });
 
   group('TagParser.mergeTagsInText', () {
-    test('renames source tag to destination when destination does not exist', () {
-      const text = 'Note about #flutter-dev';
+    test(
+      'renames source tag to destination when destination does not exist',
+      () {
+        const text = 'Note about #flutter-dev';
+        expect(
+          TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
+          equals('Note about #flutter'),
+        );
+      },
+    );
+
+    test(
+      'removes source tag when destination tag already exists to avoid duplicates',
+      () {
+        const text = 'Note about #flutter and #flutter-dev';
+        expect(
+          TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
+          equals('Note about #flutter and'),
+        );
+      },
+    );
+
+    test('merges nested paths without partial matches', () {
       expect(
-        TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
-        equals('Note about #flutter'),
+        TagParser.mergeTagsInText(
+          'Keep #work/projects and #archive',
+          'work/projects',
+          'archive',
+        ),
+        equals('Keep and #archive'),
+      );
+      expect(
+        TagParser.mergeTagsInText(
+          'Keep #work/projects/alpha',
+          'work/projects',
+          'archive',
+        ),
+        equals('Keep #work/projects/alpha'),
+      );
+    });
+  });
+
+  group('TagParser nested path extraction', () {
+    test(
+      'rejects malformed path shapes instead of partially extracting them',
+      () {
+        expect(
+          TagParser.extractTags(
+            'Bad #work//projects, #/work, #work/, #123/projects, #work/-bad and good #work/projects',
+          ),
+          equals(['work/projects']),
+        );
+      },
+    );
+
+    test('extracts nested tags with numeric child segments', () {
+      expect(
+        TagParser.extractTags(
+          'Notes under #journal/2026 and #archive/2024/01 and #work/123.',
+        ),
+        equals(['archive/2024/01', 'journal/2026', 'work/123']),
+      );
+      expect(TagParser.isValidTag('journal/2026'), isTrue);
+      expect(TagParser.isValidTag('archive/2024/01'), isTrue);
+      expect(TagParser.isValidTag('work/123'), isTrue);
+      expect(TagParser.isValidTag('123'), isFalse);
+      expect(TagParser.isValidTag('123/projects'), isFalse);
+      expect(TagParser.isValidTag('123/456'), isFalse);
+    });
+
+    test('extracts Unicode and hyphenated path segments', () {
+      expect(
+        TagParser.extractTags('See #বাংলা/লেখা-১ and #work/project-2.'),
+        equals(['work/project-2', 'বাংলা/লেখা-১']),
+      );
+    });
+  });
+
+  group('TagParser nested path rename', () {
+    test(
+      'renaming a parent tag does not rewrite descendants or prefix matches',
+      () {
+        const text = '#work #workflow #work/projects #work/projects/alpha';
+
+        expect(
+          TagParser.renameTagInText(text, 'work', 'job'),
+          equals('#job #workflow #work/projects #work/projects/alpha'),
+        );
+      },
+    );
+
+    test('renaming a nested path rewrites only exact path matches', () {
+      const text =
+          '#work/projects #work/projects/alpha #work/projects-old #workflow';
+
+      expect(
+        TagParser.renameTagInText(text, 'work/projects', 'job/projects'),
+        equals(
+          '#job/projects #work/projects/alpha #work/projects-old #workflow',
+        ),
       );
     });
 
-    test('removes source tag when destination tag already exists to avoid duplicates', () {
-      const text = 'Note about #flutter and #flutter-dev';
+    test('renaming a deep path preserves punctuation and inline code', () {
+      const text =
+          'Tags: (#work/projects/alpha), `#work/projects/alpha`, '
+          'and #work/projects/alpha.';
+
       expect(
-        TagParser.mergeTagsInText(text, 'flutter-dev', 'flutter'),
-        equals('Note about #flutter and'),
+        TagParser.renameTagInText(
+          text,
+          'work/projects/alpha',
+          'archive/2026/alpha',
+        ),
+        equals(
+          'Tags: (#archive/2026/alpha), `#work/projects/alpha`, '
+          'and #archive/2026/alpha.',
+        ),
+      );
+    });
+
+    test('renaming nested paths updates YAML frontmatter exactly', () {
+      const text = '''---
+tags: [work, work/projects, work/projects/alpha, workflow]
+categories: work/projects
+---
+Body #work/projects''';
+
+      final result = TagParser.renameTagInText(
+        text,
+        'work/projects',
+        'job/projects',
+      );
+
+      expect(
+        result,
+        equals('''---
+tags: [work, job/projects, work/projects/alpha, workflow]
+categories: job/projects
+---
+Body #job/projects'''),
+      );
+    });
+
+    test(
+      'renaming nested paths updates multiline frontmatter lists exactly',
+      () {
+        const text = '''---
+tags:
+  - work
+  - work/projects
+  - work/projects/alpha
+---
+Body''';
+
+        final result = TagParser.renameTagInText(
+          text,
+          'work/projects',
+          'job/projects',
+        );
+
+        expect(
+          result,
+          equals('''---
+tags:
+  - work
+  - job/projects
+  - work/projects/alpha
+---
+Body'''),
+        );
+      },
+    );
+
+    test('renaming does not touch headings or fenced code blocks', () {
+      const text = '''# work/projects
+## work/projects/alpha
+```
+#work/projects
+#work/projects/alpha
+```
+#work/projects''';
+
+      expect(
+        TagParser.renameTagInText(text, 'work/projects', 'job/projects'),
+        equals('''# work/projects
+## work/projects/alpha
+```
+#work/projects
+#work/projects/alpha
+```
+#job/projects'''),
+      );
+    });
+  });
+
+  group('TagParser nested path removal', () {
+    test('removing a parent does not remove descendants or prefix matches', () {
+      const text = 'Keep #work #workflow #work/projects #work/projects/alpha';
+
+      expect(
+        TagParser.removeTagFromText(text, 'work'),
+        equals('Keep #workflow #work/projects #work/projects/alpha'),
+      );
+    });
+
+    test('removing a nested path leaves deeper descendants intact', () {
+      const text =
+          'Keep #work/projects #work/projects/alpha #work/projects-old';
+
+      expect(
+        TagParser.removeTagFromText(text, 'work/projects'),
+        equals('Keep #work/projects/alpha #work/projects-old'),
+      );
+    });
+
+    test('removing nested paths updates frontmatter and skips code', () {
+      const text = '''---
+tags: [work/projects, work/projects/alpha]
+---
+Keep #work/projects and `#work/projects`''';
+
+      expect(
+        TagParser.removeTagFromText(text, 'work/projects'),
+        equals('''---
+tags: [work/projects/alpha]
+---
+Keep and `#work/projects`'''),
       );
     });
   });

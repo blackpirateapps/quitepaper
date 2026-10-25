@@ -27,6 +27,15 @@ enum TagSort {
   final String label;
 }
 
+/// How deleting a tag that has descendants should treat the branch.
+enum TagBranchDeleteMode {
+  /// Delete the tag and every descendant tag, stripping each from notes.
+  deleteBranch,
+
+  /// Delete only this tag and promote its direct children one level up.
+  moveChildrenUp,
+}
+
 /// Domain representation of a first-class synchronized Tag entity.
 @immutable
 class Tag {
@@ -40,6 +49,8 @@ class Tag {
     required this.createdAt,
     required this.updatedAt,
     this.noteCount = 0,
+    this.isImplicit = false,
+    this.isNew = false,
   });
 
   final String id;
@@ -51,6 +62,14 @@ class Tag {
   final DateTime createdAt;
   final DateTime updatedAt;
   final int noteCount;
+
+  /// True for ancestor rows synthesized for presentation when no tag entity
+  /// exists yet. Implicit tags cannot be renamed/deleted directly.
+  final bool isImplicit;
+
+  /// True for an autocomplete "create this tag" candidate that does not exist
+  /// in the database yet.
+  final bool isNew;
 
   TagColorDefinition? get colorDefinition => TagColors.fromId(color);
   TagIconItem? get iconItem => TagIconRegistry.fromId(icon);
@@ -65,6 +84,8 @@ class Tag {
     DateTime? createdAt,
     DateTime? updatedAt,
     int? noteCount,
+    bool? isImplicit,
+    bool? isNew,
     bool clearIcon = false,
     bool clearColor = false,
   }) {
@@ -78,19 +99,21 @@ class Tag {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       noteCount: noteCount ?? this.noteCount,
+      isImplicit: isImplicit ?? this.isImplicit,
+      isNew: isNew ?? this.isNew,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        if (icon != null) 'icon': icon,
-        if (color != null) 'color': color,
-        'isPinned': isPinned,
-        'pinnedOrder': pinnedOrder,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    if (icon != null) 'icon': icon,
+    if (color != null) 'color': color,
+    'isPinned': isPinned,
+    'pinnedOrder': pinnedOrder,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   factory Tag.fromJson(Map<String, dynamic> json, {int noteCount = 0}) {
     return Tag(
@@ -107,6 +130,8 @@ class Tag {
           ? DateTime.parse(json['updatedAt'] as String)
           : DateTime.now(),
       noteCount: noteCount,
+      isImplicit: json['isImplicit'] as bool? ?? false,
+      isNew: json['isNew'] as bool? ?? false,
     );
   }
 
@@ -123,7 +148,9 @@ class Tag {
           pinnedOrder == other.pinnedOrder &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt &&
-          noteCount == other.noteCount;
+          noteCount == other.noteCount &&
+          isImplicit == other.isImplicit &&
+          isNew == other.isNew;
 
   @override
   int get hashCode =>
@@ -135,5 +162,7 @@ class Tag {
       pinnedOrder.hashCode ^
       createdAt.hashCode ^
       updatedAt.hashCode ^
-      noteCount.hashCode;
+      noteCount.hashCode ^
+      isImplicit.hashCode ^
+      isNew.hashCode;
 }

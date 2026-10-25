@@ -136,24 +136,26 @@ void main() {
       await tester.tap(blockField);
       await tester.pumpAndSettle();
 
-      // Step 1: Type #
+      // Step 1: Type # -> popup opens showing available tags
       await tester.enterText(blockField, 'Hello #');
       await tester.pumpAndSettle();
 
-      // Step 2: Type a -> popup opens
+      expect(find.byType(TagInlineMenu), findsOneWidget);
+
+      // Step 2: Type a -> popup filters to apple
       await tester.enterText(blockField, 'Hello #a');
       await tester.pumpAndSettle();
 
       expect(find.byType(TagInlineMenu), findsOneWidget);
 
-      // Step 3: Press backspace -> deletes 'a' and leaves # with cursor after #
+      // Step 3: Press backspace -> deletes 'a' and leaves # with cursor after #, popup remains open
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await tester.pumpAndSettle();
 
       final textField = tester.widget<TextField>(find.byType(TextField).last);
       expect(textField.controller?.text, equals('Hello #'));
       expect(textField.controller?.selection.baseOffset, equals(7));
-      expect(find.byType(TagInlineMenu), findsNothing);
+      expect(find.byType(TagInlineMenu), findsOneWidget);
 
       await finishTest(tester);
     });

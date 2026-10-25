@@ -119,7 +119,9 @@ class _InlineTagCandidateTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: isSelected ? colors.accent.withValues(alpha: 0.12) : Colors.transparent,
+        color: isSelected
+            ? colors.accent.withValues(alpha: 0.12)
+            : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 7.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -127,12 +129,14 @@ class _InlineTagCandidateTile extends StatelessWidget {
             Icon(
               iconData,
               size: 15,
-              color: tagColor ?? (isSelected ? colors.accent : colors.textTertiary),
+              color:
+                  tagColor ??
+                  (isSelected ? colors.accent : colors.textTertiary),
             ),
             const SizedBox(width: 8.0),
             Expanded(
               child: Text(
-                '#${tag.name}',
+                tag.isNew ? 'Create #${tag.name}' : '#${tag.name}',
                 style: AppTypography.bodySmallMedium.copyWith(
                   color: colors.textPrimary,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
@@ -142,7 +146,13 @@ class _InlineTagCandidateTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (tag.noteCount > 0)
+            if (tag.isNew)
+              Icon(
+                PhosphorIconsRegular.plus,
+                size: 14,
+                color: isSelected ? colors.accent : colors.textTertiary,
+              )
+            else if (tag.noteCount > 0)
               Text(
                 '${tag.noteCount}',
                 style: AppTypography.caption.copyWith(
