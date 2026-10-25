@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/platform_layout_helper.dart';
 import '../core/web_clipper/share_intent_handler.dart';
+import 'app_root.dart';
 import '../features/notes/application/notes_provider.dart';
-import '../features/notes/presentation/notes_screen.dart';
 import '../features/quick_capture/application/quick_capture_coordinator.dart';
 import '../features/settings/application/settings_provider.dart';
 import '../features/settings/application/typography_provider.dart';
@@ -116,7 +116,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const NotesScreen(),
+      home: const AppRoot(),
     );
   }
 }

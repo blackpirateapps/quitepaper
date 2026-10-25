@@ -21,7 +21,10 @@ void main() {
   late SharedPreferences prefs;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      'onboarding_completed_v1': true,
+      'onboarding_tour_seen_v1': true,
+    });
     prefs = await SharedPreferences.getInstance();
     db = AppDatabase.memory();
     repository = DriftNotesRepository(db);

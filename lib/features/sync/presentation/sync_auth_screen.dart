@@ -11,6 +11,12 @@ import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 
+enum SyncAuthInitialView {
+  intro,
+  signIn,
+  createAccount,
+}
+
 enum _AuthFlowStep {
   onboarding,
   signupEmail,
@@ -21,14 +27,19 @@ enum _AuthFlowStep {
 }
 
 class SyncAuthScreen extends ConsumerStatefulWidget {
-  const SyncAuthScreen({super.key});
+  const SyncAuthScreen({
+    super.key,
+    this.initialView = SyncAuthInitialView.intro,
+  });
+
+  final SyncAuthInitialView initialView;
 
   @override
   ConsumerState<SyncAuthScreen> createState() => _SyncAuthScreenState();
 }
 
 class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
-  _AuthFlowStep _step = _AuthFlowStep.onboarding;
+  late _AuthFlowStep _step;
 
   final _emailController = TextEditingController();
   final _fbPasswordController = TextEditingController();
@@ -57,6 +68,11 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
   @override
   void initState() {
     super.initState();
+    _step = switch (widget.initialView) {
+      SyncAuthInitialView.intro => _AuthFlowStep.onboarding,
+      SyncAuthInitialView.signIn => _AuthFlowStep.signIn,
+      SyncAuthInitialView.createAccount => _AuthFlowStep.signupEmail,
+    };
     final auth = ref.read(authServiceProvider);
     if (auth.apiKey.isNotEmpty) {
       _apiKeyController.text = auth.apiKey;
@@ -328,7 +344,7 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
       engine.syncNow();
 
       if (_generatedRecoveryKey == null && mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       } else {
         setState(() {
           _isLoading = false;
@@ -363,8 +379,15 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
           icon: Icons.arrow_back_rounded,
           tooltip: 'Back',
           onPressed: () {
-            if (_step != _AuthFlowStep.onboarding &&
-                _step != _AuthFlowStep.signupComplete) {
+            if (_step == _AuthFlowStep.signupComplete) {
+              Navigator.of(context).pop(true);
+            } else if (widget.initialView == SyncAuthInitialView.signIn &&
+                _step == _AuthFlowStep.signIn) {
+              Navigator.of(context).pop();
+            } else if (widget.initialView == SyncAuthInitialView.createAccount &&
+                _step == _AuthFlowStep.signupEmail) {
+              Navigator.of(context).pop();
+            } else if (_step != _AuthFlowStep.onboarding) {
               setState(() {
                 _step = _AuthFlowStep.onboarding;
                 _errorMessage = null;
@@ -383,8 +406,15 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
           ),
         ),
       ),
-      body: SafeArea(
-        child: Center(
+      body: PopScope(
+        canPop: _step != _AuthFlowStep.signupComplete,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && _step == _AuthFlowStep.signupComplete) {
+            Navigator.of(context).pop(true);
+          }
+        },
+        child: SafeArea(
+          child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
@@ -407,8 +437,9 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ===========================================================================
   // SCREEN 0: ENCRYPTION ONBOARDING & SAFETY GUIDE
@@ -576,10 +607,14 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
           subtitle:
               'Used to identify your account and send security & verification notices.',
           onBack: () {
-            setState(() {
-              _step = _AuthFlowStep.onboarding;
-              _errorMessage = null;
-            });
+            if (widget.initialView == SyncAuthInitialView.createAccount) {
+              Navigator.of(context).pop();
+            } else {
+              setState(() {
+                _step = _AuthFlowStep.onboarding;
+                _errorMessage = null;
+              });
+            }
           },
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -974,7 +1009,7 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
             label: 'Done — Saved Recovery Key',
             variant: QuietButtonVariant.primary,
             isFullWidth: true,
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(true),
           ),
         ),
       ],
@@ -999,10 +1034,14 @@ class _SyncAuthScreenState extends ConsumerState<SyncAuthScreen> {
               ? 'Use your recovery key to unlock notes and choose a new password.'
               : 'Enter your credentials to unlock and sync your encrypted notes.',
           onBack: () {
-            setState(() {
-              _step = _AuthFlowStep.onboarding;
-              _errorMessage = null;
-            });
+            if (widget.initialView == SyncAuthInitialView.signIn) {
+              Navigator.of(context).pop();
+            } else {
+              setState(() {
+                _step = _AuthFlowStep.onboarding;
+                _errorMessage = null;
+              });
+            }
           },
         ),
         const SizedBox(height: AppSpacing.lg),

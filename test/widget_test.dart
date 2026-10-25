@@ -13,6 +13,7 @@ import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.da
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
+import 'package:quitepaper/features/onboarding/application/onboarding_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -20,7 +21,10 @@ void main() {
   late NotesRepository repository;
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      OnboardingKeys.completed: true,
+      OnboardingKeys.tourSeen: true,
+    });
     db = AppDatabase.memory();
     repository = DriftNotesRepository(db);
   });
@@ -51,6 +55,21 @@ void main() {
       child: const QuietPaperApp(),
     );
   }
+
+  testWidgets('App starts on onboarding when onboarding keys are absent', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    setPhoneSize(tester);
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('A quiet place to think.'), findsOneWidget);
+    expect(find.text('Come on in'), findsOneWidget);
+    await finishTest(tester);
+  });
 
   testWidgets('Quiet Paper phone layout: empty state and note creation flow', (
     tester,

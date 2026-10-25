@@ -59,9 +59,16 @@ import 'widgets/note_thumbnail_view.dart';
 import '../domain/note_metadata_extractor.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../tags/domain/phosphor_icons.dart';
+import '../../onboarding/application/onboarding_provider.dart';
+import '../../onboarding/presentation/coach_marks/onboarding_coach_marks.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
-  const NotesScreen({super.key});
+  const NotesScreen({
+    super.key,
+    this.showOnboardingTour = false,
+  });
+
+  final bool showOnboardingTour;
 
   @override
   ConsumerState<NotesScreen> createState() => _NotesScreenState();
@@ -71,6 +78,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   String? _selectedNoteIdForTablet;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
+  bool _tourDismissed = false;
+  bool _tourStarted = false;
+  bool _showFirstNoteTipsForTablet = false;
+
+  final _onboardingSidebarTargetKey = GlobalKey(debugLabel: 'onboarding-sidebar');
+  final _onboardingSearchTargetKey = GlobalKey(debugLabel: 'onboarding-search');
+  final _onboardingCreateTargetKey = GlobalKey(debugLabel: 'onboarding-create');
 
   /// Anchor note id for Shift+click range selection on desktop.
   String? _multiSelectAnchorId;
@@ -90,11 +104,51 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.showOnboardingTour) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkInitialCliArgs();
       _checkForUpdatesOnLaunch();
       _performAutoBackupOnLaunch();
     });
+  }
+
+  @override
+  void didUpdateWidget(NotesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.showOnboardingTour && widget.showOnboardingTour) {
+      _tourDismissed = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+    }
+  }
+
+  void _startOnboardingTour() {
+    ref.read(currentDestinationProvider.notifier).state =
+        AppDestination.allNotes;
+    ref.read(selectedTagFilterProvider.notifier).state = null;
+    ref.read(selectedTagIdProvider.notifier).state = null;
+    ref.read(notesQueryProvider.notifier).clearAllFilters();
+    ref.read(isNavSidebarVisibleProvider.notifier).state = true;
+    ref.read(isNoteListVisibleProvider.notifier).state = true;
+    if (mounted) {
+      setState(() {
+        _tourStarted = true;
+      });
+    }
+  }
+
+  void _handleCoachCreate(BuildContext context, {required bool isTablet}) {
+    ref.read(onboardingStatusProvider.notifier).markTourSeen();
+    setState(() {
+      _tourDismissed = true;
+    });
+
+    if (isTablet) {
+      _createAndOpenNoteTablet(showFirstNoteTips: true);
+    } else {
+      _createAndOpenNote(context, showFirstNoteTips: true);
+    }
   }
 
   @override
@@ -732,13 +786,37 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     });
 
-    return isTabletLayout
+    final mainContent = isTabletLayout
         ? _buildTabletLayout(context, colors)
         : DropTarget(
             onDragDone: (detail) =>
                 _handleDroppedFileToNewNote(detail, isTabletLayout: false),
             child: _buildPhoneLayout(context, colors),
           );
+
+    if (widget.showOnboardingTour && !_tourDismissed && _tourStarted) {
+      return Stack(
+        children: [
+          mainContent,
+          OnboardingCoachMarks(
+            sidebarTarget: _onboardingSidebarTargetKey,
+            searchTarget: _onboardingSearchTargetKey,
+            createTarget: _onboardingCreateTargetKey,
+            isTablet: isTabletLayout,
+            onCreateFirstNote: () =>
+                _handleCoachCreate(context, isTablet: isTabletLayout),
+            onDismiss: () {
+              ref.read(onboardingStatusProvider.notifier).markTourSeen();
+              setState(() {
+                _tourDismissed = true;
+              });
+            },
+          ),
+        ],
+      );
+    }
+
+    return mainContent;
   }
 
   Widget _buildPhoneLayout(BuildContext context, AppColors colors) {
@@ -954,6 +1032,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             scrolledUnderElevation: 0,
                             leading: Builder(
                               builder: (scaffoldCtx) => QuietIconButton(
+                                key: _onboardingSidebarTargetKey,
                                 icon: PhosphorIconsRegular.list,
                                 tooltip: 'Open navigation',
                                 onPressed: () {
@@ -978,6 +1057,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 onPressed: () => _createAndOpenNote(context),
                               ),
                               QuietIconButton(
+                                key: _onboardingSearchTargetKey,
                                 icon: PhosphorIconsRegular.magnifyingGlass,
                                 tooltip: 'Search notes',
                                 onPressed: () => _openSearchScreen(context),
@@ -1366,7 +1446,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       (destination == AppDestination.allNotes ||
                           destination == AppDestination.pinned ||
                           destination == AppDestination.tag))
-                  ? QuietFab(onPressed: () => _createAndOpenNote(context))
+                  ? QuietFab(
+                      key: _onboardingCreateTargetKey,
+                      onPressed: () => _createAndOpenNote(context),
+                    )
                   : null,
             ),
           ),
@@ -1923,16 +2006,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               minWidth: 280.0,
                               maxWidth: 280.0,
                               alignment: Alignment.topLeft,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    right: BorderSide(
-                                      color: colors.divider,
-                                      width: 1,
+                              child: KeyedSubtree(
+                                key: _onboardingSidebarTargetKey,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      right: BorderSide(
+                                        color: colors.divider,
+                                        width: 1,
+                                      ),
                                     ),
                                   ),
+                                  child: const SidebarView(isCollapsible: true),
                                 ),
-                                child: const SidebarView(isCollapsible: true),
                               ),
                             ),
                           ),
@@ -2231,6 +2317,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                           ),
                                                         ),
                                                         QuietIconButton(
+                                                          key: _onboardingCreateTargetKey,
                                                           icon:
                                                               PhosphorIconsRegular
                                                                   .plus,
@@ -2240,6 +2327,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                               _createAndOpenNoteTablet(),
                                                         ),
                                                         QuietIconButton(
+                                                          key: _onboardingSearchTargetKey,
                                                           icon: PhosphorIconsRegular
                                                               .magnifyingGlass,
                                                           tooltip:
@@ -2714,9 +2802,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   !(_shouldAutoFocusTablet &&
                                       _selectedNoteIdForTablet ==
                                           activeNote.id),
+                              showFirstNoteTips: _showFirstNoteTipsForTablet &&
+                                  _selectedNoteIdForTablet == activeNote.id,
                               onClose: () {
                                 setState(() {
                                   _selectedNoteIdForTablet = null;
+                                  _showFirstNoteTipsForTablet = false;
                                 });
                               },
                               onOpenLinkedNote:
@@ -2958,6 +3049,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 setState(() {
                   _selectedNoteIdForTablet = note.id;
                   _shouldAutoFocusTablet = false;
+                  _showFirstNoteTipsForTablet = false;
                 });
               } else {
                 _openNote(context, note);
@@ -3043,7 +3135,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
   }
 
-  void _createAndOpenNote(BuildContext context) async {
+  void _createAndOpenNote(
+    BuildContext context, {
+    bool showFirstNoteTips = false,
+  }) async {
     const uuid = Uuid();
     final now = DateTime.now();
     final selectedFilter = ref.read(selectedTagFilterProvider);
@@ -3071,13 +3166,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             note: newNote,
             autoFocusBody: true,
             initialPreviewMode: false,
+            showFirstNoteTips: showFirstNoteTips,
           ),
         ),
       );
     }
   }
 
-  void _createAndOpenNoteTablet() async {
+  void _createAndOpenNoteTablet({bool showFirstNoteTips = false}) async {
     const uuid = Uuid();
     final now = DateTime.now();
     final selectedFilter = ref.read(selectedTagFilterProvider);
@@ -3101,6 +3197,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     setState(() {
       _selectedNoteIdForTablet = newNote.id;
       _shouldAutoFocusTablet = true;
+      _showFirstNoteTipsForTablet = showFirstNoteTips;
     });
   }
 
