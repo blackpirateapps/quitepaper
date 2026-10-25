@@ -123,6 +123,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tag options modal content: Change color, Change icon
+      expect(find.text('Open'), findsOneWidget);
+      expect(find.text('Add nested tag'), findsOneWidget);
       expect(find.text('Change color'), findsOneWidget);
       expect(find.text('Change icon'), findsOneWidget);
 
@@ -136,6 +138,62 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Change color'), findsNothing);
     });
+
+    testWidgets(
+      'TagBrowserScreen long-press on tag row opens identical menu with Add nested tag',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1200, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
+        await tester.pumpAndSettle();
+
+        // Long press on unpinned tag #work
+        await tester.longPress(find.text('#work'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Open'), findsOneWidget);
+        expect(find.text('Add nested tag'), findsOneWidget);
+        expect(find.byIcon(PhosphorIconsRegular.folderPlus), findsOneWidget);
+        expect(find.text('Rename'), findsOneWidget);
+        expect(find.text('Delete tag'), findsOneWidget);
+
+        // Tap Add nested tag -> opens nested tag dialog pre-filled with #work/
+        await tester.tap(find.text('Add nested tag'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('New Nested Tag'), findsOneWidget);
+        expect(find.text('#work/'), findsOneWidget);
+
+        // Cancel dialog
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('New Nested Tag'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'TagBrowserScreen long-press on pinned tag row opens tag options menu',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1200, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
+        await tester.pumpAndSettle();
+
+        // Long press on pinned tag #pinned-tag
+        await tester.longPress(find.text('#pinned-tag'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Open'), findsOneWidget);
+        expect(find.text('Add nested tag'), findsOneWidget);
+        expect(find.text('Unpin tag'), findsOneWidget);
+        expect(find.text('Delete tag'), findsOneWidget);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets('TagDetailScreen renders tag header, color, note count, and empty state', (tester) async {
       final tag = testTags[0];

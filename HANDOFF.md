@@ -10838,6 +10838,38 @@ The root cause was located in [`lib/core/utils/tag_parser.dart`](file:///home/do
   - In [`test/tags/tag_tree_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_tree_test.dart), verified that `TagTree.build` nests `2026` as a child node under `journal`.
   - In [`test/editor/editor_overflow_menu_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_overflow_menu_test.dart), added full widget journey test confirming that adding `journal/2026` via the 3-dot overflow menu creates the tag and its ancestor in the database and renders the `#journal/2026` tag chip.
 
+---
+
+## 232. Tag Browser Long-Press Menu Unification and "Add nested tag" Action (October 2026)
+
+### Problem & Objectives
+1. **Long-Press Menu Parity**: In the Tag Browser page (`TagBrowserView`), long-pressing a tag row lacked parity with the 3-dot overflow button (`dotsThreeVertical`). On desktop/tablet, `onLongPress` did not anchor to the specific row context, and haptic feedback was missing.
+2. **"Add nested tag" Action**: Users needed a quick way to create sub-tags directly nested under an existing parent tag without having to manually type out full hierarchical paths from scratch.
+
+### Implementation Details
+- **Nested Tag Creation Dialog (`lib/features/tags/presentation/widgets/tag_action_dialogs.dart`)**:
+  - Extended `TagCreateDialog` and added `TagCreateDialog.showNested(context, parentTag: tag, existingTags: ...)` supporting `parentTagName: String?`.
+  - When `parentTagName` is specified:
+    - Dialog title: **"New Nested Tag"**.
+    - Input prefix: `#<parentTagName>/`.
+    - Placeholder: `'sub-tag (e.g. 2026, projects)'`.
+    - Automatically combines the parent path with the child segment and validates via `TagParser.isValidTag` and checks for duplicates.
+    - Pre-populates the parent tag's icon and color while leaving them customizable.
+- **Tag Browser View (`lib/features/tags/presentation/widgets/tag_browser_view.dart`)**:
+  - Added **"Add nested tag"** (`PhosphorIconsRegular.folderPlus`) directly beneath **"Open"** in the tag options menu (`_showTagOptions`).
+  - Added `_handleAddNestedTag` handler: creates the tag via `tagServiceProvider.createTag`, automatically expands the parent tag in `expandedTagPathsProvider` so the new sub-tag is immediately revealed in the hierarchy tree, and shows a confirmation SnackBar.
+  - Wrapped `_buildTagRow` with a `Builder` to capture `rowContext`, invoking `HapticFeedback.mediumImpact()` and anchoring popovers directly to the clicked row.
+  - Verified that long-press on both unpinned and pinned tag rows reliably presents the options menu.
+- **Consistent Availability Across Tag Surfaces**:
+  - **Sidebar (`lib/features/sidebar/presentation/sidebar_view.dart`)**: Added **"Add nested tag"** with `PhosphorIconsRegular.folderPlus` directly beneath "Open" for both desktop `showMenu` and mobile adaptive popovers/sheets.
+  - **Tag Context Header (`lib/features/tags/presentation/widgets/tag_context_header.dart`)**: Added **"Add nested tag"** to the 3-dot popup menu at the top of note lists filtered by a tag.
+- **Automated Verification**:
+  - In [`test/tags/tag_dialogs_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_dialogs_test.dart), added tests verifying `TagCreateDialog.showNested` static prefix, child segment validation, duplicate checking, and nested tag entity generation.
+  - In [`test/tags/tag_ui_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_ui_test.dart), added widget tests verifying that both 3-dot buttons and row long-presses open the unified menu with "Add nested tag", and that tapping it opens the nested dialog scoped under `#parent/`.
+  - In [`test/tags/tag_workspace_navigation_test.dart`](file:///home/dog/git/quitepaper/test/tags/tag_workspace_navigation_test.dart), verified that "Add nested tag" appears in the Tag Context Header actions menu.
+  - Static analysis: `flutter analyze` (**0 issues**).
+
+
 
 
 

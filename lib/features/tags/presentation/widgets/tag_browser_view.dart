@@ -124,6 +124,41 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
     }
   }
 
+  Future<void> _handleAddNestedTag(Tag parentTag) async {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+    final existingNames = allTags.map((t) => t.name).toList();
+
+    final newTag = await TagCreateDialog.showNested(
+      context,
+      parentTag: parentTag,
+      existingTags: existingNames,
+    );
+
+    if (newTag != null && mounted) {
+      final service = ref.read(tagServiceProvider);
+      await service.createTag(
+        newTag.name,
+        icon: newTag.icon,
+        color: newTag.color,
+        isPinned: newTag.isPinned,
+      );
+      final currentExpanded = ref.read(expandedTagPathsProvider);
+      if (!currentExpanded.contains(parentTag.name)) {
+        ref.read(expandedTagPathsProvider.notifier).toggle(parentTag.name);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nested tag #${newTag.name} created'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleRename(Tag tag) async {
     final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
     final existingNames = allTags.map((t) => t.name).toList();
@@ -325,6 +360,24 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _handleTagTap(tag);
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  PhosphorIconsRegular.folderPlus,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Add nested tag',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _handleAddNestedTag(tag);
                 },
               ),
               ListTile(
@@ -1244,27 +1297,38 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
       button: true,
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            if (item.isImplicit && hasChildren && onToggle != null) {
-              onToggle();
-              return;
-            }
-            _handleTagTap(item);
-          },
-          onLongPress: () => _showTagOptions(context, item),
-          onSecondaryTapUp: (details) => _showTagOptions(
-            context,
-            item,
-            cursorPosition: details.globalPosition,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: 8.0,
+        child: Builder(
+          builder: (rowContext) => InkWell(
+            onTap: () {
+              if (item.isImplicit && hasChildren && onToggle != null) {
+                onToggle();
+                return;
+              }
+              _handleTagTap(item);
+            },
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              _showTagOptions(
+                rowContext,
+                item,
+                anchorContext: rowContext,
+                alignment: PopoverAlignment.center,
+              );
+            },
+            onSecondaryTapUp: (details) => _showTagOptions(
+              rowContext,
+              item,
+              anchorContext: rowContext,
+              cursorPosition: details.globalPosition,
+              alignment: PopoverAlignment.auto,
             ),
-            child: Row(
-              children: [
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 8.0,
+              ),
+              child: Row(
+                children: [
                 if (indent > 0) SizedBox(width: indent * 16.0),
                 // Icon or hash glyph container
                 Container(
@@ -1390,8 +1454,9 @@ class _TagBrowserViewState extends ConsumerState<TagBrowserView> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildEmptyState(
     AppColors colors, {

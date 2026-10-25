@@ -1077,6 +1077,25 @@ class SidebarView extends ConsumerWidget {
             ),
           ),
           PopupMenuItem<String>(
+            value: 'nested',
+            child: Row(
+              children: [
+                Icon(
+                  PhosphorIconsRegular.folderPlus,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Add nested tag',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
             value: 'pin',
             child: Row(
               children: [
@@ -1180,6 +1199,37 @@ class SidebarView extends ConsumerWidget {
         ref.read(selectedTagIdProvider.notifier).state = tag.id;
         ref.read(notesQueryProvider.notifier).setTag(tag.name);
         onItemSelected?.call();
+      } else if (selected == 'nested') {
+        final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+        final existingNames = allTags.map((x) => x.name).toList();
+        final newTag = await TagCreateDialog.showNested(
+          context,
+          parentTag: tag,
+          existingTags: existingNames,
+        );
+        if (newTag != null && context.mounted) {
+          final service = ref.read(tagServiceProvider);
+          await service.createTag(
+            newTag.name,
+            icon: newTag.icon,
+            color: newTag.color,
+            isPinned: newTag.isPinned,
+          );
+          final currentExpanded = ref.read(expandedTagPathsProvider);
+          if (!currentExpanded.contains(tag.name)) {
+            ref.read(expandedTagPathsProvider.notifier).toggle(tag.name);
+          }
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Nested tag #${newTag.name} created'),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
       } else if (selected == 'pin') {
         ref.read(tagServiceProvider).pinTag(tag.id, !tag.isPinned);
       } else if (selected == 'rename') {
@@ -1306,6 +1356,55 @@ class SidebarView extends ConsumerWidget {
                   ref.read(selectedTagIdProvider.notifier).state = tag.id;
                   ref.read(notesQueryProvider.notifier).setTag(tag.name);
                   onItemSelected?.call();
+                },
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  PhosphorIconsRegular.folderPlus,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
+                title: Text(
+                  'Add nested tag',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+                  final existingNames = allTags.map((x) => x.name).toList();
+                  final newTag = await TagCreateDialog.showNested(
+                    context,
+                    parentTag: tag,
+                    existingTags: existingNames,
+                  );
+                  if (newTag != null && context.mounted) {
+                    final service = ref.read(tagServiceProvider);
+                    await service.createTag(
+                      newTag.name,
+                      icon: newTag.icon,
+                      color: newTag.color,
+                      isPinned: newTag.isPinned,
+                    );
+                    final currentExpanded = ref.read(expandedTagPathsProvider);
+                    if (!currentExpanded.contains(tag.name)) {
+                      ref
+                          .read(expandedTagPathsProvider.notifier)
+                          .toggle(tag.name);
+                    }
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Nested tag #${newTag.name} created'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  }
                 },
               ),
               ListTile(

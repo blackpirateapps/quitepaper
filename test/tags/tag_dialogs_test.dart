@@ -64,6 +64,66 @@ void main() {
       expect(createdTag?.isPinned, isTrue);
     });
 
+    testWidgets(
+      'TagCreateDialog.showNested displays prefix #parent/ and produces nested tag',
+      (tester) async {
+        final parentTag = Tag(
+          id: 'p1',
+          name: 'journal',
+          color: 'coral',
+          icon: 'book',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        Tag? createdTag;
+
+        await tester.pumpWidget(
+          createDialogApp(
+            Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  createdTag = await TagCreateDialog.showNested(
+                    ctx,
+                    parentTag: parentTag,
+                    existingTags: ['journal', 'journal/2025'],
+                  );
+                },
+                child: const Text('Open Nested Dialog'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open Nested Dialog'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('New Nested Tag'), findsOneWidget);
+        expect(find.text('#journal/'), findsOneWidget);
+
+        // Try creating empty -> should show error
+        await tester.tap(find.text('Create'));
+        await tester.pumpAndSettle();
+        expect(find.text('Nested tag name cannot be empty'), findsOneWidget);
+
+        // Try creating duplicate -> journal/2025
+        await tester.enterText(find.byType(TextField), '2025');
+        await tester.tap(find.text('Create'));
+        await tester.pumpAndSettle();
+        expect(find.text('A tag with this name already exists'), findsOneWidget);
+
+        // Enter valid child segment '2026'
+        await tester.enterText(find.byType(TextField), '2026');
+        await tester.tap(find.text('Create'));
+        await tester.pumpAndSettle();
+
+        expect(createdTag, isNotNull);
+        expect(createdTag?.name, equals('journal/2026'));
+        expect(createdTag?.color, equals('coral'));
+        expect(createdTag?.icon, equals('book'));
+      },
+    );
+
     testWidgets('TagRenameDialog validates new name and submits', (
       tester,
     ) async {

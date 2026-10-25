@@ -51,6 +51,45 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(52);
 
+  Future<void> _handleAddNestedTag(
+    BuildContext context,
+    WidgetRef ref,
+    Tag parentTag,
+  ) async {
+    final allTags = ref.read(allTagsProvider).valueOrNull ?? [];
+    final existingNames = allTags.map((t) => t.name).toList();
+
+    final newTag = await TagCreateDialog.showNested(
+      context,
+      parentTag: parentTag,
+      existingTags: existingNames,
+    );
+
+    if (newTag != null && context.mounted) {
+      final service = ref.read(tagServiceProvider);
+      await service.createTag(
+        newTag.name,
+        icon: newTag.icon,
+        color: newTag.color,
+        isPinned: newTag.isPinned,
+      );
+      final currentExpanded = ref.read(expandedTagPathsProvider);
+      if (!currentExpanded.contains(parentTag.name)) {
+        ref.read(expandedTagPathsProvider.notifier).toggle(parentTag.name);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nested tag #${newTag.name} created'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleRename(
     BuildContext context,
     WidgetRef ref,
@@ -341,6 +380,9 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                 onSelected: (val) {
                   if (tag == null) return;
                   switch (val) {
+                    case 'nested':
+                      _handleAddNestedTag(context, ref, tag);
+                      break;
                     case 'rename':
                       _handleRename(context, ref, tag);
                       break;
@@ -447,6 +489,25 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                   ),
                   if (tag != null) const PopupMenuDivider(),
                   if (tag != null) ...[
+                    PopupMenuItem(
+                      value: 'nested',
+                      child: Row(
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.folderPlus,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            'Add nested tag',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     PopupMenuItem(
                       value: 'rename',
                       child: Row(

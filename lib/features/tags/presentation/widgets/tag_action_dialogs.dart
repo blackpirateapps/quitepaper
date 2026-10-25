@@ -12,16 +12,24 @@ import '../../domain/tag_model.dart';
 import 'tag_color_picker_sheet.dart';
 import 'tag_icon_picker_sheet.dart';
 
-/// Editorial dialog for creating a new tag.
+/// Editorial dialog for creating a new tag or a nested sub-tag.
 class TagCreateDialog extends StatefulWidget {
   const TagCreateDialog({
     super.key,
     required this.existingTags,
     this.initialName,
+    this.parentTagName,
+    this.initialIcon,
+    this.initialColor,
+    this.initialPinned = false,
   });
 
   final List<String> existingTags;
   final String? initialName;
+  final String? parentTagName;
+  final String? initialIcon;
+  final String? initialColor;
+  final bool initialPinned;
 
   static Future<Tag?> show(
     BuildContext context, {
@@ -32,6 +40,24 @@ class TagCreateDialog extends StatefulWidget {
       context: context,
       builder: (ctx) =>
           TagCreateDialog(existingTags: existingTags, initialName: initialName),
+    );
+  }
+
+  static Future<Tag?> showNested(
+    BuildContext context, {
+    required Tag parentTag,
+    required List<String> existingTags,
+    String? initialName,
+  }) {
+    return showDialog<Tag>(
+      context: context,
+      builder: (ctx) => TagCreateDialog(
+        existingTags: existingTags,
+        parentTagName: parentTag.name,
+        initialName: initialName,
+        initialIcon: parentTag.icon,
+        initialColor: parentTag.color,
+      ),
     );
   }
 
@@ -50,6 +76,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialName ?? '');
+    _selectedIcon = widget.initialIcon;
+    _selectedColor = widget.initialColor;
+    _isPinned = widget.initialPinned;
   }
 
   @override
@@ -59,7 +88,22 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
   }
 
   void _validateAndSubmit() {
-    final raw = _controller.text.trim();
+    var raw = _controller.text.trim();
+    if (widget.parentTagName != null) {
+      if (raw.startsWith('#')) raw = raw.substring(1).trim();
+      while (raw.startsWith('/')) {
+        raw = raw.substring(1).trim();
+      }
+      while (raw.endsWith('/')) {
+        raw = raw.substring(0, raw.length - 1).trim();
+      }
+      if (raw.isEmpty) {
+        setState(() => _errorText = 'Nested tag name cannot be empty');
+        return;
+      }
+      raw = '${widget.parentTagName}/$raw';
+    }
+
     final normalized = TagParser.normalizeTag(raw);
 
     if (normalized.isEmpty) {
@@ -69,7 +113,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
 
     if (!TagParser.isValidTag(normalized)) {
       setState(
-        () => _errorText = 'Invalid tag name (use letters, numbers, -, _)',
+        () => _errorText = widget.parentTagName != null
+            ? 'Invalid nested tag name (use letters, numbers, -, _)'
+            : 'Invalid tag name (use letters, numbers, -, _)',
       );
       return;
     }
@@ -102,12 +148,13 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
     final colors = context.appColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorDef = TagColors.fromId(_selectedColor);
+    final isNested = widget.parentTagName != null;
 
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
       title: Text(
-        'New Tag',
+        isNested ? 'New Nested Tag' : 'New Tag',
         style: AppTypography.headline.copyWith(color: colors.textPrimary),
       ),
       content: SingleChildScrollView(
@@ -120,12 +167,12 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
               autofocus: true,
               style: AppTypography.body.copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
-                prefixText: '#',
+                prefixText: isNested ? '#${widget.parentTagName}/' : '#',
                 prefixStyle: AppTypography.body.copyWith(
                   color: colorDef?.foreground(isDark) ?? colors.accent,
                   fontWeight: FontWeight.w600,
                 ),
-                hintText: 'tag-name',
+                hintText: isNested ? 'sub-tag (e.g. 2026, projects)' : 'tag-name',
                 hintStyle: AppTypography.body.copyWith(
                   color: colors.textTertiary,
                 ),
@@ -168,7 +215,9 @@ class _TagCreateDialogState extends State<TagCreateDialog> {
                       final picked = await TagIconPickerSheet.show(
                         context,
                         currentIconId: _selectedIcon,
-                        tagName: _controller.text,
+                        tagName: isNested
+                            ? '${widget.parentTagName}/${_controller.text}'
+                            : _controller.text,
                       );
                       setState(() => _selectedIcon = picked);
                     },
