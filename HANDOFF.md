@@ -11235,6 +11235,45 @@ Addressed a 5–10 second delay experienced on cold app launches caused by eager
   - Full test suite: `flutter test` (**2386/2386 tests passed**).
 - **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
 
+---
+
+## 240. Architecture: Dedicated Checklist Widget in Visual Editor (WYSIWYG) (October 2026)
+
+### Overview
+Addressed cursor positioning and newline continuation bugs when interacting with checklists in Quiet Paper's Visual Editor (`EditorEditingStyle.wysiwyg`). Previously:
+1. Checklists were embedded inside `RichTextEditor`'s continuous `TextField` as inline `WidgetSpan`s using a placeholder character (`\uFFFC`). This caused the cursor to land before the checkbox or separated by strange whitespace gaps because Flutter's `RenderEditable` positions caret offsets at index 0 before the `WidgetSpan`.
+2. When typing a checklist item and pressing Enter, the newline insertion via the text input channel mutated the document while `_isInternalUpdate` was active, causing `_syncFromDocument()` to abort. As a result, the second line lacked `\uFFFC`, either placing the caret before the checkbox on the new line (Scenario 2) or converting the new line back into a paragraph upon typing (Scenario 1) because the line lacked the expected `\uFFFC` prefix.
+
+### Implementation Details
+1. **Dedicated Checklist Widget (`RichChecklistEditor`)**:
+   - Created [`lib/features/editor/presentation/widgets/rich_checklist_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_checklist_editor.dart).
+   - Renders each `ChecklistItemBlock` as a dedicated, baseline-aligned `Row` with:
+     - Left: Phosphor icon checkbox (`square` / `checkSquare`) wrapped in a `GestureDetector`.
+     - Right: An `Expanded` `TextField` using a custom `_ChecklistItemTextController` that renders rich inline spans (bold, italic, strike, link) and strikethrough styling when completed.
+   - The caret is physically constrained inside the task's `TextField`, guaranteeing that it can never be positioned before or across the checkbox.
+   - Enter key handling:
+     - On a non-empty item: calls `controller.handleEnterAt(...)`, inserting a new `ChecklistItemBlock` below and cleanly focusing the new item's text field with a brand new checkbox widget.
+     - On an empty item: converts the item to a standard `ParagraphBlock`, smoothly exiting checklist mode.
+   - Backspace key handling:
+     - At offset 0 of an empty item: removes the item and focuses the preceding item or converts to a paragraph.
+     - At offset 0 of an item with text: merges text into the preceding checklist item.
+   - Arrow keys: Up/Down arrow navigation between adjacent checklist items.
+
+2. **Segmented Visual Layout (`RichEditorSurface`)**:
+   - In [`lib/features/editor/presentation/widgets/rich_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_editor_surface.dart), updated `build()` to recognize `ChecklistItemBlock`s as dedicated visual widget blocks.
+   - Collects contiguous `ChecklistItemBlock`s and renders them via `RichChecklistEditor`, while routing standard text blocks (Paragraphs, Headings, Bullets, Ordered Lists, Quotes) to `RichTextEditor`.
+
+3. **Clean Up `RichTextEditor`**:
+   - In [`lib/features/editor/presentation/widgets/rich_text_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart), removed all `\uFFFC` placeholder string manipulations, `prefixForBlock(ChecklistItemBlock)`, and inline `WidgetSpan` checkbox rendering. `RichTextEditor` is now 100% pure `TextSpan`s.
+   - `QuietSuperEditor` and `MarkdownEditor` (source mode) remain completely untouched.
+
+### Verification & Quality Gates
+- **Automated Tests**:
+  - [`test/editor/rich_text_checklist_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_checklist_editor_test.dart): 9 comprehensive integration tests covering initial checklist toggle, text entry without placeholder characters, physical caret isolation, Scenario 1 persistence, Scenario 2 caret positioning, Enter exit to paragraph, Backspace deletion, and checkbox toggle.
+  - All 584 editor tests in `test/editor/` pass.
+- **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
+
+
 
 
 

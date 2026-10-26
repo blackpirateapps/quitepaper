@@ -6,6 +6,7 @@ import 'package:quitepaper/features/editor/application/rich_document_parser.dart
 import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
 import 'package:quitepaper/features/editor/domain/document_selection.dart';
 import 'package:quitepaper/features/editor/domain/rich_block.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
 
 void main() {
@@ -791,7 +792,7 @@ void main() {
           MaterialApp(
             theme: AppTheme.light(),
             home: Scaffold(
-              body: RichTextEditor(
+              body: RichEditorSurface(
                 controller: controller,
                 focusNode: focusNode,
               ),

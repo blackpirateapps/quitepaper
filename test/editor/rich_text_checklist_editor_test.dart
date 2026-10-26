@@ -4,11 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
 import 'package:quitepaper/features/editor/domain/rich_block.dart';
-import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_checklist_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 
 void main() {
-  group('RichTextEditor — Checklist & Todolist Integration Tests', () {
+  group('Visual Editor — Dedicated Checklist Widget Integration Tests', () {
     late RichDocumentController controller;
     late FocusNode focusNode;
 
@@ -26,7 +27,7 @@ void main() {
       return MaterialApp(
         theme: AppTheme.light(),
         home: Scaffold(
-          body: RichTextEditor(
+          body: RichEditorSurface(
             controller: controller,
             focusNode: focusNode,
           ),
@@ -34,7 +35,7 @@ void main() {
       );
     }
 
-    testWidgets('1. Toggling checklist on empty paragraph places cursor AFTER the checkbox', (tester) async {
+    testWidgets('1. Toggling checklist on empty paragraph renders RichChecklistEditor widget', (tester) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
@@ -48,154 +49,195 @@ void main() {
       expect(controller.document.blocks.first, isA<ChecklistItemBlock>());
       expect((controller.document.blocks.first as ChecklistItemBlock).isChecked, false);
 
+      // Verify dedicated RichChecklistEditor widget is rendered
+      expect(find.byType(RichChecklistEditor), findsOneWidget);
+
       // Verify the visual checkbox icon appears
       expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
 
-      // Verify TextField selection is after the checkbox (offset 1, not offset 0)
+      // Verify TextField has pure text without \uFFFC hacks
       final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      expect(editableText.controller.selection.baseOffset, 1);
-      expect(editableText.controller.selection.extentOffset, 1);
-      expect(editableText.controller.text, '\uFFFC');
+      expect(editableText.controller.text, '');
+      expect(editableText.controller.selection.baseOffset, 0);
     });
 
-    testWidgets('2. Typing "hey" into checklist item keeps cursor directly AFTER "y"', (tester) async {
+    testWidgets('2. Typing "hey" into checklist item updates document without phantom placeholder characters', (tester) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
       controller.toggleChecklist();
       await tester.pumpAndSettle();
 
-      // Focus editor
-      focusNode.requestFocus();
-      await tester.pump();
-
-      // User types "hey"
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      editableText.controller.text = '\uFFFChey';
-      editableText.controller.selection = const TextSelection.collapsed(offset: 4);
+      // User enters text into the checklist item TextField
+      await tester.enterText(find.byType(TextField), 'hey');
       await tester.pumpAndSettle();
 
-      // Controller document should be updated with "hey" (pure, without \uFFFC)
+      // Controller document should be updated with pure "hey"
       expect(controller.document.blocks.first, isA<ChecklistItemBlock>());
       expect(controller.document.blocks.first.plainText, 'hey');
       expect(controller.toMarkdown(), '- [ ] hey');
 
-      // The selection remains at offset 4 (right after 'y', not lagging behind after 'e')
       final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.selection.baseOffset, 4);
-      expect(updatedEditable.controller.selection.extentOffset, 4);
+      expect(updatedEditable.controller.text, 'hey');
     });
 
-    testWidgets('3. Cursor cannot be moved before the checkbox gutter', (tester) async {
+    testWidgets('3. Checkbox icon is physically isolated from TextField (cursor cannot appear before checkbox)', (tester) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
       controller.toggleChecklist();
       await tester.pumpAndSettle();
 
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
+      // Checkbox is in a separate widget on the left
+      final iconFinder = find.byIcon(PhosphorIconsRegular.square);
+      final textFieldFinder = find.byType(TextField);
 
-      // Attempt to place cursor at offset 0 (before the checkbox)
-      editableText.controller.selection = const TextSelection.collapsed(offset: 0);
-      await tester.pump();
+      expect(iconFinder, findsOneWidget);
+      expect(textFieldFinder, findsOneWidget);
 
-      // Automatically clamped to offset 1 (after the checkbox)
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.selection.baseOffset, 1);
-      expect(updatedEditable.controller.selection.extentOffset, 1);
+      final iconBox = tester.getRect(iconFinder);
+      final textBox = tester.getRect(textFieldFinder);
+
+      // Icon is strictly to the left of the text field
+      expect(iconBox.right <= textBox.left, isTrue);
     });
 
-    testWidgets('4. Pressing Enter at end of checklist item creates new unchecked item on the next line', (tester) async {
-      controller.setMarkdown('- [ ] Buy groceries');
+    testWidgets('4. Scenario 1: Typing a sentence and pressing Enter creates a new checkbox on the second line that persists when typing', (tester) async {
+      controller.setMarkdown('Existing note text\n- [ ] Buy groceries');
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
-      focusNode.requestFocus();
-      await tester.pump();
+      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
 
-      // Place cursor at the end of "Buy groceries" (offset: 1 + 13 = 14)
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      expect(editableText.controller.text, '\uFFFCBuy groceries');
-      editableText.controller.selection = const TextSelection.collapsed(offset: 14);
-      await tester.pump();
+      // Focus the checklist TextField
+      final checklistTextField = find.descendant(
+        of: find.byType(RichChecklistEditor),
+        matching: find.byType(TextField),
+      );
+      await tester.tap(checklistTextField);
+      await tester.pumpAndSettle();
 
-      // Simulate pressing Enter
+      // Press Enter
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
-      // Document now has 2 blocks
-      expect(controller.document.blocks.length, 2);
-      expect(controller.document.blocks[0], isA<ChecklistItemBlock>());
-      expect(controller.document.blocks[0].plainText, 'Buy groceries');
+      // Second checklist item is created
+      expect(controller.document.blocks.length, 3);
       expect(controller.document.blocks[1], isA<ChecklistItemBlock>());
-      expect(controller.document.blocks[1].plainText, '');
-      expect((controller.document.blocks[1] as ChecklistItemBlock).isChecked, false);
+      expect(controller.document.blocks[1].plainText, 'Buy groceries');
+      expect(controller.document.blocks[2], isA<ChecklistItemBlock>());
+      expect(controller.document.blocks[2].plainText, '');
 
-      // Verify the cursor is on the new line, right after the new checkbox
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.text, '\uFFFCBuy groceries\n\uFFFC');
-      // Line 0 is 14 chars + 1 ('\n') = 15. Line 1 checkbox is at 15. Cursor should be at 16!
-      expect(updatedEditable.controller.selection.baseOffset, 16);
-      expect(updatedEditable.controller.selection.extentOffset, 16);
+      // Two checkbox icons appear
+      expect(find.byIcon(PhosphorIconsRegular.square), findsNWidgets(2));
+
+      // Now type on the second line: "Fresh milk"
+      final secondItemTextField = find.descendant(
+        of: find.byType(RichChecklistEditor),
+        matching: find.byType(TextField),
+      ).last;
+      await tester.enterText(secondItemTextField, 'Fresh milk');
+      await tester.pumpAndSettle();
+
+      // Both checkboxes still persist (checkbox does NOT disappear)
+      expect(find.byIcon(PhosphorIconsRegular.square), findsNWidgets(2));
+      expect(controller.document.blocks[2], isA<ChecklistItemBlock>());
+      expect(controller.document.blocks[2].plainText, 'Fresh milk');
+      expect(controller.toMarkdown(), 'Existing note text\n- [ ] Buy groceries\n- [ ] Fresh milk');
     });
 
-    testWidgets('5. Pressing Enter on empty checklist item converts to paragraph', (tester) async {
+    testWidgets('5. Scenario 2: In a new note, clicking checklist icon and pressing Enter after first item creates checkbox with cursor inside second item', (tester) async {
+      // New note starts empty
+      await tester.pumpWidget(buildTestApp());
+      await tester.pumpAndSettle();
+
+      // User immediately clicks checklist icon
+      controller.toggleChecklist();
+      await tester.pumpAndSettle();
+
+      // Type first item
+      await tester.enterText(find.byType(TextField), 'First item');
+      await tester.pumpAndSettle();
+
+      // Focus and send Enter
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      // Document has 2 checklist items
+      expect(controller.document.blocks.length, 2);
+      expect(controller.document.blocks[0], isA<ChecklistItemBlock>());
+      expect(controller.document.blocks[0].plainText, 'First item');
+      expect(controller.document.blocks[1], isA<ChecklistItemBlock>());
+      expect(controller.document.blocks[1].plainText, '');
+
+      // Line 2 has a checkbox
+      expect(find.byIcon(PhosphorIconsRegular.square), findsNWidgets(2));
+
+      // Cursor is focused in the second item at offset 0 (which is after the checkbox widget)
+      final textFields = tester.widgetList<EditableText>(find.byType(EditableText)).toList();
+      expect(textFields.length, 2);
+      expect(textFields.last.controller.selection.baseOffset, 0);
+      expect(textFields.last.controller.text, '');
+    });
+
+    testWidgets('6. Pressing Enter on empty checklist item converts to paragraph', (tester) async {
       controller.setMarkdown('- [ ] Task 1\n- [ ] ');
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
-      focusNode.requestFocus();
-      await tester.pump();
+      final checklistFields = find.descendant(
+        of: find.byType(RichChecklistEditor),
+        matching: find.byType(TextField),
+      );
+      expect(checklistFields, findsNWidgets(2));
 
-      // Cursor is at end of line 2 (offset 8)
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      expect(editableText.controller.text, '\uFFFCTask 1\n\uFFFC');
-      editableText.controller.selection = const TextSelection.collapsed(offset: 8);
-      await tester.pump();
+      // Tap the second empty item
+      await tester.tap(checklistFields.last);
+      await tester.pumpAndSettle();
 
-      // Press Enter on empty checklist item
+      // Press Enter
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
-      // Block 1 is converted to ParagraphBlock
+      // Second block is converted to ParagraphBlock
       expect(controller.document.blocks.length, 2);
       expect(controller.document.blocks[0], isA<ChecklistItemBlock>());
       expect(controller.document.blocks[1], isA<ParagraphBlock>());
       expect(controller.document.blocks[1].plainText, '');
 
-      // Controller text should now have regular newline with no second \uFFFC
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.text, '\uFFFCTask 1\n');
+      // Only 1 checkbox remains
+      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
     });
 
-    testWidgets('6. Pressing Backspace at start of checklist item converts to paragraph', (tester) async {
-      controller.setMarkdown('- [ ] Item');
+    testWidgets('7. Pressing Backspace at offset 0 of empty checklist item removes it', (tester) async {
+      controller.setMarkdown('- [ ] Task 1\n- [ ] ');
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
-      focusNode.requestFocus();
-      await tester.pump();
+      final checklistFields = find.descendant(
+        of: find.byType(RichChecklistEditor),
+        matching: find.byType(TextField),
+      );
+      expect(checklistFields, findsNWidgets(2));
 
-      // Cursor is right after checkbox (offset 1, content offset 0)
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      editableText.controller.selection = const TextSelection.collapsed(offset: 1);
-      await tester.pump();
+      // Tap the second empty item
+      await tester.tap(checklistFields.last);
+      await tester.pumpAndSettle();
 
-      // Press Backspace
+      // Press Backspace at offset 0
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await tester.pumpAndSettle();
 
-      // Block is converted to paragraph preserving text "Item"
-      expect(controller.document.blocks.first, isA<ParagraphBlock>());
-      expect(controller.document.blocks.first.plainText, 'Item');
-      expect(controller.toMarkdown(), 'Item');
-
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.text, 'Item');
-      expect(updatedEditable.controller.selection.baseOffset, 0);
+      // Only 1 checklist item remains
+      expect(controller.document.blocks.length, 1);
+      expect(controller.document.blocks[0], isA<ChecklistItemBlock>());
+      expect(controller.document.blocks[0].plainText, 'Task 1');
+      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
     });
 
-    testWidgets('7. Tapping checkbox toggles checked/completed state', (tester) async {
+    testWidgets('8. Tapping checkbox toggles checked/completed state', (tester) async {
       controller.setMarkdown('- [ ] First task');
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
@@ -205,7 +247,7 @@ void main() {
       expect(find.byIcon(PhosphorIconsRegular.checkSquare), findsNothing);
 
       // Tap the checkbox icon
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.byIcon(PhosphorIconsRegular.square));
       await tester.pumpAndSettle();
 
       // Now checked
@@ -214,7 +256,7 @@ void main() {
       expect(controller.toMarkdown(), '- [x] First task');
 
       // Tap again to uncheck
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.byIcon(PhosphorIconsRegular.checkSquare));
       await tester.pumpAndSettle();
 
       expect((controller.document.blocks[0] as ChecklistItemBlock).isChecked, false);
@@ -222,44 +264,7 @@ void main() {
       expect(controller.toMarkdown(), '- [ ] First task');
     });
 
-    testWidgets('8. Multi-item checklist maintains 1:1 offsets with zero cumulative drift across lines', (tester) async {
-      controller.setMarkdown('- [ ] One\n- [ ] Two\n- [ ] Three');
-      await tester.pumpWidget(buildTestApp());
-      await tester.pumpAndSettle();
-
-      focusNode.requestFocus();
-      await tester.pump();
-
-      final editableText = tester.widget<EditableText>(find.byType(EditableText));
-      // Line 0: \uFFFCOne (len 4)
-      // Line 1: \uFFFCTwo (len 4, start at 5)
-      // Line 2: \uFFFCThree (len 6, start at 10)
-      expect(editableText.controller.text, '\uFFFCOne\n\uFFFCTwo\n\uFFFCThree');
-
-      // Place cursor at end of Line 1 ("Two", offset 9)
-      editableText.controller.selection = const TextSelection.collapsed(offset: 9);
-      await tester.pump();
-
-      // Press Enter at end of Line 1
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
-
-      // Should insert new item between "Two" and "Three" (at block index 2)
-      expect(controller.document.blocks.length, 4);
-      expect(controller.document.blocks[0].plainText, 'One');
-      expect(controller.document.blocks[1].plainText, 'Two');
-      expect(controller.document.blocks[2].plainText, '');
-      expect(controller.document.blocks[2], isA<ChecklistItemBlock>());
-      expect(controller.document.blocks[3].plainText, 'Three');
-
-      // Cursor is placed right after the new checkbox at index 2
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.text, '\uFFFCOne\n\uFFFCTwo\n\uFFFC\n\uFFFCThree');
-      // Line 0: 4 + 1 = 5. Line 1: 4 + 1 = 5 (running: 10). Line 2 prefix: 1. Caret at 11!
-      expect(updatedEditable.controller.selection.baseOffset, 11);
-    });
-
-    testWidgets('9. Bulleted list items also maintain prefix parity and clean continuation', (tester) async {
+    testWidgets('9. Bulleted list items continue to work smoothly in RichTextEditor', (tester) async {
       controller.setMarkdown('- First bullet');
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
@@ -285,7 +290,6 @@ void main() {
 
       final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
       expect(updatedEditable.controller.text, '• First bullet\n• ');
-      // Line 0: 14 + 1 = 15. Line 1 prefix is 2 ('• '). Caret at 17!
       expect(updatedEditable.controller.selection.baseOffset, 17);
     });
   });

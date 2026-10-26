@@ -89,8 +89,8 @@ void main() {
       expect(offsetAtSpace2Preserved, greaterThan(offsetAtSpace1Preserved));
     });
 
-    testWidgets('Preserves trailing spaces across heading, checklist, list, and quote blocks before newlines', (tester) async {
-      controller.setMarkdown('# Heading  \n- [ ] Task  \n* Bullet  \n> Quote  \nLast Line');
+    testWidgets('Preserves trailing spaces across heading, list, and quote blocks before newlines', (tester) async {
+      controller.setMarkdown('# Heading  \n* Bullet  \n> Quote  \nLast Line');
       final focusNode = FocusNode();
 
       await tester.pumpWidget(
@@ -118,19 +118,15 @@ void main() {
       final headingSpan = children.whereType<TextSpan>().firstWhere((s) => s.text != null && s.text!.contains('Heading'));
       expect(headingSpan.text, 'Heading\u00A0\u00A0');
 
-      // 2. Checklist block
-      final taskSpan = children.whereType<TextSpan>().firstWhere((s) => s.text != null && s.text!.contains('Task'));
-      expect(taskSpan.text, 'Task\u00A0\u00A0');
-
-      // 3. Bullet block
+      // 2. Bullet block
       final bulletSpan = children.whereType<TextSpan>().firstWhere((s) => s.text != null && s.text!.contains('Bullet'));
       expect(bulletSpan.text, 'Bullet\u00A0\u00A0');
 
-      // 4. Quote block
+      // 3. Quote block
       final quoteSpan = children.whereType<TextSpan>().firstWhere((s) => s.text != null && s.text!.contains('Quote'));
       expect(quoteSpan.text, 'Quote\u00A0\u00A0');
 
-      // 5. Last Line (not followed by \n) retains standard spaces
+      // 4. Last Line (not followed by \n) retains standard spaces
       final lastLineSpan = children.whereType<TextSpan>().firstWhere((s) => s.text != null && s.text!.contains('Last Line'));
       expect(lastLineSpan.text, 'Last Line');
 

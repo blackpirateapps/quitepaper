@@ -4,6 +4,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../domain/rich_block.dart';
 import '../../application/rich_document_controller.dart';
 import 'rich_attachment_block.dart';
+import 'rich_checklist_editor.dart';
 import 'rich_code_block.dart';
 import 'rich_image_block.dart';
 import 'rich_link_preview_block.dart';
@@ -76,9 +77,9 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
     final colors = context.appColors;
     final blocks = widget.controller.document.blocks;
 
-    // Fast-path: If all blocks are standard text blocks, render one continuous RichTextEditor
-    final hasNonTextBlocks = blocks.any((b) => !b.isTextBlock);
-    if (!hasNonTextBlocks) {
+    // Fast-path: If all blocks are standard text blocks (excluding checklists), render one continuous RichTextEditor
+    final hasWidgetBlocks = blocks.any((b) => !b.isTextBlock || b is ChecklistItemBlock);
+    if (!hasWidgetBlocks) {
       return RichTextEditor(
         controller: widget.controller,
         focusNode: widget.focusNode,
@@ -90,9 +91,10 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
       );
     }
 
-    // Segmented layout: Group contiguous text blocks around non-text elements
+    // Segmented layout: Group contiguous text blocks around non-text and checklist elements
     final segments = <Widget>[];
     final currentTextIndices = <int>[];
+    final currentChecklistIndices = <int>[];
 
     void flushTextSegment() {
       if (currentTextIndices.isNotEmpty) {
@@ -114,12 +116,35 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
       }
     }
 
+    void flushChecklistSegment() {
+      if (currentChecklistIndices.isNotEmpty) {
+        final indicesCopy = List<int>.from(currentChecklistIndices);
+        segments.add(
+          RichChecklistEditor(
+            key: ValueKey('checklist_segment_${indicesCopy.first}'),
+            controller: widget.controller,
+            blockIndices: indicesCopy,
+            readOnly: widget.readOnly,
+            onActiveTargetChanged: widget.onActiveTargetChanged,
+            onChanged: widget.onChanged,
+            onKeyEvent: widget.onKeyEvent,
+          ),
+        );
+        currentChecklistIndices.clear();
+      }
+    }
+
     for (var i = 0; i < blocks.length; i++) {
       final block = blocks[i];
-      if (block.isTextBlock) {
+      if (block is ChecklistItemBlock) {
+        flushTextSegment();
+        currentChecklistIndices.add(i);
+      } else if (block.isTextBlock) {
+        flushChecklistSegment();
         currentTextIndices.add(i);
       } else {
         flushTextSegment();
+        flushChecklistSegment();
 
         if (block is TableBlock) {
           segments.add(
@@ -186,6 +211,7 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
     }
 
     flushTextSegment();
+    flushChecklistSegment();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

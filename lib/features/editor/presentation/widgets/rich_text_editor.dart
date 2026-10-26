@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
-import '../../../../features/tags/domain/phosphor_icons.dart';
 import '../../domain/document_selection.dart';
 import '../../domain/markdown_styles.dart';
 import '../../domain/rich_block.dart';
@@ -63,9 +62,6 @@ class _RichTextEditorState extends State<RichTextEditor> {
       blockIndices: widget.blockIndices,
       readOnly: widget.readOnly,
       contextGetter: () => context,
-      onToggleChecklist: (blockIndex) {
-        widget.controller.toggleChecklistItemChecked(blockIndex);
-      },
     );
     _textController.addListener(_onTextControllerChanged);
     widget.controller.addListener(_onDocumentControllerChanged);
@@ -301,7 +297,6 @@ class _RichTextEditingController extends TextEditingController {
     this.blockIndices,
     this.readOnly = false,
     required this.contextGetter,
-    required this.onToggleChecklist,
   }) {
     text = computeSegmentText();
     selection = clampSelectionAwayFromPrefixes(selection);
@@ -311,7 +306,6 @@ class _RichTextEditingController extends TextEditingController {
   List<int>? blockIndices;
   bool readOnly;
   final BuildContext Function() contextGetter;
-  final void Function(int blockIndex) onToggleChecklist;
 
   void markNeedsRebuild() {
     notifyListeners();
@@ -319,11 +313,11 @@ class _RichTextEditingController extends TextEditingController {
 
   List<int> get effectiveIndices {
     if (blockIndices != null) return blockIndices!;
-    // Default to all text blocks
+    // Default to all text blocks excluding checklists
     final doc = editorController.document;
     final indices = <int>[];
     for (var i = 0; i < doc.blocks.length; i++) {
-      if (doc.blocks[i].isTextBlock) {
+      if (doc.blocks[i].isTextBlock && doc.blocks[i] is! ChecklistItemBlock) {
         indices.add(i);
       }
     }
@@ -331,9 +325,6 @@ class _RichTextEditingController extends TextEditingController {
   }
 
   static String prefixForBlock(RichBlock block) {
-    if (block is ChecklistItemBlock) {
-      return '\uFFFC';
-    }
     if (block is BulletedListItemBlock) {
       final indentSpace = '  ' * block.indent;
       return '$indentSpace• ';
@@ -476,10 +467,10 @@ class _RichTextEditingController extends TextEditingController {
           if (!newLineWithPrefix.contains(prefix)) {
             // User backspaced into the prefix -> convert block to paragraph
             editorController.convertBlockToParagraph(blockIdx);
-            newLine = newLineWithPrefix.replaceAll('\uFFFC', '');
+            newLine = newLineWithPrefix;
           } else {
             // Prefix might have moved slightly
-            newLine = newLineWithPrefix.replaceFirst(prefix, '').replaceAll('\uFFFC', '');
+            newLine = newLineWithPrefix.replaceFirst(prefix, '');
           }
         }
 
@@ -553,13 +544,11 @@ class _RichTextEditingController extends TextEditingController {
     final endPos = resolveDocumentPosition(deleteEnd) ??
         RichDocumentPosition(blockIndex: indices.last, blockId: doc.blocks[indices.last].id, offset: doc.blocks[indices.last].plainText.length);
 
-    final cleanInserted = inserted.replaceAll('\uFFFC', '');
-
     final docAfterReplacement = _replaceRangeWithText(
       doc,
       startPos,
       endPos,
-      cleanInserted,
+      inserted,
       attributes: editorController.typingAttributes,
     );
     editorController.setDocument(docAfterReplacement);
@@ -783,38 +772,7 @@ class _RichTextEditingController extends TextEditingController {
         final headingStyle = _getHeadingStyle(block.level, styles, colors);
         blockSpans.addAll(_buildInlineSpans(block.spans, headingStyle, colors));
       }
-      // 2. Checklist Item Block
-      else if (block is ChecklistItemBlock) {
-        final itemChecked = block.isChecked;
-        // Interactive Phosphor checkbox widget
-        blockSpans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: GestureDetector(
-              onTap: () => onToggleChecklist(blockIdx),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8, bottom: 2),
-                child: Icon(
-                  itemChecked
-                      ? PhosphorIconsRegular.checkSquare
-                      : PhosphorIconsRegular.square,
-                  size: 19,
-                  color: itemChecked ? colors.textTertiary : colors.accent,
-                ),
-              ),
-            ),
-          ),
-        );
-        final baseStyle = itemChecked
-            ? styles.taskTextCompleted.copyWith(
-                decoration: TextDecoration.lineThrough,
-                color: colors.textSecondary,
-              )
-            : styles.body.copyWith(color: colors.textPrimary);
-        blockSpans.addAll(_buildInlineSpans(block.spans, baseStyle, colors));
-      }
-      // 3. Bulleted List Item
+      // 2. Bulleted List Item
       else if (block is BulletedListItemBlock) {
         final indentSpace = '  ' * block.indent;
         blockSpans.add(TextSpan(
