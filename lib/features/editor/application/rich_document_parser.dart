@@ -170,11 +170,14 @@ class RichDocumentParser {
       // 6. Checklist Item: - [ ] Task or - [x] Task
       final checklistMatch = RegExp(r'^(\s*)[-*+]\s+\[([ xX])\]\s*(.*)$').firstMatch(line);
       if (checklistMatch != null) {
+        final indentStr = checklistMatch.group(1) ?? '';
+        final indent = (indentStr.length / 2).floor();
         final isChecked = checklistMatch.group(2)!.toLowerCase() == 'x';
         final text = checklistMatch.group(3) ?? '';
         blocks.add(ChecklistItemBlock(
           id: _uuid.v4(),
           isChecked: isChecked,
+          indent: indent,
           spans: parseInlines(text),
         ));
         i++;
@@ -213,7 +216,21 @@ class RichDocumentParser {
         continue;
       }
 
-      // 9. Blockquote: > Quote
+      // 9. Callout: > [!NOTE] or > [!TIP] or > [!WARNING]
+      final calloutMatch = RegExp(r'^>\s*\[!([a-zA-Z]+)\]\s*(.*)$').firstMatch(line);
+      if (calloutMatch != null) {
+        final kindStr = calloutMatch.group(1) ?? 'note';
+        final text = calloutMatch.group(2) ?? '';
+        blocks.add(CalloutBlock(
+          id: _uuid.v4(),
+          kind: CalloutKind.fromString(kindStr),
+          spans: parseInlines(text),
+        ));
+        i++;
+        continue;
+      }
+
+      // 10. Blockquote: > Quote
       final quoteMatch = RegExp(r'^>\s?(.*)$').firstMatch(line);
       if (quoteMatch != null) {
         final text = quoteMatch.group(1) ?? '';

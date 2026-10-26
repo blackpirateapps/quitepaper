@@ -72,7 +72,7 @@ void main() {
 
       // Main MarkdownEditor is rendered in WYSIWYG mode without raw YAML
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.byType(RichTextEditor), findsOneWidget);
+      expect(find.byType(RichTextEditor), findsWidgets);
       expect(find.textContaining('Heading'), findsWidgets);
       expect(find.textContaining('Body text here.'), findsWidgets);
 

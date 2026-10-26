@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../application/markdown_table_parser.dart';
 import 'markdown_table_alignment.dart';
 import 'markdown_table_cell.dart';
 import 'markdown_table_position.dart';
@@ -17,6 +18,20 @@ class MarkdownTable {
     required this.alignments,
     required this.columnCount,
   });
+
+  static const _tableParser = MarkdownTableParser();
+
+  /// Creates a default empty [MarkdownTable] with [rows] and [columns].
+  factory MarkdownTable.empty({int rows = 3, int columns = 3}) {
+    final cols = columns.clamp(1, 20);
+    final bodyRowCount = (rows - 1).clamp(1, 100);
+    final header = '| ${List.generate(cols, (i) => 'Col ${i + 1}').join(' | ')} |';
+    final delim = '| ${List.filled(cols, '---').join(' | ')} |';
+    final body = List.generate(bodyRowCount, (_) => '| ${List.filled(cols, '   ').join(' | ')} |').join('\n');
+    final tableMd = '$header\n$delim\n$body';
+    final tables = _tableParser.findTables(tableMd);
+    return tables.first;
+  }
 
   /// Absolute start offset of the table in the canonical Markdown document.
   final int sourceStart;

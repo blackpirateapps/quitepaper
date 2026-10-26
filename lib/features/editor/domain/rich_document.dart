@@ -133,6 +133,58 @@ class RichDocument {
     );
   }
 
+  /// Returns a new document with the block at [oldIndex] moved to [newIndex].
+  RichDocument moveBlock(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= blocks.length) return this;
+    var targetIndex = newIndex.clamp(0, blocks.length - 1);
+    if (oldIndex == targetIndex) return this;
+
+    final newBlocks = List<RichBlock>.from(blocks);
+    final block = newBlocks.removeAt(oldIndex);
+    newBlocks.insert(targetIndex, block);
+    return RichDocument(blocks: newBlocks);
+  }
+
+  /// Returns a new document with [block] inserted at [index].
+  RichDocument insertBlock(int index, RichBlock block) {
+    final clamped = index.clamp(0, blocks.length);
+    final newBlocks = List<RichBlock>.from(blocks)..insert(clamped, block);
+    return RichDocument(blocks: newBlocks);
+  }
+
+  /// Returns a new document with the block at [index] removed.
+  /// If the document would become empty, inserts an empty paragraph.
+  RichDocument removeBlockAt(int index) {
+    if (index < 0 || index >= blocks.length) return this;
+    final newBlocks = List<RichBlock>.from(blocks)..removeAt(index);
+    if (newBlocks.isEmpty) {
+      newBlocks.add(ParagraphBlock.empty());
+    }
+    return RichDocument(blocks: newBlocks);
+  }
+
+  /// Returns a new document with the block at [index] replaced by [block].
+  RichDocument replaceBlock(int index, RichBlock block) {
+    if (index < 0 || index >= blocks.length) return this;
+    final newBlocks = List<RichBlock>.from(blocks);
+    newBlocks[index] = block;
+    return RichDocument(blocks: newBlocks);
+  }
+
+  /// Returns the block immediately preceding the block with [blockId], or null.
+  RichBlock? previousBlock(String blockId) {
+    final idx = findBlockIndexById(blockId);
+    if (idx > 0) return blocks[idx - 1];
+    return null;
+  }
+
+  /// Returns the block immediately succeeding the block with [blockId], or null.
+  RichBlock? nextBlock(String blockId) {
+    final idx = findBlockIndexById(blockId);
+    if (idx >= 0 && idx < blocks.length - 1) return blocks[idx + 1];
+    return null;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

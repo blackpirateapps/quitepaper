@@ -30,7 +30,7 @@ enum EditorEditingStyle {
       case EditorEditingStyle.superEditor:
         return 'Block-based editor with native task checkboxes';
       case EditorEditingStyle.wysiwyg:
-        return 'Clean visual writing surface without Markdown syntax';
+        return 'Block-based visual writing surface without Markdown syntax';
       case EditorEditingStyle.markdown:
         return 'Show Markdown syntax while editing';
     }

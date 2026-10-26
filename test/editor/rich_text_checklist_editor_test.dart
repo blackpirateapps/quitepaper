@@ -288,9 +288,10 @@ void main() {
       expect(controller.document.blocks[1], isA<BulletedListItemBlock>());
       expect(controller.document.blocks[1].plainText, '');
 
-      final updatedEditable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(updatedEditable.controller.text, '• First bullet\n• ');
-      expect(updatedEditable.controller.selection.baseOffset, 17);
+      final editables = tester.widgetList<EditableText>(find.byType(EditableText)).toList();
+      expect(editables.length, 2);
+      expect(editables[0].controller.text, '• First bullet');
+      expect(editables[1].controller.text, '• ');
     });
   });
 }

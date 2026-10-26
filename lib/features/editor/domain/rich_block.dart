@@ -53,6 +53,13 @@ abstract class RichBlock {
         return ChecklistItemBlock(
           id: id,
           isChecked: json['isChecked'] == true,
+          indent: (json['indent'] as num?)?.toInt() ?? 0,
+          spans: _parseSpansJson(json['spans']),
+        );
+      case 'callout':
+        return CalloutBlock(
+          id: id,
+          kind: CalloutKind.fromString(json['kind'] as String?),
           spans: _parseSpansJson(json['spans']),
         );
       case 'bulleted_list_item':
@@ -280,22 +287,28 @@ class ChecklistItemBlock extends RichBlock {
   const ChecklistItemBlock({
     required super.id,
     required this.isChecked,
+    this.indent = 0,
     this.spans = const [],
   });
 
   factory ChecklistItemBlock.fromText(
     String text, {
     bool isChecked = false,
+    int indent = 0,
     String? id,
   }) =>
       ChecklistItemBlock(
         id: id ?? _uuid.v4(),
         isChecked: isChecked,
+        indent: indent,
         spans: [RichInlineSpan(text: text)],
       );
 
   /// Whether the task is checked / completed.
   final bool isChecked;
+
+  /// Indentation depth (0 to 4).
+  final int indent;
 
   @override
   final List<RichInlineSpan> spans;
@@ -309,11 +322,13 @@ class ChecklistItemBlock extends RichBlock {
   ChecklistItemBlock copyWith({
     String? id,
     bool? isChecked,
+    int? indent,
     List<RichInlineSpan>? spans,
   }) {
     return ChecklistItemBlock(
       id: id ?? this.id,
       isChecked: isChecked ?? this.isChecked,
+      indent: indent ?? this.indent,
       spans: spans ?? this.spans,
     );
   }
@@ -326,6 +341,7 @@ class ChecklistItemBlock extends RichBlock {
         'type': 'checklist_item',
         'id': id,
         'isChecked': isChecked,
+        'indent': indent,
         'spans': spans.map((s) => s.toJson()).toList(),
       };
 
@@ -336,14 +352,15 @@ class ChecklistItemBlock extends RichBlock {
           runtimeType == other.runtimeType &&
           id == other.id &&
           isChecked == other.isChecked &&
+          indent == other.indent &&
           listEquals(spans, other.spans);
 
   @override
-  int get hashCode => Object.hash(id, isChecked, Object.hashAll(spans));
+  int get hashCode => Object.hash(id, isChecked, indent, Object.hashAll(spans));
 
   @override
   String toString() =>
-      'ChecklistItemBlock($id, checked: $isChecked, plainText: "$plainText")';
+      'ChecklistItemBlock($id, checked: $isChecked, indent: $indent, plainText: "$plainText")';
 }
 
 /// An unordered bulleted list item.
@@ -552,6 +569,112 @@ class QuoteBlock extends RichBlock {
 
   @override
   String toString() => 'QuoteBlock($id, plainText: "$plainText")';
+}
+
+/// Supported visual kinds of editorial callout blocks.
+enum CalloutKind {
+  note,
+  tip,
+  info,
+  warning;
+
+  static CalloutKind fromString(String? val) {
+    switch (val?.toLowerCase()) {
+      case 'tip':
+        return CalloutKind.tip;
+      case 'info':
+        return CalloutKind.info;
+      case 'warning':
+      case 'caution':
+      case 'important':
+        return CalloutKind.warning;
+      case 'note':
+      default:
+        return CalloutKind.note;
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case CalloutKind.note:
+        return 'Note';
+      case CalloutKind.tip:
+        return 'Tip';
+      case CalloutKind.info:
+        return 'Info';
+      case CalloutKind.warning:
+        return 'Warning';
+    }
+  }
+}
+
+/// An editorial callout card block with soft tonal accent and icon.
+class CalloutBlock extends RichBlock {
+  const CalloutBlock({
+    required super.id,
+    this.kind = CalloutKind.note,
+    this.spans = const [],
+  });
+
+  factory CalloutBlock.fromText(
+    String text, {
+    CalloutKind kind = CalloutKind.note,
+    String? id,
+  }) =>
+      CalloutBlock(
+        id: id ?? _uuid.v4(),
+        kind: kind,
+        spans: [RichInlineSpan(text: text)],
+      );
+
+  final CalloutKind kind;
+
+  @override
+  final List<RichInlineSpan> spans;
+
+  @override
+  bool get isTextBlock => true;
+
+  @override
+  String get plainText => spans.plainText;
+
+  CalloutBlock copyWith({
+    String? id,
+    CalloutKind? kind,
+    List<RichInlineSpan>? spans,
+  }) {
+    return CalloutBlock(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      spans: spans ?? this.spans,
+    );
+  }
+
+  @override
+  CalloutBlock copyWithId(String newId) => copyWith(id: newId);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'callout',
+        'id': id,
+        'kind': kind.name,
+        'spans': spans.map((s) => s.toJson()).toList(),
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CalloutBlock &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          listEquals(spans, other.spans);
+
+  @override
+  int get hashCode => Object.hash(id, kind, Object.hashAll(spans));
+
+  @override
+  String toString() => 'CalloutBlock($id, ${kind.name}, plainText: "$plainText")';
 }
 
 /// A fenced code block with optional programming language identifier.

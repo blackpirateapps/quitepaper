@@ -11281,3 +11281,79 @@ Addressed cursor positioning and newline continuation bugs when interacting with
 
 
 
+
+---
+
+## 241. Architecture: Full-Deal Block-Based Visual Editor Surface (October 2026)
+
+### Overview
+Transformed Quiet Paper's Visual Editor (`EditorEditingStyle.wysiwyg`) from a continuous text surface with synthetic newline stitching into a genuine, full-deal block-based editor across both its domain architecture and user interaction surface:
+1. **Autonomous Domain Model**: Every paragraph, heading, list item, checklist task, quote, callout, code block, table, and divider is represented as a discrete, typed block in `RichDocument`, with structured atomic operations (`insertBlock`, `removeBlockAt`, `replaceBlock`, `moveBlock`, `nextBlock`, `previousBlock`).
+2. **Deterministic Canonical Markdown Serialization**: Retained 100% fidelity with Quiet Paper's storage format (SQLite Drift database) and zero-knowledge Turso E2EE cloud synchronization. Canonical Markdown remains the single source of truth; blocks deserialize cleanly on document load and serialize deterministically on modification.
+3. **Quiet Gutter Affordances**: Preserved Quiet Paper's calm, distraction-free aesthetic. Gutters remain completely hidden in standard idle reading/writing states. On desktop pointer hover (`MouseRegion`) or mobile tap, subtle affordances gently appear: a drag handle (`⠿`, `PhosphorIconsRegular.dotsSixVertical`) and a block insertion trigger (`+`, `PhosphorIconsRegular.plus`).
+4. **Drag-and-Drop Reordering**: Blocks can be smoothly reordered via Flutter's `ReorderableListView` using `ReorderableDragStartListener`.
+5. **Real-Time Markdown Triggers**: Real-time inline trigger detection (`# `, `## `, `### `, `- `, `* `, `1. `, `[] `, `[ ] `, `> `, ```` ``` ````, `---`) instantly transmutes paragraphs into headings, lists, tasks, quotes, code, or dividers in-place without jarring cursor jumps.
+6. **New Block Capabilities**: Added full support for GitHub/Obsidian style Callout blocks (`> [!NOTE]`, `> [!TIP]`, `> [!INFO]`, `> [!WARNING]`) and hierarchical indentation depth ($0 \le \text{indent} \le 4$) for checklists.
+
+### Implementation Details
+1. **Domain Layer Extensions (`lib/features/editor/domain/`)**:
+   - In [`lib/features/editor/domain/rich_document.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_document.dart):
+     - Added `moveBlock(int oldIndex, int newIndex)`: atomic index reordering with bounds checking.
+     - Added `insertBlock(int index, RichBlock block)`: indexed insertion into document list.
+     - Added `removeBlockAt(int index)`: safe index deletion.
+     - Added `replaceBlock(int index, RichBlock block)`: in-place block mutation.
+     - Added `nextBlock(String id)` and `previousBlock(String id)`: adjacent block navigation helpers.
+   - In [`lib/features/editor/domain/rich_block.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/rich_block.dart):
+     - Added `indent` property (clamped $0..4$) to `ChecklistItemBlock` with complete `copyWith`, `toJson`, `fromJson`, and value equality.
+     - Added `CalloutKind` enum (`note`, `tip`, `info`, `warning`) and `CalloutBlock` model with complete copyWith, JSON serialization, and equality.
+   - In [`lib/features/editor/domain/markdown_table.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/markdown_table.dart):
+     - Added `MarkdownTable.empty({int rows = 3, int columns = 3})` factory constructor for effortless empty table insertion.
+   - In [`lib/features/editor/domain/editor_editing_style.dart`](file:///home/dog/git/quitepaper/lib/features/editor/domain/editor_editing_style.dart):
+     - Updated WYSIWYG style description to `'Block-based visual writing surface'`.
+
+2. **Application Layer (`lib/features/editor/application/`)**:
+   - In [`lib/features/editor/application/rich_document_parser.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_parser.dart):
+     - Extended checklist parser regex `r'^(\s*)[-*+]\s+\[([ xX])\]\s*(.*)$'` to extract indentation depth (`indentSpaces ~/ 2`).
+     - Added callout parser detecting `> [!NOTE]`, `> [!TIP]`, `> [!INFO]`, and `> [!WARNING]`, collecting subsequent `> ` quote lines into a `CalloutBlock`.
+   - In [`lib/features/editor/application/rich_document_serializer.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_serializer.dart):
+     - Deterministic serialization of `CalloutBlock` into standard Markdown callout format.
+     - Deterministic serialization of indented `ChecklistItemBlock` prefixed with `'  ' * block.indent`.
+   - In [`lib/features/editor/application/rich_document_controller.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/rich_document_controller.dart):
+     - Added controller transaction methods: `moveBlock(oldIndex, newIndex)`, `insertBlockBelow(index, block)`, `deleteBlock(index)`, `indentBlock(index, delta)`.
+     - Added `handleAutoMarkdownTrigger(int blockIndex, String currentText)`: automatically recognizes Markdown syntax triggers typed at the beginning of a paragraph, transforming the block type in-place and updating the document.
+
+3. **Presentation Layer (`lib/features/editor/presentation/widgets/`)**:
+   - [`lib/features/editor/presentation/widgets/blocks/block_wrapper.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/blocks/block_wrapper.dart):
+     - Wraps each individual block widget in the visual surface.
+     - Implements `MouseRegion` hover detection and mobile tap reveal for gutter controls.
+     - Integrates `ReorderableDragStartListener` around the quiet vertical dots icon (`⠿`).
+     - Tapping the `+` icon opens `BlockInserterSheet` to insert a new block directly below.
+     - Tapping the gutter options button presents an editorial sheet with actions: Convert Block Type, Indent, Outdent, Duplicate, and Delete.
+   - [`lib/features/editor/presentation/widgets/blocks/block_inserter_sheet.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/blocks/block_inserter_sheet.dart):
+     - Clean editorial modal bottom sheet presenting available block types (Paragraph, Headings 1–3, Checklist Task, Bullet List, Numbered List, Quote, Callout, Code Block, Markdown Table, Divider).
+   - [`lib/features/editor/presentation/widgets/blocks/text_block_widget.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/blocks/text_block_widget.dart):
+     - Autonomous visual block widget rendering individual text blocks (Paragraph, Headings 1–6, Bullets, Numbered lists, Quotes, Code).
+     - Renders rich inline spans (bold, italic, strikethrough, links).
+     - Enter key handling: splits block at cursor into a new block below; empty items convert cleanly to paragraphs.
+     - Backspace key handling: at offset 0, converts non-paragraphs to paragraphs or merges text into the preceding block.
+     - Arrow keys: Up/Down arrow boundary navigation across adjacent blocks.
+   - [`lib/features/editor/presentation/widgets/blocks/checklist_block_widget.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/blocks/checklist_block_widget.dart):
+     - Dedicated checklist block with indentation padding, baseline-aligned checkbox icon, and inline strikethrough styling.
+   - [`lib/features/editor/presentation/widgets/blocks/callout_block_widget.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/blocks/callout_block_widget.dart):
+     - Soft tonal container styled with theme-aware accent colors and Phosphor callout icons.
+   - [`lib/features/editor/presentation/widgets/block_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/block_editor_surface.dart):
+     - Central block-based visual canvas rendering a Flutter `ReorderableListView` where each block is wrapped in `BlockWrapper`.
+     - External focus delegation: Block 0 automatically binds to the parent `widget.focusNode`, ensuring seamless keyboard auto-focus and down-arrow navigation from the note title field.
+   - [`lib/features/editor/presentation/widgets/rich_editor_surface.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_editor_surface.dart):
+     - Refactored to delegate directly to `BlockEditorSurface`.
+
+### Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reports **0 issues, 0 warnings** (clean).
+- **Automated Tests**:
+  - [`test/editor/rich_document_parser_serializer_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_parser_serializer_test.dart): 20/20 passed (includes Callout and Indented Checklists).
+  - [`test/editor/block_editor_surface_test.dart`](file:///home/dog/git/quitepaper/test/editor/block_editor_surface_test.dart): 7/7 passed.
+  - [`test/editor/rich_text_checklist_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_text_checklist_editor_test.dart): 9/9 passed.
+  - [`test/editor/dual_mode_editor_screen_test.dart`](file:///home/dog/git/quitepaper/test/editor/dual_mode_editor_screen_test.dart): 3/3 passed.
+  - [`test/editor/rich_document_controller_test.dart`](file:///home/dog/git/quitepaper/test/editor/rich_document_controller_test.dart): 13/13 passed.
+  - [`test/editor/golden_document_integration_test.dart`](file:///home/dog/git/quitepaper/test/editor/golden_document_integration_test.dart): 2/2 passed.
+  - Full editor test suite: passing with 100% success.

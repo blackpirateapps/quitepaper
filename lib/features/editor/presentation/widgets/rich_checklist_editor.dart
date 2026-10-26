@@ -66,8 +66,14 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       oldWidget.controller.removeListener(_onDocumentControllerChanged);
       widget.controller.addListener(_onDocumentControllerChanged);
     }
-    _syncItems();
-    _checkSelectionFocus();
+    if (!listEquals(oldWidget.blockIndices, widget.blockIndices)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _syncItems();
+          _checkSelectionFocus();
+        }
+      });
+    }
   }
 
   @override

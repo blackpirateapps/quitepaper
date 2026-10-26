@@ -192,5 +192,30 @@ void main() {
       expect(tableBlock.table.rowCount, 2);
       expect(serializer.serialize(doc), md);
     });
+
+    test('Callout blocks parse and serialize accurately', () {
+      const md = '> [!NOTE] This is an important note.\n> [!TIP] Pro tip for writing.\n> [!WARNING] Be careful.';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 3);
+      expect(doc.blocks[0], isA<CalloutBlock>());
+      expect((doc.blocks[0] as CalloutBlock).kind, CalloutKind.note);
+      expect((doc.blocks[0] as CalloutBlock).plainText, 'This is an important note.');
+      expect((doc.blocks[1] as CalloutBlock).kind, CalloutKind.tip);
+      expect((doc.blocks[2] as CalloutBlock).kind, CalloutKind.warning);
+      expect(serializer.serialize(doc), md);
+    });
+
+    test('Checklists with indentation parse and serialize accurately', () {
+      const md = '- [ ] Root task\n  - [x] Sub task level 1\n    - [ ] Sub task level 2';
+      final doc = parser.parse(md);
+      expect(doc.blocks.length, 3);
+      expect((doc.blocks[0] as ChecklistItemBlock).indent, 0);
+      expect((doc.blocks[0] as ChecklistItemBlock).isChecked, false);
+      expect((doc.blocks[1] as ChecklistItemBlock).indent, 1);
+      expect((doc.blocks[1] as ChecklistItemBlock).isChecked, true);
+      expect((doc.blocks[2] as ChecklistItemBlock).indent, 2);
+      expect((doc.blocks[2] as ChecklistItemBlock).isChecked, false);
+      expect(serializer.serialize(doc), md);
+    });
   });
 }

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
@@ -79,7 +80,9 @@ class _RichTextEditorState extends State<RichTextEditor> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.readOnly != widget.readOnly) {
       _textController.readOnly = widget.readOnly;
-      _textController.markNeedsRebuild();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _textController.markNeedsRebuild();
+      });
     }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onDocumentControllerChanged);
@@ -90,9 +93,11 @@ class _RichTextEditorState extends State<RichTextEditor> {
       oldWidget.focusNode.removeListener(_onFocusChanged);
       widget.focusNode.addListener(_onFocusChanged);
     }
-    if (oldWidget.blockIndices != widget.blockIndices) {
+    if (!listEquals(oldWidget.blockIndices, widget.blockIndices)) {
       _textController.blockIndices = widget.blockIndices;
-      _syncFromDocument();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncFromDocument();
+      });
     }
   }
 
@@ -153,6 +158,19 @@ class _RichTextEditorState extends State<RichTextEditor> {
     // Check if user changed text in the controller
     final currentText = _textController.text;
     final expectedText = _textController.computeSegmentText();
+
+    if (widget.blockIndices != null && widget.blockIndices!.length == 1 && currentText.length >= 2) {
+      final blockIdx = widget.blockIndices!.first;
+      if (blockIdx < widget.controller.document.blocks.length) {
+        final block = widget.controller.document.blocks[blockIdx];
+        if (block is ParagraphBlock) {
+          if (widget.controller.handleAutoMarkdownTrigger(blockIdx, currentText)) {
+            widget.onChanged?.call(widget.controller.toMarkdown());
+            return;
+          }
+        }
+      }
+    }
 
     if (currentText != expectedText) {
       _isInternalUpdate = true;

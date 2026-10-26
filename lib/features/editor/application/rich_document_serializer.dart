@@ -42,9 +42,10 @@ class RichDocumentSerializer {
     }
 
     if (block is ChecklistItemBlock) {
+      final indent = '  ' * block.indent;
       final mark = block.isChecked ? 'x' : ' ';
       final text = serializeInlines(block.spans);
-      return '- [$mark] $text';
+      return '$indent- [$mark] $text';
     }
 
     if (block is BulletedListItemBlock) {
@@ -57,6 +58,12 @@ class RichDocumentSerializer {
       final indent = '  ' * block.indent;
       final text = serializeInlines(block.spans);
       return '$indent${block.order}. $text';
+    }
+
+    if (block is CalloutBlock) {
+      final text = serializeInlines(block.spans);
+      final kindUpper = block.kind.name.toUpperCase();
+      return '> [!$kindUpper] $text';
     }
 
     if (block is QuoteBlock) {

@@ -1,21 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_spacing.dart';
-import '../../domain/rich_block.dart';
 import '../../application/rich_document_controller.dart';
-import 'rich_attachment_block.dart';
-import 'rich_checklist_editor.dart';
-import 'rich_code_block.dart';
-import 'rich_image_block.dart';
-import 'rich_link_preview_block.dart';
-import 'rich_table_editor.dart';
-import 'rich_text_editor.dart';
+import 'block_editor_surface.dart';
 
-/// Complete editorial continuous writing surface for Quiet Paper's Visual mode.
+/// Complete editorial block writing surface for Quiet Paper's Visual mode.
 ///
-/// Seamlessly composes continuous text editors with specialized non-text elements
-/// (tables, code blocks, images, dividers) while preserving a calm, unified writing canvas.
-class RichEditorSurface extends StatefulWidget {
+/// Dispatches rendering and interaction to [BlockEditorSurface], where each
+/// structural block is an autonomous, independent Flutter component wrapped
+/// in quiet gutter affordances.
+class RichEditorSurface extends StatelessWidget {
   const RichEditorSurface({
     super.key,
     required this.controller,
@@ -34,189 +26,23 @@ class RichEditorSurface extends StatefulWidget {
   final bool readOnly;
   final String hintText;
   final String? searchQuery;
-
-  /// Owning note id, used to resolve encrypted `qp://asset` images and provide
-  /// gallery context to embedded cards.
   final String? noteId;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
   final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
-  State<RichEditorSurface> createState() => _RichEditorSurfaceState();
-}
-
-class _RichEditorSurfaceState extends State<RichEditorSurface> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onControllerChanged);
-  }
-
-  @override
-  void didUpdateWidget(RichEditorSurface oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_onControllerChanged);
-      widget.controller.addListener(_onControllerChanged);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onControllerChanged);
-    super.dispose();
-  }
-
-  void _onControllerChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final colors = context.appColors;
-    final blocks = widget.controller.document.blocks;
-
-    // Fast-path: If all blocks are standard text blocks (excluding checklists), render one continuous RichTextEditor
-    final hasWidgetBlocks = blocks.any((b) => !b.isTextBlock || b is ChecklistItemBlock);
-    if (!hasWidgetBlocks) {
-      return RichTextEditor(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        readOnly: widget.readOnly,
-        hintText: widget.hintText,
-        onActiveTargetChanged: widget.onActiveTargetChanged,
-        onChanged: widget.onChanged,
-        onKeyEvent: widget.onKeyEvent,
-      );
-    }
-
-    // Segmented layout: Group contiguous text blocks around non-text and checklist elements
-    final segments = <Widget>[];
-    final currentTextIndices = <int>[];
-    final currentChecklistIndices = <int>[];
-
-    void flushTextSegment() {
-      if (currentTextIndices.isNotEmpty) {
-        final indicesCopy = List<int>.from(currentTextIndices);
-        segments.add(
-          RichTextEditor(
-            key: ValueKey('text_segment_${indicesCopy.first}'),
-            controller: widget.controller,
-            focusNode: indicesCopy.first == 0 ? widget.focusNode : FocusNode(),
-            blockIndices: indicesCopy,
-            readOnly: widget.readOnly,
-            hintText: indicesCopy.first == 0 ? widget.hintText : '',
-            onActiveTargetChanged: widget.onActiveTargetChanged,
-            onChanged: widget.onChanged,
-            onKeyEvent: widget.onKeyEvent,
-          ),
-        );
-        currentTextIndices.clear();
-      }
-    }
-
-    void flushChecklistSegment() {
-      if (currentChecklistIndices.isNotEmpty) {
-        final indicesCopy = List<int>.from(currentChecklistIndices);
-        segments.add(
-          RichChecklistEditor(
-            key: ValueKey('checklist_segment_${indicesCopy.first}'),
-            controller: widget.controller,
-            blockIndices: indicesCopy,
-            readOnly: widget.readOnly,
-            onActiveTargetChanged: widget.onActiveTargetChanged,
-            onChanged: widget.onChanged,
-            onKeyEvent: widget.onKeyEvent,
-          ),
-        );
-        currentChecklistIndices.clear();
-      }
-    }
-
-    for (var i = 0; i < blocks.length; i++) {
-      final block = blocks[i];
-      if (block is ChecklistItemBlock) {
-        flushTextSegment();
-        currentChecklistIndices.add(i);
-      } else if (block.isTextBlock) {
-        flushChecklistSegment();
-        currentTextIndices.add(i);
-      } else {
-        flushTextSegment();
-        flushChecklistSegment();
-
-        if (block is TableBlock) {
-          segments.add(
-            RichTableEditor(
-              key: ValueKey(block.id),
-              block: block,
-              blockIndex: i,
-              controller: widget.controller,
-              readOnly: widget.readOnly,
-            ),
-          );
-        } else if (block is CodeBlock) {
-          segments.add(
-            RichCodeBlock(
-              key: ValueKey(block.id),
-              block: block,
-              blockIndex: i,
-              controller: widget.controller,
-              readOnly: widget.readOnly,
-            ),
-          );
-        } else if (block is ImageBlock) {
-          segments.add(
-            RichImageBlock(
-              key: ValueKey(block.id),
-              block: block,
-              blockIndex: i,
-              controller: widget.controller,
-              readOnly: widget.readOnly,
-              noteId: widget.noteId,
-            ),
-          );
-        } else if (block is AttachmentBlock) {
-          segments.add(
-            RichAttachmentBlock(
-              key: ValueKey(block.id),
-              block: block,
-              blockIndex: i,
-              controller: widget.controller,
-              readOnly: widget.readOnly,
-            ),
-          );
-        } else if (block is LinkPreviewBlock) {
-          segments.add(
-            RichLinkPreviewBlock(
-              key: ValueKey(block.id),
-              block: block,
-              blockIndex: i,
-              controller: widget.controller,
-              readOnly: widget.readOnly,
-              noteId: widget.noteId,
-            ),
-          );
-        } else if (block is HorizontalRuleBlock) {
-          segments.add(
-            Padding(
-              key: ValueKey(block.id),
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Divider(color: colors.divider, thickness: 1.0),
-            ),
-          );
-        }
-      }
-    }
-
-    flushTextSegment();
-    flushChecklistSegment();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: segments,
+    return BlockEditorSurface(
+      controller: controller,
+      focusNode: focusNode,
+      readOnly: readOnly,
+      hintText: hintText,
+      searchQuery: searchQuery,
+      noteId: noteId,
+      onActiveTargetChanged: onActiveTargetChanged,
+      onChanged: onChanged,
+      onKeyEvent: onKeyEvent,
     );
   }
 }

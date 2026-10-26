@@ -462,6 +462,191 @@ class RichDocumentController extends ChangeNotifier {
     _commitMutation(RichDocumentMutations.convertToParagraph(_document, blockIndex));
   }
 
+  /// Moves the block at [oldIndex] to [newIndex].
+  void moveBlock(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _document.blocks.length) return;
+    final newDoc = _document.moveBlock(oldIndex, newIndex);
+    _commitMutation(newDoc);
+  }
+
+  /// Inserts [block] immediately below [blockIndex].
+  void insertBlockBelow(int blockIndex, RichBlock block) {
+    final insertIdx = (blockIndex + 1).clamp(0, _document.blocks.length);
+    final newDoc = _document.insertBlock(insertIdx, block);
+    _commitMutation(
+      newDoc,
+      newSelection: RichDocumentSelection.collapsed(
+        RichDocumentPosition(blockIndex: insertIdx, blockId: block.id, offset: 0),
+      ),
+    );
+  }
+
+  /// Deletes the block at [blockIndex]. If the document would become empty,
+  /// preserves a single empty paragraph.
+  void deleteBlock(int blockIndex) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
+    final newDoc = _document.removeBlockAt(blockIndex);
+    final newIdx = (blockIndex - 1).clamp(0, max(0, newDoc.blocks.length - 1)).toInt();
+    final targetId = newDoc.blocks.isNotEmpty ? newDoc.blocks[newIdx].id : '';
+    final targetLen = newDoc.blocks.isNotEmpty ? newDoc.blocks[newIdx].plainText.length : 0;
+    _commitMutation(
+      newDoc,
+      newSelection: RichDocumentSelection.collapsed(
+        RichDocumentPosition(blockIndex: newIdx, blockId: targetId, offset: targetLen),
+      ),
+    );
+  }
+
+  /// Adjusts the indentation depth of the block at [blockIndex] by [delta].
+  void indentBlock(int blockIndex, int delta) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
+    final block = _document.blocks[blockIndex];
+    RichBlock? updated;
+    if (block is BulletedListItemBlock) {
+      updated = block.copyWith(indent: (block.indent + delta).clamp(0, 4));
+    } else if (block is OrderedListItemBlock) {
+      updated = block.copyWith(indent: (block.indent + delta).clamp(0, 4));
+    } else if (block is ChecklistItemBlock) {
+      updated = block.copyWith(indent: (block.indent + delta).clamp(0, 4));
+    }
+    if (updated != null) {
+      _commitMutation(_document.replaceBlock(blockIndex, updated));
+    }
+  }
+
+  /// Converts the block at [blockIndex] based on a typed Markdown prefix (e.g. '# ', '- ', etc.)
+  /// and strips the prefix from the beginning of the block's text.
+  bool handleAutoMarkdownTrigger(int blockIndex, String lineText) {
+    if (blockIndex < 0 || blockIndex >= _document.blocks.length) return false;
+    final block = _document.blocks[blockIndex];
+    if (!block.isTextBlock) return false;
+
+    // Headings: # to ######
+    final headingMatch = RegExp(r'^(#{1,6})\s(.*)$').firstMatch(lineText);
+    if (headingMatch != null) {
+      final level = headingMatch.group(1)!.length;
+      final remainder = headingMatch.group(2) ?? '';
+      final newBlock = HeadingBlock(
+        id: block.id,
+        level: level,
+        spans: [RichInlineSpan(text: remainder)],
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, newBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Checklist: [] or [ ]
+    final checkMatch = RegExp(r'^(\[ ?\])\s(.*)$').firstMatch(lineText);
+    if (checkMatch != null) {
+      final remainder = checkMatch.group(2) ?? '';
+      final newBlock = ChecklistItemBlock(
+        id: block.id,
+        isChecked: false,
+        spans: [RichInlineSpan(text: remainder)],
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, newBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Bulleted list: - or *
+    final bulletMatch = RegExp(r'^[-*]\s(.*)$').firstMatch(lineText);
+    if (bulletMatch != null) {
+      final remainder = bulletMatch.group(1) ?? '';
+      final newBlock = BulletedListItemBlock(
+        id: block.id,
+        indent: 0,
+        spans: [RichInlineSpan(text: remainder)],
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, newBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Numbered list: 1.
+    final numMatch = RegExp(r'^1\.\s(.*)$').firstMatch(lineText);
+    if (numMatch != null) {
+      final remainder = numMatch.group(1) ?? '';
+      final newBlock = OrderedListItemBlock(
+        id: block.id,
+        order: 1,
+        indent: 0,
+        spans: [RichInlineSpan(text: remainder)],
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, newBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Blockquote: >
+    final quoteMatch = RegExp(r'^>\s(.*)$').firstMatch(lineText);
+    if (quoteMatch != null) {
+      final remainder = quoteMatch.group(1) ?? '';
+      final newBlock = QuoteBlock(
+        id: block.id,
+        spans: [RichInlineSpan(text: remainder)],
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, newBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Horizontal Rule: ---
+    if (lineText.trim() == '---') {
+      final hr = HorizontalRuleBlock(id: block.id);
+      final emptyPara = ParagraphBlock.empty(_uuid.v4());
+      var newDoc = _document.replaceBlock(blockIndex, hr);
+      newDoc = newDoc.insertBlock(blockIndex + 1, emptyPara);
+      _commitMutation(
+        newDoc,
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex + 1, blockId: emptyPara.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    // Code block: ```
+    if (lineText.startsWith('```')) {
+      final lang = lineText.substring(3).trim();
+      final codeBlock = CodeBlock(
+        id: block.id,
+        language: lang,
+        code: '',
+      );
+      _commitMutation(
+        _document.replaceBlock(blockIndex, codeBlock),
+        newSelection: RichDocumentSelection.collapsed(
+          RichDocumentPosition(blockIndex: blockIndex, blockId: block.id, offset: 0),
+        ),
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   /// Updates the label/title of the attachment block at [blockIndex] without
   /// mutating the underlying URI or attachment ID.
   void updateAttachmentBlockName(int blockIndex, String newName) {
